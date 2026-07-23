@@ -2,18 +2,19 @@
 import uuid
 from unittest.mock import patch
 
+import odoo.tests
 from odoo import fields
+from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import mute_logger
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.pos_online_payment.tests.online_payment_common import OnlinePaymentCommon
-from odoo.addons.account.models.account_payment_method import AccountPaymentMethod
-from odoo.addons.point_of_sale.tests.common import archive_products
-from odoo.exceptions import UserError
 
-import odoo.tests
+from odoo.addons.account.models.account_payment_method import AccountPaymentMethod
+from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.point_of_sale.tests.common import archive_products
+from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
+from odoo.addons.pos_online_payment.tests.online_payment_common import (
+    OnlinePaymentCommon,
+)
 
 
 @odoo.tests.tagged('post_install', '-at_install', 'is_tour')
@@ -156,7 +157,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
     def setUp(self):
         self.enable_post_process_patcher = False
 
-        super(TestUi, self).setUp()
+        super().setUp()
 
         self.assertTrue(self.company)
         self.assertTrue(self.cash_journal)

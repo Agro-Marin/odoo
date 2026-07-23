@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-from odoo import api, fields, models, _
+
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -30,8 +30,7 @@ class PosPayment(models.Model):
             if pm_id in opms_id:
                 if None in oaps_id:
                     raise UserError(_("Cannot create a POS online payment without an accounting payment."))
-                else:
-                    online_account_payments_to_check_id.update(oaps_id)
+                online_account_payments_to_check_id.update(oaps_id)
             elif any(oaps_id):
                 raise UserError(_("Cannot create a POS payment with a not online payment method and an online accounting payment."))
 

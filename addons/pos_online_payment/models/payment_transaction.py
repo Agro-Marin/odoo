@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models, tools
@@ -73,7 +72,7 @@ class PaymentTransaction(models.Model):
         """
         self.ensure_one()
 
-        action = {
+        return {
             'name': _("POS Order"),
             'type': 'ir.actions.act_window',
             'res_model': 'pos.order',
@@ -81,4 +80,3 @@ class PaymentTransaction(models.Model):
             'res_id': self.pos_order_id.id,
             'view_mode': 'form'
         }
-        return action
