@@ -2,11 +2,14 @@
 
 Tier-2 suite: real ``import odoo``, in-memory cursor, no database.
 
-``uid=None`` is LOAD-BEARING for anonymous dispatch (an environment is built
-before authentication resolves a user) and must stay legal; any other non-int
-uid is a programming error and raises ``TypeError``; ``bool`` was already
-rejected (True == 1 == SUPERUSER_ID would silently elevate to superuser) and
-stays rejected.
+The uid contract is deliberately loose — int (a real user), ``None``
+(LOAD-BEARING for anonymous dispatch: an environment is built before
+authentication resolves a user), or an opaque placeholder object (ir.http's
+``RequestUID`` during route matching, replaced by a real uid before any
+user-dependent work). Only ``bool`` is rejected: True == 1 == SUPERUSER_ID
+would silently elevate to superuser. A stricter int-or-None check was tried
+and reverted — it broke every model-converter route (vcard, /odoo/action-*/new,
+/html_editor/modify_image) by rejecting the RequestUID placeholder.
 """
 
 import pytest
@@ -22,16 +25,18 @@ def test_uid_none_accepted():
         assert anonymous.su is False
 
 
-def test_uid_string_rejected():
-    with model_test_env() as env:
-        with pytest.raises(TypeError, match="int or None"):
-            Environment(env.cr, "1", {})
+def test_uid_placeholder_object_accepted():
+    """The RequestUID pattern: an opaque object stands in for the uid while
+    werkzeug route converters run, without superuser elevation."""
 
+    class _RequestUIDLike:
+        pass
 
-def test_uid_float_rejected():
     with model_test_env() as env:
-        with pytest.raises(TypeError, match="int or None"):
-            Environment(env.cr, 1.0, {})
+        placeholder = _RequestUIDLike()
+        e = Environment(env.cr, placeholder, {})
+        assert e.uid is placeholder
+        assert e.su is False
 
 
 def test_uid_bool_rejected():

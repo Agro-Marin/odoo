@@ -73,15 +73,17 @@ class Environment(Mapping[str, "BaseModel"]):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
             )
-        # uid=None stays legal: anonymous dispatch builds an environment before
-        # authentication resolves a user (LOAD-BEARING — do not reject it).
-        # Anything else must be a real int; bool is an int subclass whose
-        # True == 1 == SUPERUSER_ID, so reject it explicitly to avoid silently
-        # elevating to superuser below.
-        if uid is not None and (not isinstance(uid, int) or isinstance(uid, bool)):
+        # The uid contract is deliberately loose: int (a real user), None
+        # (anonymous dispatch builds an environment before authentication
+        # resolves a user — LOAD-BEARING), or an opaque placeholder object
+        # (ir.http's RequestUID during route matching, replaced by a real uid
+        # before any user-dependent work). Only bool is rejected: it is an int
+        # subclass whose True == 1 == SUPERUSER_ID, so it would silently
+        # elevate to superuser below.
+        if isinstance(uid, bool):
             raise TypeError(
-                f"Environment(uid=...) expected int or None, "
-                f"got {type(uid).__name__} ({uid!r})"
+                f"Environment(uid=...) expected int, None or a request "
+                f"placeholder, got bool ({uid!r})"
             )
         if uid == SUPERUSER_ID:
             su = True
