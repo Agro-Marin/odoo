@@ -70,7 +70,12 @@ class TestCursor(BaseCursor):
         self._savepoint: Savepoint | None = None
 
     def _check_cursor_readonly(self) -> None:
-        """Raise if opening a read/write cursor from within a readonly one."""
+        """Raise if opening a read/write cursor from within a readonly one.
+
+        Only enforced once the readonly cursor has actually started its
+        transaction (its savepoint is created lazily on first execute): an
+        untouched readonly cursor constrains nothing.
+        """
         last_cursor = self._cursors_stack and self._cursors_stack[-1]
         if (
             last_cursor

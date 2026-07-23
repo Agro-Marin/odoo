@@ -8,7 +8,22 @@ _logger = logging.getLogger(__name__)
 
 
 class TagsSelector:
-    """Test selector based on tags."""
+    """Test selector based on tags.
+
+    Spec grammar (comma-separated specs)::
+
+        [-][tag][/file_path.py|/module][:Class][.method][[params]]
+
+    Semantics worth spelling out:
+
+    - an include with no tag implies ``standard``; ``*`` selects all tags;
+    - exclusions beat inclusions; with only exclusions (or only parameter
+      specs), ``standard`` is the implicit include base;
+    - ``tag[params]`` / ``-tag[params]`` attach a (possibly negated)
+      parameter to matching tests via ``test._test_params``.  A
+      negated-parameter spec does **not** exclude the test itself — the
+      ``-`` binds to the parameter, not to the tag.
+    """
 
     filter_spec_re = re.compile(
         r"""

@@ -298,7 +298,7 @@ class TestRequestRemainingNoCookie(TestRequestRemainingCommon):
             log_catcher.output,
             [
                 Like(
-                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it it does not contain the test_cursor cookie or it is expired. "
+                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
                     '(required "None (request are not enabled)", got "None")'
                 )
             ],
@@ -316,7 +316,7 @@ class TestRequestRemainingNotEnabled(TestRequestRemainingCommon):
             log_catcher.output,
             [
                 Like(
-                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it it does not contain the test_cursor cookie or it is expired. "
+                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
                     '(required "None (request are not enabled)", got "/base/tests/test_http_case.py:TestRequestRemainingNotEnabled.test_requests_a")'
                 )
             ],
@@ -337,7 +337,7 @@ class TestRequestRemainingStartDuringNext(TestRequestRemainingCommon):
             log_catcher.output,
             [
                 Like(
-                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it it does not contain the test_cursor cookie or it is expired. "
+                    "... odoo.tests.common:Request with path /web/concurrent has been ignored during test as it does not contain the test_cursor cookie or it is expired. "
                     '(required "/base/tests/test_http_case.py:TestRequestRemainingStartDuringNext.test_requests_b__0", got "/base/tests/test_http_case.py:TestRequestRemainingStartDuringNext.test_requests_a")'
                 )
             ],

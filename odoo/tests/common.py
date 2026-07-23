@@ -172,6 +172,11 @@ standalone_tests = defaultdict(list)
 
 
 class RegistryRLock(threading._RLock):
+    # Deliberately subclasses the *pure-Python* RLock: the C implementation
+    # returned by the threading.RLock() factory does not expose its recursion
+    # count, which the framework introspects for lock-balance warnings
+    # (TransactionCase.setUp).  Slower than the C lock, but it is taken once
+    # per HTTP request during tests, not on any hot path.
     @property
     def count(self) -> int:
         """Expose the private reentrant lock acquisition count."""
@@ -1648,6 +1653,11 @@ class freeze_time:
     stop = __exit__
 
 
+# Replace freezegun's entry point process-wide: hundreds of test files
+# import freezegun directly and rely on getting the Odoo-aware wrapper above
+# (class decoration via cls.freeze_time + TransactionCase integration).
+# Server processes only import odoo.tests lazily in test mode, so in
+# practice the patch stays test-scoped.
 freezegun.freeze_time = freeze_time
 
 # HTTP layer — extracted to http.py (like the Chrome CDP client before it,
