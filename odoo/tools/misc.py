@@ -135,7 +135,6 @@ from odoo.libs.locale import (
 
 # Logging utilities — canonical: odoo.libs.logging
 from odoo.libs.logging import (
-    MungedTracebackLogRecord,  # Log record with munged traceback
     lower_logging,  # Context manager to lower log level
     mute_logger,  # Context manager to suppress logging
     unquote,  # String with unquoted repr()

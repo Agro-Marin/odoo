@@ -72,6 +72,48 @@ class TestSafeEvalSandbox(unittest.TestCase):
             with self.assertRaises(Exception):
                 safe_eval(expr, {})
 
+    def test_str_format_reflection_escape_blocked(self):
+        # str.format / str.format_map resolve their field accessors at runtime,
+        # so {0.__class__} / {0.__globals__[k]} never reach co_names and slip
+        # past the dunder scan. Templates whose fields navigate dunders must be
+        # rejected.
+        def gadget():
+            pass
+
+        escapes = [
+            ('"{0.__class__.__mro__}".format(x)', {"x": 1}),
+            ('"{0.__globals__}".format(f)', {"f": gadget}),
+            ('"{x.__class__}".format_map({"x": 1})', {}),
+            # Adjacent literals fold to one constant and must still be caught.
+            ('("{0.__cla" "ss__}").format(x)', {"x": 1}),
+        ]
+        for expr, ns in escapes:
+            with self.assertRaises(Exception):
+                safe_eval(expr, ns)
+
+    def test_str_format_legitimate_uses_allowed(self):
+        # The fix must be surgical: ordinary str.format and model methods also
+        # named ``format`` (e.g. currency.format(amount)) must keep working.
+        self.assertEqual(safe_eval('"{0.real}".format(x)', {"x": 5}), "5")
+        self.assertEqual(safe_eval('"hello {}".format(n)', {"n": "world"}), "hello world")
+        self.assertEqual(safe_eval('"{a}-{b}".format(a=1, b=2)', {}), "1-2")
+
+        class FakeCurrency:
+            def format(self, amount):
+                return f"${amount}"
+
+        self.assertEqual(safe_eval("c.format(v)", {"c": FakeCurrency(), "v": 9}), "$9")
+        # f-strings remain fully supported.
+        self.assertEqual(safe_eval('f"{a}-{b}"', {"a": 1, "b": 2}), "1-2")
+
+    def test_time_sleep_not_exposed(self):
+        # time.sleep would let a single expression block a worker thread (DoS).
+        from odoo.tools.safe_eval import time as safe_time
+
+        self.assertFalse(hasattr(safe_time, "sleep"))
+        with self.assertRaises(Exception):
+            safe_eval("time.sleep(0)", {"time": safe_time})
+
 
 if __name__ == "__main__":
     unittest.main()
