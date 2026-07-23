@@ -7,7 +7,7 @@ import psycopg
 import requests
 
 import odoo
-from odoo.db import close_db, db_connect
+from odoo.db import PoolError, close_db, db_connect
 from odoo.libs.web.urls import urljoin
 from odoo.modules.registry import Registry
 from odoo.tests import HOST, BaseCase, Like, get_db_name, tagged
@@ -242,6 +242,36 @@ class TestHttpRegistry(BaseCase):
             persisted.db,
             get_db_name(),
             "A catalog-unreachable blip must not log the session out.",
+        )
+
+    def test_pool_error_keeps_session(self):
+        # A downed PostgreSQL behind a WARM pool surfaces as PoolError (the
+        # pool wraps psycopg_pool's PoolTimeout), NOT as a raw
+        # OperationalError — and pool starvation under load raises the same
+        # class. Both are transient failures against an existing database:
+        # the request must degrade db-less without 500ing (PoolError used to
+        # miss the recovery tuple entirely) and WITHOUT durably logging the
+        # session out (the catalog still lists the db, but nothing about it
+        # is broken).
+        session = self.authenticate()
+        with (
+            patch("odoo.http._serve.Registry") as registry_cls,
+            self.assertLogs("odoo.http.application", logging.WARNING),
+        ):
+            registry_cls.return_value.cursor.side_effect = PoolError(
+                "couldn't get a connection after 30.00 sec"
+            )
+            res = self.url_open("/test_http/ensure_db")
+        self.assertEqual(
+            (res.status_code, urlsplit(res.headers.get("Location", "")).path),
+            (303, "/web/database/selector"),
+            "The request itself degrades to db-less serving.",
+        )
+        persisted = odoo.http.root.session_store.get(session.sid)
+        self.assertEqual(
+            persisted.db,
+            get_db_name(),
+            "A transient pool failure must not log the session out.",
         )
 
     @mute_logger("odoo.db")

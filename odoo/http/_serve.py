@@ -20,6 +20,7 @@ import werkzeug.security
 from werkzeug.exceptions import HTTPException, NotFound, UnsupportedMediaType
 
 import odoo.api
+from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
 from odoo.modules.registry import Registry
 from odoo.service.transaction import retrying
@@ -160,6 +161,14 @@ class _RequestServeMixin:
         ``database_breaking`` suite in ``test_registry.py`` guards the recovery
         (OperationalError → db gone; ProgrammingError → broken schema).
 
+        ``PoolError`` is in the tuple because a *warm* pool surfaces a downed
+        PostgreSQL as ``PoolError`` (``_getconn_with_retry`` wraps the
+        psycopg_pool ``PoolTimeout``), NOT as a raw ``OperationalError`` — only
+        cold/direct connections raise the latter. Without it, an outage 500s
+        every request on an already-visited database instead of degrading
+        (caught live by the Playwright outage scenario; the service layer
+        already pairs the two, see ``_threaded.py``/``_worker.py``).
+
         AttributeError is a broad, *legacy* arm (no dedicated test): it guards a
         registry observed mid-``Registry.new`` (inserted into ``registries``
         before ``setup_signaling`` runs), but can also mask a real bug in this
@@ -173,6 +182,7 @@ class _RequestServeMixin:
             return cr
         except (
             AttributeError,
+            PoolError,
             psycopg.OperationalError,
             psycopg.ProgrammingError,
         ) as e:
@@ -202,6 +212,11 @@ class _RequestServeMixin:
                     cr.close()
             err = RegistryError(f"Cannot get registry {self.db}")
             err.db_absent = db_absent
+            # ProgrammingError is a durably broken schema; everything else in
+            # the tuple (connection loss, pool starvation, mid-build registry)
+            # is a passing condition. The recovery path only makes the logout
+            # durable for non-transient failures (see RegistryError).
+            err.transient = not isinstance(e, psycopg.ProgrammingError)
             raise err from e
 
     def _serve_db(self) -> Response:

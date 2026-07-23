@@ -316,16 +316,21 @@ class Application:
 
         Drop the db, log the session out, then retry without a database.
 
-        The logout is made *durable* only when the database's fate could be
-        determined (``exc.db_absent`` is ``True`` — dropped — or ``False`` —
-        present but with an unusable registry, where a durable logout prevents
-        a per-request registry-rebuild storm). When the catalog itself was
-        unreachable (``db_absent is None``, e.g. PostgreSQL restarting), the
-        outage says nothing about the session: this request is still served
-        logged-out and db-less (so ``ensure_db()`` controllers redirect to the
-        selector as usual), but the session file is left untouched
-        (``can_save = False``) — destroying every active session over a
-        transient blip would force a site-wide re-login. For
+        The logout is made *durable* only when the failure is durable too:
+
+        * ``db_absent is True`` — the database is confirmed dropped; a session
+          bound to it must not stay logged in on disk.
+        * ``db_absent is False`` and not ``transient`` — the database exists
+          but its registry is durably broken (corrupt schema); logging out
+          prevents a per-request registry-rebuild storm.
+
+        Every passing condition — catalog unreachable (``db_absent is None``,
+        e.g. PostgreSQL restarting) or a transient failure against an existing
+        database (connection loss through a warm pool, pool starvation under
+        load) — keeps the session file: the request is still served logged-out
+        and db-less (so ``ensure_db()`` controllers redirect to the selector
+        as usual), but with ``can_save = False`` the logout stays in-memory,
+        and the user is still logged in once the blip passes. For
         ``ensure_db()``-protected routes, strip ``?db=`` first so db-less
         serving does not bounce straight back to the same broken database.
         """
@@ -334,7 +339,10 @@ class Application:
             exc_info=exc.__cause__,
         )
         request.db = None
-        if exc.db_absent is None:
+        durable = exc.db_absent is True or (
+            exc.db_absent is False and not exc.transient
+        )
+        if not durable:
             request.session.can_save = False  # in-memory logout only
         request.session.logout()
         if (
