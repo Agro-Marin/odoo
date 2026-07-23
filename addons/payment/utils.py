@@ -9,7 +9,6 @@ from odoo.tools.misc import hmac as hmac_tool
 
 from odoo.addons.payment.const import CURRENCY_MINOR_UNITS
 
-
 # Access token management
 
 
@@ -31,8 +30,7 @@ def generate_access_token(*values, env=None):
         "Environment required to generate access token."
     )
     token_str = "|".join(str(val) for val in values)
-    access_token = hmac_tool(env(su=True), "generate_access_token", token_str)
-    return access_token
+    return hmac_tool(env(su=True), "generate_access_token", token_str)
 
 
 def check_access_token(access_token, *values):
@@ -224,7 +222,7 @@ def split_partner_name(partner_name):
 
 
 def get_customer_ip_address():
-    return request and request.httprequest.remote_addr or ""
+    return (request and request.httprequest.remote_addr) or ""
 
 
 def check_rights_on_recordset(recordset):

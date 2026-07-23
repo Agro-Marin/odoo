@@ -87,7 +87,7 @@ class PaymentPortal(portal.CustomerPortal):
             if not payment_utils.check_access_token(
                 access_token, partner_id, amount, currency_id
             ):
-                raise NotFound()  # Don't leak information about ids.
+                raise NotFound  # Don't leak information about ids.
 
         user_sudo = request.env.user
         logged_in = not user_sudo._is_public()
@@ -120,7 +120,7 @@ class PaymentPortal(portal.CustomerPortal):
         # Make sure that the currency exists and is active
         currency = request.env["res.currency"].browse(currency_id).exists()
         if not currency or not currency.active:
-            raise NotFound()  # The currency must exist and be active.
+            raise NotFound  # The currency must exist and be active.
 
         availability_report = {}
         # Select all the payment methods and tokens that match the payment context.
@@ -323,7 +323,7 @@ class PaymentPortal(portal.CustomerPortal):
         if not payment_utils.check_access_token(
             access_token, partner_id, amount, currency_id
         ):
-            raise Forbidden()
+            raise Forbidden
 
         self._validate_transaction_kwargs(
             kwargs, additional_allowed_keys=("reference_prefix",)
@@ -505,7 +505,7 @@ class PaymentPortal(portal.CustomerPortal):
                 tx_sudo.amount,
                 tx_sudo.currency_id.id,
             ):
-                raise NotFound()  # Don't leak information about ids.
+                raise NotFound  # Don't leak information about ids.
 
             # Display the payment confirmation page to the user
             return request.render("payment.confirm", qcontext={"tx": tx_sudo})

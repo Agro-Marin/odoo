@@ -81,7 +81,7 @@ class PaymentToken(models.Model):
         :return: The dict of provider-specific create values.
         :rtype: dict
         """
-        return dict()
+        return {}
 
     def write(self, vals):
         """Prevent unarchiving tokens and handle their archiving.
@@ -189,7 +189,7 @@ class PaymentToken(models.Model):
             display_name = _("Payment details saved on %(date)s", date=create_date_str)
         elif padding_length >= 2:  # Enough room for padding.
             padding = "•" * min(padding_length - 1, 4) + " " if should_pad else ""
-            display_name = "".join([padding, self.payment_details])
+            display_name = f"{padding}{self.payment_details}"
         elif padding_length > 0:  # Not enough room for padding.
             display_name = self.payment_details
         else:  # Not enough room for neither padding nor the payment details.
