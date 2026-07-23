@@ -160,7 +160,7 @@ class TestDoc(HttpCaseWithUserDemo):
                 <div class="document">
 
 
-                <p>Search for the records that satisfy the given <tt class="docutils literal">domain</tt>
+                <p>Search for the records that satisfy the given
                 <tt class="docutils literal">search domain &lt;reference/orm/domains&gt;</tt>.</p>
                 <p>This is a high-level method, which should not be overridden. Its actual
                 implementation is done by method <tt class="docutils literal">_search</tt>.</p>

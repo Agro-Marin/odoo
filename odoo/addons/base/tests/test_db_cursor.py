@@ -2008,9 +2008,12 @@ class TestDroppedDBRecovery(BaseCase):
 
         self.assertNotIn(self.DB_NAME, Registry.registries)
 
-    def test_check_signaling_cleans_up_after_pool_error(self):
-        """check_signaling() must also handle PoolError (raised by borrow()
-        when the pool times out, e.g. after a database drop).
+    def test_check_signaling_keeps_registry_on_pool_error(self):
+        """PoolError means pool capacity exhaustion (all connections in use),
+        NOT a dead database: check_signaling() must propagate it WITHOUT
+        deleting the registry.  Deleting would turn a transient load spike
+        into a self-inflicted outage (full module reload under the global
+        lock); dead-DB cleanup is the OperationalError path's job.
         """
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
@@ -2026,7 +2029,7 @@ class TestDroppedDBRecovery(BaseCase):
             with self.assertRaises(PoolError):
                 reg.check_signaling()
 
-        self.assertNotIn(self.DB_NAME, Registry.registries)
+        self.assertIn(self.DB_NAME, Registry.registries)
 
     def test_check_signaling_keeps_registry_when_caller_provides_cursor(self):
         """When the caller provides a cursor (cr is not None) and it fails
@@ -2950,9 +2953,12 @@ class TestFlushingSavepointLayering(BaseCase):
         from odoo.orm.runtime.savepoint import _OrmFlushingSavepoint
 
         class _StubTransaction:
-            def __init__(self):
+            def __init__(self, reg):
                 self.default_env = "ENV_BEFORE"
-                self.registry = MagicMock(registry_sequence=7)
+                # A real registry: _restore_orm_state detects reloads by object
+                # identity against ``type(registry).registries`` — a MagicMock
+                # cannot satisfy that lookup.
+                self.registry = reg
                 self.envs = []
                 self.cleared = 0
                 self.was_reset = 0
@@ -2966,8 +2972,9 @@ class TestFlushingSavepointLayering(BaseCase):
             def reset(self):
                 self.was_reset += 1
 
-        with registry().cursor() as cr:
-            cr.transaction = _StubTransaction()
+        reg = registry()
+        with reg.cursor() as cr:
+            cr.transaction = _StubTransaction(reg)
             try:
                 sp = cr.savepoint()  # flush=True
                 self.assertIsInstance(sp, _OrmFlushingSavepoint)
@@ -2975,7 +2982,7 @@ class TestFlushingSavepointLayering(BaseCase):
                 # mutate ORM state inside the savepoint, then roll back
                 cr.transaction.default_env = "ENV_DURING"
                 sp.rollback()
-                # registry_sequence unchanged -> clear() path (not reset())
+                # live registry identity unchanged -> clear() path (not reset())
                 self.assertEqual(cr.transaction.default_env, "ENV_BEFORE")
                 self.assertEqual(cr.transaction.cleared, 1)
                 self.assertEqual(cr.transaction.was_reset, 0)
