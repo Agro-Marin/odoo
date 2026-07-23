@@ -1,5 +1,6 @@
 from . import (
     test_attributes,
+    test_audit_regressions,
     test_autovacuum,
     test_company_checks,
     test_domain,
@@ -14,6 +15,7 @@ from . import (
     test_many2many_operations,
     test_onchange,
     test_one2many,
+    test_orm_audit_fixes,
     test_primitives,
     test_properties,
     test_qweb_float,

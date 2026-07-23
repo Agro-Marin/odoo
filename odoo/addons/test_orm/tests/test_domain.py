@@ -914,12 +914,12 @@ class TestDomainOptimize(TransactionCase):
         model = self.env["test_orm.mixed"].with_context(tz="UTC")
         self.assertEqual(
             Domain("moment", "=", date(2024, 1, 5)).optimize(model),
-            Domain("moment", "<", datetime(2024, 1, 5, second=1))
+            Domain("moment", "<", datetime(2024, 1, 6))
             & Domain("moment", ">=", datetime(2024, 1, 5)),
         )
         self.assertEqual(
             Domain("moment", "=", "2024-01-05").optimize(model),
-            Domain("moment", "<", datetime(2024, 1, 5, second=1))
+            Domain("moment", "<", datetime(2024, 1, 6))
             & Domain("moment", ">=", datetime(2024, 1, 5)),
         )
         self.assertEqual(
@@ -962,7 +962,7 @@ class TestDomainOptimize(TransactionCase):
             & (
                 Domain("moment", "in", OrderedSet([False]))
                 | Domain("moment", "<", datetime(2024, 1, 5))
-                | Domain("moment", ">=", datetime(2024, 1, 5, second=1))
+                | Domain("moment", ">=", datetime(2024, 1, 6))
             ),
         )
 
@@ -1014,7 +1014,7 @@ class TestDomainOptimize(TransactionCase):
         model = self.env["test_orm.mixed"].with_context(tz="UTC")
         self.assertEqual(
             Domain("moment", "=", "2024-01-05").optimize(model),
-            Domain("moment", "<", datetime(2024, 1, 5, second=1))
+            Domain("moment", "<", datetime(2024, 1, 6))
             & Domain("moment", ">=", datetime(2024, 1, 5)),
         )
         self.assertEqual(

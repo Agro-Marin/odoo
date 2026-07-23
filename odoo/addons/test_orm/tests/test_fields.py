@@ -4119,10 +4119,12 @@ class TestX2many(TransactionExpressionCase):
             parent.with_context(active_test=False).children_ids, all_children
         )
 
-        # replace active children
+        # replace children: SET detaches archived lines too (fork divergence
+        # from upstream, aligned with the m2m SET/CLEAR-archived semantics —
+        # see test_set_removes_archived_links)
         parent.write({"children_ids": [Command.set([child1.id])]})
         act_children = child1
-        all_children = child1 + child2 + child4
+        all_children = child1
         self.assertEqual(parent.children_ids, act_children)
         self.assertEqual(
             parent.with_context(active_test=True).children_ids, act_children
@@ -4131,7 +4133,7 @@ class TestX2many(TransactionExpressionCase):
             parent.with_context(active_test=False).children_ids, all_children
         )
 
-        # replace all children
+        # replacing with an explicit active_test=False behaves the same
         parent.with_context(active_test=False).write(
             {"children_ids": [Command.set([child1.id])]}
         )
@@ -6490,3 +6492,138 @@ class TestTranslatedFieldEnUsFallback(TransactionCase):
         self.assertEqual(
             rec2.with_context(lang="fr_FR", _regression_marker=2).name, "only-en"
         )
+
+
+class TestReferenceBatchValidation(TransactionCase):
+    """Batch-create existence validation for Reference fields.
+
+    ``Reference.convert_to_cache(validate=True)`` used to issue one
+    ``browse(res_id).exists()`` SELECT per converted value — O(n) on batch
+    create, re-issued even for identical values.  ``_reference_exists`` now
+    memoizes verified ``(model, id)`` pairs per transaction (``env.cr.cache``)
+    and, on the batch-create path, validates the whole batch's targets with
+    one sibling-column fetch plus one existence query per referenced model.
+
+    These tests measure query *deltas* against a reference-free baseline
+    create of the same shape, so unrelated framework queries cancel out.
+    """
+
+    def _query_count(self, func):
+        self.env.flush_all()
+        count0 = self.cr.sql_log_count
+        result = func()
+        return result, self.cr.sql_log_count - count0
+
+    def _reset_reference_memo(self):
+        from odoo.orm.fields.reference import REFERENCE_VERIFIED_CACHE_KEY
+
+        self.env.cr.cache.pop(REFERENCE_VERIFIED_CACHE_KEY, None)
+
+    def test_batch_create_distinct_references_is_batched(self):
+        partners = self.env["res.partner"].create(
+            [{"name": f"Ref Batch {i}"} for i in range(10)]
+        )
+        Mixed = self.env["test_orm.mixed"]
+
+        _, baseline5 = self._query_count(lambda: Mixed.create([{}] * 5))
+        _, baseline10 = self._query_count(lambda: Mixed.create([{}] * 10))
+
+        self._reset_reference_memo()
+        records5, with_refs5 = self._query_count(
+            lambda: Mixed.create(
+                [{"reference": f"res.partner,{p.id}"} for p in partners[:5]]
+            )
+        )
+        self._reset_reference_memo()
+        records10, with_refs10 = self._query_count(
+            lambda: Mixed.create(
+                [{"reference": f"res.partner,{p.id}"} for p in partners]
+            )
+        )
+
+        # constant per batch: one selection lookup (~2 queries for the
+        # ir.model-based selection) + one sibling-column fetch + one exists()
+        # per referenced model — NOT one exists()+selection lookup per record
+        # (the old behaviour: >= baseline + N)
+        self.assertLessEqual(with_refs5, baseline5 + 4)
+        self.assertLessEqual(with_refs10, baseline10 + 4)
+        # and the values were all validated and kept
+        self.assertEqual(records5.mapped("reference"), list(partners[:5]))
+        self.assertEqual(records10.mapped("reference"), list(partners))
+
+    def test_batch_create_identical_references_memoized(self):
+        partner = self.env["res.partner"].create({"name": "Ref Memo"})
+        Mixed = self.env["test_orm.mixed"]
+
+        _, baseline = self._query_count(lambda: Mixed.create([{}] * 5))
+
+        self._reset_reference_memo()
+        records, with_refs = self._query_count(
+            lambda: Mixed.create(
+                [{"reference": f"res.partner,{partner.id}"}] * 5
+            )
+        )
+        self.assertLessEqual(with_refs, baseline + 4)
+        self.assertEqual(records.mapped("reference"), [partner] * 5)
+
+        # a second batch in the same transaction: pair already verified in the
+        # memo, so no validation query at all is re-issued
+        records2, again = self._query_count(
+            lambda: Mixed.create(
+                [{"reference": f"res.partner,{partner.id}"}] * 5
+            )
+        )
+        self.assertLessEqual(again, baseline)
+        self.assertEqual(records2.mapped("reference"), [partner] * 5)
+
+    def test_batch_create_multi_model_references(self):
+        partner = self.env["res.partner"].create({"name": "Ref Multi"})
+        currency = self.env["res.currency"].search([], limit=1)
+        Mixed = self.env["test_orm.mixed"]
+
+        _, baseline = self._query_count(lambda: Mixed.create([{}] * 4))
+
+        self._reset_reference_memo()
+        records, with_refs = self._query_count(
+            lambda: Mixed.create(
+                [
+                    {"reference": f"res.partner,{partner.id}"},
+                    {"reference": f"res.currency,{currency.id}"},
+                    {"reference": f"res.partner,{partner.id}"},
+                    {"reference": f"res.currency,{currency.id}"},
+                ]
+            )
+        )
+        # one selection lookup + one sibling fetch + one exists() per
+        # referenced model (2 models here)
+        self.assertLessEqual(with_refs, baseline + 5)
+        self.assertEqual(
+            records.mapped("reference"),
+            [partner, currency, partner, currency],
+        )
+
+    def test_batch_create_invalid_reference_still_dropped(self):
+        """Existence validation semantics are preserved: a syntactically valid
+        reference to a missing record is still nullified on create."""
+        partner = self.env["res.partner"].create({"name": "Ref Valid"})
+        missing_id = 2**31 - 1
+        self._reset_reference_memo()
+        records = self.env["test_orm.mixed"].create(
+            [
+                {"reference": f"res.partner,{partner.id}"},
+                {"reference": f"res.partner,{missing_id}"},
+            ]
+        )
+        self.assertEqual(records[0].reference, partner)
+        self.assertFalse(records[1].reference)
+
+    def test_single_assignment_still_validated(self):
+        partner = self.env["res.partner"].create({"name": "Ref Single"})
+        record = self.env["test_orm.mixed"].create({})
+        self._reset_reference_memo()
+
+        record.reference = f"res.partner,{partner.id}"
+        self.assertEqual(record.reference, partner)
+
+        record.reference = f"res.partner,{2**31 - 1}"
+        self.assertFalse(record.reference)
