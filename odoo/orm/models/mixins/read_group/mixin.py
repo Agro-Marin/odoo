@@ -5,6 +5,7 @@
 and inherits SQL/format/fill logic from the sub-mixins in this package.
 """
 
+import inspect
 import itertools
 import typing
 from collections import defaultdict
@@ -13,6 +14,7 @@ from odoo.tools import SQL, unique
 
 from .... import decorators as api
 from ...._typing import DomainType
+from ....constants import READ_GROUP_AGGREGATE
 from ....domain import Domain
 from ....helpers import itemgetter_tuple
 from ....parsing import parse_read_group_spec, regex_field_agg
@@ -51,9 +53,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         :param grouping_sets: list of ``groupby`` specs, each like the ``groupby``
             of :meth:`~._read_group`, e.g. ``[['partner_id'], ['partner_id',
             'state']]``.
-        :param aggregates: list of ``'field:agg'`` specs. ``agg`` is any
-            `PostgreSQL aggregate <https://www.postgresql.org/docs/current/static/functions-aggregate.html>`_,
-            ``'count_distinct'``, or ``'recordset'`` (``array_agg`` as a recordset).
+        :param aggregates: list of ``'field:agg'`` specs. ``agg`` is one of the
+            allow-listed aggregates in ``odoo.orm.constants.READ_GROUP_AGGREGATE``
+            (``sum``, ``avg``, ``max``, ``min``, ``bool_and``, ``bool_or``,
+            ``array_agg``, ``array_agg_distinct``, ``count``, ``count_distinct``,
+            ``any_value``, or ``recordset`` — ``array_agg`` as a recordset), or
+            ``sum_currency`` (monetary fields only).
         :param order: optional ``order by`` overriding the natural group order;
             see also :meth:`~.search`.
         :return: list of lists of tuples mirroring *grouping_sets*; each inner
@@ -80,6 +85,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         query = self._search(domain)
         result = [[] for __ in grouping_sets]
         if query.is_empty():
+            # Still validate the specs and field-level read access: an
+            # unauthorized (or invalid) spec must raise the same error whether
+            # or not the domain matches records.
+            self._check_read_group_spec_access(
+                itertools.chain.from_iterable(grouping_sets), aggregates
+            )
             return result
 
         # grouping_sets: [(a, b), (a), ()]
@@ -229,7 +240,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         # grouping_select_sql and select_args snapshotted groupby_terms.values()
         # above; _read_group_orderby only replaces dict values in place, so
         # positions (and the positional GROUPING() masks) stay aligned.
-        query._grouping_sets = True
         query.order = self._read_group_orderby(order, groupby_terms, query)
         # GROUPING SET ((a, b), (a), ())
         grouping_sets_sql = [
@@ -310,9 +320,15 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         # Map each unique GROUP BY term to its bitmask bit. Terms are reversed
         # because PostgreSQL computes the bitmask right-to-left (LSB first).
         # https://www.postgresql.org/docs/17/functions-aggregate.html#Grouping-Operations
+        # NB: deduplicate BEFORE reversing so bit positions match GROUPING(),
+        # which is built from unique() in forward order: with duplicated terms,
+        # unique(reversed(...)) would keep the LAST forward occurrence while
+        # GROUPING() keeps the FIRST, shifting every bit assignment.
         mask_sql_mapping = {
             sql_groupby: 1 << i
-            for i, sql_groupby in enumerate(unique(reversed(groupby_terms.values())))
+            for i, sql_groupby in enumerate(
+                reversed(list(unique(groupby_terms.values())))
+            )
         }
 
         mask_grouping_result_indexes = defaultdict(
@@ -411,9 +427,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             ``'month_number'``, ``'iso_week_number'``, ``'day_of_year'``,
             ``'day_of_month'``, ``'day_of_week'``, ``'hour_number'``,
             ``'minute_number'``, ``'second_number'``.
-        :param aggregates: list of ``'field:agg'`` specs. ``agg`` is any
-            `PostgreSQL aggregate <https://www.postgresql.org/docs/current/static/functions-aggregate.html>`_,
-            ``'count_distinct'``, or ``'recordset'`` (``array_agg`` as a recordset).
+        :param aggregates: list of ``'field:agg'`` specs. ``agg`` is one of the
+            allow-listed aggregates in ``odoo.orm.constants.READ_GROUP_AGGREGATE``
+            (``sum``, ``avg``, ``max``, ``min``, ``bool_and``, ``bool_or``,
+            ``array_agg``, ``array_agg_distinct``, ``count``, ``count_distinct``,
+            ``any_value``, or ``recordset`` — ``array_agg`` as a recordset), or
+            ``sum_currency`` (monetary fields only).
         :param having: a domain whose "fields" are the aggregates.
         :param offset: optional number of groups to skip
         :param limit: optional max number of groups to return
@@ -424,10 +443,15 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             prefetch set).
         :raise AccessError: if user is not allowed to access requested information
         """
-        self.browse().check_access("read")
-
+        # NB: no model-level check_access here — _search below performs the
+        # identical ``self.browse().check_access("read")`` (unless su).
         query = self._search(domain)
         if query.is_empty():
+            # Still validate the specs and field-level read access (like
+            # search_fetch does on its empty path): an unauthorized (or
+            # invalid) spec must raise the same error whether or not the
+            # domain matches records.
+            self._check_read_group_spec_access(groupby, aggregates)
             if not groupby:
                 # with no group, postgresql always returns a row
                 return [
@@ -518,6 +542,81 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         return False
 
     @api.model
+    def _check_read_group_spec_access(self, groupby, aggregates) -> None:
+        """Validate groupby/aggregate specs and check field read access,
+        without building SQL.
+
+        Mirrors the field-level checks of :meth:`_read_group_groupby` and
+        :meth:`_read_group_select`; used on the empty-query shortcut of
+        :meth:`_read_group` / :meth:`_read_grouping_sets` so field-level
+        :class:`~odoo.exceptions.AccessError` (and invalid-spec errors) do not
+        depend on whether the domain matched records.
+        """
+        for spec in groupby:
+            model = self
+            sub_spec = spec
+            while True:
+                fname, seq_fnames, granularity = parse_read_group_spec(sub_spec)
+                if fname not in model._fields:
+                    raise ValueError(
+                        f"Invalid field {fname!r} on model {model._name!r}"
+                    )
+                field = model._fields[fname]
+                if seq_fnames and field.type != "properties":
+                    if field.type != "many2one":
+                        raise ValueError(
+                            f"Only many2one path is accepted for the {spec!r} groupby spec"
+                        )
+                    model._check_spec_field_read_access(field)
+                    model = model.env[field.comodel_name]
+                    sub_spec = (
+                        f"{seq_fnames}:{granularity}" if granularity else seq_fnames
+                    )
+                    continue
+                model._check_spec_field_read_access(field)
+                break
+
+        for spec in aggregates:
+            if spec == "__count":
+                continue
+            fname, property_name, func = parse_read_group_spec(spec)
+            if property_name:
+                raise ValueError(
+                    f"Invalid {spec!r}, this dot notation is not supported"
+                )
+            if fname not in self._fields:
+                raise ValueError(
+                    f"Invalid field {fname!r} on model {self._name!r} for {spec!r}."
+                )
+            if not func:
+                raise ValueError(f"Aggregate method is mandatory for {fname!r}")
+            if func != "sum_currency" and func not in READ_GROUP_AGGREGATE:
+                raise ValueError(f"Invalid aggregate method {func!r} for {spec!r}.")
+            self._check_spec_field_read_access(self._fields[fname])
+
+    def _check_spec_field_read_access(self, field) -> None:
+        """Field read-access check equivalent to :meth:`_field_to_sql`, minus
+        the SQL generation (so no query/joins are needed)."""
+        if field.related and not field.store:
+            # Mirror _traverse_related_sql: only sudoed related or inherited
+            # fields are convertible to SQL; path fields are then checked on
+            # the (possibly sudoed) traversed models.
+            if not (self.env.su or field.compute_sudo or field.inherited):
+                raise ValueError(
+                    f"Cannot convert {field} to SQL because it is not a sudoed"
+                    " related or inherited field"
+                )
+            model = self.sudo(self.env.su or field.compute_sudo)
+            *path_fnames, last_fname = field.related.split(".")
+            for path_fname in path_fnames:
+                path_field = model._fields[path_fname]
+                model._check_field_access(path_field, "read")
+                model = model.env[path_field.comodel_name]
+            model._check_spec_field_read_access(model._fields[last_fname])
+            return
+        self._check_field_access(field, "read")
+
+    @api.model
     @api.readonly
     @api.deprecated(
         "Since 19.0, read_group is deprecated. Please use _read_group in the backend code or formatted_read_group for a complete formatted result"
@@ -538,9 +637,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             list matches all records.
         :param list fields: each is ``'field'`` (default aggregation),
             ``'field:agg'``, or ``'name:agg(field)'`` (aggregate returned as
-            ``name``). ``agg`` is any `PostgreSQL aggregate
-            <https://www.postgresql.org/docs/current/static/functions-aggregate.html>`_
-            or ``'count_distinct'``.
+            ``name``). ``agg`` is one of the allow-listed aggregates in
+            ``odoo.orm.constants.READ_GROUP_AGGREGATE`` (``sum``, ``avg``,
+            ``max``, ``min``, ``bool_and``, ``bool_or``, ``array_agg``,
+            ``array_agg_distinct``, ``count``, ``count_distinct``,
+            ``any_value``, ``recordset``) or ``sum_currency`` (monetary
+            fields only).
         :param list groupby: groupby descriptions. Each is a field name, or
             ``'field:granularity'`` for date/datetime. Granularities: ``'hour'``,
             ``'day'``, ``'week'``, ``'month'``, ``'quarter'``, ``'year'``, plus
@@ -663,13 +765,33 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         ]
 
         fill_temporal = self.env.context.get("fill_temporal")
-        if (lazy_groupby and (rows_dict and fill_temporal)) or isinstance(
-            fill_temporal, dict
+        # NB: lazy_groupby is required in BOTH disjuncts — filling needs a
+        # groupby to fill along; with groupby=[] and a dict fill_temporal, the
+        # old guard crashed in _read_group_fill_temporal (groupby[0]).
+        if lazy_groupby and (
+            (rows_dict and fill_temporal) or isinstance(fill_temporal, dict)
         ):
             # fill_temporal = {} means True; even an empty dict may want empty
             # columns, so apply the fill logic.
             if not isinstance(fill_temporal, dict):
                 fill_temporal = {}
+            else:
+                # fill_temporal comes from the (RPC-reachable) context: keep
+                # only the keys _read_group_fill_temporal accepts as options
+                # (its defaulted parameters), ignoring unknown keys instead of
+                # crashing with TypeError on **-unpacking.
+                known_keys = {
+                    name
+                    for name, param in inspect.signature(
+                        self._read_group_fill_temporal
+                    ).parameters.items()
+                    if param.default is not inspect.Parameter.empty
+                }
+                fill_temporal = {
+                    key: value
+                    for key, value in fill_temporal.items()
+                    if key in known_keys
+                }
             # Filling date gaps may produce more rows than ``limit``; in practice
             # only chart views use this and they never set a limit.
             rows_dict = self._read_group_fill_temporal(

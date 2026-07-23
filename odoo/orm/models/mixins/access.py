@@ -89,11 +89,23 @@ class AccessMixin(_ModelStubs):
             elif not field.groups:
                 allowed_groups_msg = _("custom field access rules")
             else:
-                groups_list = [self.env.ref(g) for g in field.groups.split(",")]
+                # A stale xmlid in field.groups must not turn this error
+                # message builder into a ValueError: resolve leniently and
+                # render unresolvable groups as their raw xmlid.
+                groups_list = []
+                missing_xmlids = []
+                for xmlid in field.groups.split(","):
+                    group = self.env.ref(xmlid.strip(), raise_if_not_found=False)
+                    if group is not None and group._name == "res.groups":
+                        groups_list.append(group)
+                    else:
+                        missing_xmlids.append(xmlid.strip())
                 groups = self.env["res.groups"].union(*groups_list).sorted("id")
                 allowed_groups_msg = _(
                     "allowed for groups %s",
-                    ", ".join(repr(g.display_name) for g in groups),
+                    ", ".join(
+                        [repr(g.display_name) for g in groups] + missing_xmlids
+                    ),
                 )
             error_msg += _(
                 "\nUser: %(user)s\nGroups: %(allowed_groups_msg)s",

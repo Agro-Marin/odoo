@@ -12,6 +12,8 @@ from ....constants import (
     READ_GROUP_ALL_TIME_GRANULARITY,
     READ_GROUP_NUMBER_GRANULARITY,
     READ_GROUP_TIME_GRANULARITY,
+    SQL_ORDER_DIR,
+    SQL_ORDER_NULLS,
 )
 from ....parsing import parse_read_group_spec, regex_order_part_read_group
 from ....primitives import SQL_OPERATORS
@@ -24,7 +26,6 @@ from odoo.tools import get_lang
 from odoo.tools.translate import _
 
 from ....fields.temporal import _get_all_timezones_set
-from ..search import _SQL_DIR, _SQL_NULLS
 
 
 def _inline_sql_params(sql: SQL, cr: typing.Any) -> SQL:
@@ -82,12 +83,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
     """SQL expression generation for read_group (SELECT/GROUP BY/HAVING/ORDER BY)."""
 
     __slots__ = ()
-
-    # Attributes provided by BaseModel at runtime
-    _fields: dict
-    _table: str
-    _name: str
-    env: typing.Any
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
         """Return the SQL expression for *aggregate_spec*.
@@ -383,44 +378,52 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         stack: list[SQL] = []
         SUPPORTED = ("in", "not in", "<", ">", "<=", ">=", "=", "!=")
-        for item in reversed(having_domain):
-            if item == "!":
-                stack.append(SQL("(NOT %s)", stack.pop()))
-            elif item == "&":
-                stack.append(SQL("(%s AND %s)", stack.pop(), stack.pop()))
-            elif item == "|":
-                stack.append(SQL("(%s OR %s)", stack.pop(), stack.pop()))
-            elif isinstance(item, (list, tuple)) and len(item) == 3:
-                left, operator, right = item
-                if operator not in SUPPORTED:
+        try:
+            # The polish-notation walk below pops operands off ``stack``; an
+            # under-arity domain (e.g. ``['|', (cond)]`` or ``['&']``) — which
+            # is RPC-reachable via formatted_read_group(having=...) — would
+            # underflow the stack. Turn that IndexError into a clear ValueError.
+            for item in reversed(having_domain):
+                if item == "!":
+                    stack.append(SQL("(NOT %s)", stack.pop()))
+                elif item == "&":
+                    stack.append(SQL("(%s AND %s)", stack.pop(), stack.pop()))
+                elif item == "|":
+                    stack.append(SQL("(%s OR %s)", stack.pop(), stack.pop()))
+                elif isinstance(item, (list, tuple)) and len(item) == 3:
+                    left, operator, right = item
+                    if operator not in SUPPORTED:
+                        raise ValueError(
+                            f"Invalid having clause {item!r}: supported comparators are {SUPPORTED}"
+                        )
+                    sql_left = self._read_group_select(left, query)
+                    # in/not in: the right operand must be a tuple so SQL() expands
+                    # it to ``(%s, %s, ...)``; a list/set would bind as one array
+                    # param, giving invalid ``IN (ARRAY[...])``. Normalize here.
+                    if operator in ("in", "not in"):
+                        if isinstance(right, (list, set, frozenset)):
+                            right = tuple(right)
+                        if isinstance(right, tuple) and not right:
+                            # Empty collection: ``x IN (NULL)`` is never TRUE, so an
+                            # empty ``in`` matches nothing and an empty ``not in``
+                            # matches everything. Emit the constant directly —
+                            # ``NOT IN (NULL)`` evaluates to NULL and would wrongly
+                            # drop every group.
+                            stack.append(SQL("TRUE") if operator == "not in" else SQL("FALSE"))
+                            continue
+                    stack.append(SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], right))
+                else:
                     raise ValueError(
-                        f"Invalid having clause {item!r}: supported comparators are {SUPPORTED}"
+                        f"Invalid having clause {item!r}: it should be a domain-like clause"
                     )
-                sql_left = self._read_group_select(left, query)
-                # in/not in: the right operand must be a tuple so SQL() expands
-                # it to ``(%s, %s, ...)``; a list/set would bind as one array
-                # param, giving invalid ``IN (ARRAY[...])``. Normalize here.
-                if operator in ("in", "not in"):
-                    if isinstance(right, (list, set, frozenset)):
-                        right = tuple(right)
-                    if isinstance(right, tuple) and not right:
-                        # Empty collection: ``x IN (NULL)`` is never TRUE, so an
-                        # empty ``in`` matches nothing and an empty ``not in``
-                        # matches everything. Emit the constant directly —
-                        # ``NOT IN (NULL)`` evaluates to NULL and would wrongly
-                        # drop every group.
-                        stack.append(SQL("TRUE") if operator == "not in" else SQL("FALSE"))
-                        continue
-                stack.append(SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], right))
-            else:
-                raise ValueError(
-                    f"Invalid having clause {item!r}: it should be a domain-like clause"
-                )
 
-        while len(stack) > 1:
-            stack.append(SQL("(%s AND %s)", stack.pop(), stack.pop()))
-
-        return stack[0]
+            # Leftover operands combine with an implicit AND (usual domain
+            # semantics, e.g. ``[(cond1), (cond2)]``).
+            while len(stack) > 1:
+                stack.append(SQL("(%s AND %s)", stack.pop(), stack.pop()))
+            return stack[0]
+        except IndexError:
+            raise ValueError(f"Invalid having clause {having_domain!r}") from None
 
     def _read_group_orderby(
         self, order: str | None, groupby_terms: dict[str, SQL], query: Query
@@ -452,8 +455,8 @@ class _ReadGroupSQLMixin(_ModelStubs):
             direction = (order_match["direction"] or "ASC").upper()
             nulls = (order_match["nulls"] or "").upper()
 
-            sql_direction = _SQL_DIR.get(direction, SQL.EMPTY)
-            sql_nulls = _SQL_NULLS.get(nulls, SQL.EMPTY)
+            sql_direction = SQL_ORDER_DIR.get(direction, SQL.EMPTY)
+            sql_nulls = SQL_ORDER_NULLS.get(nulls, SQL.EMPTY)
 
             if term not in groupby_terms:
                 try:
@@ -485,10 +488,15 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 # value; for others ordering is non-deterministic but rows are
                 # dispatched separately via GROUPING().
                 query._any_value_orderby = True
+                # Allow _order_field_to_sql (and overrides) to collect GROUP BY
+                # fallback columns into query._order_groupby: only this layer
+                # consumes them (right below).
+                query._collect_order_groupby = True
                 try:
                     sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
                 finally:
                     query._any_value_orderby = False
+                    query._collect_order_groupby = False
                 if sql_order:
                     orderby_terms.append(sql_order)
                     if query._order_groupby:

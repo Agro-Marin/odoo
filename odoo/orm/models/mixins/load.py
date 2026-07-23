@@ -66,9 +66,9 @@ class LoadMixin(_ModelStubs):
         #   3. on bulk-create failure, one savepoint per record in the row-by-row
         #      recovery -- lets each record see the true prior state (so conflicts
         #      are attributed to the right row) and rolls a failed record back in
-        #      isolation (keeping valid ids on the warning path). The conflict-free
-        #      path never reaches it, and base_import bounds each load() to a
-        #      batch, so recovery cost stays bounded per transaction.
+        #      isolation, keeping the ids of already-succeeded records. The
+        #      conflict-free path never reaches it, and base_import bounds each
+        #      load() to a batch, so recovery cost stays bounded per transaction.
         savepoint = cr.savepoint()
 
         fields = [fix_import_export_id_paths(f) for f in fields]
@@ -154,18 +154,16 @@ class LoadMixin(_ModelStubs):
             errors = 0
             # Retry record by record. Each record runs in its OWN savepoint, so a
             # failure rolls back only that record's partial work and leaves
-            # already-succeeded records (and their ids) intact. Rolling back the
-            # load-wide ``savepoint`` instead would keep ids of undone rows on the
-            # psycopg.Warning path (which records no 'error').
+            # already-succeeded records (and their ids) intact, while the failed
+            # record's error is attributed to the right row. (Under psycopg3,
+            # server notices/warnings never raise — they go to notice handlers —
+            # so only real errors reach the except clauses below.)
             for i, rec_data in enumerate(data_list, 1):
                 try:
                     with cr.savepoint():
                         rec = self._load_records([rec_data], mode == "update")
                         cr.flush()  # surface flush exceptions inside the savepoint
                     ids.append(rec.id)
-                except psycopg.Warning as e:
-                    info = rec_data["info"]
-                    messages.append(dict(info, type="warning", message=str(e)))
                 except psycopg.Error as e:
                     info = rec_data["info"]
                     pg_error_info = {"message": self._sql_error_to_message(e)}
