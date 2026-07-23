@@ -2,7 +2,9 @@
 
 from odoo.tests import tagged
 
-from odoo.addons.project.tests.test_project_profitability import TestProjectProfitabilityCommon
+from odoo.addons.project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon,
+)
 
 
 @tagged('-at_install', 'post_install')
