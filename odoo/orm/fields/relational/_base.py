@@ -73,6 +73,7 @@ if typing.TYPE_CHECKING:
         ContextType,
         DomainType,
         Environment,
+        ModelLike,
         Registry,
     )
     from ...models import BaseModel
@@ -204,7 +205,7 @@ class _Relational(Field["BaseModel"]):
     ) -> None:
         """Populate ``inverses`` with ``self`` and its inverse fields."""
 
-    def get_comodel_domain(self, model: BaseModel) -> Domain:
+    def get_comodel_domain(self, model: ModelLike) -> Domain:
         """Return a domain from the domain attribute."""
         domain = self.domain
         if callable(domain):

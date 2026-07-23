@@ -38,7 +38,7 @@ from .compute import ComputeEngine
 from .recompute import RecomputeScheduler
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator
+    from collections.abc import Collection, Iterable, Iterator, Mapping
 
 
 class OrmCore:
@@ -90,7 +90,9 @@ class OrmCore:
         """
         self.cache.invalidate(field, ids, context_dependent=context_dependent)
 
-    def all_cached_ids(self, field: Any, *, context_dependent: bool) -> Collection[Any]:
+    def all_cached_ids(
+        self, field: Any, *, context_dependent: bool
+    ) -> Mapping[Any, Any]:
         """Read-only mapping view over every record id cached for *field*.
 
         Spans all contexts. See :meth:`FieldCache.all_cached_ids`.

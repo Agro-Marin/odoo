@@ -20,7 +20,8 @@ from collections import defaultdict
 from typing import Any
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Container, Mapping
+    from collections.abc import Set as AbstractSet
 
     from ._protocols import SchedulableField
     from .compute import ComputeEngine
@@ -78,8 +79,8 @@ class RecomputeScheduler:
     def process_entry(
         self,
         field: SchedulableField,
-        ids: set | frozenset,
-        cached_ids: set | None = None,
+        ids: AbstractSet,
+        cached_ids: Container | None = None,
     ) -> frozenset:
         """Process one trigger entry.
 
@@ -107,7 +108,7 @@ class RecomputeScheduler:
         #    Stored-computed: skip IDs already pending (_marked) or accumulated
         #    (to_recompute). Non-stored: skip already-seen IDs and filter to
         #    cached_ids (only invalidate what is cached).
-        recursive_ids = frozenset()
+        recursive_ids: frozenset = frozenset()
         if field.recursive:
             if field.is_stored_computed:
                 # Two successive subtractions, never a merged ``known`` copy:
@@ -136,7 +137,12 @@ class RecomputeScheduler:
                     # operand — the whole cached-id view, O(|cache|) per entry
                     # — and would emit cache order instead of the recordset id
                     # order the caller's OrderedSet pipeline preserves.
-                    ids = type(ids)(id_ for id_ in ids if id_ in cached_ids)
+                    # type(ids)(...) rebuilds the caller's concrete set type
+                    # (set / OrderedSet); ``type[AbstractSet]`` is not
+                    # expressible as iterable-constructible, hence the ignore.
+                    ids = type(ids)(  # type: ignore[call-arg]
+                        id_ for id_ in ids if id_ in cached_ids
+                    )
             if not ids:
                 return frozenset()
             # Only the non-stored branch reads `_seen_recursive`; stored fields

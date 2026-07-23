@@ -355,13 +355,16 @@ class WriteMixin(_ModelStubs):
             field = self._fields[fname]
             # raise (not assert): under python -O a non-column field would build
             # a malformed UPDATE failing later with an opaque column_type error.
-            if not field.is_column:
+            # (``is_column`` implies ``column_type`` is truthy, so the second
+            # branch never fires; it only narrows ``tuple[str, str] | None``.)
+            column_type = field.column_type
+            if not field.is_column or column_type is None:
                 raise RuntimeError(
                     f"_execute_update: {field} is not a stored column field"
                 )
             column = SQL.identifier(fname)
             # the type cast is necessary for some values, like NULLs
-            expr = SQL('"__tmp".%s::%s', column, SQL(field.column_type[1]))
+            expr = SQL('"__tmp".%s::%s', column, SQL(column_type[1]))
             if field.translate is True:
                 # this is the SQL equivalent of:
                 # None if expr is None else (

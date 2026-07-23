@@ -174,7 +174,7 @@ class ReadMixin(_ModelStubs):
             field.ensure_computed(self)
             field_cache = field._get_cache(env)
             # None replacement: False / 0 / 0.0 depending on type.
-            none_val = field.convert_to_record(None, None)
+            none_val: typing.Any = field.convert_to_record(None, None)
             if type(field_cache) is dict:
                 # Rust path: fill cached values in one C-level pass, return only
                 # miss indices.  Needs a plain dict (not a translated LangProxy).

@@ -10,7 +10,7 @@ from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 from .base import Field, _make_scalar_get
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, Environment
+    from .._typing import BaseModel, Environment, ModelLike
 
 # Maximum value representable by XML-RPC's <i4> type (32-bit signed int).
 # Values exceeding this are sent as floats to avoid XML-RPC transport errors.
@@ -297,7 +297,7 @@ class Monetary(Field[float]):
 
         return super()._description_aggregator(env)
 
-    def get_currency_field(self, model: BaseModel) -> str | None:
+    def get_currency_field(self, model: ModelLike) -> str | None:
         """Return the name of the currency field."""
         return self.currency_field or (
             "currency_id"

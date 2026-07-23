@@ -25,6 +25,7 @@ if typing.TYPE_CHECKING:
 
     from odoo.tools import Query
 
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 DATE_LENGTH = len(date.today().strftime(DATE_FORMAT))
@@ -95,7 +96,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
         self,
         field_sql: SQL,
         property_name: str,
-        model: BaseModel,
+        model: ModelLike,
         alias: str,
         query: Query,
     ) -> SQL:

@@ -9,7 +9,7 @@ from collections import ChainMap, defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator
+    from collections.abc import Collection, Iterable, Iterator, Mapping
 
 # Sentinel for missing values — distinct from any real cached value (incl. None).
 _MISSING = object()
@@ -213,7 +213,9 @@ class FieldCache:
                 for id_ in ids:
                     sub_cache.pop(id_, None)
 
-    def all_cached_ids(self, field: Any, *, context_dependent: bool) -> Collection[Any]:
+    def all_cached_ids(
+        self, field: Any, *, context_dependent: bool
+    ) -> Mapping[Any, Any]:
         """Return a read-only mapping view of every record id cached for *field*.
 
         The shape bit comes from the caller (``Field._is_context_dependent``),

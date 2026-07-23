@@ -89,7 +89,13 @@ class CreateMixin(_ModelStubs):
                 continue
 
             # 5. delegate to parent model
-            if field.inherited and self._has_field_access(field, 'write'):
+            # (``related_field is not None`` never fails for an inherited
+            # field — setup_related always sets it; it only narrows the type)
+            if (
+                field.inherited
+                and self._has_field_access(field, "write")
+                and field.related_field is not None
+            ):
                 field = field.related_field
                 parent_fields[field.model_name].append(field.name)
 
@@ -282,7 +288,9 @@ class CreateMixin(_ModelStubs):
                     raise ValueError(f"Invalid field {key!r} on model {self._name!r}")
                 if field.store:
                     stored[key] = val
-                if field.inherited:
+                if field.inherited and field.related_field is not None:
+                    # (the not-None check never fails for an inherited field —
+                    # setup_related always sets it; it only narrows the type)
                     inherited[field.related_field.model_name][key] = val
                 elif field.inverse and field not in precomputed:
                     inversed[key] = val

@@ -224,7 +224,10 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
 
     # avoid assigning an empty dict to save memory
     if inherits:
-        model_cls._inherits = inherits
+        # frozendict: _inherits' declared type — the class default is the
+        # shared immutable empty frozendict, so assigned values must uphold
+        # the same no-mutation guarantee.
+        model_cls._inherits = frozendict(inherits)
     if depends:
         model_cls._depends = depends
 
@@ -632,9 +635,9 @@ def _add_manual_models(env: Environment):
             # may itself be a custom model already removed by this loop, hence
             # the .get().
             for parent_name in model_cls._inherits:
-                parent_cls = env.registry.models.get(parent_name)
-                if parent_cls is not None:
-                    parent_cls._inherits_children.discard(name)
+                inherits_parent_cls = env.registry.models.get(parent_name)
+                if inherits_parent_cls is not None:
+                    inherits_parent_cls._inherits_children.discard(name)
 
     if removed_fields:
         # discard removed custom fields from the registry's dependency maps

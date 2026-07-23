@@ -111,6 +111,9 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 today=Date.context_today(self),
             )
             currency_field_name = field.get_currency_field(self)
+            # a monetary field on a model without any currency field cannot
+            # reach the rate-conversion path; the assert only narrows the type
+            assert currency_field_name is not None
             alias_rate = query.make_alias(self._table, f"{currency_field_name}__rates")
             currency_field_sql = self._field_to_sql(
                 self._table, currency_field_name, query
@@ -220,6 +223,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 )
             # many2many: query the comodel and inject it as an extra LEFT JOIN
             # condition.
+            # a many2many always has its relation table resolved after setup;
+            # the assertion only narrows ``str | None`` for the type checker
+            assert (
+                field.relation is not None
+                and field.column1 is not None
+                and field.column2 is not None
+            )
             codomain = field.get_comodel_domain(self)
             comodel = self.env[field.comodel_name].with_context(**field.context)
             coquery = comodel._search(

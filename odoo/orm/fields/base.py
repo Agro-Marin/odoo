@@ -12,6 +12,7 @@ from collections.abc import (
     Collection,
     Iterable,
     Iterator,
+    Mapping,
     MutableMapping,
 )
 from operator import attrgetter
@@ -38,7 +39,7 @@ from ._field_description import _FieldDescriptionMixin
 from ._field_sql import _FieldSqlMixin
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, DomainType, ModelType, Self
+    from .._typing import BaseModel, DomainType, ModelLike, ModelType, Self
     from ..primitives import IdType
     from ..runtime import Environment, Registry
 
@@ -118,7 +119,9 @@ def resolve_mro(
 
 
 def determine(
-    needle: str | Callable[..., typing.Any], records: BaseModel, *args: object
+    needle: str | Callable[..., typing.Any] | None,
+    records: ModelLike,
+    *args: object,
 ) -> typing.Any:
     """Simple helper for calling a method given as a string or a function.
 
@@ -133,9 +136,9 @@ def determine(
         msg = "Determination requires a subject recordset"
         raise TypeError(msg)
     if isinstance(needle, str):
-        needle = getattr(records, needle)
-        if not needle.__name__.startswith("__"):
-            return needle(*args)
+        method = getattr(records, needle)
+        if not method.__name__.startswith("__"):
+            return method(*args)
     elif callable(needle):
         # getattr: callables without __name__ (e.g. functools.partial) are
         # plain callables, not dunder methods to reject
@@ -375,7 +378,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     company_dependent: bool = (
         False  # whether ``self`` is company-dependent (property field)
     )
-    default: Callable[[BaseModel], T] | T | None = (
+    default: Callable[[ModelLike], T] | T | None = (
         None  # default(recs) returns the default value
     )
 
@@ -392,7 +395,10 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     related_field: Field | None = None  # corresponding related field
     aggregator: str | None = None  # operator for aggregating values
     group_expand: (
-        str | Callable[[BaseModel, ModelType, DomainType], ModelType] | None
+        # First parameter: the model the groups are read on (a recordset or a
+        # read_group mixin fragment); second/return: a recordset for relational
+        # fields, a plain list of values for non-relational ones.
+        str | Callable[[ModelLike, typing.Any, DomainType], typing.Any] | None
     ) = None  # name of method to expand groups in formatted_read_group()
     falsy_value_label: str | None = (
         None  # value to display when the field is not set (webclient attr)
@@ -1375,7 +1381,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             self, ids, context_dependent=self._is_context_dependent(env)
         )
 
-    def _get_all_cache_ids(self, env: Environment) -> Collection[IdType]:
+    def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
         """Return all the record ids that have a value in cache in any environment.
 
         Delegates to :meth:`FieldCache.all_cached_ids` with the shape bit (see
@@ -1851,7 +1857,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     # Code reading the field cache without going through __get__ (e.g.
     # _read_format) must call these precondition methods first.
 
-    def ensure_access(self, record: BaseModel) -> None:
+    def ensure_access(self, record: ModelLike) -> None:
         """Check that the current user has read access to this field.
 
         Must be called before reading from the field cache when bypassing
@@ -1879,7 +1885,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     # Computation of field values
 
-    def ensure_computed(self, records: BaseModel) -> None:
+    def ensure_computed(self, records: ModelLike) -> None:
         """Ensure pending recomputations of ``self`` are processed.
 
         Must be called before reading from the field cache for stored computed
@@ -1893,7 +1899,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         if self.is_stored_computed and records.env._core.has_pending_field(self):
             self.recompute(records)
 
-    def recompute(self, records: BaseModel) -> None:
+    def recompute(self, records: ModelLike) -> None:
         """Process the pending computations of ``self`` on ``records``. This
         should be called only if ``self`` is computed and stored.
         """
@@ -1969,7 +1975,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 _count(),
             )
 
-    def compute_value(self, records: BaseModel) -> None:
+    def compute_value(self, records: ModelLike) -> None:
         """Invoke the compute method on ``records``; the results are in cache."""
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:
@@ -2006,7 +2012,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 self.compute_sudo,
             )
 
-    def determine_inverse(self, records: BaseModel) -> None:
+    def determine_inverse(self, records: ModelLike) -> None:
         """Given the value of ``self`` on ``records``, inverse the computation."""
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:

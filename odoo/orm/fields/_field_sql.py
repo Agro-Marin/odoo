@@ -22,7 +22,7 @@ from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ._field_stubs import _FieldStubs
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel
+    from .._typing import BaseModel, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -90,7 +90,7 @@ class _FieldSqlMixin(_FieldStubs):
         self,
         field_sql: SQL,
         property_name: str,
-        model: BaseModel,
+        model: ModelLike,
         alias: str,
         query: Query,
     ) -> SQL:

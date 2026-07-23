@@ -17,6 +17,7 @@ _orm_cache = logging.getLogger("odoo.orm.cache")
 
 if typing.TYPE_CHECKING:
     from ..._typing import IdType
+    from ...fields.base import Field
 
 
 class RecordCache(Mapping):
@@ -135,6 +136,7 @@ class CacheMixin(_ModelStubs):
         ):  # Avoid invalidating field_inverses for no reason
             return
 
+        fields: Collection[Field]
         if fnames is None:
             fields = self._fields.values()
         else:
