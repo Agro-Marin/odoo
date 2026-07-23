@@ -27,7 +27,8 @@ from odoo.tools import OrderedSet
 from . import registration
 from .components.model_graph import ModelGraph
 from .components.storage import DictBackend
-from .models import AbstractModel
+from .fields import Boolean, Char
+from .models import AbstractModel, Model
 from .primitives import SUPERUSER_ID
 from .runtime._registry_fields import _RegistryFieldsMixin
 from .runtime.registry import _CACHES_BY_KEY
@@ -90,6 +91,29 @@ class _TestIrDefault(AbstractModel):
 
     def _get_model_defaults(self, model_name, condition=False):
         return {}
+
+
+class _TestResUsers(Model):
+    """Minimal ``res.users`` for :class:`ModelRegistry`.
+
+    Every non-``_log_access = False`` model carries ``create_uid``/``write_uid``
+    Many2one fields to ``res.users``; without a model behind them any write
+    after ``invalidate_all()`` crashed in ``Many2one._update_inverses``
+    (``KeyError: 'res.users'`` — the fields were merely *degraded*, i.e.
+    triggers inert, but the descriptor machinery still resolves the comodel).
+    ``_seed_fixtures`` already inserts the superuser row this stub exposes.
+    Injected only when the caller does not provide a ``res.users`` model.
+    """
+
+    _name = "res.users"
+    _description = "Users (test stub)"
+    _register = False
+    _module = None
+    _log_access = False
+
+    name = Char()
+    login = Char()
+    active = Boolean(default=True)
 
 
 class InMemoryCursor(BaseCursor):
@@ -501,6 +525,15 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         )
         if not has_ir_default:
             all_defs.append(_TestIrDefault)
+
+        # 4c. Ensure a 'res.users' model backs the create_uid/write_uid magic
+        #     fields — without it, any write after invalidate_all() crashes in
+        #     Many2one._update_inverses (see _TestResUsers).
+        has_res_users = any(
+            getattr(cls, "_name", None) == "res.users" for cls in all_defs
+        )
+        if not has_res_users:
+            all_defs.append(_TestResUsers)
 
         # 5. Stable sort: 'base'-named models first (root of all models)
         all_defs.sort(
