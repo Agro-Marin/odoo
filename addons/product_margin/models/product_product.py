@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import itertools
@@ -104,7 +103,7 @@ class ProductProduct(models.Model):
 
         # base_result = [[(a1, b1, records), (a2, b2, records), ...], [(a1, b1, c1, records), (a2, b2, c2, records), ...] ...]
         result = []
-        for grouping_spec, grouping in zip(grouping_sets, base_result):
+        for grouping_spec, grouping in zip(grouping_sets, base_result, strict=False):
             row = []
             for *other, records in grouping:
                 for index, spec in enumerate(itertools.chain(grouping_spec, aggregates)):
@@ -121,7 +120,7 @@ class ProductProduct(models.Model):
             for field_name, field in self._fields.items():
                 if field.compute == '_compute_product_margin_fields_values':
                     self[field_name] = False
-            return
+            return None
 
         date_from = self.env.context.get('date_from', time.strftime('%Y-01-01'))
         date_to = self.env.context.get('date_to', time.strftime('%Y-12-31'))
@@ -183,30 +182,30 @@ class ProductProduct(models.Model):
         invoice_types = ('out_invoice', 'out_refund')
         self.env.cr.execute(sqlstr, (list(self.ids), list(states), list(payment_states), list(invoice_types), date_from, date_to, company_id))
         for product_id, avg, qty, total, sale in self.env.cr.fetchall():
-            res[product_id]['sale_avg_price'] = avg and avg or 0.0
-            res[product_id]['sale_num_invoiced'] = qty and qty or 0.0
-            res[product_id]['turnover'] = total and total or 0.0
-            res[product_id]['sale_expected'] = sale and sale or 0.0
+            res[product_id]['sale_avg_price'] = (avg and avg) or 0.0
+            res[product_id]['sale_num_invoiced'] = (qty and qty) or 0.0
+            res[product_id]['turnover'] = (total and total) or 0.0
+            res[product_id]['sale_expected'] = (sale and sale) or 0.0
             res[product_id]['sales_gap'] = res[product_id]['sale_expected'] - res[product_id]['turnover']
             res[product_id]['total_margin'] = res[product_id]['turnover']
             res[product_id]['expected_margin'] = res[product_id]['sale_expected']
-            res[product_id]['total_margin_rate'] = res[product_id]['turnover'] and res[product_id]['total_margin'] * 100 / res[product_id]['turnover'] or 0.0
-            res[product_id]['expected_margin_rate'] = res[product_id]['sale_expected'] and res[product_id]['expected_margin'] * 100 / res[product_id]['sale_expected'] or 0.0
+            res[product_id]['total_margin_rate'] = (res[product_id]['turnover'] and res[product_id]['total_margin'] * 100 / res[product_id]['turnover']) or 0.0
+            res[product_id]['expected_margin_rate'] = (res[product_id]['sale_expected'] and res[product_id]['expected_margin'] * 100 / res[product_id]['sale_expected']) or 0.0
 
         ctx = self.env.context.copy()
         ctx['force_company'] = company_id
         invoice_types = ('in_invoice', 'in_refund')
         self.env.cr.execute(sqlstr, (list(self.ids), list(states), list(payment_states), list(invoice_types), date_from, date_to, company_id))
         for product_id, avg, qty, total, _dummy in self.env.cr.fetchall():
-            res[product_id]['purchase_avg_price'] = avg and avg or 0.0
-            res[product_id]['purchase_num_invoiced'] = qty and qty or 0.0
-            res[product_id]['total_cost'] = total and total or 0.0
+            res[product_id]['purchase_avg_price'] = (avg and avg) or 0.0
+            res[product_id]['purchase_num_invoiced'] = (qty and qty) or 0.0
+            res[product_id]['total_cost'] = (total and total) or 0.0
             res[product_id]['total_margin'] = res[product_id].get('turnover', 0.0) - res[product_id]['total_cost']
-            res[product_id]['total_margin_rate'] = res[product_id].get('turnover', 0.0) and res[product_id]['total_margin'] * 100 / res[product_id].get('turnover', 0.0) or 0.0
+            res[product_id]['total_margin_rate'] = (res[product_id].get('turnover', 0.0) and res[product_id]['total_margin'] * 100 / res[product_id].get('turnover', 0.0)) or 0.0
         for product in self:
             res[product.id]['normal_cost'] = product.standard_price * res[product.id]['purchase_num_invoiced']
             res[product.id]['purchase_gap'] = res[product.id]['normal_cost'] - res[product.id]['total_cost']
             res[product.id]['expected_margin'] = res[product.id].get('sale_expected', 0.0) - res[product.id]['normal_cost']
-            res[product.id]['expected_margin_rate'] = res[product.id].get('sale_expected', 0.0) and res[product.id]['expected_margin'] * 100 / res[product.id].get('sale_expected', 0.0) or 0.0
+            res[product.id]['expected_margin_rate'] = (res[product.id].get('sale_expected', 0.0) and res[product.id]['expected_margin'] * 100 / res[product.id].get('sale_expected', 0.0)) or 0.0
             product.update(res[product.id])
         return res
