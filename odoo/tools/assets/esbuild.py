@@ -609,12 +609,39 @@ class EsbuildCompiler:
         # stub dir lives under ``tmp_dir`` and is removed with it.
         alias_flags = list(alias_flags)
         if secondary_parent_stubs:
-            stub_dir = Path(tmp_dir) / "stubs"
-            stub_dir.mkdir()
-            for i, (spec, shim_js) in enumerate(sorted(secondary_parent_stubs.items())):
-                stub_path = stub_dir / f"stub_{i}.js"
-                stub_path.write_text(shim_js, encoding="utf-8")
-                alias_flags.append(f"--alias:{spec}={stub_path}")
+            # esbuild's ``--alias:<name>=<file>`` is a PREFIX alias for a bare
+            # package name: ``--alias:@spreadsheet=stub.js`` ALSO rewrites
+            # ``@spreadsheet/<sub>`` to ``stub.js/<sub>``, hijacking unrelated
+            # subpath imports of that package (which then can't resolve —
+            # esbuild treats the stub file as a directory). The stub-alias trick
+            # is only MODULE-EXACT for subpath specifiers (``@web/core/x``),
+            # where the alias can't prefix-match anything else. So keep only
+            # subpath specifiers here; a bare-package specifier (no ``/``) is
+            # dropped so its ``@pkg/<sub>`` imports keep resolving to the real
+            # files via the per-addon package alias. A bare package that is
+            # genuinely imported bare would then inline instead of lazy-loading
+            # (a size cost, not a build break) — hence the warning.
+            exact_stubs = {
+                spec: shim_js
+                for spec, shim_js in secondary_parent_stubs.items()
+                if "/" in spec
+            }
+            bare_specs = sorted(secondary_parent_stubs.keys() - exact_stubs.keys())
+            if bare_specs:
+                log_event(
+                    _esbuild_log,
+                    logging.WARNING,
+                    "bare_package_stub_skipped",
+                    bundle=self.name,
+                    specs=bare_specs,
+                )
+            if exact_stubs:
+                stub_dir = Path(tmp_dir) / "stubs"
+                stub_dir.mkdir()
+                for i, (spec, shim_js) in enumerate(sorted(exact_stubs.items())):
+                    stub_path = stub_dir / f"stub_{i}.js"
+                    stub_path.write_text(shim_js, encoding="utf-8")
+                    alias_flags.append(f"--alias:{spec}={stub_path}")
 
         log_event(
             _esbuild_log,
