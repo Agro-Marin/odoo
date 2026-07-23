@@ -96,7 +96,7 @@ class CacheMixin(_ModelStubs):
         """
         if flush:
             self.flush_model(fnames)
-        self._invalidate_cache(fnames)
+        self._invalidate_cache(fnames, flush=flush)
         if _orm_cache.isEnabledFor(logging.DEBUG):
             _orm_cache.debug("invalidate_model %s: fnames=%s", self._name, fnames)
 
@@ -115,7 +115,7 @@ class CacheMixin(_ModelStubs):
         """
         if flush:
             self.flush_recordset(fnames)
-        self._invalidate_cache(fnames, self._ids)
+        self._invalidate_cache(fnames, self._ids, flush=flush)
         if _orm_cache.isEnabledFor(logging.DEBUG):
             _orm_cache.debug(
                 "invalidate_recordset %s: %d records, fnames=%s",
@@ -128,6 +128,7 @@ class CacheMixin(_ModelStubs):
         self,
         fnames: Collection[str] | None = None,
         ids: Sequence[IdType] | None = None,
+        flush: bool = True,
     ) -> None:
         if (
             ids is not None and not ids
@@ -144,8 +145,11 @@ class CacheMixin(_ModelStubs):
         for field in fields:
             field._invalidate_cache(env, ids)
             # Also flush+invalidate inverse fields (e.g. the O2M inverse of a
-            # M2O) to avoid stale reverse lookups.
+            # M2O) to avoid stale reverse lookups.  With flush=False the caller
+            # explicitly opted out of flushing, so only invalidate the inverse
+            # caches.
             if inverses := field_inverses.get(field):
                 for invf in inverses:
-                    env[invf.model_name].flush_model([invf.name])
+                    if flush:
+                        env[invf.model_name].flush_model([invf.name])
                     invf._invalidate_cache(env)

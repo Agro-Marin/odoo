@@ -2,7 +2,6 @@
 
 import collections
 import datetime
-import typing
 
 from odoo.tools import date_utils, get_lang
 
@@ -20,11 +19,6 @@ class _ReadGroupFillMixin(_ModelStubs):
     """Fill empty groups, expand groups, and fill temporal gaps."""
 
     __slots__ = ()
-
-    # Attributes provided by BaseModel at runtime
-    _fields: dict
-    _name: str
-    env: typing.Any
 
     @api.model
     def _read_group_expand_full(

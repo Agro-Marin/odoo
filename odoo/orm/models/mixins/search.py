@@ -14,6 +14,7 @@ from ..._typing import (
     DomainType,
     ValuesType,
 )
+from ...constants import SQL_ORDER_DIR, SQL_ORDER_NULLS
 from ...domain import Domain
 from ...parsing import parse_field_expr, regex_order
 from ...primitives import COLLECTION_TYPES, NewId
@@ -26,14 +27,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
-
-# Pre-built SQL constants for ORDER BY — avoids repeated SQL() allocation
-_SQL_ASC = SQL("ASC")
-_SQL_DESC = SQL("DESC")
-_SQL_NULLS_FIRST = SQL("NULLS FIRST")
-_SQL_NULLS_LAST = SQL("NULLS LAST")
-_SQL_DIR = {"ASC": _SQL_ASC, "DESC": _SQL_DESC}
-_SQL_NULLS = {"NULLS FIRST": _SQL_NULLS_FIRST, "NULLS LAST": _SQL_NULLS_LAST}
 
 
 class SearchMixin(_ModelStubs):
@@ -231,7 +224,9 @@ class SearchMixin(_ModelStubs):
                         typed_value.append(field.convert_to_write(v, self))
                 domains.append([(field_name, operator, typed_value)])
             else:
-                with contextlib.suppress(ValueError):
+                # Suppress TypeError too (like the collection branch above): an
+                # unconvertible RPC value must skip this field, not crash.
+                with contextlib.suppress(ValueError, TypeError):
                     typed_value = field.convert_to_write(value, self)
                     domains.append([(field_name, operator, typed_value)])
         return aggregator(domains)
@@ -318,8 +313,8 @@ class SearchMixin(_ModelStubs):
                 if nulls:
                     nulls = "NULLS LAST" if nulls == "NULLS FIRST" else "NULLS FIRST"
 
-            sql_direction = _SQL_DIR.get(direction, SQL.EMPTY)
-            sql_nulls = _SQL_NULLS.get(nulls, SQL.EMPTY)
+            sql_direction = SQL_ORDER_DIR.get(direction, SQL.EMPTY)
+            sql_nulls = SQL_ORDER_NULLS.get(nulls, SQL.EMPTY)
 
             if property_name := order_match["property"]:
                 # field_name is an expression
@@ -377,7 +372,7 @@ class SearchMixin(_ModelStubs):
                 # aggregate).
                 if query._any_value_orderby:
                     sql_field = SQL("ANY_VALUE(%s)", sql_field)
-                else:
+                elif query._collect_order_groupby:
                     query._order_groupby.append(sql_field)
                 return SQL("%s %s %s", sql_field, direction, nulls)
 
@@ -409,7 +404,9 @@ class SearchMixin(_ModelStubs):
             # (e.g., partner.name depends on partner_id), so any arbitrary
             # value from the group is correct for ordering.
             sql_field = SQL("ANY_VALUE(%s)", sql_field)
-        else:
+        elif query._collect_order_groupby:
+            # Only the read_group layer consumes _order_groupby; collecting it
+            # on plain searches would grow a list nobody reads.
             query._order_groupby.append(sql_field)
 
         return SQL("%s %s %s", sql_field, direction, nulls)
@@ -611,6 +608,10 @@ class SearchMixin(_ModelStubs):
             raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
 
         if field.related and not field.store:
+            if query is None:
+                raise ValueError(
+                    f"query is required to convert related field {field} to SQL"
+                )
             model, field, alias = self._traverse_related_sql(alias, field, query)
             related_expr = (
                 field.name if not property_name else f"{field.name}.{property_name}"
@@ -621,6 +622,11 @@ class SearchMixin(_ModelStubs):
 
         sql = field.to_sql(self, alias)
         if property_name:
+            if query is None:
+                raise ValueError(
+                    f"query is required to convert property field expression"
+                    f" {field_expr!r} to SQL"
+                )
             sql = field.property_to_sql(sql, property_name, self, alias, query)
         return sql
 

@@ -39,14 +39,9 @@ class _ReadGroupFormatMixin(_ModelStubs):
 
     __slots__ = ()
 
-    # Attributes provided by BaseModel at runtime
-    _fields: dict
-    _name: str
-    env: typing.Any
-
     def _read_group_postprocess_groupby(
         self, groupby_spec: str, raw_values: list
-    ) -> list:
+    ) -> Generator:
         """Convert raw ``groupby_spec`` values into the ``_read_group()`` format.
 
         Relational groupby values become recordsets (with a correct prefetch

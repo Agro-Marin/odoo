@@ -1,4 +1,5 @@
-"""read_group constants: time/number granularity, aggregates, display formats.
+"""ORM SQL/read_group constants: time/number granularity, aggregates, display
+formats, and shared ORDER BY fragments.
 
 Kept separate from primitives.py because they depend on dateutil and have a
 narrower audience.
@@ -41,6 +42,14 @@ READ_GROUP_NUMBER_GRANULARITY: Final[dict[str, str]] = {
 READ_GROUP_ALL_TIME_GRANULARITY: Final[
     dict[str, dateutil.relativedelta.relativedelta | str]
 ] = READ_GROUP_TIME_GRANULARITY | READ_GROUP_NUMBER_GRANULARITY
+
+# Pre-built SQL constants for ORDER BY — avoids repeated SQL() allocation.
+# Shared by the search and read_group SQL builders.
+SQL_ORDER_DIR: Final[dict[str, SQL]] = {"ASC": SQL("ASC"), "DESC": SQL("DESC")}
+SQL_ORDER_NULLS: Final[dict[str, SQL]] = {
+    "NULLS FIRST": SQL("NULLS FIRST"),
+    "NULLS LAST": SQL("NULLS LAST"),
+}
 
 # Valid SQL aggregation functions for read_group
 READ_GROUP_AGGREGATE: Final[dict[str, Callable[[str, SQL], SQL]]] = {

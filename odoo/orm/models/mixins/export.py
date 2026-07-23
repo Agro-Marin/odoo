@@ -58,12 +58,19 @@ class ExportMixin(_ModelStubs):
             SELECT res_id, module, name
             FROM ir_model_data
             WHERE model = %s AND res_id = ANY(%s)
+            ORDER BY id
         """,
                 self._name,
                 list(self.ids),
             )
         )
-        xids = {res_id: (module, name) for res_id, module, name in cr.fetchall()}
+        # When a record has several xmlids, export the OLDEST one (lowest
+        # ir_model_data id): ORDER BY id + first-wins matches get_metadata()
+        # (read.py), which orders id DESC and takes the last entry, so export
+        # and metadata agree deterministically.
+        xids: dict[int, tuple[str, str]] = {}
+        for res_id, module, name in cr.fetchall():
+            xids.setdefault(res_id, (module, name))
 
         def to_xid(record_id):
             module, name = xids[record_id]

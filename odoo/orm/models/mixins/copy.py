@@ -1,5 +1,6 @@
 """Record duplication mixin for BaseModel: copy, copy_data, copy_translations."""
 
+import logging
 import typing
 from collections import defaultdict
 from typing import Self
@@ -10,6 +11,8 @@ from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
+
+_logger = logging.getLogger("odoo.models")
 
 
 class CopyMixin(_ModelStubs):
@@ -116,7 +119,24 @@ class CopyMixin(_ModelStubs):
                 # foreseen in copy_data()
                 old_lines = old[name].sorted(key="id")
                 new_lines = new[name].sorted(key="id")
-                for old_line, new_line in zip(old_lines, new_lines, strict=False):
+                if len(old_lines) != len(new_lines):
+                    # copy_data() drops o2m lines skipped by its recursion
+                    # guard (circular relationships), so old and new lines can
+                    # no longer be matched positionally: a dropped MIDDLE line
+                    # would silently shift every following pair and copy
+                    # translations onto the wrong records. Skip the field
+                    # instead of misaligning.
+                    _logger.debug(
+                        "copy_translations: skipping one2many field %r on %s: "
+                        "%d source line(s) but %d copied line(s) "
+                        "(copy_data recursion guard dropped lines)",
+                        name,
+                        old._name,
+                        len(old_lines),
+                        len(new_lines),
+                    )
+                    continue
+                for old_line, new_line in zip(old_lines, new_lines, strict=True):
                     # don't pass excluded as it is not about those lines
                     old_line.copy_translations(new_line)
 

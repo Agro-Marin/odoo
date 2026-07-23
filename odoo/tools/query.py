@@ -57,8 +57,8 @@ class Query:
 
     __slots__ = (
         "_any_value_orderby",
+        "_collect_order_groupby",
         "_env",
-        "_grouping_sets",
         "_ids",
         "_joins",
         "_order",
@@ -93,11 +93,12 @@ class Query:
         # Set by _read_group_orderby to avoid adding functionally-dependent
         # columns (e.g., partner.name when grouped by partner_id) to GROUP BY.
         self._any_value_orderby: bool = False
-        # When True, disables _any_value_orderby for GROUPING SETS queries.
-        # In GROUPING SETS, the same ORDER BY serves multiple sets — some may
-        # not include the many2one field, so ANY_VALUE() would pick arbitrary
-        # values from different partners, leading to non-deterministic ordering.
-        self._grouping_sets: bool = False
+        # When True, _order_field_to_sql may collect ORDER BY columns into
+        # _order_groupby (the GROUP BY fallback consumed by the read_group
+        # layer). Set by _read_group_orderby around its _order_to_sql call;
+        # plain (ungrouped) searches leave it False so ordered searches don't
+        # grow a list nobody consumes.
+        self._collect_order_groupby: bool = False
         self.having: SQL | None = None
         self._order: SQL | None = None
         self.limit: int | None = None

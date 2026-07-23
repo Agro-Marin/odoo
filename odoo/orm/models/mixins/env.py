@@ -30,7 +30,7 @@ class EnvironmentMixin(_ModelStubs):
     def ensure_one(self) -> Self:
         """Verify that the current recordset holds a single record.
 
-        :raise odoo.exceptions.ValueError: ``len(self) != 1``
+        :raise ValueError: ``len(self) != 1``
         """
         try:
             # Unpacking to check for a single value is faster than len() when
@@ -110,6 +110,12 @@ class EnvironmentMixin(_ModelStubs):
             return self
 
         company_id = int(company)
+        if not company_id:
+            # int(company) == 0 happens for an unsaved company (NewId): letting
+            # it through would inject company id 0 into allowed_company_ids.
+            raise ValueError(
+                f"with_company() requires a saved (real-id) company, got {company!r}"
+            )
         allowed_company_ids = self.env.context.get("allowed_company_ids") or []
         if allowed_company_ids and company_id == allowed_company_ids[0]:
             return self
