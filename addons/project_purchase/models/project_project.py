@@ -2,7 +2,7 @@
 
 import json
 
-from odoo import fields, models, _
+from odoo import _, fields, models
 from odoo.fields import Domain
 
 
