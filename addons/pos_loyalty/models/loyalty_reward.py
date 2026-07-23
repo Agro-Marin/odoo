@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, api
-from odoo.fields import Domain
-
-import ast
 import json
+
+from odoo import api, models
+from odoo.fields import Domain
 
 
 class LoyaltyReward(models.Model):
@@ -80,12 +78,11 @@ class LoyaltyReward(models.Model):
         return json.dumps(domain)
 
     def _parse_domain(self, domain):
-        parsed_domain = {}
-
-        for index, condition in enumerate(domain):
-            if isinstance(condition, (list, tuple)) and len(condition) == 3:
-                parsed_domain[index] = condition
-        return parsed_domain
+        return {
+            index: condition
+            for index, condition in enumerate(domain)
+            if isinstance(condition, (list, tuple)) and len(condition) == 3
+        }
 
     def unlink(self):
         if len(self) == 1 and self.env['pos.order.line'].sudo().search_count([('reward_id', 'in', self.ids)], limit=1):

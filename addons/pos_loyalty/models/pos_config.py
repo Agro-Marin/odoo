@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, fields, models
@@ -55,7 +54,7 @@ class PosConfig(models.Model):
                 # Do not allow a gift card program with more than one rule or reward, and check that they make sense
                 if len(gc_program.reward_ids) > 1:
                     raise UserError(_('Invalid gift card program. More than one reward.'))
-                elif len(gc_program.rule_ids) > 1:
+                if len(gc_program.rule_ids) > 1:
                     raise UserError(_('Invalid gift card program. More than one rule.'))
                 rule = gc_program.rule_ids
                 if rule.reward_point_amount != 1 or rule.reward_point_mode != 'money':
