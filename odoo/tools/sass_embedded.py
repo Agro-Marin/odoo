@@ -154,6 +154,7 @@ def _supports_embedded(sass_path: str) -> bool:
             stdout=PIPE,
             stderr=subprocess.STDOUT,
             timeout=10,
+            check=False,  # non-zero exit is a probe result, not an error
         )
     except OSError, subprocess.SubprocessError:
         return False
@@ -254,7 +255,11 @@ class SassEmbeddedCompiler:
                 [sass_path, "--embedded"],
                 stdin=PIPE,
                 stdout=PIPE,
-                stderr=PIPE,
+                # DEVNULL, not PIPE: nothing drains stderr during a compile,
+                # so a compiler flooding it past the ~64 KB pipe buffer would
+                # block while holding the client lock. The embedded protocol
+                # routes warnings/debug via stdout log events anyway.
+                stderr=subprocess.DEVNULL,
             )
         except OSError as e:
             raise SassProtocolError(f"Could not start sass --embedded: {e}") from e
@@ -263,12 +268,13 @@ class SassEmbeddedCompiler:
         if self._process.poll() is not None:
             proc = self._process
             self._process = None
-            stderr = proc.stderr.read().decode(errors="replace")
-            for pipe in (proc.stdin, proc.stdout, proc.stderr):
+            for pipe in (proc.stdin, proc.stdout):
                 with contextlib.suppress(OSError):
                     pipe.close()
             proc.wait()  # reap the zombie
-            raise SassProtocolError(f"sass --embedded exited immediately: {stderr}")
+            raise SassProtocolError(
+                f"sass --embedded exited immediately with code {proc.returncode}"
+            )
         self._started = True
 
     def _send_packet(self, compilation_id: int, message_bytes: bytes) -> None:
@@ -316,7 +322,7 @@ class SassEmbeddedCompiler:
             proc = self._process
             self._process = None
             self._started = False
-            for pipe in (proc.stdin, proc.stdout, proc.stderr):
+            for pipe in (proc.stdin, proc.stdout):
                 with contextlib.suppress(OSError):
                     pipe.close()
             try:
@@ -450,6 +456,15 @@ class SassEmbeddedCompiler:
             outbound.ParseFromString(recv_bytes)
 
             msg_type = outbound.WhichOneof("message")
+
+            # Desync tripwire: under strict one-compile-at-a-time use every
+            # packet must carry the id we sent. ProtocolError packets are
+            # exempt — the spec allows them under a reserved wire id.
+            if recv_cid != compilation_id and msg_type != "error":
+                raise SassProtocolError(
+                    f"sass --embedded desynchronized: sent compilation id "
+                    f"{compilation_id}, received {recv_cid} ({msg_type})"
+                )
 
             if msg_type == "compile_response":
                 resp = outbound.compile_response

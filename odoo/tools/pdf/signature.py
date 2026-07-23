@@ -8,7 +8,7 @@ from asn1crypto import algos, cms, core, x509
 
 try:
     from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives.asymmetric import ec, ed25519, padding, rsa
     from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
     from cryptography.hazmat.primitives.serialization import (
         Encoding,
@@ -21,11 +21,15 @@ except ImportError:
     PrivateKeyTypes = None
     Encoding = None
     load_pem_private_key = None
+    ec = None
+    ed25519 = None
     padding = None
+    rsa = None
     Certificate = None
     load_pem_x509_certificate = None
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, NamedTuple
 
 from odoo.tools.pdf import (
     ArrayObject,
@@ -46,6 +50,14 @@ if TYPE_CHECKING:
     from odoo.addons.base.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+
+
+class _SignatureAlgorithm(NamedTuple):
+    """CMS algorithm identifiers (asn1crypto names) and signer for one key type."""
+
+    digest: str  # DigestAlgorithmId name, also a valid hashlib algorithm
+    signature: str  # SignedDigestAlgorithmId name
+    sign: Callable[[bytes], bytes]
 
 
 class PdfSigner:
@@ -318,18 +330,52 @@ class PdfSigner:
 
         return signature_field, signature_field_value
 
-    def _get_cms_object(self, digest: bytes) -> cms.ContentInfo | None:
+    def _get_signature_algorithm(
+        self, private_key: PrivateKeyTypes
+    ) -> _SignatureAlgorithm | None:
+        """Map the private key type to its CMS algorithms and signing callable.
+
+        :return: the matching :class:`_SignatureAlgorithm`, or None for an
+            unsupported key type.
+        :rtype: _SignatureAlgorithm | None
+        """
+        if isinstance(private_key, rsa.RSAPrivateKey):
+            return _SignatureAlgorithm(
+                "sha256",
+                "sha256_rsa",
+                lambda data: private_key.sign(
+                    data, padding.PKCS1v15(), hashes.SHA256()
+                ),
+            )
+        if isinstance(private_key, ec.EllipticCurvePrivateKey):
+            return _SignatureAlgorithm(
+                "sha256",
+                "sha256_ecdsa",
+                lambda data: private_key.sign(data, ec.ECDSA(hashes.SHA256())),
+            )
+        if isinstance(private_key, ed25519.Ed25519PrivateKey):
+            # RFC 8419: pure Ed25519 (no prehash), with SHA-512 as the
+            # message-digest algorithm for the signed attributes.
+            return _SignatureAlgorithm("sha512", "ed25519", private_key.sign)
+        return None
+
+    def _get_cms_object(
+        self,
+        digest: bytes,
+        certificate: Certificate,
+        algorithm: _SignatureAlgorithm,
+    ) -> cms.ContentInfo:
         """Create an object that follows the Cryptographic Message Syntax (CMS).
 
         RFC: https://datatracker.ietf.org/doc/html/rfc5652
 
-        :param digest: the digest of the document in bytes.
-        :return: a CMS object containing the signature information, or None if the key or certificate is missing.
-        :rtype: cms.ContentInfo | None
+        :param digest: the digest of the document in bytes, computed with
+            ``algorithm.digest``.
+        :param certificate: the signing certificate.
+        :param algorithm: the CMS algorithms and signer for the private key.
+        :return: a CMS object containing the signature information.
+        :rtype: cms.ContentInfo
         """
-        private_key, certificate = self._load_key_and_certificate()
-        if private_key is None or certificate is None:
-            return None
         cert = x509.Certificate.load(certificate.public_bytes(encoding=Encoding.DER))
         encap_content_info = {"content_type": "data", "content": None}
 
@@ -360,13 +406,13 @@ class PdfSigner:
                                     "mac_algorithm": None,
                                     "digest_algorithm": cms.DigestAlgorithm(
                                         {
-                                            "algorithm": "sha256",
+                                            "algorithm": algorithm.digest,
                                             "parameters": None,
                                         }
                                     ),
                                     "signature_algorithm": cms.SignedDigestAlgorithm(
                                         {
-                                            "algorithm": "sha256_rsa",
+                                            "algorithm": algorithm.signature,
                                             "parameters": None,
                                         }
                                     ),
@@ -384,16 +430,16 @@ class PdfSigner:
             ]
         )
 
-        signed_attrs = private_key.sign(
-            attrs.dump(), padding.PKCS1v15(), hashes.SHA256()
-        )
+        signed_attrs = algorithm.sign(attrs.dump())
 
         signer_info = cms.SignerInfo(
             {
                 "version": "v1",
-                "digest_algorithm": algos.DigestAlgorithm({"algorithm": "sha256"}),
+                "digest_algorithm": algos.DigestAlgorithm(
+                    {"algorithm": algorithm.digest}
+                ),
                 "signature_algorithm": algos.SignedDigestAlgorithm(
-                    {"algorithm": "sha256_rsa"}
+                    {"algorithm": algorithm.signature}
                 ),
                 "signature": signed_attrs,
                 "sid": cms.SignerIdentifier(
@@ -412,7 +458,9 @@ class PdfSigner:
 
         signed_data = {
             "version": "v1",
-            "digest_algorithms": [algos.DigestAlgorithm({"algorithm": "sha256"})],
+            "digest_algorithms": [
+                algos.DigestAlgorithm({"algorithm": algorithm.digest})
+            ],
             "encap_content_info": encap_content_info,
             "certificates": [cert],
             "signer_infos": [signer_info],
@@ -432,16 +480,48 @@ class PdfSigner:
         :return: True on success, False if the signature could not be created.
         :rtype: bool
         """
+        private_key, certificate = self._load_key_and_certificate()
+        if private_key is None or certificate is None:
+            return False
+        algorithm = self._get_signature_algorithm(private_key)
+        if algorithm is None:
+            _logger.warning(
+                "Cannot sign PDF: unsupported private key type %s "
+                "(supported: RSA, EC, Ed25519)",
+                type(private_key).__name__,
+            )
+            return False
+
         pdf_data = self._get_document_data()
 
         # Computation of the location of the last inserted contents for the signature field
         signature_field_pos = pdf_data.rfind(b"/FT /Sig")
+        if signature_field_pos == -1:
+            _logger.warning(
+                "Cannot sign PDF: no /FT /Sig field in the serialized document"
+            )
+            return False
         contents_field_pos = pdf_data.find(b"Contents", signature_field_pos)
+        if contents_field_pos == -1:
+            _logger.warning(
+                "Cannot sign PDF: no /Contents entry after the signature field"
+            )
+            return False
 
         # Computing the start and end position of the /Contents <signature> field
         # to exclude the content of <> (aka the actual signature) from the byte range
         placeholder_start = contents_field_pos + 9
         placeholder_end = placeholder_start + len(b"\0" * 8192) * 2 + 2
+        # The window must be exactly the serialized 8 KB zero placeholder;
+        # anything else means the computed offsets drifted and the /Contents
+        # substitution below would corrupt the document.
+        placeholder = b"<" + b"0" * (8192 * 2) + b">"
+        if pdf_data[placeholder_start:placeholder_end] != placeholder:
+            _logger.warning(
+                "Cannot sign PDF: /Contents placeholder not found at the "
+                "computed offset"
+            )
+            return False
 
         # Replacing the placeholder byte range with the actual range
         # that will be used to compute the document digest
@@ -467,12 +547,11 @@ class PdfSigner:
 
         pdf_data = self._get_document_data()
 
-        digest = self._compute_digest_from_byte_range(pdf_data, byte_range)
+        digest = self._compute_digest_from_byte_range(
+            pdf_data, byte_range, algorithm.digest
+        )
 
-        cms_content_info = self._get_cms_object(digest)
-
-        if cms_content_info is None:
-            return False
+        cms_content_info = self._get_cms_object(digest, certificate, algorithm)
 
         signature_hex = cms_content_info.dump().hex()
         signature_hex = signature_hex.ljust(8192 * 2, "0")
@@ -517,9 +596,9 @@ class PdfSigner:
         return self._correct_byte_range(new_range, corrected_range, base_pdf_len)
 
     def _compute_digest_from_byte_range(
-        self, data: bytes, byte_range: list[int]
+        self, data: bytes, byte_range: list[int], algorithm: str = "sha256"
     ) -> bytes:
-        """Compute the SHA256 digest of the data selected by a byte range.
+        """Compute the digest of the data selected by a byte range.
 
         The byte range is an array [offset, length, offset, length, ...] selecting the bytes
         of the document used to compute the hash. E.g. for data = b'example' and
@@ -527,10 +606,11 @@ class PdfSigner:
 
         :param data: the data in bytes.
         :param byte_range: the byte range used to compute the digest.
+        :param algorithm: the hashlib algorithm name.
         :return: the computed digest.
         :rtype: bytes
         """
-        hashed = hashlib.sha256()
+        hashed = hashlib.new(algorithm)
         for i in range(0, len(byte_range), 2):
             hashed.update(data[byte_range[i] : byte_range[i] + byte_range[i + 1]])
         return hashed.digest()

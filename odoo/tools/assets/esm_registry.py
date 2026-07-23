@@ -305,17 +305,26 @@ def validate_esm_config(
                 f"includes of parent {parent!r}: {sorted(shared)}"
             )
 
+    # Flattened CHILD sets: a standalone bundle must not appear as anyone's
+    # dynamic child or (secondary) import-map include — those relationships
+    # assume a page with an import map and ``odoo.loader``.
+    related_children = {
+        child
+        for mapping in (
+            dynamic_children,
+            import_map_includes,
+            secondary_import_map_includes,
+        )
+        for children in mapping.values()
+        for child in children
+    }
     for name in standalone_bundles:
         if name not in bundles:
             raise ValueError(
                 f"esm.standalone_bundles entry {name!r} is not a registered "
                 f"ESM bundle (add it to the same module's 'esm.bundles')"
             )
-        if (
-            name
-            in {child for children in dynamic_children.values() for child in children}
-            or name in import_map_includes
-        ):
+        if name in related_children:
             raise ValueError(
                 f"esm.standalone_bundles entry {name!r} cannot participate in "
                 f"page import-map relationships: a standalone bundle has no "

@@ -1046,8 +1046,13 @@ class EsbuildCompiler:
         # need rewriting).
         if source_maps == "linked":
             expected_name = f"{self.name}.esm.js.map"
+            # Rewrite only the trailing directive esbuild appends at end of
+            # bundle. A blanket re.sub would also corrupt string literals that
+            # contain the text "//# sourceMappingURL=" (e.g. web's
+            # stack_frames.js), and ``\S+`` would eat past the closing quote,
+            # producing a SyntaxError for the whole bundle.
             bundle_text = re.sub(
-                r"//# sourceMappingURL=\S+",
+                r"//# sourceMappingURL=\S+(?=\s*\Z)",
                 f"//# sourceMappingURL={expected_name}",
                 bundle_text,
             )
