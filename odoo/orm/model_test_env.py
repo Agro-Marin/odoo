@@ -27,7 +27,7 @@ from odoo.tools import OrderedSet
 from . import registration
 from .components.model_graph import ModelGraph
 from .components.storage import DictBackend
-from .fields import Boolean, Char
+from .fields import Boolean, Char, Many2one
 from .models import AbstractModel, Model
 from .primitives import SUPERUSER_ID
 from .runtime._registry_fields import _RegistryFieldsMixin
@@ -48,6 +48,23 @@ class InMemorySqlNotSupported(NotImplementedError):
     The point of failing loud (instead of returning an empty result) is to stop
     a model test from going *green while production would be red* — the central
     risk of a DB-free tier.  See :meth:`InMemoryCursor.execute`.
+    """
+
+
+class InMemoryRecordRulesNotSupported(NotImplementedError):
+    """Raised on ``env["ir.rule"]`` access in a DB-free harness env.
+
+    The in-memory tier does not enforce record rules (nor ``ir.model.access``
+    ACLs): ``search()`` dispatches to the storage backend *before* the
+    ``ir.rule`` security domain is applied (``DictBackend`` declares
+    ``supports_record_rules = False``, see ``orm/runtime/backend.py``), so a
+    test asserting security-adjacent behaviour would go *green while
+    production filters records* — the false-green failure mode this tier must
+    not introduce (same rationale as :meth:`InMemoryCursor.rollback` /
+    :meth:`InMemoryCursor.savepoint`).  Raised by
+    :meth:`ModelRegistry.__getitem__` only when the caller did not register an
+    ``ir.rule`` model themselves; a caller-provided ``ir.rule`` model is
+    served normally.
     """
 
 
@@ -113,6 +130,29 @@ class _TestResUsers(Model):
 
     name = Char()
     login = Char()
+    active = Boolean(default=True)
+    # env.company resolves via user.company_id when the context carries no
+    # allowed_company_ids — required by company_dependent fields.
+    # _seed_fixtures already writes company_id=1 into the superuser row.
+    company_id = Many2one("res.company")
+
+
+class _TestResCompany(Model):
+    """Minimal ``res.company`` backing :attr:`_TestResUsers.company_id`.
+
+    Injected alongside the ``res.users`` stub so ``env.company`` (and with it
+    ``company_dependent`` fields) works DB-free; ``_seed_fixtures`` already
+    inserts the id=1 row this stub exposes. Injected only when the caller does
+    not provide a ``res.company`` model.
+    """
+
+    _name = "res.company"
+    _description = "Companies (test stub)"
+    _register = False
+    _module = None
+    _log_access = False
+
+    name = Char()
     active = Boolean(default=True)
 
 
@@ -408,7 +448,25 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     # Mapping protocol
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
-        return self.models[model_name]
+        try:
+            return self.models[model_name]
+        except KeyError:
+            if model_name == "ir.rule":
+                # Loud marker: record rules are silently NOT enforced DB-free
+                # (see InMemoryRecordRulesNotSupported).  A bare KeyError here
+                # reads like a harness gap; make the intent explicit instead.
+                raise InMemoryRecordRulesNotSupported(
+                    "ModelRegistry (DB-free model_test_env) has no 'ir.rule' "
+                    "model: record rules are NOT enforced in this tier — "
+                    "search() dispatches to the in-memory backend before the "
+                    "ir.rule security domain (DictBackend declares "
+                    "supports_record_rules = False). A security-adjacent "
+                    "assertion would go green here while production filters "
+                    "records. Use a DB-backed TransactionCase to test record-"
+                    "rule behaviour, or pass your own ir.rule model class to "
+                    "model_test_env(...) if you intend to stub it."
+                ) from None
+            raise
 
     def __contains__(self, model_name: object) -> bool:
         return model_name in self.models
@@ -562,6 +620,14 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         )
         if not has_res_users:
             all_defs.append(_TestResUsers)
+
+        # 4d. Ensure a 'res.company' model backs res.users.company_id so
+        #     env.company (and company_dependent fields) resolves DB-free.
+        has_res_company = any(
+            getattr(cls, "_name", None) == "res.company" for cls in all_defs
+        )
+        if not has_res_company:
+            all_defs.append(_TestResCompany)
 
         # 5. Stable sort: 'base'-named models first (root of all models)
         all_defs.sort(

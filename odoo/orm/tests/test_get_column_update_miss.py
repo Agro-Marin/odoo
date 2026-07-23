@@ -24,6 +24,7 @@ class Thing(models.Model):
 
     name = fields.Char()
     name_tr = fields.Char(translate=True)
+    memo = fields.Char(company_dependent=True)
     per_uid = fields.Char(compute="_compute_per_uid", store=True)
 
     @api.depends("name")
@@ -71,3 +72,25 @@ def test_translate_none_value_still_flushes_null():
         record.name_tr = False
         field = record._fields["name_tr"]
         assert field.get_column_update(record) is None
+
+
+def test_company_dependent_total_miss_raises_keyerror():
+    with model_test_env(Thing) as env:
+        record = env["gcu.thing"].create({"name": "a", "memo": "hello"})
+        field = record._fields["memo"]
+        assert field.company_dependent, "test premise"
+        env.invalidate_all()
+        # used to silently return None (flushing SQL NULL)
+        with pytest.raises(KeyError):
+            field.get_column_update(record)
+
+
+def test_company_dependent_present_falsy_value_is_not_a_miss():
+    # A record PRESENT in cache with a falsy value is not a miss: it must
+    # keep flushing an explicit per-company null, not raise.
+    with model_test_env(Thing) as env:
+        record = env["gcu.thing"].create({"name": "a", "memo": "hello"})
+        record.memo = False
+        field = record._fields["memo"]
+        result = field.get_column_update(record)
+        assert result.obj == {env.company.id: None}

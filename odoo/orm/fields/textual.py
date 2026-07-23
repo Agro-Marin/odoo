@@ -32,11 +32,11 @@ from .base import Field, _logger
 
 # The en_US sub-cache key for translate=True fields whose depends_context is
 # exactly ``('lang',)`` — the overwhelmingly common case.  Fields with extra
-# context dependencies derive their fallback key through
-# :meth:`BaseString._lang_fallback_cache_key` instead (same key with the lang
-# component — always first, normalized by ``get_depends`` — swapped for
-# "en_US").  Keep every en_US-fallback cache access on that helper so the
-# key-shape assumption lives in one place.
+# context dependencies derive their keys through
+# :meth:`BaseString._lang_cache_key` instead (same key with the lang
+# component — always first, normalized by ``get_depends`` — swapped for the
+# target language).  Keep every per-language cache access on that helper so
+# the key-shape assumption lives in one place.
 _EN_US_KEY = ("en_US",)
 
 if typing.TYPE_CHECKING:
@@ -114,19 +114,30 @@ class BaseString(Field[str | typing.Literal[False]]):
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         )
 
-    def _lang_fallback_cache_key(self, env: Environment) -> tuple:
-        """Return the en_US fallback sub-cache key of ``self`` in ``env``.
+    def _lang_cache_key(self, env: Environment, lang: str) -> tuple:
+        """Return the sub-cache key of ``self`` in ``env`` for language ``lang``.
 
         The env's own cache key with the language component — always first,
-        normalized by :meth:`get_depends` — replaced by ``"en_US"``.  A field
-        with extra context dependencies thus falls back within the SAME extra
-        context, instead of probing a dead ``("en_US",)`` key that no real
-        cache write ever uses.
+        normalized by :meth:`get_depends` — replaced by ``lang``.  A field
+        with extra context dependencies thus gets a key within the SAME extra
+        context that normal reads (:meth:`Field._get_cache_impl` via
+        ``env.cache_key``) use, instead of a bare ``(lang,)`` 1-tuple that no
+        real cache access ever consults.  For plain ``('lang',)`` fields the
+        key is the usual 1-tuple, unchanged.
         """
         cache_key = env.cache_key(self)
         if len(cache_key) == 1:
-            return _EN_US_KEY
-        return ("en_US", *cache_key[1:])
+            return _EN_US_KEY if lang == "en_US" else (lang,)
+        return (lang, *cache_key[1:])
+
+    def _lang_fallback_cache_key(self, env: Environment) -> tuple:
+        """Return the en_US fallback sub-cache key of ``self`` in ``env``.
+
+        See :meth:`_lang_cache_key`: the fallback key keeps the env's extra
+        context components so a field with extra context dependencies falls
+        back within the SAME extra context.
+        """
+        return self._lang_cache_key(env, "en_US")
 
     def _scalar_translate_fallback(
         self, env: Environment, record_id: typing.Any
@@ -174,17 +185,29 @@ class BaseString(Field[str | typing.Literal[False]]):
             # legitimate (e.g. a translated field related through a
             # depends_context compute, see test_orm.compute.member), but the
             # language is normalized FIRST in the key so every consumer that
-            # must single out the lang component — the en_US fallback key
-            # derived by :meth:`_lang_fallback_cache_key` and the
-            # ``cache_key[0]`` lang extraction in ``get_column_update`` — can
-            # rely on its position instead of assuming a ``(lang,)`` 1-tuple.
+            # must single out the lang component — the per-language sub-keys
+            # derived by :meth:`_lang_cache_key` (en_US fallback, the
+            # prefetch_langs distribution in _insert_cache/_update_cache) and
+            # the ``cache_key[0]`` lang extraction in ``get_column_update`` —
+            # can rely on its position instead of assuming a ``(lang,)``
+            # 1-tuple.
             extra = tuple(dict.fromkeys(ctx for ctx in dep_ctx if ctx != "lang"))
             if extra and self.store:
-                # A stored column holds ONE value per language: sub-caches
-                # differing only in the extra context collapse last-wins at
-                # flush, making the stored value ambiguous.
+                # The cache layer handles the extra deps correctly (all
+                # reads/writes — including the prefetch_langs distribution —
+                # key sub-caches by the FULL lang-first key, see
+                # :meth:`_lang_cache_key`), but a stored column holds ONE
+                # value per language: at flush, ``get_column_update`` maps
+                # every sub-cache to ``langs_dict[cache_key[0]]``, so
+                # same-language sub-caches differing only in the extra
+                # context collapse last-wins into an ambiguous stored value.
+                # Fixing that requires a context-aware translate branch in
+                # ``_field_convert.get_column_update``.
                 _logger.warning(
-                    "Translated stored fields (%s) cannot depend on context",
+                    "Translated stored fields (%s) cannot depend on context: "
+                    "the flushed column keeps one value per language, so "
+                    "same-language values from different contexts collapse "
+                    "last-wins at flush",
                     self,
                 )
             return dep, ("lang", *extra)
@@ -440,15 +463,28 @@ class BaseString(Field[str | typing.Literal[False]]):
         if self.translate is True:
             # Model translation: per-lang flat dicts
             if env.context.get("prefetch_langs"):
-                # SQL fetched full JSONB → distribute across per-lang sub-dicts
+                # SQL fetched full JSONB → distribute across per-lang sub-dicts,
+                # keyed by the FULL cache key (lang first + any extra context
+                # components, see _lang_cache_key) so normal reads — which key
+                # by env.cache_key — find the values.  Memoized per language:
+                # the key derivation is loop-invariant across records.
                 field_data = env._core.get_field_data(self)
+                sub_caches: dict[str, dict] = {}
+
+                def sub_cache(lang: str) -> dict:
+                    sub = sub_caches.get(lang)
+                    if sub is None:
+                        sub = sub_caches[lang] = field_data.setdefault(
+                            self._lang_cache_key(env, lang), {}
+                        )
+                    return sub
+
                 installed = [lang for lang, _ in env["res.lang"].get_installed()]
                 langs = OrderedSet[str](installed + ["en_US"])
                 for id_, val in zip(records._ids, values, strict=True):
                     if val is None:
                         for lang in langs:
-                            sub = field_data.setdefault((lang,), {})
-                            sub.setdefault(id_, None)
+                            sub_cache(lang).setdefault(id_, None)
                     else:
                         # val is a JSONB dict {lang: value}; fill missing
                         # languages with the en_US fallback
@@ -458,8 +494,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                         }
                         for lang, scalar in merged.items():
                             if not lang.startswith("_"):
-                                sub = field_data.setdefault((lang,), {})
-                                sub.setdefault(id_, scalar)
+                                sub_cache(lang).setdefault(id_, scalar)
             else:
                 # Normal path: SQL returned a scalar via COALESCE
                 super()._insert_cache(records, values)
@@ -513,20 +548,23 @@ class BaseString(Field[str | typing.Literal[False]]):
             and isinstance(cache_value, dict)
         ):
             # model translation prefetch_langs: cache_value is {lang: scalar};
-            # distribute across per-lang sub-dicts
-            field_data = records.env._core.get_field_data(self)
+            # distribute across per-lang sub-dicts, keyed by the FULL cache key
+            # (lang first + any extra context components, see _lang_cache_key)
+            # so normal reads — which key by env.cache_key — find the values
+            env = records.env
+            field_data = env._core.get_field_data(self)
             ids = records._ids
             for lang, scalar in cache_value.items():
                 if lang.startswith("_"):
                     continue  # skip _lang variants (not used for translate=True)
-                sub = field_data.setdefault((lang,), {})
+                sub = field_data.setdefault(self._lang_cache_key(env, lang), {})
                 if len(ids) <= 1:
                     if ids:
                         sub[ids[0]] = scalar
                 else:
                     sub.update(dict.fromkeys(ids, scalar))
             if self.is_column and dirty:
-                records.env._core.mark_dirty(self, (id_ for id_ in ids if id_))
+                env._core.mark_dirty(self, (id_ for id_ in ids if id_))
             return
         # translate=True with scalar value: store + en_US fallback for new records
         if self.translate is True and cache_value is not None:
