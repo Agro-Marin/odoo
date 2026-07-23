@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import datetime
 
-from odoo import models, _
+from odoo import Command, _, models
 
 
 class StockPicking(models.Model):
@@ -19,8 +18,7 @@ class StockPicking(models.Model):
         return res
 
     def _check_expired_lots(self):
-        expired_pickings = self.move_line_ids.filtered(lambda ml: ml.lot_id.product_expiry_alert or (ml.removal_date and ml.removal_date <= datetime.datetime.now())).picking_id
-        return expired_pickings
+        return self.move_line_ids.filtered(lambda ml: ml.lot_id.product_expiry_alert or (ml.removal_date and ml.removal_date <= datetime.datetime.now())).picking_id
 
     def _action_generate_expired_wizard(self):
         expired_lot_ids = self.move_line_ids.filtered(lambda ml: ml.lot_id.product_expiry_alert or (ml.removal_date and ml.removal_date <= datetime.datetime.now())).lot_id.ids
@@ -28,8 +26,8 @@ class StockPicking(models.Model):
         context = dict(self.env.context)
 
         context.update({
-            'default_picking_ids': [(6, 0, self.ids)],
-            'default_lot_ids': [(6, 0, expired_lot_ids)],
+            'default_picking_ids': [Command.set(self.ids)],
+            'default_lot_ids': [Command.set(expired_lot_ids)],
         })
         return {
             'name': _('Confirmation'),
