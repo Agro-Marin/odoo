@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
-from odoo import models, tools, _
+
+from odoo import _, models, tools
 from odoo.exceptions import UserError
 
 
@@ -11,7 +11,9 @@ class PosSession(models.Model):
 
     def _accumulate_amounts(self, data):
         data = super()._accumulate_amounts(data)
-        amounts = lambda: {'amount': 0.0, 'amount_converted': 0.0}
+
+        def amounts():
+            return {'amount': 0.0, 'amount_converted': 0.0}
 
         split_receivables_online = defaultdict(amounts)
         currency_rounding = self.currency_id.rounding
@@ -41,7 +43,7 @@ class PosSession(models.Model):
         for payment, amounts in split_receivables_online.items():
             split_receivable_line = MoveLine.create(self._get_split_receivable_op_vals(payment, amounts['amount'], amounts['amount_converted']))
             account_payment = payment.online_account_payment_id
-            payment_receivable_line = account_payment.move_id.line_ids.filtered(lambda line: line.account_id == account_payment.destination_account_id)
+            payment_receivable_line = account_payment.move_id.line_ids.filtered(lambda line: line.account_id == account_payment.destination_account_id)  # noqa: B023 (lambda consumed eagerly by filtered() in-loop)
             online_payment_to_receivable_lines[payment] = split_receivable_line | payment_receivable_line
 
         data['online_payment_to_receivable_lines'] = online_payment_to_receivable_lines
