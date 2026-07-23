@@ -197,9 +197,15 @@ class FilesystemSessionStore(SessionStore):
     def get(self, sid):
         if not self.is_valid_key(sid):
             return self.new()
+        fn = pathlib.Path(self.get_session_filename(sid))
         try:
-            with pathlib.Path(self.get_session_filename(sid)).open("rb") as f:
+            with fn.open("rb") as f:
                 data = _json_loads(f.read())
+            if not isinstance(data, dict):
+                # A non-object payload ("null", a list...) would crash
+                # ``session_class`` below on every request with that cookie;
+                # treat it as corrupt.
+                raise TypeError(f"session payload is {type(data).__name__}, not dict")
         except OSError:
             _logger.debug(
                 "Could not load session from disk. Use empty session.",
@@ -209,9 +215,21 @@ class FilesystemSessionStore(SessionStore):
                 return self.new()
             data = {}
         except Exception:
-            _logger.debug(
-                "Could not load session data. Use empty session.", exc_info=True
+            # Corrupt session file. Discard it and treat it like a missing one:
+            # the previous sid-preserving empty fallback never rewrote the file
+            # (an all-defaults session is "not modified"), so every later
+            # request re-parsed the same corrupt bytes forever.  ``save`` is
+            # atomic (mkstemp + fsync + rename), so this is real corruption,
+            # not a torn concurrent write.
+            _logger.warning(
+                "Corrupt session file %r; discarding it.", str(fn), exc_info=True
             )
+            try:
+                fn.unlink()
+            except OSError:
+                pass
+            if self.renew_missing:
+                return self.new()
             data = {}
         return self.session_class(data, sid, False)
 

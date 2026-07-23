@@ -4,9 +4,32 @@ Run via ``pytest odoo/http/tests``.
 """
 
 import pytest
+import werkzeug.wrappers
 
 from odoo.http.stream import Stream
 from odoo.http.wrappers import Response, _Response
+
+
+def test_response_load_always_returns_facade():
+    """Regression: loading a plain werkzeug Response returned a raw
+    ``_Response``, which fails ``isinstance(x, Response)`` facade checks
+    (ProxyMeta has no ``__instancecheck__``) — e.g. ``Json2Dispatcher``'s
+    pass-through-vs-serialize decision."""
+    raw = werkzeug.wrappers.Response("hi", status=201)
+    loaded = Response.load(raw)
+    assert isinstance(loaded, Response)
+    assert loaded.status_code == 201
+    for result in ("txt", b"bytes", None):
+        assert isinstance(Response.load(result), Response)
+    # a facade passes through unchanged
+    facade = Response("x", status=202)
+    assert Response.load(facade) is facade
+
+
+def test_response_ctor_from_werkzeug_response_is_not_double_wrapped():
+    r = Response(werkzeug.wrappers.Response("hi", status=203))
+    assert type(r._wrapped__) is _Response  # not a nested facade
+    assert r.status_code == 203
 
 
 def test_response_wrapping_rejects_dropped_kwargs():

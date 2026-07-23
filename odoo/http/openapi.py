@@ -182,7 +182,18 @@ def build_operation(
     parameters = list(path_params)
     route_type = route.routing.get("type", "http")
     if route.routing.get("typed"):
-        specs = build_param_specs(route.handler)
+        # A path parameter is usually ALSO annotated on the handler (that's how it
+        # gets coerced), so ``build_param_specs`` returns it too. It is already
+        # documented as ``in: path`` from the URL template — drop it from the
+        # query/body specs, else the same name is emitted twice (once ``in: path``,
+        # once a spurious ``in: query`` / body property telling clients to pass a
+        # path value in the query string or JSON body).
+        path_param_names = {p["name"] for p in path_params}
+        specs = {
+            name: spec
+            for name, spec in build_param_specs(route.handler).items()
+            if name not in path_param_names
+        }
         if route_type == "http":
             parameters += [
                 {

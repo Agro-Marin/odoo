@@ -38,6 +38,27 @@ def test_normalize_dbfilter_host_strips_port_www_and_lowercases():
     assert _normalize_dbfilter_host("WWW.sub.example.com") == "sub.example.com"
 
 
+def test_dbfilter_host_normalized_exactly_once():
+    """Regression: ``db_filter`` normalized the Host, then ``_compiled_dbfilter``
+    normalized it AGAIN — a ``www.www.example.com`` Host lost both ``www.``
+    prefixes, so ``%h`` matched the wrong database."""
+    from odoo.http.helpers import _compiled_dbfilter, db_filter
+    from odoo.tools import config
+
+    saved = config["dbfilter"]
+    config["dbfilter"] = "^%h$"
+    _compiled_dbfilter.cache_clear()
+    try:
+        # %h must resolve to "www.example.com" (one www. stripped, not two)
+        assert db_filter(["www.example.com"], host="www.www.example.com") == [
+            "www.example.com"
+        ]
+        assert db_filter(["example.com"], host="www.www.example.com") == []
+    finally:
+        config["dbfilter"] = saved
+        _compiled_dbfilter.cache_clear()
+
+
 def _fake_request(method):
     env = {"REQUEST_METHOD": method}
     httprequest = types.SimpleNamespace(method=method, environ=env)

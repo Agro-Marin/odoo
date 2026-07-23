@@ -25,7 +25,7 @@ from .core import _request_stack, request
 from .exceptions import RegistryError, SessionExpiredException
 from .geoip import geoip2, maxminddb
 from .request_class import Request
-from .routing import _generate_routing_rules, rule_routing_kwargs
+from .routing import FasterRule, _generate_routing_rules, rule_routing_kwargs
 from .session import FilesystemSessionStore, Session
 from .wrappers import HTTPRequest
 
@@ -188,9 +188,11 @@ class Application:
         for url, endpoint in _generate_routing_rules(
             [""] + config["server_wide_modules"], nodb_only=True
         ):
-            rule = werkzeug.routing.Rule(
-                url, endpoint=endpoint, **rule_routing_kwargs(endpoint)
-            )
+            # ``FasterRule`` (lazy builder compilation), like the per-database map
+            # in ``ir.http.routing_map`` — the nodb map used a plain ``Rule`` and
+            # paid full builder-compilation up front for rules that are only
+            # matched, never ``url_for``-built.
+            rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
             rule.merge_slashes = False
             nodb_routing_map.add(rule)
 

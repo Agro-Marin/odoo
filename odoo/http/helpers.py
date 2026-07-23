@@ -90,8 +90,11 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
 
 def _normalize_dbfilter_host(host: str) -> str:
     """Reduce a raw ``Host`` header to the form the dbfilter regex matches:
-    strip ``:port``, lowercase, then strip a leading ``www.`` (idempotent).
+    strip ``:port``, lowercase, then strip one leading ``www.``.
 
+    NOT idempotent (``www.www.x`` loses one ``www.`` per application), so it
+    must run exactly once per Host — :func:`db_filter` applies it before the
+    :func:`_compiled_dbfilter` lookup, and nothing else may re-apply it.
     Collapsing equivalent spellings (``www.example.com``, ``example.com:443``,
     ``EXAMPLE.com``) onto one :func:`_compiled_dbfilter` entry both routes a
     case-insensitive Host (RFC 4343) to the same database and prevents an
@@ -108,10 +111,11 @@ def _compiled_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
 
     :func:`db_filter` runs on nearly every request; the compiled regex depends
     only on the ``dbfilter`` pattern and host, so memoise it. ``pattern`` is in
-    the key so config changes are honoured; ``maxsize`` bounds memory. ``host`` is
-    normalised via :func:`_normalize_dbfilter_host`.
+    the key so config changes are honoured; ``maxsize`` bounds memory. ``host``
+    MUST already be normalised (see :func:`_normalize_dbfilter_host`) — the sole
+    caller, :func:`db_filter`, does so before the cache lookup; re-normalising
+    here would strip a second ``www.`` from a ``www.www.*`` Host.
     """
-    host = _normalize_dbfilter_host(host)
     domain = host.partition(".")[0]
     return re.compile(
         pattern.replace("%h", re.escape(host)).replace("%d", re.escape(domain))
@@ -181,7 +185,7 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
 
 
 def _get_rpc_dispatcher(service_name: str) -> Callable:
-    """Resolve RPC dispatcher lazily to avoid circular imports."""
+    """Map an RPC service name to its dispatch function (KeyError on unknown)."""
     match service_name:
         case "common":
             return odoo.service.common.dispatch
