@@ -104,3 +104,42 @@ def test_restore_thread_attr_deletes_when_absent():
     _restore_thread_attr(t, "_probe_attr", 42, sentinel)
     assert t._probe_attr == 42
     del t._probe_attr
+
+
+def test_normalize_dbfilter_host_ipv6_keeps_brackets():
+    """Regression: ``partition(":")`` truncated a bracketed IPv6 Host (RFC
+    3986) to ``[``, so no dbfilter %h could ever match an IPv6 client."""
+    assert _normalize_dbfilter_host("[::1]:8069") == "[::1]"
+    assert _normalize_dbfilter_host("[2001:DB8::1]") == "[2001:db8::1]"
+    # malformed (no closing bracket): left as-is, may only fail to match
+    assert _normalize_dbfilter_host("[::1") == "[::1"
+
+
+def test_serialize_exception_masks_infra_errors_for_clients_only():
+    """OSError/psycopg messages (paths, SQL, row data) are masked toward an
+    active client request, but stay transparent server-side (cron failure
+    records are read by admins)."""
+    import psycopg
+
+    from odoo.http import _request_stack
+    from odoo.http.helpers import serialize_exception
+
+    secret_os = OSError("/srv/filestore/prod/.session/secret-layout")
+    secret_pg = psycopg.OperationalError("UPDATE res_users SET password=...")
+
+    # No active request (cron/shell): full message kept for admins.
+    assert "filestore" in serialize_exception(secret_os)["message"]
+    assert "res_users" in serialize_exception(secret_pg)["message"]
+
+    # Active request: masked.
+    _request_stack.push(types.SimpleNamespace())
+    try:
+        for exc in (secret_os, secret_pg):
+            data = serialize_exception(exc)
+            assert data["message"] == "Internal Server Error"
+            assert data["arguments"] == ()
+            assert data["name"].endswith(type(exc).__name__)
+        # Application-level exceptions keep their message (API contract).
+        assert serialize_exception(ValueError("bad domain"))["message"] == "bad domain"
+    finally:
+        _request_stack.pop()

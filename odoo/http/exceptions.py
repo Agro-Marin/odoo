@@ -11,9 +11,20 @@ from http import HTTPStatus
 
 
 class RegistryError(RuntimeError):
-    """Error accessing the database registry."""
+    """Error accessing the database registry.
+
+    :attr:`db_absent` qualifies the failure for the recovery path
+    (``Application._recover_from_registry_error``): ``True`` — the database is
+    confirmed gone from the catalog; ``False`` — the database exists but its
+    registry is unusable (broken schema, dead signaling); ``None`` — the
+    catalog itself could not be consulted (PostgreSQL unreachable), so nothing
+    is known about the database. Only the ``None`` case is a pure
+    infrastructure blip, where logging the session out would be destructive.
+    """
 
     __module__ = "odoo.http"
+
+    db_absent: bool | None = None
 
 
 # Name predates ruff's N818 ``Error``-suffix rule; exported in ``odoo.http`` and

@@ -160,3 +160,33 @@ def test_options_added_to_methods_allow_list():
     endpoint.routing = {"methods": ["GET"], "cors": "*"}
     kwargs = rule_routing_kwargs(endpoint)
     assert "OPTIONS" in kwargs["methods"]
+
+
+def test_unknown_route_parameter_warns(caplog):
+    """A typo'd @route kwarg (``raedonly=True``) used to be silently stored in
+    endpoint.routing and ignored; it must draw a warning at decoration."""
+    import logging
+
+    from odoo.http.routing import register_routing_parameters, route
+
+    with caplog.at_level(logging.WARNING, logger="odoo.http.routing"):
+
+        @route("/probe/unknown-kwarg", type="http", auth="none", raedonly=True)
+        def endpoint(self):
+            return ""
+
+    assert any(
+        "unknown @route parameter" in rec.message and "raedonly" in str(rec.args)
+        for rec in caplog.records
+    )
+
+    # A declared extension key is accepted silently.
+    register_routing_parameters("probe_extension_key")
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="odoo.http.routing"):
+
+        @route("/probe/known-kwarg", type="http", auth="none", probe_extension_key=1)
+        def endpoint2(self):
+            return ""
+
+    assert not caplog.records

@@ -106,6 +106,26 @@ _GEOIP_NOT_FOUND: type[BaseException] = (
 # rather than 500-ing a page that reads ``geoip.location.time_zone`` unguarded.
 _GEOIP_BAD_ADDRESS: tuple[type[BaseException], ...] = (ValueError, TypeError)
 
+# The public attribute surface of the geoip2 Country/City models, used by
+# ``GeoIP.__getattr__`` when geoip2 is ABSENT: ``hasattr`` probes against the
+# ``_GeoIPNull`` sentinel are always true, so without these sets any typo'd
+# attribute silently chained through the sentinel while the same typo raises
+# ``AttributeError`` on a geoip2-equipped host — environment-dependent behavior
+# that hides bugs on exactly the machines least likely to exercise GeoIP.
+# ``test_geoip`` asserts parity with the real models whenever geoip2 is
+# importable, so these cannot silently drift across geoip2 upgrades.
+_GEOIP_COUNTRY_MODEL_ATTRS = frozenset(
+    {
+        "continent",
+        "country",
+        "maxmind",
+        "registered_country",
+        "represented_country",
+        "traits",
+    }
+)
+_GEOIP_CITY_ONLY_MODEL_ATTRS = frozenset({"city", "location", "postal", "subdivisions"})
+
 
 class GeoIP(collections.abc.Mapping):
     """
@@ -197,6 +217,15 @@ class GeoIP(collections.abc.Mapping):
     def __getattr__(self, attr: str) -> Any:
         # Determine whether the attribute exists on the country object or
         # on the city object.
+        if geoip2 is None:
+            # The null sentinel answers ``hasattr`` for anything; gate on the
+            # real model surface so a typo raises AttributeError exactly like
+            # it does on a geoip2-equipped host (see the sets above).
+            if attr in _GEOIP_COUNTRY_MODEL_ATTRS:
+                return getattr(self._country_record, attr)
+            if attr in _GEOIP_CITY_ONLY_MODEL_ATTRS:
+                return getattr(self._city_record, attr)
+            raise AttributeError(f"{self} has no attribute {attr!r}")
         if hasattr(GEOIP_EMPTY_COUNTRY, attr):
             return getattr(self._country_record, attr)
         if hasattr(GEOIP_EMPTY_CITY, attr):

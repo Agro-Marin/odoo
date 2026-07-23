@@ -3,6 +3,7 @@ from contextlib import closing
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
+import psycopg
 import requests
 
 import odoo
@@ -71,15 +72,28 @@ class TestHttpRegistry(BaseCase):
             odoo.http.application.ENSURE_DB_PATHS | {"/test_http/ensure_db"},
         )
 
-        # make sure there are always many databases, to break monodb
+        # make sure there are always many databases, to break monodb.
+        # Patch the CONSUMING namespaces, not just the ``odoo.http`` re-exports:
+        # ``request_class`` binds ``db_filter`` / ``_list_all_dbs`` at import
+        # time (see ``test_common.multidb_url_open`` for the same seams), so a
+        # patch on ``odoo.http.db_filter`` alone never reaches
+        # ``_get_session_and_dbname`` — the real ``db_filter`` then rejects the
+        # duplicated databases (``--database`` allowlist) and every test below
+        # silently runs against the healthy main database instead.
         cls._db_list = cls.startClassPatcher(patch("odoo.http.db_list"))
         cls._db_list.return_value = ["postgres", get_db_name()]
+
+        def fake_db_filter(dbs, host=None):
+            return [db for db in dbs if db in cls._db_list()]
+
+        cls.startClassPatcher(patch("odoo.http.db_filter", side_effect=fake_db_filter))
+        cls.startClassPatcher(
+            patch("odoo.http.request_class.db_filter", side_effect=fake_db_filter)
+        )
         cls.startClassPatcher(
             patch(
-                "odoo.http.db_filter",
-                side_effect=lambda dbs, host=None: [
-                    db for db in dbs if db in cls._db_list()
-                ],
+                "odoo.http.request_class._list_all_dbs",
+                side_effect=lambda force=False: list(cls._db_list()),
             )
         )
 
@@ -145,7 +159,7 @@ class TestHttpRegistry(BaseCase):
         db_duplicate = self.duplicate_current_db("drop")
 
         # open a registry + session on the duplicated db
-        self.authenticate(db=db_duplicate)
+        session = self.authenticate(db=db_duplicate)
         res = self.url_open("/test_http/ensure_db")
         self.assertEqual(res.status_code, 200)
 
@@ -158,6 +172,13 @@ class TestHttpRegistry(BaseCase):
         with self.assertLogs("odoo.http.application", logging.WARNING) as capture:
             res = self.url_open("/test_http/ensure_db")
             res.raise_for_status()
+            # The db is CONFIRMED dropped (RegistryError.db_absent=True): unlike
+            # a catalog-unreachable blip, the logout must be durable — a session
+            # bound to a dead database must not stay logged in on disk.
+            self.assertFalse(
+                odoo.http.root.session_store.get(session.sid).db,
+                "A session on a dropped database must be durably logged out.",
+            )
             self.authenticate(db=db_duplicate)  # session was dropped
             res_query = self.url_open(f"/test_http/ensure_db?db={db_duplicate}")
             res_query.raise_for_status()
@@ -185,6 +206,42 @@ class TestHttpRegistry(BaseCase):
                 )
             ]
             * 2,
+        )
+
+    def test_catalog_unreachable_keeps_session(self):
+        # A transient outage where even the catalog is unreachable (PostgreSQL
+        # restarting) says nothing about the session's database: the request is
+        # served db-less ONCE but the session must survive, or a blip forces a
+        # site-wide re-login. Only a decidable catalog check (db dropped, or
+        # present with a broken registry) may log the session out.
+        session = self.authenticate()
+        boom = psycopg.OperationalError("server closed the connection unexpectedly")
+        with (
+            patch("odoo.http._serve.Registry", side_effect=boom),
+            patch("odoo.service.db.list_dbs", side_effect=boom),
+            self.assertLogs("odoo.http.application", logging.WARNING) as capture,
+        ):
+            res = self.url_open("/test_http/ensure_db")
+        self.assertEqual(
+            capture.output,
+            [
+                Like(
+                    "WARNING:odoo.http.application:Database or registry "
+                    "unusable, trying without\nTraceback...server closed the "
+                    "connection unexpectedly..."
+                )
+            ],
+        )
+        self.assertEqual(
+            (res.status_code, urlsplit(res.headers.get("Location", "")).path),
+            (303, "/web/database/selector"),
+            "The request itself degrades to db-less serving.",
+        )
+        persisted = odoo.http.root.session_store.get(session.sid)
+        self.assertEqual(
+            persisted.db,
+            get_db_name(),
+            "A catalog-unreachable blip must not log the session out.",
         )
 
     @mute_logger("odoo.db")
