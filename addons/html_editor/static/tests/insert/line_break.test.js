@@ -197,7 +197,7 @@ describe("Selection collapsed", () => {
                 contentBefore: "<p>abc<b>[] def </b></p>",
                 stepFunction: insertLineBreak,
                 // The space is converted to a non-breaking space so it
-                // is visible (because it's before a <br>).
+                // is visible (because it's after a <br>).
                 contentAfter: "<p>abc<b><br>[]&nbsp;def </b></p>",
             });
         });

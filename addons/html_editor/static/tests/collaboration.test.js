@@ -291,7 +291,7 @@ test("should reset from snapshot", async () => {
         afterCreate: (peerInfos) => {
             insert(peerInfos.c1.editor, "b");
             peerInfos.c1.collaborationPlugin.makeSnapshot();
-            // Insure the snapshot is considered to be older than 30 seconds.
+            // Ensure the snapshot is considered to be older than 30 seconds.
             peerInfos.c1.collaborationPlugin.snapshots[0].time = 1;
             const { steps } = peerInfos.c1.collaborationPlugin.getSnapshotSteps();
             peerInfos.c2.collaborationPlugin.resetFromSteps(steps);
@@ -342,7 +342,7 @@ describe("steps whith no parent in history", () => {
                     peerInfos.c1.historyPlugin.steps[1],
                 ]);
 
-                // Peer 3 connect firt to peer 1 that made a snapshot.
+                // Peer 3 connect first to peer 1 that made a snapshot.
 
                 peerInfos.c1.collaborationPlugin.makeSnapshot();
                 // Fake the time of the snapshot so it is considered to be

@@ -401,7 +401,7 @@ describe("system classes and attributes", () => {
             config: { Plugins },
         });
 
-        /** @type import("../src/core/history_plugin").HistoryPlugin") */
+        /** @type {import("../src/core/history_plugin").HistoryPlugin} */
         const historyPlugin = plugins.get("history");
         const p = el.querySelector("p");
         p.className = "";
@@ -428,12 +428,9 @@ describe("makeSavePoint", () => {
         const { el, editor } = await setupEditor(
             `<p>a[b<span style="color: tomato;">c</span>d]e</p>`,
         );
-        // The stageSelection should have been triggered by the click on
-        // the editable. As we set the selection programmatically, we dispatch the
-        // selection here for the commands that relies on it.
-        // If the selection of the editor would be programatically set upon start
-        // (like an autofocus feature), it would be the role of the autofocus
-        // feature to trigger the stageSelection.
+        // stageSelection is normally triggered by a click on the editable;
+        // since the selection is set programmatically here, stage it manually
+        // for the commands that rely on it.
         editor.shared.history.stageSelection();
         const restore = editor.shared.history.makeSavePoint();
         execCommand(editor, "formatBold");
@@ -1191,7 +1188,7 @@ describe("serialization", () => {
         expect(mutations.length).toBe(3);
 
         // Serialized node should not have textNode as child, even though it
-        // current has it as child (otherwise it would duplicate it on unserialization)
+        // currently has it as child (otherwise it would duplicate it on unserialization)
         let { nodeId, children } = mutations[0].serializedNode;
         expect(idToNode(nodeId)).toBe(strong);
         expect(children.length).toBe(0);

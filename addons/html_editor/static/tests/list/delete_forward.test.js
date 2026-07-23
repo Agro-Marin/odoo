@@ -618,7 +618,7 @@ describe("Selection collapsed", () => {
                 contentBefore:
                     '<ul class="o_checklist"><li>abc</li><li><b>de</b>fg[]</li><li><b>hij</b>klm</li><li>nop</li></ul>',
                 stepFunction: deleteForward,
-                // all checked
+                // all unchecked
                 contentAfter:
                     '<ul class="o_checklist"><li>abc</li><li><b>de</b>fg[]<b>hij</b>klm</li><li>nop</li></ul>',
             });

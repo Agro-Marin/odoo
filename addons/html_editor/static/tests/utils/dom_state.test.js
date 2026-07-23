@@ -56,7 +56,7 @@ describe("getState", () => {
         const position = [p, 1]; // `<p>"a "[]" b"</p>`
         expect(getState(...position, DIRECTIONS.LEFT)).toEqual({
             // We look to the left of " b" (`[] b`):
-            node: p.lastChild, // "a"
+            node: p.lastChild, // " b"
             direction: DIRECTIONS.LEFT,
             // Left of " b" we see visible space that we should
             // preserve.
@@ -269,7 +269,7 @@ describe("enforceWhitespace", () => {
         const { el } = await setupEditor("<p>a  </p>");
         const p = el.firstChild;
         splitTextNode(p.firstChild, 2); // "a "" "
-        // We look to the left while standing at "a []":
+        // We look to the right while standing at "a []":
         enforceWhitespace(p, 0, DIRECTIONS.RIGHT, { spaceVisibility: false });
         expect(p.innerHTML).toBe("a  ");
     });

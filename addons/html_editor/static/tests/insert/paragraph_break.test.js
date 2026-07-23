@@ -384,8 +384,7 @@ describe("Selection collapsed", () => {
                     contentBefore: "<p>abc <b>[]def</b></p>",
                     stepFunction: splitBlock,
                     // The space is converted to a non-breaking
-                    // space so it is visible (because it's after a
-                    // <br>).
+                    // space so it is visible.
                     contentAfter: "<p>abc&nbsp;</p><p><b>[]def</b></p>",
                 });
             });
@@ -395,8 +394,7 @@ describe("Selection collapsed", () => {
                     contentBefore: "<p>abc<b>[] def </b></p>",
                     stepFunction: splitBlock,
                     // The space is converted to a non-breaking
-                    // space so it is visible (because it's before a
-                    // <br>).
+                    // space so it is visible.
                     // JW cAfter: '<p>abc</p><p><b>[]&nbsp;def</b></p>',
                     contentAfter: "<p>abc</p><p><b>[]&nbsp;def </b></p>",
                 });

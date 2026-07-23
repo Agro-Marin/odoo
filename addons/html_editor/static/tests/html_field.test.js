@@ -1157,7 +1157,7 @@ test("link preview in Link Popover", async () => {
         message: "The label input field should match the link's content",
     });
 
-    // Open the popover option to edit the link
+    // Edit the link's label
     await contains(".o-we-linkpopover input.o_we_label_link").edit("New label");
 
     // Click "Save".
@@ -1172,7 +1172,7 @@ test("link preview in Link Popover", async () => {
         message: "The label input field should match the link's content",
     });
 
-    // Open the popover option to edit the link
+    // Edit the link's label
     await contains(".o-we-linkpopover input.o_we_label_link").edit("Final label");
 
     // Move selection outside for auto-save.
@@ -2483,7 +2483,7 @@ describe("save image", () => {
         await formController.beforeUnload();
         await sendBeaconDef;
 
-        // Replace the empty paragraph with a paragrah containing an unsaved
+        // Replace the empty paragraph with a paragraph containing an unsaved
         // modified image
         const imageContainerElement = parseHTML(
             htmlEditor.document,
