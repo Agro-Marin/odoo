@@ -3,6 +3,13 @@
 :class:`Cache` provides the legacy ``env.cache.get(record, field)`` API,
 delegating to :class:`~odoo.orm.components.core.OrmCore` /
 :class:`~odoo.orm.components.cache.FieldCache`.  New ORM code uses ``env._core``.
+
+Status (2026-07 audit): no production code writes through this shim anymore
+(``Field._update_cache`` is the supported seam — the last two write-path
+users, in sale_timesheet_enterprise and account_product_asset, were
+migrated).  The read helpers (``contains`` / ``get_records`` / ``get_values``)
+are still used by ``addons/account`` and the ``base``/``test_orm`` suites, so
+the shim stays; migrate those before demoting it to test-only.
 """
 
 import contextlib

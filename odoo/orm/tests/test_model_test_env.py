@@ -130,11 +130,11 @@ class HLine(models.Model):
             line.subtotal = line.price * line.qty
 
 
-# The three models below disable _log_access: their tests write() after an
-# invalidate_all(), and the write_uid Many2one (degraded: res.users is not in
-# the model set) then crashes in mark_dirty -> _update_inverses on the cache
-# miss.  A pre-existing harness limitation, orthogonal to what these models
-# exercise (m2m relation store, translated columns).
+# The three models below disable _log_access to keep their assertions focused
+# on what they exercise (m2m relation store, translated columns). The
+# historical reason — write() after invalidate_all() crashed on the degraded
+# write_uid Many2one — is gone: the harness now injects a res.users stub
+# (see _TestResUsers and test_write_after_invalidate_with_log_access).
 
 
 class HTag(models.Model):
@@ -580,3 +580,41 @@ def test_discard_fields_works_without_attributeerror():
     field = registry["h.widget"]._fields["total"]
     registry._discard_fields([field])  # must not raise
     assert field not in registry.field_depends
+
+
+class HAudit(models.Model):
+    """Default _log_access: exercises the injected res.users stub."""
+
+    _name = "h.audit"
+    _module = _MOD
+    _description = "log-access model"
+
+    name = fields.Char()
+
+
+def test_write_after_invalidate_with_log_access():
+    """Regression: with default _log_access, a write() after invalidate_all()
+    crashed with KeyError 'res.users' in Many2one._update_inverses because the
+    magic create_uid/write_uid comodel had no model class. The harness now
+    injects _TestResUsers (backed by the seeded superuser row)."""
+    with model_test_env(HAudit) as env:
+        record = env["h.audit"].create({"name": "a"})
+        env.invalidate_all()
+        record.write({"name": "b"})
+        assert record.name == "b"
+        assert record.write_uid.id == 1
+        assert env["res.users"].browse(1).login == "admin"
+
+
+def test_user_supplied_res_users_wins_over_stub():
+    class MyUsers(models.Model):
+        _name = "res.users"
+        _module = _MOD
+        _description = "custom users"
+        _log_access = False
+
+        name = fields.Char()
+        custom_flag = fields.Boolean()
+
+    with model_test_env(HAudit, MyUsers) as env:
+        assert "custom_flag" in env["res.users"]._fields
