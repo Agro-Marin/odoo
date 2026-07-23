@@ -57,7 +57,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> bytes | None:
@@ -96,7 +96,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
             ) from e
 
     @override
-    def get_column_update(self, record: BaseModel) -> bytes | None:
+    def get_column_update(self, record: ModelLike) -> bytes | None:
         """Return the raw binary bytes for ``record``, bypassing bin_size."""
         # force bin_size=False to get actual data, not the size
         bin_size_name = "bin_size_" + self.name
@@ -106,7 +106,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> bytes | None:
         if isinstance(value, _BINARY):
             return bytes(value)
@@ -128,7 +128,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> bytes | typing.Literal[False]:
         if isinstance(value, _BINARY):
             return bytes(value)

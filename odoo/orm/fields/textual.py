@@ -44,7 +44,7 @@ if typing.TYPE_CHECKING:
 
     from odoo.tools import Query
 
-    from .._typing import IdType
+    from .._typing import IdType, ModelLike
     from ..models import BaseModel
     from ..runtime import Environment
 
@@ -220,7 +220,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         return super().get_depends(model)
 
     def _convert_db_column(
-        self, model: BaseModel, column: dict[str, typing.Any]
+        self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
         # specialized implementation for converting from/to translated fields
         if self.translate or column["udt_name"] == "jsonb":
@@ -249,7 +249,7 @@ class BaseString(Field[str | typing.Literal[False]]):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> str | None:
@@ -257,7 +257,7 @@ class BaseString(Field[str | typing.Literal[False]]):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
         if value is None or value is False:
             return None
@@ -281,7 +281,7 @@ class BaseString(Field[str | typing.Literal[False]]):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         if value is None:
             return False
@@ -359,7 +359,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         return value
 
     @override
-    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
         return value
 
     def get_translation_dictionary(
@@ -436,7 +436,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         lang = self.translation_lang(env)
         return LangProxyDict(self, cache, lang)
 
-    def _cache_missing_ids(self, records: BaseModel) -> typing.Iterator[IdType]:
+    def _cache_missing_ids(self, records: ModelLike) -> typing.Iterator[IdType]:
         if callable(self.translate) and records.env.context.get("prefetch_langs"):
             # callable translate: always check per current language cache
             records = records.with_context(prefetch_langs=False)
@@ -538,7 +538,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                         cache_value.setdefault(lang, val)
 
     def _update_cache(
-        self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
+        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         if (
             self.translate is True
@@ -820,7 +820,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                             )
 
     @override
-    def to_sql(self, model: BaseModel, alias: str) -> SQL:
+    def to_sql(self, model: ModelLike, alias: str) -> SQL:
         sql_field = super().to_sql(model, alias)
         if self.translate and not model.env.context.get("prefetch_langs"):
             langs = self.get_translation_fallback_langs(model.env)
@@ -942,7 +942,7 @@ class Char(BaseString):
         return ("varchar", pg_varchar(self.size))
 
     @override
-    def update_db_column(self, model: BaseModel, column: dict[str, typing.Any]) -> None:
+    def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
         if (
             column
             and self.column_type[0] == "varchar"
@@ -1100,7 +1100,7 @@ class Html(BaseString):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> str | None:
@@ -1109,12 +1109,12 @@ class Html(BaseString):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
         return self._convert(value, record, validate)
 
     def _convert(
-        self, value: typing.Any, record: BaseModel, validate: bool
+        self, value: typing.Any, record: ModelLike, validate: bool
     ) -> str | None:
         if value is None or value is False:
             return None
@@ -1196,7 +1196,7 @@ class Html(BaseString):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> Markup | typing.Literal[False]:
         r = super().convert_to_record(value, record)
         if isinstance(r, bytes):
@@ -1207,7 +1207,7 @@ class Html(BaseString):
     def convert_to_read(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         use_display_name: bool = True,
     ) -> Markup | typing.Literal[False]:
         r = super().convert_to_read(value, record, use_display_name)

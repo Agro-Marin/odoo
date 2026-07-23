@@ -16,7 +16,7 @@ from odoo.tools import (
 from odoo.tools.misc import PENDING, SENTINEL
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel
+    from .._typing import BaseModel, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
     # Field's value type parameter (Field[T]); used in convert_to_record's return
@@ -33,7 +33,7 @@ class _FieldConvertMixin(_FieldStubs):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -71,7 +71,7 @@ class _FieldConvertMixin(_FieldStubs):
     def convert_to_column_insert(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -97,7 +97,7 @@ class _FieldConvertMixin(_FieldStubs):
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
-    def get_column_update(self, record: BaseModel) -> typing.Any:
+    def get_column_update(self, record: ModelLike) -> typing.Any:
         """Read ``record``'s dirty cache value as a SQL parameter for UPDATE.
 
         The cache → SQL path used by
@@ -205,7 +205,7 @@ class _FieldConvertMixin(_FieldStubs):
         return PsycopgJson(values) if values else None
 
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         """Convert ``value`` to the cache format. Entry point of the WRITE path:
         values from :meth:`BaseModel.write`, :meth:`BaseModel.create`, or direct
@@ -221,7 +221,7 @@ class _FieldConvertMixin(_FieldStubs):
         """
         return value
 
-    def convert_to_record(self, value: typing.Any, record: BaseModel) -> T:
+    def convert_to_record(self, value: typing.Any, record: ModelLike) -> T:
         """Convert ``value`` from the cache format to the record format — the
         Python value returned by ``record.field``.  This is the READ path
         exit point, called by :meth:`__get__`.
@@ -232,7 +232,7 @@ class _FieldConvertMixin(_FieldStubs):
         return False if value is None else value
 
     def convert_to_read(
-        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+        self, value: typing.Any, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         """Convert ``value`` from the record format to the EXPORT format
         returned by :meth:`BaseModel.read` and consumed by the web client.
@@ -246,7 +246,7 @@ class _FieldConvertMixin(_FieldStubs):
         """
         return False if value is None else value
 
-    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
         """Convert ``value`` from any format to the write format accepted by
         :meth:`BaseModel.write`.  Used by :meth:`__set__` on real records to
         roundtrip a value through the conversion pipeline before delegating
@@ -258,14 +258,14 @@ class _FieldConvertMixin(_FieldStubs):
         record_value = self.convert_to_record(cache_value, record)
         return self.convert_to_read(record_value, record)
 
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> typing.Any:
         """Convert ``value`` from the record format to the export format."""
         if not value:
             return ""
         return value
 
     def convert_to_display_name(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         """Convert ``value`` from the record format to a suitable display name."""
         return str(value) if value else False

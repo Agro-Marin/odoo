@@ -12,6 +12,7 @@ from .numeric import Integer
 from .selection import Selection
 
 if typing.TYPE_CHECKING:
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 # ``env.cr.cache`` key of the transaction-scoped memo of reference targets
@@ -47,7 +48,7 @@ class Reference(Selection):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -55,7 +56,7 @@ class Reference(Selection):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
         # cache format: str ("model,id") or None
         if is_recordset(value):
@@ -121,7 +122,7 @@ class Reference(Selection):
 
     def _reference_exists(
         self,
-        record: BaseModel,
+        record: ModelLike,
         res_model: str,
         res_id: int,
         memo: set[tuple[str, int]],
@@ -200,7 +201,7 @@ class Reference(Selection):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> BaseModel | None:
         if value:
             res_model, res_id = value.split(",")
@@ -209,17 +210,17 @@ class Reference(Selection):
 
     @override
     def convert_to_read(
-        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+        self, value: typing.Any, record: ModelLike, use_display_name: bool = True
     ) -> str | typing.Literal[False]:
         return f"{value._name},{value.id}" if value else False
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> str:
         return value.display_name if value else ""
 
     @override
     def convert_to_display_name(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         return value.display_name if value else False
 
@@ -247,7 +248,7 @@ class Many2oneReference(Integer):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         # cache format: id or None
         if is_recordset(value):

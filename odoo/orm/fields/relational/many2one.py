@@ -145,7 +145,7 @@ class Many2one(_Relational):
 
     @override
     def update_db(
-        self, model: BaseModel, columns: dict[str, dict[str, typing.Any]]
+        self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
         comodel = model.env[self.comodel_name]
         if not model.is_transient() and comodel.is_transient():
@@ -155,7 +155,7 @@ class Many2one(_Relational):
         return super().update_db(model, columns)
 
     @override
-    def update_db_column(self, model: BaseModel, column: dict[str, typing.Any]) -> None:
+    def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
         super().update_db_column(model, column)
         model.pool.post_init(self.update_db_foreign_key, model, column)
 
@@ -193,7 +193,7 @@ class Many2one(_Relational):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> int | None:
@@ -201,7 +201,7 @@ class Many2one(_Relational):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> int | NewId | None:
         # cache format: id or None
         if type(value) is int or type(value) is NewId:
@@ -243,7 +243,7 @@ class Many2one(_Relational):
 
     @override
     def convert_to_record(
-        self, value: int | NewId | None, record: BaseModel
+        self, value: int | NewId | None, record: ModelLike
     ) -> BaseModel:
         # use registry directly; object.__new__ bypasses type.__call__ dispatch
         rs = object.__new__(record.pool[self.comodel_name])
@@ -266,7 +266,7 @@ class Many2one(_Relational):
     def convert_to_read(
         self,
         value: BaseModel,
-        record: BaseModel,
+        record: ModelLike,
         use_display_name: bool = True,
     ) -> int | tuple[int, str] | typing.Literal[False]:
         if use_display_name and value:
@@ -304,7 +304,7 @@ class Many2one(_Relational):
 
     @override
     def convert_to_write(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> int | NewId | typing.Literal[False]:
         if type(value) is int or type(value) is NewId:
             return value
@@ -335,12 +335,12 @@ class Many2one(_Relational):
                 )
 
     @override
-    def convert_to_export(self, value: BaseModel, record: BaseModel) -> str:
+    def convert_to_export(self, value: BaseModel, record: ModelLike) -> str:
         return value.display_name if value else ""
 
     @override
     def convert_to_display_name(
-        self, value: BaseModel, record: BaseModel
+        self, value: BaseModel, record: ModelLike
     ) -> str | typing.Literal[False]:
         return value.display_name
 
@@ -418,7 +418,7 @@ class Many2one(_Relational):
                 invf._update_cache(corecord, ids1)
 
     @override
-    def to_sql(self, model: BaseModel, alias: str) -> SQL:
+    def to_sql(self, model: ModelLike, alias: str) -> SQL:
         sql_field = super().to_sql(model, alias)
         if self.company_dependent:
             comodel = model.env[self.comodel_name]
@@ -542,7 +542,7 @@ class PrefetchMany2one(Reversible):
 
     __slots__ = ("field", "record")
 
-    def __init__(self, record: BaseModel, field: Many2one) -> None:
+    def __init__(self, record: ModelLike, field: Many2one) -> None:
         self.record = record
         self.field = field
 

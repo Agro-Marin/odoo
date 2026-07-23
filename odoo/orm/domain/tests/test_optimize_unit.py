@@ -265,7 +265,7 @@ class TestNaryFlattening(unittest.TestCase):
     """Nested same-operator n-ary nodes flatten into one node."""
 
     def test_nested_and_flattens(self):
-        d = (Domain("a", "=", 1) & Domain("b", "=", 2)) & Domain("c", "=", 3)
+        d = (Domain("a", "=", 1) & Domain("b", "=", 2)) & Domain("c", "=", 3)  # type: ignore[operator]
         self.assertEqual(
             _opt(d),
             ["&", "&", ("a", "in", [1]), ("b", "in", [2]), ("c", "in", [3])],
@@ -286,7 +286,7 @@ class TestOptimizerInvariants(unittest.TestCase):
         # Reusing an UN-optimised domain across models must stay safe, so
         # optimize() returns a new tree and leaves the input at level NONE.
         original = Domain("a", "=", 1)
-        original.optimize(_StubModel())
+        original.optimize(_StubModel())  # type: ignore[arg-type]
         self.assertEqual(list(original), [("a", "=", 1)])
         self.assertIs(original._opt_level, OptimizationLevel.NONE)
 
@@ -298,21 +298,21 @@ class TestOptimizerInvariants(unittest.TestCase):
         # tested contract); this pins that the stamp is a single tuple.
         original = Domain("name", "like", "x")
         self.assertEqual(original._opt, (OptimizationLevel.NONE, None))
-        out = original.optimize(_StubModel())
+        out = original.optimize(_StubModel())  # type: ignore[arg-type]
         self.assertIs(out, original)
         self.assertEqual(out._opt, (OptimizationLevel.BASIC, "m"))
 
     def test_optimize_is_idempotent(self):
         model = _StubModel()
-        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)
-        twice = once.optimize(model)
+        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)  # type: ignore[arg-type, union-attr]
+        twice = once.optimize(model)  # type: ignore[arg-type]
         self.assertEqual(once, twice)
         self.assertIs(once._opt_level, twice._opt_level)
 
     def test_boolean_singletons_optimize_to_themselves(self):
         model = _StubModel()
-        self.assertIs(Domain.TRUE.optimize(model), Domain.TRUE)
-        self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)
+        self.assertIs(Domain.TRUE.optimize(model), Domain.TRUE)  # type: ignore[arg-type]
+        self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)  # type: ignore[arg-type]
 
 
 class TestOptimizeModelScoping(unittest.TestCase):
@@ -346,18 +346,18 @@ class TestOptimizeModelScoping(unittest.TestCase):
         int_model = self._Model("int_model", {"a": "integer"})
         bool_model = self._Model("bool_model", {"a": "boolean"})
         # optimise against a model where `a` is integer (value stays an int)
-        opt = Domain("a", "=", 5).optimize(int_model)
+        opt = Domain("a", "=", 5).optimize(int_model)  # type: ignore[arg-type]
         self.assertEqual(list(opt), [("a", "in", [5])])
         # reuse the SAME canonical, level-stamped node against a model where
         # `a` is boolean: it must re-coerce (5 -> True), not return the stale int.
-        reused = list(opt.optimize(bool_model))
-        self.assertEqual(reused, list(Domain("a", "=", 5).optimize(bool_model)))
+        reused = list(opt.optimize(bool_model))  # type: ignore[arg-type]
+        self.assertEqual(reused, list(Domain("a", "=", 5).optimize(bool_model)))  # type: ignore[arg-type]
         self.assertEqual(reused, [("a", "in", [True])])
 
     def test_same_model_reuse_stays_idempotent(self):
         int_model = self._Model("int_model", {"a": "integer"})
-        opt = Domain("a", "=", 5).optimize(int_model)
-        again = opt.optimize(int_model)
+        opt = Domain("a", "=", 5).optimize(int_model)  # type: ignore[arg-type]
+        again = opt.optimize(int_model)  # type: ignore[arg-type]
         self.assertEqual(list(again), list(opt))
         self.assertIs(again._opt_level, opt._opt_level)
         self.assertEqual(opt._opt_model_name, "int_model")
@@ -371,18 +371,18 @@ class TestOptimizeModelScoping(unittest.TestCase):
         # private copy; the shared node keeps its original stamp.
         int_model = self._Model("int_model", {"a": "integer"})
         bool_model = self._Model("bool_model", {"a": "boolean"})
-        node = Domain("a", "=", 5).optimize(int_model)
+        node = Domain("a", "=", 5).optimize(int_model)  # type: ignore[arg-type]
         stamp_before = node._opt
         self.assertEqual(node._opt_model_name, "int_model")
 
-        reused = node.optimize(bool_model)  # different model → private copy
+        reused = node.optimize(bool_model)  # type: ignore[arg-type]  # different model
         self.assertEqual(list(reused), [("a", "in", [True])])  # coerced for bool
         self.assertIsNot(reused, node)
         # The shared node's stamp is untouched by the other-model optimize.
         self.assertEqual(node._opt, stamp_before)
         self.assertEqual(node._opt_model_name, "int_model")
         # ...and it still cache-hits for its own model (returns itself, no work).
-        self.assertIs(node.optimize(int_model), node)
+        self.assertIs(node.optimize(int_model), node)  # type: ignore[arg-type]
 
 
 class TestBooleanSearchableTautology(unittest.TestCase):
@@ -397,12 +397,12 @@ class TestBooleanSearchableTautology(unittest.TestCase):
             calls.append((operator, sorted(value)))
             return [("a", "in", [1])]
 
-        field.determine_domain = determine_domain
+        field.determine_domain = determine_domain  # type: ignore[attr-defined]
         model._fields["flag"] = field
         return model
 
     def test_in_true_false_collapses_before_search(self):
-        calls = []
+        calls: list = []
         model = self._model_with_searchable_bool(calls)
         result = Domain("flag", "in", [True, False]).optimize_full(model)
         # The tautology collapses to TRUE; the search method must not run.
@@ -410,7 +410,7 @@ class TestBooleanSearchableTautology(unittest.TestCase):
         self.assertEqual(list(result), [(1, "=", 1)])  # TRUE domain, legacy form
 
     def test_single_value_still_uses_search(self):
-        calls = []
+        calls: list = []
         model = self._model_with_searchable_bool(calls)
         result = Domain("flag", "in", [True]).optimize_full(model)
         # A genuine single-valued query still delegates to the search method.
@@ -503,7 +503,7 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         # the re-run BASIC pass must then apply whole-day granularity
         with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
             self.assertEqual(
-                list(Domain("dt", "=", "today").optimize_full(_StubModel())),
+                list(Domain("dt", "=", "today").optimize_full(_StubModel())),  # type: ignore[arg-type]
                 [
                     "&",
                     ("dt", "<", datetime(2024, 1, 6)),
@@ -564,7 +564,7 @@ class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
     def _nested_any(depth, op):
         subdomain = [("a", "=", 1)]
         for _ in range(depth):
-            subdomain = [("rel", op, subdomain)]
+            subdomain = [("rel", op, subdomain)]  # type: ignore[list-item]
         return subdomain
 
     def _assert_rejected_at_parse(self, op):
@@ -595,9 +595,9 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
         # nesting guard, so a deep alternating chain reaches _optimize intact
         domain = Domain("a", "=", 1)
         for _ in range(2000):
-            domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)
+            domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)  # type: ignore[assignment]
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain.validate(_StubModel())
+            domain.validate(_StubModel())  # type: ignore[arg-type]
 
     def test_as_predicate_surfaces_value_error(self):
         # Domain-valued 'any' conditions skip the raw-list nesting guard in
@@ -607,7 +607,7 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
         for _ in range(5000):
             domain = Domain("rel", "any", domain)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain._as_predicate(_StubModel())
+            domain._as_predicate(_StubModel())  # type: ignore[type-var]
 
 
 class TestMergedSetCanonicalOrder(unittest.TestCase):
@@ -652,7 +652,7 @@ class TestMergedSetCanonicalOrder(unittest.TestCase):
         def sub(values):
             domain = Domain("ok", "=", True)
             for v in values:
-                domain |= Domain("a", "in", [v])
+                domain |= Domain("a", "in", [v])  # type: ignore[assignment]
             return domain
 
         other = Domain("b", "in", [7]) | Domain("name", "like", "z")
@@ -735,8 +735,8 @@ class TestInRequiredPredicateSafety(unittest.TestCase):
         field = _StubField("rel", "many2one", relational=True, comodel="m")
         field.required = True  # falsy_value is None for many2one
         model._fields["rel"] = field
-        model._ids = ids
-        model.env.registry = types.SimpleNamespace(not_null_fields={field})
+        model._ids = ids  # type: ignore[attr-defined]
+        model.env.registry = types.SimpleNamespace(not_null_fields={field})  # type: ignore[attr-defined]
         return model
 
     def test_persisted_binding_strips_and_keeps_fallback(self):

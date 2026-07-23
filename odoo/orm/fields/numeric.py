@@ -43,7 +43,7 @@ class Integer(Field[int]):
     def convert_to_column(
         self,
         value,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -51,7 +51,7 @@ class Integer(Field[int]):
 
     @override
     def convert_to_cache(
-        self, value, record: BaseModel, validate: bool = True
+        self, value, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         # fast path: most writes already pass an int
         if value.__class__ is int:
@@ -64,13 +64,13 @@ class Integer(Field[int]):
 
     @override
     def convert_to_record(
-        self, value, record: BaseModel
+        self, value, record: ModelLike
     ) -> int | typing.Literal[False]:
         return value or 0
 
     @override
     def convert_to_read(
-        self, value, record: BaseModel, use_display_name: bool = True
+        self, value, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         # XML-RPC's i4 can't marshal values outside [-2^31, 2^31-1]; pass those
         # as floats. Guard both ends.
@@ -82,7 +82,7 @@ class Integer(Field[int]):
         self._update_cache(records, value.id or 0)
 
     @override
-    def convert_to_export(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value, record: ModelLike) -> typing.Any:
         if value or value == 0:
             return value
         return ""
@@ -191,7 +191,7 @@ class Float(Field[float]):
     def convert_to_column(
         self,
         value,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -211,7 +211,7 @@ class Float(Field[float]):
 
     @override
     def convert_to_cache(
-        self, value, record: BaseModel, validate: bool = True
+        self, value, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         # Fast path: float with no digits constraint (most Float fields)
         if value.__class__ is float and self._digits is None:
@@ -233,12 +233,12 @@ class Float(Field[float]):
 
     @override
     def convert_to_record(
-        self, value, record: BaseModel
+        self, value, record: ModelLike
     ) -> float | typing.Literal[False]:
         return value or 0.0
 
     @override
-    def convert_to_export(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value, record: ModelLike) -> typing.Any:
         if value or value == 0.0:  # noqa: RUF069  # exact-zero check distinguishes 0.0 from empty
             return value
         return ""
@@ -307,7 +307,7 @@ class Monetary(Field[float]):
             else None
         )
 
-    def _currency_record(self, record: BaseModel):
+    def _currency_record(self, record: ModelLike):
         """Return ``record[:1]``'s currency for this monetary field (or empty).
 
         ``prefetch_fields=False`` is load-bearing: the ``value`` being converted
@@ -343,7 +343,7 @@ class Monetary(Field[float]):
     def convert_to_column(
         self,
         value,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -360,7 +360,7 @@ class Monetary(Field[float]):
     def convert_to_column_insert(
         self,
         value,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -392,7 +392,7 @@ class Monetary(Field[float]):
 
     @override
     def convert_to_cache(
-        self, value, record: BaseModel, validate: bool = True
+        self, value, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         # cache format: float
         value = float(value or 0.0)
@@ -413,22 +413,22 @@ class Monetary(Field[float]):
 
     @override
     def convert_to_record(
-        self, value, record: BaseModel
+        self, value, record: ModelLike
     ) -> float | typing.Literal[False]:
         return value or 0.0
 
     @override
     def convert_to_read(
-        self, value, record: BaseModel, use_display_name: bool = True
+        self, value, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         return value
 
     @override
-    def convert_to_write(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value, record: ModelLike) -> typing.Any:
         return value
 
     @override
-    def convert_to_export(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value, record: ModelLike) -> typing.Any:
         if value or value == 0.0:  # noqa: RUF069  # exact-zero check distinguishes 0.0 from empty
             return value
         return ""
