@@ -2,6 +2,7 @@
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+
 from odoo.addons.mail.tools.discuss import Store
 
 

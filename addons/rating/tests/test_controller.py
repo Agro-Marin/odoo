@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-from odoo.tests import HttpCase, tagged, new_test_user
+from odoo.tests import new_test_user, tagged
+
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
+
 
 @tagged('post_install', '-at_install')
 class TestControllersRoute(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
 
     def setUp(self):
-        super(TestControllersRoute, self).setUp()
+        super().setUp()
         self.user = new_test_user(self.env, "test_user_1", email="test_user_1@nowhere.com", tz="UTC")
         self.partner = self.user.partner_id
         self.rated_partner = self.env['res.partner'].create({
