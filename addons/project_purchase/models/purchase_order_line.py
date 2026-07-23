@@ -20,7 +20,7 @@ class PurchaseOrderLine(models.Model):
                     list({int(account_id) for ids in line.analytic_distribution for account_id in ids.split(",")})
                 ).root_plan_id
                 if accounts_to_add := project._get_analytic_accounts().filtered(
-                        lambda account: account.root_plan_id not in applied_root_plans
+                        lambda account: account.root_plan_id not in applied_root_plans  # noqa: B023 (lambda consumed eagerly by filtered() in-loop)
                 ):
                     line.analytic_distribution = {
                         f"{account_ids},{','.join(map(str, accounts_to_add.ids))}": percentage
