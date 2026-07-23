@@ -241,9 +241,11 @@ class Registry(
                 # upgrades. kept outside the try-except below so a worker that
                 # fails on the serialization error doesn't call
                 # reset_modules_state while the first worker is upgrading.
-                from odoo.modules import db
+                # aliased (like init() below): a bare `db` would shadow the
+                # module-level `from odoo import db` used elsewhere in the class
+                from odoo.modules import db as modules_db
 
-                if db.is_initialized(cr):
+                if modules_db.is_initialized(cr):
                     cr.execute(
                         "DELETE FROM ir_config_parameter WHERE key='base.partially_updated_database'"
                     )
@@ -414,6 +416,11 @@ class Registry(
         """Delete the registry linked to a given database."""
         if db_name in cls.registries:  # pylint: disable=unsupported-membership-test
             del cls.registries[db_name]  # pylint: disable=unsupported-delete-operation
+        # Drop the ormcache stat counters for this db so they do not accumulate
+        # across create/drop cycles.
+        from odoo.tools.cache import prune_counters
+
+        prune_counters(db_name)
 
     @classmethod
     @locked
@@ -577,6 +584,15 @@ class Registry(
         # clear cache to ensure consistency, but do not signal it
         self._caches.clear_all()
 
+        # Open the trigger-graph invalidation window BEFORE tearing anything
+        # down: from here until end_invalidation() (just before the eager
+        # rebuild at the end), any reader-triggered _field_triggers rebuild —
+        # whether it started before this point or starts mid-teardown against
+        # half-set-up models — loses the publication race (epoch/barrier check
+        # in ModelGraph.set_triggers) instead of clobbering the graph with
+        # stale or garbage triggers after our own rebuild.
+        self.model_graph.begin_invalidation()
+
         reset_cached_properties(self)
         self.model_graph.clear_caches()
         self.registry_invalidated = True
@@ -673,6 +689,16 @@ class Registry(
         # clean again in case cached by another ongoing readonly request
         reset_cached_properties(self)
 
+        # Close the invalidation window opened at the top of the teardown: the
+        # models are fully set up again, so trigger rebuilds are trustworthy
+        # from here on. end_invalidation bumps the epoch once more, so any
+        # rebuild that started DURING the teardown (against half-set-up
+        # models) stays refused forever; only builds starting after this point
+        # — ours below, or Registry.new's eager build on initial load — can
+        # publish. Must run on the not-ready path too, else the initial-load
+        # eager build in Registry.new would be refused by the barrier.
+        self.model_graph.end_invalidation()
+
         # reinstall registry hooks (only on a fully loaded registry, not one
         # still loading)
         if self.ready:
@@ -686,6 +712,10 @@ class Registry(
             # would let them double-compute and race the shared model_graph. This
             # mirrors the eager build in Registry.new (which covers initial load,
             # where self.ready is still False and no request threads exist yet).
+            # Pop the cached_property first: a refused mid-teardown reader may
+            # have re-primed it with the previous snapshot, and the eager
+            # access below must recompute, not return that.
+            self.__dict__.pop("_field_triggers", None)
             self._field_triggers  # noqa: B018 — eager build for thread-safety
             env.flush_all()
 
@@ -848,9 +878,23 @@ class Registry(
             # https://www.postgresql.org/docs/current/logical-replication-restrictions.html
             for table_name in _SIGNALING_TABLES:
                 if table_name not in existing_sig_tables:
+                    # IF NOT EXISTS: on a fresh database whose template lacks
+                    # the tables (e.g. right after a restore, which templates
+                    # from template0), two workers race this — both read
+                    # existing_tables above before either commits, and without
+                    # the guard the loser's CREATE raises DuplicateTable and
+                    # its whole registry build fails.  Both workers then seed;
+                    # a double seed is harmless: consumers only ever read
+                    # max(id) (get_sequences) and compare it strictly
+                    # monotonically against a baseline captured below, so a
+                    # baseline of 2 instead of 1 costs at worst one spurious
+                    # reload on the worker whose snapshot missed the other's
+                    # row.  The existing_tables pre-check still matters: it
+                    # keeps every LATER registry build from re-seeding, which
+                    # would signal a fake change to all other workers.
                     cr.execute(
                         SQL(
-                            "CREATE TABLE %s (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())",
+                            "CREATE TABLE IF NOT EXISTS %s (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())",
                             SQL.identifier(table_name),
                         )
                     )
@@ -884,23 +928,32 @@ class Registry(
         if row is None:
             raise RuntimeError("No result when reading signaling sequences")
         registry_sequence, *cache_sequences_values = row
-        cache_sequences = dict(
-            zip(_CACHES_BY_KEY, cache_sequences_values, strict=False)
-        )
+        # strict: the SELECT is built from _SIGNALING_TABLES = registry +
+        # _CACHES_BY_KEY, so after splitting off registry_sequence both sides
+        # have len(_CACHES_BY_KEY); if the constants ever drift apart this
+        # raises immediately instead of silently dropping a cache group.
+        cache_sequences = dict(zip(_CACHES_BY_KEY, cache_sequences_values, strict=True))
         return registry_sequence, cache_sequences
 
     def check_signaling(self, cr: BaseCursor | None = None) -> Registry:
         """Check whether the registry has changed, and performs all necessary
         operations to update the registry. Return an up-to-date registry.
         """
+        # Captured BEFORE the with-statement resolves the cursor: the dead-DB
+        # cleanup in the OperationalError handler below must know whether WE
+        # opened the cursor, and testing the parameter after a rebinding
+        # ``as cr`` would never see None again (the historical bug: a mid-query
+        # connection death on a self-opened cursor skipped the cleanup, leaving
+        # the stale registry cached — exactly the repeated hangs the handler
+        # exists to prevent).
+        own_cursor = cr is None
         try:
             with (
                 nullcontext(cr)
                 if cr is not None
                 else closing(self.cursor(readonly=True))
-            ) as cr:  # noqa: PLR1704 — rebind to the resolved cursor
-                assert cr is not None
-                db_registry_sequence, db_cache_sequences = self.get_sequences(cr)
+            ) as sig_cr:
+                db_registry_sequence, db_cache_sequences = self.get_sequences(sig_cr)
                 changes = ""
                 # Comparisons below are strictly monotonic (`>`), not `!=`: with
                 # db_replica_host configured this cursor may read a LAGGING
@@ -949,52 +1002,74 @@ class Registry(
                         # staler value: under a concurrent schema bump landing
                         # during the rebuild it would regress the sequence and
                         # force a redundant reload next request.
+                    # Adopt or rebuild, the pool drain (ours above, or the one
+                    # run by whoever published the adopted registry) only
+                    # recycles IDLE connections: the cursor used for THIS check
+                    # is checked out and keeps its stale auto-prepared plans.
+                    # Re-executing one raises FeatureNotSupported 0A000 "cached
+                    # plan must not change result type" — not OperationalError,
+                    # not a retryable sqlstate, so the RPC retry loop turns it
+                    # into a 500 (once per statement, on the first request per
+                    # worker). Discard them: on a caller-borrowed request
+                    # cursor this protects the rest of the request; on our own
+                    # cursor it keeps the connection from re-seeding the pool
+                    # with stale plans on return (give_back deliberately
+                    # preserves prepared statements — odoo/db/lifecycle.py).
+                    sig_cr.discard_cached_plans()
                     if _logger.isEnabledFor(logging.DEBUG):
                         changes += (
                             f"[Registry - {old_sequence} -> {self.registry_sequence}]"
                         )
-                # Check if the model caches must be invalidated.
-                else:
-                    if db_registry_sequence < self.registry_sequence:
+                elif db_registry_sequence < self.registry_sequence:
+                    _logger.debug(
+                        "Ignoring stale registry signaling read "
+                        "(db %s < local %s), likely replica lag",
+                        db_registry_sequence,
+                        self.registry_sequence,
+                    )
+                # Check if the model caches must be invalidated.  Runs on
+                # whichever registry the branch above produced (kept / adopted
+                # / rebuilt), NOT only on the no-reload path: a registry
+                # adopted from another thread may itself hold cache sequences
+                # older than this db read (its ormcaches went stale AFTER that
+                # thread rebuilt it), and skipping the check would serve those
+                # stale entries for the whole request. The loop is
+                # monotonic-safe (clears/advances only when db > local), so on
+                # a freshly rebuilt registry — whose sequences come from an
+                # even fresher read in setup_signaling() — it is a no-op.
+                invalidated = []
+                for (
+                    cache_name,
+                    cache_sequence,
+                ) in self.cache_sequences.items():
+                    expected_sequence = db_cache_sequences[cache_name]
+                    if expected_sequence > cache_sequence:
+                        for cache in _CACHES_BY_KEY[
+                            cache_name
+                        ]:  # don't call clear_cache to avoid signal loop
+                            if cache not in invalidated:
+                                invalidated.append(cache)
+                                self._caches.lrus[cache].clear()
+                        # monotonic: only ever advance the stored sequence;
+                        # assigning a smaller (lagging) value would make the
+                        # next non-lagging read look like a change and clear
+                        # the caches a second time for nothing.
+                        self.cache_sequences[cache_name] = expected_sequence
+                        if _logger.isEnabledFor(logging.DEBUG):
+                            changes += f"[Cache {cache_name} - {cache_sequence} -> {expected_sequence}]"
+                    elif expected_sequence < cache_sequence:
                         _logger.debug(
-                            "Ignoring stale registry signaling read "
+                            "Ignoring stale cache signaling read for %s "
                             "(db %s < local %s), likely replica lag",
-                            db_registry_sequence,
-                            self.registry_sequence,
+                            cache_name,
+                            expected_sequence,
+                            cache_sequence,
                         )
-                    invalidated = []
-                    for (
-                        cache_name,
-                        cache_sequence,
-                    ) in self.cache_sequences.items():
-                        expected_sequence = db_cache_sequences[cache_name]
-                        if expected_sequence > cache_sequence:
-                            for cache in _CACHES_BY_KEY[
-                                cache_name
-                            ]:  # don't call clear_cache to avoid signal loop
-                                if cache not in invalidated:
-                                    invalidated.append(cache)
-                                    self._caches.lrus[cache].clear()
-                            # monotonic: only ever advance the stored sequence;
-                            # assigning a smaller (lagging) value would make the
-                            # next non-lagging read look like a change and clear
-                            # the caches a second time for nothing.
-                            self.cache_sequences[cache_name] = expected_sequence
-                            if _logger.isEnabledFor(logging.DEBUG):
-                                changes += f"[Cache {cache_name} - {cache_sequence} -> {expected_sequence}]"
-                        elif expected_sequence < cache_sequence:
-                            _logger.debug(
-                                "Ignoring stale cache signaling read for %s "
-                                "(db %s < local %s), likely replica lag",
-                                cache_name,
-                                expected_sequence,
-                                cache_sequence,
-                            )
-                    if invalidated:
-                        _logger.info(
-                            "Invalidating caches after database signaling: %s",
-                            sorted(invalidated),
-                        )
+                if invalidated:
+                    _logger.info(
+                        "Invalidating caches after database signaling: %s",
+                        sorted(invalidated),
+                    )
                 if changes:
                     _logger.debug("Multiprocess signaling check: %s", changes)
         except db.PoolError:
@@ -1005,11 +1080,13 @@ class Registry(
             # let the caller retry once the pool drains.
             raise
         except psycopg.OperationalError:
-            if cr is None:
-                # We opened the cursor ourselves and it failed with a connection
-                # error (not capacity) — the database is likely unreachable
-                # (dropped / refused). Remove the stale registry to prevent
-                # repeated hangs.
+            if own_cursor:
+                # Our own cursor failed with a connection error (not capacity)
+                # — at open or mid-query — so the database is likely
+                # unreachable (dropped / refused). Remove the stale registry to
+                # prevent repeated hangs. A caller-provided cursor is left
+                # alone: its failure is the caller's transaction dying, not
+                # proof the database is gone.
                 type(self).delete(self.db_name)
             raise
         return self
@@ -1079,6 +1156,14 @@ class Registry(
             replica exists or that no readonly cursor could be acquired.
         """
         if readonly and self._db_readonly is not None:
+            # ``cursor_mode`` is per-REQUEST state: the http layer initializes
+            # it (None) on the worker thread at request start and the perf-log
+            # filter only ever reads it on threads that carry that state.
+            # Threads without the attribute (cron, loader, main) are not
+            # serving a request — don't stamp them, or the mark outlives the
+            # work that produced it with nothing ever resetting it.
+            thread = threading.current_thread()
+            in_request = hasattr(thread, "cursor_mode")
             if (
                 self._db_readonly_failed_time is None
                 or time.monotonic()
@@ -1087,10 +1172,11 @@ class Registry(
                 try:
                     cr = self._db_readonly.cursor()
                     self._db_readonly_failed_time = None
-                    # replica succeeded — clear any "ro->rw" cursor_mode left by
-                    # an earlier fallback in this thread, else it keeps reporting
-                    # the resolved fallback state.
-                    threading.current_thread().cursor_mode = "ro"
+                    if in_request:
+                        # replica succeeded — clear any "ro->rw" cursor_mode
+                        # left by an earlier fallback in this thread, else it
+                        # keeps reporting the resolved fallback state.
+                        thread.cursor_mode = "ro"
                     return cr
                 except psycopg.OperationalError, db.PoolError:
                     self._db_readonly_failed_time = time.monotonic()
@@ -1098,7 +1184,8 @@ class Registry(
                         "Failed to open a readonly cursor, falling back to read-write cursor for %dmin %dsec",
                         *divmod(_REPLICA_RETRY_TIME, 60),
                     )
-            threading.current_thread().cursor_mode = "ro->rw"
+            if in_request:
+                thread.cursor_mode = "ro->rw"
         return self._db.cursor()
 
 

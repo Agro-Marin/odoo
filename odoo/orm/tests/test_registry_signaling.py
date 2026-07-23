@@ -19,15 +19,38 @@ Covers the July 2026 audit fixes on ``odoo.orm.runtime.registry``:
 * ``Registry(db_name)`` returns an already-ready registry without taking the
   class-global lock (cross-database fast path), while a not-ready (in-flight)
   registry still goes through the locked path.
+
+And the follow-up audit round on the same file:
+
+* whenever the registry sequence advanced (rebuild AND adopt branches),
+  ``check_signaling`` discards the checked-out cursor's cached statement plans
+  (``discard_cached_plans``) — the pool drain only recycles *idle* connections,
+  so without this the borrowed request cursor keeps stale auto-prepared plans
+  and the next re-execution fails with the non-retryable 0A000 "cached plan
+  must not change result type";
+* the cache-sequence check runs on whichever registry the reload branch
+  produced — in particular an *adopted* registry whose ormcaches went stale
+  after it was published still gets them cleared;
+* the dead-DB cleanup keys on whether ``check_signaling`` opened the cursor
+  itself (captured before the ``with`` resolves the cursor), so a mid-query
+  connection death on a self-opened cursor evicts the stale registry while a
+  caller-provided cursor's failure never does;
+* ``get_sequences`` zips strictly, turning any future drift between
+  ``_SIGNALING_TABLES`` and ``_CACHES_BY_KEY`` into an immediate error;
+* ``setup_signaling`` creates the signaling tables with ``IF NOT EXISTS``
+  (fresh-DB cross-process race) and only seeds tables it found missing.
 """
 
 import threading
 
+import psycopg
 import pytest
 
 import odoo.db
+from odoo.orm.runtime import registry as registry_module
 from odoo.orm.runtime.registry import (
     _CACHES_BY_KEY,
+    _SIGNALING_TABLES,
     Registry,
     _RegistryCaches,
 )
@@ -57,12 +80,16 @@ class _SeqCursor:
             registry_sequence,
             *(cache_sequences[name] for name in _CACHES_BY_KEY),
         )
+        self.plans_discarded = 0
 
     def execute(self, query, params=None, **kwargs):
         pass
 
     def fetchone(self):
         return self._row
+
+    def discard_cached_plans(self):
+        self.plans_discarded += 1
 
 
 def _fail(what):
@@ -98,10 +125,14 @@ def test_reload_when_db_registry_sequence_ahead(monkeypatch):
 
     monkeypatch.setattr(Registry, "new", classmethod(fake_new))
 
-    result = reg.check_signaling(_SeqCursor(6, _db_caches(3)))
+    cur = _SeqCursor(6, _db_caches(3))
+    result = reg.check_signaling(cur)
 
     assert result is rebuilt
     assert calls == [("drain", "_sig_ahead_db"), ("new", "_sig_ahead_db")]
+    # drain_db only recycles idle pooled connections; the cursor used for the
+    # check is checked out and must have its stale plans discarded explicitly.
+    assert cur.plans_discarded == 1
 
 
 def test_no_reload_when_db_registry_sequence_behind(monkeypatch):
@@ -111,12 +142,14 @@ def test_no_reload_when_db_registry_sequence_behind(monkeypatch):
     monkeypatch.setattr(odoo.db, "drain_db", _fail("drain_db"))
     monkeypatch.setattr(Registry, "new", classmethod(_fail("Registry.new")))
 
-    result = reg.check_signaling(_SeqCursor(5, _db_caches(4)))
+    cur = _SeqCursor(5, _db_caches(4))
+    result = reg.check_signaling(cur)
 
     assert result is reg
     assert reg.registry_sequence == 7  # kept, not regressed
     assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 5)
     assert reg._caches.lrus["default"]["k"] == "v"  # nothing cleared
+    assert cur.plans_discarded == 0  # no schema change: plans are fine
 
 
 def test_adopt_registry_published_by_other_thread(monkeypatch):
@@ -129,9 +162,13 @@ def test_adopt_registry_published_by_other_thread(monkeypatch):
         monkeypatch.setattr(odoo.db, "drain_db", _fail("drain_db"))
         monkeypatch.setattr(Registry, "new", classmethod(_fail("Registry.new")))
 
-        result = stale.check_signaling(_SeqCursor(6, _db_caches(4)))
+        cur = _SeqCursor(6, _db_caches(4))
+        result = stale.check_signaling(cur)
 
         assert result is published
+        # the adopt branch drains nothing on this thread, so the checked-out
+        # cursor's stale plans must still be discarded here.
+        assert cur.plans_discarded == 1
     finally:
         Registry.registries.pop(name, None)
 
@@ -153,10 +190,12 @@ def test_no_adopt_when_published_registry_too_old(monkeypatch):
 
         monkeypatch.setattr(Registry, "new", classmethod(fake_new))
 
-        result = stale.check_signaling(_SeqCursor(6, _db_caches(4)))
+        cur = _SeqCursor(6, _db_caches(4))
+        result = stale.check_signaling(cur)
 
         assert result is rebuilt
         assert calls == [name]
+        assert cur.plans_discarded == 1
     finally:
         Registry.registries.pop(name, None)
 
@@ -195,6 +234,241 @@ def test_cache_kept_when_db_cache_sequence_behind():
     assert result is reg
     assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 6)
     assert reg._caches.lrus["assets"]["a"] == 1
+
+
+def test_adopted_registry_with_lagging_cache_sequences_is_invalidated(monkeypatch):
+    """The cache-sequence check runs on an ADOPTED registry too.
+
+    The published registry is new enough on the registry sequence (6 >= 6) but
+    its cache sequences (4) lag the db read (5): its ormcaches went stale after
+    the other thread rebuilt it.  Adoption must not skip the cache check, or
+    the stale entries get served for the whole request.
+    """
+    name = "_sig_adopt_stale_cache_db"
+    stale = _make_registry(name, 5, 3)
+    published = _make_registry(name, 6, 4)
+    published._caches.lrus["assets"]["stale_key"] = "stale_value"
+    Registry.registries[name] = published
+    try:
+        monkeypatch.setattr(odoo.db, "drain_db", _fail("drain_db"))
+        monkeypatch.setattr(Registry, "new", classmethod(_fail("Registry.new")))
+
+        cur = _SeqCursor(6, _db_caches(5))
+        result = stale.check_signaling(cur)
+
+        assert result is published
+        assert "stale_key" not in published._caches.lrus["assets"]
+        assert published.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 5)
+        assert cur.plans_discarded == 1
+    finally:
+        Registry.registries.pop(name, None)
+
+
+def test_cache_check_is_noop_on_freshly_rebuilt_registry(monkeypatch):
+    """After a rebuild the cache check must not clear the fresh registry.
+
+    ``Registry.new`` -> ``setup_signaling`` seeds the rebuilt registry's cache
+    sequences from a DB read at least as new as this check's; the (now
+    unconditional) cache-sequence loop is monotonic, so it leaves the fresh
+    caches and sequences alone.
+    """
+    reg = _make_registry("_sig_rebuild_fresh_db", 5, 3)
+    rebuilt = _make_registry("_sig_rebuild_fresh_db", 6, 4)
+    rebuilt._caches.lrus["assets"]["fresh"] = 1
+    monkeypatch.setattr(odoo.db, "drain_db", lambda db_name: None)
+    monkeypatch.setattr(Registry, "new", classmethod(lambda cls, db_name: rebuilt))
+
+    result = reg.check_signaling(_SeqCursor(6, _db_caches(4)))
+
+    assert result is rebuilt
+    assert rebuilt._caches.lrus["assets"]["fresh"] == 1  # not cleared
+    assert rebuilt.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 4)
+
+
+# ---------------------------------------------------------------------------
+# check_signaling — dead-DB cleanup (own vs caller-provided cursor)
+# ---------------------------------------------------------------------------
+
+
+class _DyingCursor:
+    """Cursor that opens fine but dies on first execute (pooled dead conn)."""
+
+    def execute(self, query, params=None, **kwargs):
+        raise psycopg.OperationalError("server closed the connection unexpectedly")
+
+    def close(self):
+        pass
+
+
+def test_dead_db_mid_query_on_own_cursor_deletes_registry(monkeypatch):
+    """Self-opened cursor dying mid-query evicts the stale registry.
+
+    ``cr is None`` must mean "we opened the cursor ourselves", captured BEFORE
+    the ``with`` resolves the cursor — historically the ``as cr`` rebinding
+    made the guard mean "opening failed", so a pooled connection dying on the
+    first query left the stale registry cached (repeated hangs).
+    """
+    name = "_sig_dead_mid_query_db"
+    reg = _make_registry(name, 5, 3)
+    Registry.registries[name] = reg
+    monkeypatch.setattr(Registry, "cursor", lambda self, readonly=False: _DyingCursor())
+    deleted = []
+    monkeypatch.setattr(
+        Registry, "delete", classmethod(lambda cls, db_name: deleted.append(db_name))
+    )
+    try:
+        with pytest.raises(psycopg.OperationalError):
+            reg.check_signaling()  # cr=None: self-opened cursor
+        assert deleted == [name]
+    finally:
+        Registry.registries.pop(name, None)
+
+
+def test_dead_db_at_open_deletes_registry(monkeypatch):
+    """Control: failure while OPENING the self-opened cursor also deletes."""
+    name = "_sig_dead_at_open_db"
+    reg = _make_registry(name, 5, 3)
+    Registry.registries[name] = reg
+
+    def dying_open(self, readonly=False):
+        raise psycopg.OperationalError("connection refused")
+
+    monkeypatch.setattr(Registry, "cursor", dying_open)
+    deleted = []
+    monkeypatch.setattr(
+        Registry, "delete", classmethod(lambda cls, db_name: deleted.append(db_name))
+    )
+    try:
+        with pytest.raises(psycopg.OperationalError):
+            reg.check_signaling()
+        assert deleted == [name]
+    finally:
+        Registry.registries.pop(name, None)
+
+
+def test_dead_caller_cursor_keeps_registry(monkeypatch):
+    """A caller-provided cursor's failure never evicts the registry.
+
+    The caller's transaction dying mid-request is not proof the database is
+    gone; deleting here would force a full reload on the next request.
+    """
+    name = "_sig_dead_caller_cr_db"
+    reg = _make_registry(name, 5, 3)
+    Registry.registries[name] = reg
+    monkeypatch.setattr(Registry, "delete", classmethod(_fail("Registry.delete")))
+    try:
+        with pytest.raises(psycopg.OperationalError):
+            reg.check_signaling(_DyingCursor())
+    finally:
+        Registry.registries.pop(name, None)
+
+
+# ---------------------------------------------------------------------------
+# get_sequences — strict row shape
+# ---------------------------------------------------------------------------
+
+
+def test_get_sequences_rejects_row_length_drift():
+    """A row not matching ``_CACHES_BY_KEY`` raises instead of dropping keys.
+
+    The SELECT is generated from ``_SIGNALING_TABLES``; if that constant ever
+    drifts from ``_CACHES_BY_KEY`` the strict zip must fail immediately rather
+    than silently losing a cache group's sequence.
+    """
+
+    class _ShortRowCursor:
+        def execute(self, query, params=None, **kwargs):
+            pass
+
+        def fetchone(self):
+            return (1, *([1] * (len(_CACHES_BY_KEY) - 1)))
+
+    reg = _make_registry("_seq_strict_db", 1, 1)
+    with pytest.raises(ValueError):
+        reg.get_sequences(_ShortRowCursor())
+
+
+# ---------------------------------------------------------------------------
+# setup_signaling — fresh-DB cross-process race
+# ---------------------------------------------------------------------------
+
+
+class _SetupCursor:
+    """Records executed statements; answers ``get_sequences``' one SELECT."""
+
+    def __init__(self):
+        self.queries = []
+        self._row = (1, *([1] * len(_CACHES_BY_KEY)))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def execute(self, query, params=None, **kwargs):
+        self.queries.append(query.code if hasattr(query, "code") else str(query))
+
+    def fetchone(self):
+        return self._row
+
+
+def _run_setup_signaling(monkeypatch, existing_tables):
+    reg = _make_registry("_sig_setup_db", -1, -1)
+    cur = _SetupCursor()
+    monkeypatch.setattr(Registry, "cursor", lambda self, readonly=False: cur)
+    monkeypatch.setattr(
+        registry_module.sql, "existing_tables", lambda cr, names: existing_tables
+    )
+    reg.setup_signaling()
+    return reg, cur
+
+
+def test_setup_signaling_creates_tables_if_not_exists(monkeypatch):
+    """On a fresh DB every CREATE carries IF NOT EXISTS and is seeded once.
+
+    Two workers racing ``setup_signaling`` on a database whose template lacks
+    the tables both pass the ``existing_tables`` pre-check; without the guard
+    the loser's CREATE raises DuplicateTable and its registry build fails.
+    """
+    reg, cur = _run_setup_signaling(monkeypatch, existing_tables=())
+
+    creates = [q for q in cur.queries if q.startswith("CREATE")]
+    inserts = [q for q in cur.queries if q.startswith("INSERT")]
+    assert len(creates) == len(_SIGNALING_TABLES)
+    assert all(q.startswith("CREATE TABLE IF NOT EXISTS") for q in creates)
+    assert len(inserts) == len(_SIGNALING_TABLES)
+    # baseline sequences captured from the same transaction's read-back
+    assert reg.registry_sequence == 1
+    assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 1)
+
+
+def test_setup_signaling_does_not_reseed_existing_tables(monkeypatch):
+    """Existing tables are neither re-created nor re-seeded.
+
+    Re-seeding on every registry build would bump ``max(id)`` and signal a
+    fake registry/cache change to every other worker.
+    """
+    reg, cur = _run_setup_signaling(
+        monkeypatch, existing_tables=tuple(_SIGNALING_TABLES)
+    )
+
+    assert not [q for q in cur.queries if q.startswith(("CREATE", "INSERT"))]
+    assert reg.registry_sequence == 1
+
+
+def test_setup_signaling_seeds_only_missing_tables(monkeypatch):
+    """A partially-provisioned DB only gets its missing tables created."""
+    missing = _SIGNALING_TABLES[0]
+    _reg, cur = _run_setup_signaling(
+        monkeypatch, existing_tables=tuple(_SIGNALING_TABLES[1:])
+    )
+
+    creates = [q for q in cur.queries if q.startswith("CREATE")]
+    inserts = [q for q in cur.queries if q.startswith("INSERT")]
+    assert len(creates) == 1
+    assert len(inserts) == 1
+    assert missing in creates[0] and missing in inserts[0]
 
 
 # ---------------------------------------------------------------------------
