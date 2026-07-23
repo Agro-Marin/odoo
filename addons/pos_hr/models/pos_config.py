@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, api
+from odoo import Command, api, fields, models
 from odoo.fields import Domain
 
 
@@ -21,7 +21,7 @@ class PosConfig(models.Model):
     def write(self, vals):
         if 'advanced_employee_ids' not in vals:
             vals['advanced_employee_ids'] = []
-        vals['advanced_employee_ids'] += [(4, emp_id) for emp_id in self._get_group_pos_manager().user_ids.employee_id.ids]
+        vals['advanced_employee_ids'] += [Command.link(emp_id) for emp_id in self._get_group_pos_manager().user_ids.employee_id.ids]
 
         # write employees in sudo, because we have no access to these corecords
         sudo_vals = {

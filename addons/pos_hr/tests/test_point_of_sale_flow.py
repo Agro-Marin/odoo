@@ -3,8 +3,9 @@
 from unittest.mock import patch
 
 import odoo
-from odoo.addons.point_of_sale.tests.common import CommonPosTest
 from odoo.exceptions import UserError
+
+from odoo.addons.point_of_sale.tests.common import CommonPosTest
 
 
 @odoo.tests.tagged('post_install', '-at_install')
