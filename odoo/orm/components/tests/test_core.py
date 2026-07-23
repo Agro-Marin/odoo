@@ -3,8 +3,9 @@
 These tests verify that OrmCore faithfully delegates to FieldCache and
 ComputeEngine under the *same* method names, producing identical results to
 calling the underlying components directly. Operations not exposed on the facade
-(``set_value``, ``invalidate_*``, ``clear`` …) are reached via ``core.cache`` /
-``core.engine`` and covered by ``test_cache.py`` / ``test_compute.py``.
+(``set_value``, ``invalidate_field``, ``invalidate_all``, ``clear`` …) are
+reached via ``core.cache`` / ``core.engine`` and covered by ``test_cache.py`` /
+``test_compute.py``.
 """
 
 import unittest
@@ -50,6 +51,14 @@ _DELEGATIONS = [
     ("protect", "engine", "protect", 2, False),
 ]
 _NON_PASSTHROUGH = {"new_scheduler"}  # factory, not a same-name delegation
+
+# Same-name pass-throughs taking a keyword-only argument, checked by their own
+# drift test: (orm_method, target, underlying, positional_arity, kwarg_names,
+# returns_value)
+_KWARG_DELEGATIONS = [
+    ("invalidate", "cache", "invalidate", 2, ("context_dependent",), False),
+    ("all_cached_ids", "cache", "all_cached_ids", 1, ("context_dependent",), True),
+]
 
 # Lightweight field stub — hashable, named for debugging.
 FakeField = namedtuple("FakeField", ["model_name", "name"])
@@ -389,10 +398,36 @@ class TestOrmCoreDelegationDrift(unittest.TestCase):
                 if returns:
                     self.assertIs(result, underlying_mock.return_value)
 
+    def test_kwarg_pass_throughs_delegate_by_same_name(self) -> None:
+        for (
+            orm_method,
+            target,
+            underlying,
+            arity,
+            kwarg_names,
+            returns,
+        ) in _KWARG_DELEGATIONS:
+            with self.subTest(method=orm_method):
+                cache = Mock(spec=FieldCache)
+                engine = Mock(spec=ComputeEngine)
+                core = OrmCore(cache=cache, engine=engine)
+                target_obj = cache if target == "cache" else engine
+                args = tuple(object() for _ in range(arity))
+                kwargs = {name: object() for name in kwarg_names}
+
+                result = getattr(core, orm_method)(*args, **kwargs)
+
+                underlying_mock = getattr(target_obj, underlying)
+                underlying_mock.assert_called_once_with(*args, **kwargs)
+                if returns:
+                    self.assertIs(result, underlying_mock.return_value)
+
     def test_table_covers_every_pass_through(self) -> None:
         """Guard the guard: a new public OrmCore method must be added to
-        ``_DELEGATIONS`` (or to ``_NON_PASSTHROUGH``), or this fails."""
+        ``_DELEGATIONS`` / ``_KWARG_DELEGATIONS`` (or ``_NON_PASSTHROUGH``),
+        or this fails."""
         documented = {row[0] for row in _DELEGATIONS}
+        documented |= {row[0] for row in _KWARG_DELEGATIONS}
         public = {
             name
             for name in vars(OrmCore)

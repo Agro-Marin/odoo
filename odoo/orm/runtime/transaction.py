@@ -28,11 +28,14 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 
-# Safety backstop on flush/recompute passes.  The loops terminate on a genuine
-# stall (an unchanged pending/dirty set between passes, see UnitOfWork) rather
-# than on this count; it only bounds pathological alternating cycles that evade
-# the progress check.  Large so a long-but-converging cascade of computes that
-# write other fields is not misreported as a circular dependency.
+# Safety backstop on flush/recompute passes.  This cap is the ONLY termination
+# guarantee for non-draining state: the UnitOfWork loops stop when nothing is
+# pending/dirty or when the cap is hit — there is no per-pass stall detection
+# (a count-based snapshot cannot tell a stall from progress when a pass
+# recomputes a field on some records while re-scheduling it on others; see
+# UnitOfWork.run_recompute_loop).  Large so a long-but-converging cascade of
+# computes that write other fields is not misreported as a circular dependency;
+# a genuine cycle burns the cap and is then reported as non-converged.
 MAX_FIXPOINT_ITERATIONS = 1000
 
 

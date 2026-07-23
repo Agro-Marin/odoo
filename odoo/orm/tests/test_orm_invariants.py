@@ -445,26 +445,65 @@ def test_persistence_backend_seam_is_wired() -> None:
 # ---------------------------------------------------------------------------
 # Field cache shape (Theme A1)
 # ---------------------------------------------------------------------------
-# Field._context_subcaches is the single place that decodes the context-dependent
-# cache shape ({cache_key: {id: value}}). These pin the one subtlety the Tier-2
-# model suite does not otherwise exercise: the skip of *stale flat entries* that
-# can coexist with per-context sub-dicts during module setup.
-def test_context_subcaches_returns_per_context_subdicts() -> None:
-    """A context-dependent field's per-context sub-dicts are returned as-is."""
-    raw = {("en_US",): {1: "a"}, ("fr_FR",): {2: "b"}}
-    assert fields.Field._context_subcaches(raw) == [{1: "a"}, {2: "b"}]
+# FieldCache owns the single decode of the context-dependent cache shape
+# ({cache_key: {id: value}}); Field supplies only the shape bit
+# (_is_context_dependent) and delegates via env._core.invalidate /
+# all_cached_ids. These pin the one subtlety the Tier-2 model suite does not
+# otherwise exercise: the *mixed* setup-window state where stale flat entries
+# (written before field_depends_context was populated) coexist with
+# per-context sub-dicts. The discriminator is the KEY (cache keys are tuples,
+# record ids never are) — never the value, which would mistake dict-valued
+# caches (company-dependent Json/Properties) for per-context sub-dicts.
+def test_all_cached_ids_spans_per_context_subdicts() -> None:
+    """A context-dependent field's ids are merged across per-context sub-dicts."""
+    from odoo.orm.components.cache import FieldCache
+
+    cache = FieldCache()
+    cache._data["G"] = {("en_US",): {1: "a"}, ("fr_FR",): {2: "b"}}
+    assert set(cache.all_cached_ids("G", context_dependent=True)) == {1, 2}
 
 
-def test_context_subcaches_skips_stale_flat_entries() -> None:
-    """Stale flat entries ({id: scalar}) coexisting with sub-dicts are skipped.
+def test_all_cached_ids_skips_stale_flat_entries() -> None:
+    """Stale flat entries coexisting with sub-dicts are not decoded as caches.
 
-    Such entries are written before field_depends_context is populated; they are
-    not dicts and must never be iterated as a cache (would crash / drop values).
+    Key-based decode: even a *dict-valued* stale flat entry (company-dependent
+    Json written during the setup window) is excluded — its JSON keys must
+    never be reported as record ids.
     """
-    raw = {("en_US",): {1: "a"}, 5: "stale-scalar", 6: None}
-    assert fields.Field._context_subcaches(raw) == [{1: "a"}]
+    from odoo.orm.components.cache import FieldCache
+
+    cache = FieldCache()
+    cache._data["G"] = {
+        ("en_US",): {1: "a"},
+        5: "stale-scalar",
+        6: None,
+        7: {"json-key": "v"},  # dict-valued stale flat entry (Json)
+    }
+    assert set(cache.all_cached_ids("G", context_dependent=True)) == {1}
 
 
-def test_context_subcaches_empty_when_only_flat_entries() -> None:
-    """Only flat entries -> no sub-caches to span (callers fall back to {} / [])."""
-    assert fields.Field._context_subcaches({1: "a", 2: "b"}) == []
+def test_invalidate_mixed_state_never_reaches_into_json_values() -> None:
+    """Invalidating ids in the mixed state pops whole stale flat entries.
+
+    The old value-based decode treated a dict-valued stale flat entry as a
+    per-context sub-dict and popped *record ids inside the cached JSON value*.
+    The key-based decode pops the entry by its id key and trims real
+    (tuple-keyed) sub-dicts only.
+    """
+    from odoo.orm.components.cache import FieldCache
+
+    cache = FieldCache()
+    cache._data["G"] = {
+        ("en_US",): {1: "a", 2: "b"},
+        1: {2: "json-payload"},  # stale flat Json entry for record id 1
+    }
+    cache.invalidate("G", [2], context_dependent=True)
+    # id 2 trimmed from the real sub-dict...
+    assert cache._data["G"][("en_US",)] == {1: "a"}
+    # ...and the stale Json value for id 1 is untouched inside (its key `2`
+    # is a JSON key, not a record id)
+    assert cache._data["G"][1] == {2: "json-payload"}
+    # invalidating id 1 removes the stale flat entry wholesale
+    cache.invalidate("G", [1], context_dependent=True)
+    assert 1 not in cache._data["G"]
+    assert cache._data["G"][("en_US",)] == {}  # kept (identity-preserving)

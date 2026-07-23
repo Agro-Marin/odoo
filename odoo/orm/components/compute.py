@@ -62,7 +62,8 @@ class _StackMap:
         """Return the number of mappings on the stack (scope depth).
 
         This is stack depth, *not* the count of distinct keys across scopes —
-        use ``sum(1 for _ in self)`` for the latter.
+        the class is deliberately not iterable; compute the latter as
+        ``len({key for m in self._maps for key in m})`` if ever needed.
         """
         return len(self._maps)
 

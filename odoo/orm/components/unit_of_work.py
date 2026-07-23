@@ -49,11 +49,13 @@ class UnitOfWork:
     ) -> None:
         """Bind to *cache* and *engine* with a convergence iteration cap.
 
-        :param max_iterations: safety backstop on the number of passes, for
-            pathological cycles that evade the per-pass progress check (which
-            aborts a genuine stall immediately).  A large value so that a
-            long-but-converging compute/flush cascade is not misreported as a
-            circular dependency.
+        :param max_iterations: the ONLY termination guarantee for
+            non-draining (cyclic) state: both loops stop when nothing is
+            pending/dirty or when this many passes have run — there is no
+            per-pass stall detection (see :meth:`run_recompute_loop` for
+            why a count-based check cannot work).  A large value so that a
+            long-but-converging compute/flush cascade is not misreported as
+            a circular dependency.
         """
         self.cache = cache
         self.engine = engine
@@ -102,6 +104,12 @@ class UnitOfWork:
     ) -> frozenset[tuple[Any, int]]:
         """Snapshot of ``(field, pending_count)`` for convergence detection.
 
+        **Not wired into the production loops**: they deliberately have no
+        per-pass stall detection (see :meth:`run_recompute_loop`) and
+        terminate only on drained state or the ``max_iterations`` cap. Kept
+        unit-tested as a building block for a possible future *id-level*
+        stall detector (a count-based one is provably unsound).
+
         Includes only fields with at least one real (truthy) pending ID. Pass
         *fields* (a precomputed ``pending_real_fields()`` list) to avoid
         re-scanning the pending dict on the hot loop path.
@@ -118,6 +126,9 @@ class UnitOfWork:
         curr_snapshot: frozenset[tuple[Any, int]],
     ) -> tuple[bool, list[str]]:
         """Check whether recomputation is making progress.
+
+        **Not wired into the production loops** (see
+        :meth:`recompute_snapshot`).
 
         :param prev_snapshot: previous result of :meth:`recompute_snapshot`.
         :param curr_snapshot: current result of :meth:`recompute_snapshot`.
@@ -136,6 +147,9 @@ class UnitOfWork:
         self, prev_dirty_count: int, curr_dirty_count: int
     ) -> tuple[bool, list[str]]:
         """Check whether flushing is making progress.
+
+        **Not wired into the production loops** (see
+        :meth:`recompute_snapshot`).
 
         :return: ``(progressing, stalled_labels)``.
         """
@@ -156,7 +170,9 @@ class UnitOfWork:
         Repeatedly collects fields with pending real recomputations and calls
         ``recompute_fn(field)`` for each, in dependency order when an order is
         available (see :meth:`set_recompute_order`) so a single pass resolves
-        acyclic chains. Tracks monotonicity to detect stalls.
+        acyclic chains. Terminates when nothing real is pending or at the
+        ``max_iterations`` cap — there is no per-pass stall detection (see the
+        in-loop comment for why a count-based check is unsound).
 
         :param recompute_fn: called as ``recompute_fn(field)``; expected to
             update the cache and call ``engine.mark_done()``.
