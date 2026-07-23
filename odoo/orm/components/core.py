@@ -8,13 +8,18 @@ objects are private to :class:`~odoo.orm.runtime.transaction.Transaction`
 
 The facade is an **intentionally curated subset**, not a complete mirror: it
 exposes field-value reads, dirty/patch tracking, recompute scheduling and field
-protection — the operations the model layer drives by ``(field, id)``. It
-deliberately does **not** expose cache *mutation* (``set_value``,
-``invalidate_*``): those are Transaction's responsibility, and recordset-level
-cache access belongs to the legacy ``env.cache`` wrapper. The one lifecycle
-operation it does expose is :meth:`~OrmCore.clear_cache` — the intentional,
-test-pinned rename of ``FieldCache.clear`` (data + dirty + patches only, never
-compute state). Each exposed method carries the **same name** as
+protection — the operations the model layer drives by ``(field, id)`` — plus
+the field-scoped, shape-explicit invalidation surface
+(:meth:`~OrmCore.invalidate` / :meth:`~OrmCore.all_cached_ids`) that
+``Field._invalidate_cache`` / ``Field._get_all_cache_ids`` drive: the Field
+layer owns the shape decision (``_is_context_dependent``) and the cache owns
+the shape decode, so raw-dict mutation never leaks out of ``FieldCache``. It
+deliberately does **not** expose value mutation (``set_value``) or
+transaction-wide invalidation: those are Transaction's responsibility, and
+recordset-level cache access belongs to the legacy ``env.cache`` wrapper. The
+one lifecycle operation it does expose is :meth:`~OrmCore.clear_cache` — the
+intentional, test-pinned rename of ``FieldCache.clear`` (data + dirty +
+patches only, never compute state). Each exposed method carries the **same name** as
 the ``FieldCache`` / ``ComputeEngine`` method it delegates to (a drift-guard
 test enforces this); :meth:`OrmCore.new_scheduler` additionally hides
 :class:`RecomputeScheduler` construction (and the raw ``engine.pending`` seed)
@@ -68,6 +73,29 @@ class OrmCore:
     def get_field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
         """Return the cache dict for *field*, or ``None`` if nothing cached."""
         return self.cache.get_field_data_or_none(field)
+
+    # Cache: invalidation (field-scoped, shape-explicit)
+
+    def invalidate(
+        self,
+        field: Any,
+        ids: Collection | None = None,
+        *,
+        context_dependent: bool,
+    ) -> None:
+        """Invalidate *field*'s cached values (all if *ids* is ``None``).
+
+        The caller supplies the cache shape (``Field._is_context_dependent``);
+        the cache owns the shape decode. See :meth:`FieldCache.invalidate`.
+        """
+        self.cache.invalidate(field, ids, context_dependent=context_dependent)
+
+    def all_cached_ids(self, field: Any, *, context_dependent: bool) -> Collection[Any]:
+        """Read-only mapping view over every record id cached for *field*.
+
+        Spans all contexts. See :meth:`FieldCache.all_cached_ids`.
+        """
+        return self.cache.all_cached_ids(field, context_dependent=context_dependent)
 
     # Cache: dirty tracking
 

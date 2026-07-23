@@ -110,23 +110,33 @@ class RecomputeScheduler:
         recursive_ids = frozenset()
         if field.recursive:
             if field.is_stored_computed:
-                known = set()
+                # Two successive subtractions, never a merged ``known`` copy:
+                # ``known = set(marked) | set(to_recompute)`` is O(|pending|)
+                # per trigger entry (pending can hold 100k+ ids mid-flush,
+                # benchmarked at ~500ms for 500 entries), while ``ids - other``
+                # iterates the LEFT operand (both builtin ``set.__sub__`` and
+                # ``abc.Set.__sub__``/``__rsub__``, which ``OrderedSet`` uses,
+                # build from the iterated side ``ids``) — O(|entry ids|).
+                # Same algebra: ids - (m | r) == (ids - m) - r.
                 m = self._marked.get(field)
                 if m:
-                    known.update(m)
+                    ids = ids - m
                 r = self.to_recompute.get(field)
-                if r:
-                    known.update(r)
-                if known:
-                    ids = ids - known
+                if r and ids:
+                    ids = ids - r
             else:
                 # Deferred invalidation no longer breaks cycles implicitly, so
                 # track processed IDs explicitly.
                 seen = self._seen_recursive.get(field)
                 if seen:
                     ids = ids - seen
-                if cached_ids is not None:
-                    ids = ids & cached_ids
+                if cached_ids is not None and ids:
+                    # Intersect by iterating ``ids``, not via ``ids &
+                    # cached_ids``: ``abc.Set.__and__`` iterates the RIGHT
+                    # operand — the whole cached-id view, O(|cache|) per entry
+                    # — and would emit cache order instead of the recordset id
+                    # order the caller's OrderedSet pipeline preserves.
+                    ids = type(ids)(id_ for id_ in ids if id_ in cached_ids)
             if not ids:
                 return frozenset()
             # Only the non-stored branch reads `_seen_recursive`; stored fields

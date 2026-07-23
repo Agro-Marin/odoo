@@ -5,7 +5,7 @@ x2many patches. No dependency on Environment, BaseModel, or cursors — testable
 with pure Python. Keyed by field objects (any hashable) and record IDs.
 """
 
-from collections import defaultdict
+from collections import ChainMap, defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -152,17 +152,94 @@ class FieldCache:
         return self._patches.get(field)
 
     # Invalidation
+    #
+    # The cache-shape decode is owned HERE, in one place. A field's raw cache
+    # has one of two shapes: flat ``{id: value}`` (most fields), or
+    # context-dependent ``{cache_key_tuple: {id: value}}`` (``translate=True``,
+    # ``company_dependent``, anything in ``field_depends_context``). During
+    # module setup a context-dependent field can transiently also hold *stale
+    # flat entries* (``{id: value}`` written before ``field_depends_context``
+    # was populated). The single discriminator for that mixed state is the
+    # KEY: cache keys are always tuples and record ids never are. Inspecting
+    # values instead (``isinstance(value, dict)``) would mistake dict-valued
+    # flat entries (Json, Properties) for per-context sub-dicts and corrupt
+    # them by popping record ids inside cached values.
+
+    def invalidate(
+        self,
+        field: Any,
+        ids: Collection | None = None,
+        *,
+        context_dependent: bool,
+    ) -> None:
+        """Invalidate cached values for *field* (all if *ids* is ``None``).
+
+        Canonical invalidation entry point: the caller supplies the cache
+        shape via *context_dependent* (``Field._is_context_dependent``), so no
+        O(n) shape probing is needed — a flat single-id invalidation is a
+        single ``pop``. See the shape note above for the mixed-state decode.
+
+        Context-dependent sub-dicts are cleared/trimmed **in place** and kept
+        even when emptied: ``Field._get_cache`` memoizes each per-context
+        sub-dict's identity in ``env._field_cache_memo``, so dropping an
+        emptied sub-dict from the outer dict would orphan those memos (writes
+        through a memoized sub-dict would no longer be visible here).
+        """
+        field_cache = self._data.get(field)
+        if not field_cache:
+            return
+        if not context_dependent:
+            # Flat shape: whole-dict clear or direct O(len(ids)) pops.
+            if ids is None:
+                field_cache.clear()
+            else:
+                for id_ in ids:
+                    field_cache.pop(id_, None)
+            return
+        if ids is None:
+            for key in list(field_cache):
+                if isinstance(key, tuple):
+                    field_cache[key].clear()  # in place — preserve identity
+                else:
+                    del field_cache[key]  # stale flat entry
+            return
+        # Stale flat entries are keyed directly by record id: pop them.
+        for id_ in ids:
+            field_cache.pop(id_, None)
+        # Scrub ids inside each per-context sub-dict (kept even if emptied,
+        # see the docstring).
+        for key, sub_cache in field_cache.items():
+            if isinstance(key, tuple):
+                for id_ in ids:
+                    sub_cache.pop(id_, None)
+
+    def all_cached_ids(self, field: Any, *, context_dependent: bool) -> Collection[Any]:
+        """Return a read-only mapping view of every record id cached for *field*.
+
+        The shape bit comes from the caller (``Field._is_context_dependent``),
+        like :meth:`invalidate`. Flat fields return the live cache dict;
+        context-dependent fields return a ``ChainMap`` over the per-context
+        sub-dicts (tuple keys only — stale flat entries from the module-setup
+        window are ignored, as before the mixed-state decode was unified).
+        Callers must not mutate the result.
+        """
+        field_cache = self._data.get(field)
+        if not field_cache:
+            return {}
+        if context_dependent:
+            subs = [v for k, v in field_cache.items() if isinstance(k, tuple)]
+            return ChainMap(*subs) if subs else {}
+        return field_cache
 
     def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
-        """Invalidate cached values for *field*.
+        """Invalidate cached values for *field*, probing the cache shape.
 
-        If *ids* is ``None``, clear the entire field cache.
-        Otherwise, remove only the specified record IDs — shape-aware like
-        :meth:`invalidate_all`: context-dependent fields (``translate=True``,
-        ``company_dependent``) store nested ``{cache_key_tuple: {id: value}}``
-        dicts, others flat ``{id: value}``. Cache keys are always tuples and
-        record ids never are, so ``isinstance(key, tuple)`` discriminates the
-        shapes and the flat direct-pop pass can never touch a nested entry.
+        Compatibility wrapper for callers that do not know the shape bit
+        (standalone tests, benchmarks — production code knows the shape and
+        calls :meth:`invalidate` directly): probes for a tuple key (O(n) on
+        flat caches) and delegates. It additionally drops emptied per-context
+        sub-dicts — safe only here, where no ``env._field_cache_memo`` aliases
+        them (see :meth:`invalidate`).
         """
         field_cache = self._data.get(field)
         if field_cache is None:
@@ -170,20 +247,16 @@ class FieldCache:
         if ids is None:
             field_cache.clear()
             return
-        # Flat shape: direct O(len(ids)) pops.
-        for id_ in ids:
-            field_cache.pop(id_, None)
-        # Context-dependent shape: scrub ids inside each nested sub-dict,
-        # dropping sub-dicts (and detecting the shape) exactly as
-        # ``invalidate_all`` does. The ``any`` probe short-circuits on the
-        # first tuple key, so flat-only fields pay a single scan.
-        if any(isinstance(key, tuple) for key in field_cache):
-            for key, sub_cache in list(field_cache.items()):
-                if isinstance(key, tuple):
-                    for id_ in ids:
-                        sub_cache.pop(id_, None)
-                    if not sub_cache:
-                        del field_cache[key]
+        context_dependent = any(isinstance(key, tuple) for key in field_cache)
+        self.invalidate(field, ids, context_dependent=context_dependent)
+        if context_dependent:
+            emptied = [
+                key
+                for key, sub_cache in field_cache.items()
+                if isinstance(key, tuple) and not sub_cache
+            ]
+            for key in emptied:
+                del field_cache[key]
 
     def invalidate_all(self) -> None:
         """Clear all cached data except dirty entries.

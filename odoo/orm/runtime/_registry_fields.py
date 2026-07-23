@@ -113,14 +113,21 @@ class _RegistryFieldsMixin(_RegistryStubs):
     def _discard_fields(self, fields: list[Field]) -> None:
         """Discard the given fields from the registry's internal data structures.
 
-        Taken under ``Registry._lock``: this is called from a request thread
-        (``ir.model.fields.unlink`` → ``pool._discard_fields``) and mutates the
-        shared ``model_graph`` trigger/inverse/computed maps in place, which
-        request threads read concurrently on the ``_search``/flush hot path.
-        Without the lock (and the eager rebuild below), a concurrent reader
-        iterating those dicts hits a "dictionary changed size during iteration"
-        RuntimeError. Mirrors the eager-under-lock rebuild in ``_setup_models__``.
+        Taken under ``Registry._lock`` (writer side): this is called from a
+        request thread (``ir.model.fields.unlink`` → ``pool._discard_fields``)
+        while other request threads read the shared ``model_graph`` lock-free
+        on the ``_search``/flush hot path. The published trigger map is
+        therefore never mutated in place: ``ModelGraph.discard_fields``
+        copy-scrubs it and atomically swaps in a fresh snapshot, and the eager
+        ``_field_triggers`` rebuild below republishes the fully-rebuilt graph
+        (the real publication — ``pop_field`` already removed the fields from
+        the model classes before this method runs, so the rebuild cannot see
+        them). The begin/end_invalidation bracket makes any reader-triggered
+        rebuild that started before or during the discard lose the publication
+        race: its map may still contain the discarded fields.
         """
+        self.model_graph.begin_invalidation()
+
         for f in fields:
             # tests usually don't reload the registry, so when they create
             # custom fields those may not have the entire dependency setup, and
@@ -137,14 +144,20 @@ class _RegistryFieldsMixin(_RegistryStubs):
         for _prop in ("_field_triggers", "field_inverses", "field_computed"):
             self.__dict__.pop(_prop, None)
 
-        # discard from model_graph's data structures (inverses, triggers,
-        # computed, depends) and clear its trigger tree caches
+        # discard from model_graph's data structures: in-place metadata scrubs
+        # (inverses, computed, depends) + copy-swap of the trigger snapshot
         self.model_graph.discard_fields(fields)
 
         # Eagerly rebuild the field-dependency caches while still holding the
         # lock, so a concurrent reader never observes a half-populated map (the
         # cached_property has no internal lock since Py 3.12). ``_field_triggers``
         # pulls in ``field_inverses``/``field_computed`` transitively.
+        # end_invalidation first: it bumps the epoch once more (mid-discard
+        # reader rebuilds stay refused forever) and drops the barrier so this
+        # rebuild publishes. Pop the cached_property again in case a refused
+        # reader re-primed it with the pre-discard snapshot in the meantime.
+        self.model_graph.end_invalidation()
+        self.__dict__.pop("_field_triggers", None)
         self._field_triggers  # noqa: B018 — eager rebuild for thread-safety
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
@@ -162,14 +175,23 @@ class _RegistryFieldsMixin(_RegistryStubs):
         ``{field: {path: fields}}``: ``field`` is a dependency, ``path`` is the
         sequence of fields to inverse, and ``fields`` depend on ``field``.
 
-        Built incrementally into ``model_graph`` via its ``add_trigger`` API.
+        Built locally, then published to ``model_graph`` as one snapshot.
         """
         # Build the trigger map into a LOCAL structure, then publish it to
-        # model_graph with a single atomic assignment (set_triggers).  Building
-        # in place on the shared graph — reset it to empty, then incrementally
-        # add_trigger — lets a concurrent reader (e.g. Transaction._live_recompute_order)
-        # or a second thread racing this cached_property observe an empty/partial
-        # map during the rebuild window.
+        # model_graph with a single atomic snapshot swap (set_triggers).
+        # Building in place on the shared graph — reset it to empty, then
+        # incrementally add_trigger — would let a concurrent reader (e.g.
+        # Transaction._live_recompute_order) or a second thread racing this
+        # cached_property observe an empty/partial map during the rebuild.
+        #
+        # Epoch-validated publication: capture the epoch BEFORE building. If a
+        # registry teardown (_setup_models__ / _discard_fields) begins while
+        # this build is in flight, the models below may be half set up and the
+        # bumped epoch (or raised barrier) makes set_triggers refuse the
+        # publication — a stale build can never clobber the teardown's own
+        # authoritative eager rebuild.
+        graph = self.model_graph
+        start_epoch = graph.trigger_epoch
         new_triggers: defaultdict = defaultdict(lambda: defaultdict(list))
         for Model in self.models.values():
             if Model._abstract:
@@ -199,7 +221,18 @@ class _RegistryFieldsMixin(_RegistryStubs):
                         if field not in bucket:
                             bucket.append(field)
 
-        self.model_graph.set_triggers(new_triggers)
+        if not graph.set_triggers(new_triggers, epoch=start_epoch):
+            # Refused: a registry invalidation began after this build started,
+            # so this map may derive from half-set-up models. Serve the
+            # currently-published snapshot instead; the invalidator's eager
+            # rebuild under Registry._lock is (or will be) the authoritative
+            # publication, and it re-primes this cached_property itself.
+            # (Residual, vanishingly small window: this return value may be
+            # stored into the registry __dict__ *after* the writer's own
+            # store, leaving the membership fast path on the previous snapshot
+            # until the next invalidation; graph queries stay correct — they
+            # read the graph's published state, not this dict.)
+            return graph._triggers
 
         # Ensure lazy properties (field_inverses, field_computed) are built
         # and stored into model_graph (via their cached_property side effects).
@@ -214,9 +247,9 @@ class _RegistryFieldsMixin(_RegistryStubs):
         # cache (~4x); not a corruption fix (CPython dicts are thread-safe), but
         # it makes the "static after construction" contract real. Re-runs on
         # every graph rebuild (cached_property reset on registry invalidation).
-        self.model_graph.freeze()
+        graph.freeze()
 
-        return self.model_graph._triggers
+        return graph._triggers
 
     def is_modifying_relations(self, field: Field) -> bool:
         """Return whether ``field`` has dependent fields on some records, and
