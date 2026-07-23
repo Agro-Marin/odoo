@@ -235,6 +235,58 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(flush_count[0], 2)
 
+    def test_iterations_count_working_passes_only(self) -> None:
+        """LoopResult.iterations convention: passes that recomputed or flushed
+        count (fully or partially executed); the final nothing-to-do pass does
+        not. A pass whose inner recompute loop runs but that flushes nothing
+        must therefore count as one iteration."""
+        f = _field("m", "total")
+        self.engine.schedule(f, [1])
+
+        def recompute(field):
+            # computes without dirtying anything
+            self.cache.set_value(field, 1, 10)
+            self.engine.mark_done(field, [1])
+
+        result = self.uow.run_flush_loop(
+            recompute_fn=recompute,
+            flush_fn=lambda models: self.fail("nothing dirty, must not flush"),
+        )
+        self.assertTrue(result.converged)
+        self.assertEqual(result.iterations, 1)
+
+    def test_iterations_zero_when_nothing_to_do(self) -> None:
+        result = self.uow.run_flush_loop(
+            recompute_fn=lambda f: None,
+            flush_fn=lambda models: None,
+        )
+        self.assertTrue(result.converged)
+        self.assertEqual(result.iterations, 0)
+
+    def test_iterations_count_flush_passes(self) -> None:
+        """Two flushing passes -> iterations == 2 (the closing empty pass is
+        not counted)."""
+        f1 = _field("m", "a")
+        f2 = _field("m", "b")
+        self.cache.mark_dirty(f1, [1])
+        calls = [0]
+
+        def flush(models):
+            calls[0] += 1
+            if calls[0] == 1:
+                self.cache.pop_dirty(f1)
+                self.cache.mark_dirty(f2, [1])  # re-dirty -> second pass
+            else:
+                self.cache.pop_dirty(f2)
+
+        result = self.uow.run_flush_loop(
+            recompute_fn=lambda field: None,
+            flush_fn=flush,
+        )
+        self.assertTrue(result.converged)
+        self.assertEqual(calls[0], 2)
+        self.assertEqual(result.iterations, 2)
+
     def test_converged_result_has_no_stalled_fields(self) -> None:
         """A loop that stalls transiently then converges must not report stalls.
 

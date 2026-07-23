@@ -67,24 +67,26 @@ class RecomputeMixin(_ModelStubs):
 
         core = self.env._core
 
+        # Both modes seed the scheduler's recursive-field prune from the
+        # engine's live pending map (see OrmCore.new_scheduler): ids already
+        # pending from earlier modified() calls are not re-traversed.
         if before:
             # Pre-modification: collect what depends on self via the OLD graph,
-            # then batch-schedule.  ``cycle_aware`` seeds cycle detection against
-            # fields already scheduled.
-            scheduler = core.new_scheduler(cycle_aware=True)
+            # then batch-schedule.
+            scheduler = core.new_scheduler()
             self._modified_trigger_loop(fnames, False, scheduler)
 
             for field, ids in scheduler.to_recompute.items():
                 records = self.env[field.model_name].browse(ids)
                 self.env.add_to_compute(field, records)
         else:
-            # Post-modification: schedule inline into pending so the lazy
-            # trigger-tree iterator sees newly pending fields when resolving
-            # inverse edges.  Needed for cascades: the iterator reads stored-
-            # computed fields via __get__, which only computes if field is
-            # pending.
-            scheduler = core.new_scheduler(cycle_aware=False)
-            self._modified_trigger_loop(fnames, create, scheduler, schedule_inline=True)
+            # Post-modification: the scheduler pushes each entry's delta into
+            # pending inline, so the lazy trigger-tree iterator sees newly
+            # pending fields when resolving inverse edges.  Needed for
+            # cascades: the iterator reads stored-computed fields via __get__,
+            # which only computes if the field is pending.
+            scheduler = core.new_scheduler(inline=True)
+            self._modified_trigger_loop(fnames, create, scheduler)
 
         # Non-stored invalidation is drained inline during the trigger walk
         # (see _modified_trigger_loop), so to_invalidate is always empty here —
@@ -111,8 +113,6 @@ class RecomputeMixin(_ModelStubs):
         fnames: Collection[str],
         create: bool,
         scheduler: RecomputeScheduler,
-        *,
-        schedule_inline: bool = False,
     ) -> None:
         """Shared trigger-tree traversal for :meth:`modified` /
         :meth:`_modified_before`.
@@ -136,11 +136,11 @@ class RecomputeMixin(_ModelStubs):
 
         :param fnames: field names that were (or will be) modified
         :param create: whether in record-creation context
-        :param scheduler: accumulates recompute/invalidate decisions
-        :param schedule_inline: if ``True``, stored-computed entries are
-            scheduled into the engine's pending set immediately (required for
-            ``before=False``, so the lazy iterator's __get__ reads trigger
-            ``ensure_computed`` on them)
+        :param scheduler: accumulates recompute/invalidate decisions.  An
+            inline scheduler (``core.new_scheduler(inline=True)``) additionally
+            pushes each entry's delta into the engine's pending set immediately
+            (required for ``before=False``, so the lazy iterator's __get__
+            reads trigger ``ensure_computed`` on them)
         """
         prof = _OrmProfile(_orm_compute)
         if prof.debug:
@@ -175,9 +175,9 @@ class RecomputeMixin(_ModelStubs):
 
         # Process trigger entries lazily.  This loop only does trigger traversal
         # (DB-coupled inverse resolution) and recursive expansion; the scheduler
-        # handles protection, cycle detection, and routing.
+        # handles protection, cycle detection, routing, and (in inline mode)
+        # per-entry delta scheduling into the engine's pending set.
         env = self.env
-        core = env._core
         for field, records, entry_create in itertools.chain.from_iterable(todo):
             # Recursive non-stored fields: pass cached IDs so the scheduler can
             # filter to IDs that actually have data to invalidate.
@@ -185,18 +185,13 @@ class RecomputeMixin(_ModelStubs):
             if field.recursive and not field.is_stored_computed:
                 cached_ids = field._get_all_cache_ids(env).keys()
 
+            # OrderedSet keeps the recordset's id order all the way into the
+            # engine's OrderedSet pending map (deterministic recompute order).
             recursive_ids = scheduler.process_entry(
                 field,
-                set(records._ids),
+                OrderedSet(records._ids),
                 cached_ids=cached_ids,
             )
-
-            # Inline scheduling: make stored-computed entries visible in the
-            # engine's pending set for the trigger-tree iterator.
-            if schedule_inline:
-                new_ids = scheduler.to_recompute.get(field)
-                if new_ids:
-                    core.schedule(field, new_ids)
 
             # Inline invalidation: invalidate non-stored fields now so a stored-
             # computed recompute triggered mid-traversal (via __get__) reads

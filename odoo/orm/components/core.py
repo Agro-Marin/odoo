@@ -10,9 +10,11 @@ The facade is an **intentionally curated subset**, not a complete mirror: it
 exposes field-value reads, dirty/patch tracking, recompute scheduling and field
 protection — the operations the model layer drives by ``(field, id)``. It
 deliberately does **not** expose cache *mutation* (``set_value``,
-``invalidate_*``) or *lifecycle* (``clear``): those are
-Transaction's responsibility, and recordset-level cache access belongs to the
-legacy ``env.cache`` wrapper. Each exposed method carries the **same name** as
+``invalidate_*``): those are Transaction's responsibility, and recordset-level
+cache access belongs to the legacy ``env.cache`` wrapper. The one lifecycle
+operation it does expose is :meth:`~OrmCore.clear_cache` — the intentional,
+test-pinned rename of ``FieldCache.clear`` (data + dirty + patches only, never
+compute state). Each exposed method carries the **same name** as
 the ``FieldCache`` / ``ComputeEngine`` method it delegates to (a drift-guard
 test enforces this); :meth:`OrmCore.new_scheduler` additionally hides
 :class:`RecomputeScheduler` construction (and the raw ``engine.pending`` seed)
@@ -115,20 +117,34 @@ class OrmCore:
         """Mark *field* for recomputation on *ids*."""
         self.engine.schedule(field, ids)
 
-    def new_scheduler(self, *, cycle_aware: bool = False) -> RecomputeScheduler:
+    def new_scheduler(self, *, inline: bool = False) -> RecomputeScheduler:
         """Create a :class:`RecomputeScheduler` bound to this engine.
 
         The factory keeps scheduler construction (and the raw ``engine.pending``
         seed) behind the facade, so model code drives the returned scheduler
         without reaching ``core.engine`` directly.
 
-        :param cycle_aware: seed cycle detection with the fields already pending
-            (``before`` modification passes, where the scheduler must not
-            re-enter fields already scheduled); when ``False`` it starts empty
-            and the caller schedules inline into pending.
+        The scheduler's recursive-field prune (``marked``) is seeded from the
+        engine's **live** pending map in both modes: ids already pending from
+        earlier ``modified()`` calls in the same transaction are never
+        re-traversed (each re-traversal costs inverse-resolution SQL in the
+        trigger loop). Scheduling is idempotent, so the prune never loses a
+        recomputation. The scheduler's ``to_recompute`` sets use the engine's
+        own pending-set factory (``OrderedSet`` in a real transaction), so id
+        order is preserved end-to-end into the pending map.
+
+        :param inline: when ``True``, each processed entry's delta is scheduled
+            into the engine's pending map immediately (``before=False``
+            modification passes, where the lazy trigger-tree iterator must see
+            newly pending fields while resolving inverse edges); when ``False``
+            the caller drains ``to_recompute`` and batch-schedules.
         """
-        marked = self.engine.pending if cycle_aware else {}
-        return RecomputeScheduler(self.engine, marked=marked)
+        return RecomputeScheduler(
+            self.engine,
+            marked=self.engine.pending,
+            schedule_inline=inline,
+            set_factory=self.engine.pending.default_factory,
+        )
 
     def mark_done(self, field: Any, ids: Iterable) -> None:
         """Mark *field* as computed on *ids*."""

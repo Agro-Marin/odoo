@@ -583,6 +583,209 @@ class TestTransitiveTriggers(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Trigger-tree memoization tests (diamond DAGs)
+# ---------------------------------------------------------------------------
+
+
+def _naive_trigger_tree(graph: ModelGraph, field) -> TriggerTree:
+    """Reference implementation: the pre-memoization exponential traversal.
+
+    Byte-for-byte port of the previous ``get_field_trigger_tree`` closure walk
+    (per-path emission dedup via ``root_set``, per-path cycle guard via
+    ``seen``, NO recursion memoization).  The memoized production code must
+    produce an identical tree — same nodes, same node insertion order, same
+    per-node root order.
+    """
+    triggers = graph._triggers
+    if field not in triggers:
+        return TriggerTree()
+    collected: dict[tuple, tuple[list, set]] = {}
+    seen: set = set()
+
+    def collect(f, prefix):
+        if f in seen or f not in triggers:
+            return
+        seen.add(f)
+        for path, targets in triggers[f].items():
+            full_path = _concat_paths(prefix, path)
+            entry = collected.get(full_path)
+            if entry is None:
+                entry = ([], set())
+                collected[full_path] = entry
+            root_list, root_set = entry
+            for target in targets:
+                if target not in root_set:
+                    root_set.add(target)
+                    root_list.append(target)
+            for target in targets:
+                collect(target, full_path)
+        seen.discard(f)
+
+    collect(field, ())
+    tree = TriggerTree()
+    for full_path, (root_list, _root_set) in collected.items():
+        current = tree
+        for label in full_path:
+            current = current.increase(label)
+        current.root = tuple(root_list)
+    return tree
+
+
+def _as_plain(tree: TriggerTree):
+    """Order-sensitive plain structure: (root tuple, [(label, sub), ...])."""
+    return (tree.root, [(label, _as_plain(sub)) for label, sub in tree.items()])
+
+
+def _build_diamond(depth: int, labelled: bool = False) -> tuple[ModelGraph, MockField]:
+    """Chain of diamonds: F0 -> {A1, B1} -> F1 -> {A2, B2} -> F2 -> ...
+
+    With ``labelled=True`` every level traverses a distinct (non-relational)
+    edge field, so full paths differ per level; otherwise all paths are empty
+    and every target accumulates on the root node.
+    """
+    g = ModelGraph()
+    f_fields = [_field(f"F{i}") for i in range(depth + 1)]
+    for i in range(depth):
+        a = _field(f"A{i + 1}")
+        b = _field(f"B{i + 1}")
+        path = (_field(f"x{i}"),) if labelled else ()
+        g.add_trigger(f_fields[i], (), [a, b])
+        g.add_trigger(a, path, [f_fields[i + 1]])
+        g.add_trigger(b, path, [f_fields[i + 1]])
+    return g, f_fields[0]
+
+
+class TestTriggerTreeMemoization(unittest.TestCase):
+    """The memoized closure walk must match the naive traversal exactly and
+    must not be exponential on diamond-shaped dependency DAGs."""
+
+    def assert_matches_naive(self, graph: ModelGraph, field) -> None:
+        expected = _as_plain(_naive_trigger_tree(graph, field))
+        actual = _as_plain(graph.get_field_trigger_tree(field))
+        self.assertEqual(actual, expected)
+
+    def test_small_diamond_equivalence_empty_paths(self) -> None:
+        graph, root = _build_diamond(4)
+        self.assert_matches_naive(graph, root)
+
+    def test_small_diamond_equivalence_labelled_paths(self) -> None:
+        graph, root = _build_diamond(4, labelled=True)
+        self.assert_matches_naive(graph, root)
+
+    def test_shared_target_under_different_prefixes(self) -> None:
+        """The same field re-expanded under a *different* prefix must emit its
+        subtree at both locations (only identical (field, prefix) pairs are
+        skipped)."""
+        g = ModelGraph()
+        f = _field("f")
+        a, b, t, u = _field("a"), _field("b"), _field("t"), _field("u")
+        x, y = _field("x"), _field("y")
+        g.add_trigger(f, (), [a, b])
+        g.add_trigger(a, (x,), [t])
+        g.add_trigger(b, (y,), [t])
+        g.add_trigger(t, (), [u])
+
+        tree = g.get_field_trigger_tree(f)
+        self.assertEqual(tree[x].root, (t, u))
+        self.assertEqual(tree[y].root, (t, u))
+        self.assert_matches_naive(g, f)
+
+    def test_cycle_equivalence(self) -> None:
+        g = ModelGraph()
+        a, b, c = _field("a"), _field("b"), _field("c")
+        g.add_trigger(a, (), [b])
+        g.add_trigger(b, (), [a, c])
+        g.add_trigger(c, (), [a])
+        for root in (a, b, c):
+            with self.subTest(root=root):
+                g.clear_caches()
+                self.assert_matches_naive(g, root)
+
+    def test_self_loop_equivalence(self) -> None:
+        g = ModelGraph()
+        a, b = _field("a"), _field("b")
+        g.add_trigger(a, (), [a, b])
+        g.add_trigger(b, (), [b])
+        self.assert_matches_naive(g, a)
+
+    def test_diamond_reaching_into_cycle_equivalence(self) -> None:
+        """Memo reuse must not leak expansions the cycle guard would prune."""
+        g = ModelGraph()
+        f, a, b, t = _field("f"), _field("a"), _field("b"), _field("t")
+        p, q = _field("p"), _field("q")
+        g.add_trigger(f, (), [a, b])
+        g.add_trigger(a, (p,), [t])
+        g.add_trigger(b, (p,), [t])
+        # t cycles back to f (and has an acyclic side branch)
+        g.add_trigger(t, (q,), [f])
+        g.add_trigger(f, (q,), [t])
+        self.assert_matches_naive(g, f)
+        g.clear_caches()
+        self.assert_matches_naive(g, t)
+
+    def test_m2o_o2m_cancellation_with_memo_reuse(self) -> None:
+        """Path cancellation routing a memoized subtree back onto an
+        ancestor's node must survive the (field, prefix) skip."""
+        parent_id = _field(
+            "parent_id",
+            model="child",
+            type_="many2one",
+            relational=True,
+            comodel_name="parent",
+        )
+        child_ids = _field(
+            "child_ids",
+            model="parent",
+            type_="one2many",
+            relational=True,
+            comodel_name="child",
+            inverse_name="parent_id",
+        )
+        g = ModelGraph()
+        f, a, b = _field("f"), _field("a"), _field("b")
+        t1, t2 = _field("t1"), _field("t2")
+        g.add_trigger(f, (), [a, b])
+        g.add_trigger(a, (parent_id,), [t1])
+        g.add_trigger(b, (parent_id,), [t1])
+        # (parent_id,) + (child_ids,) cancels back to the root path
+        g.add_trigger(t1, (child_ids,), [t2])
+
+        tree = g.get_field_trigger_tree(f)
+        self.assertEqual(tree.root, (a, b, t2))
+        self.assertEqual(tree[parent_id].root, (t1,))
+        self.assert_matches_naive(g, f)
+
+    def test_deep_diamond_is_not_exponential(self) -> None:
+        """Perf regression gate: the naive walk is O(2**depth) on diamond
+        chains (~3.3 s at depth 22 on this hardware); the memoized walk is
+        linear and must finish in a small fraction of a second.
+        """
+        import time
+
+        for labelled in (False, True):
+            with self.subTest(labelled=labelled):
+                graph, root = _build_diamond(22, labelled=labelled)
+                start = time.perf_counter()
+                tree = graph.get_field_trigger_tree(root)
+                elapsed = time.perf_counter() - start
+                self.assertTrue(tree)
+                self.assertLess(
+                    elapsed,
+                    1.0,
+                    f"diamond depth 22 took {elapsed:.3f}s — "
+                    "recursion memoization regressed",
+                )
+
+    def test_deep_diamond_matches_naive_at_tractable_depth(self) -> None:
+        """Depth 12 (4096 naive paths) is still brute-forceable: full
+        output-equality check between the memoized and naive walks."""
+        for labelled in (False, True):
+            with self.subTest(labelled=labelled):
+                graph, root = _build_diamond(12, labelled=labelled)
+                self.assert_matches_naive(graph, root)
+
+
+# ---------------------------------------------------------------------------
 # Path concatenation tests
 # ---------------------------------------------------------------------------
 

@@ -157,16 +157,33 @@ class FieldCache:
         """Invalidate cached values for *field*.
 
         If *ids* is ``None``, clear the entire field cache.
-        Otherwise, remove only the specified record IDs.
+        Otherwise, remove only the specified record IDs — shape-aware like
+        :meth:`invalidate_all`: context-dependent fields (``translate=True``,
+        ``company_dependent``) store nested ``{cache_key_tuple: {id: value}}``
+        dicts, others flat ``{id: value}``. Cache keys are always tuples and
+        record ids never are, so ``isinstance(key, tuple)`` discriminates the
+        shapes and the flat direct-pop pass can never touch a nested entry.
         """
         field_cache = self._data.get(field)
         if field_cache is None:
             return
         if ids is None:
             field_cache.clear()
-        else:
-            for id_ in ids:
-                field_cache.pop(id_, None)
+            return
+        # Flat shape: direct O(len(ids)) pops.
+        for id_ in ids:
+            field_cache.pop(id_, None)
+        # Context-dependent shape: scrub ids inside each nested sub-dict,
+        # dropping sub-dicts (and detecting the shape) exactly as
+        # ``invalidate_all`` does. The ``any`` probe short-circuits on the
+        # first tuple key, so flat-only fields pay a single scan.
+        if any(isinstance(key, tuple) for key in field_cache):
+            for key, sub_cache in list(field_cache.items()):
+                if isinstance(key, tuple):
+                    for id_ in ids:
+                        sub_cache.pop(id_, None)
+                    if not sub_cache:
+                        del field_cache[key]
 
     def invalidate_all(self) -> None:
         """Clear all cached data except dirty entries.

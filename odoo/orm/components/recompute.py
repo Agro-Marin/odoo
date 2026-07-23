@@ -36,12 +36,23 @@ class RecomputeScheduler:
 
     :param compute_engine: standalone compute engine for protection checks.
     :param marked: read-only ``{field: set_of_ids}`` of fields already pending,
-        for cycle detection on recursive stored-computed fields. Pass
-        ``engine.pending`` for ``before=True`` mode, or ``{}`` otherwise.
+        for pruning recursive stored-computed fields. Pass the engine's *live*
+        pending map (``engine.pending``) so ids already scheduled by earlier
+        ``modified()`` calls in the same transaction are not re-traversed
+        (each re-traversal costs inverse-resolution SQL in the caller);
+        scheduling is idempotent, so the prune is always safe.
+    :param schedule_inline: when ``True``, each entry's routed recompute ids
+        (the per-entry delta, after protection and cycle filtering) are
+        scheduled into the engine's pending map immediately, so a lazy
+        trigger-tree iterator sees newly pending fields mid-traversal.
+    :param set_factory: set-like factory for the :attr:`to_recompute` id sets
+        (e.g. ``OrderedSet`` for deterministic recompute order); defaults to
+        ``set``.
     """
 
     __slots__ = (
         "_engine",
+        "_inline",
         "_marked",
         "_seen_recursive",
         "to_invalidate",
@@ -52,12 +63,16 @@ class RecomputeScheduler:
         self,
         compute_engine: ComputeEngine,
         marked: Mapping | None = None,
+        *,
+        schedule_inline: bool = False,
+        set_factory: type | None = None,
     ) -> None:
         """Bind to *compute_engine* and start with empty result accumulators."""
         self._engine = compute_engine
         self._marked: Mapping = marked if marked is not None else {}
+        self._inline = schedule_inline
         self._seen_recursive: dict[Any, set] = defaultdict(set)
-        self.to_recompute: dict[Any, set] = defaultdict(set)
+        self.to_recompute: dict[Any, set] = defaultdict(set_factory or set)
         self.to_invalidate: list[tuple[Any, frozenset]] = []
 
     def process_entry(
@@ -121,9 +136,15 @@ class RecomputeScheduler:
                 self._seen_recursive[field].update(ids)
             recursive_ids = frozenset(ids)
 
-        # 3. Route to recompute or invalidate
+        # 3. Route to recompute or invalidate.  Only this entry's ids (the
+        #    per-entry delta after protection/cycle filtering) are scheduled
+        #    inline — never the accumulated ``to_recompute[field]`` set, which
+        #    would be O(k*n) over a traversal and would re-pend ids that a
+        #    mid-traversal inline compute already drained.
         if field.is_stored_computed:
             self.to_recompute[field].update(ids)
+            if self._inline:
+                self._engine.schedule(field, ids)
         else:
             self.to_invalidate.append((field, frozenset(ids)))
 
