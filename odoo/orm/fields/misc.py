@@ -201,6 +201,10 @@ class Id(Field[IdType | typing.Literal[False]]):
             return super().expression_getter(field_expr)
 
         def getter(record: BaseModel) -> typing.Any:
-            return (id_ := record._ids[0]) or getattr(id_, "origin", None) or False
+            # guard the empty recordset (upstream returned False, not IndexError)
+            ids = record._ids
+            if not ids:
+                return False
+            return (id_ := ids[0]) or getattr(id_, "origin", None) or False
 
         return getter

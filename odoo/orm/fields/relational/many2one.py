@@ -270,10 +270,30 @@ class Many2one(_Relational):
         use_display_name: bool = True,
     ) -> int | tuple[int, str] | typing.Literal[False]:
         if use_display_name and value:
-            # display_name as superuser: visibility of the m2o value (id and
-            # name) depends on the current record's access rights, not the
-            # value's.
+            # Fork policy (mirrors web_read's m2o branch, see the web-audit
+            # commit 134645d31b2 on addons/web/models/web_read.py): the target's
+            # display name is exposed only when the user can actually read the
+            # target.  Upstream returned ``(id, value.sudo().display_name)``
+            # regardless, leaking record-rule-restricted names (e.g. a partner
+            # hidden by a multi-company rule) through classic read()/RPC even
+            # though web_read() already degrades such targets to False.  An
+            # inaccessible target now degrades to False here too, like every
+            # other empty m2o.  Superuser/sudo envs keep full visibility
+            # (_filtered_access short-circuits on env.su), and the raw id stays
+            # available through read(..., load=None) — matching web_read's
+            # fields-less branch, since the id is a column of a record the user
+            # CAN read.  The name of an *accessible* target is still computed
+            # with sudo, exactly as before, so its computation cannot trip on
+            # group-restricted dependee fields.
+            #
+            # Perf: ir.model.access.check and ir.rule._compute_domain are
+            # ormcached, and rule-less comodels short-circuit before any record
+            # filtering, so the per-record check is cheap on the common path.
+            # web_read() itself batches via _filtered_access and never enters
+            # this branch (it reads with load=None).
             try:
+                if not value._filtered_access("read"):
+                    return False
                 # value.sudo() prefetches the same records as value
                 return (value.id, value.sudo().display_name)
             except MissingError:

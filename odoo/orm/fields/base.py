@@ -961,6 +961,17 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             check_precompute = self.precompute
 
             for index, fname in enumerate(dotnames.split(".")):
+                if not model_name:
+                    # The previous component is a non-relational field (or a
+                    # field whose comodel is unset), so 'fname' cannot resolve.
+                    # Fail with the culprit named: falling through would make
+                    # ``registry[None]`` abort the whole registry build with a
+                    # bare ``KeyError: None`` pointing at nothing.
+                    raise ValueError(
+                        f"Wrong dependency '{dotnames}' of field {self}: "
+                        f"'{field_seq[-1].name}' is not relational, so the path "
+                        f"cannot continue with '{fname}'."
+                    )
                 Model = registry[model_name]
                 if Model0._transient and not Model._transient:
                     # modifying fields on regular models should not trigger
@@ -1171,11 +1182,19 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                     try:
                         value = field.default(model.browse())
                         if isinstance(value, (str, int, float, bool)):
-                            sql_default = value
+                            # Convert through the field's own column conversion
+                            # so the DEFAULT literal matches the column type: a
+                            # raw Python default of the wrong type (e.g. a str
+                            # default on an int column) would make the ALTER
+                            # itself fail.
+                            sql_default = field.convert_to_column(
+                                value, model, validate=False
+                            )
                     except Exception:
                         # Best-effort: the default factory may need a real record
-                        # or context unavailable at post-init. Skip the SQL
-                        # DEFAULT (NOT NULL still applies) but log the failure.
+                        # or context unavailable at post-init, or the value may
+                        # not convert to the column type. Skip the SQL DEFAULT
+                        # (NOT NULL still applies) but log the failure.
                         _logger.debug(
                             "Could not derive a SQL DEFAULT for %s; "
                             "applying NOT NULL without one",
@@ -1185,14 +1204,26 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
                 def apply_not_null(cr):
                     sql.set_not_null(cr, model._table, field.name)
-                    if sql_default is not None:
-                        sql.set_default(cr, model._table, field.name, sql_default)
 
                 model.pool.post_constraint(
                     model.env.cr,
                     apply_not_null,
                     key=f"add_not_null:{model._table}:{field.name}",
                 )
+
+                if sql_default is not None:
+                    # Registered under its OWN post_constraint key: each key gets
+                    # its own savepoint/retry (see runtime/_registry_schema.py),
+                    # so a DEFAULT that still fails to apply can no longer roll
+                    # back — and thereby silently cancel — the NOT NULL above.
+                    def apply_default(cr, sql_default=sql_default):
+                        sql.set_default(cr, model._table, field.name, sql_default)
+
+                    model.pool.post_constraint(
+                        model.env.cr,
+                        apply_default,
+                        key=f"set_default:{model._table}:{field.name}",
+                    )
 
         elif not self.required and has_notnull:
             sql.drop_not_null(model.env.cr, model._table, self.name)
@@ -1279,8 +1310,8 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     # Cache management methods
 
-    # The cache shape, owned in one place
-    # ------------------------------------
+    # The cache shape: the Field decides, the cache decodes
+    # ------------------------------------------------------
     # A field's raw cache (``env._core.get_field_data(self)``) has one of two
     # shapes, and exactly which is decided by :meth:`_is_context_dependent`:
     #
@@ -1291,10 +1322,14 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     #                        sub-dict per context.
     #
     # Every cache-shape branch in this class (and the column-flush paths in
-    # _field_convert.py) tests the predicate, and every branch that must span all
-    # contexts iterates :meth:`_context_subcaches` instead of re-deriving the
-    # ``isinstance(v, dict)`` rule. Keeping the shape knowledge here means a
-    # change to the representation touches these two helpers, not a dozen sites.
+    # _field_convert.py) tests the predicate; branches that must span all
+    # contexts (invalidation, id-collection) pass the predicate's answer to
+    # ``FieldCache`` (``env._core.invalidate`` / ``all_cached_ids``), which
+    # owns the single nested-shape decode — keyed on ``isinstance(key, tuple)``
+    # (cache keys are tuples, record ids never are), robust to the mixed state
+    # with stale flat entries written during module setup and to dict-valued
+    # flat caches (Json, Properties). The shape *decision* lives here; the
+    # shape *decode* lives in exactly one place, ``components/cache.py``.
 
     def _is_context_dependent(self, env: Environment) -> bool:
         """Whether this field's cache is keyed per context in ``env``.
@@ -1303,18 +1338,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         and any field whose value varies with the environment context.
         """
         return self in env._field_depends_context
-
-    @staticmethod
-    def _context_subcaches(field_data: dict[typing.Any, typing.Any]) -> list[dict]:
-        """The per-context ``{id: value}`` sub-dicts of a context-dependent field.
-
-        The raw cache is ``{cache_key: {id: value}}``. During module setup it can
-        also hold *stale flat entries* (``{id: scalar}``, written before
-        ``field_depends_context`` was populated); those are not dicts and are
-        skipped. This is the one place that decodes the nested shape for callers
-        that must span every context (invalidation, id-collection).
-        """
-        return [v for v in field_data.values() if isinstance(v, dict)]
 
     def _get_cache(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         """Return the field's cache: a ``{record_id: cache_value}`` mapping
@@ -1342,30 +1365,25 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _invalidate_cache(
         self, env: Environment, ids: Collection[IdType] | None = None
     ) -> None:
-        """Invalidate cached values for the given ids (all if ``None``)."""
-        cache = env._core.get_field_data_or_none(self)
-        if not cache:
-            return
+        """Invalidate cached values for the given ids (all if ``None``).
 
-        if self._is_context_dependent(env):
-            caches = self._context_subcaches(cache)
-        else:
-            caches = [cache]
-        for field_cache in caches:
-            if ids is None:
-                field_cache.clear()
-                continue
-            for id_ in ids:
-                field_cache.pop(id_, None)
+        Delegates to :meth:`FieldCache.invalidate` with the shape bit (see the
+        shape note above): the cache owns the nested-shape decode, including
+        the mixed setup-window state and dict-valued flat caches.
+        """
+        env._core.invalidate(
+            self, ids, context_dependent=self._is_context_dependent(env)
+        )
 
     def _get_all_cache_ids(self, env: Environment) -> Collection[IdType]:
-        """Return all the record ids that have a value in cache in any environment."""
-        cache = env._core.get_field_data(self)
-        if self._is_context_dependent(env):
-            # cheaply "merge" the keys of the per-context dicts
-            subs = self._context_subcaches(cache)
-            return collections.ChainMap(*subs) if subs else {}
-        return cache
+        """Return all the record ids that have a value in cache in any environment.
+
+        Delegates to :meth:`FieldCache.all_cached_ids` with the shape bit (see
+        the shape note above). The result is a read-only mapping view.
+        """
+        return env._core.all_cached_ids(
+            self, context_dependent=self._is_context_dependent(env)
+        )
 
     def _cache_missing_ids(self, records: BaseModel) -> Iterator[IdType]:
         """Generator of ids that have no value in cache.

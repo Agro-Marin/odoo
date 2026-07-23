@@ -17,10 +17,27 @@ from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
 from ..._recordset import is_recordset
+from ...constants import READ_GROUP_NUMBER_GRANULARITY
 from ...domain import Domain
 from ...domain.constants import SUBDOMAIN_OPERATORS
 from ...primitives import COLLECTION_TYPES, Command, NewId
 from ..base import Field, _logger
+
+
+def _strip_granularity_suffix(field_expr: str) -> str:
+    """Return ``field_expr`` without a trailing date-part granularity segment.
+
+    A domain may filter on a date part, e.g. ``('create_date.year_number', '=',
+    x)``.  The granularity suffix is a projection of the date field, not a field
+    of some comodel, so it can never be a dependency trigger: keeping it would
+    make :meth:`Field.resolve_depends` walk past the (non-relational) date field
+    and abort the whole registry build.  Only the trigger path is truncated —
+    the domain itself keeps its granularity condition.
+    """
+    prefix, _sep, last = field_expr.rpartition(".")
+    if prefix and last in READ_GROUP_NUMBER_GRANULARITY:
+        return prefix
+    return field_expr
 
 
 def _domain_depend_paths(domain: Domain) -> Iterator[str]:
@@ -34,7 +51,7 @@ def _domain_depend_paths(domain: Domain) -> Iterator[str]:
     form. ``any!`` values that are SQL/Query rather than sub-domains are skipped.
     """
     for condition in domain.iter_conditions():
-        yield condition.field_expr
+        yield _strip_granularity_suffix(condition.field_expr)
         value = condition.value
         if isinstance(value, Domain):
             subdomain = value
