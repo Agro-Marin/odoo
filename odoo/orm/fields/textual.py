@@ -193,23 +193,21 @@ class BaseString(Field[str | typing.Literal[False]]):
             # 1-tuple.
             extra = tuple(dict.fromkeys(ctx for ctx in dep_ctx if ctx != "lang"))
             if extra and self.store:
-                # The cache layer handles the extra deps correctly (all
-                # reads/writes — including the prefetch_langs distribution —
-                # key sub-caches by the FULL lang-first key, see
-                # :meth:`_lang_cache_key`), but a stored column holds ONE
-                # value per language: at flush, ``get_column_update`` maps
-                # every sub-cache to ``langs_dict[cache_key[0]]``, so
-                # same-language sub-caches differing only in the extra
-                # context collapse last-wins into an ambiguous stored value.
-                # Fixing that requires a context-aware translate branch in
-                # ``_field_convert.get_column_update``.
+                # A stored column holds ONE value per language, so per-extra-
+                # context values cannot be persisted: keeping the extra deps
+                # would make ``get_column_update``'s per-lang flush collapse
+                # same-language sub-caches last-wins into an ambiguous stored
+                # value.  Strip them — same policy as the callable-translate
+                # branch below — so stored translated sub-caches are keyed by
+                # exactly ``(lang,)`` and the flush stays well-defined.
                 _logger.warning(
                     "Translated stored fields (%s) cannot depend on context: "
-                    "the flushed column keeps one value per language, so "
-                    "same-language values from different contexts collapse "
-                    "last-wins at flush",
+                    "the flushed column keeps one value per language; "
+                    "ignoring context dependencies %s",
                     self,
+                    extra,
                 )
+                return dep, ("lang",)
             return dep, ("lang", *extra)
         if callable(self.translate) and self.store:
             dep, dep_ctx = super().get_depends(model)

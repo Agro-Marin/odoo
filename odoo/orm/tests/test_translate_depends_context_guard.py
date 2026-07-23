@@ -38,6 +38,11 @@ class Member(models.Model):
     _log_access = False
 
     name = fields.Char()
+    # STORED translated field with an extra context dep: the extras must be
+    # stripped at setup (a stored column holds one value per language, so
+    # per-context values cannot be persisted; keeping them would make the
+    # flush collapse same-language sub-caches last-wins).
+    badge = fields.Char(translate=True, depends_context=("scheme",))
     container_id = fields.Many2one(
         "tcg.container",
         compute="_compute_container_id",
@@ -84,6 +89,25 @@ def test_fallback_key_follows_real_cache_key():
         fr_env = env(context={"scheme": "dark", "lang": "fr_FR"})
         assert fr_env.cache_key(field) == ("fr_FR", "dark")
         assert field._lang_fallback_cache_key(fr_env) == ("en_US", "dark")
+
+
+def test_stored_translate_strips_extra_context_deps(caplog):
+    # Stored translated sub-caches must be keyed by exactly (lang,) so
+    # get_column_update's per-language flush is unambiguous — same policy
+    # as the callable-translate branch.
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="odoo.fields"):
+        with model_test_env(Container, Member) as env:
+            field = env.registry["tcg.member"]._fields["badge"]
+            assert tuple(env.registry.field_depends_context[field]) == ("lang",)
+            # the flush path sees pure (lang,) keys: a write under an extra
+            # context lands in the (lang,)-keyed sub-cache
+            record = env["tcg.member"].create({"name": "m"})
+            record.with_context(scheme="dark").badge = "B"
+            assert env.cache_key(field) == ("en_US",)
+            assert record.badge == "B"
+    assert any("cannot depend on context" in m for m in caplog.messages)
 
 
 def test_en_us_fallback_with_extra_context_dep():

@@ -128,9 +128,10 @@ class _FieldConvertMixin(_FieldStubs):
                 if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
                     found = True
                     # cache_key[0] IS the language: BaseString.get_depends
-                    # normalizes 'lang' first in depends_context.  (Stored
-                    # translated fields with EXTRA context deps are warned at
-                    # setup: their same-lang sub-caches collapse last-wins.)
+                    # normalizes 'lang' first — and STRIPS extra context deps
+                    # for stored translated fields (warned at setup), so the
+                    # sub-caches flushed here are keyed by exactly (lang,)
+                    # and this mapping is unambiguous.
                     lang = cache_key[0]
                     if value is not None:
                         langs_dict[lang] = value
