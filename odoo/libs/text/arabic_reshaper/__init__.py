@@ -39,7 +39,6 @@ HARAKAT_RE = re.compile(
     r"\u06d6-\u06dc"
     r"\u06df-\u06e8"
     r"\u06ea-\u06ed"
-    r"\u08d4-\u08e1"
     r"\u08d4-\u08ed"
     r"\u08e3-\u08ff"
     r"]",
@@ -137,8 +136,12 @@ def reshape(text: str) -> str:
     if output and output[-1][LETTER] == ZWJ:
         output.pop()
 
-    # Clean text from Harakat to be able to find ligatures
-    text = HARAKAT_RE.sub("", text)
+    # Find ligatures on a string rebuilt from ``output`` so match spans line up
+    # with ``output`` indices exactly.  ``output`` already excludes harakat
+    # (never appended) and ZWJ (popped above); running the regex on the original
+    # ``text`` instead desyncs the indices whenever a ZWJ (or harakat) sits
+    # before a ligature and raises IndexError (e.g. reshape("لا‍لا")).
+    text = "".join(o[LETTER] for o in output)
 
     for match in LIGATURES_RE.finditer(text):
         group_index = next((i for i, group in enumerate(match.groups()) if group), -1)

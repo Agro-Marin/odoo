@@ -16,6 +16,11 @@ class TestTimezone(unittest.TestCase):
         with self.assertRaises(ZoneInfoNotFoundError):
             timezone("Not/AZone")
 
+    def test_legacy_turkey_alias_resolves(self):
+        # the legacy tzdata name is "Turkey" (not "Türkiye"); it must resolve on
+        # systems whose trimmed tzdata drops the backward-compat links.
+        self.assertIsInstance(timezone("Turkey"), ZoneInfo)
+
 
 if __name__ == "__main__":
     unittest.main()

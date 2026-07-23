@@ -8,7 +8,10 @@ __all__ = ["urljoin"]
 
 def _contains_dot_segments(path: str) -> bool:
     # most servers decode url before doing dot segment resolutions
-    decoded_path = urllib.parse.unquote(path, errors="strict")
+    # errors="replace": a valid percent-encoding of a non-UTF-8 byte (e.g. %ff)
+    # must not raise UnicodeDecodeError here — those bytes can never form "."/".."
+    # (both pure ASCII), so replacing them leaves the traversal check intact.
+    decoded_path = urllib.parse.unquote(path, errors="replace")
     return any(seg in (".", "..") for seg in decoded_path.split("/"))
 
 
@@ -63,9 +66,7 @@ def urljoin(base: str, extra: str) -> str:
             or not e_path.startswith(path)
         ):
             msg = "Extra URL must use same scheme and host as base, and begin with base path"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         e_path = e_path.removeprefix(path)
 

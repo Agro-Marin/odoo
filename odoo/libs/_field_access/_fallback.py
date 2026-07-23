@@ -117,6 +117,12 @@ def batch_cache_fill(
 
     Returns list[int] of miss indices needing Field.__get__ fallback.
     """
+    # Mirror the Rust length guard so both implementations reject a mismatch the
+    # same way (the differential suite asserts they agree).
+    if len(results) != len(ids):
+        raise ValueError(
+            "batch_cache_fill: `results` must have the same length as `ids`"
+        )
     miss_indices = []
     _MISSING = object()
     _get = field_cache.get
@@ -203,9 +209,13 @@ def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
     :param values: list of group keys, same length as ids
     :return: dict mapping each distinct value to a list of IDs with that value
     """
+    # Mirror the Rust length guard so both implementations reject a mismatch the
+    # same way (the differential suite asserts they agree).
+    if len(values) != len(ids):
+        raise ValueError("batch_group_ids: `values` must have the same length as `ids`")
     result: dict[object, list] = {}
     _MISSING = object()
-    for id_, val in zip(ids, values, strict=False):
+    for id_, val in zip(ids, values, strict=True):
         group = result.get(val, _MISSING)
         if group is _MISSING:
             result[val] = [id_]

@@ -104,7 +104,7 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "ROC": "Asia/Taipei",
     "ROK": "Asia/Seoul",
     "Singapore": "Asia/Singapore",
-    "Türkiye": "Europe/Istanbul",
+    "Turkey": "Europe/Istanbul",
     "UCT": "Etc/UTC",
     "Universal": "Etc/UTC",
     "US/Alaska": "America/Anchorage",

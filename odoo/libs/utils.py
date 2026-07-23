@@ -3,6 +3,7 @@
 Pure Python utilities with no Odoo dependencies.
 """
 
+import copy
 import re
 from contextlib import ContextDecorator, suppress
 from typing import TYPE_CHECKING, Any, Self
@@ -89,14 +90,20 @@ def format_frame(frame: types.FrameType) -> str:
     return f"{code.co_name} {code.co_filename}:{frame.f_lineno}"
 
 
-_NAMED_PRINTF_RE = re.compile(r"%\(([^)]+)\)[diouxXeEfFgGcrsab]")
+# Matches an escaped ``%%`` (group 1 None) or a named conversion
+# ``%(key)[flags][width][.precision]conv`` — flags/width/precision are captured
+# in group 2 and preserved in the positional output, and ``%%`` is passed through
+# untouched.  The previous pattern matched only ``%(key)conv``, so a modified
+# spec (``%(x)05d``) was left as a named spec (later ``TypeError: format requires
+# a mapping``) and ``%%(lit)s`` was misread as a real spec (spurious ``KeyError``).
+_NAMED_PRINTF_RE = re.compile(
+    r"%%|%\(([^)]+)\)([-+ #0]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)([diouxXeEfFgGcrsab])"
+)
 
 _PrintfArgs = tuple[str, tuple[Any, ...]]
 
 
-def named_to_positional_printf(
-    string: str, args: Mapping[str, Any]
-) -> _PrintfArgs:
+def named_to_positional_printf(string: str, args: Mapping[str, Any]) -> _PrintfArgs:
     """Convert a named printf-style format string with its arguments to positional format.
 
     :param string: A printf-style format string with named arguments (e.g., "%(name)s")
@@ -111,8 +118,11 @@ def named_to_positional_printf(
     values: list[Any] = []
 
     def _replace(match: re.Match[str]) -> str:
-        values.append(args[match.group(1)])
-        return "%s"
+        name = match.group(1)
+        if name is None:  # matched '%%' — a literal percent, consumes no value
+            return "%%"
+        values.append(args[name])
+        return "%" + match.group(2) + match.group(3)
 
     positional = _NAMED_PRINTF_RE.sub(_replace, string)
     return positional, tuple(values)
@@ -171,7 +181,11 @@ class replace_exceptions(ContextDecorator):
     ) -> None:
         """Raise the replacement when one of the caught exceptions occurred."""
         if exc_type is not None and issubclass(exc_type, self.exceptions):
-            if isinstance(self.by, type) and exc_value.args:
-                # copy the message
-                raise self.by(exc_value.args[0]) from exc_value
-            raise self.by from exc_value
+            if isinstance(self.by, type):
+                # A replacement class: instantiate it with *all* the original
+                # args (the old code forwarded only args[0], dropping the rest).
+                raise self.by(*exc_value.args) from exc_value
+            # A replacement *instance* (the decorator pattern): raise a copy so a
+            # shared/reused instance is not mutated (its ``__traceback__`` /
+            # ``__context__``) and cross-contaminated between successive calls.
+            raise copy.copy(self.by) from exc_value

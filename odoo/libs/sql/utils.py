@@ -58,7 +58,13 @@ def pg_varchar(size: int = 0) -> str:
 def reverse_order(order: str) -> str:
     """Reverse an ORDER BY clause.
 
-    Changes ASC to DESC and vice versa for each column in the order clause.
+    Flips ``ASC`` <-> ``DESC`` for each column and, where an explicit null
+    placement is given, ``NULLS FIRST`` <-> ``NULLS LAST`` — so the reversed
+    clause yields the exact reverse row sequence (e.g. for a "last record"
+    query).  Column expressions are preserved verbatim: quoting and case are
+    kept (``"Name"`` stays ``"Name"``), unlike the previous implementation which
+    lowercased identifiers and silently dropped the null placement.  Empty
+    segments (such as a trailing comma) are skipped.
 
     :param order: An ORDER BY clause (without the 'ORDER BY' keywords)
     :returns: The reversed order clause
@@ -69,12 +75,31 @@ def reverse_order(order: str) -> str:
         'name desc, date asc'
         >>> reverse_order('id')
         'id desc'
+        >>> reverse_order('name asc nulls last')
+        'name desc nulls first'
     """
     items = []
     for item in order.split(","):
-        item = item.lower().split()
-        direction = "asc" if item[1:] == ["desc"] else "desc"
-        items.append(f"{item[0]} {direction}")
+        tokens = item.split()
+        if not tokens:
+            continue  # empty segment (e.g. a trailing comma)
+
+        # optional trailing "NULLS FIRST" / "NULLS LAST" — flip its placement
+        nulls = ""
+        if len(tokens) >= 2 and tokens[-2].lower() == "nulls":
+            placement = "last" if tokens[-1].lower() == "first" else "first"
+            nulls = f" nulls {placement}"
+            tokens = tokens[:-2]
+
+        # optional trailing "ASC" / "DESC" (SQL defaults to ASC) — flip it
+        direction = "desc"
+        if tokens and tokens[-1].lower() in ("asc", "desc"):
+            direction = "asc" if tokens[-1].lower() == "desc" else "desc"
+            tokens = tokens[:-1]
+
+        # everything left is the column expression, kept exactly as written
+        expression = " ".join(tokens)
+        items.append(f"{expression} {direction}{nulls}")
     return ", ".join(items)
 
 

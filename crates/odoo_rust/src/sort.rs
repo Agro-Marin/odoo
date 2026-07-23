@@ -45,6 +45,7 @@
 
 use std::cmp::Ordering;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{
@@ -496,6 +497,15 @@ pub fn batch_group_ids<'py>(
     ids: &Bound<'py, PyTuple>,
     values: &Bound<'py, PyList>,
 ) -> PyResult<Py<PyDict>> {
+    // Bounds contract: the loop indexes `values[i]` for i in 0..ids.len() with
+    // the unchecked PyList_GET_ITEM.  Validate the lengths match up front — a
+    // shorter `values` would otherwise read out of bounds and segfault the
+    // worker (the Python fallback raises here too).
+    if values.len() != ids.len() {
+        return Err(PyValueError::new_err(
+            "batch_group_ids: `values` must have the same length as `ids`",
+        ));
+    }
     let n = ids.len() as ffi::Py_ssize_t;
 
     // SAFETY: All pointers are borrowed from live Python objects.

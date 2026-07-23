@@ -57,6 +57,11 @@ def hex_to_rgb(hx: str) -> tuple[int, int, int]:
         >>> hex_to_rgb('#00FF00')
         (0, 255, 0)
     """
+    # Validate up front: without the leading '#' the slices are off by one and
+    # return a silently wrong colour; a 3-digit shorthand ('#FFF') slices past
+    # the end and raises an opaque ``int('', 16)`` ValueError.
+    if len(hx) != 7 or hx[0] != "#":
+        raise ValueError(f"expected a '#RRGGBB' hex color, got {hx!r}")
     return tuple(int(hx[i : i + 2], 16) for i in range(1, 6, 2))  # type: ignore[return-value]
 
 

@@ -14,8 +14,27 @@ from odoo.libs.text.html import (
     create_link,
     html2plaintext,
     html_keep_url,
+    html_normalize,
     plaintext2html,
 )
+
+
+class TestHtmlNormalizeEncodingStrip(unittest.TestCase):
+    def test_strips_only_the_encoding_attribute(self):
+        # the encoding attribute is removed, but the tag and its other
+        # attributes/content must survive (the old regex deleted the whole tag).
+        out = html_normalize(
+            '<p><span encoding="x" style="color:red">imp</span> t</p>'
+        )
+        self.assertIn("imp", out)
+        self.assertIn("t", out)
+        self.assertIn("color:red", out)
+        self.assertNotIn("encoding", out)
+
+    def test_plain_content_unchanged(self):
+        out = html_normalize("<p>hi <b>bold</b> there</p>")
+        self.assertIn("bold", out)
+        self.assertNotIn("encoding", out)
 
 
 class TestCreateLink(unittest.TestCase):
@@ -77,7 +96,15 @@ class TestHtml2Plaintext(unittest.TestCase):
         # An XPath-injection payload must be treated as an opaque id literal:
         # it matches no element and never selects #other via the injected union.
         out = html2plaintext(self.DOC, body_id='content"] | //*[@id="other')
-        self.assertNotIn("only-other", out)  # no crash, payload inert
+        # payload matches no element => empty output; #other must never leak in.
+        self.assertNotIn("NO", out)
+        self.assertNotIn("HELLO", out)
+
+    def test_body_id_miss_returns_empty(self):
+        # a caller scoping to a specific id must not get the whole document back
+        # when that id is absent (that would leak content meant to be excluded).
+        out = html2plaintext(self.DOC, body_id="does-not-exist")
+        self.assertEqual(out.strip(), "")
 
 
 if __name__ == "__main__":

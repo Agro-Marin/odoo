@@ -62,8 +62,23 @@ class LRU[K, V](MutableMapping[K, V]):
             raise ValueError(f"LRU count must be positive, got {count!r}")
         with self._lock:
             self._count = count
-            while len(self) > count:
-                self.popitem()
+            values = self._values
+            ordering = self._ordering
+            while len(values) > count:
+                if len(ordering) > len(values):
+                    for k in ordering.copy():
+                        if k not in values:
+                            ordering.pop(k, None)
+                # Evict the least-recently-used key straight from ``_ordering``
+                # (O(1) via ``next(iter(...))``).  ``self.popitem()`` went through
+                # ``MutableMapping.popitem`` → ``next(iter(self))`` → ``snapshot``,
+                # rebuilding a full ordered dict copy per evicted item (O(n²)).
+                try:
+                    lru_key = next(iter(ordering))
+                except StopIteration, RuntimeError:
+                    break
+                ordering.pop(lru_key, None)
+                values.pop(lru_key, None)
 
     def __contains__(self, key: object) -> bool:
         """Return whether ``key`` is present in the LRU."""

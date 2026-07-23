@@ -15,6 +15,7 @@
 //!   For free-threaded builds, these would need `PyDict_GetItemRef` (strong
 //!   refs) and careful synchronization — tracked separately.
 
+use pyo3::exceptions::PyValueError;
 use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
@@ -290,13 +291,21 @@ pub fn batch_cache_fill<'py>(
     pending: &Bound<'py, PyAny>,
     none_val: &Bound<'py, PyAny>,
 ) -> PyResult<Py<PyList>> {
+    // Bounds contract: the loop indexes `results[i]` for i in 0..ids.len() with
+    // the unchecked PyList_GET_ITEM.  Enforce the length invariant rather than
+    // trusting the caller — a shorter `results` would read out of bounds.
+    if results.len() != ids.len() {
+        return Err(PyValueError::new_err(
+            "batch_cache_fill: `results` must have the same length as `ids`",
+        ));
+    }
     let n = ids.len() as ffi::Py_ssize_t;
 
     // SAFETY: All pointers are borrowed from live Python objects with 'py
     // lifetime.  PyDict_GetItem returns borrowed refs (no refcount on lookup).
     // PyDict_SetItem INCREFs both key and value — no manual INCREF needed
-    // before the call.  PyList_GET_ITEM is safe because we iterate 0..n
-    // where n = ids.len() = results.len() (caller contract).
+    // before the call.  PyList_GET_ITEM is safe because the length guard above
+    // pins results.len() == ids.len() = n.
     unsafe {
         let cache_ptr = field_cache.as_ptr();
         let ids_ptr = ids.as_ptr();
