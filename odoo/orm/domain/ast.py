@@ -1059,8 +1059,20 @@ class DomainCondition(Domain):
     operators are described in CONDITION_OPERATORS.
     """
 
-    __slots__ = ("_field_instance", "_hash", "field_expr", "operator", "value")
+    __slots__ = (
+        "_field_instance",
+        "_hash",
+        "_predicate_fallback",
+        "field_expr",
+        "operator",
+        "value",
+    )
     _field_instance: Field | None  # mutable cached property
+    # Lazily-set slots (absent until written via object.__setattr__):
+    #  - _hash: memoized __hash__ (see there)
+    #  - _predicate_fallback: pre-rewrite condition attached by a
+    #    binding-dependent FULL pass (_optimize_in_required), evaluated by
+    #    _as_predicate instead of self when the recordset contains NewIds
     field_expr: str
     operator: str
     value: typing.Any
@@ -1387,6 +1399,19 @@ class DomainCondition(Domain):
             with _recursion_error_as_value_error():
                 domain = self._optimize(records, OptimizationLevel.FULL)
             return domain._as_predicate(records)
+
+        # TRAP: the ``(FULL, model)`` stamp asserts validity for the binding
+        # seen at optimization time, but this node may now be evaluated over a
+        # *different* binding — notably new records, which a binding-dependent
+        # FULL pass (``_optimize_in_required``: strips False from required
+        # NOT NULL fields, valid only for persisted rows) never accounted for.
+        # Such a pass keeps its pre-rewrite condition reachable on the result;
+        # evaluate that instead when the recordset contains NewIds (NewId is
+        # always falsy, so ``all(records._ids)`` detects them).
+        if not all(records._ids):
+            fallback = getattr(self, "_predicate_fallback", None)
+            if fallback is not None:
+                return fallback._as_predicate(records)
 
         # raise (not assert): hold the contract under python -O
         if op not in STANDARD_CONDITION_OPERATORS:

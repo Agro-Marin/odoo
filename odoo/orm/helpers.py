@@ -40,6 +40,24 @@ def _origin_ids(ids: Iterable) -> list[int]:
 
 # Class-level memoization
 
+# Every key memoized on a registry model class via :func:`own_class_memo`.
+# The class object survives re-setup (registration only reassigns
+# ``__bases__``), so ``registration._prepare_setup`` discards each of these
+# keys — otherwise a re-setup that adds/removes a field or method keeps
+# serving the stale memo.  Any new ``own_class_memo`` call site MUST add its
+# key here; the source-scan test
+# ``odoo/orm/tests/test_own_class_memo_registry.py`` fails on drift (the call
+# sites live in ``models/``, which cannot reference this tuple in their
+# literal key argument, hence the scan).
+ORM_CLASS_MEMOS: tuple[str, ...] = (
+    "_constraint_methods__",
+    "_onchange_methods__",
+    "_ondelete_methods__",
+    "_precompute_readonly_names__",
+    "_properties_field_names__",
+    "_stored_computed_fields__",
+)
+
 
 def own_class_memo[T](cls: type, key: str, factory: typing.Callable[[], T]) -> T:
     """Return a per-class value memoized on ``cls``'s OWN ``__dict__``.

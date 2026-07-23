@@ -120,7 +120,9 @@ class InMemoryCursor(BaseCursor):
     """Cursor backed by fixture data — no PostgreSQL required.
 
     Inherits :class:`~odoo.db.BaseCursor` for the callback containers and the
-    ``savepoint()`` / ``flush()`` machinery. :meth:`__init__` pre-builds the
+    ``flush()`` machinery (savepoints are *not* supported — like
+    :meth:`rollback`, :meth:`savepoint` fails loud because :class:`DictBackend`
+    keeps no snapshot to restore). :meth:`__init__` pre-builds the
     ``Transaction`` and assigns it to ``self.transaction``, so
     ``Environment.__new__`` skips ``Transaction(Registry(cr.dbname))`` and never
     opens a connection. Its :class:`DictBackend` ``storage`` makes ORM CRUD —
@@ -228,15 +230,41 @@ class InMemoryCursor(BaseCursor):
     # Time
 
     def now(self) -> datetime:
-        """Return the current wall-clock time as a naive UTC datetime.
+        """Return the transaction's timestamp as a naive UTC datetime.
 
-        The real cursor fetches ``now()`` from PostgreSQL for transaction
-        consistency.  InMemoryCursor uses the local clock instead — suitable
-        for tests that check *that* a timestamp is set, not its exact value.
+        The real cursor fetches ``now()`` from PostgreSQL and caches it until
+        commit/rollback (see :meth:`odoo.db.BaseCursor.now`), so every call in
+        one transaction returns the *same* instant — e.g. all records created
+        in a transaction share one ``create_date``.  InMemoryCursor uses the
+        local clock as the source but mirrors that transaction stability by
+        caching in the same ``_now`` slot; :meth:`commit` resets it, exactly
+        like production.  (A fresh ``datetime.now()`` per call would let two
+        creates in one transaction disagree — behaviour production never
+        exhibits, a false-*red* the fast tier must not introduce.)
         """
-        return datetime.now(UTC).replace(tzinfo=None)
+        if self._now is None:
+            # naive UTC, matching production's ``now() AT TIME ZONE 'UTC'``
+            self._now = datetime.now(UTC).replace(tzinfo=None)
+        return self._now
 
     # Transaction control
+
+    def savepoint(self, flush: bool = True):
+        """Fail loud — the in-memory tier cannot implement savepoints.
+
+        A savepoint's whole point is rolling back to its start, and
+        :class:`DictBackend` keeps no snapshot to restore (same limitation as
+        :meth:`rollback`).  The inherited ``BaseCursor.savepoint`` would issue
+        real ``SAVEPOINT`` SQL, so it used to die in :meth:`execute` with the
+        generic raw-SQL error and its register-a-fixture advice — nonsense for
+        transaction control.  Raise an intentional, explanatory error instead.
+        """
+        raise InMemorySqlNotSupported(
+            "InMemoryCursor (DB-free model_test_env) does not support "
+            "savepoints: DictBackend writes are applied immediately and no "
+            "snapshot exists to roll back to (same limitation as rollback()). "
+            "Use a DB-backed TransactionCase to test savepoint behaviour."
+        )
 
     @contextmanager
     def pipeline(self):

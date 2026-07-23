@@ -549,6 +549,21 @@ def test_rollback_fails_loud():
             env.cr.rollback()
 
 
+def test_savepoint_fails_loud_with_intentional_error():
+    # Same limitation as rollback (DictBackend keeps no snapshots).  The
+    # inherited savepoint() used to issue real SAVEPOINT SQL and die in
+    # execute() with the generic raw-SQL message advising to register a
+    # fixture -- nonsense for transaction control.
+    with model_test_env(HWidget) as env:
+        with pytest.raises(InMemorySqlNotSupported, match="savepoint"):
+            env.cr.savepoint()
+        # the error is the intentional one, not the raw-SQL fixture advice
+        with pytest.raises(InMemorySqlNotSupported) as exc_info:
+            env.cr.savepoint(flush=False)
+        assert "fixture" not in str(exc_info.value)
+        assert "TransactionCase" in str(exc_info.value)
+
+
 # ---------------------------------------------------------------------------
 # ModelRegistry gaps (previous finding #14)
 # ---------------------------------------------------------------------------
@@ -590,6 +605,25 @@ class HAudit(models.Model):
     _description = "log-access model"
 
     name = fields.Char()
+
+
+def test_now_is_transaction_stable():
+    """cr.now() mirrors production's transaction-stable timestamp: cached on
+    first call (production caches PostgreSQL's ``now()``, which is fixed for
+    the whole transaction), so records created in one transaction share their
+    create_date; commit() resets the cache for the next transaction."""
+    with model_test_env(HAudit) as env:
+        first = env.cr.now()
+        assert env.cr.now() is first  # cached within the transaction
+        a = env["h.audit"].create({"name": "a"})
+        b = env["h.audit"].create({"name": "b"})
+        assert a.create_date == b.create_date == first
+        env.cr.commit()
+        # the cache was reset: the next transaction re-reads the clock
+        second = env.cr.now()
+        assert second is not first
+        assert second >= first
+        assert env.cr.now() is second  # and is stable again
 
 
 def test_write_after_invalidate_with_log_access():
