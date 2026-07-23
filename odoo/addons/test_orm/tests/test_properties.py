@@ -4459,3 +4459,151 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             [{"id": self.message_2.id, "author": self.test_user.id}],
         )
         self.assertEqual(group2[1]["__records"], [{"id": self.message_2.id}])
+
+
+class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestPropertiesMixin):
+    """``filtered_domain`` / ``search`` parity regressions on properties.
+
+    Two fixed divergences:
+
+    * many2one property + ``in [id]``: the relational branch of
+      ``Properties.filter_function`` was dead (it probed the getter on an
+      empty recordset, which can never expose a definition), so
+      ``filtered_domain`` fell through to a scalar comparison and returned
+      empty while ``search`` matched;
+    * integer property with a stored 0: ``Property.__getitem__`` collapsed 0
+      to False, so ``filtered_domain`` excluded 0-valued records from
+      ``>= 0`` while SQL included them.
+
+    ``self._search`` (TransactionExpressionCase) asserts that ``search`` and
+    ``filtered_domain`` agree, including on the complement domain.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # restrict the universe to the mixin's messages so the complement
+        # checks of _search() cover exactly the records under test
+        cls.messages = cls.message_1 | cls.message_2 | cls.message_3
+        cls.env["test_orm.message"].search(
+            [("id", "not in", cls.messages.ids)]
+        ).unlink()
+
+    def test_filtered_domain_many2one_property_in(self):
+        self.messages.discussion = self.discussion_1
+        self.message_1.attributes = [
+            {
+                "name": "mypartner",
+                "type": "many2one",
+                # the mixin's partners are test_orm.partner records — the
+                # comodel must match or the read path's existence check
+                # nullifies the (dangling) values
+                "comodel": "test_orm.partner",
+                "value": self.partner.id,
+                "definition_changed": True,
+            }
+        ]
+        self.message_2.attributes = {"mypartner": self.partner_2.id}
+        self.message_3.attributes = {"mypartner": False}
+
+        Message = self.env["test_orm.message"]
+
+        # single id (the exact previously-dead shape)
+        domain = [("attributes.mypartner", "in", [self.partner.id])]
+        found = self._search(Message, domain)
+        self.assertEqual(found, self.message_1)
+        # the direct filtered_domain call (regression: used to return empty)
+        self.assertEqual(self.messages.filtered_domain(domain), self.message_1)
+
+        # multiple ids
+        domain = [
+            ("attributes.mypartner", "in", [self.partner.id, self.partner_2.id])
+        ]
+        found = self._search(Message, domain)
+        self.assertEqual(found, self.message_1 | self.message_2)
+        self.assertEqual(
+            self.messages.filtered_domain(domain),
+            self.message_1 | self.message_2,
+        )
+
+        # 'not in' (routed through the same branch with outside negation)
+        domain = [("attributes.mypartner", "not in", [self.partner.id])]
+        self.assertEqual(
+            self.messages.filtered_domain(domain),
+            self.message_2 | self.message_3,
+        )
+
+        # empty recordset stays empty (records[:1] probe on no records)
+        self.assertEqual(
+            Message.browse().filtered_domain(
+                [("attributes.mypartner", "in", [self.partner.id])]
+            ),
+            Message.browse(),
+        )
+
+    def test_filtered_domain_integer_property_zero(self):
+        self.messages.discussion = self.discussion_1
+        self.message_1.attributes = [
+            {
+                "name": "myint",
+                "type": "integer",
+                "value": 0,
+                "definition_changed": True,
+            }
+        ]
+        self.message_2.attributes = {"myint": 111}
+        self.message_3.attributes = {"myint": -2}
+
+        Message = self.env["test_orm.message"]
+
+        # ">= 0" must include the 0-valued record on both sides
+        domain = [("attributes.myint", ">=", 0)]
+        found = self._search(Message, domain)
+        self.assertEqual(found, self.message_1 | self.message_2)
+        self.assertEqual(
+            self.messages.filtered_domain(domain),
+            self.message_1 | self.message_2,
+        )
+
+        # equality on 0
+        domain = [("attributes.myint", "=", 0)]
+        found = self._search(Message, domain)
+        self.assertEqual(found, self.message_1)
+        self.assertEqual(self.messages.filtered_domain(domain), self.message_1)
+
+    def test_zero_scalar_property_reads_back_as_zero(self):
+        """Stored numeric 0 / 0.0 read back as numbers, not False; unset and
+        empty-string values keep collapsing to False."""
+        self.message_1.attributes = [
+            {
+                "name": "myint",
+                "type": "integer",
+                "value": 0,
+                "definition_changed": True,
+            },
+            {
+                "name": "myfloat",
+                "type": "float",
+                "value": 0.0,
+                "definition_changed": True,
+            },
+            {
+                "name": "mychar",
+                "type": "char",
+                "value": "",
+                "definition_changed": True,
+            },
+        ]
+        self.env.invalidate_all()
+
+        values = self.message_1.attributes
+        self.assertEqual(values["myint"], 0)
+        self.assertNotIsInstance(values["myint"], bool)
+        self.assertEqual(values["myfloat"], 0.0)
+        self.assertNotIsInstance(values["myfloat"], bool)
+        # the empty string is deliberately collapsed at write time
+        self.assertIs(values["mychar"], False)
+
+        # unset on a sibling record sharing the definition: still False
+        self.message_2.discussion = self.discussion_1
+        self.assertIs(self.message_2.attributes["myint"], False)
