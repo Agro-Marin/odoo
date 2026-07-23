@@ -2,8 +2,11 @@
 
 from unittest import skip
 
-from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import ValuationReconciliationTestCommon
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged
+
+from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import (
+    ValuationReconciliationTestCommon,
+)
 
 
 @tagged('post_install', '-at_install')
@@ -12,7 +15,7 @@ class TestStockLandedCostsMrp(ValuationReconciliationTestCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestStockLandedCostsMrp, cls).setUpClass()
+        super().setUpClass()
         # References
         cls.supplier_id = cls.env['res.partner'].create({'name': 'My Test Supplier'}).id
         cls.customer_id = cls.env['res.partner'].create({'name': 'My Test Customer'}).id

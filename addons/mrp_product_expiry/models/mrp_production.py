@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, _
+from odoo import _, models
 
 
 class MrpProduction(models.Model):
@@ -29,6 +28,7 @@ class MrpProduction(models.Model):
                 'target': 'new',
                 'context': self._get_expired_context(expired_lot_ids),
             }
+        return False
 
     def _get_expired_context(self, expired_lot_ids):
         context = dict(self.env.context)

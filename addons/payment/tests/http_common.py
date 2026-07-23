@@ -4,8 +4,8 @@ from contextlib import contextmanager
 
 from lxml import etree, objectify
 
-from odoo.tests import HttpCase, JsonRpcException
 from odoo.libs.web import urls
+from odoo.tests import HttpCase, JsonRpcException
 
 from odoo.addons.payment.tests.common import PaymentCommon
 
@@ -106,7 +106,7 @@ class PaymentHttpCommon(PaymentCommon, HttpCase):
         token_ids = []
         payment_method_ids = []
         for p_o_input in payment_options_inputs:
-            data = dict()
+            data = {}
             for key, val in p_o_input.items():
                 if key.startswith("data-"):
                     data[key[5:]] = val

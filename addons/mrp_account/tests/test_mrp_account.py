@@ -1,13 +1,16 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import timedelta
 
-from odoo.addons.mrp_account.tests.common import TestBomPriceCommon, TestBomPriceOperationCommon
+from odoo import fields
 from odoo.tests import Form
 from odoo.tests.common import new_test_user
 from odoo.tools import float_compare, float_round
-from odoo import fields
+
+from odoo.addons.mrp_account.tests.common import (
+    TestBomPriceCommon,
+    TestBomPriceOperationCommon,
+)
 
 
 class TestMrpAccount(TestBomPriceCommon):

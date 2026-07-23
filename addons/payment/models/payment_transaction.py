@@ -17,7 +17,6 @@ from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.const import CURRENCY_MINOR_UNITS, SENSITIVE_KEYS
 from odoo.addons.payment.logging import get_payment_logger
 
-
 _logger = get_payment_logger(__name__, sensitive_keys=SENSITIVE_KEYS)
 
 
@@ -301,7 +300,7 @@ class PaymentTransaction(models.Model):
         :return: The dict of provider-specific create values.
         :rtype: dict
         """
-        return dict()
+        return {}
 
     # === ACTION METHODS === #
 
@@ -384,7 +383,7 @@ class PaymentTransaction(models.Model):
             captured_amount = sum(
                 child_tx.amount
                 for child_tx in tx.child_transaction_ids.filtered(
-                    lambda t: t.state == "done" and t.operation == tx.operation
+                    lambda t, tx=tx: t.state == "done" and t.operation == tx.operation
                 )
             )
             # In sudo mode to read on provider fields.
@@ -565,8 +564,7 @@ class PaymentTransaction(models.Model):
                 ):  # The reference has the same prefix and is from the same sequence
                     # Find the largest sequence number, if any.
                     current_sequence = int(search_result.group(1))
-                    if current_sequence > max_sequence_number:
-                        max_sequence_number = current_sequence
+                    max_sequence_number = max(max_sequence_number, current_sequence)
 
             # Compute the full reference.
             reference = f"{prefix}{separator}{max_sequence_number + 1}"
@@ -660,7 +658,7 @@ class PaymentTransaction(models.Model):
         :return: The dict of provider-specific processing values.
         :rtype: dict
         """
-        return dict()
+        return {}
 
     def _get_specific_rendering_values(self, processing_values):
         """Return a dict of provider-specific values used to render the redirect form.
@@ -673,7 +671,7 @@ class PaymentTransaction(models.Model):
         :return: The dict of provider-specific rendering values.
         :rtype: dict
         """
-        return dict()
+        return {}
 
     def _get_mandate_values(self):
         """Return a dict of module-specific values used to create a mandate.
@@ -687,7 +685,7 @@ class PaymentTransaction(models.Model):
         :rtype: dict
         """
         self.ensure_one()
-        return dict()
+        return {}
 
     def _charge_with_token(self):
         """Pay the transaction with the given token.
@@ -1065,7 +1063,7 @@ class PaymentTransaction(models.Model):
         :return: Data to create a payment token.
         :rtype: dict
         """
-        return dict()
+        return {}
 
     def _set_pending(self, *, state_message=None, extra_allowed_states=()):
         """Update the transactions' state to `pending`.
@@ -1227,7 +1225,7 @@ class PaymentTransaction(models.Model):
         """
         for child_tx in self.filtered("source_transaction_id"):
             sibling_txs = child_tx.source_transaction_id.child_transaction_ids.filtered(
-                lambda tx: (
+                lambda tx, child_tx=child_tx: (
                     tx.state in ["done", "cancel"]
                     and tx.operation == child_tx.operation
                 )

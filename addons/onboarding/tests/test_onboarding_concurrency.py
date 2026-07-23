@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import threading
@@ -8,7 +7,7 @@ import psycopg.errors
 
 from odoo import api
 from odoo.modules.registry import Registry
-from odoo.tests.common import get_db_name, tagged, BaseCase
+from odoo.tests.common import BaseCase, get_db_name, tagged
 from odoo.tools import mute_logger
 
 
