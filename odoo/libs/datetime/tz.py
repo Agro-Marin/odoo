@@ -166,9 +166,12 @@ def timezone(name: str) -> ZoneInfo:
     # Try the original name as a last resort
     try:
         tz = ZoneInfo(name)
-    except KeyError:
+    except (KeyError, ValueError):
         # Honour the documented ``:raises ZoneInfoNotFoundError:`` contract; it
         # subclasses KeyError, so ``except KeyError`` callers keep working.
+        # ValueError covers empty/path-like names ('', '../etc/passwd') that
+        # ZoneInfo rejects before its lookup -- pytz raised UnknownTimeZoneError
+        # for those, so unwrapping them here preserves the old single-type contract.
         raise ZoneInfoNotFoundError(f"Unknown timezone: {name!r}") from None
 
     _timezone_cache[name] = tz

@@ -174,10 +174,13 @@ class SQL:
                 # multi-value positions. Use a list for a single array param.
                 # An empty tuple must render as (NULL) rather than the invalid
                 # `()` (a PostgreSQL syntax error); `x IN (NULL)` matches nothing.
-                # Caveat: `x NOT IN (NULL)` also matches nothing (SQL three-valued
-                # logic), NOT "everything" — callers must guard the empty case
-                # themselves for NOT IN (see Query.subselect for the correct
-                # `(SELECT ... WHERE FALSE)` rendering).
+                #
+                # TRAP: `(NULL)` is correct for `IN` but WRONG for `NOT IN` --
+                # `x NOT IN (NULL)` matches *nothing* when an empty exclusion set
+                # should match every row. Since this branch can't see the
+                # operator, membership tests should use SQL.in_() / SQL.not_in()
+                # (= ANY / <> ALL on a list), which handle the empty set
+                # correctly. Bare `IN %s`/`NOT IN %s` with a tuple is discouraged.
                 if arg:
                     element_codes = []
                     for element in arg:
@@ -230,15 +233,24 @@ class SQL:
         (e.g. inside an f-string that will later be passed to ``cr.execute()``
         with its own separate parameters).
 
-        .. warning:: the returned raw string is not ``%``-escaped, so an inlined
-           value containing ``%`` can be misparsed by an outer ``cr.execute()``
-           that scans for placeholders. Prefer :meth:`inlined`, which returns a
-           composable ``SQL`` object and handles escaping, whenever the result
-           is passed back through the SQL layer.
+        The result is a ``%``-format template like :attr:`code`, not a finished
+        query: every literal ``%`` stays escaped as ``%%``, so the output can be
+        fed back to ``SQL(...)`` or spliced into a larger template.  That is what
+        both in-tree callers do (``project`` burndown/CFD reports:
+        ``SQL(fragment.render().replace(...))``).
+
+        Escaping the parameter-less case only -- as this used to -- made the two
+        branches disagree: ``SQL("x LIKE 'a%%'")`` rendered ``x LIKE 'a%%'``
+        while ``SQL("x LIKE 'a%%' AND y = %s", 1)`` rendered ``x LIKE 'a%'``,
+        which then blew up as ``TypeError: not enough arguments for format
+        string`` when re-wrapped in ``SQL()``.  Inlined parameter *values* that
+        contain ``%`` (e.g. an ILIKE pattern) need the same escaping, hence the
+        blanket re-escape after substitution.
         """
         if not self.__params:
             return self.__code
-        return self.__code % tuple(str(_sql.quote(v)) for v in self.__params)
+        inlined = self.__code % tuple(str(_sql.quote(v)) for v in self.__params)
+        return inlined.replace("%", "%%")
 
     def inlined(self, cr: Cursor) -> SQL:
         """Return an equivalent ``SQL`` with the bound parameters embedded as
@@ -350,6 +362,49 @@ class SQL:
         if not (subname.isidentifier() or IDENT_RE.match(subname)):
             raise ValueError(f"{subname!r} invalid for SQL.identifier()")
         return cls(f'"{name}"."{subname}"', to_flush=to_flush)
+
+    @classmethod
+    def in_(cls, lhs: SQL, values: Iterable) -> SQL:
+        """Return ``lhs = ANY(values)`` — a membership test that is correct for
+        the empty set.
+
+        Prefer this over ``SQL("... IN %s", tuple(values))``. The bare ``IN %s``
+        form relies on this class expanding a tuple into ``(%s, %s, ...)`` and,
+        for an empty tuple, into ``IN (NULL)`` — correct for ``IN`` (matches
+        nothing) but a trap the moment it is negated (see :meth:`not_in`), and a
+        crash if a tuple is passed where an array is expected. This helper binds
+        the values as a single ``ANY`` array parameter (the psycopg3-native
+        idiom, already used across the codebase) and renders an empty set as a
+        constant ``FALSE`` (matches nothing), sidestepping both hazards.
+
+        :param lhs: the left-hand SQL expression (e.g. ``SQL.identifier("col")``).
+        :param values: any collection of values to test membership against.
+        """
+        values = list(values)
+        if not values:
+            return cls("FALSE")
+        return cls("%s = ANY(%s)", lhs, values)
+
+    @classmethod
+    def not_in(cls, lhs: SQL, values: Iterable) -> SQL:
+        """Return ``lhs <> ALL(values)`` — a negated membership test that is
+        correct for the empty set.
+
+        This is the case the tuple-expansion path gets silently wrong: an empty
+        ``NOT IN`` must match **every** row, but ``x NOT IN (NULL)`` (what an
+        empty tuple expands to) matches **nothing**. Here an empty set renders as
+        a constant ``TRUE`` (matches everything). For a non-empty set,
+        ``<> ALL(array)`` reproduces ``NOT IN``'s SQL semantics exactly,
+        including its NULL handling (a NULL ``lhs``, or a NULL in ``values``,
+        yields NULL — the row is excluded — just like ``NOT IN``).
+
+        :param lhs: the left-hand SQL expression (e.g. ``SQL.identifier("col")``).
+        :param values: any collection of values to exclude.
+        """
+        values = list(values)
+        if not values:
+            return cls("TRUE")
+        return cls("%s <> ALL(%s)", lhs, values)
 
 
 # Shared empty-SQL singleton, avoids repeated allocations
@@ -637,6 +692,20 @@ def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
 
 
 def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, str]]:
+    """Return ``(view_name, relkind)`` for every view depending on a column.
+
+    ``relname`` is returned **raw**, not through ``quote_ident``.  The single
+    consumer, :func:`drop_depending_views`, passes it to ``SQL.identifier``,
+    which does its own quoting -- so pre-quoting produced a name that already
+    carried literal double quotes and was then rejected outright::
+
+        ValueError: '"MixedCaseView"' invalid for SQL.identifier()
+
+    That only stayed hidden because ``quote_ident`` is a no-op for the ordinary
+    lowercase names the ORM generates; any view needing quotes (mixed case, a
+    reserved word, a space) turned a column-type migration into a hard failure
+    inside :func:`_convert_column`'s fallback path.
+    """
     # http://stackoverflow.com/a/11773226/75349
     cr.execute(
         SQL(
@@ -855,7 +924,14 @@ def get_foreign_keys(
     columnname2: str,
     ondelete: str,
 ) -> list[str]:
-    deltype = _CONFDELTYPES[ondelete.upper()]
+    # Match the graceful default of its sibling ``fix_foreign_key``: an unknown
+    # ``ondelete`` maps to PostgreSQL's default action ``'a'`` (NO ACTION)
+    # rather than raising ``KeyError``.  The two functions took the same argument
+    # and disagreed on how to handle an out-of-range value; PostgreSQL stores
+    # ``'a'`` for an unspecified ``ON DELETE``, so an unknown request can only
+    # match a constraint that was itself created with NO ACTION -- which is the
+    # correct, non-crashing answer.
+    deltype = _CONFDELTYPES.get(ondelete.upper(), "a")
     return [
         row[0]
         for row in _get_fk_constraints(cr, tablename1, columnname1)
@@ -894,14 +970,30 @@ def fix_foreign_key(
 
 
 def index_exists(cr: Cursor, indexname: str) -> bool:
-    """Return whether the given index exists in the current schema."""
-    # Filter by current_schema like every other pg_catalog probe in this file:
-    # without it an identically-named index in another schema (e.g. a postgis
-    # or extension schema) reports as present, and create_index then silently
-    # skips creating the index in the current schema.
+    """Return whether the given index exists **in the current schema**.
+
+    The schema predicate is not incidental: ``pg_indexes`` spans every schema in
+    the database, so without it an unrelated index of the same name in another
+    schema reported a false positive here -- and :func:`create_index` returns
+    early on a true, so the index the caller asked for was silently never
+    created in the schema that needed it.  Every other catalogue lookup in this
+    module is already scoped this way; this one was the outlier.
+
+    ``relkind`` matches ``'i'`` *and* ``'I'`` to keep the previous result set
+    intact: ``pg_indexes`` is itself defined as ``i.relkind = ANY('i','I')``, so
+    dropping the partitioned-index kind would have turned this fix into a
+    regression -- an existing partitioned index would report missing and
+    :func:`create_index` would try to recreate it.
+    """
     cr.execute(
         SQL(
-            "SELECT 1 FROM pg_indexes WHERE indexname=%s AND schemaname=current_schema",
+            """
+            SELECT 1
+              FROM pg_class c
+             WHERE c.relname = %s
+               AND c.relkind IN ('i', 'I')
+               AND c.relnamespace = current_schema::regnamespace
+            """,
             indexname,
         )
     )
@@ -909,15 +1001,30 @@ def index_exists(cr: Cursor, indexname: str) -> bool:
 
 
 def index_definition(cr: Cursor, indexname: str) -> tuple[str | None, str | None]:
-    """Read the index definition from the database"""
+    """Read the index definition from the database.
+
+    Scoped and kind-matched exactly like :func:`index_exists`, which the callers
+    pair this with.  Two mismatches used to make the pair disagree:
+
+    * ``pg_indexes`` spans every schema, and the join was on bare
+      ``c.relname = idx.indexname``.  A same-named index in another schema
+      produced a second row, so ``fetchone()`` could hand back a *different*
+      index's definition -- which the schema layer then compares against the
+      expected one and "repairs".  Joining on ``idx.schemaname`` too keeps the
+      row set to this schema.
+    * ``relkind = 'i'`` dropped partitioned indexes (``'I'``), so an existing
+      partitioned index reported present via :func:`index_exists` but definition
+      ``None`` here.
+    """
     cr.execute(
         SQL(
             """
         SELECT idx.indexdef, d.description
         FROM pg_class c
         JOIN pg_indexes idx ON c.relname = idx.indexname
+            AND idx.schemaname = current_schema
         LEFT JOIN pg_description d ON c.oid = d.objoid
-        WHERE c.relname = %s AND c.relkind = 'i'
+        WHERE c.relname = %s AND c.relkind IN ('i', 'I')
           AND c.relnamespace = current_schema::regnamespace
     """,
             indexname,
@@ -949,11 +1056,22 @@ def create_index(
         raise ValueError("Missing expressions")
     if index_exists(cr, indexname):
         return
+    # ``expressions`` and ``where`` are raw SQL fragments, not %-format templates,
+    # so a literal ``%`` in them must be escaped before it reaches ``SQL()`` --
+    # exactly what :func:`add_index` already does for its ``str`` definition.
+    # Without this, the perfectly ordinary partial index
+    # ``where="name LIKE 'a%'"`` died with ``TypeError: not enough arguments for
+    # format string`` inside ``SQL.__init__``'s ``code % ()`` arity check, i.e.
+    # the index was never created and module installation blew up.  psycopg
+    # collapses ``%%`` back to ``%`` even when the parameter tuple is empty, so
+    # the emitted DDL is unchanged for fragments that contain no ``%``.
     definition = SQL(
         "USING %s (%s)%s",
         SQL(method),  # pylint: disable=sql-injection
-        SQL(", ").join(SQL(expression) for expression in expressions),  # pylint: disable=sql-injection
-        (SQL(" WHERE %s", SQL(where)) if where else SQL()),  # pylint: disable=sql-injection
+        SQL(", ").join(
+            SQL(expression.replace("%", "%%")) for expression in expressions
+        ),  # pylint: disable=sql-injection
+        (SQL(" WHERE %s", SQL(where.replace("%", "%%"))) if where else SQL()),  # pylint: disable=sql-injection
     )
     add_index(cr, indexname, tablename, definition, unique=unique, comment=comment)
 

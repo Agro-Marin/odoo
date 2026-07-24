@@ -272,8 +272,12 @@ class ThreadedWSGIServerReloadable(
             1,
         )
         # ``minimum=0``: "0" opts out of the bound (the guard below skips the
-        # semaphore); a malformed or negative value clamps to that same opt-out
-        # rather than reaching ``Semaphore(-N)``, which would abort startup.
+        # semaphore), and a NEGATIVE value clamps to that same opt-out rather
+        # than reaching ``Semaphore(-N)``, which would abort startup.  A
+        # MALFORMED value is different — ``env_float``/``env_int`` fall back to
+        # the ``default``, so it keeps ``auto_limit`` (the bound stays on) rather
+        # than silently disabling it.  That is the safer of the two, but it is
+        # not the same behaviour, so don't conflate them.
         self.max_http_threads = env_int(
             "ODOO_MAX_HTTP_THREADS", auto_limit, minimum=0, logger=_logger
         )

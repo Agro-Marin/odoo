@@ -105,6 +105,20 @@ def submap[K, T](mapping: Mapping[K, T], keys: Iterable[K]) -> Mapping[K, T]:
 class DotDict(dict):
     """Helper for dot.notation access to dictionary attributes.
 
+    .. warning::
+
+        Attribute access uses ``dict.get``, so **every** name resolves: a
+        missing key yields ``None`` rather than raising ``AttributeError``.
+        That means ``hasattr()`` is always True and ``getattr(d, k, default)``
+        never returns its default. This is deliberate -- request/session
+        objects are modelled with it (``odoo.http.get_default_session``) and
+        rely on absent keys reading as ``None`` -- but it makes ``DotDict`` a
+        poor fit for anything that needs to distinguish "absent" from "None".
+
+        Nested dicts are wrapped in a **new** ``DotDict`` on each access, so
+        ``d.nested.value = 1`` writes to a temporary and is lost. Assign
+        through the item API (``d['nested']['value'] = 1``) instead.
+
     Example::
 
         >>> foo = DotDict({'bar': False, 'nested': {'value': 42}})

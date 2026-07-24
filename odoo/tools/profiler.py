@@ -332,10 +332,12 @@ class MemoryCollector(_BasePeriodicCollector):
     _lock_acquired = False
 
     def start(self):
-        # tracemalloc is process-global: only one memory collector may run at a
-        # time. Fail the collector (with a log) instead of blocking forever —
-        # a nested/concurrent memory profile would otherwise deadlock or have
-        # its tracing torn down by the other profiler's stop().
+        # tracemalloc is process-global singleton state, so at most one memory
+        # collector may run at a time. A nested/concurrent memory profile would
+        # otherwise deadlock or have its tracing torn down by the other
+        # profiler's stop(). Degrade (log and collect nothing) rather than
+        # raise: a profiler is a debugging aid, and failing the whole request
+        # because someone else is profiling is worse than not sampling memory.
         self._lock_acquired = _lock.acquire(timeout=5)
         if not self._lock_acquired:
             _logger.warning(
@@ -343,8 +345,15 @@ class MemoryCollector(_BasePeriodicCollector):
                 "already active in this process"
             )
             return
-        tracemalloc.start()
-        super().start()
+        # Release on any start() failure so the lock is never leaked -- a leak
+        # here would deadlock every future memory profile in the process.
+        try:
+            tracemalloc.start()
+            super().start()
+        except BaseException:
+            _lock.release()
+            self._lock_acquired = False
+            raise
 
     def add(self, entry=None, frame=None):
         """Add an entry (dict) to this collector."""
@@ -356,15 +365,20 @@ class MemoryCollector(_BasePeriodicCollector):
         )
 
     def stop(self):
+        # Nothing to unwind if start() never took the lock (contention above).
         if not self._lock_acquired:
             return
-        super().stop()
-        # Stop tracing before releasing the lock: tracemalloc is process-global,
-        # so releasing first would let a new collector start() and then have its
-        # tracing killed by this stop().
-        tracemalloc.stop()
-        _lock.release()
-        self._lock_acquired = False
+        # Release in a ``finally``: stop() runs both on the normal path and from
+        # __enter__'s start-failure rollback, and must never strand the lock.
+        # Tracing is stopped before the release (both inside the try) because
+        # tracemalloc is process-global: releasing first would let a new
+        # collector start() and then have its tracing killed by this stop().
+        try:
+            super().stop()
+            tracemalloc.stop()
+        finally:
+            _lock.release()
+            self._lock_acquired = False
 
     def post_process(self):
         for i, entry in enumerate(self._entries):
@@ -751,8 +765,25 @@ class Profiler:
             self.exit_stack.enter_context(disabling_gc())
         self.start_time = real_time()
         self.start_cpu_time = real_cpu_time()
-        for collector in self.collectors:
-            collector.start()
+        # Start collectors with rollback: if one fails (e.g. a bad
+        # ``*_interval`` param raising in a periodic collector's start), stop
+        # the already-started ones so their query/qweb hooks don't stay
+        # registered on this thread and keep firing into a dead profiler.
+        started = []
+        try:
+            for collector in self.collectors:
+                collector.start()
+                started.append(collector)
+        except BaseException:
+            for collector in reversed(started):
+                try:
+                    collector.stop()
+                except Exception:
+                    _logger.exception(
+                        "Failed to stop collector %s during profiler start rollback",
+                        collector,
+                    )
+            raise
         return self
 
     def __exit__(self, *args: Any) -> None:

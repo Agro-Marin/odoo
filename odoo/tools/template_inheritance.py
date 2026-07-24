@@ -15,6 +15,7 @@ from odoo.exceptions import ValidationError
 
 # Import agnostic versions for wrapping
 from odoo.libs.xml.template_inheritance import (
+    XPathExpressionError,
     _compile_xpath,
 )
 from odoo.libs.xml.template_inheritance import (
@@ -79,15 +80,15 @@ def apply_inheritance_specs(
     :raise: ValidationError for invalid xpath expressions
     :raise: ValueError for other invalid specs or if nodes cannot be located
     """
-    # Catch ValueError from the base implementation and convert XPath-related
-    # errors to ValidationError; other ValueErrors propagate unchanged (their
-    # messages are dynamic, so they cannot be statically translated).
+    # Convert an invalid-xpath error to ValidationError; every other ValueError
+    # propagates unchanged.  This is now a type check (XPathExpressionError)
+    # rather than a substring match on the English message -- the message is
+    # dynamic (it interpolates the offending expression) and the old
+    # ``"Invalid Expression while parsing xpath" in str(e)`` silently stopped
+    # matching the day that wording drifted in odoo.libs.
     try:
         return _apply_inheritance_specs_base(
             source, specs_tree, inherit_branding, pre_locate
         )
-    except ValueError as e:
-        error_msg = str(e)
-        if "Invalid Expression while parsing xpath" in error_msg:
-            raise ValidationError(error_msg) from e  # pylint: disable=E8502
-        raise
+    except XPathExpressionError as e:
+        raise ValidationError(str(e)) from e  # pylint: disable=E8502

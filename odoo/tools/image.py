@@ -13,7 +13,9 @@ from PIL import Image
 from odoo.exceptions import UserError
 from odoo.libs.colors import hex_to_rgb
 
-# Re-export everything from libs/image (agnostic versions)
+# Re-export everything from libs/image (agnostic versions).  The typed errors
+# (ImageDecodeError / ImageTooLargeError / NotWebpError) are caught by type in
+# the wrappers below, instead of matching the English message text.
 from odoo.libs.image import (
     EXIF_TAG_ORIENTATION,
     # Constants
@@ -21,6 +23,7 @@ from odoo.libs.image import (
     IMAGE_MAX_RESOLUTION,
     ImageDecodeError,
     ImageTooLargeError,
+    NotWebpError,
     average_dominant_color,
     image_apply_opt,
     image_data_uri,
@@ -142,7 +145,7 @@ def binary_to_image(source: bytes) -> Image.Image:
     """
     try:
         return _binary_to_image_base(source)
-    except ValueError as e:
+    except ImageDecodeError as e:
         raise UserError(_lt("This file could not be decoded as an image file.")) from e
 
 
@@ -155,7 +158,7 @@ def base64_to_image(base64_source: str | bytes) -> Image.Image:
     """
     try:
         return _base64_to_image_base(base64_source)
-    except ValueError as e:
+    except ImageDecodeError as e:
         raise UserError(_lt("This file could not be decoded as an image file.")) from e
 
 
@@ -168,7 +171,7 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     """
     try:
         return _get_webp_size_base(source)
-    except ValueError as e:
+    except NotWebpError as e:
         raise UserError(_lt("This file is not a webp file.")) from e
 
 

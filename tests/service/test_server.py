@@ -109,6 +109,9 @@ def prefork_server(srv):
     # _note_worker_exit and process_spawn).
     obj._consecutive_fast_deaths = 0
     obj._respawn_not_before = 0.0
+    # psutil handles kept across a drain so ``_sweep_stale_workers`` can tell a
+    # surviving worker from a recycled pid.  Empty = "every pid already gone".
+    obj._drain_procs = {}
     return obj
 
 
@@ -2076,12 +2079,38 @@ class TestThreadedServerProcessLimit:
             patch("odoo.service._threaded.psutil"),
         ]
 
-    def test_memory_soft_exceeded_adds_current_thread(self, tserver):
+    def test_memory_soft_exceeded_sets_limit_reached_time(self, tserver):
+        # Memory breach is a PROCESS condition, tracked per-tick — it sets
+        # ``limit_reached_time`` (driving the reload gate) WITHOUT polluting the
+        # per-thread ``limits_reached_threads`` set with the never-pruned main
+        # thread (which used to latch a recovered server into reload).
+        import threading  # noqa: PLC0415
+
         patches = self._base_patches(memory=2000, config_override={"limit_memory_soft": 1000})
         with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[]):
             tserver.process_limit()
-        import threading  # noqa: PLC0415
-        assert threading.current_thread() in tserver.limits_reached_threads
+        assert tserver.limit_reached_time is not None
+        assert threading.current_thread() not in tserver.limits_reached_threads
+
+    def test_transient_memory_spike_does_not_latch_reload(self, tserver):
+        # A spike over the soft limit followed by recovery must NOT leave the
+        # server pinned in reload state.  Regression for the latch where the
+        # main thread was added to ``limits_reached_threads`` and, being always
+        # alive, was never pruned — keeping ``limit_reached_time`` set forever.
+        cfg = {"limit_memory_soft": 1000}
+
+        def tick(mem):
+            with patch("odoo.service._helpers.memory_info", return_value=mem), \
+                 patch("odoo.service._threaded.config", cfg), \
+                 patch("odoo.service._threaded.psutil"), \
+                 patch("threading.enumerate", return_value=[]):
+                tserver.process_limit()
+
+        tick(2000)  # over the soft limit
+        assert tserver.limit_reached_time is not None
+        tick(100)  # recovered, well under
+        assert tserver.limit_reached_time is None
+        assert not tserver.limits_reached_threads
 
     def test_thread_real_time_exceeded_adds_thread(self, tserver):
         mock_thread = MagicMock()
@@ -3131,3 +3160,401 @@ class TestOrderNotifiedFirst:
         # every notified-and-served db precedes every non-notified served db
         notified_served = [d for d in dict.fromkeys(notified) if d in set(all_dbs)]
         assert result[: len(notified_served)] == notified_served
+
+
+# ---------------------------------------------------------------------------
+# ThreadedServer._listen_thread — the threaded cron/job driver loop
+# ---------------------------------------------------------------------------
+
+
+class _StopHarness(BaseException):
+    """Escape hatch to unwind ``_listen_thread``'s ``while True`` from a test."""
+
+
+@pytest.fixture()
+def listen_server(srv):
+    """ThreadedServer stub sufficient to drive ``_listen_thread`` inline."""
+    s = object.__new__(srv.ThreadedServer)
+    s.logger = MagicMock()
+    return s
+
+
+def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
+    """Run ``_listen_thread`` on THIS thread until it is unwound.
+
+    Every blocking/IO edge is stubbed: the ``postgres`` connect, the LISTEN arm,
+    the NOTIFY drain, the served-database list and the selector.  ``time.sleep``
+    is counted and raises ``_StopHarness`` once ``sleeps_before_stop`` calls have
+    been made, which unwinds the driver's otherwise-infinite outer loop.
+    """
+    calls = {"sleep": 0}
+
+    def fake_sleep(_seconds):
+        calls["sleep"] += 1
+        if calls["sleep"] >= sleeps_before_stop:
+            raise _StopHarness
+    cfg = {"limit_time_worker_cron": 0, "db_name": ["db1"]}
+    with (
+        patch("odoo.service._threaded.db.db_connect"),
+        patch("odoo.service._threaded.arm_cron_listen", return_value=True),
+        patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
+        patch("odoo.service._threaded.cron_database_list", return_value=["db1"]),
+        patch("odoo.service._threaded.selectors.DefaultSelector"),
+        patch("odoo.service._threaded.config", cfg),
+        patch("odoo.service._threaded.time.sleep", fake_sleep),
+    ):
+        with pytest.raises(_StopHarness):
+            listen_server._listen_thread(
+                0, channel="cron_trigger", process_jobs=process_jobs, label="cron"
+            )
+    return calls
+
+
+class TestListenThreadStartTimeBookkeeping:
+    """``_listen_thread`` must always clear ``thread.start_time`` after a unit of work.
+
+    ``ThreadedServer.process_limit`` reads ``start_time`` on every ``cron``/``job``
+    thread and flags any whose elapsed time exceeds ``limit_time_real_cron``.  A
+    cron thread is long-lived and survives a failed pass (the driver backs off and
+    retries), so a ``start_time`` left set by a failed unit of work is never
+    cleared again: from the next ``process_limit`` tick onwards the thread looks
+    permanently over-limit, which drives ``run()`` into a full server reload.
+    """
+
+    def teardown_method(self):
+        # ``_listen_thread`` stamps the CURRENT thread; don't leak into other tests.
+        threading.current_thread().start_time = None
+
+    def test_start_time_cleared_after_successful_unit_of_work(self, listen_server):
+        _drive_listen_thread(listen_server, MagicMock())
+        assert getattr(threading.current_thread(), "start_time", None) is None
+
+    def test_start_time_cleared_after_exception_in_unit_of_work(self, listen_server):
+        def boom(_db):
+            raise ValueError("cron job blew up")
+
+        _drive_listen_thread(listen_server, boom)
+        assert getattr(threading.current_thread(), "start_time", None) is None
+
+    def test_start_time_cleared_when_base_exception_unwinds_the_thread(self, listen_server):
+        """A ``BaseException`` unwinds the driver — and still clears the stamp.
+
+        The stamp is cleared by the ``finally`` around the unit of work, not by
+        the outer handler catching everything: the driver deliberately catches
+        ``Exception``, so a ``BaseException`` propagates and ends the thread
+        (see :class:`TestListenThreadDoesNotSwallowUnwinds`).  The invariant
+        still has to hold on that path, because ``process_limit`` keeps reading
+        the stamp until the thread is actually gone.
+        """
+        class Fatal(BaseException):
+            pass
+
+        def boom(_db):
+            raise Fatal("not an Exception subclass")
+
+        with pytest.raises(Fatal):
+            _drive_listen_thread(listen_server, boom, sleeps_before_stop=3)
+        assert getattr(threading.current_thread(), "start_time", None) is None
+
+
+class TestListenThreadDoesNotSwallowUnwinds:
+    """The outer retry loop must not swallow exceptions raised to unwind it.
+
+    The loop is ``while True`` with a backoff-and-retry handler, so whatever it
+    catches it retries *forever*.  Catching ``BaseException`` there therefore
+    turned every unwind signal into an infinite spin: ``KeyboardInterrupt`` was
+    logged as an "uncaught error in cron main loop" and retried instead of
+    stopping a threaded dev server, and a test's stop sentinel raised from
+    inside the loop body could never unwind it — the loop span, logging a
+    CRITICAL with a traceback every pass, until the process was OOM-killed.
+
+    So the handler catches ``Exception``: a fault in a cron pass is retried, a
+    ``BaseException`` means "stop this thread" and is honoured.
+    """
+
+    def teardown_method(self):
+        threading.current_thread().start_time = None
+
+    @pytest.mark.parametrize("exc", [KeyboardInterrupt, SystemExit])
+    def test_control_flow_exception_is_not_retried(self, listen_server, exc):
+        def boom(_db):
+            raise exc
+
+        # If the loop swallowed it, ``fake_sleep`` would unwind with
+        # ``_StopHarness`` on the 3rd retry instead — a failure, not a hang.
+        with pytest.raises(exc):
+            _drive_listen_thread(listen_server, boom, sleeps_before_stop=3)
+
+    def test_ordinary_exception_is_still_retried(self, listen_server):
+        """The flip side: a real fault must NOT kill a long-lived cron thread."""
+        def boom(_db):
+            raise ValueError("cron pass blew up")
+
+        # ``_drive_listen_thread`` asserts the ``_StopHarness`` unwind itself,
+        # i.e. the loop stayed alive and got as far as the sleep counter.
+        _drive_listen_thread(listen_server, boom, sleeps_before_stop=3)
+
+
+# ---------------------------------------------------------------------------
+# PreforkServer.stop() — the reload (phoenix) branch must not strand workers
+# ---------------------------------------------------------------------------
+
+
+class TestPreforkPhoenixStopTerminatesSurvivors:
+    """A reload whose drain is cut short must still terminate surviving workers.
+
+    ``stop_workers_gracefully`` breaks out early on "Forced shutdown." (a second
+    INT/TERM arriving mid-drain).  The plain-shutdown branch of ``stop()`` covers
+    that with a trailing SIGTERM sweep, but the phoenix branch returned straight
+    after the drain.
+
+    A survivor is NOT orphaned: this code runs in the ``fork_and_reload`` child,
+    which is only a sibling of the workers — their parent is the original master
+    pid, which ``_reexec``'d in place and is now the new master.  The survivor is
+    therefore silently adopted by a new master that has no record of it, and goes
+    on accepting from the shared inherited listen socket while running the OLD
+    code, on top of the full fresh population the new master spawns.  (Verified
+    against a live reload: master 3104723 re-exec'd in place, drain ran in child
+    3105277, and both old and new workers had ppid 3104723.)
+    """
+
+    @pytest.fixture()
+    def phoenix_server(self, prefork_server):
+        prefork_server.socket = None
+        # A worker the (stubbed) drain fails to reap, as after a forced break.
+        prefork_server.workers = {4242: MagicMock()}
+        # Still alive at sweep time (not a recycled pid), so it must be signalled.
+        prefork_server._drain_procs = {4242: MagicMock(is_running=lambda: True)}
+        return prefork_server
+
+    def test_survivor_is_sigtermed_after_cut_short_reload_drain(
+        self, srv, phoenix_server, monkeypatch
+    ):
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(
+            srv.PreforkServer, "fork_and_reload", lambda self: True
+        )
+        # Simulate the "Forced shutdown." break: returns with workers still there.
+        monkeypatch.setattr(
+            srv.PreforkServer, "stop_workers_gracefully", lambda self: None
+        )
+        killed = []
+        monkeypatch.setattr(
+            srv.PreforkServer,
+            "worker_kill",
+            lambda self, pid, sig: killed.append((pid, sig)),
+        )
+
+        phoenix_server.stop()
+
+        assert killed == [(4242, signal.SIGTERM)], (
+            "worker 4242 was left running after a cut-short reload drain"
+        )
+
+    def test_fully_drained_reload_kills_nothing(self, srv, phoenix_server, monkeypatch):
+        """The sweep is a no-op on the normal path, where the drain reaped everyone."""
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", True)
+        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
+
+        def drained(self):
+            self.workers.clear()
+
+        monkeypatch.setattr(srv.PreforkServer, "stop_workers_gracefully", drained)
+        killed = []
+        monkeypatch.setattr(
+            srv.PreforkServer,
+            "worker_kill",
+            lambda self, pid, sig: killed.append((pid, sig)),
+        )
+
+        phoenix_server.stop()
+
+        assert killed == []
+
+
+class TestListenThreadFirstPassIsImmediate:
+    """The first cron pass must not wait out a full ``SLEEP_INTERVAL``.
+
+    ``_listen_thread`` blocks on ``select()`` before it ever looks at the
+    database.  With a 60 s timeout and nothing to select on at boot (no NOTIFY
+    yet), a threaded server did no cron work at all for its first minute, even
+    with jobs already overdue — measured at exactly 60 s on a live server.
+    ``PreforkServer`` never had this: it caps its wait at half the cron watchdog.
+    """
+
+    def teardown_method(self):
+        threading.current_thread().start_time = None
+
+    def _select_timeouts(self, listen_server, iterations):
+        seen = []
+
+        class _Sel:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def register(self, *a, **kw): pass
+            def select(self, timeout=None):
+                seen.append(timeout)
+                if len(seen) >= iterations:
+                    raise _StopHarness
+                return []
+
+        cfg = {"limit_time_worker_cron": 0, "db_name": ["db1"]}
+        with (
+            patch("odoo.service._threaded.db.db_connect"),
+            patch("odoo.service._threaded.arm_cron_listen", return_value=True),
+            patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
+            patch("odoo.service._threaded.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
+            patch("odoo.service._threaded.config", cfg),
+            patch("odoo.service._threaded.time.sleep", lambda _s: None),
+        ):
+            with pytest.raises(_StopHarness):
+                listen_server._listen_thread(
+                    0, channel="cron_trigger", process_jobs=MagicMock(), label="cron"
+                )
+        return seen
+
+    def test_first_select_does_not_block(self, listen_server):
+        assert self._select_timeouts(listen_server, 1)[0] == 0
+
+    def test_subsequent_selects_use_the_steady_state_interval(self, listen_server):
+        timeouts = self._select_timeouts(listen_server, 3)
+        assert timeouts[0] == 0, "first pass must poll immediately"
+        assert all(t == _threaded.SLEEP_INTERVAL + 0 for t in timeouts[1:]), (
+            f"steady state must return to SLEEP_INTERVAL, got {timeouts}"
+        )
+
+    def test_first_pass_actually_processes_databases(self, listen_server):
+        """Polling immediately is only useful if the pass does the work."""
+        process_jobs = MagicMock()
+        cfg = {"limit_time_worker_cron": 0, "db_name": ["db1"]}
+        calls = {"n": 0}
+
+        class _Sel:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def register(self, *a, **kw): pass
+            def select(self, timeout=None):
+                calls["n"] += 1
+                if calls["n"] > 1:
+                    raise _StopHarness
+                return []
+
+        with (
+            patch("odoo.service._threaded.db.db_connect"),
+            patch("odoo.service._threaded.arm_cron_listen", return_value=True),
+            patch("odoo.service._threaded.drain_cron_notifies", return_value=set()),
+            patch("odoo.service._threaded.cron_database_list", return_value=["db1"]),
+            patch("odoo.service._threaded.selectors.DefaultSelector", _Sel),
+            patch("odoo.service._threaded.config", cfg),
+            patch("odoo.service._threaded.time.sleep", lambda _s: None),
+        ):
+            with pytest.raises(_StopHarness):
+                listen_server._listen_thread(
+                    0, channel="cron_trigger", process_jobs=process_jobs, label="cron"
+                )
+        process_jobs.assert_called_once_with("db1")
+
+
+class TestPreforkForcefulStopStopsLongPolling:
+    """``stop(graceful=False)`` must stop the evented subprocess too.
+
+    It is not in ``self.workers`` (it is a ``Popen`` subprocess, not a forked
+    worker), so the trailing SIGTERM sweep never reached it.  It did eventually
+    die — its own watchdog kills it ~4 s after ``os.getppid()`` changes — but
+    that is another component's polling covering for this path, and it leaves
+    ``gevent_port`` bound meanwhile, long enough to fail a supervisor's
+    immediate restart with EADDRINUSE.
+    """
+
+    def test_forceful_stop_stops_the_evented_child(self, srv, prefork_server, monkeypatch):
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", False)
+        prefork_server.socket = None
+        prefork_server.workers = {}
+        called = []
+        monkeypatch.setattr(
+            srv.PreforkServer, "_stop_long_polling", lambda self: called.append(True)
+        )
+
+        prefork_server.stop(graceful=False)
+
+        assert called == [True], "evented subprocess left running after forceful stop"
+
+    def test_graceful_stop_still_stops_it_exactly_once(
+        self, srv, prefork_server, monkeypatch
+    ):
+        """The graceful path reaches it via ``stop_workers_gracefully``; adding
+        the forceful call must not make it fire twice there."""
+        from odoo.service import lifecycle
+
+        monkeypatch.setattr(lifecycle, "server_phoenix", False)
+        prefork_server.socket = None
+        prefork_server.workers = {}
+        called = []
+        monkeypatch.setattr(
+            srv.PreforkServer, "_stop_long_polling", lambda self: called.append(True)
+        )
+        monkeypatch.setattr(
+            srv.PreforkServer,
+            "stop_workers_gracefully",
+            lambda self: self._stop_long_polling(),
+        )
+        monkeypatch.setattr(srv.CommonServer, "stop", lambda self: None)
+
+        prefork_server.stop(graceful=True)
+
+        assert called == [True]
+
+
+class TestWorkerCpuLimitHandoff:
+    """A SIGXCPU recycle unwinds ``run()``'s join, not the work thread.
+
+    That daemon thread may still be inside ``select()`` on the selector — or,
+    for ``WorkerCron``, mid-query on ``dbcursor`` — that ``stop()`` then closes.
+    ``run()`` must ask it to wind down and give it a bounded moment first.
+    """
+
+    def test_grace_is_bounded_and_short(self, srv):
+        assert 0 < srv.Worker._CPU_LIMIT_JOIN_GRACE_S <= 5.0
+
+    def test_cpu_limit_clears_alive_and_joins_before_stop(self, srv, multi):
+        w = srv.Worker(multi)
+        w.pid = os.getpid()
+        w.logger = MagicMock()
+        order = []
+
+        real_stop = srv.Worker.stop
+
+        def traced_stop(self):
+            order.append(("stop", self.alive))
+            return real_stop(self)
+
+        joined = []
+
+        class _T:
+            def start(self): pass
+            def join(self, timeout=None):
+                joined.append(timeout)
+                if len(joined) == 1:
+                    raise srv.CpuTimeLimitExceeded("cpu")
+                order.append(("join", timeout))
+            def is_alive(self): return False
+
+        with patch.object(srv.Worker, "start", lambda self: None), \
+             patch.object(srv.Worker, "stop", traced_stop), \
+             patch("odoo.service._worker.threading.Thread", lambda **kw: _T()), \
+             patch("odoo.service._worker.config", {"limit_time_cpu": 1}):
+            w.run()
+
+        assert ("join", srv.Worker._CPU_LIMIT_JOIN_GRACE_S) in order, (
+            "work thread was not given a chance to wind down"
+        )
+        assert order.index(("join", srv.Worker._CPU_LIMIT_JOIN_GRACE_S)) < \
+            [o[0] for o in order].index("stop"), "joined after stop() closed resources"
+        assert ("stop", False) in order, "self.alive was not cleared before stop()"

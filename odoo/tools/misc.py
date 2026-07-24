@@ -399,14 +399,29 @@ def get_diff(
     ) -> str:
         """Append BS4 classes to the identifying classes HtmlDiff puts on the
         DOM, and add custom style so the table fits the modal width.
+
+        The rewrites below match the *full attribute* including its leading
+        space, not the bare word.  ``HtmlDiff`` escapes every space in the
+        compared text to ``&nbsp;``, so a raw space can only occur inside a tag
+        it generated -- which makes these patterns unable to match content.
+
+        Matching bare words corrupted the very thing being diffed: the only two
+        callers compare view arch (``base.reset_view_arch``) and server-action
+        Python (``base.server_action_history``), and a stray ``.replace(
+        "nowrap", "")`` silently deleted that word from the rendered diff, so
+        ``style="white-space: nowrap"`` was shown to the user as
+        ``style="white-space: "``.  Same hazard for ``diff_header``/
+        ``diff_next`` appearing in the compared text.
         """
         to_append = {
-            "diff_header": "bg-600 text-light text-center align-top px-2",
-            "diff_next": "d-none",
+            'class="diff_header"': "bg-600 text-light text-center align-top px-2",
+            'class="diff_next"': "d-none",
         }
-        for old, new in to_append.items():
-            html_diff = html_diff.replace(old, "%s %s" % (old, new))
-        html_diff = html_diff.replace("nowrap", "")
+        for attribute, classes in to_append.items():
+            html_diff = html_diff.replace(
+                f" {attribute}", ' %s %s"' % (attribute[:-1], classes)
+            )
+        html_diff = html_diff.replace(' nowrap="nowrap"', "")
         colors = (
             ("#7f2d2f", "#406a2d", "#51232f", "#3f483b")
             if dark_color_scheme

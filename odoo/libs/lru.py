@@ -62,23 +62,23 @@ class LRU[K, V](MutableMapping[K, V]):
             raise ValueError(f"LRU count must be positive, got {count!r}")
         with self._lock:
             self._count = count
-            values = self._values
-            ordering = self._ordering
-            while len(values) > count:
-                if len(ordering) > len(values):
-                    for k in ordering.copy():
-                        if k not in values:
-                            ordering.pop(k, None)
-                # Evict the least-recently-used key straight from ``_ordering``
-                # (O(1) via ``next(iter(...))``).  ``self.popitem()`` went through
-                # ``MutableMapping.popitem`` → ``next(iter(self))`` → ``snapshot``,
-                # rebuilding a full ordered dict copy per evicted item (O(n²)).
+            # Evict directly rather than via MutableMapping.popitem(), which
+            # goes through __iter__ -> snapshot and so copied the whole mapping
+            # once *per evicted item* (O(n^2) to shrink).
+            while len(self._values) > count:
                 try:
-                    lru_key = next(iter(ordering))
-                except (StopIteration, RuntimeError):
-                    break
-                ordering.pop(lru_key, None)
-                values.pop(lru_key, None)
+                    # a concurrent lock-free __getitem__ can mutate _ordering
+                    # mid-iteration; retry rather than let the RuntimeError
+                    # escape the setter (same guard as __setitem__)
+                    key = next(iter(self._ordering), None)
+                except RuntimeError:
+                    continue
+                if key is None:
+                    # _ordering lags behind _values (see the class comment);
+                    # fall back to any key so shrinking always terminates
+                    key = next(iter(self._values))
+                self._values.pop(key, None)
+                self._ordering.pop(key, None)
 
     def __contains__(self, key: object) -> bool:
         """Return whether ``key`` is present in the LRU."""

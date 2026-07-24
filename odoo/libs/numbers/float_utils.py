@@ -1,11 +1,8 @@
 """Floating point rounding, comparison and precision helpers."""
 
 import builtins
-import logging
 import math
 from typing import Literal
-
-_logger = logging.getLogger(__name__)
 
 type RoundingMethod = Literal["UP", "DOWN", "HALF-UP", "HALF-DOWN", "HALF-EVEN"]
 
@@ -53,7 +50,9 @@ def _float_check_precision(
             raise ValueError(
                 f"precision_digits must be a non-negative integer, got {precision_digits}"
             )
-        precision_rounding = 10**-precision_digits
+        # float(): 10**0 is the *int* 1, and this is annotated (and consumed) as
+        # a float -- an int leaked into float_round's arithmetic at 0 digits.
+        precision_rounding = float(10**-precision_digits)
     else:
         msg = "exactly one of precision_digits and precision_rounding must be specified"
         raise ValueError(msg)
@@ -197,10 +196,12 @@ def float_is_zero(
 ) -> bool:
     """Return whether ``value`` is small enough to be treated as zero.
 
-    A value is treated as zero at the given precision when it is smaller than
-    the corresponding *epsilon*. The precision (``10**-precision_digits`` or
-    ``precision_rounding``) is used as the zero *epsilon*: values less than
-    that are considered to be zero.
+    A value is treated as zero at the given precision when *rounding it* to
+    that precision yields something below the corresponding *epsilon*
+    (``10**-precision_digits`` or ``precision_rounding``).  Note this is not
+    the same as ``abs(value) < epsilon``: rounding happens first, so at 2
+    digits ``0.005`` rounds up to ``0.01`` and is **not** zero, while
+    ``0.0049`` rounds to ``0.0`` and is.
     Precision must be given by ``precision_digits`` or ``precision_rounding``,
     not both!
 
@@ -302,11 +303,20 @@ def float_split_str(value: float, precision_digits: int) -> tuple[str, str]:
     In case ``precision_digits`` is zero, an empty string is returned for
     the decimal places.
 
+    The sign lives on the *unitary* part only; the decimal part is always the
+    unsigned magnitude of the fraction. For ``-1 < value < 0`` the unitary part
+    is the string ``"-0"`` (e.g. ``-0.05`` => ``('-0', '05')``) -- keep it as a
+    string if you need the sign, because ``int('-0') == 0`` erases it (see
+    :func:`float_split`). Callers that only care about magnitude should pass
+    ``abs(value)``.
+
     Examples:
-        1.432 with precision 2 => ('1', '43')
-        1.49  with precision 1 => ('1', '5')
-        1.1   with precision 3 => ('1', '100')
-        1.12  with precision 0 => ('1', '')
+        1.432  with precision 2 => ('1', '43')
+        1.49   with precision 1 => ('1', '5')
+        1.1    with precision 3 => ('1', '100')
+        1.12   with precision 0 => ('1', '')
+        -2.675 with precision 2 => ('-2', '68')
+        -0.05  with precision 2 => ('-0', '05')
 
     :param value: value to split.
     :param precision_digits: number of fractional digits to round to.
@@ -327,6 +337,16 @@ def float_split(value: float, precision_digits: int) -> tuple[int, int]:
     Same as :func:`float_split_str` except that the parts are returned as
     integers instead of strings. In case ``precision_digits`` is zero, 0 is
     always returned as decimal part.
+
+    .. warning::
+
+        The integer form cannot represent ``-0``, so for ``-1 < value < 0`` the
+        sign is **lost**: ``float_split(-0.05, 2) == (0, 5)``, indistinguishable
+        from ``+0.05``. Reconstruct a possibly-negative value as
+        ``sign(value) * (abs(units) + cents / 10**precision_digits)`` using the
+        original value's sign, or use :func:`float_split_str` (whose ``"-0"``
+        keeps the sign). For ``value <= -1`` the sign rides on ``units`` and
+        round-trips fine.
     """
     units, cents = float_split_str(value, precision_digits)
     if not cents:
@@ -413,7 +433,12 @@ def float_invert(value: float) -> float:
 
     :param value: value to invert.
     :return: inverted float.
+    :raises ZeroDivisionError: if ``value`` is zero.
     """
+    if not value:
+        # the generic branch below computed 0.0 / 0.0 ** 2 and surfaced a
+        # confusing "float division by zero" from the middle of a string dance
+        raise ZeroDivisionError("cannot invert 0")
     result = _INVERTDICT.get(value)
     if result is None:
         coefficient, exponent = f"{value:.15e}".split("e")
@@ -422,47 +447,6 @@ def float_invert(value: float) -> float:
     return result
 
 
-if __name__ == "__main__":
-    import time
-
-    start = time.time()
-    count = 0
-
-    def try_round(
-        amount: float, expected: str, precision_digits: int = 3
-    ) -> complex | int:
-        result = float_repr(
-            float_round(amount, precision_digits=precision_digits),
-            precision_digits=precision_digits,
-        )
-        if result != expected:
-            _logger.error("Rounding error: got %s, expected %s", result, expected)
-            return complex(1, 1)
-        return 1
-
-    # Extended float range test, inspired by Cloves Almeida's test on bug #882036.
-    fractions = [0.0, 0.015, 0.01499, 0.675, 0.67499, 0.4555, 0.4555, 0.45555]
-    expecteds = [".00", ".02", ".01", ".68", ".67", ".46", ".456", ".4556"]
-    precisions = [2, 2, 2, 2, 2, 2, 3, 4]
-    for magnitude in range(7):
-        for frac, exp, prec in zip(fractions, expecteds, precisions, strict=False):
-            for sign in [-1, 1]:
-                for x in range(0, 10000, 97):
-                    n = x * 10**magnitude
-                    f = sign * (n + frac)
-                    f_exp = ("-" if f != 0 and sign == -1 else "") + str(n) + exp
-                    count += try_round(f, f_exp, precision_digits=prec)
-
-    stop = time.time()
-    count, errors = int(count.real), int(count.imag)
-
-    # Micro-bench results:
-    # 47130 round calls in 0.422306060791 secs, with Python 2.6.7 on Core i3 x64
-    # with decimal:
-    # 47130 round calls in 6.612248100021 secs, with Python 2.6.7 on Core i3 x64
-    _logger.info(
-        "%s round calls, %s errors, done in %s secs",
-        count,
-        errors,
-        stop - start,
-    )
+# The extended float-range sweep that used to sit here behind
+# ``if __name__ == "__main__"`` now lives in
+# ``odoo/libs/numbers/tests/test_float_round.py``, where it actually runs.

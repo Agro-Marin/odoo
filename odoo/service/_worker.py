@@ -68,6 +68,7 @@ from ._env import env_float, env_int
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
+    capped_backoff,
     cron_database_list,
     empty_pipe,
     over_memory_soft_limit,
@@ -95,11 +96,28 @@ class CpuTimeLimitExceeded(Exception):
 class Worker:
     """Workers"""
 
+    # How long ``run()`` waits for the work thread to wind down after a SIGXCPU
+    # recycle before closing the resources that thread may still be using.
+    # Short: this is a best-effort handoff on an already-doomed worker, and the
+    # master is waiting to replenish the slot.
+    _CPU_LIMIT_JOIN_GRACE_S = 1.0
+
     def __init__(self, multi: PreforkServer) -> None:
         self.multi = multi
         self.watchdog_time = time.monotonic()
         self.watchdog_pipe = multi.pipe_new()
-        self.eintr_pipe = multi.pipe_new()
+        try:
+            self.eintr_pipe = multi.pipe_new()
+        except BaseException:
+            # The first pipe is already open, but a half-built ``Worker`` never
+            # reaches the caller, so its ``close()`` can never run: release those
+            # two fds here or they leak.  This path is reached on EMFILE/ENFILE —
+            # i.e. precisely when leaking fds makes the next spawn likelier to
+            # fail too, and ``PreforkServer.process_spawn`` retries every cycle.
+            for fd in self.watchdog_pipe:
+                with contextlib.suppress(OSError):
+                    os.close(fd)
+            raise
         self.wakeup_fd_r, self.wakeup_fd_w = self.eintr_pipe
         # Can be set to None if no watchdog is desired.
         self.watchdog_timeout = multi.timeout
@@ -266,6 +284,20 @@ class Worker:
                 "CPU time limit (%ss) exceeded; recycling worker.",
                 config["limit_time_cpu"],
             )
+            # SIGXCPU unwound the JOIN, not the runloop: that daemon thread is
+            # still live and may be inside ``select()`` on the selector — or, for
+            # WorkerCron, mid-query on ``dbcursor`` — that ``stop()`` below is
+            # about to close.  Ask it to wind down and give it a moment, so the
+            # common case is a clean handoff rather than a race that ``os._exit``
+            # merely papers over.  Bounded: we exit regardless.
+            self.alive = False
+            t.join(timeout=self._CPU_LIMIT_JOIN_GRACE_S)
+            if t.is_alive():
+                self.logger.warning(
+                    "Work thread still running %.1fs after CPU-limit stop; "
+                    "exiting anyway.",
+                    self._CPU_LIMIT_JOIN_GRACE_S,
+                )
         finally:
             self.stop()
 
@@ -437,10 +469,12 @@ class WorkerCron(Worker):
         """Warn and sleep with exponential backoff after a failed PG connect.
 
         Shared by the boot connect loop (``start``) and the per-cycle reconnect
-        (``process_work``) so the backoff (``min(2**n, 60)``) and watchdog-pinging
-        cadence can't drift.  The caller owns the attempt counter and control flow.
+        (``process_work``) so the backoff and watchdog-pinging cadence can't
+        drift.  The caller owns the attempt counter and control flow — and both
+        callers' counters are unbounded across a sustained outage, which is why
+        the exponent is clamped inside :func:`capped_backoff`.
         """
-        backoff = min(2**attempt, 60)
+        backoff = capped_backoff(attempt, SLEEP_INTERVAL)
         self.logger.warning(
             "%s failed (attempt %d): %s; sleeping %ds", what, attempt, exc, backoff
         )

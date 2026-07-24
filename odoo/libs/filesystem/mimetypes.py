@@ -12,6 +12,7 @@ import zipfile
 
 __all__ = [
     "MIMETYPE_HEAD_SIZE",
+    "UNKNOWN_MIMETYPE",
     "_olecf_mimetypes",
     "fix_filename_extension",
     "get_extension",
@@ -22,6 +23,8 @@ __all__ = [
 _logger = logging.getLogger(__name__)
 _logger_guess_mimetype = _logger.getChild("guess_mimetype")
 MIMETYPE_HEAD_SIZE = 2048
+UNKNOWN_MIMETYPE = "application/octet-stream"
+"""What both libmagic and our own guesser return when they cannot identify the content."""
 
 # We define our own guess_mimetype implementation and if magic is available we
 # use it instead.
@@ -207,15 +210,13 @@ _mime_mappings = (
 )
 
 
-def _odoo_guess_mimetype(
-    bin_data: bytes, default: str = "application/octet-stream"
-) -> str:
+def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> str:
     """Guess the mime type of the provided binary data.
 
     Similar to but significantly more limited than libmagic.
 
     :param bin_data: binary data to try and guess a mime type for
-    :returns: matched mimetype or ``application/octet-stream`` if none matched
+    :returns: matched mimetype, or ``default`` if none matched
     """
     # by default, guess the type using the magic number of file hex signature (like magic, but more limited)
     # see http://www.filesignatures.net/ for file signatures
@@ -257,10 +258,15 @@ except ImportError:
     magic = None
 
 
-def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> str:
+def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE) -> str:
     """Guess the MIME type of binary data using libmagic.
 
     Falls back to MS Office sub-checkers for CDFV2/ZIP containers.
+
+    :param bin_data: the bytes to identify (only the first
+        ``MIMETYPE_HEAD_SIZE`` are handed to libmagic)
+    :param default: returned when neither libmagic nor the signature-based
+        guesser can identify the content
     """
     if isinstance(bin_data, bytearray):
         bin_data = bytes(bin_data[:MIMETYPE_HEAD_SIZE])
@@ -270,19 +276,20 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> s
     if magic is not None:
         mimetype = magic.from_buffer(bin_data[:MIMETYPE_HEAD_SIZE], mime=True)
     else:
-        # libmagic unavailable: use the signature-based guesser directly.
-        mimetype = _odoo_guess_mimetype(bin_data)
-    if mimetype == "application/octet-stream":
-        # libmagic returned its "unknown" answer. Some libmagic builds/versions
-        # miss formats odoo cares about (notably small zip archives, which this
-        # detects via the OOXML/ODF sub-checkers below), so retry with our own
-        # signature-based guesser, which keys off the leading magic bytes
-        # (PK\x03\x04 for zip, %PDF, \x89PNG, ...). Keep magic's answer if our
-        # fallback also can't identify the content.
-        guess = _odoo_guess_mimetype(bin_data)
-        if guess != "application/octet-stream":
-            mimetype = guess
-    if mimetype in ("application/CDFV2", "application/x-ole-storage"):
+        mimetype = UNKNOWN_MIMETYPE
+    if mimetype == UNKNOWN_MIMETYPE:
+        # libmagic is absent, or returned its "unknown" answer. Some libmagic
+        # builds/versions miss formats odoo cares about (notably small zip
+        # archives, which this detects via the OOXML/ODF sub-checkers below), so
+        # fall back to our own signature-based guesser, which keys off the
+        # leading magic bytes (PK\x03\x04 for zip, %PDF, \x89PNG, ...).
+        # ``default`` is threaded through so a caller that declared a fallback
+        # actually gets it -- it used to be accepted and silently dropped, so
+        # e.g. ``ir.binary`` image streams reported "application/octet-stream"
+        # instead of the "image/png" they asked for (and the download filename
+        # picked up a ".octet-stream" extension from it).
+        mimetype = _odoo_guess_mimetype(bin_data, default)
+    if mimetype in _olecf_mimetypes:
         # Those are the generic file format that Microsoft Office
         # was using before 2006, use our own check to further
         # discriminate the mimetype.

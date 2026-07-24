@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import functools
 import logging
 import platform
@@ -480,7 +481,10 @@ class IrModuleModule(models.Model):
                     module.icon_image = ""
             countries = manifest.get("countries", [])
             if len(countries) == 1:
-                module.icon_flag = get_flag(countries[0].upper())
+                # A manifest is third-party data: a malformed country code must
+                # leave the module without a flag, not break the whole Apps list.
+                with contextlib.suppress(ValueError):
+                    module.icon_flag = get_flag(countries[0].upper())
 
     def _compute_has_iap(self) -> None:
         """Compute whether the module transitively depends on the iap module."""

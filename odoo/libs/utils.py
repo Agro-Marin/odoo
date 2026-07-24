@@ -90,14 +90,24 @@ def format_frame(frame: types.FrameType) -> str:
     return f"{code.co_name} {code.co_filename}:{frame.f_lineno}"
 
 
-# Matches an escaped ``%%`` (group 1 None) or a named conversion
-# ``%(key)[flags][width][.precision]conv`` — flags/width/precision are captured
-# in group 2 and preserved in the positional output, and ``%%`` is passed through
-# untouched.  The previous pattern matched only ``%(key)conv``, so a modified
-# spec (``%(x)05d``) was left as a named spec (later ``TypeError: format requires
-# a mapping``) and ``%%(lit)s`` was misread as a real spec (spurious ``KeyError``).
+# printf conversion grammar: %(name)[flags][width][.precision]conv.
+# Matching only the bare "%(name)conv" form left anything carrying a flag, width
+# or precision -- "%(amt).2f", "%(n)-10s" -- untouched in the output while its
+# argument still moved to the positional tuple, so the caller's later
+# interpolation blew up with a bare "format requires a mapping".
+# "%%" is matched first so an escaped percent is never mistaken for a conversion.
+#
+# The [hlL] length modifier and the SPACE flag are deliberately not accepted,
+# even though C printf (and Python's %-operator) allow both.  They are what let
+# the pattern swallow ordinary prose: with them, "%(x) here" parses as
+# space-flag + length 'h' + conversion 'e', and "%(user) said" as space-flag +
+# conversion 's' -- both silently rewriting text that was never a placeholder,
+# into a query, since the only caller is SQL().  Excluding them costs nothing:
+# every conversion is flattened to "%s" below, so a length modifier or a
+# space-pad-positive-numbers flag carries no information that survives anyway.
+# Anything left holding "%(" after substitution is reported, not rewritten.
 _NAMED_PRINTF_RE = re.compile(
-    r"%%|%\(([^)]+)\)([-+ #0]*(?:\d+|\*)?(?:\.(?:\d+|\*))?)([diouxXeEfFgGcrsab])"
+    r"%%|%\(([^)]*)\)[-+#0]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[diouxXeEfFgGcrsab]"
 )
 
 _PrintfArgs = tuple[str, tuple[Any, ...]]
@@ -106,9 +116,15 @@ _PrintfArgs = tuple[str, tuple[Any, ...]]
 def named_to_positional_printf(string: str, args: Mapping[str, Any]) -> _PrintfArgs:
     """Convert a named printf-style format string with its arguments to positional format.
 
+    Every conversion becomes ``%s`` regardless of its original type and
+    formatting spec: the caller (notably :class:`odoo.tools.sql.SQL`) needs
+    uniform positional placeholders, not preserved printf formatting.
+
     :param string: A printf-style format string with named arguments (e.g., "%(name)s")
     :param args: A mapping of argument names to values
     :returns: A tuple of (positional_format_string, positional_args_tuple)
+    :raises KeyError: if a placeholder names a key absent from ``args``
+    :raises ValueError: if a named placeholder could not be converted
 
     Example::
 
@@ -118,13 +134,20 @@ def named_to_positional_printf(string: str, args: Mapping[str, Any]) -> _PrintfA
     values: list[Any] = []
 
     def _replace(match: re.Match[str]) -> str:
-        name = match.group(1)
-        if name is None:  # matched '%%' — a literal percent, consumes no value
+        if match[0] == "%%":
             return "%%"
-        values.append(args[name])
-        return "%" + match.group(2) + match.group(3)
+        # A name with no value stays a KeyError -- it is a failed mapping lookup,
+        # which is what both Python's own %-formatting and ``SQL``'s documented
+        # contract raise (``TestSQL.test_sql_with_wrong_pattern`` asserts it).
+        # Converting it to ValueError silently broke every caller catching
+        # KeyError, and buys nothing the key name in the message does not.
+        values.append(args[match[1]])
+        return "%s"
 
     positional = _NAMED_PRINTF_RE.sub(_replace, string)
+    if "%(" in positional.replace("%%", ""):
+        msg = f"unsupported named placeholder in {string!r}"
+        raise ValueError(msg)
     return positional, tuple(values)
 
 

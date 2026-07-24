@@ -8,7 +8,7 @@ import time
 import typing
 import warnings
 from collections import defaultdict
-from collections.abc import Callable, Collection, Iterable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from inspect import Parameter, signature
 from typing import Any
 
@@ -102,6 +102,52 @@ def prune_counters(db_name: str) -> None:
 _TX_STATS_ENABLED: bool = os.environ.get(
     "ODOO_ORMCACHE_TX_STATS", ""
 ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _render_signature(method: Callable) -> tuple[str, dict[str, Any]]:
+    """Render ``method``'s parameter list as lambda source, plus the globals it needs.
+
+    Used to build the cache-key lambda in :meth:`ormcache.determine_key`.
+
+    Defaults are **bound by name** rather than rendered as source.  ``str(Parameter)``
+    formats a default via ``repr()``, which is only valid Python for a minority of
+    objects: a method such as ``def m(self, a, flag=SENTINEL)`` produced
+    ``lambda self, a, flag=<odoo...Sentinel object at 0x7f...>: ...`` and blew up
+    with ``SyntaxError: invalid syntax`` at import time, i.e. the whole server
+    failed to start.  Binding also makes the lambda share the *identical* default
+    object with the method instead of an equal-but-distinct re-parsed literal.
+
+    ``/`` and ``*`` markers are re-emitted too; ``signature().parameters`` drops
+    them, which silently widened positional-only and keyword-only parameters.
+    """
+    rendered: list[str] = []
+    arg_globals: dict[str, Any] = {}
+    params = list(signature(method).parameters.values())
+    prev_kind = None
+    for index, param in enumerate(params):
+        if prev_kind == Parameter.POSITIONAL_ONLY and param.kind != Parameter.POSITIONAL_ONLY:
+            rendered.append("/")
+        if param.kind == Parameter.KEYWORD_ONLY and prev_kind not in (
+            Parameter.VAR_POSITIONAL,
+            Parameter.KEYWORD_ONLY,
+        ):
+            rendered.append("*")
+
+        if param.kind == Parameter.VAR_POSITIONAL:
+            rendered.append(f"*{param.name}")
+        elif param.kind == Parameter.VAR_KEYWORD:
+            rendered.append(f"**{param.name}")
+        elif param.default is Parameter.empty:
+            rendered.append(param.name)
+        else:
+            placeholder = f"__ormcache_default_{index}"
+            arg_globals[placeholder] = param.default
+            rendered.append(f"{param.name}={placeholder}")
+        prev_kind = param.kind
+
+    if prev_kind == Parameter.POSITIONAL_ONLY:
+        rendered.append("/")
+    return ", ".join(rendered), arg_globals
 
 
 class ormcache:
@@ -249,14 +295,15 @@ class ormcache:
             )
             return
         # build a string that represents function code and evaluate it
-        args = ", ".join(
-            # remove annotations because lambdas can't be type-annotated,
-            str(params.replace(annotation=Parameter.empty))
-            for params in signature(self.method).parameters.values()
-        )
-        values = ["self._name", "method", *self.args]
+        args, arg_globals = _render_signature(self.method)
+        # The model instance is the method's first parameter, conventionally
+        # ``self`` but not guaranteed (e.g. ``def _get(records, ...)``). Derive
+        # its real name from the signature rather than hardcoding ``self``,
+        # which would make the key lambda raise NameError on every lookup.
+        first_param = next(iter(signature(self.method).parameters), "self")
+        values = [f"{first_param}._name", "method", *self.args]
         code = f"lambda {args}: ({''.join(a for arg in values for a in (arg, ','))})"
-        self.key = unsafe_eval(code, {"method": self.method})
+        self.key = unsafe_eval(code, {"method": self.method, **arg_globals})
 
 
 class ormcache_context(ormcache):
@@ -296,6 +343,20 @@ def log_ormcache_stats(
     # collect and log data in a separate thread to avoid blocking the main thread
     # and avoid using logging module directly in the signal handler
     # https://docs.python.org/3/library/logging.html#thread-safety
+    #
+    # Validate the signal BEFORE touching the state machine.  The dispatch at the
+    # bottom only starts a thread for SIGUSR1/SIGUSR2, so claiming the state for
+    # any other ``sig`` (notably the ``sig=None`` default a direct call uses)
+    # moved it to "run" with nothing running to ever move it back -- and since
+    # every later call sees ``!= "wait"`` and returns after setting "abort", the
+    # stats dump was permanently dead for the life of the process.
+    # ``None`` is the manual entry point (e.g. a direct call from the odoo
+    # shell); treat it like SIGUSR1 so such a call actually logs rather than
+    # silently doing nothing.
+    show_size = sig == signal.SIGUSR2
+    if sig not in (None, signal.SIGUSR1, signal.SIGUSR2):
+        return
+
     global _logger_state  # noqa: PLW0603
     with _logger_lock:
         if _logger_state != "wait":
@@ -461,25 +522,15 @@ def log_ormcache_stats(
             with _logger_lock:
                 _logger_state = "wait"
 
-    show_size = False
-    # ``None`` is the manual entry point (e.g. from the odoo shell); treat it
-    # like SIGUSR1 so a direct call actually logs instead of leaving the state
-    # machine stuck in "run" (which would make every later signal abort).
-    if sig in (None, signal.SIGUSR1):
-        threading.Thread(
-            target=_log_ormcache_stats, name="odoo.signal.log_ormcache_stats"
-        ).start()
-    elif sig == signal.SIGUSR2:
-        show_size = True
-        threading.Thread(
-            target=_log_ormcache_stats,
-            name="odoo.signal.log_ormcache_stats_with_size",
-        ).start()
-    else:
-        # Unknown signal: no worker thread will run its ``finally`` to reset the
-        # state, so reset it here or the feature bricks until process restart.
-        with _logger_lock:
-            _logger_state = "wait"
+    threading.Thread(
+        target=_log_ormcache_stats,
+        name=(
+            "odoo.signal.log_ormcache_stats_with_size"
+            if show_size
+            else "odoo.signal.log_ormcache_stats"
+        ),
+    ).start()
+
 
 
 def get_cache_size(
@@ -487,7 +538,7 @@ def get_cache_size(
     *,
     cache_info: str = "",
     seen_ids: set[int] | None = None,
-    class_slots: dict[int, Iterable[str]] | None = None,
+    class_slots: dict[type, tuple[str, ...]] | None = None,
 ) -> int:
     """A non-thread-safe recursive object size estimator"""
     from odoo.api import Environment
@@ -497,7 +548,7 @@ def get_cache_size(
         # count internal constants as 0 bytes
         seen_ids = set(map(id, (None, False, True)))
     if class_slots is None:
-        class_slots = {}  # {class_id: combined_slots}
+        class_slots = {}  # {class: combined_slots}
     total_size = 0
     objects = [obj]
 
@@ -515,9 +566,15 @@ def get_cache_size(
 
         if hasattr(cur_obj, "__slots__"):
             cur_obj_cls = type(cur_obj)
-            attributes = class_slots.get(id(cur_obj_cls))
+            # Key on the class itself, not id(cls): the memo outlives individual
+            # objects (log_ormcache_stats threads one dict through every entry of
+            # every cache), and a class freed mid-walk could have its id reused by
+            # a different class, handing back the wrong slot names.  Classes are
+            # hashable, and holding a reference is exactly what makes the key
+            # meaningful.
+            attributes = class_slots.get(cur_obj_cls)
             if attributes is None:
-                class_slots[id(cur_obj_cls)] = attributes = tuple(
+                class_slots[cur_obj_cls] = attributes = tuple(
                     {
                         (f"_{cls.__name__}{attr}" if attr.startswith("__") else attr)
                         for cls in cur_obj_cls.mro()

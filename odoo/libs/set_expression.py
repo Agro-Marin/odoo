@@ -90,12 +90,13 @@ class SetDefinitions:
         subsets = {leaf.id: leaf.subsets for leaf in self.__leaves.values()}
         supersets = {leaf.id: leaf.supersets for leaf in self.__leaves.values()}
         for leaf_id, info in definitions.items():
-            for greater_id in info.get("supersets", ()):
-                # transitive closure: smaller_ids <= leaf_id <= greater_id <= greater_ids
+            for direct_greater_id in info.get("supersets", ()):
+                # transitive closure: smaller_ids <= leaf_id <= direct_greater_id <= greater_ids
                 smaller_ids = subsets[leaf_id]
-                greater_ids = supersets[greater_id]
+                greater_ids = supersets[direct_greater_id]
                 for smaller_id in smaller_ids:
                     supersets[smaller_id].update(greater_ids)
+                # distinct name: this used to rebind the enclosing loop variable
                 for greater_id in greater_ids:
                     subsets[greater_id].update(smaller_ids)
 
@@ -378,7 +379,10 @@ class Union(SetExpression):
 
         if not isinstance(rfactor, Union):
             raise TypeError(f"Expected Union, got {type(rfactor).__name__}")
-        inters = [inter for inter in rself.__inters if inter not in rfactor.__inters]
+        # set membership: Inter is hashable, and the list scan made this
+        # O(len(rself) * len(rfactor))
+        rfactor_inters = frozenset(rfactor.__inters)
+        inters = [inter for inter in rself.__inters if inter not in rfactor_inters]
         if len(rself.__inters) - len(inters) != len(rfactor.__inters):
             # not possible to invert the intersection
             return None

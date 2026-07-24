@@ -57,6 +57,23 @@ __all__ = ["versioned", "versioned_envelope"]
 _CANONICAL_OPT = orjson.OPT_SORT_KEYS | orjson.OPT_PASSTHROUGH_DATETIME
 
 
+def _canonical_default(value):
+    """``default`` hook for the canonical-JSON pass, shared by the orjson and
+    stdlib paths so both coerce non-native values identically.
+
+    ``set``/``frozenset`` are emitted as a **deterministically ordered** array:
+    their native iteration order depends on ``PYTHONHASHSEED`` (randomized per
+    process), so the previous ``str(set)`` coercion made two workers emit
+    different digests for identical data — silently defeating the client cache
+    for any endpoint returning a set. Sorting by each element's own canonical
+    bytes gives a total, cross-process-stable order for arbitrary element types.
+    Everything else keeps the historical ``str()`` coercion.
+    """
+    if isinstance(value, (set, frozenset)):
+        return sorted(value, key=_canonical_bytes)
+    return str(value)
+
+
 def _canonical_bytes(value):
     """Serialize ``value`` to canonical JSON bytes: sorted keys, compact
     separators, ``str``-coerced for non-native types.
@@ -66,14 +83,14 @@ def _canonical_bytes(value):
     stdlib implementation.
     """
     try:
-        return orjson.dumps(value, option=_CANONICAL_OPT, default=str)
-    except (orjson.JSONEncodeError, TypeError):
+        return orjson.dumps(value, option=_CANONICAL_OPT, default=_canonical_default)
+    except orjson.JSONEncodeError, TypeError:
         # orjson refuses non-str dict keys and ints beyond the 64-bit range;
         # stdlib accepts both and yields the historical digest.  Falling back
         # keeps those payloads byte-identical AND ensures this helper never
         # raises inside the response-stamping decorators below.
         return json.dumps(
-            value, sort_keys=True, default=str, separators=(",", ":")
+            value, sort_keys=True, default=_canonical_default, separators=(",", ":")
         ).encode()
 
 
@@ -89,12 +106,21 @@ def versioned(method):
     ``__version`` key (idempotent — lets a method opt out by setting the
     field explicitly).  For list / scalar returns use ``versioned_envelope``.
     """
+
     @wraps(method)
     def wrapper(*args, **kwargs):
         result = method(*args, **kwargs)
         if isinstance(result, dict) and "__version" not in result:
-            result["__version"] = _canonical_sha256(result)
+            # Copy before stamping: the digest is derived from ``result``'s
+            # contents, so writing it back into the same object would (a) corrupt
+            # the object if the method returned a shared/cached dict -- injecting
+            # ``__version`` into the cached value, whose documented "already has
+            # ``__version`` -> no-op" branch would then pin that first digest
+            # forever -- and (b) mean the returned dict no longer hashes to its
+            # own stamp.  A shallow copy is enough; only the top level gains a key.
+            result = {**result, "__version": _canonical_sha256(result)}
         return result
+
     return wrapper
 
 
@@ -106,18 +132,23 @@ def versioned_envelope(method):
     request — cron jobs, internal callers, tests — the side channel is
     unavailable and the decorator no-ops, returning the result unmodified.
     """
+
     @wraps(method)
     def wrapper(*args, **kwargs):
         result = method(*args, **kwargs)
         try:
             from odoo.http import request
-            request._response_version = _canonical_sha256(result)
-        except RuntimeError:
-            # No active HTTP request — internal caller or background task.
-            pass
         except ModuleNotFoundError:
             # Standalone Python (no Odoo registry loaded); defensive only —
             # the decorator should never be live in such a context.
-            pass
+            return result
+        # Compute the digest only when there is a request to stash it on:
+        # ``bool(request)`` is False (never raises) for cron jobs, internal
+        # callers and tests, so the potentially expensive hash of a large
+        # ``result`` is skipped entirely off the HTTP path instead of being
+        # computed and discarded.
+        if request:
+            request._response_version = _canonical_sha256(result)
         return result
+
     return wrapper

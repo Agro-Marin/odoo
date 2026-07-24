@@ -26,7 +26,10 @@ DEFAULT_SERVER_DATETIME_FORMAT = (
 
 DATE_LENGTH = len(datetime.date.today().strftime(DEFAULT_SERVER_DATE_FORMAT))
 
-# divisors for formatLang's rounding_unit parameter
+# Divisors for formatLang's rounding_unit parameter.  A module constant, not
+# a per-call literal: ``formatLang`` is on the QWeb monetary hot path (every
+# rendered amount), and rebuilding this five-entry dict on each call
+# allocated a dict plus five int objects for a pure lookup.
 ROUNDING_UNIT_MAPPING = {
     "decimals": 1,
     "thousands": 10**3,
@@ -348,12 +351,22 @@ def format_decimalized_number(number: float, decimal: int = 1) -> str:
         -123.5k
         >>> format_decimalized_number(0.789)
         0.8
+        >>> format_decimalized_number(999_999.9)
+        1M
     """
-    for unit in ["", "k", "M", "G"]:
-        if abs(number) < 1000.0:
-            return f"{round(number, decimal):g}{unit}"
+    # Round *before* accepting a unit, not after.  Selecting the unit from the
+    # unrounded value let a number that rounds up across the 1000 boundary keep
+    # the smaller unit: 999_999.9 scaled to 999.9999, which rounds to 1000.0 and
+    # was emitted as "1000k" instead of "1M" (likewise "1000" for 999.99 and
+    # "1000M" for 999_999_999).
+    units = ("", "k", "M", "G", "T")
+    for unit in units[:-1]:
+        rounded = round(number, decimal)
+        if abs(rounded) < 1000.0:
+            return f"{rounded:g}{unit}"
         number /= 1000.0
-    return f"{round(number, decimal):g}T"
+    # Cap at "Tera" — most people don't know what a "Yotta" is.
+    return f"{round(number, decimal):g}{units[-1]}"
 
 
 def format_decimalized_amount(amount: float, currency: typing.Any = None) -> str:

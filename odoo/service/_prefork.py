@@ -112,6 +112,10 @@ class PreforkServer(CommonServer):
         self.workers_cron = {}
         self.workers_job = {}
         self.workers = {}
+        # {pid: psutil.Process} captured by ``stop_workers_gracefully`` while the
+        # workers are still alive, so ``_sweep_stale_workers`` can tell one of
+        # ours from a process that merely inherited a recycled pid.
+        self._drain_procs: dict[int, psutil.Process] = {}
         # Worker spawns over this server's lifetime (logs/diagnostics only).
         self.generation = 0
         self.queue = deque()
@@ -199,16 +203,26 @@ class PreforkServer(CommonServer):
     def worker_spawn(self, klass: type, workers_registry: dict) -> Worker | None:
         """Fork a new worker of the given class and register it."""
         self.generation += 1
-        worker = klass(self)
+        # ``klass(self)`` is INSIDE the guard, not before it: ``Worker.__init__``
+        # calls ``pipe_new()`` twice, and ``pipe2`` fails with EMFILE/ENFILE under
+        # fd exhaustion — the same transient class as a failing ``fork()``, and
+        # the same failure this loop must survive rather than take the master
+        # down with.  Constructing outside also leaked the first pipe's two fds
+        # when the second one raised, which is fd pressure added to fd pressure.
+        worker = None
         try:
+            worker = klass(self)
             pid = os.fork()
         except OSError:
-            # ``fork()`` can fail transiently (EAGAIN/ENOMEM).  Letting it reach
-            # ``run()``'s catch-all would stop the master over a momentary spike.
-            # Release the fds, log, and return None so ``process_spawn`` retries
-            # next iteration.
-            worker.close()
-            self.logger.exception("fork() failed; skipping spawn, will retry")
+            # ``pipe2()``/``fork()`` can fail transiently (EMFILE/EAGAIN/ENOMEM).
+            # Letting it reach ``run()``'s catch-all would stop the master over a
+            # momentary spike.  Release the fds, log, and return None so
+            # ``process_spawn`` retries next iteration.
+            if worker is not None:
+                worker.close()
+            self.logger.exception(
+                "worker spawn failed (pipe/fork); skipping, will retry"
+            )
             return None
         if pid != 0:
             worker.pid = pid
@@ -687,12 +701,19 @@ class PreforkServer(CommonServer):
         is_main_server = (
             self.pid == os.getpid()
         )  # False if server reload, cannot reap children -> use psutil
+        processes = {}
         if not is_main_server:
-            processes = {}
             # Snapshot here too: ``worker_kill`` above may have popped entries.
             for pid in list(self.workers):
                 with contextlib.suppress(psutil.NoSuchProcess):
                     processes[pid] = psutil.Process(pid)
+        # Published for the post-drain sweep in ``stop()``.  These handles are
+        # built *now*, while the workers are known alive, so they carry each
+        # process's creation time: ``is_running()`` on one of them is False for a
+        # recycled PID, not merely for a dead one.  Re-deriving a bare
+        # ``psutil.Process(pid)`` later would bind to whatever holds the pid then
+        # and lose exactly that distinction.
+        self._drain_procs = processes
 
         self.beat = 0.1
         # This drain is the terminal phase of an ALREADY-decided stop or reload
@@ -745,6 +766,25 @@ class PreforkServer(CommonServer):
         # Undo any phoenix flip a stray SIGHUP made during the drain (above).
         lifecycle.server_phoenix = phoenix_decided
 
+    def _sweep_stale_workers(self) -> None:
+        """SIGTERM workers that outlived a drain, skipping recycled PIDs.
+
+        Only meaningful in the ``fork_and_reload`` child, which is a sibling of
+        the workers rather than their parent: it cannot ``waitpid`` them, so a
+        pid still in ``self.workers`` after the drain may already have been
+        reaped by the new master and reissued to some unrelated process.
+        ``_drain_procs`` holds handles created while those workers were alive,
+        and ``psutil`` compares creation times, so ``is_running()`` is False once
+        the pid has been recycled.  A pid with no handle was already gone when
+        the drain started and needs no signal either.
+        """
+        for pid in list(self.workers):
+            proc = self._drain_procs.get(pid)
+            if proc is None or not proc.is_running():
+                self.worker_pop(pid)
+                continue
+            self.worker_kill(pid, signal.SIGTERM)
+
     def stop(self, graceful: bool = True) -> None:
         if lifecycle.server_phoenix:
             # PreforkServer reloads gracefully, disable outdated mechanism.
@@ -764,6 +804,26 @@ class PreforkServer(CommonServer):
                 )
                 return
             self.stop_workers_gracefully()
+            # The drain can break out early ("Forced shutdown." on a second
+            # INT/TERM arriving mid-drain) with workers still registered.  This
+            # code runs in the ``fork_and_reload`` CHILD, which is only a sibling
+            # of those workers — their parent is the original master pid, which
+            # ``_reexec``'d in place and is now the NEW master.  So a survivor is
+            # not orphaned; it is silently adopted by the new master, which knows
+            # nothing about it: it keeps accepting on the shared inherited listen
+            # socket while running the OLD code, on top of the full fresh
+            # population the new master spawns.  Sweep them, mirroring the
+            # trailing sweep on the plain-shutdown path below.  ``os.kill`` does
+            # not require parentage, so this works from the sibling.
+            #
+            # But not being the parent also means we can never *reap* them, so
+            # ``self.workers`` is a snapshot that cannot self-correct: the new
+            # master reaps each worker and the kernel is then free to hand that
+            # pid to an unrelated process.  Signalling a stale entry would
+            # SIGTERM that stranger.  Gate every kill on the psutil handle taken
+            # during the drain, which pins the creation time and so distinguishes
+            # "still our worker" from "pid reused".
+            self._sweep_stale_workers()
 
             self.logger.info("Old server stopped")
             return
@@ -775,6 +835,16 @@ class PreforkServer(CommonServer):
             self.stop_workers_gracefully()
         else:
             self.logger.info("Stopping forcefully")
+            # The evented child is NOT in ``self.workers`` (it is a subprocess,
+            # not a forked worker), so the SIGTERM sweep below never reaches it.
+            # Today it does eventually notice, because its own watchdog kills it
+            # ~4 s after ``os.getppid()`` changes — but that is an accident of
+            # another component's polling, not this path doing its job, and it
+            # leaves ``gevent_port`` bound for those seconds, which is long
+            # enough for a supervisor's immediate restart to fail on EADDRINUSE.
+            # Stop it explicitly; ``_stop_long_polling`` is bounded (SIGTERM,
+            # short wait, SIGKILL) so it cannot stall this crash path.
+            self._stop_long_polling()
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGTERM)
 

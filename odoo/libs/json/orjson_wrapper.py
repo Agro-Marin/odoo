@@ -1,11 +1,16 @@
 """orjson serialization utilities — orjson is a required dependency (see requirements.txt)."""
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import Any
 
 import orjson as _orjson
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
+# ``Callable`` is imported at runtime, not under TYPE_CHECKING: this module has no
+# ``from __future__ import annotations``, so under Python 3.14's deferred
+# annotations (PEP 649) the ``default: Callable | None`` parameter annotation is
+# only evaluated when something introspects the function -- and ``inspect.signature``
+# on a TYPE_CHECKING-only name raised ``NameError: Callable`` for every caller that
+# tried to introspect ``dumps``/``dumps_bytes``.
 
 __all__ = [
     "OPT_SORT_KEYS",
@@ -37,9 +42,20 @@ def dumps(
     """Serialize ``obj`` to a JSON string.
 
     Always returns ``str`` (not bytes) for stdlib json compatibility.
-    The ``ensure_ascii`` parameter is accepted but ignored — orjson
-    always produces UTF-8.
+
+    ``ensure_ascii`` exists only so the many ``ensure_ascii=False`` call sites
+    inherited from stdlib ``json`` keep working; orjson always emits UTF-8 and
+    cannot escape non-ASCII. ``ensure_ascii=True`` — which is stdlib's *default*,
+    so it is exactly the value a careless port would carry over — is therefore
+    rejected rather than silently ignored: a caller that asks for an ASCII-safe
+    payload (to hash it, or to put it on an ASCII-only channel) must not get
+    raw UTF-8 back and never learn about it.
+
+    :raises ValueError: if ``ensure_ascii`` is true.
     """
+    if ensure_ascii:
+        msg = "orjson cannot produce ASCII-escaped output; use stdlib json.dumps"
+        raise ValueError(msg)
     raw = _orjson.dumps(obj, default=default, option=_DEFAULT_OPT | (option or 0))
     return raw.decode("utf-8")
 

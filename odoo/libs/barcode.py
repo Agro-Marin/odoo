@@ -15,11 +15,20 @@ _barcode_init_lock: RLock = RLock()
 
 
 # Reportlab builds a T1 font cache on first barcode render; this initialization
-# is not thread-safe. The lock + lru_cache ensures it happens exactly once, even
-# when multiple threads request barcodes concurrently at server startup.
+# is not thread-safe. The lock serializes it; ``lru_cache`` then serves every
+# later call without taking the lock. Note the cache alone would not be enough:
+# it does not hold the lock across a miss, so concurrent first callers can all
+# enter the body -- the lock (plus the ``_barcode_init`` guard) is what makes
+# the reportlab work happen once.
+_barcode_init: tuple[Any, str] | None = None
+
+
 @functools.lru_cache(1)
 def _init_barcode() -> tuple[Any, str]:
+    global _barcode_init  # noqa: PLW0603
     with _barcode_init_lock:
+        if _barcode_init is not None:
+            return _barcode_init
         try:
             from reportlab.graphics import barcode
             from reportlab.pdfbase.pdfmetrics import TypeFace, getFont
@@ -46,7 +55,8 @@ def _init_barcode() -> tuple[Any, str]:
             raise
         except Exception:
             font_name = "Courier"
-        return barcode, font_name
+        _barcode_init = (barcode, font_name)
+        return _barcode_init
 
 
 def createBarcodeDrawing(codeName: str, **options: Any) -> Any:
@@ -88,32 +98,44 @@ def get_barcode_check_digit(numeric_barcode: str) -> int:
     return (10 - total % 10) % 10
 
 
+_BARCODE_SIZES = {
+    "ean8": 8,
+    "ean13": 13,
+    "gtin14": 14,
+    "upca": 12,
+    "sscc": 18,
+}
+
+# ASCII digits only: ``\d`` also matches Unicode decimal digits, so a barcode
+# written in fullwidth (U+FF10..U+FF19) or Arabic-Indic digits validated as a
+# legal EAN-8 and then round-tripped through int() without complaint.
+_ASCII_DIGITS_RE = re.compile(r"\A[0-9]+\Z")
+
+
 def check_barcode_encoding(barcode: str, encoding: str) -> bool:
     """Check whether the given barcode is correctly encoded.
 
     :return: True if the barcode string is encoded with the provided encoding.
+        An encoding this function knows no fixed length for (including the
+        ``gs1-128`` value that ``barcodes_gs1_nomenclature`` adds to
+        ``barcode.rule.encoding``) yields False rather than raising.
     """
     encoding = encoding.lower()
     if encoding == "any":
         return True
-    barcode_sizes = {
-        "ean8": 8,
-        "ean13": 13,
-        "gtin14": 14,
-        "upca": 12,
-        "sscc": 18,
-    }
-    barcode_size = barcode_sizes.get(encoding)
+    barcode_size = _BARCODE_SIZES.get(encoding)
     if barcode_size is None:
         # Unknown symbology: it cannot satisfy this encoding's check-digit rule.
         return False
-    # Length/emptiness first: guards the ``barcode[0]``/``barcode[-1]`` indexing
-    # below against an empty or short value (an empty EAN field reaches here from
-    # ir_actions_report's barcode widget).
-    if len(barcode) != barcode_size:
-        return False
+    # The length test comes FIRST: the ean13 leading-zero test used to be
+    # evaluated before it and indexed ``barcode[0]`` unconditionally, so an
+    # empty value raised IndexError instead of returning False -- reachable
+    # from ``ir.actions.report.barcode`` (and hence the /report/barcode route)
+    # with an EAN type and no value.  The same short-circuit guards the
+    # ``barcode[-1]`` indexing in the check-digit test below.
     return bool(
-        (encoding != "ean13" or barcode[0] != "0")
-        and re.match(r"^\d+$", barcode)
+        len(barcode) == barcode_size
+        and _ASCII_DIGITS_RE.match(barcode)
+        and (encoding != "ean13" or barcode[0] != "0")
         and get_barcode_check_digit(barcode) == int(barcode[-1])
     )

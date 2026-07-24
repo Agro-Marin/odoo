@@ -8,25 +8,48 @@ from lxml import etree
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-# Pre-compiled regex for XML-invalid control character removal
+# Complement of the XML 1.0 ``Char`` production, expressed directly over UTF-8
+# *bytes* (the input is bytes, and re-encoding it just to run a str pattern
+# would cost a decode/encode round trip per document).
+#
+# This used to be written as a unicode character class that was then
+# ``.encode()``d -- which does not survive the translation: the multi-byte
+# sequences of ``\u0020-\ud7ff`` etc. were re-read as individual byte ranges,
+# collapsing the whole class to roughly "\t\n\r plus \x20-\xf4". The result
+# happened to strip C0 controls (the common case) but let U+FFFE and U+FFFF
+# through -- and those are exactly what ``etree.fromstring`` rejects with
+# "PCDATA invalid Char value 65534", i.e. the error this function exists to
+# prevent. It also never stripped #x7F, contrary to the old docstring; #x7F is
+# a legal XML Char, so the code was right and the docstring wrong.
 _CONTROL_CHAR_RE = re.compile(
-    "[^\u0009\u000a\u000d\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]".encode()
+    rb"[\x00-\x08\x0b\x0c\x0e-\x1f]"  # C0 controls except TAB, LF, CR
+    rb"|\xef\xbf[\xbe\xbf]"  # U+FFFE, U+FFFF
+    rb"|\xed[\xa0-\xbf][\x80-\xbf]"  # surrogates U+D800-U+DFFF (WTF-8 input)
+    rb"|[\xf5-\xff]"  # bytes that cannot start a valid UTF-8 sequence
 )
 
 
 def remove_control_characters(byte_node: bytes) -> bytes:
-    """Remove XML-invalid control characters from a byte string.
+    r"""Remove the characters XML forbids from a UTF-8 byte string.
 
-    The characters to be removed are the control characters #x0 to #x1F and #x7F
-    (most of which cannot appear in XML).
+    Everything outside the XML ``Char`` production is dropped::
 
-    XML processors must accept any character in the range specified for Char:
-    ``Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]``
+        Char ::= #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+
+    i.e. the C0 controls other than tab/LF/CR, U+FFFE and U+FFFF, and any
+    encoded surrogate.  Bytes that cannot begin a valid UTF-8 sequence are
+    dropped too, since they would fail the parser just the same.  Note #x7F
+    (DEL) *is* a valid XML character and is deliberately kept.
 
     See: https://www.w3.org/TR/xml/
 
-    :param byte_node: XML content as bytes
-    :return: Cleaned XML content with control characters removed
+    :param byte_node: XML content as UTF-8 bytes
+    :return: the same content with the forbidden characters removed
+
+    Example::
+
+        >>> remove_control_characters("a\x03b\uffffc".encode())
+        b'abc'
     """
     return _CONTROL_CHAR_RE.sub(b"", byte_node)
 

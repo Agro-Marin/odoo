@@ -2,7 +2,6 @@ import base64
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -42,6 +41,17 @@ from ._db_helpers import (
     database_identifier,
     validate_db_name,
 )
+
+# The psql-dump safety scanner lives in a sibling module so this file stays
+# focused on RPC entry points.  ``_assert_dump_sql_safe`` is called by
+# ``restore_db``; the other three are re-exported for the test-suite and any
+# external caller, which reach them via ``odoo.service.db``.
+from ._dump_scanner import (
+    _assert_dump_sql_safe,
+    _find_disallowed_psql_meta_command,  # noqa: F401 — re-export
+    _iter_physical_lines,  # noqa: F401 — re-export
+    _PsqlSqlScanner,  # noqa: F401 — re-export
+)
 from ._env import env_float, env_int
 
 if TYPE_CHECKING:
@@ -54,10 +64,18 @@ else:
 
 _logger = logging.getLogger(__name__)
 
+# The dump formats ``dump_db`` actually implements.  ``zip`` is the v8+ archive
+# (SQL + filestore + manifest); ``dump`` is a bare ``pg_dump --format=c`` stream
+# — the only two shapes ``restore_db`` can read back.  Declared here, at the
+# layer that implements them, so the service-level guard and the web
+# database-manager controller (which imports this) cannot drift apart.
+BACKUP_FORMATS = frozenset({"zip", "dump"})
+
 # Re-exported (definitions live in ``_db_helpers``) so ``from odoo.service.db
 # import DBNAME_PATTERN`` etc. keep working; listing them makes the public
 # surface explicit.
 __all__ = (
+    "BACKUP_FORMATS",
     "DBNAME_MAX_LENGTH",
     "DBNAME_PATTERN",
     "SYSTEM_DBS",
@@ -809,6 +827,17 @@ def dump_db(
     # not RCE).  The custom-format path has no ``db_connect`` to reject it first,
     # so guard here before any argv is built.
     validate_db_name(db_name)
+    # Reject an unknown format instead of silently treating it as ``custom``.
+    # The branch below is ``if backup_format == "zip": ... else: --format=c``, so
+    # a caller asking for e.g. ``"tar"`` (a real pg_dump format) used to get a
+    # custom-format archive labelled tar — the failure only surfaces at restore
+    # time, on the far side of a backup the operator believes they have.
+    # ``backup_format`` reaches here straight from the ``dump`` RPC verb.
+    if backup_format not in BACKUP_FORMATS:
+        raise ValueError(
+            f"Invalid backup format {backup_format!r}: expected one of "
+            f"{', '.join(sorted(BACKUP_FORMATS))}."
+        )
 
     _logger.info(
         "DUMP DB: %s format %s %s",
@@ -913,179 +942,6 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
     return True
 
 
-# psql meta-commands pg_dump legitimately emits in a plain-SQL dump.  Everything
-# else — ``\!`` (shell), ``\i``/``\ir``/``\include`` (read files), ``\o``/``\g
-# file``/``\copy`` (read/write files), ``\gexec`` (run query output as SQL),
-# ``\connect`` (switch DB/host/user, incl. a remote host) — is rejected: on a
-# ``psql -f`` restore they run with the OS/DB privileges of the Odoo service
-# account, turning an uploaded backup into arbitrary command/file access.
-_ALLOWED_PSQL_META_COMMANDS = frozenset({"\\.", "\\restrict", "\\unrestrict"})
-_COPY_FROM_STDIN_RE = re.compile(r"\s*COPY\b.*\bFROM\s+stdin\b", re.IGNORECASE)
-# A dollar-quote tag: ``$$`` or ``$ident$`` (the tag follows identifier rules and
-# cannot contain a ``$``), so ``$1`` (a positional param) is not a tag.
-_DOLLAR_TAG_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
-
-
-def _find_disallowed_psql_meta_command(text: str) -> tuple[int, str] | None:
-    """Return ``(lineno, command)`` of the first psql meta-command in ``text``
-    that ``psql`` would INTERPRET and that is not in
-    ``_ALLOWED_PSQL_META_COMMANDS``, or ``None`` if the SQL is safe.
-
-    Matches ``psql``'s own lexical contexts so a legitimate dump — full of
-    PL/pgSQL bodies, escape strings and comments — never false-positives: a
-    backslash is a meta-command ONLY outside string literals, dollar-quoted
-    bodies, comments and ``COPY ... FROM stdin`` data.  Inside those, ``psql``
-    treats it as data/text, so the scanner must too.
-    """
-    i, n = 0, len(text)
-    lineno = 1
-    at_stmt_start = True  # start-of-file / just after a ';' or newline
-
-    def cmd_word(pos: int) -> str:
-        j = pos + 1
-        if j < n and text[j] in "!.?\\":
-            return text[pos : j + 1]
-        k = j
-        while k < n and text[k].isalpha():
-            k += 1
-        return text[pos:k] if k > j else text[pos : pos + 1]
-
-    while i < n:
-        c = text[i]
-        if c == "\n":
-            lineno += 1
-            i += 1
-            at_stmt_start = True
-            continue
-
-        # COPY ... FROM stdin;  -> the following lines are data until a lone "\."
-        if at_stmt_start and (text[i] in "Cc"):
-            eol = text.find("\n", i)
-            line = text[i : eol if eol != -1 else n]
-            if _COPY_FROM_STDIN_RE.match(line):
-                i = n if eol == -1 else eol + 1
-                lineno += 1
-                while i < n:
-                    eol = text.find("\n", i)
-                    data = text[i : eol if eol != -1 else n]
-                    i = n if eol == -1 else eol + 1
-                    lineno += 1
-                    if data.rstrip("\r") == "\\.":
-                        break
-                at_stmt_start = True
-                continue
-
-        # line comment "-- ..."
-        if c == "-" and i + 1 < n and text[i + 1] == "-":
-            eol = text.find("\n", i)
-            i = n if eol == -1 else eol  # newline handled next iteration
-            continue
-        # block comment "/* ... */" (PostgreSQL allows nesting)
-        if c == "/" and i + 1 < n and text[i + 1] == "*":
-            depth, i = 1, i + 2
-            while i < n and depth:
-                if text[i] == "\n":
-                    lineno += 1
-                    i += 1
-                elif text.startswith("/*", i):
-                    depth, i = depth + 1, i + 2
-                elif text.startswith("*/", i):
-                    depth, i = depth - 1, i + 2
-                else:
-                    i += 1
-            at_stmt_start = False
-            continue
-
-        # dollar-quoted string  $tag$ ... $tag$
-        if c == "$":
-            m = _DOLLAR_TAG_RE.match(text, i)
-            if m:
-                tag = m.group(0)
-                close = text.find(tag, m.end())
-                end = n if close == -1 else close + len(tag)
-                lineno += text.count("\n", i, end)
-                i = end
-                at_stmt_start = False
-                continue
-
-        # single-quoted string  '...'  ('' escapes; E'...' also honors \ escapes)
-        if c == "'":
-            escaped = (
-                i > 0
-                and text[i - 1] in "Ee"
-                and not (i > 1 and (text[i - 2].isalnum() or text[i - 2] == "_"))
-            )
-            i += 1
-            while i < n:
-                ch = text[i]
-                if ch == "\n":
-                    lineno += 1
-                    i += 1
-                elif ch == "\\" and escaped:
-                    i += 2
-                elif ch == "'":
-                    if i + 1 < n and text[i + 1] == "'":
-                        i += 2
-                    else:
-                        i += 1
-                        break
-                else:
-                    i += 1
-            at_stmt_start = False
-            continue
-
-        # quoted identifier  "..."  ("" escapes)
-        if c == '"':
-            i += 1
-            while i < n:
-                if text[i] == '"':
-                    if i + 1 < n and text[i + 1] == '"':
-                        i += 2
-                    else:
-                        i += 1
-                        break
-                else:
-                    if text[i] == "\n":
-                        lineno += 1
-                    i += 1
-            at_stmt_start = False
-            continue
-
-        # a backslash outside every context above => a psql meta-command
-        if c == "\\":
-            word = cmd_word(i)
-            if word not in _ALLOWED_PSQL_META_COMMANDS:
-                return (lineno, word)
-            i += len(word)
-            at_stmt_start = False
-            continue
-
-        at_stmt_start = c == ";" or (at_stmt_start and c.isspace())
-        i += 1
-    return None
-
-
-def _assert_dump_sql_safe(sql_path: str) -> None:
-    """Raise ``RuntimeError`` if ``sql_path`` contains a psql meta-command that a
-    ``psql -f`` restore would interpret (shell/file/connection access).
-
-    Read as latin-1 so scanning is byte-exact and decode-error-free regardless
-    of the dump's encoding — every meta-command and structural token is ASCII.
-    """
-    with Path(sql_path).open(encoding="latin-1") as fh:
-        text = fh.read()
-    hit = _find_disallowed_psql_meta_command(text)
-    if hit is not None:
-        lineno, command = hit
-        raise RuntimeError(
-            f"Refusing to restore: the dump's SQL contains the psql "
-            f"meta-command {command!r} (line {lineno}), which would run with "
-            f"this server's OS/database privileges. A backup produced by Odoo's "
-            f"own dump contains no such command; only \\restrict, \\unrestrict "
-            f"and the \\. COPY terminator are permitted."
-        )
-
-
 @check_db_management_enabled
 def restore_db(
     db: str,
@@ -1147,6 +1003,19 @@ def restore_db(
                                 f"Refusing to restore: archive member {member!r} "
                                 f"escapes the extraction directory"
                             )
+
+                    # A zip that reaches here is attacker-supplied and may not be
+                    # an Odoo backup at all.  ``extractall`` resolves each member
+                    # name through ``getinfo``, so a missing ``dump.sql`` escapes
+                    # as a bare ``KeyError("There is no item named ...")`` —
+                    # opaque next to the clear ``RuntimeError`` every sibling
+                    # malformed-archive guard raises.  Name the real problem.
+                    if "dump.sql" not in z.namelist():
+                        raise RuntimeError(
+                            "Refusing to restore: the archive contains no "
+                            "'dump.sql' member, so it is not an Odoo database "
+                            "backup."
+                        )
 
                     # only extract known members!
                     filestore = [m for m in z.namelist() if m.startswith("filestore/")]
@@ -1461,6 +1330,60 @@ def exp_db_exist(db_name: str) -> bool:
         return False
 
 
+def _rpc_db_exist(db_name: str) -> bool:
+    """RPC-facing ``db_exist``: answers only for databases this instance exposes.
+
+    The plain ``exp_db_exist`` stays ungated for in-process callers that must
+    ask about a database they are ABOUT to create or that is deliberately
+    outside the allowlist (``restore_db``'s collision pre-check, the shell-gated
+    ``odoo db`` CLI) — the same split as ``_drop_database``/``exp_drop``.  The
+    wire-facing verb cannot afford that, for two reasons:
+
+    * **Enumeration.** ``db_exist`` is reachable unauthenticated (``/jsonrpc``,
+      ``/xmlrpc/2/db``, ``auth="none"``).  Ungated it is a per-name existence
+      oracle, which is exactly what ``list_db = False`` and
+      ``common.exp_authenticate``'s collapse-everything-to-``False`` are there
+      to deny: an attacker who cannot call ``list`` just dictionary-attacks
+      ``db_exist`` instead, over every database owned by the PG role — on a
+      shared cluster, other tenants' included.
+    * **Resource amplification.** ``exp_db_exist`` connects, so each probe of an
+      existing database creates a per-DSN pool (its own PG backends plus
+      psycopg-pool worker threads) that lives until the idle reaper sweeps it.
+      A probe loop over known names keeps them all resident.  Filtering by name
+      BEFORE connecting means the RPC verb can no longer open a connection to a
+      database this instance does not serve.
+
+    Membership is ``list_dbs(True)``, the same allowlist ``check_db_exposed``
+    uses for dump/rename/duplicate, so the exposure rules cannot drift.  An
+    unexposed-but-existing name answers ``False`` — indistinguishable, by
+    design, from a name that does not exist.
+
+    Deliberately NOT wrapped in ``check_db_management_enabled``: that decorator
+    raises ``AccessDenied`` when ``list_db = False``, which would turn a verb
+    contracted to return a bool into one that raises for *every* input, breaking
+    callers on the exact configuration this hardening targets.  It is redundant
+    besides — the ``list_dbs(True)`` allowlist above is what confines the answer,
+    and it applies whether or not database management is enabled.
+    """
+    # ``list_db = False`` withdraws database information from the wire, so there
+    # is nothing left to answer about and every name is ``False`` — no oracle,
+    # exactly as if none of them existed.
+    if not odoo.tools.config["list_db"]:
+        return False
+    # Shape first: a malformed name is not a database and must not reach PG.
+    try:
+        validate_db_name(db_name)
+    except TypeError, ValueError:
+        return False
+    # Never servable, so never disclosed (mirrors ``http.helpers.db_filter``'s
+    # floor and ``list_dbs``' exclusions).
+    if db_name in SYSTEM_DBS or db_name == odoo.tools.config["db_template"]:
+        return False
+    if db_name not in list_dbs(True):
+        return False
+    return exp_db_exist(db_name)
+
+
 def list_dbs(force: bool = False) -> list[str]:
     """List databases visible to this Odoo instance.
 
@@ -1632,7 +1555,10 @@ def dispatch(method: str, params: list[Any]) -> Any:
 # is declared as data in ``_REQUIRES_MASTER_PASSWORD`` below, so the handlers
 # stay plain functions that tests and internal callers can invoke directly.
 _DISPATCH: dict[str, Callable] = {
-    "db_exist": exp_db_exist,
+    # ``_rpc_db_exist``, NOT ``exp_db_exist``: the wire verb is allowlist-gated
+    # and ``list_db``-gated (see its docstring); the bare handler stays available
+    # to trusted in-process callers.
+    "db_exist": _rpc_db_exist,
     "list": exp_list,
     "list_lang": exp_list_lang,
     "server_version": exp_server_version,

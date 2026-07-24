@@ -1,7 +1,8 @@
 """Enable standalone (database-free) testing of ``odoo.libs.locale`` leaves.
 
-Registers ``sys.modules`` stubs so ``from odoo.libs.locale.X import Y`` resolves
-to the leaf module without executing the heavy package ``__init__.py`` files.
+Registers ``sys.modules`` stubs (``odoo``, ``odoo.libs``, ``odoo.libs.locale``)
+so ``from odoo.libs.locale.X import Y`` resolves to the leaf module without
+executing the heavy package ``__init__.py`` files.
 See :mod:`odoo._testing_bootstrap`.
 """
 

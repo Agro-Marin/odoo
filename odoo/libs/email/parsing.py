@@ -27,7 +27,8 @@ single_email_re = re.compile(
 mail_header_msgid_re = re.compile(r"<[^<>]+>")
 address_pattern = re.compile(r'([^" ,<@]+@[^>" ,]+)')
 email_addr_escapes_re = re.compile(r'[\\"]')
-# C0 control chars (incl. CR/LF) — stripped from header parts to block injection.
+# Control chars (C0 + DEL) in any header part would let a CR/LF smuggle extra
+# header lines when the formatted address is dropped into a From:/To: header.
 _HEADER_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
@@ -328,6 +329,7 @@ def formataddr(pair: tuple[str, str], charset: str = "utf-8") -> str:
     # the header: injected newlines survive into the RFC-2822 string and, on a
     # message policy that does not itself reject them, allow header splitting
     # (an attacker-controlled partner name reaches here via _compute_email_formatted).
+    # A name of only control chars collapses to "" and yields a bare address.
     if name:
         name = _HEADER_CONTROL_RE.sub("", name)
     local, _, domain = address.rpartition("@")

@@ -2,7 +2,6 @@
 
 import functools
 from collections.abc import Callable
-from inspect import getsourcefile
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -82,10 +81,13 @@ def frame_codeinfo(
             return "<unknown>", ""
         for _i in range(back):
             fframe = fframe.f_back
-        try:
-            fname = getsourcefile(fframe)
-        except TypeError:
-            fname = "<builtin>"
+            if fframe is None:
+                return "<unknown>", ""
+        # ``f_code.co_filename`` rather than ``inspect.getsourcefile``: the
+        # latter stats the filesystem on every call (and returns None for a
+        # file it cannot find), which is wasted work in the logging/warning
+        # paths this feeds.
+        fname = fframe.f_code.co_filename or "<builtin>"
         lineno = fframe.f_lineno or ""
         return fname, lineno
     except Exception:

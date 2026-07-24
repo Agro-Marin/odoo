@@ -11,13 +11,19 @@ from typing import Literal
 
 
 def remove_accents(input_str: str) -> str:
-    """Replace accented latin letters by an ASCII equivalent.
+    """Strip combining marks from latin letters (é -> e).
 
     Suboptimal but better than nothing: this obviously changes the meaning
     of input_str and works only for some cases.
 
+    The result is **not** guaranteed to be ASCII -- do not rely on it as an
+    ASCII-folding step. Letters with no combining decomposition survive intact
+    (``ø``, ``đ``, ``ł``, ``ß``), and NFKD also folds compatibility characters,
+    so a vulgar fraction expands to digits joined by U+2044 FRACTION SLASH and
+    the ``fi`` ligature expands to two letters.
+
     :param input_str: String with potential accented characters
-    :returns: String with accents removed
+    :returns: String with combining marks removed
     """
     if not input_str:
         return input_str
@@ -28,12 +34,17 @@ def remove_accents(input_str: str) -> str:
 def human_size(sz: float | str) -> str | Literal[False]:
     """Return the size in a human readable format.
 
-    :param sz: Size in bytes (can be int, float, or string)
-    :returns: Human readable size string like "1.23 Mb", or False if sz is falsy
+    A ``str`` argument is measured with ``len()``: binary fields hand over
+    their (base64) payload directly and want the length of that payload.
+
+    :param sz: Size in bytes, or a string whose length is the size
+    :returns: Human readable size string like "1.23 Mb", or ``False`` if ``sz``
+        is falsy -- ``odoo.orm.fields.binary`` relies on that False to mean
+        "no value", so it is not simply "0.00 bytes"
     """
     if not sz:
         return False
-    units = ("bytes", "Kb", "Mb", "Gb", "Tb")
+    units = ("bytes", "Kb", "Mb", "Gb", "Tb", "Pb", "Eb")
     if isinstance(sz, str):
         sz = len(sz)
     s, i = float(sz), 0
@@ -113,13 +124,18 @@ def mod10r(number: str) -> str:
     return result + str((10 - report) % 10)
 
 
+# U+1F1E6 REGIONAL INDICATOR SYMBOL LETTER A
+_REGIONAL_INDICATOR_A = 0x1F1E6
+
+
 def get_flag(country_code: str) -> str:
     """Get the emoji representing the flag linked to the country code.
 
     This emoji is composed of the two regional indicator emoji of the country code.
 
-    :param country_code: Two-letter country code (e.g., 'US', 'MX', 'FR')
+    :param country_code: Two-letter ISO country code (e.g., 'US', 'MX', 'FR')
     :returns: The flag emoji for the given country
+    :raises ValueError: if ``country_code`` is not exactly two ASCII letters
 
     Example::
 
@@ -128,8 +144,12 @@ def get_flag(country_code: str) -> str:
         >>> get_flag('MX')
         '🇲🇽'
     """
-    # Uppercase: regional-indicator symbols map A-Z, so a lowercase code would
-    # push ``ord(c) + 165`` past the max codepoint and crash ``chr()``.
-    return "".join(
-        chr(int(f"1f1{ord(c) + 165:02x}", base=16)) for c in country_code.upper()
-    )
+    # Validate rather than emit garbage: regional indicators only map A-Z, so
+    # 'U1' silently produced an unassigned codepoint and 'USA' three
+    # indicators. Uppercasing is still required -- a lowercase letter would
+    # land past the max codepoint and crash chr().
+    code = country_code.upper()
+    if len(code) != 2 or not ("A" <= code[0] <= "Z" and "A" <= code[1] <= "Z"):
+        msg = f"country_code must be two ASCII letters, got {country_code!r}"
+        raise ValueError(msg)
+    return "".join(chr(_REGIONAL_INDICATOR_A + ord(c) - ord("A")) for c in code)

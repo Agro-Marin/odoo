@@ -42,13 +42,24 @@ def hmac(
     :param message: message to authenticate
     :param hash_function: hash function to use for HMAC (default: SHA-256)
     :return: hexadecimal digest of the HMAC
-    :raises ValueError: if scope is empty
+    :raises ValueError: if scope is empty, or ``database.secret`` is unset
     """
     if not scope:
         msg = "Non-empty scope required"
         raise ValueError(msg)
 
     secret = env["ir.config_parameter"].get_param("database.secret")
+    if not secret:
+        # ``get_param`` returns False when the parameter is absent; an empty
+        # string would key the HMAC with an empty secret. Fail closed with a
+        # clear configuration error rather than raising AttributeError on
+        # ``False.encode()`` mid-verification (this underlies token checks
+        # reached from unauthenticated routes).
+        raise ValueError(
+            "The 'database.secret' configuration parameter is missing or empty; "
+            "cannot compute a secure HMAC."
+        )
+    secret = str(secret)
     message = repr((scope, message))
     return hmac_lib.new(
         secret.encode(),
@@ -120,7 +131,17 @@ def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any
     body) returns None rather than raising: ``payload`` is attacker-controllable
     (e.g. a value POSTed to a webhook), so a bad token is a verification failure,
     not a server error.
+
+    That includes a payload of the wrong *type*.  ``payload`` typically arrives
+    straight out of a JSON body or query string, where ``None``, a number, a
+    list or a dict are all one client away; every one of them used to reach
+    ``payload.encode()`` and raise ``AttributeError`` -- an uncaught HTTP 500 on
+    an unauthenticated route.  :func:`verify_limited_field_access_token`
+    documents itself as sharing this contract and already guards its own input,
+    so the guard belongs here too.
     """
+    if not isinstance(payload, str):
+        return None
     try:
         token = base64.urlsafe_b64decode(payload.encode() + b"===")
         if token[:1] != b"\x01":
@@ -206,9 +227,29 @@ def verify_limited_field_access_token(
         used when the token was created)
     :return: whether the token is valid for the record/field at
         the current date and time
+
+    ``access_token`` is attacker-controllable — it arrives as a URL query
+    parameter (``/web/content``, an ``auth="public"`` route), a JSON body field
+    (``mail`` message-post mention tokens) or a websocket payload — so **any**
+    malformed value is a verification failure returning ``False``, never an
+    exception.  Same contract as :func:`verify_hash_signed`.
     """
+    # ``consteq`` is ``hmac.compare_digest``, which raises TypeError on a str
+    # holding non-ASCII characters; ``rsplit``/``int`` require a str at all.
+    # Reject both before they can reach those calls: an unauthenticated
+    # ``GET /web/content?...&access_token=%C3%A9`` used to return HTTP 500.
+    if not isinstance(access_token, str) or not access_token.isascii():
+        return False
     *_, timestamp = access_token.rsplit("o", 1)
-    return consteq(
-        access_token,
-        limited_field_access_token(record, field_name, timestamp, scope=scope),
-    ) and datetime.datetime.now() < datetime.datetime.fromtimestamp(int(timestamp, 16))
+    try:
+        expiration = datetime.datetime.fromtimestamp(int(timestamp, 16))
+    except ValueError, OverflowError, OSError:
+        # not hexadecimal, or outside the platform's representable date range
+        return False
+    return (
+        consteq(
+            access_token,
+            limited_field_access_token(record, field_name, timestamp, scope=scope),
+        )
+        and datetime.datetime.now() < expiration
+    )
