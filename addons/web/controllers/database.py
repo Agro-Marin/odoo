@@ -248,9 +248,16 @@ class Database(http.Controller):
         filestore = str2bool(filestore)
         self._handle_insecure_password(master_pwd)
         try:
-            if backup_format not in {"zip", "dump"}:
+            # Checked here too (not only in ``dump_db``) so a bad format renders
+            # the friendly error page instead of a traceback, but the vocabulary
+            # comes from the service layer that implements the formats — a
+            # duplicated literal set here would silently drift from it.
+            if backup_format not in odoo.service.db.BACKUP_FORMATS:
+                expected = ", ".join(
+                    repr(f) for f in sorted(odoo.service.db.BACKUP_FORMATS)
+                )
                 raise ValueError(
-                    f"Invalid backup format {backup_format!r}; expected 'zip' or 'dump'"
+                    f"Invalid backup format {backup_format!r}; expected {expected}"
                 )
             odoo.service.db.check_super(master_pwd)
             if name not in http.db_list():

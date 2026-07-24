@@ -5,15 +5,11 @@ http://peak.telecommunity.com/DevCenter/PkgResources#parsing-utilities
 
 __all__ = ["parse_version"]
 
-import itertools
-import logging
 import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
-
-_logger = logging.getLogger(__name__)
+    from collections.abc import Iterator
 
 component_re = re.compile(r"(\d+ | [a-z]+ | \.| -)", re.VERBOSE)
 replace = {
@@ -84,31 +80,7 @@ def parse_version(s: str) -> tuple[str, ...]:
     return tuple(parts)
 
 
-if __name__ == "__main__":
-
-    def chk(lst: Iterable[str], verbose: bool = False) -> None:
-        pvs: list[tuple[str, ...]] = []
-        for v in lst:
-            pv = parse_version(v)
-            pvs.append(pv)
-            if verbose:
-                _logger.debug("%s %s", v, pv)
-
-        for a, b in itertools.pairwise(pvs):
-            assert a < b, "%s < %s == %s" % (a, b, a < b)
-
-    chk(
-        (
-            "0",
-            "4.2",
-            "4.2.3.4",
-            "5.0.0-alpha",
-            "5.0.0-rc1",
-            "5.0.0-rc1.1",
-            "5.0.0_rc2",
-            "5.0.0_rc3",
-            "5.0.0",
-        ),
-        False,
-    )
-    chk(("5.0.0-0_rc3", "5.0.0-1dev", "5.0.0-1"), False)
+# The ordering assertions that used to sit here behind
+# ``if __name__ == "__main__"`` now live in
+# ``odoo/libs/tests/test_parse_version.py``, where they actually run (and where
+# ``-O`` cannot strip them, as it would have done to those bare ``assert``s).

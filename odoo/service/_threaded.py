@@ -46,6 +46,7 @@ from ._cron import (
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
+    capped_backoff,
     cron_database_list,
     over_memory_soft_limit,
 )
@@ -72,6 +73,10 @@ class ThreadedServer(CommonServer):
         self.httpd = None
         self.limits_reached_threads = set()
         self.limit_reached_time = None
+        # True only for a ``--stop-after-init`` batch run (set in ``run``); it
+        # suppresses the interactive "Hit CTRL-C again" shutdown hint, which is
+        # misleading when there is no long-running loop left to interrupt.
+        self._stop_after_init = False
         # Cached psutil.Process — see Worker.start for rationale.
         self._process_handle = psutil.Process(os.getpid())
 
@@ -99,12 +104,21 @@ class ThreadedServer(CommonServer):
             raise KeyboardInterrupt
 
     def process_limit(self) -> None:
+        # Memory is a PROCESS-level condition, re-evaluated every tick: RSS can
+        # fall back after a transient large allocation (image/PDF/report render,
+        # a base64 dump) is freed and its arena returned to the OS.  Track it in
+        # a plain per-tick flag, NOT by adding the main thread to
+        # ``limits_reached_threads`` — that set is pruned only by ``is_alive()``,
+        # and the main thread is always alive, so a single spike used to latch a
+        # since-recovered server permanently into reload.  This mirrors the
+        # prefork ``Worker.check_limits``, which recycles only while CURRENTLY
+        # over the soft limit.
         memory = over_memory_soft_limit(
             self._process_handle, config["limit_memory_soft"]
         )
-        if memory is not None:
+        memory_over_limit = memory is not None
+        if memory_over_limit:
             self.logger.warning("Server memory limit (%s) reached.", memory)
-            self.limits_reached_threads.add(threading.current_thread())
 
         now = time.monotonic()
         for thread in threading.enumerate():
@@ -145,8 +159,8 @@ class ThreadedServer(CommonServer):
         for thread in list(self.limits_reached_threads):
             if not thread.is_alive():
                 self.limits_reached_threads.remove(thread)
-        if self.limits_reached_threads:
-            self.limit_reached_time = self.limit_reached_time or time.monotonic()
+        if self.limits_reached_threads or memory_over_limit:
+            self.limit_reached_time = self.limit_reached_time or now
         else:
             self.limit_reached_time = None
 
@@ -210,6 +224,17 @@ class ThreadedServer(CommonServer):
             check_all_time = float("-inf")
             all_db_names = []
             alive_time = time.monotonic()
+            # The first pass must NOT wait out a full ``SLEEP_INTERVAL`` before
+            # it ever looks at the database: with nothing to select on at boot
+            # (no NOTIFY yet), a 60 s timeout means a threaded server does no
+            # cron work for its first minute even when jobs are already overdue.
+            # Measured before this: server up at T, first cron pass at T+60 s.
+            # Poll once immediately, then settle into the steady-state cadence.
+            # ``PreforkServer`` already avoids this by capping its wait at half
+            # the cron watchdog.  The jitter sleep below still staggers the
+            # threads, and ``ir.cron`` claims jobs with ``FOR UPDATE SKIP
+            # LOCKED``, so a simultaneous first pass cannot double-run a job.
+            first_pass = True
             with selectors.DefaultSelector() as _sel:
                 _sel.register(pg_conn, selectors.EVENT_READ)
                 while (
@@ -217,7 +242,8 @@ class ThreadedServer(CommonServer):
                     or (time.monotonic() - alive_time)
                     <= config["limit_time_worker_cron"]
                 ):
-                    _sel.select(timeout=SLEEP_INTERVAL + number)
+                    _sel.select(timeout=0 if first_pass else SLEEP_INTERVAL + number)
+                    first_pass = False
                     # Random stagger after wake so concurrent crons don't all
                     # poll PG at once (shared constant with ``WorkerCron.sleep``).
                     time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
@@ -255,7 +281,16 @@ class ThreadedServer(CommonServer):
                                 db_name,
                                 exc_info=True,
                             )
-                        thread.start_time = None
+                        finally:
+                            # ALWAYS clear the stamp.  ``process_limit`` reads it
+                            # on every tick for ``cron``/``job`` threads, and a
+                            # ``BaseException`` escapes the ``except Exception``
+                            # above while the outer loop keeps this long-lived
+                            # thread alive — so a stamp left behind is never
+                            # cleared again and the thread looks permanently over
+                            # ``limit_time_real_cron``, driving ``run()`` into a
+                            # spurious full-server reload.
+                            thread.start_time = None
             return RECYCLE_MAX_AGE
 
         # Consecutive failed (re)connects; drives the exponential backoff so a
@@ -286,7 +321,7 @@ class ThreadedServer(CommonServer):
                 # a multi-minute outage produces a handful of warnings, not a
                 # 12/min CRITICAL flood that trips pagers keyed on CRITICAL.
                 reconnect_attempts += 1
-                backoff = min(2**reconnect_attempts, SLEEP_INTERVAL)
+                backoff = capped_backoff(reconnect_attempts)
                 cron_logger.warning(
                     "Postgres unavailable (attempt %d): %s; retrying in %ds",
                     reconnect_attempts,
@@ -294,11 +329,20 @@ class ThreadedServer(CommonServer):
                     backoff,
                 )
                 time.sleep(backoff)
-            except BaseException:
+            except Exception:
                 # Genuinely unexpected: keep CRITICAL, but still back off so a
                 # persistent fault can't spin the log either.
+                #
+                # ``Exception``, NOT ``BaseException``: this loop must not
+                # swallow control-flow exceptions raised to unwind it.
+                # ``KeyboardInterrupt`` is the live case — under
+                # ``BaseException`` a Ctrl-C on a threaded server was caught,
+                # logged as an "uncaught error", and retried forever instead of
+                # stopping the cron thread.  ``SystemExit`` is re-raised above
+                # for the same reason; anything else deriving straight from
+                # ``BaseException`` is by definition not a cron fault to retry.
                 reconnect_attempts += 1
-                backoff = min(2**reconnect_attempts, SLEEP_INTERVAL)
+                backoff = capped_backoff(reconnect_attempts)
                 cron_logger.critical(
                     "Uncaught error in cron main loop; retrying in %ds...",
                     backoff,
@@ -373,6 +417,11 @@ class ThreadedServer(CommonServer):
         """
         if lifecycle.server_phoenix:
             self.logger.info("Initiating server reload")
+        elif self._stop_after_init:
+            # Batch run (``--stop-after-init``): the work is already done and no
+            # signal-wait loop was ever entered, so don't print the interactive
+            # "Hit CTRL-C again" hint that only makes sense for a live server.
+            self.logger.info("Initialization done, shutting down")
         else:
             self.logger.info("Initiating shutdown")
             self.logger.info(
@@ -440,6 +489,8 @@ class ThreadedServer(CommonServer):
         skip cleanup and silently downgrade a reload to a crash.
         """
         rc: int | None = None
+        # Record batch mode so ``stop()`` picks the right shutdown message.
+        self._stop_after_init = stop
         try:
             with Registry._lock:
                 self.start(stop=stop)

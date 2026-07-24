@@ -34,15 +34,16 @@ class Collector[K, T](dict[K, tuple[T, ...]]):
 
     def discard_keys_and_values(self, excludes: Iterable[K]) -> None:
         """Drop the given keys, and remove their values wherever they occur."""
-        # Materialize once: ``excludes`` is scanned twice (as keys, then as a
-        # membership test per value).  A generator would be exhausted by the
-        # first pass, silently removing nothing on the second; a list makes the
-        # per-value ``in`` test O(n) instead of O(1).
-        excludes = frozenset(excludes)
-        for key in excludes:
+        # Materialize first: ``excludes`` is consumed twice below, so a generator
+        # would be exhausted by the key pass and silently purge no values at all.
+        # A set also turns the per-value membership test from O(len(excludes))
+        # into O(1) -- it runs once per value of every remaining key.
+        excluded = frozenset(excludes)
+        for key in excluded:
             self.pop(key, None)
         for key, vals in list(self.items()):
-            self[key] = tuple(val for val in vals if val not in excludes)
+            if not excluded.isdisjoint(vals):
+                self[key] = tuple(val for val in vals if val not in excluded)
 
 
 class StackMap[K, T](MutableMapping[K, T]):

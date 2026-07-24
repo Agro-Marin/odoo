@@ -1,3 +1,4 @@
+import contextlib
 from importlib import import_module
 from inspect import getmembers, isclass, isfunction, ismodule
 
@@ -5,10 +6,24 @@ from odoo import api, fields, models
 from odoo.tools.misc import get_flag
 
 
+def _flag(country_code):
+    """Return the flag emoji for ``country_code``, or "" if it has none.
+
+    ``get_flag`` rejects anything that is not two ASCII letters. ``res.country``
+    codes are third-party/user data (a custom country can be saved with a
+    one-character or digit code), and this feeds the Apps list — a bad code must
+    cost that one entry its flag, not raise out of ``_compute_account_templates``
+    and break the whole list. Mirrors the guard in ``base``'s ``ir.module.module``.
+    """
+    with contextlib.suppress(ValueError):
+        return get_flag(country_code)
+    return ""
+
+
 def templ(env, code, name=None, country="", **kwargs):
     country_code = country or code.split("_")[0] if country is not None else None
     country = country_code and env.ref(f"base.{country_code}", raise_if_not_found=False)
-    country_name = f"{get_flag(country.code)} {country.name}" if country else ""
+    country_name = f"{_flag(country.code)} {country.name}".strip() if country else ""
     return {
         "name": (
             country_name and (f"{country_name} - {name}" if name else country_name)

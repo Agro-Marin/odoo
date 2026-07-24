@@ -20,9 +20,21 @@ from odoo.libs.text.html import html_escape
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+
+class XPathExpressionError(ValueError):
+    """An ``<xpath expr="...">`` in an inheritance spec is syntactically invalid.
+
+    Subclasses ``ValueError`` so existing ``except ValueError`` handling is
+    unchanged, while :mod:`odoo.tools.template_inheritance` can catch it by type
+    to raise a translated ``ValidationError`` — instead of substring-matching the
+    English message, which silently broke whenever the wording drifted.
+    """
+
+
 __all__ = [
     "PYTHON_ATTRIBUTES",
     "SKIPPED_ELEMENT_TYPES",
+    "XPathExpressionError",
     "add_stripped_items_before",
     "add_text_before",
     "apply_inheritance_specs",
@@ -144,15 +156,16 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
     """
     if spec.tag == "xpath":
         expr = spec.get("expr")
-        if expr is None:
-            # A bare <xpath> without expr would reach _compile_xpath(None) and
-            # raise an uncaught TypeError; fail with the documented ValueError.
-            msg = "Missing 'expr' attribute in xpath specification"
-            raise ValueError(msg)
+        if not expr:
+            # ``ETXPath(None)`` raises TypeError, which escapes the
+            # ValueError -> ValidationError wrapper in ir.ui.view as a 500.
+            raise ValueError("Invalid xpath specification: missing 'expr' attribute")
         try:
             xPath = _compile_xpath(expr)
         except etree.XPathSyntaxError as e:
-            raise ValueError(f'Invalid Expression while parsing xpath "{expr}"') from e
+            raise XPathExpressionError(
+                f'Invalid Expression while parsing xpath "{expr}"'
+            ) from e
         nodes = xPath(arch)
         return nodes[0] if nodes else None
     elif spec.tag == "field":
@@ -197,8 +210,10 @@ def apply_inheritance_specs(
     :raise: ValueError for invalid specs or if nodes cannot be located
     """
     # Queue of specification nodes (i.e. nodes describing where and
-    # changes to apply to some parent architecture).
-    specs = specs_tree if isinstance(specs_tree, list) else [specs_tree]
+    # changes to apply to some parent architecture).  ``list(...)`` copies:
+    # the queue is consumed with ``pop(0)``, which emptied a caller-supplied
+    # list as a side effect.
+    specs = list(specs_tree) if isinstance(specs_tree, list) else [specs_tree]
     pre_locate = pre_locate or (lambda _: True)
 
     def extract(spec: etree._Element) -> etree._Element:
@@ -352,7 +367,20 @@ def apply_inheritance_specs(
                                     "valid values are 'and' and 'or'"
                                 )
                             if remove:
-                                if re.match(rf"^\(*{remove}\)*$", value):
+                                # ``re.escape``: ``remove`` is a *literal* python
+                                # expression taken verbatim from the inheriting
+                                # view, not a pattern. Interpolated raw it was
+                                # compiled as regex source, so an expression
+                                # holding metacharacters silently changed meaning
+                                # -- ``remove="a|b"`` matched the bare "a" of an
+                                # unrelated ``invisible="a or b"`` and dropped the
+                                # whole attribute, ``remove="a.b"`` matched
+                                # "axb", and an unbalanced paren
+                                # (``remove="(x)"`` truncated to ``"("``) raised
+                                # re.PatternError as a 500. The literal
+                                # ``str.find`` fallback just below always treated
+                                # it as text; this makes both agree.
+                                if re.fullmatch(rf"\(*{re.escape(remove)}\)*", value):
                                     value = ""
                                 else:
                                     patterns = [

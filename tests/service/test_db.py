@@ -291,7 +291,10 @@ class TestDumpDbNameValidation:
     argv.  Without it, a flag-shaped name (``--version``, ``-x``) is parsed by
     pg_dump as an option rather than a database — argument injection.  The
     custom format path has no ``db_connect`` ahead of it to reject the name,
-    so the guard must live in ``dump_db`` itself."""
+    so the guard must live in ``dump_db`` itself.
+
+    (``dump`` is the non-zip format's real name — the one the web database
+    manager and ``BACKUP_FORMATS`` use; it maps to ``pg_dump --format=c``.)"""
 
     @pytest.mark.parametrize("bad_name", ["--version", "-x", "bad name", ".hidden"])
     def test_rejects_flag_shaped_name_before_subprocess(
@@ -300,7 +303,7 @@ class TestDumpDbNameValidation:
         with patch("odoo.service.db.subprocess.run") as mock_run, \
              patch.object(db_mod, "find_pg_tool") as mock_tool:
             with pytest.raises(ValueError):
-                db_mod.dump_db(bad_name, None, backup_format="custom")
+                db_mod.dump_db(bad_name, None, backup_format="dump")
         # Validation fails first: neither the tool lookup nor the subprocess runs.
         mock_run.assert_not_called()
         mock_tool.assert_not_called()
@@ -315,7 +318,7 @@ class TestDumpDbNameValidation:
         with patch("odoo.service.db.subprocess.run", side_effect=fake_run), \
              patch.object(db_mod, "find_pg_tool", lambda n: f"/usr/bin/{n}"), \
              patch.object(db_mod, "exec_pg_environ", dict):
-            result = db_mod.dump_db("gooddb", None, backup_format="custom")
+            result = db_mod.dump_db("gooddb", None, backup_format="dump")
         if result is not None:
             result.close()
         assert "gooddb" in captured["cmd"]
@@ -2312,3 +2315,193 @@ class TestCreateEmptyDatabaseHardening:
                 )
         # Only the maintenance DB was touched — never db_connect("taken").
         assert db_connect_mock.call_args_list == [call("postgres")]
+
+
+# ---------------------------------------------------------------------------
+# _rpc_db_exist — the wire-facing db_exist is allowlist- and list_db-gated
+# ---------------------------------------------------------------------------
+
+
+class TestRpcDbExistGate:
+    """``db_exist`` is reachable unauthenticated (``/jsonrpc``, ``/xmlrpc/2/db``).
+
+    Ungated it is a per-name existence oracle over every database owned by the
+    PG role — the enumeration ``list_db = False`` and ``common.exp_authenticate``
+    deny — and, because ``exp_db_exist`` connects, a way to make an
+    unauthenticated caller open a pooled connection to a database this instance
+    does not serve.  ``_rpc_db_exist`` filters BEFORE connecting; the bare
+    ``exp_db_exist`` stays ungated for trusted in-process callers.
+    """
+
+    def _cfg(self, **over):
+        cfg = _MockConfig({"list_db": True, "db_template": "template1"})
+        cfg.update(over)
+        return cfg
+
+    def test_dispatch_uses_the_gated_wrapper(self, db_mod):
+        assert db_mod._DISPATCH["db_exist"] is db_mod._rpc_db_exist
+        assert db_mod._DISPATCH["db_exist"] is not db_mod.exp_db_exist
+
+    def test_list_db_false_answers_false_for_everything(self, db_mod):
+        """``list_db = False`` turns off DB management; ``db_exist`` must not
+        stay a working oracle while ``list`` raises AccessDenied.
+
+        It answers ``False`` rather than raising ``AccessDenied``: this verb is
+        declared to return a bool and is reachable unauthenticated, so raising
+        would break every caller on precisely the configuration being hardened —
+        and an exception that distinguishes "management disabled" from "no such
+        database" leaks strictly more than a flat ``False``.
+        """
+        import odoo.tools  # noqa: PLC0415
+
+        with patch.object(odoo.tools, "config", self._cfg(list_db=False)), \
+             patch.object(db_mod, "list_dbs", return_value=["served"]), \
+             patch.object(db_mod, "exp_db_exist", return_value=True) as inner:
+            assert db_mod._rpc_db_exist("served") is False
+            assert db_mod._rpc_db_exist("nope") is False
+        inner.assert_not_called()  # never connects, so never creates a pool
+
+    def test_unexposed_existing_db_answers_false_without_connecting(self, db_mod):
+        import odoo.tools  # noqa: PLC0415
+
+        with patch.object(odoo.tools, "config", self._cfg()), \
+             patch.object(db_mod, "list_dbs", return_value=["served"]), \
+             patch.object(db_mod, "exp_db_exist") as inner:
+            assert db_mod._rpc_db_exist("other_tenant_db") is False
+        inner.assert_not_called()  # no connection opened, so no pool created
+
+    def test_exposed_db_is_answered(self, db_mod):
+        import odoo.tools  # noqa: PLC0415
+
+        with patch.object(odoo.tools, "config", self._cfg()), \
+             patch.object(db_mod, "list_dbs", return_value=["served"]), \
+             patch.object(db_mod, "exp_db_exist", return_value=True) as inner:
+            assert db_mod._rpc_db_exist("served") is True
+        inner.assert_called_once_with("served")
+
+    @pytest.mark.parametrize("name", ["postgres", "template0", "template1"])
+    def test_system_and_template_dbs_are_never_disclosed(self, db_mod, name):
+        """``SYSTEM_DBS`` and the creation template are never servable (the same
+        floor ``http.helpers.db_filter`` applies), so never disclosed."""
+        import odoo.tools  # noqa: PLC0415
+
+        with patch.object(odoo.tools, "config", self._cfg()), \
+             patch.object(db_mod, "list_dbs", return_value=[name]), \
+             patch.object(db_mod, "exp_db_exist") as inner:
+            assert db_mod._rpc_db_exist(name) is False
+        inner.assert_not_called()
+
+    @pytest.mark.parametrize("name", ["", "-leading", "a" * 64, "sp ace", "semi;colon"])
+    def test_malformed_names_are_rejected_before_pg(self, db_mod, name):
+        import odoo.tools  # noqa: PLC0415
+
+        with patch.object(odoo.tools, "config", self._cfg()), \
+             patch.object(db_mod, "list_dbs") as listed, \
+             patch.object(db_mod, "exp_db_exist") as inner:
+            assert db_mod._rpc_db_exist(name) is False
+        listed.assert_not_called()
+        inner.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _assert_dump_sql_safe — streaming scanner
+# ---------------------------------------------------------------------------
+
+
+class TestDumpSqlScannerStreaming:
+    """The restore scanner must not hold the dump in memory: ``dump.sql`` is
+    unbounded and attacker-supplied, and the worker running the restore is the
+    one a memory soft limit watches."""
+
+    def test_scanner_state_survives_line_boundaries(self, db_mod):
+        """Every multi-line lexical context must carry across a ``feed`` call,
+        else a ``\\!`` inside one would be read as a live meta-command (false
+        positive) or one after it missed (false negative)."""
+        cases = [
+            # (sql, expect_hit)
+            ("/* multi\n line \\! comment */\nSELECT 1;\n", False),
+            ("SELECT $$ body\nwith \\! inside\n$$;\n", False),
+            ("SELECT 'multi\nline \\! literal';\n", False),
+            ('CREATE TABLE "multi\nline \\! ident" ();\n', False),
+            ("COPY t FROM stdin;\n\\! not-a-command\n\\.\nSELECT 1;\n", False),
+            ("/* open\ncomment */\n\\! after\n", True),
+            ("SELECT $$a\nb$$;\n\\i /etc/passwd\n", True),
+            ("SELECT 'a\nb';\n\\connect evil\n", True),
+        ]
+        for sql, expect_hit in cases:
+            got = db_mod._find_disallowed_psql_meta_command(sql)
+            assert (got is not None) is expect_hit, (sql, got)
+
+    def test_feeding_line_by_line_matches_whole_string(self, db_mod):
+        sql = (
+            "-- header\nCOPY t FROM stdin;\n1\tx\\y\n\\.\n"
+            "CREATE FUNCTION f() AS $b$ SELECT '\\!'; $b$ LANGUAGE sql;\n"
+            "SELECT 1;\n\\gexec\n"
+        )
+        whole = db_mod._find_disallowed_psql_meta_command(sql)
+        scanner = db_mod._PsqlSqlScanner()
+        streamed = None
+        for line in db_mod._iter_physical_lines(sql):
+            streamed = scanner.feed(line)
+            if streamed is not None:
+                break
+        assert whole == streamed
+        assert whole is not None and whole[1] == "\\gexec"
+
+    def test_never_slurps_the_file(self, db_mod, tmp_path):
+        """Pin the streaming contract: a whole-file ``read()`` regression would
+        reintroduce ~2x-dump-size RSS on every restore (measured: a 142 MB
+        ``dump.sql`` cost +271 MB slurped vs +0.5 MB streamed)."""
+        p = tmp_path / "dump.sql"
+        p.write_text("SELECT 1;\n" * 50_000, encoding="latin-1")
+        real_open = type(p).open
+
+        class NoSlurp:
+            """File proxy that iterates but refuses to be read in full."""
+
+            def __init__(self, fh):
+                self._fh = fh
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return self._fh.__exit__(*exc)
+
+            def __iter__(self):
+                return iter(self._fh)
+
+            def read(self, *a, **kw):  # pragma: no cover - must not be reached
+                raise AssertionError(
+                    "_assert_dump_sql_safe must stream, not read() the dump"
+                )
+
+        def spy_open(self, *a, **kw):
+            return NoSlurp(real_open(self, *a, **kw))
+
+        with patch.object(type(p), "open", spy_open):
+            db_mod._assert_dump_sql_safe(str(p))  # must not raise
+
+    def test_peak_memory_is_independent_of_dump_size(self, db_mod, tmp_path):
+        """Scanning a 4x-larger dump must not cost 4x the peak allocation."""
+        import tracemalloc  # noqa: PLC0415
+
+        def peak_for(n_lines):
+            p = tmp_path / f"dump_{n_lines}.sql"
+            p.write_text("SELECT 1;\n" * n_lines, encoding="latin-1")
+            tracemalloc.start()
+            db_mod._assert_dump_sql_safe(str(p))
+            _cur, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+            return peak
+
+        small, large = peak_for(25_000), peak_for(100_000)
+        # Streamed: both peaks are one buffered block.  Slurped: ~4x apart.
+        assert large < small * 2, (small, large)
+
+    def test_iter_physical_lines_splits_only_on_newline(self, db_mod):
+        """``str.splitlines`` also breaks on \\v/\\f/\\x85/\\u2028, which the
+        scanner treats as ordinary characters — splitting there would desync
+        its statement-start bookkeeping inside a literal."""
+        text = "a\x0bb\x85c d\ne\n"
+        assert list(db_mod._iter_physical_lines(text)) == ["a\x0bb\x85c d\n", "e\n"]

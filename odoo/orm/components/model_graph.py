@@ -26,6 +26,8 @@ import threading
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.collections.misc import Collector
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
 
@@ -34,39 +36,14 @@ if TYPE_CHECKING:
 
 # _Collector — lightweight key→tuple mapping
 
-
-class _Collector(dict):
-    """A mapping from keys to tuples, implementing a relation.
-
-    Standalone equivalent of ``odoo.libs.collections.misc.Collector`` (the Odoo
-    import is avoided to stay pure-Python testable). Semantically a
-    ``defaultdict(tuple)`` with add and bulk-discard helpers.
-    """
-
-    __slots__ = ()
-
-    def __getitem__(self, key: Any) -> tuple:
-        return self.get(key, ())
-
-    def __setitem__(self, key: Any, val: Any) -> None:
-        val = tuple(val)
-        if val:
-            super().__setitem__(key, val)
-        else:
-            super().pop(key, None)
-
-    def add(self, key: Any, val: Any) -> None:
-        """Append *val* to the tuple for *key* (no-op if already present)."""
-        vals = self[key]
-        if val not in vals:
-            self[key] = vals + (val,)
-
-    def discard_keys_and_values(self, excludes: Any) -> None:
-        """Remove *excludes* from both keys and values."""
-        for key in excludes:
-            self.pop(key, None)
-        for key, vals in list(self.items()):
-            self[key] = tuple(val for val in vals if val not in excludes)
+# Re-exported under the private name this module has always used.  This was a
+# line-for-line copy of ``Collector`` justified by "the Odoo import is avoided
+# to stay pure-Python testable" -- which was not true: ``odoo.libs.collections``
+# imports nothing but ``collections.abc``, and resolves fine under the
+# ``sys.modules`` stubs the standalone suites install (see
+# ``odoo/_testing_bootstrap.py``).  The fork of the code had already drifted
+# into carrying its own copy of a ``discard_keys_and_values`` bug.
+_Collector = Collector
 
 
 # TriggerTree — pure data structure

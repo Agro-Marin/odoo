@@ -4,3 +4,5 @@ Pure Python web helpers with no Odoo dependencies.
 """
 
 from . import urls
+
+__all__ = ["urls"]

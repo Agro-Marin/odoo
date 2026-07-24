@@ -160,8 +160,12 @@ safe_attrs = defs.safe_attrs | frozenset(
     ]
 )
 
-# xlink:href is URL-scheme checked (like href) rather than stripped, so SVG
-# links survive sanitization
+# ``xlink:href`` is in neither lxml's ``defs.safe_attrs`` nor the set above, yet
+# ``_Cleaner`` still lets it through — so registering it as a *link* attribute is
+# the only thing that subjects it to the URL-scheme check.  Without this line
+# ``<svg><a xlink:href="javascript:...">`` survives ``html_sanitize`` verbatim,
+# i.e. stored XSS in every sanitized HTML field.  Covered by
+# ``odoo/libs/text/tests/test_html_security.py``.
 defs.link_attrs |= {"xlink:href"}
 
 SANITIZE_TAGS = {
@@ -258,19 +262,19 @@ class _Cleaner(clean.Cleaner):
         "table-layout",
     ]
 
-    _style_whitelist.extend(
-        [
-            f"border-{position}-{attribute}"
-            for position in ["top", "bottom", "left", "right"]
-            for attribute in (
-                "style",
-                "color",
-                "width",
-                "left-radius",
-                "right-radius",
-            )
-        ]
-    )
+    # frozenset, not list: ``parse_style`` membership-tests every declaration of
+    # every element, which was a linear scan over ~70 entries per lookup.
+    _style_whitelist = frozenset(_style_whitelist) | {
+        f"border-{position}-{attribute}"
+        for position in ["top", "bottom", "left", "right"]
+        for attribute in (
+            "style",
+            "color",
+            "width",
+            "left-radius",
+            "right-radius",
+        )
+    }
 
     strip_classes = False
     sanitize_style = False
@@ -659,7 +663,14 @@ def html_sanitize(
 
     logger = logging.getLogger(__name__ + ".html_sanitize")
 
-    def sanitize_handler(doc: etree._Element) -> etree._Element:
+    def sanitize_handler(doc: etree._Element, prestrip: bool = False) -> etree._Element:
+        if prestrip and sanitize_tags:
+            # Recovery path: lxml_html_clean's drop_tree() asserts on pathological
+            # kill-tag nesting (e.g. <style> inside <select>). Pre-removing the
+            # kill-tag subtrees ourselves avoids that code path while keeping the
+            # rest of the document; verified to yield identical output to the
+            # cleaner alone on well-formed input, so it cannot weaken sanitizing.
+            etree.strip_elements(doc, *SANITIZE_TAGS["kill_tags"], with_tail=False)
         kwargs = {
             "page_structure": True,
             "style": strip_style,  # True = remove style tags/attrs
@@ -708,8 +719,26 @@ def html_sanitize(
     except Exception:
         if not silent:
             raise
-        logger.warning("unknown error obtained when sanitizing %r", src, exc_info=True)
-        sanitized = "<p>Unknown error when sanitizing</p>"
+        # The cleaner crashed (e.g. AssertionError in lxml_html_clean's
+        # drop_tree on pathological kill-tag nesting). Rather than discard the
+        # whole field, retry with a manual kill-tag pre-strip that dodges the
+        # crash and preserves the surrounding content; only fall back to a
+        # placeholder if even that fails.
+        sanitized = None
+        if sanitize_tags:
+            try:
+                sanitized = html_normalize(
+                    src,
+                    filter_callback=lambda doc: sanitize_handler(doc, prestrip=True),
+                    output_method=output_method,
+                )
+            except Exception:
+                sanitized = None
+        if sanitized is None:
+            logger.warning(
+                "unknown error obtained when sanitizing %r", src, exc_info=True
+            )
+            sanitized = "<p>Unknown error when sanitizing</p>"
 
     return markupsafe.Markup(sanitized)
 
@@ -723,7 +752,9 @@ URL_REGEX = rf"""(\bhref=['"](?!{URL_SKIP_PROTOCOL_REGEX})([^'"]+)['"])"""
 TEXT_URL_REGEX = r"https?://[\w@:%.+&~#=/-]+(?:\?\S+)?"
 # retrieve inner content of the link
 HTML_TAG_URL_REGEX = URL_REGEX + r"([^<>]*>([^<>]+)<\/)?"
-HTML_TAGS_REGEX = re.compile(r"<.*?>")
+# ``[^>]*`` rather than ``.*?``: the latter never matched a tag whose
+# attributes span several lines, leaking raw markup into "plain text" output.
+HTML_TAGS_REGEX = re.compile(r"<[^>]*>")
 HTML_NEWLINES_REGEX = re.compile(r"<(div|p|br|tr)[^>]*>|\n")
 
 # Pre-compiled regexes for is_html_empty (avoids re module cache lookup per call)
@@ -778,16 +809,31 @@ def is_html_empty(
     return not bool(text_content.strip()) and not _ICON_RE.search(html_content)
 
 
-def html_keep_url(text: str) -> str:
-    """Transform the url into clickable link with <a/> tag."""
+def html_keep_url(text: str | Markup) -> Markup:
+    """Transform the url into clickable link with <a/> tag.
+
+    ``text`` follows the usual markupsafe convention: a plain ``str`` is
+    HTML-escaped exactly once, while a ``Markup`` value is taken as
+    already-escaped and passed through untouched.  Callers that escaped their
+    input beforehand (e.g. :func:`plaintext2html`) must therefore hand over
+    ``Markup``, otherwise the text -- and the generated ``href`` -- would be
+    escaped a second time.
+
+    The result is always ``Markup``.  Note the pieces are joined explicitly
+    rather than accumulated with ``+``: concatenating a ``Markup`` onto a plain
+    ``str`` invokes ``Markup.__radd__``, which escapes everything gathered so
+    far.
+    """
     idx = 0
-    final = ""
+    parts: list[Markup] = []
     for item in _LINK_TAGS_RE.finditer(text):
-        final += text[idx : item.start()]
-        final += create_link(item.group(0), item.group(0))
+        parts.append(escape_silent(text[idx : item.start()]))
+        # slicing preserves Markup-ness, so an already-escaped url stays as-is
+        url = text[item.start() : item.end()]
+        parts.append(create_link(url, url))
         idx = item.end()
-    final += text[idx:]
-    return final
+    parts.append(escape_silent(text[idx:]))
+    return Markup("").join(parts)
 
 
 def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
@@ -810,10 +856,19 @@ def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
 def create_link(url: str, label: str) -> Markup:
     """Return an HTML anchor tag linking ``label`` to ``url``.
 
-    ``url`` and ``label`` are HTML-escaped, so this is safe to call with
-    untrusted input: a quote in ``url`` can no longer break out of the ``href``
-    attribute (XSS). Values already marked safe (``markupsafe.Markup``) pass
-    through unchanged, since ``Markup.format`` does not re-escape them.
+    ``url`` and ``label`` are HTML-escaped, so a quote in either can no longer
+    break out of the ``href`` attribute (XSS). Values already marked safe
+    (``markupsafe.Markup``) pass through unchanged, since ``Markup.format``
+    does not re-escape them.
+
+    .. warning::
+
+        Escaping is *all* this does. The URL **scheme is not validated**, so
+        ``create_link("javascript:...", label)`` yields a working javascript
+        link. Callers handling untrusted URLs must restrict the scheme
+        themselves (:func:`html_keep_url` does, by only matching
+        ``ftp``/``http``/``https``), or run the result through
+        :func:`html_sanitize`.
     """
     return Markup(
         '<a href="{}" target="_blank" rel="noreferrer noopener">{}</a>'
@@ -871,7 +926,13 @@ def html2plaintext(
         for link in tree.findall(".//a"):
             if url := link.get("href"):
                 link.tag = "span"
-                link.text = f"{link.text} [{next(linkrefs)}]"
+                # ``link.text`` is None for a link wrapping only markup (e.g.
+                # ``<a href="…"><img/></a>``); interpolating it emitted a
+                # literal "None" into the plaintext.
+                label = link.text or ""
+                link.text = (
+                    f"{label} [{next(linkrefs)}]" if label else f"[{next(linkrefs)}]"
+                )
                 url_index.append(url)
 
         for img in tree.findall(".//img"):
@@ -888,16 +949,28 @@ def html2plaintext(
     # \r char is converted into &#13;, must remove it
     html_str = html_str.replace("&#13;", "")
 
-    html_str = html_str.replace("<strong>", "*").replace("</strong>", "*")
-    html_str = html_str.replace("<b>", "*").replace("</b>", "*")
-    html_str = html_str.replace("<h3>", "*").replace("</h3>", "*")
-    html_str = html_str.replace("<h2>", "**").replace("</h2>", "**")
-    html_str = html_str.replace("<h1>", "**").replace("</h1>", "**")
-    html_str = html_str.replace("<em>", "/").replace("</em>", "/")
-    html_str = html_str.replace("<tr>", "\n")
-    html_str = html_str.replace("</p>", "\n")
+    # Match the attributed forms too: a literal ``"<b>"`` replace left
+    # ``<b class="x">bold</b>`` with a single trailing ``*`` -- the closing
+    # marker without its opening pair.
+    for tag, marker in (
+        ("strong", "*"),
+        ("b", "*"),
+        ("h3", "*"),
+        ("h2", "**"),
+        ("h1", "**"),
+        ("em", "/"),
+    ):
+        html_str = re.sub(rf"</?{tag}\b[^>]*>", marker, html_str)
+    html_str = re.sub(r"<tr\b[^>]*>", "\n", html_str)
+    html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
-    html_str = re.sub(r"<.*?>", " ", html_str)
+    # ``[^>]*`` also spans tags broken across lines, which ``<.*?>`` missed
+    html_str = re.sub(r"<[^>]*>", " ", html_str)
+    # Deliberately a single pairwise pass, NOT ``re.sub(r" {2,}", " ")``.
+    # Stripping every tag above leaves one space per tag, so a cell boundary
+    # becomes a *run* of spaces; halving it preserves the visual column gap that
+    # separates table cells, while collapsing the run to one space welds them
+    # into a single word.  Pinned by ``TestIrMailServer.test_content_mail_body``.
     html_str = html_str.replace(" " * 2, " ")
     html_str = html_str.replace("&gt;", ">")
     html_str = html_str.replace("&lt;", "<")
@@ -906,6 +979,11 @@ def html2plaintext(
 
     # strip all lines
     html_str = "\n".join([x.strip() for x in html_str.splitlines()])
+    # Same reasoning as the space collapse above: pairwise, not ``\n{2,}``.
+    # Block tags each contribute a newline, so a paragraph break arrives as 3-4
+    # of them; halving leaves the blank line that separates paragraphs, whereas
+    # collapsing the whole run to one newline destroys the paragraph structure.
+    # Pinned by ``TestMailTools.test_html2plaintext``.
     html_str = html_str.replace("\n" * 2, "\n")
 
     if url_index:
@@ -934,23 +1012,31 @@ def plaintext2html(
         as paragraph breaks and enclosing content in ``<p>``
     """
     assert isinstance(text, str)
+    # Everything below stays Markup end to end.  Mixing plain ``str`` and
+    # ``Markup`` under ``+`` silently re-escapes: ``str + Markup`` dispatches to
+    # ``Markup.__radd__``, which escapes the left operand.  That turned the
+    # ``<p>`` wrappers built here into literal ``&lt;p&gt;`` text and escaped the
+    # already-escaped body a second time, so any input containing a url was
+    # rendered as visible markup with a corrupted ``href`` (``&amp;`` -> ``&amp;amp;``,
+    # which a browser resolves to a literal ``amp;`` in the query string).
     text = html_escape(text)
 
-    # 1. replace \n and \r
-    text = re.sub(r"(\r\n|\r|\n)", "<br/>", text)
+    # 1. replace \n and \r (re.sub returns a plain str, so restore Markup)
+    text = Markup(re.sub(r"(\r\n|\r|\n)", "<br/>", text))
 
-    # 2. clickable links
+    # 2. clickable links -- Markup in, so html_keep_url does not escape again
     text = html_keep_url(text)
 
     # 3-4: form paragraphs
     final = text
     if with_paragraph:
         idx = 0
-        final = "<p>"
+        paragraphs: list[Markup] = []
         for item in _BR_TAGS_RE.finditer(text):
-            final += text[idx : item.start()] + "</p><p>"
+            paragraphs.append(text[idx : item.start()])
             idx = item.end()
-        final += text[idx:] + "</p>"
+        paragraphs.append(text[idx:])
+        final = Markup("<p>") + Markup("</p><p>").join(paragraphs) + Markup("</p>")
 
     # 5. container
     if container_tag:
@@ -959,8 +1045,8 @@ def plaintext2html(
         if not _SIMPLE_TAG_RE.match(container_tag):
             e = f"Invalid container_tag: {container_tag!r}"
             raise ValueError(e)
-        final = f"<{container_tag}>{final}</{container_tag}>"
-    return markupsafe.Markup(final)
+        final = Markup(f"<{container_tag}>") + final + Markup(f"</{container_tag}>")
+    return final
 
 
 def append_content_to_html(
@@ -1033,4 +1119,13 @@ def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) 
     )
     insert_index = body_match.end() if body_match else 0
 
-    return html_body[:insert_index] + html_content + html_body[insert_index:]
+    # Join explicitly instead of ``+``: with a plain-str ``html_body`` and a
+    # ``Markup`` ``html_content``, ``str + Markup`` dispatches to
+    # ``Markup.__radd__`` and escapes the whole document body.
+    return "".join(
+        (
+            str(html_body[:insert_index]),
+            str(html_content),
+            str(html_body[insert_index:]),
+        )
+    )

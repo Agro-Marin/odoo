@@ -11,7 +11,7 @@ from decimal import (
     Decimal,
 )
 
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers.float_utils import float_repr, float_round
 
 
 class TestFloatRound(unittest.TestCase):
@@ -108,6 +108,45 @@ class TestFloatRound(unittest.TestCase):
                     want,
                     delta=10 ** -(digits + 3),
                     msg=f"{method} value={value} digits={digits}",
+                )
+
+    def test_extended_float_range(self):
+        """Sweep magnitudes/signs/precisions for representation-error drift.
+
+        Inspired by Cloves Almeida's test on bug #882036.  This lived in a
+        ``if __name__ == "__main__"`` block inside ``float_utils`` that nothing
+        ever executed -- it reported failures by counting them in the imaginary
+        part of a ``complex``, and could not fail a test run.
+        """
+        fractions = [0.0, 0.015, 0.01499, 0.675, 0.67499, 0.4555, 0.4555, 0.45555]
+        expecteds = [".00", ".02", ".01", ".68", ".67", ".46", ".456", ".4556"]
+        precisions = [2, 2, 2, 2, 2, 2, 3, 4]
+        for magnitude in range(7):
+            for frac, exp, prec in zip(fractions, expecteds, precisions, strict=True):
+                for sign in (-1, 1):
+                    for x in range(0, 10000, 97):
+                        n = x * 10**magnitude
+                        value = sign * (n + frac)
+                        expected = (
+                            ("-" if value != 0 and sign == -1 else "") + str(n) + exp
+                        )
+                        self.assertEqual(
+                            float_repr(
+                                float_round(value, precision_digits=prec),
+                                precision_digits=prec,
+                            ),
+                            expected,
+                            f"rounding {value!r} at {prec} digits",
+                        )
+
+    def test_idempotent_on_its_own_grid(self):
+        # rounding an already-rounded value must be a no-op, otherwise repeated
+        # normalization would let a value drift across a grid boundary
+        for digits in range(16):
+            for n in range(500):
+                once = float_round(n * 10**-digits, precision_digits=digits)
+                self.assertEqual(
+                    float_round(once, precision_digits=digits), once, f"{digits=} {n=}"
                 )
 
 

@@ -54,6 +54,10 @@ class OrderedSet[T](MutableSet[T]):
 
     def intersection(self, *others: Iterable[T]) -> OrderedSet[T]:
         """Return a new set with the elements common to this set and all ``others``."""
+        if not others:
+            # reduce() would hand back ``self`` untouched; return a copy so the
+            # documented "new set" contract holds and the result is not aliased.
+            return self.copy()
         return reduce(OrderedSet.__and__, others, self)
 
     def copy(self) -> Self:
@@ -77,16 +81,22 @@ class OrderedSet[T](MutableSet[T]):
 class LastOrderedSet[T](OrderedSet[T]):
     """A set collection that remembers the elements last insertion order."""
 
+    __slots__ = ()
+
     def add(self, elem: T) -> None:
         """Add ``elem`` to the set, moving it to the last insertion position."""
         self.discard(elem)
         super().add(elem)
 
     def update(self, elems: Iterable[T]) -> None:
-        """Add all ``elems``, moving each to the last insertion position."""
-        # Overrides ``OrderedSet.update`` (``dict.update``, which keeps the
-        # position of already-present keys) so re-adding an existing element
-        # moves it to the end, matching this class's last-insertion-order
-        # contract.
+        """Add all elements, moving already-present ones to the last position.
+
+        Overridden because ``OrderedSet.update`` delegates to ``dict.update``,
+        which keeps an existing key at its original position -- so ``update``
+        contradicted both ``add`` and ``|=`` (which routes through ``add``) on
+        the very invariant this class exists for.
+        """
+        # Delegate to ``add`` rather than reimplementing the move-to-end dance,
+        # so the invariant stays defined in exactly one place.
         for elem in elems:
             self.add(elem)

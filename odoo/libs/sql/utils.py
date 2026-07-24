@@ -55,15 +55,45 @@ def pg_varchar(size: int = 0) -> str:
     return "VARCHAR"
 
 
+def _split_order_items(order: str) -> list[str]:
+    """Split an ORDER BY clause on its top-level commas only.
+
+    A naive ``order.split(",")`` breaks expressions with argument lists
+    (``coalesce(a, b) desc``) or commas inside quoted identifiers
+    (``"a,b"``). This splits on commas that are outside parentheses and
+    outside a double-quoted identifier.
+    """
+    items: list[str] = []
+    depth = 0
+    in_quote = False
+    start = 0
+    for i, ch in enumerate(order):
+        if ch == '"':
+            in_quote = not in_quote
+        elif in_quote:
+            continue
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            items.append(order[start:i])
+            start = i + 1
+    items.append(order[start:])
+    return items
+
+
 def reverse_order(order: str) -> str:
     """Reverse an ORDER BY clause.
 
     Flips ``ASC`` <-> ``DESC`` for each column and, where an explicit null
-    placement is given, ``NULLS FIRST`` <-> ``NULLS LAST`` — so the reversed
-    clause yields the exact reverse row sequence (e.g. for a "last record"
-    query).  Column expressions are preserved verbatim: quoting and case are
-    kept (``"Name"`` stays ``"Name"``).  Empty segments (such as a trailing
-    comma) are skipped.
+    placement is given, ``NULLS FIRST`` <-> ``NULLS LAST`` -- reversing an
+    ordering must reverse where the NULLs land too, so the reversed clause
+    yields the exact reverse row sequence (e.g. for a "last record" query).
+
+    Column expressions are preserved verbatim: quoting and case are kept
+    (``"Name"`` stays ``"Name"``). Empty items (a trailing or doubled comma)
+    are skipped.
 
     :param order: An ORDER BY clause (without the 'ORDER BY' keywords)
     :returns: The reversed order clause
@@ -74,31 +104,36 @@ def reverse_order(order: str) -> str:
         'name desc, date asc'
         >>> reverse_order('id')
         'id desc'
-        >>> reverse_order('name asc nulls last')
-        'name desc nulls first'
+        >>> reverse_order('name desc nulls last')
+        'name asc nulls first'
+        >>> reverse_order('"Name" asc')
+        '"Name" desc'
+        >>> reverse_order('coalesce(a, b) desc, name asc')
+        'coalesce(a, b) asc, name desc'
     """
     items = []
-    for item in order.split(","):
+    # top-level commas only: a naive split(",") breaks "coalesce(a, b) desc"
+    for item in _split_order_items(order):
         tokens = item.split()
         if not tokens:
-            continue  # empty segment (e.g. a trailing comma)
+            # tolerate "id," / "a,,b" rather than raising IndexError
+            continue
 
-        # optional trailing "NULLS FIRST" / "NULLS LAST" — flip its placement
+        # Trailing NULLS FIRST|LAST, if present, is the last two tokens.
         nulls = ""
-        if len(tokens) >= 2 and tokens[-2].lower() == "nulls":
-            placement = "last" if tokens[-1].lower() == "first" else "first"
-            nulls = f" nulls {placement}"
+        if len(tokens) >= 3 and tokens[-2].lower() == "nulls":
+            nulls = " nulls first" if tokens[-1].lower() == "last" else " nulls last"
             tokens = tokens[:-2]
 
-        # optional trailing "ASC" / "DESC" (SQL defaults to ASC) — flip it
-        direction = "desc"
-        if tokens and tokens[-1].lower() in ("asc", "desc"):
-            direction = "asc" if tokens[-1].lower() == "desc" else "desc"
+        # SQL defaults to ASC, so a column with no direction keyword reverses
+        # to DESC.
+        direction = "asc" if tokens[-1].lower() == "desc" else "desc"
+        # only strip a trailing direction keyword; keep the expression verbatim
+        if tokens[-1].lower() in ("asc", "desc"):
             tokens = tokens[:-1]
-
-        # everything left is the column expression, kept exactly as written
-        expression = " ".join(tokens)
-        items.append(f"{expression} {direction}{nulls}")
+        if not tokens:
+            continue
+        items.append(f"{' '.join(tokens)} {direction}{nulls}")
     return ", ".join(items)
 
 
@@ -119,8 +154,16 @@ def make_identifier(identifier: str) -> str:
         >>> len(make_identifier('a' * 100))
         63
     """
-    if len(identifier) > 63:
-        return f"{identifier[:54]}_{crc32(identifier.encode()):08x}"
+    # PostgreSQL's NAMEDATALEN-1 limit counts BYTES, not characters, and
+    # silently truncates beyond it -- so measuring with len() let a non-ASCII
+    # identifier through at up to 4x the real budget, defeating the very
+    # collision avoidance this function exists for.
+    encoded = identifier.encode()
+    if len(encoded) > 63:
+        # 54 bytes + "_" + 8 hex digits = 63; cut on a character boundary so the
+        # prefix stays valid UTF-8 (may land under 54 bytes, which is fine).
+        prefix = encoded[:54].decode(errors="ignore")
+        return f"{prefix}_{crc32(encoded):08x}"
     return identifier
 
 

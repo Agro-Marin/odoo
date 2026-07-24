@@ -4,7 +4,7 @@ __all__ = ["split_every"]
 
 import warnings
 from itertools import islice
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Any, overload
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
@@ -26,7 +26,24 @@ def split_every[T, P](
 ) -> Iterator[P]: ...
 
 
-def split_every[T](n: int, iterable: Iterable[T], piece_maker=tuple):
+def _split_every[T](
+    n: int,
+    iterable: Iterable[T],
+    piece_maker: Callable[[Iterable[T]], Any] = tuple,
+) -> Iterator[Any]:
+    """Yield successive length-n pieces; generator body of :func:`split_every`."""
+    iterator = iter(iterable)
+    piece = piece_maker(islice(iterator, n))
+    while piece:
+        yield piece
+        piece = piece_maker(islice(iterator, n))
+
+
+def split_every[T](
+    n: int,
+    iterable: Iterable[T],
+    piece_maker: Callable[[Iterable[T]], Any] = tuple,
+) -> Iterator[Any]:
     """Split an iterable into length-n pieces.
 
     .. deprecated:: 19.0
@@ -48,14 +65,15 @@ def split_every[T](n: int, iterable: Iterable[T], piece_maker=tuple):
         >>> list(split_every(3, range(10), list))
         [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
     """
+    # Plain function delegating to a generator, so the warning fires when
+    # split_every() is *called*.  Emitted from a generator body it only fired on
+    # the first next(), pointing stacklevel=2 at whatever happened to iterate
+    # rather than at the deprecated call site -- and never at all for a result
+    # that was built but never consumed.
     warnings.warn(
         "split_every() is deprecated, use itertools.batched(iterable, n) instead. "
         "Note the swapped argument order.",
         DeprecationWarning,
         stacklevel=2,
     )
-    iterator = iter(iterable)
-    piece = piece_maker(islice(iterator, n))
-    while piece:
-        yield piece
-        piece = piece_maker(islice(iterator, n))
+    return _split_every(n, iterable, piece_maker)

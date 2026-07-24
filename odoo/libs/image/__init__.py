@@ -12,9 +12,11 @@ from .utils import (
     FILETYPE_BASE64_MAGICWORD,
     EXIF_TAG_ORIENTATION,
     IMAGE_MAX_RESOLUTION,
-    # Exceptions
+    # Exceptions (all subclass ValueError)
+    ImageError,
     ImageDecodeError,
     ImageTooLargeError,
+    NotWebpError,
     # Classes
     ImageProcess,
     # Functions
@@ -38,8 +40,10 @@ __all__ = [
     "IMAGE_MAX_RESOLUTION",
     # Exceptions and classes
     "ImageDecodeError",
+    "ImageError",
     "ImageProcess",
     "ImageTooLargeError",
+    "NotWebpError",
     "average_dominant_color",
     "base64_to_image",
     "binary_to_image",

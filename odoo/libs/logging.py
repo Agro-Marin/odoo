@@ -75,13 +75,13 @@ class mute_logger(logging.Handler):
 
     def __enter__(self) -> None:
         """Replace the target loggers' handlers with this muting handler."""
-        saved: dict[str, tuple[list[logging.Handler], bool]] = {}
+        frame: dict[str, tuple[list[logging.Handler], bool]] = {}
         for logger_name in self.loggers:
             logger = logging.getLogger(logger_name)
-            saved[logger_name] = (logger.handlers, logger.propagate)
+            frame[logger_name] = (logger.handlers, logger.propagate)
             logger.propagate = False
             logger.handlers = [self]
-        self._saved.append(saved)
+        self._saved.append(frame)
 
     def __exit__(
         self,
@@ -133,20 +133,33 @@ class lower_logging(logging.Handler):
         :param to_level: Level to reduce high logs to (default: same as max_level)
         """
         super().__init__()
-        self.old_handlers: list[logging.Handler] | None = None
-        self.old_propagate: bool | None = None
+        # A stack, for the same reason as `mute_logger`: one instance may be
+        # re-entered before its outer __exit__ runs. With a single slot the
+        # inner enter overwrote the saved state with the *already-installed*
+        # handler list (``[self]``), so the outer exit left the root logger
+        # permanently hijacked -- and `emit` forwarding to ``[self]`` would
+        # recurse. `old_handlers` reads the OUTERMOST frame, which is the only
+        # one that cannot contain `self`.
+        self._saved: list[tuple[list[logging.Handler], bool]] = []
         self.had_error_log: bool = False
         self.max_level: int = max_level
         self.to_level: int = to_level or max_level
 
+    @property
+    def old_handlers(self) -> list[logging.Handler]:
+        """Handlers installed on the root logger before the outermost entry."""
+        return self._saved[0][0] if self._saved else []
+
     def __enter__(self) -> Self:
         """Install this handler on the root logger and start capturing."""
         logger = logging.getLogger()
-        self.old_handlers = logger.handlers[:]
-        self.old_propagate = logger.propagate
+        if not self._saved:
+            # only the outermost entry starts a fresh capture, so a nested block
+            # cannot erase an error already recorded by the enclosing one
+            self.had_error_log = False
+        self._saved.append((logger.handlers[:], logger.propagate))
         logger.propagate = False
         logger.handlers = [self]
-        self.had_error_log = False
         return self
 
     def __exit__(
@@ -156,9 +169,12 @@ class lower_logging(logging.Handler):
         exc_tb: types.TracebackType | None = None,
     ) -> None:
         """Restore the root logger's original handlers and propagation."""
+        if not self._saved:
+            return
+        handlers, propagate = self._saved.pop()
         logger = logging.getLogger()
-        logger.handlers = self.old_handlers
-        logger.propagate = self.old_propagate
+        logger.handlers = handlers
+        logger.propagate = propagate
 
     def emit(self, record: logging.LogRecord) -> None:
         """Lower records above ``max_level`` and forward them to old handlers."""

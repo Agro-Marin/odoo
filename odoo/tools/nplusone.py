@@ -37,12 +37,16 @@ if _n1_enabled:
 
 # Frames under these prefixes are framework-internal and skipped when finding
 # the external caller: odoo/orm/ and odoo/api/.
+# ``os.sep``, not a hardcoded "/": ``str(Path(...))`` renders the native
+# separator, so on Windows these prefixes read "...\orm" + "/" -- a string no
+# ``co_filename`` can ever start with, silently disabling the frame skipping and
+# blaming ORM internals for every detected call site.
 _ODOO_DIR = Path(__file__).resolve().parent.parent
-_ORM_PREFIX: str = str(_ODOO_DIR / "orm") + "/"
+_ORM_PREFIX: str = str(_ODOO_DIR / "orm") + os.sep
 
 _SKIP_PREFIXES: tuple[str, ...] = (
     _ORM_PREFIX,
-    str(_ODOO_DIR / "api") + "/",
+    str(_ODOO_DIR / "api") + os.sep,
 )
 
 

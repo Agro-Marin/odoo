@@ -245,7 +245,14 @@ _SAFE_OPCODES = (
                 "STORE_FAST",
                 "DELETE_FAST",
                 "UNPACK_SEQUENCE",
+                # Extended unpacking (``a, *rest = seq``).  Structural only, and
+                # the non-starred UNPACK_SEQUENCE above is already allowed.
+                "UNPACK_EX",
                 "STORE_SUBSCR",
+                # ``del obj[key]``.  STORE_SUBSCR (above) already permits
+                # mutating a subscriptable, so this grants no new reach; without
+                # it the two halves of item assignment were inconsistent.
+                "DELETE_SUBSCR",
                 "LOAD_GLOBAL",
                 "RERAISE",
                 "JUMP_IF_NOT_EXC_MATCH",
@@ -295,18 +302,27 @@ _SAFE_OPCODES = (
                 "POP_ITER",  # replaces END_FOR for iterator cleanup
                 "LOAD_FAST_BORROW_LOAD_FAST_BORROW",  # compound load optimization
                 "LOAD_COMMON_CONSTANT",  # loads common constants (None, NotImplemented, etc.)
-                # emitted by try/except+finally combinations; same jump as the
-                # allowed JUMP_BACKWARD minus the interrupt check
+                # Emitted by the compiler for the re-raise edge of a combined
+                # ``try/except/finally``.  Without it that construct -- plain
+                # error handling, the single most common thing a server action
+                # does -- was rejected outright as "forbidden opcode(s)", while
+                # try/except alone and try/finally alone both compiled fine.
+                # It is an ordinary backward jump that merely skips the periodic
+                # eval-breaker check; general loops still use JUMP_BACKWARD.
                 "JUMP_BACKWARD_NO_INTERRUPT",
-                # ``yield from`` / generator delegation plumbing — no new
-                # capability beyond the already-allowed generators
+                # ``yield from`` / generator delegation plumbing -- no new
+                # capability beyond the already-allowed generators.
                 "SEND",
                 "END_SEND",
                 "CLEANUP_THROW",
                 "GET_YIELD_FROM_ITER",
-                # closures: cell creation and dereferencing are memory-safe and
-                # grant no capability; without them any nested function that
-                # captures an enclosing local is rejected
+                # Closure cells, for a nested function capturing a local of its
+                # enclosing function.  MAKE_FUNCTION and LOAD/STORE_FAST are
+                # already allowed, so functions and locals both already exist --
+                # these opcodes are only the storage mechanism that lets an inner
+                # function see an outer local, and add no new reachability.
+                # Dunder cell names are rejected by assert_no_dunder_name, which
+                # inspects co_freevars/co_cellvars for exactly this reason.
                 "MAKE_CELL",
                 "COPY_FREE_VARS",
                 "LOAD_CLOSURE",
@@ -337,12 +353,22 @@ def assert_no_dunder_name(code_obj: CodeType, expr: str) -> None:
     Python attributes/methods, which are loaded via LOAD_ATTR by name (in
     co_names), not as a const or var.
 
+    ``co_freevars``/``co_cellvars`` are checked alongside ``co_names`` because a
+    closure cell is read by *index* (LOAD_DEREF), not by name, so a cell called
+    ``__class__`` would never appear in ``co_names`` and would slip past a
+    co_names-only check.  CPython creates exactly such an implicit ``__class__``
+    cell for any method that mentions ``__class__`` or ``super()``.  Class
+    bodies are unreachable today (LOAD_BUILD_CLASS is not in the allowlist), so
+    this is defence-in-depth guarding the closure opcodes rather than a live
+    hole -- but it is what makes allowing those opcodes safe by construction
+    instead of safe by accident.
+
     :param code_obj: code object to name-validate
     :type code_obj: CodeType
     :param str expr: expression for the code object, for debugging
     :raises NameError: a forbidden name (a dunder or unsafe attribute) is found
     """
-    for name in code_obj.co_names:
+    for name in (*code_obj.co_names, *code_obj.co_freevars, *code_obj.co_cellvars):
         if "__" in name or name in _UNSAFE_ATTRIBUTES:
             raise NameError("Access to forbidden name %r (%r)" % (name, expr))
 
@@ -434,16 +460,26 @@ def assert_valid_codeobj(
     # new allowlist silently inherit the old one's "validated" verdicts — a
     # cache-poisoning seam in a sandbox primitive. frozenset() of ~50 opcode ints
     # is negligible next to the dis.get_instructions() it guards.
-    # co_consts is part of the key: two format-string expressions can share an
-    # identical (co_code, co_names) — e.g. "{0.name}".format(x) vs
-    # "{0.__class__}".format(x), whose bytecode and names are the same and which
-    # differ only in the string constant validated by
-    # assert_no_dunder_format_field below. Omitting co_consts would let the
-    # benign one's verdict be reused for the malicious one.
+    # The key carries everything the validators actually inspect, because two
+    # distinct expressions that agree on the key share a "validated" verdict --
+    # cache poisoning of exactly the kind the nested-code rule above prevents.
+    #
+    # co_consts: two format-string expressions can share an identical
+    # (co_code, co_names) -- "{0.name}".format(x) vs "{0.__class__}".format(x)
+    # differ only in the string constant that assert_no_dunder_format_field
+    # validates below.
+    #
+    # co_freevars/co_cellvars: assert_no_dunder_name inspects them, and
+    # LOAD_DEREF addresses cells by INDEX, not by name -- ``lambda: a`` and
+    # ``lambda: __class__`` (both closing over an enclosing local) compile to
+    # byte-identical co_code with an empty co_names, differing only in
+    # co_freevars.
     cache_key = (
         code_obj.co_code,
         code_obj.co_names,
         code_obj.co_consts,
+        code_obj.co_freevars,
+        code_obj.co_cellvars,
         frozenset(allowed_codes),
     )
     if cacheable and cache_key in _validated_bytecode_cache:
@@ -466,7 +502,28 @@ def assert_valid_codeobj(
 
     # Only cache after full validation succeeds, and only for nested-code-free
     # objects whose verdict the key actually captures (see above).
-    if cacheable and len(_validated_bytecode_cache) < _VALIDATED_CACHE_MAX:
+    #
+    # Evict FIFO when full rather than freezing the cache.  The old ``< MAX``
+    # guard stopped inserting once full, so a process that ever validated more
+    # than _VALIDATED_CACHE_MAX distinct expressions (studio/website installs
+    # generate a long tail of one-off domains) re-ran the full
+    # ``dis.get_instructions`` scan on every subsequent call forever, silently
+    # losing the fast path this cache exists to provide.  dict preserves
+    # insertion order, so ``next(iter(...))`` is the oldest key.
+    if cacheable:
+        if len(_validated_bytecode_cache) >= _VALIDATED_CACHE_MAX:
+            # Evict the oldest entry (dict preserves insertion order). This runs
+            # lock-free on a module-global shared by every evaluating thread, so
+            # tolerate a concurrent evictor: a RuntimeError from a mid-iteration
+            # resize, or a key another thread already removed, must not raise a
+            # KeyError out of this validation primitive (its callers invoke it
+            # outside their try/except). Same guard as odoo.libs.lru.
+            try:
+                oldest = next(iter(_validated_bytecode_cache), None)
+            except RuntimeError:
+                oldest = None
+            if oldest is not None:
+                _validated_bytecode_cache.pop(oldest, None)
         _validated_bytecode_cache[cache_key] = True
 
 

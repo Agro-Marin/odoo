@@ -13,7 +13,9 @@ Extracted verbatim from ``odoo.addons.base.models.assetsbundle``
 the ``EsbuildResult`` return value documented on ``compile``.
 """
 
+import contextlib
 import functools
+import glob
 import logging
 import os
 import re
@@ -900,6 +902,21 @@ class EsbuildCompiler:
                 alias_flags.append(f"--alias:{header['alias']}=./{alias_path}")
         return alias_flags, test_external_flags + dynamic_external_flags
 
+    @staticmethod
+    def _purge_stale_fail_dumps(name: str) -> None:
+        """Remove this bundle's earlier ``esbuild_fail_<name>_*.js`` post-mortem
+        dumps from the temp dir. Without this, a persistently-broken bundle
+        writes a fresh ``delete=False`` dump on every retry and they accumulate
+        unbounded on long-lived servers; keeping only the newest per bundle
+        preserves the debugging value while bounding the footprint."""
+        # fnmatch-escape the bundle name: dotted identifiers are safe, but a name
+        # containing [ ] * ? must not widen the glob and delete other files.
+        pattern = "esbuild_fail_" + glob.escape(name) + "_*.js"
+        with contextlib.suppress(OSError):
+            for stale in Path(tempfile.gettempdir()).glob(pattern):
+                with contextlib.suppress(OSError):
+                    stale.unlink()
+
     def _run_esbuild(
         self,
         argv: list[str],
@@ -930,6 +947,10 @@ class EsbuildCompiler:
                 # followable by a local user, who could pre-create it pointing at
                 # a file the Odoo user may write, turning a build failure into an
                 # arbitrary-file overwrite (CWE-377/59).
+                # Drop this bundle's earlier dumps first so a persistently broken
+                # bundle can't accumulate one file per retry forever; only the
+                # newest dump per bundle is retained.
+                self._purge_stale_fail_dumps(self.name)
                 try:
                     with tempfile.NamedTemporaryFile(
                         mode="w",

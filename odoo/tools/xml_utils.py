@@ -64,8 +64,11 @@ def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) 
     if not isinstance(xmls, list):
         xmls = [xmls]
 
-    # The XSD attachment is a temporary artifact of this validation: make sure
-    # it is removed even when a validation raises.
+    # The XSD attachment is a scratch record created solely to drive this
+    # validation, so it must go even when validation fails.  Without the
+    # ``finally`` the very common case -- ``validate_xml_from_attachment``
+    # raising ``UserError`` on an invalid document -- left the attachment (and
+    # its filestore blob) behind on every failed validation.
     try:
         for xml in xmls:
             validate_xml_from_attachment(env, xml, xsd_attachment.name)
@@ -349,6 +352,15 @@ def find_xml_value(
     xml_element: etree._Element,
     namespaces: dict | None = None,
 ) -> str | None:
-    """Return the text content of the first element matching the given XPath expression."""
-    element = xml_element.xpath(xpath, namespaces=namespaces)
-    return element[0].text if element else None
+    """Return the text content of the first node matching the given XPath expression.
+
+    Handles XPaths that select attributes or ``text()`` (which yield strings)
+    as well as element results (whose text is read from ``.text``).
+    """
+    result = xml_element.xpath(xpath, namespaces=namespaces)
+    if not result:
+        return None
+    first = result[0]
+    # ``@attr`` / ``text()`` selectors return a str subclass (_ElementUnicodeResult)
+    # with no ``.text``; return it as-is. Element results expose their own text.
+    return first if isinstance(first, str) else first.text

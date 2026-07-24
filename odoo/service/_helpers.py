@@ -24,6 +24,23 @@ SLEEP_INTERVAL = 60  # 1 min
 CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 
+def capped_backoff(attempts: int, ceiling: int = SLEEP_INTERVAL) -> int:
+    """Return an exponential backoff in seconds for ``attempts``, clamped to
+    ``ceiling``.
+
+    The exponent is clamped BEFORE the shift, not after.  Every caller counts a
+    sustained outage, so ``attempts`` is unbounded by construction, and
+    ``2**attempts`` on an unbounded exponent builds an integer whose width grows
+    with every single retry: quadratic CPU and unbounded memory inside the loop
+    that exists precisely to survive a long outage.  Clamping only the *result*
+    (``min(2**attempts, ceiling)``) still pays to build the operand first.
+
+    No returned value changes: any exponent at or above ``ceiling.bit_length()``
+    already saturates the clamp.
+    """
+    return min(2 ** min(attempts, ceiling.bit_length()), ceiling)
+
+
 def memory_info(process: Any) -> int:
     """Return the process's resident memory (RSS) in bytes.
 

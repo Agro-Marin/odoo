@@ -18,11 +18,13 @@ from .template_inheritance import (
     remove_element,
     SKIPPED_ELEMENT_TYPES,
     PYTHON_ATTRIBUTES,
+    XPathExpressionError,
 )
 
 __all__ = [
     "PYTHON_ATTRIBUTES",
     "SKIPPED_ELEMENT_TYPES",
+    "XPathExpressionError",
     "add_stripped_items_before",
     "add_text_before",
     "apply_inheritance_specs",

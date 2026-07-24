@@ -69,6 +69,13 @@ class PdfSigner:
     for the structure of the signature in a PDF.
     """
 
+    # Bytes reserved in /Contents for the CMS signature blob. The /ByteRange
+    # gap is computed from this exact size, so the placeholder, the gap-end
+    # arithmetic and the final hex padding must all use this single constant --
+    # and the CMS must be asserted to fit it (see _perform_signature), otherwise
+    # an oversized signature silently overruns the range it is supposed to sit in.
+    _CONTENTS_PLACEHOLDER_BYTES = 8192
+
     def __init__(
         self,
         stream: io.BytesIO,
@@ -294,15 +301,22 @@ class PdfSigner:
         signature_field_value = DictionaryObject()
         signature_field_value.update(
             {
-                NameObject("/Contents"): ByteStringObject(b"\0" * 8192),
+                NameObject("/Contents"): ByteStringObject(
+                    b"\0" * self._CONTENTS_PLACEHOLDER_BYTES
+                ),
                 NameObject("/ByteRange"): self._create_number_array_object(
                     [0, 0, 0, 0]
                 ),
                 NameObject("/Type"): NameObject("/Sig"),
                 NameObject("/Filter"): NameObject("/Adobe.PPKLite"),
                 NameObject("/SubFilter"): NameObject("/adbe.pkcs7.detached"),
+                # Use the same effective signing time as the CMS signing_time
+                # attribute (see _get_cms_object) so the visible /M date and the
+                # cryptographically-signed time cannot disagree.
                 NameObject("/M"): create_string_object(
-                    datetime.datetime.now(datetime.UTC).strftime("D:%Y%m%d%H%M%S")
+                    (self.signing_time or datetime.datetime.now(datetime.UTC)).strftime(
+                        "D:%Y%m%d%H%M%S"
+                    )
                 ),
             }
         )
@@ -511,11 +525,11 @@ class PdfSigner:
         # Computing the start and end position of the /Contents <signature> field
         # to exclude the content of <> (aka the actual signature) from the byte range
         placeholder_start = contents_field_pos + 9
-        placeholder_end = placeholder_start + len(b"\0" * 8192) * 2 + 2
-        # The window must be exactly the serialized 8 KB zero placeholder;
-        # anything else means the computed offsets drifted and the /Contents
-        # substitution below would corrupt the document.
-        placeholder = b"<" + b"0" * (8192 * 2) + b">"
+        placeholder_end = placeholder_start + self._CONTENTS_PLACEHOLDER_BYTES * 2 + 2
+        # The window must be exactly the serialized zero placeholder; anything
+        # else means the computed offsets drifted and the /Contents substitution
+        # below would corrupt the document.
+        placeholder = b"<" + b"0" * (self._CONTENTS_PLACEHOLDER_BYTES * 2) + b">"
         if pdf_data[placeholder_start:placeholder_end] != placeholder:
             _logger.warning(
                 "Cannot sign PDF: /Contents placeholder not found at the "
@@ -553,8 +567,20 @@ class PdfSigner:
 
         cms_content_info = self._get_cms_object(digest, certificate, algorithm)
 
-        signature_hex = cms_content_info.dump().hex()
-        signature_hex = signature_hex.ljust(8192 * 2, "0")
+        signature_der = cms_content_info.dump()
+        if len(signature_der) > self._CONTENTS_PLACEHOLDER_BYTES:
+            # The CMS blob does not fit the reserved /Contents gap. ljust() only
+            # pads, so continuing would push the signature past the range the
+            # /ByteRange brackets and emit a silently-corrupt signature. Fail
+            # loudly instead (triggered e.g. by a signing certificate whose DER
+            # exceeds ~8 KB).
+            raise ValueError(
+                f"PDF signature ({len(signature_der)} bytes) exceeds the reserved "
+                f"{self._CONTENTS_PLACEHOLDER_BYTES} bytes; the certificate is too large to embed."
+            )
+        signature_hex = signature_der.hex().ljust(
+            self._CONTENTS_PLACEHOLDER_BYTES * 2, "0"
+        )
 
         sig_field_value.update(
             {NameObject("/Contents"): ByteStringObject(bytes.fromhex(signature_hex))}

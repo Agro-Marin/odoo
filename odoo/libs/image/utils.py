@@ -19,6 +19,30 @@ from PIL import (
 from PIL.Image import Image as PILImage
 from PIL.Image import Palette, Resampling
 
+
+# Typed image errors.  Each subclasses ``ValueError`` so every existing
+# ``except ValueError`` (in-tree and third-party) keeps catching them unchanged,
+# while callers that need to tell decode-failure from oversize-image from
+# not-a-webp can branch on the *type* instead of substring-matching the English
+# message.  The Odoo wrappers (``odoo.tools.image``) used to do exactly that
+# substring match to pick which translated ``UserError`` to raise, so a reworded
+# message here silently misrouted them; the type makes that coupling explicit.
+class ImageError(ValueError):
+    """Base class for image-processing errors."""
+
+
+class ImageDecodeError(ImageError):
+    """The source bytes could not be decoded as an image."""
+
+
+class ImageTooLargeError(ImageError):
+    """The image exceeds :data:`IMAGE_MAX_RESOLUTION`."""
+
+
+class NotWebpError(ImageError):
+    """The source is not a WebP file."""
+
+
 # Maps only the 6 first bits of the base64 data, accurate enough
 # for our purpose and faster than decoding the full blob first
 FILETYPE_BASE64_MAGICWORD = {
@@ -35,14 +59,6 @@ EXIF_TAG_ORIENTATION = 0x112
 # Arbitrary limit to fit most resolutions, including Samsung Galaxy A22 photo,
 # 8K with a ratio up to 16:10, and almost all variants of 4320p
 IMAGE_MAX_RESOLUTION = 50e6
-
-
-class ImageDecodeError(ValueError):
-    """The binary source could not be decoded as an image."""
-
-
-class ImageTooLargeError(ValueError):
-    """The image resolution exceeds ``IMAGE_MAX_RESOLUTION``."""
 
 
 # Preload PIL with the minimal subset of image formats we need.
@@ -139,13 +155,20 @@ class ImageProcess:
         self.source = source or False
         self.operationsCount = 0
 
-        if (
-            not source
-            or source[:1] == b"<"
-            or (source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8")
-        ):
-            # don't process empty source or SVG or WEBP
+        if not source or source[:1] == b"<":
+            # don't process empty source or SVG
             self.image = False
+        elif source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
+            # don't process WEBP, but still enforce the resolution cap so a
+            # crafted header cannot smuggle an oversized image past the guard
+            # (PIL never sees it, so the decode-time check below is skipped).
+            self.image = False
+            if verify_resolution:
+                size = get_webp_size(source)
+                if size and size[0] * size[1] > IMAGE_MAX_RESOLUTION:
+                    raise ImageTooLargeError(
+                        f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
+                    )
         else:
             try:
                 self.image = Image.open(io.BytesIO(source))
@@ -153,20 +176,22 @@ class ImageProcess:
                 msg = "This file could not be decoded as an image file."
                 raise ImageDecodeError(msg) from None
 
-            # Original format has to be saved before fixing the orientation or
-            # doing any other operations because the information will be lost on
-            # the resulting image.
-            self.original_format = (self.image.format or "").upper()
-
-            # Enforce the resolution cap *before* fixing orientation: EXIF
-            # transpose fully decodes and rotates the pixel buffer, so checking
-            # afterwards let an oversized image with an orientation tag be
-            # decompressed and copied before being rejected.
+            # Reject oversized images *before* any full-raster decode. The
+            # dimensions are known from the header at open() time; the
+            # image_fix_orientation() call below runs exif_transpose(), which
+            # forces .load() and would decode the whole decompression bomb
+            # first. A transpose only swaps width/height, so w*h — hence this
+            # check — is invariant under it.
             w, h = self.image.size
             if verify_resolution and w * h > IMAGE_MAX_RESOLUTION:
                 raise ImageTooLargeError(
                     f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                 )
+
+            # Original format has to be saved before fixing the orientation or
+            # doing any other operations because the information will be lost on
+            # the resulting image.
+            self.original_format = (self.image.format or "").upper()
 
             self.image = image_fix_orientation(self.image)
 
@@ -376,6 +401,13 @@ class ImageProcess:
         """
         if self.image:
             img_width, img_height = self.image.size
+            if 2 * padding >= min(img_width, img_height):
+                # PIL raises a bare "height and width must be > 0" from inside
+                # resize(); say what the caller actually got wrong.
+                raise ValueError(
+                    f"padding {padding} is too large for a "
+                    f"{img_width}x{img_height} image"
+                )
             self.image = self.image.resize(
                 (img_width - 2 * padding, img_height - 2 * padding)
             )
@@ -549,21 +581,29 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     See https://developers.google.com/speed/webp/docs/riff_container.
 
     :param source: binary source
-    :return: (width, height) tuple, or None if not supported
-    :raise: ValueError if source is not a webp file
+    :return: (width, height) tuple, or None if the WebP variant is unsupported
+        or the header is truncated before the dimensions
+    :raise NotWebpError: if source is not a webp file
     """
-    if not (source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8"):
+    # Need at least through the VP8 sub-type byte at offset 15 to classify.
+    if len(source) < 16 or not (source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8"):
         msg = "This file is not a webp file."
-        raise ValueError(msg)
+        raise NotWebpError(msg)
 
+    # Each branch reads a fixed window past offset 15; a source truncated before
+    # the end of that window used to raise ValueError ("not enough values to
+    # unpack") or IndexError from the slice/index, crashing callers that only
+    # guard for None -- notably ``is_image_size_above`` on a user-uploaded image.
+    # Treat a too-short header as "size unknown" (None), matching the
+    # unsupported-variant return below.
     vp8_type = source[15]
-    if vp8_type == 0x20:  # 0x20 = ' '
+    if vp8_type == 0x20 and len(source) >= 30:  # 0x20 = ' '
         # Sizes on big-endian 16 bits at offset 26.
         width_low, width_high, height_low, height_high = source[26:30]
         width = (width_high << 8) + width_low
         height = (height_high << 8) + height_low
         return (width, height)
-    elif vp8_type == 0x58:  # 0x58 = 'X'
+    elif vp8_type == 0x58 and len(source) >= 30:  # 0x58 = 'X'
         # Sizes (minus one) on big-endian 24 bits at offset 24.
         (
             width_low,
@@ -576,7 +616,7 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
         width = 1 + (width_high << 16) + (width_medium << 8) + width_low
         height = 1 + (height_high << 16) + (height_medium << 8) + height_low
         return (width, height)
-    elif vp8_type == 0x4C and source[20] == 0x2F:  # 0x4C = 'L'
+    elif vp8_type == 0x4C and len(source) >= 25 and source[20] == 0x2F:  # 0x4C = 'L'
         # Sizes (minus one) on big-endian-ish 14 bits at offset 21.
         # E.g. [@20] 2F ab cd ef gh
         # - width = 1 + (c&0x3)d ab: ignore the two high bits of the second byte

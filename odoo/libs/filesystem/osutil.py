@@ -81,7 +81,12 @@ def zip_dir(
     # it: a symlink under ``path`` pointing outside the tree must not leak files
     # from elsewhere on disk into the archive (upstream odoo/odoo f2e121db77af).
     dir_root_path = os.path.realpath(path)
-    len_prefix = len(str(Path(path).parent)) if include_dir else len(path)
+    # Length of the parent-dir prefix to strip from each stored name. Use
+    # rpartition, not ``Path.parent``: the latter yields "." (len 1) for a bare
+    # relative name like "pkg", over-counting by one and chopping the first two
+    # chars off every archived member name.
+    parent = path.rpartition(os.sep)[0] if include_dir else path
+    len_prefix = len(parent)
     if len_prefix:
         len_prefix += 1
 

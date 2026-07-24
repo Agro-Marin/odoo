@@ -592,7 +592,13 @@ def get_translated_module(
     else:
         if isinstance(arg, int):
             frame = inspect.currentframe()
-            while arg > 0:
+            # Stop at the top of the stack: walking past it sets ``frame`` to
+            # None and the next ``frame.f_back`` raised ``AttributeError``,
+            # defeating the ``if not frame`` guard just below -- which exists
+            # precisely to fall back to "base" when the requested frame does not
+            # exist.  ``arg`` is a caller-supplied frame count (documented public
+            # API), so an over-large value must degrade gracefully, not crash.
+            while arg > 0 and frame is not None:
                 arg -= 1
                 frame = frame.f_back
         else:

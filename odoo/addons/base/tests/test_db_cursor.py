@@ -4232,6 +4232,64 @@ class TestDdlCacheInvalidationNarrowed(BaseCase):
             cr.close()
 
 
+class TestDdlParamInliningInjectionLive(BaseCase):
+    """DDL client-side param inlining must neutralise injection through a REAL
+    backend, not just the unit-tested null-adapter-context path.
+
+    ``$N`` server-side params are rejected in DDL structural positions, so
+    ``Cursor.execute`` splices DDL params in client-side via
+    ``psycopg.sql.quote`` (the psycopg2->3 migration debt the db README flags as
+    security-sensitive).  ``odoo/db/tests/test_ddl.py`` fuzzes ``_inline_ddl_params``
+    with ``quote(value, None)`` (no connection), and the cache tests above run
+    ``COMMENT ... IS %s`` with a benign value — but nothing drives adversarial
+    content through a live connection, where the adapter context and the server's
+    own parser are what actually enforce the boundary.  This does.
+    """
+
+    def test_injection_values_roundtrip_exact_and_do_not_execute(self):
+        tbl = "_test_ddl_injection"
+        # Values crafted to break out of the quoted literal or be re-read as
+        # markers; each must survive as data, byte-for-byte, and none may run.
+        payloads = [
+            "'; DROP TABLE " + tbl + "; --",
+            "x' OR '1'='1",
+            "a\\'; DELETE FROM pg_class; --",
+            "%s and %(x)s literal markers",
+            "tab\tand\nnewline",
+            "back\\slash and 100% percent",
+            "unicode ☃ snowman",
+        ]
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            cr.execute(f"CREATE TABLE {tbl} (x int)")
+            for payload in payloads:
+                # positional %s
+                cr.execute(f"COMMENT ON TABLE {tbl} IS %s", (payload,))
+                cr.execute("SELECT obj_description(%s::regclass, 'pg_class')", (tbl,))
+                self.assertEqual(
+                    cr.fetchone()[0],
+                    payload,
+                    "positional DDL param must round-trip byte-exact, not inject",
+                )
+                # named %(c)s
+                cr.execute(f"COMMENT ON TABLE {tbl} IS %(c)s", {"c": payload})
+                cr.execute("SELECT obj_description(%s::regclass, 'pg_class')", (tbl,))
+                self.assertEqual(
+                    cr.fetchone()[0],
+                    payload,
+                    "named DDL param must round-trip byte-exact, not inject",
+                )
+            # The table still exists: no ``DROP``/``DELETE`` from a payload ran.
+            cr.execute("SELECT to_regclass(%s) IS NOT NULL", (tbl,))
+            self.assertTrue(
+                cr.fetchone()[0],
+                "an injection payload executed as SQL — client-side quoting failed",
+            )
+        finally:
+            cr.rollback()  # CREATE TABLE is transactional — nothing leaks
+            cr.close()
+
+
 class TestDdlInvalidatesPreparedPlan(BaseCase):
     """A schema-changing DDL must drop psycopg's auto-prepared-statement cache on
     the connection that ran it.  Otherwise a later ``SELECT *`` reusing a plan

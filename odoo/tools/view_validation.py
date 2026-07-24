@@ -140,6 +140,12 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
                             _get_expression_contextual_values(ast_domain.right)
                         )
                     return
+                if not isinstance(ast_domain, (ast.List, ast.Tuple)):
+                    # Not a list/tuple domain literal (e.g. a call, dict, number,
+                    # unary or subscript expression). Raise ValueError so the
+                    # outer handler normalizes it to "Wrong domain formatting."
+                    # rather than leaking an AttributeError on ``.elts``.
+                    raise ValueError
                 for ast_item in ast_domain.elts:
                     if isinstance(ast_item, ast.Constant):
                         # "&", "|", "!", True, False
@@ -259,12 +265,18 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
     if isinstance(item_ast, ast.Dict):
         values = set()
         for item in item_ast.keys:
-            values |= _get_expression_contextual_values(item)
+            # ``**spread`` entries carry a ``None`` key; the spread source is in
+            # ``.values`` and is handled below, so skip the missing key.
+            if item is not None:
+                values |= _get_expression_contextual_values(item)
         for item in item_ast.values:
             values |= _get_expression_contextual_values(item)
         return values
 
-    raise ValueError(f"Undefined item {item_ast!r}.")
+    # Unsupported node kind (f-string, comprehension, lambda, ...). Name only
+    # the node type -- never ``repr(item_ast)``, which dumps the whole AST into
+    # a user-facing view-validation error.
+    raise ValueError(f"Unsupported expression: {type(item_ast).__name__}.")
 
 
 def get_expression_field_names(expression: str) -> set[str]:

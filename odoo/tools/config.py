@@ -1730,7 +1730,14 @@ class configmanager:
         except OSError:
             pass
         except configparser.NoSectionError:
+            # No ``[options]`` section — legitimate, fall back to defaults.
             pass
+        except configparser.Error as exc:
+            # A syntactically malformed file (missing section header, duplicate
+            # option/section, parsing error): report it the same friendly way
+            # as every other config problem instead of aborting boot with a raw
+            # configparser traceback.
+            self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
 
     def save(self, keys: list[str] | None = None) -> None:
         p = configparser.RawConfigParser()
@@ -1818,7 +1825,13 @@ class configmanager:
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
-            assert os.access(d, os.W_OK), "%s: directory is not writable" % d
+            # An existing-but-unwritable session dir is a hard misconfiguration:
+            # every request needs to write its session here.  This must be a real
+            # raise, not ``assert`` — asserts are stripped under ``python -O`` (a
+            # common production flag), which would let the server boot and then
+            # fail obscurely on the first session write instead of here.
+            if not os.access(d, os.W_OK):
+                raise OSError(f"{d}: session directory is not writable") from e
         return d
 
     def filestore(self, dbname: str) -> str:

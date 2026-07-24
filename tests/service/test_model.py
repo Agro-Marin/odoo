@@ -193,6 +193,65 @@ class TestGetPublicMethod:
                 mod.get_public_method(leaf_instance, "deep_private")
 
 
+class TestGetPublicMethodCache:
+    """The per-class memo (``_PUBLIC_METHOD_CACHE``) must speed resolution up
+    WITHOUT changing behaviour or opening an unbounded-growth vector."""
+
+    @pytest.fixture()
+    def cache(self, mod):
+        """Isolate the process-global memo around each test."""
+        mod._PUBLIC_METHOD_CACHE.pop(_FakeModel, None)
+        yield mod._PUBLIC_METHOD_CACHE
+        mod._PUBLIC_METHOD_CACHE.pop(_FakeModel, None)
+
+    def test_success_is_cached_and_stable(self, mod, cache) -> None:
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            first = mod.get_public_method(_FakeModel(), "public_method")
+            # A DIFFERENT instance of the same class must hit the cached entry.
+            second = mod.get_public_method(_FakeModel(), "public_method")
+        assert first is second
+        assert cache[_FakeModel]["public_method"] is first
+
+    def test_rejections_are_not_cached(self, mod, cache) -> None:
+        """Private / api-private / missing / non-callable names must never add a
+        cache entry: caching them would let an unauthenticated caller grow the
+        memo with unbounded distinct fake names (a memory DoS)."""
+        from odoo.exceptions import AccessError  # noqa: PLC0415
+
+        rejects = [
+            ("_underscore", AccessError),
+            ("api_private_method", AccessError),
+            ("not_callable", AttributeError),
+            ("missing_xyz", AttributeError),
+        ]
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            for name, exc in rejects:
+                with pytest.raises(exc):
+                    mod.get_public_method(_FakeModel(), name)
+        # The per-class dict may exist but MUST hold no rejected name.
+        assert cache.get(_FakeModel, {}) == {}
+
+    def test_distinct_classes_do_not_collide(self, mod, cache) -> None:
+        """A fresh class object (as a registry reload produces) is a guaranteed
+        cache miss — correctness never relies on the old entry being GC'd."""
+
+        class Other(_FakeBaseModel):
+            _name = "other.model"
+
+            def public_method(self) -> str:
+                return "other"
+
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            a = mod.get_public_method(_FakeModel(), "public_method")
+            b = mod.get_public_method(Other(), "public_method")
+        try:
+            assert a is not b
+            assert cache[_FakeModel]["public_method"] is a
+            assert cache[Other]["public_method"] is b
+        finally:
+            cache.pop(Other, None)
+
+
 # ---------------------------------------------------------------------------
 # TestForceLazyValues
 # ---------------------------------------------------------------------------
@@ -247,10 +306,19 @@ class TestForceLazyValues:
         mod._force_lazy_values({"key": lz})
         assert forced()
 
-    def test_lazy_as_dict_key_forced(self, mod) -> None:
-        # Dict keys are traversed too — a lazy can legitimately be a key.
+    def test_lazy_dict_key_needs_no_walk(self, mod) -> None:
+        # The walk deliberately does NOT descend into dict KEYS, and does not
+        # need to: a lazy used as a dict key is forced the instant it is
+        # inserted (``lazy.__hash__`` hashes ``_value``), so it is already
+        # evaluated before the walk ever runs.  It also could never be
+        # marshalled regardless (JSON/XML-RPC keys must be strings).  Both facts
+        # are why skipping keys is safe — verify the key is forced by
+        # construction, not by ``_force_lazy_values``.
         lz, forced = _tracked_lazy()
-        mod._force_lazy_values({lz: "value"})
+        d = {lz: "value"}
+        assert forced()  # forced by dict construction (hashing), before the walk
+        # The walk over the built dict leaves that already-forced key untouched.
+        mod._force_lazy_values(d)
         assert forced()
 
     def test_lazy_in_set_forced(self, mod) -> None:

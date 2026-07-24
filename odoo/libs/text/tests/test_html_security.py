@@ -15,6 +15,7 @@ from odoo.libs.text.html import (
     html2plaintext,
     html_keep_url,
     html_normalize,
+    html_sanitize,
     plaintext2html,
 )
 
@@ -23,9 +24,7 @@ class TestHtmlNormalizeEncodingStrip(unittest.TestCase):
     def test_strips_only_the_encoding_attribute(self):
         # the encoding attribute is removed, but the tag and its other
         # attributes/content must survive (the old regex deleted the whole tag).
-        out = html_normalize(
-            '<p><span encoding="x" style="color:red">imp</span> t</p>'
-        )
+        out = html_normalize('<p><span encoding="x" style="color:red">imp</span> t</p>')
         self.assertIn("imp", out)
         self.assertIn("t", out)
         self.assertIn("color:red", out)
@@ -35,6 +34,36 @@ class TestHtmlNormalizeEncodingStrip(unittest.TestCase):
         out = html_normalize("<p>hi <b>bold</b> there</p>")
         self.assertIn("bold", out)
         self.assertNotIn("encoding", out)
+
+
+class TestSanitizeSvgLink(unittest.TestCase):
+    """``xlink:href`` must be URL-scheme checked, like a plain ``href``.
+
+    It is in neither lxml's ``defs.safe_attrs`` nor odoo's, yet the cleaner lets
+    it through; the ``defs.link_attrs`` registration in ``odoo.libs.text.html``
+    is the only thing that scrubs its scheme.  Dropping that one line silently
+    reopens stored XSS on every sanitized HTML field, which is invisible unless
+    a test pins it.
+    """
+
+    def test_javascript_scheme_is_stripped(self):
+        out = html_sanitize(
+            '<svg><a xlink:href="javascript:alert(1)"><text>x</text></a></svg>'
+        )
+        self.assertNotIn("javascript:", out)
+
+    def test_data_scheme_is_stripped(self):
+        out = html_sanitize(
+            '<svg><a xlink:href="data:text/html;base64,PHNjcmlwdD4="><text>x</text></a></svg>'
+        )
+        self.assertNotIn("base64", out)
+
+    def test_http_url_survives(self):
+        # the scheme check must not degrade into "strip every SVG link"
+        out = html_sanitize(
+            '<svg><a xlink:href="https://ok.example"><text>x</text></a></svg>'
+        )
+        self.assertIn("https://ok.example", out)
 
 
 class TestCreateLink(unittest.TestCase):

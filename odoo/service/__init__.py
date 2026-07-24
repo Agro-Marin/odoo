@@ -25,6 +25,7 @@ Module layout:
     _cron.py        Shared cron LISTEN/NOTIFY plumbing (server + worker)
     _helpers.py     Shared process-control helpers
     _db_helpers.py  Shared db.py helpers
+    _dump_scanner.py  psql meta-command safety scanner for restore input
     _env.py         Guarded ODOO_* env-var parsing (env_float / env_int)
 
 Submodules are imported eagerly so callers can use ``odoo.service.X`` after a
