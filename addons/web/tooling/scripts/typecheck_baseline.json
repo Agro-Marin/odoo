@@ -707,9 +707,11 @@
       "TS2464": 2,
       "TS2559": 2
     },
-    "addons/web/static/tests/search/search_panel_state.test.js": {
-      "TS2339": 4,
+    "addons/web/static/tests/search/search_panel_mixin.test.js": {
+      "TS2322": 3,
+      "TS2339": 6,
       "TS2345": 6,
+      "TS2532": 13,
       "TS2769": 2
     },
     "addons/web/static/tests/search/with_search.test.js": {

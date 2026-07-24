@@ -44,7 +44,7 @@
     <record id="view_order_form" model="ir.ui.view">
         <field name="name">sale.order.form</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="inherit_id" ref="sale.view_sale_order_form"/>
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button groups="account.group_account_invoice"

@@ -2,7 +2,6 @@
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
-import { PublicRoot } from "@web/legacy/js/public/public_root";
 import * as bootstrap from "@web/libs/bootstrap";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
@@ -427,20 +426,6 @@ export const websiteEditService = {
     },
 };
 registry.category("services").add("website_edit", websiteEditService);
-
-// Patch PublicRoot.
-
-PublicRoot.include({
-    // This file is lazy loaded, init will not be called when entering edit.
-    /**
-     * @override
-     */
-    _restartInteractions(targetEl, options) {
-        const websiteEdit = this.bindService("website_edit");
-        const mode = options?.editableMode ? "edit" : "normal";
-        websiteEdit.update(targetEl, mode);
-    },
-});
 
 /**
  * Whether a `getConfigurationSnapshot()` result carries real tracked

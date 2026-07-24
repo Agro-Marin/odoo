@@ -57,7 +57,8 @@ assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev
 # Legacy QUnit chain REMOVED (see TEST_TAGS.md): static/tests/legacy/ tree,
 # vendored static/lib/qunit/, the web.tests_assets / web.__assets_tests_call__ /
 # web.qunit_suite_tests bundles and the /web/tests/legacy route are all gone.
-# The two production-relevant suites were ported to HOOT under tests/legacy_js/.
+# The Class/publicWidget suites were later deleted with the legacy namespace
+# (2026-07-23); only the lazyloader suite survives, in tests/public/.
 assert_eq "Legacy QUnit tree deleted (static/tests/legacy)" \
     "$([ -d "$WEB/static/tests/legacy" ] && echo 1 || echo 0)" "0"
 assert_eq "Vendored QUnit deleted (static/lib/qunit)" \
@@ -70,8 +71,10 @@ assert_eq "No QUnit. references remain (legacy chain fully removed)" \
     "$(grep -rl "QUnit\." "$WEB/static/tests" --include="*.js" 2>/dev/null | wc -l)" "0"
 assert_eq "No QUnit.test/QUnit.module calls anywhere in static/" \
     "$(grep -rE "QUnit\.(test|module)\(" "$WEB/static" --include="*.js" 2>/dev/null | wc -l)" "0"
-assert_eq "Ported legacy suites live in tests/legacy_js" \
-    "$(find "$WEB/static/tests/legacy_js" -name "*.test.js" 2>/dev/null | wc -l)" "3"
+assert_eq "legacy_js test tree deleted (suites retired with the namespace)" \
+    "$([ -d "$WEB/static/tests/legacy_js" ] && echo 1 || echo 0)" "0"
+assert_eq "lazyloader HOOT suite lives in tests/public" \
+    "$(find "$WEB/static/tests/public" -name "lazyloader.test.js" 2>/dev/null | wc -l)" "1"
 
 # ------- Reactivity migration progress -------
 # Sharpened from round-1: count actual class declarations, not file matches.
@@ -205,9 +208,13 @@ assert_eq "form_controller distinct top-level dirs" \
     "$(grep "^import" "$WEB/static/src/views/form/form_controller.js" \
         | grep -oE "@web/[a-z_]+" | sort -u | wc -l)" "7"
 
-# ------- legacy/js inventory -------
-assert_eq "legacy/js JS file count" \
-    "$(find "$WEB/static/src/legacy" -name "*.js" -type f 2>/dev/null | wc -l)" "6"
+# ------- legacy/ retirement (2026-07-23) -------
+assert_eq "legacy/ namespace deleted" \
+    "$([ -d "$WEB/static/src/legacy" ] && echo 1 || echo 0)" "0"
+assert_eq "early-boot lazyloader+minimal_dom relocated to public/" \
+    "$(ls "$WEB/static/src/public/lazyloader.js" "$WEB/static/src/public/minimal_dom.js" 2>/dev/null | wc -l)" "2"
+assert_eq "frontend boot extracted to public/public_boot(.js/_instance.js)" \
+    "$(ls "$WEB/static/src/public/public_boot.js" "$WEB/static/src/public/public_boot_instance.js" 2>/dev/null | wc -l)" "2"
 
 # ------- i18n: plural support (Phase 1, JS-only — 2026-05-10) -------
 # Phase 1 added a `_pl(count, forms)` helper in core/l10n/translation.js that
@@ -406,7 +413,6 @@ for section_check in \
     "services/:37" \
     "ui/:19" \
     "search/:32" \
-    "legacy/:6" \
     "libs/:1"; do
     section="${section_check%:*}"
     expected="${section_check##*:}"
@@ -563,8 +569,8 @@ assert_eq "ARCHITECTURE.md Layer: Views = 151" \
     "$(grep -cE '\| \*\*Views\*\* \| .views/. \|.*\| 151 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md Layer: Model = 42" \
     "$(grep -cE '\| \*\*Model\*\* \| .model/. \|.*\| 42 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer table covers legacy/" \
-    "$(grep -cE '\| \*\*Legacy\*\* \| .legacy/. \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md notes the legacy/ retirement" \
+    "$(grep -c 'namespace was fully retired' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md Layer table covers libs/" \
     "$(grep -cE '\| .libs/. \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 

@@ -23,7 +23,7 @@
                                     tabindex="0"
                                     >
                                     <div class="o_searchview_facet_label rounded-start-2 btn btn-primary rounded-end-0 p-0" role="button">
-                                        <i class="px-1 small fa-solid fa-filter" role="image"/>
+                                        <i class="px-1 small fa-solid fa-filter" aria-hidden="true"/>
                                     </div>
                                     <div class="o_facet_values d-flex align-items-center px-2 bg-200 rounded-end-2 text-wrap">
                                         <small class="o_facet_value" t-esc="facet"/>

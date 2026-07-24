@@ -140,10 +140,10 @@
 | `fields/temporal/datetime/` | features | 2 | 775 | Date and datetime field widget with inline editing and picker integration |
 | `fields/temporal/remaining_days/` | features | 1 | 108 | Deadline countdown field showing remaining days with color-coded urgency |
 | `fields/temporal/timezone_mismatch/` | features | 1 | 109 | Timezone selection field that warns when browser and user timezones differ |
-| `legacy/` | misc | 0 | — | Legacy compatibility namespace — see `legacy/js/` |
-| `legacy/js/` | misc | 0 | — | Legacy JS namespace — see `legacy/js/core/`, `legacy/js/public/` |
-| `legacy/js/core/` | misc | 1 | 185 | Legacy class inheritance system based on John Resig's simple JavaScript inher... |
-| `legacy/js/public/` | misc | 5 | 1,791 | Lazy script loader that defers event handling until all JS bundles are loaded |
+<!-- `legacy/` DELETED (2026-07-23): Class/publicWidget/PublicRoot retired in
+     favor of public.interactions; lazyloader.js + minimal_dom.js moved to
+     `public/`; the frontend boot is `public/public_boot.js` +
+     `public/public_boot_instance.js`. -->
 | `libs/` | misc | 1 | 117 | (generated/vendored — no description) |
 | `libs/fontawesome7/` | misc | 0 | — | Vendored FontAwesome 7 — icon CSS + webfonts |
 | `libs/fontawesome7/css/` | misc | 0 | — | FontAwesome 7 stylesheets |

@@ -1,13 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/legacy/js/public/lazyloader - Lazy script loader that defers event handling until all JS bundles are loaded */
+/** @module @web/public/lazyloader - Lazy script loader that defers event handling until all JS bundles are loaded */
 
 import {
     BUTTON_HANDLER_SELECTOR,
     makeAsyncHandler,
     makeButtonHandler,
-} from "@web/legacy/js/public/minimal_dom";
+} from "@web/public/minimal_dom";
 
 // Track when all JS files have been lazy loaded. Will allow to unblock the
 // related DOM sections when the whole JS have been loaded and executed.

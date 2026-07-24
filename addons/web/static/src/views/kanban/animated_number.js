@@ -43,9 +43,12 @@ export class AnimatedNumber extends Component {
             const { value: to, duration } = nextProps;
             if (
                 !(/** @type {any} */ (this.constructor).enableAnimations) ||
+                browser.matchMedia("(prefers-reduced-motion: reduce)").matches ||
                 !duration ||
                 to <= from
             ) {
+                // No animation (disabled, reduced-motion, or nothing to count):
+                // jump straight to the final value.
                 browser.cancelAnimationFrame(this.handle);
                 this.state.value = to;
                 return;

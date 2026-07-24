@@ -1168,6 +1168,25 @@ test("execute_action of type action are handled", async () => {
     ]);
 });
 
+test.tags("mobile");
+test("smart button runs even when the tap lands on the More item wrapper", async () => {
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(2);
+    expect(".o_form_view").toHaveCount(1);
+    await contains(".o-form-buttonbox .o_button_more").click();
+    await animationFrame();
+    await animationFrame();
+    expect(".o_bottom_sheet").toHaveCount(1);
+    // A tap that resolves to the DropdownItem wrapper (rather than the inner
+    // ViewButton) must still run the stat button's action, not just close the
+    // sheet. Regression for "sheet closes, no action" on mobile/Android.
+    await contains(".o_bottom_sheet .o-dropdown-item").click();
+    await animationFrame();
+    await runAllTimers();
+    await animationFrame();
+    expect(".o_kanban_view").toHaveCount(1);
+});
+
 test.tags("desktop");
 test("execute smart button and back", async () => {
     onRpc("web_read", ({ kwargs }) => {

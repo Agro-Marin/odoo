@@ -4,6 +4,7 @@
 /** @module @web/ui/popover/popover - Positioned popover component with click-away close, hotkey escape, and arrow rendering */
 
 import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { usePosition } from "@web/core/position/position_hook";
 import { reverseForRTL } from "@web/core/position/utils";
 import { mergeClasses } from "@web/core/utils/dom/classname";
@@ -293,9 +294,12 @@ export class Popover extends Component {
             bottom: ["translateY(5%)", "translateY(0)"],
             left: ["translateX(-5%)", "translateX(0)"],
         }[direction];
+        // Honor prefers-reduced-motion: duration 0 jumps straight to the end
+        // state (no slide/fade) while keeping the ``.finished`` flow intact.
+        const reduced = browser.matchMedia("(prefers-reduced-motion: reduce)").matches;
         return this.popoverRef.el.animate(
             { opacity: [0, 1], transform },
-            /** @type {any} */ (this.constructor).animationTime,
+            reduced ? 0 : /** @type {any} */ (this.constructor).animationTime,
         );
     }
 

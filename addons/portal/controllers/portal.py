@@ -1,4 +1,3 @@
-import json
 import math
 import re
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
@@ -608,7 +607,7 @@ class CustomerPortal(Controller):
             partner_sudo, **form_data
         )
 
-        return json.dumps(feedback_dict)
+        return request.make_json_response(feedback_dict)
 
     def _create_or_update_address(
         self,

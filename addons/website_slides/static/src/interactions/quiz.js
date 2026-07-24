@@ -2,57 +2,74 @@
 import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
-import publicWidget from "@web/legacy/js/public/public_widget";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { attachCourseJoin } from "@website_slides/interactions/course_join";
+import { CoursePage } from "@website_slides/interactions/course_page";
+import { QuestionFormBehavior } from "@website_slides/interactions/quiz_question_form";
 import { SlideQuizFinishDialog } from "@website_slides/js/public/components/slide_quiz_finish_dialog/slide_quiz_finish_dialog";
 import { parseQuestionMarkup } from "@website_slides/js/public/slides_course_utils";
-import CourseJoin from "@website_slides/js/slides_course_join";
-import { SlideCoursePage } from "@website_slides/js/slides_course_page";
-import QuestionFormWidget from "@website_slides/js/slides_course_quiz_question_form";
-
-const CourseJoinWidget = CourseJoin.courseJoinWidget;
 
 /**
- * This widget is responsible of displaying quiz questions and propositions. Submitting the quiz will fetch the
- * correction and decorate the answers according to the result. Error message or modal can be displayed.
+ * Displays quiz questions and propositions. Submitting the quiz will fetch
+ * the correction and decorate the answers according to the result. Error
+ * message or modal can be displayed.
  *
- * This widget can be attached to DOM rendered server-side by `website_slides.slide_category_quiz` or
- * used client side (Fullscreen).
+ * Attaches to DOM rendered server-side by `website_slides.slide_category_quiz`
+ * (QuizNoFullscreen below) or renders the "slide.slide.quiz" template client
+ * side (fullscreen player).
  *
- * Triggered events are :
- * - slide_go_next: need to go to the next slide, when quiz is done. Event data contains the current slide id.
- * - quiz_completed: when the quiz is passed and completed by the user. Event data contains current slide data.
+ * Completion is signaled through bubbling DOM CustomEvents:
+ * - `slide_go_next`: need to go to the next slide, when quiz is done.
+ * - `slide_completed`: when the quiz is passed and completed by the user.
  */
-var Quiz = publicWidget.Widget.extend({
-    template: "slide.slide.quiz",
-    events: {
-        "click .o_wslides_quiz_answer": "_onAnswerClick",
-        "click .o_wslides_js_lesson_quiz_submit": "_submitQuiz",
-        "click .o_wslides_quiz_continue": "_onClickNext",
-        "click .o_wslides_js_lesson_quiz_reset": "_onClickReset",
-        "click .o_wslides_js_quiz_add": "_onCreateQuizClick",
-        "click .o_wslides_js_quiz_edit_question": "_onEditQuestionClick",
-        "click .o_wslides_js_quiz_delete_question": "_onDeleteQuestionClick",
-    },
-
-    custom_events: {
-        display_created_question: "_displayCreatedQuestion",
-        display_updated_question: "_displayUpdatedQuestion",
-        reset_display: "_resetDisplay",
-        delete_question: "_deleteQuestion",
-    },
-
+export class QuizBehavior {
     /**
-     * @override
-     * @param {Object} parent
-     * @param {Object} slide_data holding all the classic slide information
-     * @param {Object} quiz_data : optional quiz data to display. If not given, will be fetched. (questions and answers).
+     * Fetches the quiz data if not given, then instantiates the behavior.
+     * Rendering mode: pass `targetEl` to render the "slide.slide.quiz"
+     * template; pass `el` to attach to existing server-rendered DOM.
+     *
+     * @param {import("@web/public/interaction").Interaction} host
+     * @param {Object} params
+     * @param {HTMLElement} [params.el] existing quiz element (attach mode)
+     * @param {HTMLElement} [params.targetEl] where to render (render mode)
+     * @param {Object} params.slideData holding all the classic slide information
+     * @param {Object} params.channelData
+     * @param {Object} [params.quizData] optional quiz data. Fetched if absent.
+     * @returns {Promise<QuizBehavior>}
      */
-    init: function (parent, slide_data, channel_data, quiz_data) {
-        this._super.apply(this, arguments);
+    static async create(host, params) {
+        let quizData = params.quizData;
+        let sessionAnswers;
+        if (!quizData) {
+            const fetched = await host.waitFor(
+                rpc("/slides/slide/quiz/get", { slide_id: params.slideData.id }),
+            );
+            sessionAnswers = fetched.session_answers;
+            quizData = {
+                description_safe: fetched.slide_description
+                    ? markup(fetched.slide_description)
+                    : "",
+                questions: fetched.slide_questions || [],
+                quizAttemptsCount: fetched.quiz_attempts_count || 0,
+                quizKarmaGain: fetched.quiz_karma_gain || 0,
+                quizKarmaWon: fetched.quiz_karma_won || 0,
+                slideResources: fetched.slide_resource_ids || [],
+            };
+        }
+        const quiz = new this(host, params, quizData);
+        if (sessionAnswers !== undefined) {
+            quiz.slide.sessionAnswers = sessionAnswers;
+        }
+        quiz.start();
+        return quiz;
+    }
+
+    constructor(host, params, quizData) {
+        this.host = host;
         this.slide = Object.assign(
             {
                 id: 0,
@@ -62,66 +79,91 @@ var Quiz = publicWidget.Widget.extend({
                 isMember: false,
                 isMemberOrInvited: false,
             },
-            slide_data,
+            params.slideData,
         );
-        this.quiz = quiz_data || false;
-        if (this.quiz) {
-            this.quiz.questionsCount = quiz_data.questions.length;
-        }
-        this.isMember = slide_data.isMember || false;
-        this.isMemberOrInvited = slide_data.isMemberOrInvited || false;
+        this.quiz = { ...quizData };
+        this.quiz.questionsCount = (quizData.questions || []).length;
+        this.isMember = this.slide.isMember || false;
+        this.isMemberOrInvited = this.slide.isMemberOrInvited || false;
         this.publicUser = session.is_website_user;
         this.userId = user.userId;
         this.redirectURL = encodeURIComponent(document.URL);
-        this.channel = channel_data;
+        this.channel = params.channelData;
 
-        this.orm = this.bindService("orm");
-    },
-
-    /**
-     * @override
-     */
-    willStart: function () {
-        const defs = [this._super.apply(this, arguments)];
-        if (!this.quiz) {
-            defs.push(this._fetchQuiz());
+        this.eventRemovers = [];
+        if (params.el) {
+            this.el = params.el;
+        } else {
+            [this.el] = host.renderAt(
+                "slide.slide.quiz",
+                { widget: this },
+                params.targetEl,
+            );
         }
-        return Promise.all(defs);
-    },
+        this._bindEvents();
+    }
 
     /**
-     * Overridden to add custom rendering behavior upon start of the widget.
+     * Custom rendering behavior upon start.
      *
-     * If the user has answered the quiz before having joined the course, we check
-     * their answers (saved into their session) here as well.
-     *
-     * @override
+     * If the user has answered the quiz before having joined the course, we
+     * check their answers (saved into their session) here as well.
      */
-    start: function () {
-        const self = this;
-        return this._super.apply(this, arguments).then(function () {
-            self._renderValidationInfo();
-            self._bindSortable();
-            self._checkLocationHref();
-            if (!self.isMember) {
-                self._renderJoinWidget();
-            } else if (self.slide.sessionAnswers) {
-                self._applySessionAnswers();
-                self._submitQuiz();
-            }
-        });
-    },
+    start() {
+        this._renderValidationInfo();
+        this._bindSortable();
+        this._checkLocationHref();
+        if (!this.isMember) {
+            this._renderJoinWidget();
+        } else if (this.slide.sessionAnswers) {
+            this._applySessionAnswers();
+            this._submitQuiz();
+        }
+    }
 
-    destroy() {
-        this._unbindSortable();
-        return this._super(...arguments);
-    },
+    /**
+     * Re-renders the whole quiz from its template (render mode re-render, or
+     * after the slide was marked "Not Done" to re-show the questions).
+     */
+    rerender() {
+        const newEl = renderToElement("slide.slide.quiz", { widget: this });
+        this.el.replaceWith(newEl);
+        this.el = newEl;
+        this._bindEvents();
+        this._bindSortable();
+    }
 
     //--------------------------------------------------------------------------
     // Private
     //--------------------------------------------------------------------------
 
-    _showErrorMessage: function (errorCode) {
+    _bindEvents() {
+        for (const remove of this.eventRemovers) {
+            remove();
+        }
+        const handlers = {
+            ".o_wslides_quiz_answer": this._onAnswerClick,
+            ".o_wslides_js_lesson_quiz_submit": this._submitQuiz,
+            ".o_wslides_quiz_continue": this._onClickNext,
+            ".o_wslides_js_lesson_quiz_reset": this._onClickReset,
+            ".o_wslides_js_quiz_add": this._onCreateQuizClick,
+            ".o_wslides_js_quiz_edit_question": this._onEditQuestionClick,
+            ".o_wslides_js_quiz_delete_question": this._onDeleteQuestionClick,
+        };
+        this.eventRemovers = [
+            this.host.addListener(this.el, "click", (ev) => {
+                for (const [selector, handler] of Object.entries(handlers)) {
+                    const target = ev.target.closest(selector);
+                    if (target && this.el.contains(target)) {
+                        handler.call(this, ev, target);
+                        return;
+                    }
+                }
+            }),
+        ];
+    }
+
+    _showErrorMessage(errorCode) {
         let message = _t("There was an error validating this quiz.");
         if (errorCode === "slide_quiz_incomplete") {
             message = _t("All questions must be answered!");
@@ -141,56 +183,54 @@ var Quiz = publicWidget.Widget.extend({
                 textEl.textContent = message;
             }
         }
-    },
+    }
 
-    _hideErrorMessage: function () {
+    _hideErrorMessage() {
         const errorEl = this.el.querySelector(".o_wslides_js_quiz_submit_error");
         if (errorEl) {
             errorEl.classList.add("d-none");
         }
-    },
+    }
 
     /**
-     * Allows to reorder the questions
-     * @private
+     * Allows to reorder the questions.
      */
-    _bindSortable: function () {
-        this.bindedSortable = this.call("sortable", "create", {
-            ref: { el: this.el },
-            handle: ".o_wslides_js_quiz_sequence_handler",
-            elements: ".o_wslides_js_lesson_quiz_question",
-            onDrop: this._reorderQuestions.bind(this),
-            clone: false,
-            placeholderClasses: [
-                "o_wslides_js_quiz_sequence_highlight",
-                "position-relative",
-                "my-3",
-            ],
-            applyChangeOnDrop: true,
-        }).enable();
-    },
-
-    _unbindSortable: function () {
+    _bindSortable() {
         this.bindedSortable?.cleanup();
-    },
+        this.bindedSortable = this.host.services.sortable
+            .create({
+                ref: { el: this.el },
+                handle: ".o_wslides_js_quiz_sequence_handler",
+                elements: ".o_wslides_js_lesson_quiz_question",
+                onDrop: this._reorderQuestions.bind(this),
+                clone: false,
+                placeholderClasses: [
+                    "o_wslides_js_quiz_sequence_highlight",
+                    "position-relative",
+                    "my-3",
+                ],
+                applyChangeOnDrop: true,
+            })
+            .enable();
+        this.host.registerCleanup(() => this.bindedSortable?.cleanup());
+    }
 
     /**
-     * Get all the questions ID from the displayed Quiz
+     * Get all the questions ID from the displayed Quiz.
+     *
      * @returns {Array}
-     * @private
      */
-    _getQuestionsIds: function () {
+    _getQuestionsIds() {
         return Array.from(
             this.el.querySelectorAll(".o_wslides_js_lesson_quiz_question"),
         ).map((el) => el.dataset.questionId);
-    },
+    }
 
     /**
-     * Modify visually the sequence of all the questions after
-     * calling the _reorderQuestions RPC call.
-     * @private
+     * Modify visually the sequence of all the questions after calling the
+     * _reorderQuestions RPC call.
      */
-    _modifyQuestionsSequence: function () {
+    _modifyQuestionsSequence() {
         this.el
             .querySelectorAll(".o_wslides_js_lesson_quiz_question")
             .forEach((question, index) => {
@@ -201,62 +241,57 @@ var Quiz = publicWidget.Widget.extend({
                     seq.textContent = index + 1;
                 }
             });
-    },
+    }
 
     /**
-     * RPC call to resequence all the questions. It is called
-     * after modifying the sequence of a question and also after
-     * deleting a question.
-     * @private
+     * RPC call to resequence all the questions. It is called after modifying
+     * the sequence of a question and also after deleting a question.
      */
-    _reorderQuestions: function () {
-        this.orm
+    _reorderQuestions() {
+        this.host.services.orm
             .webResequence("survey.question", this._getQuestionsIds())
             .then(this._modifyQuestionsSequence.bind(this));
-    },
-    /*
-     * @private
-     * Fetch the quiz for a particular slide
-     */
-    _fetchQuiz: function () {
-        const self = this;
-        return rpc("/slides/slide/quiz/get", {
-            slide_id: self.slide.id,
-        }).then(function (quiz_data) {
-            self.slide.sessionAnswers = quiz_data.session_answers;
-            self.quiz = {
-                description_safe: quiz_data.slide_description
-                    ? markup(quiz_data.slide_description)
-                    : "",
-                questions: quiz_data.slide_questions || [],
-                questionsCount: quiz_data.slide_questions.length,
-                quizAttemptsCount: quiz_data.quiz_attempts_count || 0,
-                quizKarmaGain: quiz_data.quiz_karma_gain || 0,
-                quizKarmaWon: quiz_data.quiz_karma_won || 0,
-                slideResources: quiz_data.slide_resource_ids || [],
-            };
-        });
-    },
+    }
 
     /**
-     * Hide the edit and delete button and also the handler
-     * to resequence the question
-     * @private
+     * Fetch the quiz for a particular slide.
      */
-    _hideEditOptions: function () {
+    _fetchQuiz() {
+        return this.host
+            .waitFor(rpc("/slides/slide/quiz/get", { slide_id: this.slide.id }))
+            .then((quiz_data) => {
+                this.slide.sessionAnswers = quiz_data.session_answers;
+                this.quiz = {
+                    description_safe: quiz_data.slide_description
+                        ? markup(quiz_data.slide_description)
+                        : "",
+                    questions: quiz_data.slide_questions || [],
+                    questionsCount: quiz_data.slide_questions.length,
+                    quizAttemptsCount: quiz_data.quiz_attempts_count || 0,
+                    quizKarmaGain: quiz_data.quiz_karma_gain || 0,
+                    quizKarmaWon: quiz_data.quiz_karma_won || 0,
+                    slideResources: quiz_data.slide_resource_ids || [],
+                };
+            });
+    }
+
+    /**
+     * Hide the edit and delete button and also the handler to resequence the
+     * question.
+     */
+    _hideEditOptions() {
         for (const el of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question .o_wslides_js_quiz_edit_del," +
                 " .o_wslides_js_lesson_quiz_question .o_wslides_js_quiz_sequence_handler",
         )) {
             el.classList.add("d-none");
         }
-    },
+    }
 
     /**
-     * @private
-     * Decorate the answers according to state
+     * Decorate the answers according to state.
      */
-    _disableAnswers: function () {
+    _disableAnswers() {
         for (const el of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question",
         )) {
@@ -265,15 +300,13 @@ var Quiz = publicWidget.Widget.extend({
         for (const input of this.el.querySelectorAll("input[type=radio]")) {
             input.disabled = this.slide.completed;
         }
-    },
+    }
 
     /**
-     * Decorate the answer inputs according to the correction and adds the answer comment if
-     * any.
-     *
-     * @private
+     * Decorate the answer inputs according to the correction and adds the
+     * answer comment if any.
      */
-    _renderAnswersHighlightingAndComments: function () {
+    _renderAnswersHighlightingAndComments() {
         for (const question of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question",
         )) {
@@ -331,12 +364,12 @@ var Quiz = publicWidget.Widget.extend({
                 }
             }
         }
-    },
+    }
 
     /**
      * Will check if we have answers coming from the session and re-apply them.
      */
-    _applySessionAnswers: function () {
+    _applySessionAnswers() {
         if (!this.slide.sessionAnswers || this.slide.sessionAnswers.length === 0) {
             return;
         }
@@ -360,13 +393,12 @@ var Quiz = publicWidget.Widget.extend({
 
         // reset answers coming from the session
         this.slide.sessionAnswers = false;
-    },
+    }
 
-    /*
-     * @private
-     * Update validation box (karma, buttons) according to widget state
+    /**
+     * Update validation box (karma, buttons) according to state.
      */
-    _renderValidationInfo: function () {
+    _renderValidationInfo() {
         const validationElem = this.el.querySelector(
             ".o_wslides_js_lesson_quiz_validation",
         );
@@ -375,14 +407,14 @@ var Quiz = publicWidget.Widget.extend({
                 renderToElement("slide.slide.quiz.validation", { widget: this }),
             );
         }
-    },
-    /*
-     * Toggle additional resource info box
+    }
+
+    /**
+     * Toggle additional resource info box.
      *
-     * @private
      * @param {Boolean} show - Whether show or hide the information
      */
-    _toggleAdditionalResourceInfo: function (show) {
+    _toggleAdditionalResourceInfo(show) {
         const resourceInfo = document.getElementsByClassName(
             "o_wslides_js_lesson_quiz_resource_info",
         )[0];
@@ -390,18 +422,18 @@ var Quiz = publicWidget.Widget.extend({
             (show
                 ? resourceInfo.classList.remove("d-none")
                 : resourceInfo.classList.add("d-none"));
-    },
+    }
+
     /**
      * Renders the button to join a course.
-     * If the user is logged in, the course is public, and the user has previously tried to
-     * submit answers, we automatically attempt to join the course.
-     *
-     * @private
+     * If the user is logged in, the course is public, and the user has
+     * previously tried to submit answers, we automatically attempt to join
+     * the course.
      */
-    _renderJoinWidget: function () {
+    _renderJoinWidget() {
         const widgetLocation = this.el.querySelector(".o_wslides_join_course_widget");
         if (widgetLocation) {
-            const courseJoinWidget = new CourseJoinWidget(this, {
+            const joinBehavior = attachCourseJoin(this.host, widgetLocation, {
                 isQuiz: true,
                 channel: this.channel,
                 isMember: this.isMember,
@@ -412,39 +444,36 @@ var Quiz = publicWidget.Widget.extend({
                 joinMessage: _t("Join & Submit"),
             });
 
-            courseJoinWidget.appendTo(widgetLocation);
             if (
                 !this.publicUser &&
-                courseJoinWidget.channel.channelEnroll === "public" &&
+                joinBehavior.channel.channelEnroll === "public" &&
                 this.slide.sessionAnswers
             ) {
-                courseJoinWidget.joinChannel(this.channel.channelId);
+                joinBehavior.joinChannel(this.channel.channelId);
             }
         }
-    },
+    }
 
     /**
-     * Get the quiz answers filled in by the User
-     *
-     * @private
+     * Get the quiz answers filled in by the User.
      */
-    _getQuizAnswers: function () {
+    _getQuizAnswers() {
         return Array.from(this.el.querySelectorAll("input[type=radio]:checked")).map(
             (el) => parseInt(el.value),
         );
-    },
+    }
 
     /**
      * Submit a quiz and get the correction. It will display messages
      * according to quiz result.
-     *
-     * @private
      */
     async _submitQuiz() {
-        const data = await rpc("/slides/slide/quiz/submit", {
-            slide_id: this.slide.id,
-            answer_ids: this._getQuizAnswers(),
-        });
+        const data = await this.host.waitFor(
+            rpc("/slides/slide/quiz/submit", {
+                slide_id: this.slide.id,
+                answer_ids: this._getQuizAnswers(),
+            }),
+        );
         if (data.error) {
             this._showErrorMessage(data.error);
             return;
@@ -465,33 +494,37 @@ var Quiz = publicWidget.Widget.extend({
         }
         if (completed) {
             this._disableAnswers();
-            this.call("dialog", "add", SlideQuizFinishDialog, {
+            this.host.services.dialog.add(SlideQuizFinishDialog, {
                 quiz: this.quiz,
                 hasNext: this.slide.hasNext,
                 onClickNext: (ev) => this._onClickNext(ev),
                 userId: this.userId,
             });
             this.slide.completed = true;
-            this.trigger_up("slide_completed", {
-                slideId: this.slide.id,
-                channelCompletion: completion,
-                completed: true,
-            });
+            this.el.dispatchEvent(
+                new CustomEvent("slide_completed", {
+                    bubbles: true,
+                    detail: {
+                        slideId: this.slide.id,
+                        channelCompletion: completion,
+                        completed: true,
+                    },
+                }),
+            );
         }
         this._hideEditOptions();
         this._renderAnswersHighlightingAndComments();
         this._renderValidationInfo();
         this._toggleAdditionalResourceInfo(!completed);
-    },
+    }
 
     /**
-     * Get all the question information after clicking on
-     * the edit button
+     * Get all the question information after clicking on the edit button.
+     *
      * @param {HTMLElement} questionEl
      * @returns {{id: *, sequence: number, text: *, answers: Array}}
-     * @private
      */
-    _getQuestionDetails: function (questionEl) {
+    _getQuestionDetails(questionEl) {
         const answers = [];
         for (const answerEl of questionEl.querySelectorAll(".o_wslides_quiz_answer")) {
             answers.push({
@@ -508,21 +541,20 @@ var Quiz = publicWidget.Widget.extend({
             text: questionEl.dataset.title,
             answers: answers,
         };
-    },
+    }
 
     /**
-     * If the slides has been called with the Add Quiz button on the slide list
-     * it goes straight to the 'Add Quiz' button and clicks on it.
-     * @private
+     * If the slides has been called with the Add Quiz button on the slide
+     * list it goes straight to the 'Add Quiz' button and clicks on it.
      */
-    _checkLocationHref: function () {
+    _checkLocationHref() {
         if (
             window.location.href.includes("quiz_quick_create") &&
             this.quiz.questionsCount === 0
         ) {
             this._onCreateQuizClick();
         }
-    },
+    }
 
     //--------------------------------------------------------------------------
     // Handlers
@@ -531,51 +563,45 @@ var Quiz = publicWidget.Widget.extend({
     /**
      * When clicking on an answer, this one should be marked as "checked".
      *
-     * @private
-     * @param OdooEvent ev
+     * @param {Event} ev
+     * @param {HTMLElement} target
      */
-    _onAnswerClick: function (ev) {
+    _onAnswerClick(ev, target) {
         ev.preventDefault();
         if (!this.slide.completed) {
-            const radio = ev.currentTarget.querySelector("input[type=radio]");
+            const radio = target.querySelector("input[type=radio]");
             if (radio) {
                 radio.checked = true;
             }
         }
-    },
+    }
 
     /**
-     * Triggering a event to switch to next slide
-     *
-     * @private
-     * @param OdooEvent ev
+     * Signal to switch to the next slide.
      */
-    _onClickNext: function (ev) {
+    _onClickNext() {
         if (this.slide.hasNext) {
-            this.trigger_up("slide_go_next");
+            this.el.dispatchEvent(
+                new CustomEvent("slide_go_next", { bubbles: true, detail: {} }),
+            );
         }
-    },
+    }
 
     /**
-     * Resets the completion of the slide so the user can take
-     * the quiz again
-     *
-     * @private
+     * Resets the completion of the slide so the user can take the quiz again.
      */
-    _onClickReset: function () {
+    _onClickReset() {
         rpc("/slides/slide/quiz/reset", {
             slide_id: this.slide.id,
         }).then(function () {
             window.location.reload();
         });
-    },
+    }
+
     /**
-     * Saves the answers from the user and redirect the user to the
-     * specified url
-     *
-     * @private
+     * Saves the answers from the user in the session.
      */
-    _saveQuizAnswersToSession: function () {
+    _saveQuizAnswersToSession() {
         this._hideErrorMessage();
 
         return rpc("/slides/slide/quiz/save_to_session", {
@@ -584,26 +610,23 @@ var Quiz = publicWidget.Widget.extend({
                 slide_answers: this._getQuizAnswers(),
             },
         });
-    },
+    }
+
     /**
-     * After joining the course, we save the questions in the session
-     * and reload the page to update the view.
-     *
-     * @private
+     * After joining the course, we save the questions in the session and
+     * reload the page to update the view.
      */
-    _afterJoin: function () {
+    _afterJoin() {
         this._saveQuizAnswersToSession().then(() => {
             window.location.reload();
         });
-    },
+    }
 
     /**
-     * When clicking on 'Add a Question' or 'Add Quiz' it
-     * initialize a new QuestionFormWidget to input the new
-     * question.
-     * @private
+     * When clicking on 'Add a Question' or 'Add Quiz', initialize a new
+     * question form to input the new question.
      */
-    _onCreateQuizClick: function () {
+    _onCreateQuizClick() {
         const newQuestionEl = this.el.querySelector(
             ".o_wslides_js_lesson_quiz_new_question",
         );
@@ -611,45 +634,53 @@ var Quiz = publicWidget.Widget.extend({
         if (addBtn) {
             addBtn.classList.add("d-none");
         }
-        new QuestionFormWidget(this, {
+        new QuestionFormBehavior(this.host, newQuestionEl, "beforeend", {
             slideId: this.slide.id,
             sequence: this.quiz.questionsCount + 1,
-        }).appendTo(newQuestionEl);
-    },
+            ...this._questionFormCallbacks(),
+        });
+    }
 
     /**
-     * When clicking on the edit button of a question it
-     * initialize a new QuestionFormWidget with the existing
-     * question as inputs.
-     * @param ev
-     * @private
+     * When clicking on the edit button of a question, initialize a question
+     * form with the existing question as inputs.
+     *
+     * @param {Event} ev
+     * @param {HTMLElement} target
      */
-    _onEditQuestionClick: function (ev) {
-        const editedQuestion = ev.currentTarget.closest(
-            ".o_wslides_js_lesson_quiz_question",
-        );
+    _onEditQuestionClick(ev, target) {
+        const editedQuestion = target.closest(".o_wslides_js_lesson_quiz_question");
         const question = this._getQuestionDetails(editedQuestion);
-        new QuestionFormWidget(this, {
-            editedQuestion: editedQuestion,
+        new QuestionFormBehavior(this.host, editedQuestion, "afterend", {
+            editedQuestionEl: editedQuestion,
             question: question,
             slideId: this.slide.id,
             sequence: question.sequence,
             update: true,
-        }).insertAfter(editedQuestion);
+            ...this._questionFormCallbacks(),
+        });
         editedQuestion.style.display = "none";
-    },
+    }
+
+    _questionFormCallbacks() {
+        return {
+            onDisplayCreated: this._displayCreatedQuestion.bind(this),
+            onDisplayUpdated: this._displayUpdatedQuestion.bind(this),
+            onResetDisplay: this._resetDisplay.bind(this),
+        };
+    }
 
     /**
-     * When clicking on the delete button of a question it toggles a modal
-     * to confirm the deletion. When confirming it sends an RPC request to
-     * delete the Question and triggers an event to delete it from the UI.
-     * @param ev
-     * @private
+     * When clicking on the delete button of a question it toggles a modal to
+     * confirm the deletion.
+     *
+     * @param {Event} ev
+     * @param {HTMLElement} target
      */
-    _onDeleteQuestionClick: function (ev) {
-        const question = ev.currentTarget.closest(".o_wslides_js_lesson_quiz_question");
+    _onDeleteQuestionClick(ev, target) {
+        const question = target.closest(".o_wslides_js_lesson_quiz_question");
         const questionId = parseInt(question.dataset.questionId);
-        this.call("dialog", "add", ConfirmationDialog, {
+        this.host.services.dialog.add(ConfirmationDialog, {
             title: _t("Delete Question"),
             body: _t('Are you sure you want to delete this question "%(title)s"?', {
                 title: markup`<strong>${question.dataset.title}</strong>`,
@@ -657,65 +688,65 @@ var Quiz = publicWidget.Widget.extend({
             cancel: () => {},
             cancelLabel: _t("No"),
             confirm: async () => {
-                await this.orm.unlink("survey.question", [questionId]);
-                this.trigger_up("delete_question", { questionId });
+                await this.host.services.orm.unlink("survey.question", [questionId]);
+                this._deleteQuestion(questionId);
             },
             confirmLabel: _t("Yes"),
         });
-    },
+    }
 
     /**
-     * Displays the created Question at the correct place (after the last question or
-     * at the first place if there is no questions yet) It also displays the 'Add Question'
-     * button or open a new QuestionFormWidget if the user wants to immediately add another one.
+     * Displays the created Question at the correct place (after the last
+     * question or at the first place if there is no questions yet). It also
+     * displays the 'Add Question' button back.
      *
-     * @param event
-     * @private
+     * @param {QuestionFormBehavior} questionForm
+     * @param {String} newQuestionRenderedTemplate
      */
-    _displayCreatedQuestion: function (event) {
+    _displayCreatedQuestion(questionForm, newQuestionRenderedTemplate) {
         const questions = this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question",
         );
         const lastQuestion = questions[questions.length - 1];
-        const questionEl = parseQuestionMarkup(event.data.newQuestionRenderedTemplate);
+        const questionEl = parseQuestionMarkup(newQuestionRenderedTemplate);
         if (lastQuestion) {
             lastQuestion.after(questionEl);
         } else {
             this.el.prepend(questionEl);
         }
         this.quiz.questionsCount++;
-        event.data.questionFormWidget.destroy();
+        questionForm.destroy();
         const addQuestionBtn = this.el.querySelector(".o_wslides_js_quiz_add_question");
         if (addQuestionBtn) {
             addQuestionBtn.classList.remove("d-none");
         }
-    },
+    }
 
     /**
-     * Replace the edited question by the new question and destroy
-     * the QuestionFormWidget.
-     * @param event
-     * @private
-     */
-    _displayUpdatedQuestion: function (event) {
-        const questionFormWidget = event.data.questionFormWidget;
-        event.data.$editedQuestion.replaceWith(
-            parseQuestionMarkup(event.data.newQuestionRenderedTemplate),
-        );
-        questionFormWidget.destroy();
-    },
-
-    /**
-     * If the user cancels the creation or update of a Question it resets the display
-     * of the updated Question or it displays back the buttons.
+     * Replace the edited question by the new question and destroy the form.
      *
-     * @param event
-     * @private
+     * @param {QuestionFormBehavior} questionForm
+     * @param {String} newQuestionRenderedTemplate
+     * @param {HTMLElement} editedQuestionEl
      */
-    _resetDisplay: function (event) {
-        const questionFormWidget = event.data.questionFormWidget;
-        if (questionFormWidget.update) {
-            questionFormWidget.$editedQuestion.style.display = "";
+    _displayUpdatedQuestion(
+        questionForm,
+        newQuestionRenderedTemplate,
+        editedQuestionEl,
+    ) {
+        editedQuestionEl.replaceWith(parseQuestionMarkup(newQuestionRenderedTemplate));
+        questionForm.destroy();
+    }
+
+    /**
+     * If the user cancels the creation or update of a Question it resets the
+     * display of the updated Question or it displays back the buttons.
+     *
+     * @param {QuestionFormBehavior} questionForm
+     */
+    _resetDisplay(questionForm) {
+        if (questionForm.update) {
+            questionForm.editedQuestionEl.style.display = "";
         } else {
             if (this.quiz.questionsCount > 0) {
                 const addQuestionBtn = this.el.querySelector(
@@ -731,19 +762,17 @@ var Quiz = publicWidget.Widget.extend({
                 }
             }
         }
-        questionFormWidget.destroy();
-    },
+        questionForm.destroy();
+    }
 
     /**
-     * After deletion of a Question the display is refreshed with the removal of the Question
-     * the reordering of all the remaining Questions and the change of the new Question sequence
-     * if the QuestionFormWidget is initialized.
+     * After deletion of a Question the display is refreshed with the removal
+     * of the Question, the reordering of all the remaining Questions and the
+     * change of the new Question sequence if a question form is open.
      *
-     * @param event
-     * @private
+     * @param {Integer} questionId
      */
-    _deleteQuestion: function (event) {
-        const questionId = event.data.questionId;
+    _deleteQuestion(questionId) {
         const questionEl = this.el.querySelector(
             `.o_wslides_js_lesson_quiz_question[data-question-id="${questionId}"]`,
         );
@@ -779,87 +808,79 @@ var Quiz = publicWidget.Widget.extend({
                 validationEl.classList.add("d-none");
             }
         }
-    },
-});
+    }
+}
 
-publicWidget.registry.websiteSlidesQuizNoFullscreen = SlideCoursePage.extend({
-    selector: ".o_wslides_lesson_main", // selector of complete page, as we need slide content and aside content table
-    custom_events: Object.assign({}, SlideCoursePage.prototype.custom_events, {
-        slide_go_next: "_onQuizNextSlide",
-    }),
+/**
+ * Course lesson page (non-fullscreen): completion handling from the base
+ * CoursePage, plus the embedded quiz when the lesson has one.
+ */
+export class QuizNoFullscreen extends CoursePage {
+    // selector of complete page, as we need slide content and aside content table
+    static selector = ".o_wslides_lesson_main";
 
-    //----------------------------------------------------------------------
-    // Public
-    //----------------------------------------------------------------------
+    dynamicContent = {
+        ...this.dynamicContent,
+        _root: {
+            ...this.dynamicContent._root,
+            "t-on-slide_go_next": this.onQuizNextSlide,
+        },
+    };
 
-    /**
-     * @override
-     * @param {Object} parent
-     */
-    start: function () {
-        const ret = this._super(...arguments);
-
+    start() {
         const quizEl = this.el.querySelector(".o_wslides_js_lesson_quiz");
-        if (quizEl) {
-            const slideData = quizEl.dataset;
-            const channelData = this._extractChannelData(slideData);
-            // dataset values are strings; parse numeric/boolean fields
-            const parsedSlideData = {
-                id: parseInt(slideData.id),
-                name: slideData.name || "",
-                hasNext: slideData.hasNext === "true" || slideData.hasNext === "1",
-                completed:
-                    slideData.completed === "true" || slideData.completed === "1",
-                isMember: slideData.isMember === "true" || slideData.isMember === "1",
-                isMemberOrInvited:
-                    slideData.isMemberOrInvited === "true" ||
-                    slideData.isMemberOrInvited === "1",
-                canSelfMarkCompleted:
-                    slideData.canSelfMarkCompleted === "true" ||
-                    slideData.canSelfMarkCompleted === "1",
-                canSelfMarkUncompleted:
-                    slideData.canSelfMarkUncompleted === "true" ||
-                    slideData.canSelfMarkUncompleted === "1",
-            };
-            const quizData = {
-                questions: this._extractQuestionsAndAnswers(),
-                sessionAnswers: slideData.sessionAnswers
-                    ? JSON.parse(slideData.sessionAnswers)
-                    : [],
-                quizKarmaMax: parseInt(slideData.quizKarmaMax) || 0,
-                quizKarmaWon: parseInt(slideData.quizKarmaWon) || 0,
-                quizKarmaGain: parseInt(slideData.quizKarmaGain) || 0,
-                quizAttemptsCount: parseInt(slideData.quizAttemptsCount) || 0,
-            };
-            parsedSlideData.quizData = quizData;
-
-            this.quiz = new Quiz(
-                this,
-                parsedSlideData,
-                channelData,
-                parsedSlideData.quizData,
-            );
-            this.quiz.attachTo(quizEl);
-        } else {
+        if (!quizEl) {
             this.quiz = null;
+            return;
         }
-        return ret;
-    },
+        const slideData = quizEl.dataset;
+        const channelData = this._extractChannelData(slideData);
+        // dataset values are strings; parse numeric/boolean fields
+        const parsedSlideData = {
+            id: parseInt(slideData.id),
+            name: slideData.name || "",
+            hasNext: slideData.hasNext === "true" || slideData.hasNext === "1",
+            completed: slideData.completed === "true" || slideData.completed === "1",
+            isMember: slideData.isMember === "true" || slideData.isMember === "1",
+            isMemberOrInvited:
+                slideData.isMemberOrInvited === "true" ||
+                slideData.isMemberOrInvited === "1",
+            canSelfMarkCompleted:
+                slideData.canSelfMarkCompleted === "true" ||
+                slideData.canSelfMarkCompleted === "1",
+            canSelfMarkUncompleted:
+                slideData.canSelfMarkUncompleted === "true" ||
+                slideData.canSelfMarkUncompleted === "1",
+        };
+        const quizData = {
+            questions: this._extractQuestionsAndAnswers(),
+            // NB: kept on quizData (not slideData) as historically — the
+            // session-answers auto-submit only runs on the fullscreen fetch
+            // path, which sets `slide.sessionAnswers` itself.
+            sessionAnswers: slideData.sessionAnswers
+                ? JSON.parse(slideData.sessionAnswers)
+                : [],
+            quizKarmaMax: parseInt(slideData.quizKarmaMax) || 0,
+            quizKarmaWon: parseInt(slideData.quizKarmaWon) || 0,
+            quizKarmaGain: parseInt(slideData.quizKarmaGain) || 0,
+            quizAttemptsCount: parseInt(slideData.quizAttemptsCount) || 0,
+        };
 
-    //----------------------------------------------------------------------
-    // Handlers
-    //---------------------------------------------------------------------
-    _onQuizNextSlide: function () {
+        this.quiz = new QuizBehavior(
+            this,
+            { el: quizEl, slideData: parsedSlideData, channelData },
+            quizData,
+        );
+        this.quiz.start();
+    }
+
+    onQuizNextSlide() {
         const quizEl = this.el.querySelector(".o_wslides_js_lesson_quiz");
         const url = quizEl?.dataset.nextSlideUrl;
         if (url) {
             window.location.replace(url);
         }
-    },
-
-    //----------------------------------------------------------------------
-    // Private
-    //---------------------------------------------------------------------
+    }
 
     /**
      * Get the slide data from the elements in the DOM.
@@ -869,10 +890,9 @@ publicWidget.registry.websiteSlidesQuizNoFullscreen = SlideCoursePage.extend({
      * data can not be retrieved.
      *
      * @override
-     * @param {Integer} slideId
      */
-    _getSlide: function (slideId) {
-        const slide = this._super(...arguments);
+    getSlide(slideId) {
+        const slide = super.getSlide(...arguments);
         if (slide) {
             return slide;
         }
@@ -881,32 +901,30 @@ publicWidget.registry.websiteSlidesQuizNoFullscreen = SlideCoursePage.extend({
             `.o_wslides_js_lesson_quiz[data-id="${slideId}"]`,
         );
         return el ? el.dataset : undefined;
-    },
+    }
 
     /**
-     * After a slide has been marked as completed / uncompleted, update the state
-     * of this widget and reload the slide if needed (e.g. to re-show the questions
-     * of a quiz).
+     * After a slide has been marked as completed / uncompleted, update the
+     * state of this page and reload the quiz if needed (e.g. to re-show the
+     * questions of a quiz).
      *
      * @override
-     * @param {Object} slide
-     * @param {Boolean} completed
      */
-    toggleCompletionButton: function (slide, completed = true) {
-        this._super(...arguments);
+    toggleCompletionButton(slideData, completed = true) {
+        super.toggleCompletionButton(...arguments);
 
         if (
             this.quiz &&
-            this.quiz.slide.id === slide.id &&
+            this.quiz.slide.id === slideData.id &&
             !completed &&
             this.quiz.quiz.questionsCount
         ) {
             // The quiz has been marked as "Not Done", re-load the questions
             this.quiz.quiz.answers = null;
-            this.quiz.quiz.sessionAnswers = null;
+            this.quiz.slide.sessionAnswers = null;
             this.quiz.slide.completed = false;
             this.quiz._fetchQuiz().then(() => {
-                this.quiz.renderElement();
+                this.quiz.rerender();
                 this.quiz._renderValidationInfo();
             });
         }
@@ -927,12 +945,12 @@ publicWidget.registry.websiteSlidesQuizNoFullscreen = SlideCoursePage.extend({
             doneButton.removeAttribute("aria-disabled");
             doneButton.setAttribute(
                 "href",
-                `/slides/slide/${encodeURIComponent(slide.id)}/set_uncompleted`,
+                `/slides/slide/${encodeURIComponent(slideData.id)}/set_uncompleted`,
             );
         }
-    },
+    }
 
-    _extractChannelData: function (slideData) {
+    _extractChannelData(slideData) {
         return {
             channelId: parseInt(slideData.channelId) || slideData.channelId,
             channelEnroll: slideData.channelEnroll,
@@ -940,16 +958,16 @@ publicWidget.registry.websiteSlidesQuizNoFullscreen = SlideCoursePage.extend({
             signupAllowed:
                 slideData.signupAllowed === "true" || slideData.signupAllowed === "1",
         };
-    },
+    }
 
     /**
-     * Extract data from exiting DOM rendered server-side, to have the list of questions with their
-     * relative answers.
+     * Extract data from existing DOM rendered server-side, to have the list
+     * of questions with their relative answers.
      * This method should return the same format as /slide/quiz/get controller.
      *
      * @return {Array<Object>} list of questions with answers
      */
-    _extractQuestionsAndAnswers: function () {
+    _extractQuestionsAndAnswers() {
         const questions = [];
         for (const question of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question",
@@ -968,9 +986,9 @@ publicWidget.registry.websiteSlidesQuizNoFullscreen = SlideCoursePage.extend({
             });
         }
         return questions;
-    },
-});
+    }
+}
 
-export var Quiz = Quiz;
-export const websiteSlidesQuizNoFullscreen =
-    publicWidget.registry.websiteSlidesQuizNoFullscreen;
+registry
+    .category("public.interactions")
+    .add("website_slides.quiz_no_fullscreen", QuizNoFullscreen);

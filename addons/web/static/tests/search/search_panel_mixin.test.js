@@ -1,41 +1,37 @@
 // @ts-check
 
 /**
- * Pure unit tests for search/search_panel/search_panel_state.js.
+ * Pure unit tests for search/search_panel/search_panel_mixin.js.
  *
- * Each exported function receives a SearchModel as its first argument
- * (delegation pattern). Tests build a minimal plain-object mock — no OWL,
- * no DOM fixtures, no server calls.
+ * The panel logic is a mixin applied to SearchModel; here it is exercised on a
+ * bare ``SearchPanelMixin(class {})`` instance with a minimal set of properties
+ * assigned — no OWL, no DOM fixtures, no server calls. Because the methods use
+ * ``this``, an instance is all that is needed.
  *
- * fetchCategories, fetchFilters, fetchSections, reloadSections are not tested
- * here: they involve live ORM calls and multi-step async orchestration covered
- * by existing search_panel integration tests.
+ * _fetchFilters, _fetchSections, _reloadSections are not tested here: they
+ * involve live ORM calls and multi-step async orchestration covered by existing
+ * search_panel integration tests. (_fetchCategories is exercised below with a
+ * mock orm for its per-section stale guard.)
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import {
-    clearSections,
-    createCategoryTree,
-    createFilterTree,
-    ensureCategoryValue,
-    fetchCategories,
-    getSections,
-    shouldWaitForData,
-    toggleCategoryValue,
-    toggleFilterValues,
-} from "@web/search/search_panel/search_panel_state";
+import { SearchPanelMixin } from "@web/search/search_panel/search_panel_mixin";
 import { hasValues } from "@web/search/search_state";
 
 // Helpers
 
+/** Concrete class exercising the mixin methods in isolation. */
+const PanelModel = SearchPanelMixin(class {});
+
 /**
- * Build a minimal SearchModel mock for search panel state functions.
+ * Build a minimal SearchModel-like instance for the panel mixin methods.
  * @param {Map<number,Object>} sections
  * @param {Object} [overrides]
  */
 function makeSearchModel(sections, overrides = {}) {
     const notifications = [];
-    const model = {
+    const model = new PanelModel();
+    Object.assign(model, {
         sections,
         categories: [],
         filters: [],
@@ -43,12 +39,9 @@ function makeSearchModel(sections, overrides = {}) {
         _notify() {
             notifications.push("notify");
         },
-        _ensureCategoryValue(cat, ids) {
-            ensureCategoryValue(cat, ids);
-        },
         _notifications: notifications,
         ...overrides,
-    };
+    });
     return model;
 }
 
@@ -91,7 +84,7 @@ describe("toggleCategoryValue", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        toggleCategoryValue(model, 1, 42);
+        model.toggleCategoryValue(1, 42);
 
         expect(cat.activeValueId).toBe(42);
     });
@@ -101,7 +94,7 @@ describe("toggleCategoryValue", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        toggleCategoryValue(model, 1, 20);
+        model.toggleCategoryValue(1, 20);
 
         expect(cat.activeValueId).toBe(20);
     });
@@ -110,7 +103,7 @@ describe("toggleCategoryValue", () => {
         const sections = new Map([[1, makeCategory(1)]]);
         const model = makeSearchModel(sections);
 
-        toggleCategoryValue(model, 1, 5);
+        model.toggleCategoryValue(1, 5);
 
         expect(model._notifications.length).toBe(1);
     });
@@ -127,7 +120,7 @@ describe("toggleFilterValues", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        toggleFilterValues(model, 1, [10, 20]);
+        model.toggleFilterValues(1, [10, 20]);
 
         expect(filter.values.get(10).checked).toBe(true);
         expect(filter.values.get(20).checked).toBe(false);
@@ -142,7 +135,7 @@ describe("toggleFilterValues", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        toggleFilterValues(model, 1, [1, 2, 3], true);
+        model.toggleFilterValues(1, [1, 2, 3], true);
 
         expect(filter.values.get(1).checked).toBe(true);
         expect(filter.values.get(2).checked).toBe(true);
@@ -157,7 +150,7 @@ describe("toggleFilterValues", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        toggleFilterValues(model, 1, [1, 2], false);
+        model.toggleFilterValues(1, [1, 2], false);
 
         expect(filter.values.get(1).checked).toBe(false);
         expect(filter.values.get(2).checked).toBe(false);
@@ -168,7 +161,7 @@ describe("toggleFilterValues", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        toggleFilterValues(model, 1, [1]);
+        model.toggleFilterValues(1, [1]);
 
         expect(model._notifications.length).toBe(1);
     });
@@ -180,7 +173,7 @@ describe("toggleFilterValues", () => {
 
         // Value 20 was rendered but a counter refetch rebuilt `values`
         // without it: the click must not throw and 10 still toggles.
-        toggleFilterValues(model, 1, [10, 20]);
+        model.toggleFilterValues(1, [10, 20]);
 
         expect(filter.values.get(10).checked).toBe(true);
         expect(filter.values.has(20)).toBe(false);
@@ -196,7 +189,7 @@ describe("clearSections", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        clearSections(model, [1]);
+        model.clearSections([1]);
 
         expect(cat.activeValueId).toBe(false);
     });
@@ -209,7 +202,7 @@ describe("clearSections", () => {
         const sections = new Map([[2, filter]]);
         const model = makeSearchModel(sections);
 
-        clearSections(model, [2]);
+        model.clearSections([2]);
 
         expect(filter.values.get(10).checked).toBe(false);
         expect(filter.values.get(20).checked).toBe(false);
@@ -224,7 +217,7 @@ describe("clearSections", () => {
         ]);
         const model = makeSearchModel(sections);
 
-        clearSections(model, [1, 2]);
+        model.clearSections([1, 2]);
 
         expect(cat.activeValueId).toBe(false);
         expect(filter.values.get(1).checked).toBe(false);
@@ -242,7 +235,7 @@ describe("getSections", () => {
         ]);
         const model = makeSearchModel(sections);
 
-        const result = getSections(model);
+        const result = model.getSections();
 
         expect(result.map((s) => s.id)).toEqual([3, 1, 2]);
     });
@@ -254,7 +247,7 @@ describe("getSections", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        const result = getSections(model);
+        const result = model.getSections();
 
         expect(result[0].empty).toBe(true);
     });
@@ -264,7 +257,7 @@ describe("getSections", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        const result = getSections(model);
+        const result = model.getSections();
 
         expect(result[0].empty).toBe(true);
     });
@@ -274,7 +267,7 @@ describe("getSections", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        const result = getSections(model);
+        const result = model.getSections();
 
         expect(result[0].empty).toBe(false);
     });
@@ -286,7 +279,7 @@ describe("getSections", () => {
         ]);
         const model = makeSearchModel(sections);
 
-        const result = getSections(model, (s) => s.type === "filter");
+        const result = model.getSections((s) => s.type === "filter");
 
         expect(result.length).toBe(1);
         expect(result[0].type).toBe("filter");
@@ -297,7 +290,7 @@ describe("getSections", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        const result = getSections(model);
+        const result = model.getSections();
         result[0].activeValueId = 999; // mutate the copy
 
         // Original is unchanged
@@ -310,58 +303,61 @@ describe("getSections", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        const first = getSections(model);
-        expect(getSections(model)).toBe(first);
+        const first = model.getSections();
+        expect(model.getSections()).toBe(first);
         expect(first[0].empty).toBe(true);
 
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [{ id: 10, parent_id: false }],
         });
 
-        const second = getSections(model);
+        const second = model.getSections();
         expect(second).not.toBe(first);
         expect(second[0].empty).toBe(false);
     });
 });
 
-// ensureCategoryValue
+// _ensureCategoryValue
 
-describe("ensureCategoryValue", () => {
+describe("_ensureCategoryValue", () => {
     test("keeps activeValueId when it is in valueIds", () => {
         const cat = makeCategory(1, { activeValueId: 5 });
+        const model = makeSearchModel(new Map());
 
-        ensureCategoryValue(cat, [false, 5, 10]);
+        model._ensureCategoryValue(cat, [false, 5, 10]);
 
         expect(cat.activeValueId).toBe(5);
     });
 
     test("resets activeValueId to first valueId when current is absent", () => {
         const cat = makeCategory(1, { activeValueId: 99 });
+        const model = makeSearchModel(new Map());
 
-        ensureCategoryValue(cat, [false, 5, 10]);
+        model._ensureCategoryValue(cat, [false, 5, 10]);
 
         expect(cat.activeValueId).toBe(false); // first element
     });
 
     test("resets to false when valueIds contains only [false]", () => {
         const cat = makeCategory(1, { activeValueId: 7 });
+        const model = makeSearchModel(new Map());
 
-        ensureCategoryValue(cat, [false]);
+        model._ensureCategoryValue(cat, [false]);
 
         expect(cat.activeValueId).toBe(false);
     });
 });
 
-// createCategoryTree
+// _createCategoryTree
 
-describe("createCategoryTree", () => {
+describe("_createCategoryTree", () => {
     test("populates values Map from server result", () => {
         const cat = makeCategory(1, { hierarchize: false });
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [
                 { id: 10, display_name: "Apple", parent_id: false },
@@ -378,7 +374,7 @@ describe("createCategoryTree", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [
                 { id: 10, parent_id: false },
@@ -396,7 +392,7 @@ describe("createCategoryTree", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [
                 { id: 10, parent_id: false },
@@ -412,7 +408,7 @@ describe("createCategoryTree", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [],
             error_msg: "Access denied",
@@ -429,13 +425,13 @@ describe("createCategoryTree", () => {
         const model = makeSearchModel(sections);
 
         // First fetch fails (server-side error or stamped by the client-side
-        // catch in fetchCategories): the section becomes an error tile.
-        createCategoryTree(model, 1, { values: [], error_msg: "Network error" });
+        // catch in _fetchCategories): the section becomes an error tile.
+        model._createCategoryTree(1, { values: [], error_msg: "Network error" });
         expect(cat.errorMsg).toBe("Network error");
         expect(hasValues(cat)).toBe(true); // error tile rendered
 
         // A later refetch succeeds: the section must render its values again.
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [{ id: 10, parent_id: false }],
         });
@@ -453,7 +449,7 @@ describe("createCategoryTree", () => {
         const model = makeSearchModel(sections);
 
         // First fetch returns two values.
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [
                 { id: 10, parent_id: false },
@@ -464,7 +460,7 @@ describe("createCategoryTree", () => {
         expect(cat.values.has(20)).toBe(true);
 
         // A narrower domain reload no longer returns value 20.
-        createCategoryTree(model, 1, {
+        model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [{ id: 10, parent_id: false }],
         });
@@ -476,15 +472,15 @@ describe("createCategoryTree", () => {
     });
 });
 
-// createFilterTree
+// _createFilterTree
 
-describe("createFilterTree", () => {
+describe("_createFilterTree", () => {
     test("populates values from flat server result", () => {
         const filter = makeFilter(1);
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        createFilterTree(model, 1, {
+        model._createFilterTree(1, {
             values: [
                 { id: 10, display_name: "Tag A" },
                 { id: 20, display_name: "Tag B" },
@@ -500,7 +496,7 @@ describe("createFilterTree", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        createFilterTree(model, 1, {
+        model._createFilterTree(1, {
             values: [
                 { id: 10, display_name: "Tag A" },
                 { id: 20, display_name: "Tag B" },
@@ -516,7 +512,7 @@ describe("createFilterTree", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        createFilterTree(model, 1, {
+        model._createFilterTree(1, {
             values: [],
             error_msg: "Server error",
         });
@@ -529,11 +525,11 @@ describe("createFilterTree", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        createFilterTree(model, 1, { values: [], error_msg: "Network error" });
+        model._createFilterTree(1, { values: [], error_msg: "Network error" });
         expect(filter.errorMsg).toBe("Network error");
         expect(hasValues(filter)).toBe(true); // error tile rendered
 
-        createFilterTree(model, 1, {
+        model._createFilterTree(1, {
             values: [{ id: 10, display_name: "Tag A" }],
         });
 
@@ -543,9 +539,9 @@ describe("createFilterTree", () => {
     });
 });
 
-// fetchCategories — per-section load id
+// _fetchCategories — per-section load id
 
-describe("fetchCategories per-section stale guard", () => {
+describe("_fetchCategories per-section stale guard", () => {
     /** A resolvable promise. */
     function makeDeferred() {
         let resolve;
@@ -601,10 +597,10 @@ describe("fetchCategories per-section stale guard", () => {
         });
 
         // First fetch of BOTH sections (their in-flight responses are pending).
-        const p1 = fetchCategories(model, [catA, catB]);
+        const p1 = model._fetchCategories([catA, catB]);
         // A later fetch of ONLY section B (e.g. a counter-only reload) bumps
         // just B's load id — A's in-flight fetch must survive.
-        const p2 = fetchCategories(model, [catB]);
+        const p2 = model._fetchCategories([catB]);
 
         const resultA = { values: [{ id: 10 }], _tag: "A" };
         const resultB1 = { values: [{ id: 20 }], _tag: "B1" };
@@ -625,9 +621,9 @@ describe("fetchCategories per-section stale guard", () => {
     });
 });
 
-// shouldWaitForData
+// _shouldWaitForData
 
-describe("shouldWaitForData", () => {
+describe("_shouldWaitForData", () => {
     test("returns true when categories exist AND any filter has non-empty domain", () => {
         const sections = new Map();
         const model = makeSearchModel(sections, {
@@ -636,7 +632,7 @@ describe("shouldWaitForData", () => {
             searchDomain: [],
         });
 
-        expect(shouldWaitForData(model, false)).toBe(true);
+        expect(model._shouldWaitForData(false)).toBe(true);
     });
 
     test("returns false when searchDomain is empty (no category+filter combo)", () => {
@@ -647,7 +643,7 @@ describe("shouldWaitForData", () => {
             searchDomain: [],
         });
 
-        expect(shouldWaitForData(model, true)).toBe(false);
+        expect(model._shouldWaitForData(true)).toBe(false);
     });
 
     test("returns true when searchDomain non-empty and a non-expand section exists", () => {
@@ -659,7 +655,7 @@ describe("shouldWaitForData", () => {
             searchDomain: [["active", "=", true]],
         });
 
-        expect(shouldWaitForData(model, true)).toBe(true);
+        expect(model._shouldWaitForData(true)).toBe(true);
     });
 
     test("returns false when all sections have expand=true", () => {
@@ -671,7 +667,7 @@ describe("shouldWaitForData", () => {
             searchDomain: [["active", "=", true]],
         });
 
-        expect(shouldWaitForData(model, true)).toBe(false);
+        expect(model._shouldWaitForData(true)).toBe(false);
     });
 
     test("returns false when searchDomainChanged is false even with non-expand sections", () => {
@@ -684,6 +680,6 @@ describe("shouldWaitForData", () => {
         });
 
         // searchDomainChanged = false → section.expand is irrelevant
-        expect(shouldWaitForData(model, false)).toBe(false);
+        expect(model._shouldWaitForData(false)).toBe(false);
     });
 });

@@ -489,20 +489,9 @@ export class ListController extends MultiRecordController {
         );
     }
 
-    /** Reset the renderer scroll position to the top after a pager navigation. */
-    onPageChangeScroll() {
-        if (this.rootRef?.el) {
-            if (this.env.isSmall) {
-                this.rootRef.el.scrollTop = 0;
-            } else {
-                const renderer = this.rootRef.el.querySelector(
-                    ".o_content .o_list_renderer",
-                );
-                if (renderer) {
-                    renderer.scrollTop = 0;
-                }
-            }
-        }
+    /** The list renderer is the scroll container, not ``.o_content``. */
+    get scrollSelector() {
+        return ".o_content .o_list_renderer";
     }
 
     /**

@@ -187,13 +187,18 @@ export class ActionManager {
         // circular dependency on this module.
 
         /** @type {Record<string, (action: Object, options: ActionOptions) => Promise>} */
+        // Dispatch straight to the ``action_executors/*`` module functions.
+        // ``_executeCloseAction`` keeps a thin method wrapper because it has an
+        // external caller (``action_button_executor``) and is mocked in tests;
+        // the other five had no callers beyond this map, so the intermediate
+        // ``_execute*Action`` methods were removed (they only forwarded ``this``).
         this._actionExecutors = {
-            "ir.actions.act_url": (a, o) => this._executeActURLAction(a, o),
-            "ir.actions.act_window": (a, o) => this._executeActWindowAction(a, o),
+            "ir.actions.act_url": (a, o) => executeActURLAction(a, o, this),
+            "ir.actions.act_window": (a, o) => executeActWindowAction(a, o, this),
             "ir.actions.act_window_close": (a, o) => this._executeCloseAction(a, o),
-            "ir.actions.client": (a, o) => this._executeClientAction(a, o),
-            "ir.actions.server": (a, o) => this._executeServerAction(a, o),
-            "ir.actions.report": (a, o) => this._executeReportAction(a, o),
+            "ir.actions.client": (a, o) => executeClientAction(a, o, this),
+            "ir.actions.server": (a, o) => executeServerAction(a, o, this),
+            "ir.actions.report": (a, o) => executeReportAction(a, o, this),
         };
 
         // Called once per ActionManager lifetime so the returned class
@@ -795,42 +800,6 @@ export class ActionManager {
 
     _openActionInNewWindow(action, state) {
         return openActionInNewWindow(action, state, this);
-    }
-
-    _executeActURLAction(action, options) {
-        return executeActURLAction(action, options, this);
-    }
-
-    // ---------------------------------------------------------------------------
-    // ir.actions.act_window
-    // ---------------------------------------------------------------------------
-
-    async _executeActWindowAction(action, options) {
-        return executeActWindowAction(action, options, this);
-    }
-
-    // ---------------------------------------------------------------------------
-    // ir.actions.client
-    // ---------------------------------------------------------------------------
-
-    async _executeClientAction(action, options) {
-        return executeClientAction(action, options, this);
-    }
-
-    // ---------------------------------------------------------------------------
-    // ir.actions.report
-    // ---------------------------------------------------------------------------
-
-    _executeReportAction(action, options) {
-        return executeReportAction(action, options, this);
-    }
-
-    // ---------------------------------------------------------------------------
-    // ir.actions.server
-    // ---------------------------------------------------------------------------
-
-    async _executeServerAction(action, options) {
-        return executeServerAction(action, options, this);
     }
 
     _executeCloseAction(action = {}, options = {}) {

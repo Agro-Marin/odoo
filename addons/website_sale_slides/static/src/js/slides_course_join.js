@@ -1,39 +1,32 @@
 /** @odoo-module native */
-import CourseJoin from "@website_slides/js/slides_course_join";
+import { patch } from "@web/core/utils/patch";
+import { CourseJoinBehavior } from "@website_slides/interactions/course_join";
 
-const CourseJoinWidget = CourseJoin.courseJoinWidget;
-
-CourseJoinWidget.include({
-    init: function (parent, options) {
-        this._super.apply(this, arguments);
+patch(CourseJoinBehavior.prototype, {
+    setup(options) {
+        super.setup(options);
         this.productId = options.channel.productId || false;
     },
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
-     * When the user joins the course, if it's set as "on payment" and the user is logged in,
-     * we redirect to the shop page for this course.
+     * When the user joins the course, if it's set as "on payment" and the
+     * user is logged in, we redirect to the shop page for this course.
      *
      * @param {MouseEvent} ev
      * @override
-     * @private
      */
-    _onClickJoin: function (ev) {
+    _onClickJoin(ev) {
         ev.preventDefault();
 
-        if (this.channel.channelEnroll === 'payment' && !this.publicUser) {
-            const self = this;
-            this.beforeJoin().then(function () {
-                self.call('cart', 'add',
+        if (this.channel.channelEnroll === "payment" && !this.publicUser) {
+            this.beforeJoin().then(() => {
+                this.host.services.cart.add(
                     {
                         // TODO VCR Ensure productTemplateId is always provided to `addToCart`.
                         // Currently, this works because the product configurator check is bypassed
                         // when the `isBuyNow` option is `True`.
                         productTemplateId: false,
-                        productId: self.productId,
+                        productId: this.productId,
                     },
                     {
                         isBuyNow: true,
@@ -41,9 +34,7 @@ CourseJoinWidget.include({
                 );
             });
         } else {
-            this._super.apply(this, arguments);
+            super._onClickJoin(...arguments);
         }
     },
 });
-
-export default CourseJoinWidget;

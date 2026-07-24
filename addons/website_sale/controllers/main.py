@@ -2,7 +2,6 @@
 
 import base64
 import itertools
-import json
 from datetime import datetime
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -1201,7 +1200,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         """
         order_sudo = request.cart
         if redirection := self._check_cart(order_sudo):
-            return json.dumps({'redirectUrl': redirection.location})
+            return request.make_json_response({'redirectUrl': redirection.location})
 
         # Retrieve the partner whose address to update, if any, and its address type.
         partner_sudo, address_type = self._prepare_address_update(
@@ -1224,7 +1223,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         )
 
         if feedback_dict.get('invalid_fields'):
-            return json.dumps(feedback_dict) # Return if error when creating/updating partner.
+            return request.make_json_response(feedback_dict) # Return if error when creating/updating partner.
 
         is_anonymous_cart = order_sudo._is_anonymous_cart()
         is_main_address = is_anonymous_cart or order_sudo.partner_id.id == partner_sudo.id
@@ -1248,7 +1247,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             # Unsubscribe the public partner if the cart was previously anonymous.
             order_sudo.message_unsubscribe(order_sudo.website_id.partner_id.ids)
 
-        return json.dumps(feedback_dict)
+        return request.make_json_response(feedback_dict)
 
     def _needs_address(self):
         if cart := request.cart:

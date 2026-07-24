@@ -238,6 +238,16 @@ export const tooltipService = {
         }
 
         /**
+         * Schedule opening a tooltip when a tooltipped element receives keyboard
+         * focus, so keyboard/screen-reader users get the same help hover exposes
+         * (WCAG 1.4.13 — content on hover must also be available on focus).
+         * @param {FocusEvent} ev a "focusin" event
+         */
+        function onFocusin(ev) {
+            openElementsTooltip(/** @type {HTMLElement} */ (ev.target));
+        }
+
+        /**
          * Clean up any tooltip registered on the event target.
          * @param {MouseEvent} ev a "click" event
          */
@@ -337,6 +347,9 @@ export const tooltipService = {
             addBodyListener("mouseenter", onMouseenter, { capture: true });
             // Delegate "mouseleave" to close tooltips
             addBodyListener("mouseleave", cleanupTooltip, { capture: true });
+            // Keyboard parity (WCAG 1.4.13): focus opens, blur closes.
+            addBodyListener("focusin", onFocusin, { capture: true });
+            addBodyListener("focusout", cleanupTooltip, { capture: true });
             addBodyListener("click", onClick, { capture: true });
         });
 

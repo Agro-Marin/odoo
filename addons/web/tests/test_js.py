@@ -37,7 +37,6 @@ MISC_SUITES = (
     "@web/helpers",
     "@web/interactions",
     "@web/l10n",
-    "@web/legacy_js",
     "@web/mock_server",
     "@web/modules",
 )
@@ -244,7 +243,7 @@ class WebSuite(HOOTCommon):
     def test_misc(self):
         """Root-level test files (env, reactivity, t_custom_click) plus the
         infrastructure suites: mock server meta-tests, module loader, l10n
-        utils, legacy Class/publicWidget ports, test helpers, interactions."""
+        utils, test helpers, interactions."""
         self._run_hoot(*MISC_SUITES, preset="desktop")
 
     @odoo.tests.no_retry
@@ -272,7 +271,7 @@ class WebSuite(HOOTCommon):
         HOOT ``&id=`` hash filters resolve against suite names, so a tests
         directory that no method names simply never runs — and, before the
         runner was hardened to fail on zero matched tests, reported success.
-        13 files (~183 tests: mock_server, l10n, legacy_js, modules,
+        13 files (~183 tests: mock_server, l10n, modules,
         interactions, helpers, view_compiler) were silently lost that way.
         This walk fails the build the moment a tests directory is added or
         renamed without updating the suite lists at the top of this file.

@@ -1,17 +1,16 @@
 /** @odoo-module native */
 
-import lazyloader from "@web/legacy/js/public/lazyloader";
-import { createPublicRoot } from "@web/legacy/js/public/public_root";
+import publicBootPromise from "@web/public/public_boot_instance";
 
-import { WebsiteRoot } from "./website_root.js";
-
-const prom = createPublicRoot(WebsiteRoot).then(async (rootInstance) => {
+/**
+ * When the page runs inside the website builder preview iframe, hand the
+ * page's public env over to the builder (it needs the iframe's services,
+ * e.g. `website_edit`). Historical event name kept from the PublicRoot era.
+ */
+const prom = publicBootPromise.then(async (env) => {
     if (window.frameElement) {
-        window.dispatchEvent(
-            new CustomEvent("PUBLIC-ROOT-READY", { detail: { rootInstance } }),
-        );
+        window.dispatchEvent(new CustomEvent("PUBLIC-ROOT-READY", { detail: { env } }));
     }
-    return rootInstance;
+    return env;
 });
-lazyloader.registerPageReadinessDelay(prom);
 export default prom;

@@ -114,8 +114,8 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/session.js",
             "web/static/src/core/browser/cookie.js",
             "web/static/src/core/utils/dom/ui.js",
-            "web/static/src/legacy/js/public/minimal_dom.js",
-            "web/static/src/legacy/js/public/lazyloader.js",
+            "web/static/src/public/minimal_dom.js",
+            "web/static/src/public/lazyloader.js",
         ],
         "web.assets_frontend": [
             (
@@ -153,7 +153,6 @@ This module provides the core of the Odoo Web Client.
                 "web.assets_frontend_minimal",
             ),
             "web/static/src/libs/bootstrap.js",
-            "web/static/src/legacy/js/core/class.js",
             "web/static/src/env.js",
             "web/static/src/ui/**/*",
             "web/static/src/services/**/*",
@@ -183,9 +182,6 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/src/public/database_manager.js",
             ),
-            "web/static/src/legacy/js/public/public_root.js",
-            "web/static/src/legacy/js/public/public_root_instance.js",
-            "web/static/src/legacy/js/public/public_widget.js",
         ],
         "web.assets_frontend_lazy": [
             (
@@ -206,11 +202,11 @@ This module provides the core of the Odoo Web Client.
             ),
             (
                 "remove",
-                "web/static/src/legacy/js/public/minimal_dom.js",
+                "web/static/src/public/minimal_dom.js",
             ),
             (
                 "remove",
-                "web/static/src/legacy/js/public/lazyloader.js",
+                "web/static/src/public/lazyloader.js",
             ),
         ],
         "web.report_assets_common": [
@@ -399,20 +395,23 @@ This module provides the core of the Odoo Web Client.
                 "include",
                 "web.assets_backend",
             ),
-            # Legacy production modules exercised by the ported HOOT suites in
-            # tests/legacy_js/ (Class, lazyloader, publicWidget.Widget). They
-            # live in web.assets_frontend, not assets_backend, so the unit-test
-            # bundle would not otherwise resolve their imports.
-            "web/static/src/legacy/js/core/class.js",
-            "web/static/src/legacy/js/public/minimal_dom.js",
-            "web/static/src/legacy/js/public/lazyloader.js",
-            "web/static/src/legacy/js/public/public_widget.js",
+            # Early-boot modules exercised by the HOOT suite in
+            # tests/public/ (lazyloader). They live in web.assets_frontend,
+            # not assets_backend, so the unit-test bundle would not otherwise
+            # resolve their imports.
+            "web/static/src/public/minimal_dom.js",
+            "web/static/src/public/lazyloader.js",
             "web/static/src/public/**/*.js",
             "web/static/src/public/**/*.xml",
             "web/static/tests/public/**/*.xml",
             (
                 "remove",
                 "web/static/src/public/database_manager.js",
+            ),
+            (
+                # Self-boots the public app: must not run inside test bundles.
+                "remove",
+                "web/static/src/public/public_boot_instance.js",
             ),
             (
                 "remove",

@@ -67,6 +67,16 @@ export class Notification extends Component {
         onWillUnmount(() => this.stopNotificationTimer());
     }
 
+    /**
+     * Only errors/warnings interrupt a screen reader (role="alert"/assertive);
+     * routine success/info toasts announce politely (role="status"/polite) so a
+     * "Saved" toast doesn't cut off whatever the user is reading (WCAG 4.1.3).
+     * @returns {boolean}
+     */
+    get isAssertive() {
+        return ["danger", "warning"].includes(this.props.type);
+    }
+
     /** Pause the auto-close timer + progress bar in place (e.g. on mouse hover). */
     freeze() {
         if (this.props.sticky || !this._closeTimeout) {

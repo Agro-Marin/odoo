@@ -1,21 +1,27 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
-import publicWidget from "@web/legacy/js/public/public_widget";
 import { Popover } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
-const CourseJoinWidget = publicWidget.Widget.extend({
-    template: "slide.course.join",
-    events: {
-        "click .o_wslides_js_course_join_link": "_onClickJoin",
-    },
-
+/**
+ * "Join this course" behavior, shared between:
+ * - the course page join links (attached to server-rendered DOM by the
+ *   `CourseJoin` interaction below);
+ * - the quiz and fullscreen player, which render the "slide.course.join"
+ *   template themselves (see `attachCourseJoin`).
+ *
+ * It is a plain class driven by a host Interaction (listener registration
+ * goes through the host so cleanup follows the host's lifecycle). Downstream
+ * modules customize it with `patch(CourseJoinBehavior.prototype, ...)`
+ * (e.g. website_sale_slides adds the "on payment" enroll flow).
+ */
+export class CourseJoinBehavior {
     /**
-     *
-     * Overridden to add options parameters.
-     *
-     * @param {Object} parent
+     * @param {import("@web/public/interaction").Interaction} host
+     * @param {HTMLElement} el the element containing the join link
      * @param {Object} options
      * @param {Object} options.channel slide.channel information
      * @param {boolean} options.isMember whether current user is enrolled
@@ -28,15 +34,17 @@ const CourseJoinWidget = publicWidget.Widget.extend({
      *   This is true when an invited attendee is on the course while unlogged.
      * @param {boolean} options.isPartnerWithoutUser whether invited partner has users. Used
      *   to redirect properly to sign up / log in.
+     * @param {boolean} options.publicUser whether the current user is public (unlogged)
      * @param {string} [options.joinMessage] the message to use for the simple join case
      *   when the course is free and the user is logged in, defaults to "Join this Course".
-     * @param {Promise} [options.beforeJoin] a promise to execute before we redirect to
-     *   another url within the join process (login / buy course / ...)
-     * @param {function} [options.afterJoin] a callback function called after the user has
+     * @param {Function} [options.beforeJoin] a promise-returning function to execute before
+     *   we redirect to another url within the join process (login / buy course / ...)
+     * @param {Function} [options.afterJoin] a callback function called after the user has
      *   joined the course
      */
-    init: function (parent, options) {
-        this._super.apply(this, arguments);
+    constructor(host, el, options) {
+        this.host = host;
+        this.el = el;
         this.channel = options.channel;
         this.isMember = options.isMember;
         this.isMemberOrInvited = options.isMemberOrInvited;
@@ -56,17 +64,30 @@ const CourseJoinWidget = publicWidget.Widget.extend({
             function () {
                 document.location.reload();
             };
-    },
+        this.setup(options);
+        host.addListener(el, "click", (ev) => {
+            if (ev.target.closest(".o_wslides_js_course_join_link")) {
+                this._onClickJoin(ev);
+            }
+        });
+    }
+
+    /**
+     * Extension hook for downstream modules (patched prototypes cannot wrap
+     * the constructor itself).
+     *
+     * @param {Object} options the constructor options, after assignment
+     */
+    setup(options) {}
 
     //--------------------------------------------------------------------------
     // Handlers
     //--------------------------------------------------------------------------
 
     /**
-     * @private
      * @param {MouseEvent} ev
      */
-    _onClickJoin: function (ev) {
+    _onClickJoin(ev) {
         ev.preventDefault();
 
         if (
@@ -84,19 +105,17 @@ const CourseJoinWidget = publicWidget.Widget.extend({
                 this.joinChannel(this.channel.channelId);
             }
         }
-    },
+    }
 
     //--------------------------------------------------------------------------
     // Private
     //--------------------------------------------------------------------------
 
     /**
-     * Builds a login page that then redirects to this slide page, or the channel if the course
-     * is not configured as public enroll type.
-     *
-     * @private
+     * Builds a login page that then redirects to this slide page, or the
+     * channel if the course is not configured as public enroll type.
      */
-    _redirectToLogin: function () {
+    _redirectToLogin() {
         let url;
         if (this.channel.channelEnroll === "public") {
             url = window.location.pathname;
@@ -107,16 +126,15 @@ const CourseJoinWidget = publicWidget.Widget.extend({
             url = `/slides/${encodeURIComponent(this.channel.channelId)}`;
         }
         document.location = `/web/login?redirect=${encodeURIComponent(url)}`;
-    },
+    }
 
     /**
      * Shows a Bootstrap 5 popover alert on the given element.
      *
-     * @private
      * @param {HTMLElement} el
-     * @param {String} message
+     * @param {String|HTMLElement} message
      */
-    _popoverAlert: function (el, message) {
+    _popoverAlert(el, message) {
         const popover = new Popover(el, {
             trigger: "focus",
             delay: { hide: 300 },
@@ -128,62 +146,77 @@ const CourseJoinWidget = publicWidget.Widget.extend({
             },
         });
         popover.show();
-    },
+    }
 
     //--------------------------------------------------------------------------
     // Public
     //--------------------------------------------------------------------------
+
     /**
-     * @public
      * @param {integer} channelId
      */
-    joinChannel: function (channelId) {
-        const self = this;
-        rpc("/slides/channel/join", {
-            channel_id: channelId,
-        }).then(function (data) {
-            if (!data.error) {
-                self.afterJoin();
-            } else {
-                if (data.error === "public_user") {
-                    const popupContent = renderToElement(
-                        "slide.course.join.popupContent",
-                        {
-                            channelId: channelId,
-                            courseUrl: encodeURIComponent(document.URL),
-                            errorSignupAllowed: data.error_signup_allowed,
-                            widget: self,
-                        },
-                    );
-                    self._popoverAlert(self.el, popupContent);
-                } else if (data.error === "join_done") {
-                    self._popoverAlert(
-                        self.el,
-                        _t("You have already joined this channel"),
-                    );
-                } else {
-                    self._popoverAlert(self.el, _t("Unknown error"));
-                }
-            }
-        });
-    },
-});
+    async joinChannel(channelId) {
+        const data = await this.host.waitFor(
+            rpc("/slides/channel/join", { channel_id: channelId }),
+        );
+        if (!data.error) {
+            this.afterJoin();
+        } else if (data.error === "public_user") {
+            const popupContent = renderToElement("slide.course.join.popupContent", {
+                channelId: channelId,
+                courseUrl: encodeURIComponent(document.URL),
+                errorSignupAllowed: data.error_signup_allowed,
+                widget: this,
+            });
+            this._popoverAlert(this.el, popupContent);
+        } else if (data.error === "join_done") {
+            this._popoverAlert(this.el, _t("You have already joined this channel"));
+        } else {
+            this._popoverAlert(this.el, _t("Unknown error"));
+        }
+    }
+}
 
-publicWidget.registry.websiteSlidesCourseJoin = publicWidget.Widget.extend({
-    selector: ".o_wslides_js_course_join_link",
+/**
+ * Renders the "slide.course.join" join button inside `targetEl` and attaches
+ * the join behavior to it. Used by the quiz and the fullscreen player.
+ *
+ * @param {import("@web/public/interaction").Interaction} host
+ * @param {HTMLElement} targetEl
+ * @param {Object} options see {@link CourseJoinBehavior}
+ * @returns {CourseJoinBehavior}
+ */
+export function attachCourseJoin(host, targetEl, options) {
+    // The template reads its values through the historical `widget` context
+    // key; it only uses these three fields.
+    const [el] = host.renderAt(
+        "slide.course.join",
+        {
+            widget: {
+                channel: options.channel,
+                joinMessage: options.joinMessage || _t("Join this Course"),
+                isMemberOrInvited: options.isMemberOrInvited,
+            },
+        },
+        targetEl,
+    );
+    return new CourseJoinBehavior(host, el, options);
+}
 
-    /**
-     * @override
-     * @param {Object} parent
-     */
-    start: function () {
-        const self = this;
-        const proms = [this._super.apply(this, arguments)];
-        const data = self.el.dataset;
+/**
+ * Attaches the join behavior to the server-rendered join areas of the course
+ * page. Options are read from the join link's dataset, as before.
+ */
+export class CourseJoin extends Interaction {
+    static selector = ".o_wslides_js_course_join_link";
+
+    start() {
+        const data = this.el.dataset;
         const options = {
             channel: {
                 channelEnroll: data.channelEnroll,
-                channelId: data.channelId,
+                // dataset values are strings; the join endpoint browses this id
+                channelId: parseInt(data.channelId),
             },
             inviteHash: data.inviteHash,
             invitePartnerId: data.invitePartnerId,
@@ -192,13 +225,9 @@ publicWidget.registry.websiteSlidesCourseJoin = publicWidget.Widget.extend({
             isPartnerWithoutUser: data.isPartnerWithoutUser,
         };
         for (const el of document.querySelectorAll(".o_wslides_js_course_join")) {
-            proms.push(new CourseJoinWidget(self, options).attachTo(el));
+            new CourseJoinBehavior(this, el, options);
         }
-        return Promise.all(proms);
-    },
-});
+    }
+}
 
-export default {
-    courseJoinWidget: CourseJoinWidget,
-    websiteSlidesCourseJoin: publicWidget.registry.websiteSlidesCourseJoin,
-};
+registry.category("public.interactions").add("website_slides.course_join", CourseJoin);
