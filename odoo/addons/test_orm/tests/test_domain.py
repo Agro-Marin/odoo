@@ -1084,13 +1084,10 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_condition_hierarchy_boolean_values(self):
-        """Booleans in child_of/parent_of fail (True) or collapse (False)
-        cleanly.
-
-        Regression: ``bool`` is an ``int`` subclass, so ``True``/``[True]``
-        passed the id partition and reached SQL as ``parent_id IN (true)`` —
-        a psycopg UndefinedFunction surfacing as an opaque RPC 500.
-        """
+        """Booleans in child_of/parent_of fail (True) or collapse (False) cleanly."""
+        # Regression: bool is an int subclass, so True/[True] passed the id
+        # partition and reached SQL as parent_id IN (true) — a psycopg
+        # UndefinedFunction surfacing as an opaque RPC 500.
         model = self.env["test_orm.category"]
         parent = model.create({"name": "parent"})
         model.create({"name": "child", "parent": parent.id})
@@ -1109,12 +1106,12 @@ class TestDomainOptimize(TransactionCase):
             )
 
     def test_filtered_domain_new_records_required_m2o(self):
-        """A FULL pass strips False from required NOT NULL fields — valid for
-        persisted rows only.  Reusing the FULL-stamped domain as a predicate
-        over ``new()`` records (whose required m2o may legitimately be unset)
-        must still see the False branch, agreeing with a fresh parse: the
-        pre-strip condition is kept reachable on the optimized node.
-        """
+        """A FULL-optimized domain reused over new() records still sees the False branch."""
+        # A FULL pass strips False from required NOT NULL fields — valid for
+        # persisted rows only.  Reusing the FULL-stamped domain as a predicate
+        # over new() records (whose required m2o may legitimately be unset) must
+        # still agree with a fresh parse: the pre-strip condition is kept
+        # reachable on the optimized node.
         model = self.env["test_orm.move_line"]
         move = self.env["test_orm.move"].create({})
         raw = [("move_id", "in", [False, move.id])]

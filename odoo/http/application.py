@@ -312,33 +312,25 @@ class Application:
     def _recover_from_registry_error(
         self, request: Request, httprequest: HTTPRequest, exc: RegistryError
     ) -> Any:
-        """Serve a request db-less after its database/registry became unusable.
-
-        Drop the db, log the session out, then retry without a database.
-
-        The logout is made *durable* only when the failure is durable too:
-
-        * ``db_absent is True`` — the database is confirmed dropped; a session
-          bound to it must not stay logged in on disk.
-        * ``db_absent is False`` and not ``transient`` — the database exists
-          but its registry is durably broken (corrupt schema); logging out
-          prevents a per-request registry-rebuild storm.
-
-        Every passing condition — catalog unreachable (``db_absent is None``,
-        e.g. PostgreSQL restarting) or a transient failure against an existing
-        database (connection loss through a warm pool, pool starvation under
-        load) — keeps the session file: the request is still served logged-out
-        and db-less (so ``ensure_db()`` controllers redirect to the selector
-        as usual), but with ``can_save = False`` the logout stays in-memory,
-        and the user is still logged in once the blip passes. For
-        ``ensure_db()``-protected routes, strip ``?db=`` first so db-less
-        serving does not bounce straight back to the same broken database.
-        """
+        """Serve a request db-less after its database/registry became unusable."""
         _logger.warning(
             "Database or registry unusable, trying without",
             exc_info=exc.__cause__,
         )
         request.db = None
+        # The logout is made durable only when the failure is durable too:
+        # * db_absent is True — the database is confirmed dropped; a session
+        #   bound to it must not stay logged in on disk.
+        # * db_absent is False and not transient — the database exists but its
+        #   registry is durably broken (corrupt schema); logging out prevents a
+        #   per-request registry-rebuild storm.
+        # Every passing condition — catalog unreachable (db_absent is None, e.g.
+        # PostgreSQL restarting) or a transient failure against an existing
+        # database (connection loss through a warm pool, pool starvation under
+        # load) — keeps the session file: the request is still served logged-out
+        # and db-less (so ensure_db() controllers redirect to the selector as
+        # usual), but with can_save = False the logout stays in-memory, and the
+        # user is still logged in once the blip passes.
         durable = exc.db_absent is True or (
             exc.db_absent is False and not exc.transient
         )
@@ -349,7 +341,8 @@ class Application:
             httprequest.path.startswith(ENSURE_DB_PATH_PREFIX)
             or httprequest.path in ENSURE_DB_PATHS
         ):
-            # ensure_db() protected routes, remove ?db= from the query string
+            # ensure_db() protected routes: remove ?db= from the query string so
+            # db-less serving does not bounce straight back to the broken db
             args_nodb = request.httprequest.args.copy()
             args_nodb.pop("db", None)
             request.reroute(

@@ -164,13 +164,11 @@ class lazy:
         return getattr(self._value, name)
 
     def __reduce__(self) -> tuple[Any, tuple[Any]]:
-        """Pickle/copy the evaluated value rather than the callable + args.
-
-        The callable and its arguments are frequently unpicklable, and routing
-        pickle's protocol lookups through ``__getattr__`` would force-evaluate
-        (or recurse).  Reconstruct a pre-evaluated ``lazy`` so the proxy type
-        survives a round-trip.
-        """
+        """Pickle/copy the evaluated value rather than the callable + args."""
+        # The callable and its arguments are frequently unpicklable, and routing
+        # pickle's protocol lookups through ``__getattr__`` would force-evaluate
+        # (or recurse).  Reconstruct a pre-evaluated ``lazy`` so the proxy type
+        # survives a round-trip.
         return (_reconstruct_lazy, (self._value,))
 
     def __setattr__(self, name: str, value: Any) -> None:

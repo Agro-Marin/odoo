@@ -295,19 +295,16 @@ _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
 
 
 def _hide_exception_internals() -> bool:
-    """Whether serialized-exception internals must be hidden from the reader.
-
-    ``True`` only for an active client request outside ``dev_mode`` — the one
-    situation where the serialization reaches an untrusted party. Server-side
-    consumers (``ir.cron`` failure records, shell tooling) have no request and
-    keep the full detail: admins read those. Shared by :func:`_exception_debug`
-    (traceback) and :func:`serialize_exception` (message/arguments) so the two
-    disclosure gates cannot drift.
-
-    Gate on ``dev_mode`` ONLY, never a DB lookup: this runs on the error path
-    where the cursor may already be broken, so a query could mask the original
-    error. ``request`` (a LocalProxy) is falsy when no request is active.
-    """
+    """Whether serialized-exception internals must be hidden from the reader."""
+    # True only for an active client request outside dev_mode — the one
+    # situation where the serialization reaches an untrusted party. Server-side
+    # consumers (ir.cron failure records, shell tooling) have no request and
+    # keep the full detail: admins read those. Shared by _exception_debug
+    # (traceback) and serialize_exception (message/arguments) so the two
+    # disclosure gates cannot drift. Gate on dev_mode ONLY, never a DB lookup:
+    # this runs on the error path where the cursor may already be broken, so a
+    # query could mask the original error. request (a LocalProxy) is falsy when
+    # no request is active.
     return bool(request) and not config["dev_mode"]
 
 

@@ -133,17 +133,15 @@ class BaseCursor(_CursorProtocol):
             self.transaction.reset()
 
     def discard_cached_plans(self) -> None:
-        """Drop cached statement plans held by the underlying connection.
-
-        No-op here: only the real :class:`Cursor` wraps a psycopg connection
-        with an auto-prepared-statement cache.  Declared on the base (unlike
-        ``fetchone``, which is deliberately left to ``TestCursor``'s
-        ``__getattr__`` delegation) so registry signaling can call it on any
-        ``BaseCursor``: in-memory and test cursors have nothing to discard —
-        a ``TestCursor``'s underlying real connection is already invalidated
-        by ``_invalidate_caches_after_ddl`` when DDL runs through it, and in
-        test mode ``check_signaling`` is patched out anyway.
-        """
+        """Drop cached statement plans held by the underlying connection."""
+        # No-op here: only the real :class:`Cursor` wraps a psycopg connection
+        # with an auto-prepared-statement cache.  Declared on the base (unlike
+        # ``fetchone``, which is deliberately left to ``TestCursor``'s
+        # ``__getattr__`` delegation) so registry signaling can call it on any
+        # ``BaseCursor``: in-memory and test cursors have nothing to discard —
+        # a ``TestCursor``'s underlying real connection is already invalidated
+        # by ``_invalidate_caches_after_ddl`` when DDL runs through it, and in
+        # test mode ``check_signaling`` is patched out anyway.
 
     def execute(
         self,
@@ -555,46 +553,40 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._record_sql_log(query_type, table, delay)
 
     def discard_cached_plans(self) -> None:
-        """Drop the schema-dependent caches attached to this connection / db.
-
-        Two caches go stale on a schema change (CREATE/ALTER/DROP/DO) and
-        neither self-heals:
-
-        1. psycopg's auto-prepared-statement cache on this connection: CREATE/
-           ALTER make cached ``SELECT *`` plans stale ("cached plan must not
-           change result type").  ``_prepared.clear()`` (private API) queues a
-           ``DEALLOCATE ALL``; if a future psycopg drops it, the fallback both
-           disables auto-prepare AND issues ``DEALLOCATE ALL`` itself —
-           ``prepare_threshold = None`` alone only stops preparing NEW
-           statements, leaving the already-cached stale plans in place.
-        2. The process-global ``schema_cache`` ``copy_from`` populates: ALTER/
-           DROP make cached column types/sequences stale, and a later binary
-           ``copy_from`` would feed ``set_types()`` stale types and corrupt the
-           COPY.  Drop this db's entries to force a re-lookup.
-
-        Two callers, one per side of a schema change:
-
-        * :meth:`_invalidate_caches_after_ddl` — the connection that RAN the
-          DDL (``drain_db``/registry signaling clears the other workers' idle
-          connections, never this live one);
-        * ``Registry.check_signaling`` — a cursor that was already checked out
-          while ANOTHER worker changed the schema: the pool drain only recycles
-          IDLE connections, so this one keeps its stale plans, and a
-          re-executed prepared statement raises ``FeatureNotSupported``
-          (sqlstate 0A000 — not an ``OperationalError``, not a retryable
-          sqlstate, so the RPC retry loop turns it straight into a 500).
-
-        Safe to call mid-transaction as long as the transaction is healthy
-        (both callers run right after a *successful* statement): DEALLOCATE is
-        session state, valid inside read-only transactions too.
-        """
+        """Drop the schema-dependent caches attached to this connection / db."""
+        # Two caches go stale on a schema change (CREATE/ALTER/DROP/DO) and
+        # neither self-heals. Two callers, one per side of a schema change:
+        # :meth:`_invalidate_caches_after_ddl` — the connection that RAN the DDL
+        # (``drain_db``/registry signaling clears the other workers' idle
+        # connections, never this live one); and ``Registry.check_signaling`` — a
+        # cursor already checked out while ANOTHER worker changed the schema: the
+        # pool drain only recycles IDLE connections, so this one keeps its stale
+        # plans, and a re-executed prepared statement raises
+        # ``FeatureNotSupported`` (sqlstate 0A000 — not an ``OperationalError``,
+        # not a retryable sqlstate, so the RPC retry loop turns it straight into a
+        # 500).
+        #
+        # Safe to call mid-transaction as long as the transaction is healthy
+        # (both callers run right after a *successful* statement): DEALLOCATE is
+        # session state, valid inside read-only transactions too.
+        #
+        # Cache 1 — psycopg's auto-prepared-statement cache on this connection:
+        # CREATE/ALTER make cached ``SELECT *`` plans stale ("cached plan must not
+        # change result type"). ``_prepared.clear()`` (private API) queues a
+        # ``DEALLOCATE ALL``.
         try:
             self._cnx._prepared.clear()
         except AttributeError:
             # Private API gone: disabling auto-prepare stops NEW prepares but
-            # leaves the existing stale plans, so drop them explicitly too.
+            # leaves the existing stale plans, so drop them explicitly too —
+            # ``prepare_threshold = None`` alone only stops preparing NEW
+            # statements.
             self._cnx.prepare_threshold = None
             self._cnx.execute("DEALLOCATE ALL")
+        # Cache 2 — the process-global ``schema_cache`` ``copy_from`` populates:
+        # ALTER/DROP make cached column types/sequences stale, and a later binary
+        # ``copy_from`` would feed ``set_types()`` stale types and corrupt the
+        # COPY. Drop this db's entries to force a re-lookup.
         schema_cache.clear(self.dbname)
 
     def _invalidate_caches_after_ddl(self) -> None:

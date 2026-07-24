@@ -70,11 +70,8 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
         )
 
     def test_real_field_acl_raises_denies_and_bypasses_per_fast_path_type(self):
-        """Real ACL, every fast-path field type: an unauthorized user reading a
-        group-restricted field raises ``AccessError``; ``sudo()`` bypasses; an
-        authorized (system) user reads normally.  This is the end-to-end form of
-        the harness's spy-based preamble check.
-        """
+        """Real ACL per fast-path field type: unauthorized read raises AccessError, sudo() bypasses, authorized reads normally."""
+        # this is the end-to-end form of the harness's spy-based preamble check
         self.assertFalse(self.user.has_group("base.group_system"))
         rec_admin = self.rec  # env user is system in a TransactionCase
         rec_user = self.rec.with_user(self.user)
@@ -118,11 +115,9 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
         self.assertNotEqual(seen["en_US"], seen["fr_FR"])
 
     def test_real_translate_true_new_record_falls_back_to_en_us(self):
-        """Origin-less NEW record, ``translate=True`` field read in a non-en
-        language: the fast path returns the en_US value (its documented
-        divergence from canonical ``Field.__get__``, which would return False and
-        poison the language sub-cache).
-        """
+        """Origin-less NEW record, translate=True field read in a non-en language returns the en_US value."""
+        # this is the fast path's documented divergence from canonical
+        # Field.__get__, which would return False and poison the language sub-cache
         self.env["res.lang"]._activate_lang("fr_FR")
         rec = (
             self.env["test_orm.related_translation_1"]

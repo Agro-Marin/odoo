@@ -467,12 +467,11 @@ def test_acl_denied_multirecord_relational_also_raises():
 
 
 def test_id_field_has_no_acl_preamble_by_design():
-    """Documented divergence: ``Id.__get__`` carries NO ACL preamble (the ``id``
-    field is never group-restricted and ``record.id`` is the single hottest
-    access).  This test freezes that intentional exemption: even a (contrived)
-    grouped+denied ``id`` field does not raise.  Flagged for the coordinator as
-    by-design, not a bug.
-    """
+    """A grouped+denied ``id`` field does not raise: ``Id.__get__`` has no ACL preamble."""
+    # Documented divergence: Id.__get__ carries NO ACL preamble by design (the
+    # id field is never group-restricted and record.id is the single hottest
+    # access). This freezes that intentional exemption — by-design, not a bug —
+    # so even a contrived grouped+denied id field returns without raising.
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         rec_id = host.id

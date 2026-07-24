@@ -6,11 +6,10 @@ dependency cycle, ``order[A] < order[B]``; all fields of one cycle (strongly
 connected component) share a single priority. In particular, the acyclic
 region *downstream* of a cycle keeps strict topological order — the plain
 Kahn drain used before could never reach those nodes and flattened them all
-to one max priority (audit finding; characterized by the
-``fuzz_recompute_order`` scripts).
+to one max priority.
 
-Includes a seeded port of the audit's property fuzzer, upgraded to the strict
-except-within-SCC property that only holds with the condensation.
+Includes a seeded property fuzzer for the strict except-within-SCC property
+that only holds with the condensation.
 """
 
 import random
@@ -89,12 +88,11 @@ class TestDownstreamOfCycle(unittest.TestCase):
 
 
 class TestSeededFuzzProperties(unittest.TestCase):
-    """Seeded port of the audit's recompute-order property fuzzer.
+    """Seeded fuzzer: the recompute-order strict property holds on random graphs."""
 
-    Strict property (only achievable with the SCC condensation): every
-    trigger edge between ordered fields in *different* SCCs is strictly
-    ordered; fields in the *same* SCC share a priority.
-    """
+    # Strict property (only achievable with the SCC condensation): every
+    # trigger edge between ordered fields in different SCCs is strictly ordered;
+    # fields in the same SCC share a priority.
 
     N_TRIALS = 300
 

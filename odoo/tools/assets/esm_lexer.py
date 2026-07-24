@@ -111,13 +111,11 @@ class _LexerWorker:
         return proc
 
     def close(self) -> None:
-        """Shut down the worker from outside a request.
-
-        Takes ``_lock`` so ``_proc``/``_inbuf`` are never mutated under a
-        concurrent :meth:`request` (which holds the lock for its whole
-        lifecycle and uses the unlocked :meth:`_kill` on its own failure
-        path — calling ``close`` there would self-deadlock).
-        """
+        """Shut down the worker from outside a request."""
+        # Takes ``_lock`` so ``_proc``/``_inbuf`` are never mutated under a
+        # concurrent :meth:`request` (which holds the lock for its whole lifecycle
+        # and uses the unlocked :meth:`_kill` on its own failure path — calling
+        # ``close`` there would self-deadlock).
         with self._lock:
             self._kill()
 
@@ -263,21 +261,19 @@ _cleanup_registered = False
 
 
 def _register_worker_cleanup() -> None:
-    """Register :func:`close_lexer_worker` for interpreter exit and server stop.
-
-    Mirrors ``sass_embedded.get_sass_compiler``: ``atexit`` covers plain
-    interpreter exit; ``CommonServer.on_stop`` hooks run before the server's
-    lingering-child check, so the worker is stopped by its owner during a
-    graceful stop instead of tripping the "process may hang" warning. Lazy
-    import: this tool sits below ``odoo.service``, and the hook is only
-    needed when a server is running.
-    """
+    """Register :func:`close_lexer_worker` for interpreter exit and server stop."""
     global _cleanup_registered  # noqa: PLW0603  # one-shot lazy registration
     if _cleanup_registered:
         return
     _cleanup_registered = True
+    # Mirrors ``sass_embedded.get_sass_compiler``: ``atexit`` covers plain
+    # interpreter exit; ``CommonServer.on_stop`` hooks run before the server's
+    # lingering-child check, so the worker is stopped by its owner during a
+    # graceful stop instead of tripping the "process may hang" warning.
     atexit.register(close_lexer_worker)
     try:
+        # Lazy import: this tool sits below ``odoo.service``, and the hook is
+        # only needed when a server is running.
         from odoo.service.server import CommonServer
 
         CommonServer.on_stop(close_lexer_worker)

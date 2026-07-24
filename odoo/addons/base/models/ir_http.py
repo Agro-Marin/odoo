@@ -382,7 +382,7 @@ class IrHttp(models.AbstractModel):
         # NB: werkzeug resolves URL converters from the Map (built with
         # ``_get_converters()`` in :meth:`routing_map`), never per rule — the
         # historical ``converters`` parameter threaded through here and the
-        # website override was dead weight and has been removed.
+        # website override.
         return http._generate_routing_rules(modules, False)
 
     @tools.ormcache("key", cache="routing")

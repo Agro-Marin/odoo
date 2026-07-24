@@ -197,22 +197,20 @@ class TriggerTree(dict):
 
 
 class _TriggerState:
-    """One published snapshot: the trigger map plus every derived cache.
+    """One published snapshot: the trigger map plus every derived cache."""
 
-    :class:`ModelGraph` publishes trigger data by swapping a single
-    ``_TriggerState`` reference — one atomic attribute assignment. Lock-free
-    readers capture the current state once per operation, so a trigger map is
-    only ever observed together with derived caches built *from that same
-    map*; there is no window where a fresh map is served with stale trees (or
-    vice versa).
-
-    The derived caches (``trees``, ``modifying_relations``,
-    ``recompute_order``) start empty and fill lazily on first query (or
-    eagerly via :meth:`ModelGraph.freeze`). Filling is a pure function of this
-    state's own ``triggers``, so concurrent fills are idempotent: two threads
-    racing a cold entry write identical values, and each dict/attribute store
-    is atomic.
-    """
+    # Concurrency model: ModelGraph publishes trigger data by swapping a single
+    # _TriggerState reference — one atomic attribute assignment. Lock-free
+    # readers capture the current state once per operation, so a trigger map is
+    # only ever observed together with derived caches built from that same map;
+    # there is no window where a fresh map is served with stale trees (or vice
+    # versa).
+    #
+    # The derived caches (trees, modifying_relations, recompute_order) start
+    # empty and fill lazily on first query (or eagerly via ModelGraph.freeze).
+    # Filling is a pure function of this state's own triggers, so concurrent
+    # fills are idempotent: two threads racing a cold entry write identical
+    # values, and each dict/attribute store is atomic.
 
     __slots__ = ("modifying_relations", "recompute_order", "trees", "triggers")
 
@@ -381,24 +379,22 @@ class ModelGraph:
         return self._epoch
 
     def begin_invalidation(self) -> None:
-        """Open a registry-teardown window: refuse epoch-validated publications.
-
-        Called (under the registry's write lock) at the START of any teardown
-        that changes the inputs triggers are built from — full/incremental
-        model setup, custom-field discard — *before* model classes are
-        mutated. Bumps the epoch (refusing rebuilds that started before the
-        teardown) and raises the barrier (refusing rebuilds that start *during*
-        it, which would otherwise capture the current epoch mid-mutation and
-        publish garbage). Without this, a reader-triggered
-        ``Registry._field_triggers`` rebuild racing the teardown could win the
-        publication race *after* the teardown's own eager rebuild and publish
-        triggers derived from half-set-up models.
-
-        Balanced by :meth:`end_invalidation`. If a teardown dies in between,
-        the barrier stays up: readers keep being served the last published
-        (pre-teardown, internally consistent) snapshot until the next
-        successful setup — the safest failure mode.
-        """
+        """Open a registry-teardown window: refuse epoch-validated publications."""
+        # Called (under the registry's write lock) at the START of any teardown
+        # that changes the inputs triggers are built from — full/incremental
+        # model setup, custom-field discard — before model classes are mutated.
+        # Bumping the epoch refuses rebuilds that started before the teardown;
+        # raising the barrier refuses rebuilds that start during it (which would
+        # otherwise capture the current epoch mid-mutation and publish garbage).
+        # Without this, a reader-triggered Registry._field_triggers rebuild
+        # racing the teardown could win the publication race after the
+        # teardown's own eager rebuild and publish triggers derived from
+        # half-set-up models.
+        #
+        # Balanced by end_invalidation. If a teardown dies in between, the
+        # barrier stays up: readers keep being served the last published
+        # (pre-teardown, internally consistent) snapshot until the next
+        # successful setup — the safest failure mode.
         with self._publish_lock:
             self._epoch += 1
             self._invalidation_barrier = True
@@ -448,30 +444,18 @@ class ModelGraph:
             self._state = _TriggerState(self._state.triggers)
 
     def discard_fields(self, fields: Collection) -> None:
-        """Remove *fields* from the graph's data structures.
-
-        Called when fields are removed from the registry (e.g. custom field
-        deletion). Two different mutation disciplines apply:
-
-        * The metadata collectors (``_depends``, ``_depends_context``,
-          ``_computed``, ``_inverses``) are scrubbed **in place** — request
-          threads read them by key lookup only, and ``_depends_context`` must
-          keep its identity (see :meth:`reset_field_metadata`). Note that
-          ``_computed`` only drops the discarded fields' *key* entries: the
-          co-computed group lists (shared values) are not scrubbed here — the
-          registry rebuilds the whole map from the model classes on the next
-          ``field_computed`` access.
-        * The trigger map is **never** mutated in place: request threads
-          iterate it lock-free while building trigger trees, and an in-place
-          scrub reliably crashes them with "dictionary changed size during
-          iteration". Instead a scrubbed *copy* is built and published
-          atomically as a fresh snapshot (map + empty derived caches in one
-          swap). In production, ``Registry._discard_fields`` follows up with a
-          full eager rebuild through ``_field_triggers`` — the real
-          publication — but the copy-swap keeps the standalone graph correct
-          and race-free on its own.
-        """
+        """Remove *fields* from the graph's data structures."""
+        # Called when fields are removed from the registry (e.g. custom field
+        # deletion). Two different mutation disciplines apply — metadata
+        # collectors vs the trigger map — detailed at each step below.
         discarded = set(fields)
+        # The metadata collectors (_depends, _depends_context, _computed,
+        # _inverses) are scrubbed in place — request threads read them by key
+        # lookup only, and _depends_context must keep its identity (see
+        # reset_field_metadata). _computed only drops the discarded fields' key
+        # entries: the co-computed group lists (shared values) are not scrubbed
+        # here — the registry rebuilds the whole map from the model classes on
+        # the next field_computed access.
         for f in discarded:
             self._depends.pop(f, None)
             self._depends_context.pop(f, None)
@@ -480,6 +464,15 @@ class ModelGraph:
         # Discard from inverses (keys and values)
         self._inverses.discard_keys_and_values(fields)
 
+        # The trigger map is never mutated in place: request threads iterate it
+        # lock-free while building trigger trees, and an in-place scrub reliably
+        # crashes them with "dictionary changed size during iteration". Instead
+        # a scrubbed copy is built and published atomically as a fresh snapshot
+        # (map + empty derived caches in one swap). In production,
+        # Registry._discard_fields follows up with a full eager rebuild through
+        # _field_triggers — the real publication — but the copy-swap keeps the
+        # standalone graph correct and race-free on its own.
+        #
         # Copy-scrub-swap of the trigger map: drop discarded deps, and scrub
         # discarded fields where they appear as trigger *targets* of other deps
         # (``triggers`` is ``{dep: {path: [targets]}}``: dropping a field only
@@ -692,26 +685,25 @@ class ModelGraph:
 
     @property
     def recompute_order(self) -> dict[Any, int]:
-        """Return a priority map ``{field: int}`` for recomputation ordering.
+        """Return a priority map for recomputation ordering.
 
-        Fields with lower priority values should be recomputed first. The
-        contract: if field B (transitively) depends on field A and A and B are
-        not part of the same dependency cycle, then ``order[A] < order[B]``.
-        All fields of one cycle (strongly connected component) share a single
-        priority — the convergence loop handles intra-cycle ordering — and
-        fields *downstream* of a cycle still order strictly after it.
-
-        Computed lazily from the snapshot's trigger map via Kahn's algorithm
-        on the SCC condensation (see :meth:`_compute_recompute_order`), and
-        cached in the snapshot.
-
-        Used by :class:`UnitOfWork` to process pending recomputations in
-        dependency order, reducing the number of convergence iterations
-        from O(depth) to O(1) for acyclic dependency chains.
+        :return: ``{field: priority}``; lower priority is recomputed first.
         """
+        # Contract: if field B (transitively) depends on field A and A and B
+        # are not part of the same dependency cycle, then order[A] < order[B].
+        # All fields of one cycle (strongly connected component) share a single
+        # priority — the convergence loop handles intra-cycle ordering — and
+        # fields downstream of a cycle still order strictly after it.
+        #
+        # Used by UnitOfWork to process pending recomputations in dependency
+        # order, reducing the number of convergence iterations from O(depth) to
+        # O(1) for acyclic dependency chains.
         state = self._state
         order = state.recompute_order
         if order is None:
+            # Computed lazily from the snapshot's trigger map via Kahn's
+            # algorithm on the SCC condensation (see _compute_recompute_order),
+            # and cached in the snapshot.
             order = state.recompute_order = self._compute_recompute_order(
                 state.triggers
             )

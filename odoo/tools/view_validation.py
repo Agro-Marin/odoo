@@ -184,7 +184,7 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     # TypeError/AttributeError cover malformed leaves and unhandled AST node
     # types (e.g. "foo()", "{'a': 1}", [None]) so callers get the documented
     # ValueError instead of a raw 500.
-    except ValueError, TypeError, AttributeError:
+    except (ValueError, TypeError, AttributeError):
         msg = "Wrong domain formatting."
         raise ValueError(msg) from None
 

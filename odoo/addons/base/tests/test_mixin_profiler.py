@@ -92,16 +92,13 @@ class TestMixinProfiler(TransactionCase):
         self.assertTrue(hasattr(self.registry["res.partner"].create, "_profiled"))
 
     def test_unprofile_restores_mro_resolution(self):
-        """Un-profiling must not pin a copy of an MRO-inherited method onto the
-        registry class's own ``__dict__``.
-
-        The registry class for ``res.partner`` inherits ``create`` from its
-        model definition class; a pinned own-attribute copy would permanently
-        shadow the definition class, silently bypassing any later
-        ``patch.object(ResPartner, "create")`` (a supported test idiom) —
-        this was an order-dependent failure of
-        ``TestPartner.test_find_or_create`` in full-suite runs.
-        """
+        """Un-profiling must not pin an MRO-inherited method onto the registry class's own __dict__."""
+        # The registry class for res.partner inherits create from its model
+        # definition class; a pinned own-attribute copy would permanently shadow
+        # the definition class, silently bypassing any later
+        # patch.object(ResPartner, "create") (a supported test idiom) — this was
+        # an order-dependent failure of TestPartner.test_find_or_create in
+        # full-suite runs.
         Partner = self.registry["res.partner"]
         self.assertNotIn("create", Partner.__dict__)
         mp.profile_methods("res.partner", ["create"], self.registry)
