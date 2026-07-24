@@ -317,11 +317,11 @@ class TestAcquireCursor(BaseCase):
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_cr)
         mock_cm.__exit__ = MagicMock(return_value=False)
-        mock_registry = MagicMock()
-        mock_registry.cursor.return_value = mock_cm
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cm
 
         with (
-            patch("odoo.addons.bus.websocket.Registry", return_value=mock_registry),
+            patch("odoo.addons.bus.websocket.db_connect", return_value=mock_connection),
             patch("time.sleep"),
         ):
             with acquire_cursor("testdb") as cr:
@@ -343,11 +343,11 @@ class TestAcquireCursor(BaseCase):
                 raise PoolError("pool exhausted")
             return mock_cm
 
-        mock_registry = MagicMock()
-        mock_registry.cursor.side_effect = cursor_side_effect
+        mock_connection = MagicMock()
+        mock_connection.cursor.side_effect = cursor_side_effect
 
         with (
-            patch("odoo.addons.bus.websocket.Registry", return_value=mock_registry),
+            patch("odoo.addons.bus.websocket.db_connect", return_value=mock_connection),
             patch("time.sleep"),
         ):
             with acquire_cursor("testdb") as cr:
@@ -356,11 +356,11 @@ class TestAcquireCursor(BaseCase):
 
     def test_raises_after_max_retries(self):
         """After MAX_TRY_ON_POOL_ERROR failures, PoolError propagates."""
-        mock_registry = MagicMock()
-        mock_registry.cursor.side_effect = PoolError("always busy")
+        mock_connection = MagicMock()
+        mock_connection.cursor.side_effect = PoolError("always busy")
 
         with (
-            patch("odoo.addons.bus.websocket.Registry", return_value=mock_registry),
+            patch("odoo.addons.bus.websocket.db_connect", return_value=mock_connection),
             patch("time.sleep"),
         ):
             with self.assertRaises(PoolError):
@@ -371,11 +371,11 @@ class TestAcquireCursor(BaseCase):
         """When every attempt fails, no backoff sleep runs after the last one:
         the delays grow exponentially and the final sleep alone would stall
         the caller for several extra seconds before raising."""
-        mock_registry = MagicMock()
-        mock_registry.cursor.side_effect = PoolError("always busy")
+        mock_connection = MagicMock()
+        mock_connection.cursor.side_effect = PoolError("always busy")
 
         with (
-            patch("odoo.addons.bus.websocket.Registry", return_value=mock_registry),
+            patch("odoo.addons.bus.websocket.db_connect", return_value=mock_connection),
             patch("time.sleep") as mock_sleep,
         ):
             with self.assertRaises(PoolError):
@@ -397,11 +397,11 @@ class TestAcquireCursor(BaseCase):
         mock_cm = MagicMock()
         mock_cm.__enter__ = MagicMock(return_value=mock_cr)
         mock_cm.__exit__ = MagicMock(return_value=False)
-        mock_registry = MagicMock()
-        mock_registry.cursor.return_value = mock_cm
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cm
 
         with (
-            patch("odoo.addons.bus.websocket.Registry", return_value=mock_registry),
+            patch("odoo.addons.bus.websocket.db_connect", return_value=mock_connection),
             patch("time.sleep"),
         ):
             with self.assertRaises(PoolError):
@@ -409,7 +409,7 @@ class TestAcquireCursor(BaseCase):
                     raise PoolError("raised by caller body")
         # The cursor was acquired exactly once: the body's PoolError was not
         # swallowed and retried.
-        self.assertEqual(mock_registry.cursor.call_count, 1)
+        self.assertEqual(mock_connection.cursor.call_count, 1)
         mock_cm.__exit__.assert_called_once()
 
 

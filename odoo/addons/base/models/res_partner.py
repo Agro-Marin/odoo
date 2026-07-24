@@ -1088,9 +1088,22 @@ class ResPartner(models.Model):
                 lambda c: not c.is_company
             )
         if descendants:
-            descendants.write(
-                commercial_partner._convert_fields_to_values(fields_to_sync)
+            sync_vals = commercial_partner._convert_fields_to_values(fields_to_sync)
+            # Only write to descendants that actually differ from the target
+            # values. Reading the (few) commercial fields across the subtree is
+            # cheap and batched, whereas an unconditional write() on an already
+            # in-sync subtree still prepares mail tracking, triggers dependent
+            # recomputes and flushes every node -- the main source of the
+            # memory/time blow-up during batch operations that re-sync an
+            # unchanged commercial entity (e.g. batch payments).
+            descendants_to_sync = descendants.filtered(
+                lambda d: any(
+                    d._fields[fname].convert_to_write(d[fname], d) != sync_vals[fname]
+                    for fname in fields_to_sync
+                )
             )
+            if descendants_to_sync:
+                descendants_to_sync.write(sync_vals)
 
     def _fields_sync(self, values: dict[str, Any]) -> None:
         """Sync commercial and address fields across the partner hierarchy.
@@ -1102,6 +1115,12 @@ class ResPartner(models.Model):
 
         :param values: updated values triggering the sync
         """
+        # Batch-read the fields the sync helpers below read on every record.
+        # ``write()`` calls this per-partner, but each single-record ``self``
+        # keeps the whole write's prefetch set, so the first iteration loads
+        # these for all partners in one query instead of one query per record
+        # (avoids the per-partner read storm on large batch writes).
+        self.fetch(["parent_id", "type", "commercial_partner_id"])
         self._sync_from_parent(values)
         self._sync_to_parent(values)
         self._children_sync(values)

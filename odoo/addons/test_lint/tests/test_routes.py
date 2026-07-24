@@ -4,12 +4,13 @@ from unittest.mock import patch
 
 from odoo import http
 from odoo.http import routing as http_routing
-from odoo.tests import TransactionCase, tagged
+from odoo.tests.common import TransactionCase, no_retry, tagged
 
 _logger = logging.getLogger(__name__)
 
 
 @tagged("post_install", "-at_install")
+@no_retry
 class RoutesLinter(TransactionCase):
     def test_routes_definition(self):
         """Forbid redefinition of same-value attributes in an inherited route.

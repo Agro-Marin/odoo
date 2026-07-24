@@ -6,8 +6,7 @@ from pathlib import Path
 
 from odoo.modules import Manifest
 from odoo.modules.registry import Registry
-from odoo.tests import BaseCase
-from odoo.tests.common import get_db_name
+from odoo.tests.common import BaseCase, get_db_name, no_retry
 
 
 def get_odoo_module_name(python_module_name: str) -> str:
@@ -25,6 +24,10 @@ def get_odoo_module_name(python_module_name: str) -> str:
     return python_module_name
 
 
+# Lint tests are deterministic static analysis: a failure is a real failure, so
+# retrying only wastes staging/build time (pylint alone can take 10-15min). The
+# _retry=False class attribute is inherited by every LintCase subclass.
+@no_retry
 class LintCase(BaseCase):
     """Utility methods for lint-type test cases."""
 

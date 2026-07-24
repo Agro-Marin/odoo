@@ -5,7 +5,7 @@ Guards against the pattern where a module imports a type only under
 See :mod:`_checker_pep649` for background.
 """
 
-from odoo.tests import BaseCase
+from odoo.tests.common import BaseCase, no_retry
 
 from ._checker_pep649 import scan_module
 
@@ -51,6 +51,7 @@ CLEAN_MODULES = (
 )
 
 
+@no_retry
 class TestPEP649Annotations(BaseCase):
     """Ensure annotations on public symbols remain introspectable."""
 
