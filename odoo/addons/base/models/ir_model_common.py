@@ -269,12 +269,28 @@ def _build_upsert_query(
     )
     assignments = comma(
         (
-            # ``translate is True`` (user translations) keep other languages by
-            # merging jsonb; callable-translate and plain columns overwrite, as
-            # translated values are reloaded right after reflection.
+            # ``translate is True`` (user translations): normally merge jsonb so
+            # other languages survive the upgrade. But a stable-keyed row (e.g. a
+            # selection label) can have its English source text changed by an
+            # upgrade while keeping the same key; when the incoming ``en_US``
+            # differs from the stored one, the other stored languages translate a
+            # source string that no longer exists, so take the new value wholesale
+            # (dropping them) and let the reloaded .po translations replace them,
+            # rather than merging and keeping the stale ones forever. Callable-
+            # translate and plain columns overwrite, as translated values are
+            # reloaded right after reflection.
             SQL(
-                "%s = COALESCE(t.%s, '{}'::jsonb) || s.%s%s",
+                """%s = CASE
+                    WHEN t.%s ->> 'en_US' IS DISTINCT FROM s.%s%s ->> 'en_US'
+                        THEN s.%s%s
+                    ELSE COALESCE(t.%s, '{}'::jsonb) || s.%s%s
+                   END""",
                 col_id,
+                col_id,
+                col_id,
+                cast,
+                col_id,
+                cast,
                 col_id,
                 col_id,
                 cast,

@@ -2139,7 +2139,7 @@ class TranslationImporter:
                             [*xmlid.split(".", maxsplit=1), Json(translations)]
                         )
                     if not force_overwrite:
-                        value_query = f"""CASE WHEN {overwrite} IS TRUE AND imd.noupdate IS FALSE
+                        value_query = f"""CASE WHEN {overwrite} IS TRUE AND imd.noupdate IS NOT TRUE
                         THEN m."{field_name}" || t.value
                         ELSE t.value || m."{field_name}"END"""
                     else:

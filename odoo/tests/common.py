@@ -1048,7 +1048,7 @@ class BaseCase(case.TestCase):
                 readonly and cls._registry_readonly_enabled,
             )
 
-        return [
+        patches = [
             # New cursor should point to the test's cursor
             patch.object(registry, "cursor", _patched_cursor),
             # Disable locking and signaling
@@ -1056,6 +1056,33 @@ class BaseCase(case.TestCase):
             patch.object(registry, "setup_signaling", return_value=None),  # noop
             patch.object(registry, "check_signaling", return_value=registry),
         ]
+
+        # bus.websocket.acquire_cursor() opens a cursor via db_connect(db_name)
+        # directly instead of Registry(db_name).cursor(), bypassing the
+        # registry.cursor patch above. Redirect it to the test's cursor too so
+        # websocket code stays within the test transaction.
+        try:
+            from odoo.addons.bus import websocket as bus_websocket
+        except ImportError:
+            pass
+        else:
+            og_db_connect = bus_websocket.db_connect
+
+            def _patched_ws_db_connect(to, allow_uri=False, readonly=False):
+                if to == cr.dbname:
+
+                    class _TestConnection:
+                        def cursor(self):
+                            return _patched_cursor(readonly)
+
+                    return _TestConnection()
+                return og_db_connect(to, allow_uri=allow_uri, readonly=readonly)
+
+            patches.append(
+                patch.object(bus_websocket, "db_connect", _patched_ws_db_connect)
+            )
+
+        return patches
 
     @classmethod
     def registry_enter_test_mode_cls(cls) -> None:

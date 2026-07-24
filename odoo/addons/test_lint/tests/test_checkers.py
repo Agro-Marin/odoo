@@ -7,11 +7,12 @@ and N+1 query detection using stdlib ``ast`` (no pylint/astroid dependency).
 import ast
 from textwrap import dedent
 
-from odoo.tests import BaseCase
+from odoo.tests.common import BaseCase, no_retry
 
 from . import _checker_batch, _checker_gettext, _checker_sql, _checker_unlink
 
 
+@no_retry
 class TestSqlLint(BaseCase):
     """Test the SQL injection checker."""
 
@@ -376,6 +377,7 @@ class TestSqlLint(BaseCase):
         self.assertFalse(violations, "test files should be skipped")
 
 
+@no_retry
 class TestGetTextLint(BaseCase):
     """Test the gettext checker."""
 
@@ -475,6 +477,7 @@ class TestGetTextLint(BaseCase):
         self.assertFalse(violations, "test files should be skipped")
 
 
+@no_retry
 class TestUnlinkLint(BaseCase):
     """Test the unlink override checker."""
 
@@ -528,6 +531,7 @@ class TestUnlinkLint(BaseCase):
                 self.assertTrue(violations, f"{base} should be detected as model class")
 
 
+@no_retry
 class TestBatchLint(BaseCase):
     """Test the N+1 query pattern checker."""
 

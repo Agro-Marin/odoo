@@ -2,7 +2,7 @@ import logging
 from pathlib import PurePosixPath
 
 from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
-from odoo.tests import BaseCase
+from odoo.tests.common import BaseCase, no_retry
 from odoo.tools.misc import file_path
 
 from . import _sort_manifests
@@ -30,6 +30,7 @@ MANIFEST_KEYS = {
 }
 
 
+@no_retry
 class ManifestLinter(BaseCase):
 
     def test_manifests(self):

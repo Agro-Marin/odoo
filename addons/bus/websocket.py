@@ -49,7 +49,7 @@ from werkzeug.exceptions import BadRequest, HTTPException, ServiceUnavailable
 from werkzeug.local import LocalStack
 
 from odoo import api, modules
-from odoo.db import PoolError
+from odoo.db import PoolError, db_connect
 from odoo.http import (
     Request,
     Response,
@@ -89,7 +89,11 @@ def acquire_cursor(db):
             # threads release their cursor.
             time.sleep(0)
             try:
-                cm = Registry(db).cursor()
+                # Open the cursor straight from the connection pool instead of
+                # Registry(db).cursor(): outgoing messages no longer need a built
+                # registry, and building one here needlessly can block the gevent
+                # server CPU (odoo/odoo#277524).
+                cm = db_connect(db).cursor()
                 cr = cm.__enter__()
             except PoolError:
                 if attempt == MAX_TRY_ON_POOL_ERROR:
