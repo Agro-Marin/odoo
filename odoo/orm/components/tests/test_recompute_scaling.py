@@ -1,15 +1,14 @@
 """RecomputeScheduler.process_entry cost/semantics pins (no Odoo, no DB).
 
-Audit finding: the recursive stored-computed branch built a merged ``known``
-set (``marked | to_recompute``) per trigger entry — O(|pending|) with a
-100k-id pending map (~500 ms per 500 entries, see the audit's
-``bench_process_entry`` script). The fix is two left-iterating subtractions
-(identical algebra); the non-stored branch's ``ids & cached_ids`` similarly
-iterated the whole cached-id view (right operand) in cache order, and now
-iterates the entry's ids, preserving recordset order end to end.
+Regression: the recursive stored-computed branch built a merged ``known`` set
+(``marked | to_recompute``) per trigger entry — O(|pending|), ~500 ms per 500
+entries against a 100k-id pending map. The fix is two left-iterating
+subtractions (identical algebra); the non-stored branch's ``ids & cached_ids``
+similarly iterated the whole cached-id view (right operand) in cache order, and
+now iterates the entry's ids, preserving recordset order end to end.
 
 These tests pin the semantics of the rewritten branches (the O() claims are
-covered by the benchmark script, not timing asserts).
+covered by a benchmark script, not timing asserts).
 """
 
 import unittest

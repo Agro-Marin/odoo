@@ -83,11 +83,10 @@ class LastOrderedSet[T](OrderedSet[T]):
         super().add(elem)
 
     def update(self, elems: Iterable[T]) -> None:
-        """Add all ``elems``, moving each to the last insertion position.
-
-        Overrides ``OrderedSet.update`` (``dict.update``, which keeps the
-        position of already-present keys) so re-adding an existing element moves
-        it to the end, matching this class's last-insertion-order contract.
-        """
+        """Add all ``elems``, moving each to the last insertion position."""
+        # Overrides ``OrderedSet.update`` (``dict.update``, which keeps the
+        # position of already-present keys) so re-adding an existing element
+        # moves it to the end, matching this class's last-insertion-order
+        # contract.
         for elem in elems:
             self.add(elem)

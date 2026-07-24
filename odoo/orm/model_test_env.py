@@ -52,20 +52,7 @@ class InMemorySqlNotSupported(NotImplementedError):
 
 
 class InMemoryRecordRulesNotSupported(NotImplementedError):
-    """Raised on ``env["ir.rule"]`` access in a DB-free harness env.
-
-    The in-memory tier does not enforce record rules (nor ``ir.model.access``
-    ACLs): ``search()`` dispatches to the storage backend *before* the
-    ``ir.rule`` security domain is applied (``DictBackend`` declares
-    ``supports_record_rules = False``, see ``orm/runtime/backend.py``), so a
-    test asserting security-adjacent behaviour would go *green while
-    production filters records* — the false-green failure mode this tier must
-    not introduce (same rationale as :meth:`InMemoryCursor.rollback` /
-    :meth:`InMemoryCursor.savepoint`).  Raised by
-    :meth:`ModelRegistry.__getitem__` only when the caller did not register an
-    ``ir.rule`` model themselves; a caller-provided ``ir.rule`` model is
-    served normally.
-    """
+    """Raised on ``env["ir.rule"]`` access in a DB-free harness env."""
 
 
 # Minimal 'base' model for testing
@@ -455,6 +442,17 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 # Loud marker: record rules are silently NOT enforced DB-free
                 # (see InMemoryRecordRulesNotSupported).  A bare KeyError here
                 # reads like a harness gap; make the intent explicit instead.
+                #
+                # The in-memory tier does not enforce record rules (nor
+                # ir.model.access ACLs): search() dispatches to the storage
+                # backend before the ir.rule security domain is applied
+                # (DictBackend declares supports_record_rules = False, see
+                # orm/runtime/backend.py), so a test asserting security-adjacent
+                # behaviour would go green while production filters records —
+                # the false-green failure mode this tier must not introduce
+                # (same rationale as InMemoryCursor.rollback / .savepoint).
+                # Raised only when the caller did not register an ir.rule model
+                # themselves; a caller-provided ir.rule model is served normally.
                 raise InMemoryRecordRulesNotSupported(
                     "ModelRegistry (DB-free model_test_env) has no 'ir.rule' "
                     "model: record rules are NOT enforced in this tier — "

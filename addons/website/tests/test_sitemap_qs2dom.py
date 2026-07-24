@@ -7,9 +7,11 @@ from odoo.addons.website.models.ir_http import sitemap_qs2dom
 
 @tagged("at_install", "standard")
 class TestSitemapQs2Dom(BaseCase):
-    """Pin sitemap_qs2dom's filtering semantics (it historically leaned on
-    unittest.util.unorderable_list_difference for its mutation side effect;
-    the reimplementation must keep one-removal-per-route-segment behavior)."""
+    """Pin sitemap_qs2dom's filtering semantics."""
+
+    # it historically leaned on unittest.util.unorderable_list_difference for
+    # its mutation side effect; the reimplementation must keep
+    # one-removal-per-route-segment behavior.
 
     def test_no_qs_matches_everything(self):
         self.assertEqual(sitemap_qs2dom(None, "/shop"), Domain.TRUE)

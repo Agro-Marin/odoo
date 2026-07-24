@@ -63,11 +63,11 @@ def test_faster_rule_is_a_drop_in_werkzeug_rule():
 
 
 def test_concurrent_first_build_is_thread_safe():
-    """Routing maps are shared across worker threads, so a rule's FIRST
-    ``url_for`` can race. The lazy builder used to delete its source
-    attributes after materialising; a peer that had already passed the
-    ``None`` check then crashed on ``self.rule`` (AttributeError → 500).
-    Concurrent first builds must all succeed and agree."""
+    """Concurrent first builds of a shared rule all succeed and agree."""
+    # Routing maps are shared across worker threads, so a rule's FIRST url_for
+    # can race. The lazy builder used to delete its source attributes after
+    # materialising; a peer that had already passed the None check then crashed
+    # on self.rule (AttributeError → 500).
     n_threads = 8
     old_interval = sys.getswitchinterval()
     sys.setswitchinterval(1e-6)  # force preemption inside the tiny race window

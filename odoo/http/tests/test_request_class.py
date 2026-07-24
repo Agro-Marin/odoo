@@ -33,10 +33,10 @@ def test_monodb_dblist_filters_cached_catalog(fresh_monodb_cache):
 
 
 def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
-    """PostgreSQL being down must yield "no databases" (db-less serving),
-    not propagate — this runs in ``_post_init`` for every cookie-less
-    request, including static assets and ``/web/login``. ``db_list`` has the
-    same guard; the memoised monodb path must not lose it."""
+    """PostgreSQL down yields no databases (db-less serving), not a propagated error."""
+    # This runs in _post_init for every cookie-less request, including static
+    # assets and /web/login; db_list has the same guard and the memoised monodb
+    # path must not lose it.
     boom = psycopg.OperationalError("connection refused")
     with patch.object(request_class, "_list_all_dbs", side_effect=boom):
         assert request_class._monodb_dblist("h") == []

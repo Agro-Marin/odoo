@@ -118,9 +118,7 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
             # Single left-to-right pass: ``%%`` (escape) is matched before the
             # ``%(id)s`` form, so an escaped ``%%(id)s`` is left literal and its
             # inner ref is not substituted. Positional replacement also handles
-            # refs that are adjacent (``%(a)d%(b)d``) or at the string start,
-            # which the previous ``[^%]``-prefixed finditer + global replace
-            # both mishandled.
+            # refs that are adjacent (``%(a)d%(b)d``) or at the string start.
             def repl(m: re.Match) -> str:
                 if m.group(0) == "%%":
                     return "%"  # unescape %% to % for backward compatibility
@@ -667,9 +665,9 @@ form: module.record_id""" % (xml_id,)
     def _tag_root(self, el: etree._Element) -> None:
         # The env/noupdate/auto_sequence context comes from the container ``el``
         # and is constant across its children, so push the frame once per
-        # container -- not once per child. Pushing per child (the previous
-        # behaviour) reset the auto_sequence counter for every sibling, so all
-        # top-level records got sequence=10 instead of 10, 20, 30, ...
+        # container -- not once per child. Per-child pushes would reset the
+        # auto_sequence counter for every sibling, giving every top-level record
+        # sequence=10 instead of 10, 20, 30, ...
         self.envs.append(self.get_env(el))
         self._noupdate.append(nodeattr2bool(el, "noupdate", self.noupdate))
         self._sequences.append(0 if nodeattr2bool(el, "auto_sequence", False) else None)

@@ -172,19 +172,17 @@ class FieldCache:
         *,
         context_dependent: bool,
     ) -> None:
-        """Invalidate cached values for *field* (all if *ids* is ``None``).
-
-        Canonical invalidation entry point: the caller supplies the cache
-        shape via *context_dependent* (``Field._is_context_dependent``), so no
-        O(n) shape probing is needed — a flat single-id invalidation is a
-        single ``pop``. See the shape note above for the mixed-state decode.
-
-        Context-dependent sub-dicts are cleared/trimmed **in place** and kept
-        even when emptied: ``Field._get_cache`` memoizes each per-context
-        sub-dict's identity in ``env._field_cache_memo``, so dropping an
-        emptied sub-dict from the outer dict would orphan those memos (writes
-        through a memoized sub-dict would no longer be visible here).
-        """
+        """Invalidate cached values for *field* (all if *ids* is ``None``)."""
+        # Canonical invalidation entry point: the caller supplies the cache
+        # shape via context_dependent (Field._is_context_dependent), so no O(n)
+        # shape probing is needed — a flat single-id invalidation is a single
+        # pop. See the shape note above for the mixed-state decode.
+        #
+        # Context-dependent sub-dicts are cleared/trimmed in place and kept even
+        # when emptied: Field._get_cache memoizes each per-context sub-dict's
+        # identity in env._field_cache_memo, so dropping an emptied sub-dict
+        # from the outer dict would orphan those memos (writes through a
+        # memoized sub-dict would no longer be visible here).
         field_cache = self._data.get(field)
         if not field_cache:
             return
@@ -207,7 +205,7 @@ class FieldCache:
         for id_ in ids:
             field_cache.pop(id_, None)
         # Scrub ids inside each per-context sub-dict (kept even if emptied,
-        # see the docstring).
+        # see the note above).
         for key, sub_cache in field_cache.items():
             if isinstance(key, tuple):
                 for id_ in ids:

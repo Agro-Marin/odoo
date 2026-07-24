@@ -2009,18 +2009,15 @@ class TestDroppedDBRecovery(BaseCase):
         self.assertNotIn(self.DB_NAME, Registry.registries)
 
     def test_check_signaling_keeps_registry_on_pool_error(self):
-        """PoolError means pool capacity exhaustion (all connections in use),
-        NOT a dead database: check_signaling() must propagate it WITHOUT
-        deleting the registry.  Deleting would turn a transient load spike
-        into a self-inflicted outage (full module reload under the global
-        lock); dead-DB cleanup is the OperationalError path's job.
-        """
+        """check_signaling() propagates PoolError without deleting the registry."""
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
         reg._db_readonly = None
         Registry.registries[self.DB_NAME] = reg
         self.addCleanup(Registry.delete, self.DB_NAME)
 
+        # PoolError means pool capacity exhaustion (all connections in use), NOT
+        # a dead database, so check_signaling() must propagate it as-is.
         with patch.object(
             type(reg),
             "cursor",
@@ -2029,6 +2026,9 @@ class TestDroppedDBRecovery(BaseCase):
             with self.assertRaises(PoolError):
                 reg.check_signaling()
 
+        # deleting the registry here would turn a transient load spike into a
+        # self-inflicted outage (full module reload under the global lock);
+        # dead-DB cleanup is the OperationalError path's job.
         self.assertIn(self.DB_NAME, Registry.registries)
 
     def test_check_signaling_keeps_registry_when_caller_provides_cursor(self):

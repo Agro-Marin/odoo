@@ -1178,7 +1178,7 @@ class Registry(
                         # keeps reporting the resolved fallback state.
                         thread.cursor_mode = "ro"
                     return cr
-                except psycopg.OperationalError, db.PoolError:
+                except (psycopg.OperationalError, db.PoolError):
                     self._db_readonly_failed_time = time.monotonic()
                     _logger.warning(
                         "Failed to open a readonly cursor, falling back to read-write cursor for %dmin %dsec",

@@ -594,9 +594,7 @@ def html_normalize(
         return src
 
     # html: remove the encoding attribute inside tags, keeping the tag and its
-    # other attributes.  (The former pattern replaced the whole match with "",
-    # deleting the entire opening tag: '<span encoding="x" style=...>' collapsed
-    # to nothing, dropping the span and its style.)
+    # other attributes.
     src = re.sub(
         r"(<[^>]*?)\s+encoding=(?:\"[^\"]*\"|'[^']*'|[^\s>]+)",
         r"\1",

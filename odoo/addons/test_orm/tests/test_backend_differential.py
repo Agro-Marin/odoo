@@ -1,65 +1,48 @@
 """Differential tests: DB-free harness backend vs. the real SQL backend.
 
-Motivation
-==========
-The DB-free harness :mod:`odoo.orm.model_test_env` reuses the *real* ORM
-machinery except for the storage backend.  Two components re-implement row I/O
-in parallel to the SQL path:
-
-* :class:`~odoo.orm.components.storage.DictBackend` — the in-memory row store;
-* :class:`~odoo.orm.runtime.backend.InMemoryBackend` — the in-memory variant of
-  create / write / fetch / search / delete and the Many2many relation-table ops.
-
-Those parallel implementations are the main *fidelity risk* of the fast tier: a
-divergence between them and PostgreSQL makes a DB-free test go **green while
-production behaves differently**.  This suite runs the *same* scripted ORM
-scenario through **both** backends and asserts the observable results are
-identical.  A future, undeclared divergence therefore fails a test instead of
-silently rotting.  Divergences that are *expected* (record rules, raw SQL,
-savepoints, ``ilike`` unaccent, ``_parent_store``) are pinned as explicit
-``test_divergence_*`` methods — if any of them ever changes, the pin fails and
-forces a conscious update.
-
-Side-B (real-registry) mapping — design choice
-==============================================
-Each scenario runs against an *existing* ``test_orm`` model (``test_orm.foo``,
-``test_orm.move``/``move_line``, ``test_orm.model_a``/``model_b`` …), **not** a
-dynamically-created ``ir.model``.  test_orm declares no dynamic-model precedent,
-and reusing the shipped models guarantees the two sides share the exact same
-field shapes: side A feeds the *very same Python model class* to the harness, so
-there is zero chance of a side-A/side-B schema drift masking a backend bug.
-
-Building the harness registry inside a full Odoo boot needs care.
-:func:`model_test_env` auto-discovers every model of a class's ``_module`` **plus
-the whole ``base`` module**.  Under a live server ``base`` is fully imported, so
-the harness would pull in the real ``ir.default`` / ``ir.config_parameter``
-(whose methods run raw SQL and hit ``ormcache``) and crash.  In its intended
-Tier-2 pytest context ``base`` is *not* imported, so the harness falls back to
-its lightweight stubs (``_TestBase`` / ``_TestIrDefault`` / ``_TestResUsers`` /
-``_TestResCompany``).  :func:`_isolated_registry` reproduces those Tier-2
-semantics here: it hides ``MetaModel._module_to_models__`` for the duration of
-the build so only the explicitly-passed classes (+ the injected stubs) are
-registered, then it swaps the registry's plain-dict ormcache store for real
-``LRU`` objects (the harness's ``defaultdict(dict)`` lacks the ``.generation``
-attribute ``ormcache`` reads — see the module-level note below).
-
-Observation normalisation
-=========================
-Scenarios never compare raw ``id`` integers (they differ between an empty
-in-memory store and a populated database).  Every observation is expressed in
-terms of *business keys* — field values, ``name`` sequences, ordered related-
-record names — so record identity is compared through a stable mapping rather
-than by primary key.
-
-NOTE for the ORM maintainer (harness robustness, not a false-green):
-``ModelRegistry._Registry__caches`` is ``defaultdict(dict)``; ``ormcache``'s
-``lookup`` reads ``d.generation`` (an ``LRU`` attribute), so *any*
-ormcache-decorated method invoked through the harness raises
-``AttributeError: 'dict' object has no attribute 'generation'``.  The existing
-Tier-2 self-tests never invoke such a method, so it stays latent.  This suite
-works around it (LRU swap) but the harness itself would be more robust using an
-``LRU``-backed store.
+Runs the same scripted ORM scenario through both the in-memory harness
+(:mod:`odoo.orm.model_test_env`) and PostgreSQL and asserts the observable
+results are identical, so an undeclared divergence between the parallel
+in-memory row I/O (:class:`~odoo.orm.components.storage.DictBackend` /
+:class:`~odoo.orm.runtime.backend.InMemoryBackend`) and the SQL path fails a
+test instead of silently going green. Expected divergences (record rules, raw
+SQL, savepoints, ``ilike`` unaccent, ``_parent_store``) are pinned as explicit
+``test_divergence_*`` methods.
 """
+
+# Design notes (why the suite is shaped this way):
+#
+# Side-B (real-registry) mapping: each scenario runs against an *existing*
+# test_orm model (test_orm.foo, test_orm.move/move_line, test_orm.model_a/
+# model_b …), not a dynamically-created ir.model. test_orm declares no
+# dynamic-model precedent, and reusing the shipped models guarantees both sides
+# share the exact same field shapes (side A feeds the very same Python model
+# class to the harness), so a side-A/side-B schema drift cannot mask a backend
+# bug.
+#
+# Building the harness registry inside a full Odoo boot needs care.
+# model_test_env auto-discovers every model of a class's _module plus the whole
+# base module. Under a live server base is fully imported, so the harness would
+# pull in the real ir.default / ir.config_parameter (whose methods run raw SQL
+# and hit ormcache) and crash. In its intended Tier-2 pytest context base is
+# not imported, so the harness falls back to its lightweight stubs. Here
+# _isolated_registry reproduces those Tier-2 semantics: it hides
+# MetaModel._module_to_models__ for the duration of the build (so only the
+# passed classes + injected stubs register), then swaps the registry's
+# plain-dict ormcache store for real LRU objects.
+#
+# Observation normalisation: scenarios never compare raw id integers (they
+# differ between an empty in-memory store and a populated database). Every
+# observation is expressed in terms of business keys — field values, name
+# sequences, ordered related-record names — so identity is compared through a
+# stable mapping rather than by primary key.
+#
+# Candidate [REF] task (harness robustness, not a false-green):
+# ModelRegistry._Registry__caches is defaultdict(dict); ormcache's lookup reads
+# d.generation (an LRU attribute), so any ormcache-decorated method invoked
+# through the harness raises AttributeError. The Tier-2 self-tests never invoke
+# such a method, so it stays latent. This suite works around it (LRU swap), but
+# the harness itself would be more robust using an LRU-backed store.
 
 import logging
 from collections import defaultdict
@@ -97,20 +80,18 @@ _STUB_MODULE = "test_orm_diff_stub"
 
 
 class _StubIrModelData(models.Model):
-    """Minimal ``ir.model.data`` so ``unlink()`` runs DB-free.
+    """Minimal ``ir.model.data`` so ``unlink()`` runs DB-free."""
 
-    ``unlink()`` unconditionally resolves ``self.env["ir.model.data"]`` (and
-    ``ir.attachment``) to collect xmlid / attachment cleanup targets, but the
-    harness only injects ``ir.default`` / ``res.users`` / ``res.company`` stubs.
-    On the in-memory path ``InMemoryBackend.delete`` only ``.browse()``s these
-    two models and returns them empty, so a bare, field-less stub is enough.
-
-    NOTE for the ORM maintainer: this gap means a DB-free test that calls
-    ``unlink()`` currently raises ``KeyError: 'ir.model.data'``; injecting these
-    two stubs in ``model_test_env`` (as it already does for ``ir.default`` etc.)
-    would make ``unlink()`` usable out of the box.
-    """
-
+    # unlink() unconditionally resolves self.env["ir.model.data"] (and
+    # ir.attachment) to collect xmlid / attachment cleanup targets, but the
+    # harness only injects ir.default / res.users / res.company stubs. On the
+    # in-memory path InMemoryBackend.delete only .browse()s these two models and
+    # returns them empty, so a bare, field-less stub is enough.
+    #
+    # Candidate [REF] task: this gap means a DB-free test that calls unlink()
+    # currently raises KeyError: 'ir.model.data'; injecting these two stubs in
+    # model_test_env (as it already does for ir.default etc.) would make
+    # unlink() usable out of the box.
     _name = "ir.model.data"
     _module = _STUB_MODULE
     _description = "ir.model.data (differential test stub)"
@@ -174,9 +155,7 @@ class TestBackendDifferential(TransactionCase):
         )
         return obs_a
 
-    # =====================================================================
     # create / write / read round-trips
-    # =====================================================================
 
     def test_create_read_defaults_and_falsy(self):
         def script(env):
@@ -245,9 +224,7 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((TestOrmFoo,), script, "unlink")
 
-    # =====================================================================
     # search operators
-    # =====================================================================
 
     def _make_foos(self, env, rows):
         F = env["test_orm.foo"]
@@ -325,9 +302,7 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((TestOrmFoo,), script, "like / ilike (ASCII)")
 
-    # =====================================================================
     # ordering, limit, offset
-    # =====================================================================
 
     def test_search_order_asc_desc(self):
         rows = [("a", 3), ("b", 1), ("c", 2)]
@@ -392,9 +367,7 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((TestOrmFoo,), script, "limit / offset / count")
 
-    # =====================================================================
     # Many2many
-    # =====================================================================
 
     def test_m2m_set_link_unlink(self):
         def script(env):
@@ -449,9 +422,7 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((TestOrmModel_A, TestOrmModel_B), script, "m2m read ordering")
 
-    # =====================================================================
     # One2many Command processing
-    # =====================================================================
 
     def test_o2m_commands(self):
         def script(env):
@@ -492,9 +463,7 @@ class TestBackendDifferential(TransactionCase):
             "o2m Command processing",
         )
 
-    # =====================================================================
     # translated field (en_US)
-    # =====================================================================
 
     def test_translated_field_en_us_roundtrip(self):
         # Exercises the jsonb translated-column path: create stores {en_US: v},
@@ -516,9 +485,7 @@ class TestBackendDifferential(TransactionCase):
             (TestOrmRelated_Translation_1,), script, "translated en_US round-trip"
         )
 
-    # =====================================================================
     # date / datetime boundary comparisons
-    # =====================================================================
 
     def test_datetime_boundaries(self):
         moments = [
@@ -572,22 +539,13 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((CalendarTest,), script, "date boundaries")
 
-    # =====================================================================
     # EXPECTED, DECLARED divergences
-    # ---------------------------------------------------------------------
     # These backends intentionally differ.  Each pin asserts the *current*
     # divergence so a future change (in either direction) fails loudly and
     # forces a conscious decision, rather than a silent false-green.
-    # =====================================================================
 
     def test_divergence_record_rules_not_enforced(self):
-        """Harness has no ``ir.rule`` model: record rules are NOT enforced.
-
-        ``search()`` dispatches to the in-memory backend before the security
-        domain, so the harness raises on ``ir.rule`` access instead of silently
-        skipping rules (``InMemoryBackend.supports_record_rules is False``).
-        The real backend enforces them.
-        """
+        """Harness has no ``ir.rule`` model: record rules are NOT enforced."""
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
             # The harness backend advertises that it does NOT enforce rules...
@@ -613,11 +571,9 @@ class TestBackendDifferential(TransactionCase):
         self.assertGreaterEqual(self.env.cr.fetchone()[0], 1)
 
     def test_divergence_rollback_and_savepoint_fail_loud(self):
-        """DictBackend keeps no snapshot, so rollback/savepoint fail loud.
-
-        The DB backend supports both; the harness raises rather than silently
-        no-op'ing (which would diverge from a real ROLLBACK discarding writes).
-        """
+        """DictBackend keeps no snapshot, so rollback/savepoint fail loud."""
+        # The DB backend supports both; the harness raises rather than silently
+        # no-op'ing (which would diverge from a real ROLLBACK discarding writes).
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
             with self.assertRaises(InMemorySqlNotSupported):

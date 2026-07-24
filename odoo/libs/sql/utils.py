@@ -62,9 +62,8 @@ def reverse_order(order: str) -> str:
     placement is given, ``NULLS FIRST`` <-> ``NULLS LAST`` — so the reversed
     clause yields the exact reverse row sequence (e.g. for a "last record"
     query).  Column expressions are preserved verbatim: quoting and case are
-    kept (``"Name"`` stays ``"Name"``), unlike the previous implementation which
-    lowercased identifiers and silently dropped the null placement.  Empty
-    segments (such as a trailing comma) are skipped.
+    kept (``"Name"`` stays ``"Name"``).  Empty segments (such as a trailing
+    comma) are skipped.
 
     :param order: An ORDER BY clause (without the 'ORDER BY' keywords)
     :returns: The reversed order clause

@@ -39,16 +39,14 @@ def _staged_map(entries):
 
 
 class TestDiscardFieldsRace(unittest.TestCase):
-    """Regression: discard_fields must never mutate the published map in place.
+    """Regression: discard_fields must never mutate the published map in place."""
 
-    Reader threads build trigger trees (iterating the shared map buckets, as
-    ``BaseModel.modified()`` does via ``get_field_trigger_tree`` on a cold
-    cache). The writer discards fields and republishes a rebuilt map — the
-    production pattern of ``Registry._discard_fields`` (copy-swap + eager
-    ``set_triggers`` rebuild). Against the pre-fix in-place scrub this
-    reliably raised ``RuntimeError: dictionary changed size during
-    iteration`` in a reader.
-    """
+    # Reader threads build trigger trees (iterating the shared map buckets, as
+    # BaseModel.modified() does via get_field_trigger_tree on a cold cache).
+    # The writer discards fields and republishes a rebuilt map — the production
+    # pattern of Registry._discard_fields (copy-swap + eager set_triggers
+    # rebuild). Against the pre-fix in-place scrub this reliably raised
+    # RuntimeError: dictionary changed size during iteration in a reader.
 
     N_READERS = 4
 
@@ -156,15 +154,12 @@ class TestSnapshotPublication(unittest.TestCase):
         self.assertIs(state.modifying_relations, g._modifying_relations)
 
     def test_stale_tree_cannot_poison_a_newer_publication(self) -> None:
-        """Reader/writer stress: after the final publication, the served tree
-        matches the final map.
-
-        Pre-snapshot, a reader computing a tree from map A could store it into
-        the cleared shared cache AFTER a concurrent ``set_triggers(B)``,
-        permanently serving A's tree against B's map. With per-snapshot tree
-        caches this is impossible: a tree computed from state A is only ever
-        stored in state A.
-        """
+        """Reader/writer stress: after the final publication, the served tree matches the final map."""
+        # Pre-snapshot, a reader computing a tree from map A could store it into
+        # the cleared shared cache AFTER a concurrent set_triggers(B),
+        # permanently serving A's tree against B's map. With per-snapshot tree
+        # caches this is impossible: a tree computed from state A is only ever
+        # stored in state A.
         f = _field("f")
         t_a, t_b = _field("target_a"), _field("target_b")
         g = ModelGraph()

@@ -572,13 +572,11 @@ class TestProfiling(TransactionCase):
         self.assertEqual(p.db, self.env.cr.dbname)
 
     def test_sql_summary_after_entry_processing(self):
-        """``SQLCollector.summary()`` must not crash after ``entries`` has run
-        post-processing (which nulls ``_entries``) -- the code path taken by
-        ``Profiler(log=True)`` at exit.
-        """
+        """SQLCollector.summary() does not crash after entries post-processing nulls _entries."""
         with Profiler(db=None, collectors=["sql"]) as p:
             self.env.cr.execute("SELECT 1")
         collector = p.collectors[0]
+        # this is the code path taken by Profiler(log=True) at exit
         _ = collector.entries  # triggers post-processing, nulls _entries
         # must not raise TypeError: 'NoneType' object is not iterable
         self.assertIn("sql", collector.summary())

@@ -556,10 +556,7 @@ class Inter:
 
         Produces a canonical, order-independent leaf set: every added leaf is
         checked against *all* existing leaves (not just up to the first
-        subsumption).  The former early ``break`` skipped the disjointness and
-        redundancy checks against the remaining leaves, so ``&`` was neither
-        commutative nor associative at the representation level and equal
-        intersections could differ in ``key``/``is_empty``/``hash``.
+        subsumption).
         """
         result = list(leaves)
         for leaf_to_add in leaves_to_add:

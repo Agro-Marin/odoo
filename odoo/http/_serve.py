@@ -150,38 +150,32 @@ class _RequestServeMixin:
             return self._serve_aborted(exc)
 
     def _acquire_registry_cursor(self) -> Any:
-        """Open the database registry and return its initial read-only cursor.
-
-        Sets :attr:`registry` and returns the open RO cursor. **Ownership
-        transfers to the caller only on a clean return** — :meth:`_serve_db`'s
-        ``finally`` then closes it. On failure this method closes the cursor
-        itself and raises :class:`RegistryError`, which :meth:`Application.__call__`
-        recovers from by serving db-less. A naive ``return cr`` would leak the
-        connection on that failure path — keep the close-on-failure contract. The
-        ``database_breaking`` suite in ``test_registry.py`` guards the recovery
-        (OperationalError → db gone; ProgrammingError → broken schema).
-
-        ``PoolError`` is in the tuple because a *warm* pool surfaces a downed
-        PostgreSQL as ``PoolError`` (``_getconn_with_retry`` wraps the
-        psycopg_pool ``PoolTimeout``), NOT as a raw ``OperationalError`` — only
-        cold/direct connections raise the latter. Without it, an outage 500s
-        every request on an already-visited database instead of degrading
-        (caught live by the Playwright outage scenario; the service layer
-        already pairs the two, see ``_threaded.py``/``_worker.py``).
-
-        AttributeError is a broad, *legacy* arm (no dedicated test): it guards a
-        registry observed mid-``Registry.new`` (inserted into ``registries``
-        before ``setup_signaling`` runs), but can also mask a real bug in this
-        path — re-run that suite before narrowing it.
-        """
+        """Open the database registry and return its initial read-only cursor."""
+        # Sets self.registry and returns the open RO cursor. The database_breaking
+        # suite in test_registry.py guards the recovery (OperationalError → db
+        # gone; ProgrammingError → broken schema).
         cr = None
         try:
             registry = Registry(self.db)
             cr = registry.cursor(readonly=True)
             self.registry = registry.check_signaling(cr)
+            # Ownership transfers to the caller only on this clean return;
+            # _serve_db's finally then closes it. On failure the except arm below
+            # closes cr itself (a naive return would leak the connection).
             return cr
         except (
+            # Broad, legacy arm (no dedicated test): guards a registry observed
+            # mid-Registry.new (inserted into registries before setup_signaling
+            # runs), but can also mask a real bug in this path — re-run that
+            # suite before narrowing it.
             AttributeError,
+            # A warm pool surfaces a downed PostgreSQL as PoolError
+            # (_getconn_with_retry wraps the psycopg_pool PoolTimeout), NOT as a
+            # raw OperationalError — only cold/direct connections raise the
+            # latter. Without it, an outage 500s every request on an
+            # already-visited database instead of degrading (caught live by the
+            # Playwright outage scenario; the service layer already pairs the
+            # two, see _threaded.py/_worker.py).
             PoolError,
             psycopg.OperationalError,
             psycopg.ProgrammingError,

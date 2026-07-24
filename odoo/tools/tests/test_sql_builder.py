@@ -81,9 +81,7 @@ class TestColumnIndexExistsReturnBool(unittest.TestCase):
 
 
 class TestSqlInlined(unittest.TestCase):
-    """``SQL.inlined()`` embeds bound params as literals while preserving the
-    wrapper's ``to_flush`` metadata and pre-escaped ``%%`` in the code (a raw
-    ``code % params`` would collapse the escape or crash on it)."""
+    """``SQL.inlined()`` embeds bound params as literals."""
 
     class _Cursor:
         _cnx = None  # psycopg's Literal.as_string accepts a None context
@@ -97,6 +95,8 @@ class TestSqlInlined(unittest.TestCase):
         self.assertEqual(tuple(inlined.to_flush), (field,))
 
     def test_percent_escape_survives(self):
+        # Pre-escaped ``%%`` is kept verbatim; a raw ``code % params`` would
+        # collapse the escape or crash on it.
         sql = SQL("x LIKE 'a%%' AND y = %s", 5)
         inlined = sql.inlined(self._Cursor())
         self.assertEqual(inlined.code, "x LIKE 'a%%' AND y = 5")

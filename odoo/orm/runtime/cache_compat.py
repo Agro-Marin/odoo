@@ -108,7 +108,7 @@ class Cache:
         try:
             field_cache = self._get_field_cache(record, field)
             return field_cache[record._ids[0]]
-        except KeyError, IndexError:
+        except (KeyError, IndexError):
             # IndexError: empty recordset (record._ids == ()); treat as a miss
             # rather than leaking an opaque IndexError past the default/CacheMiss
             # contract.

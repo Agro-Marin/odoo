@@ -75,7 +75,7 @@ class LRU[K, V](MutableMapping[K, V]):
                 # rebuilding a full ordered dict copy per evicted item (O(n²)).
                 try:
                     lru_key = next(iter(ordering))
-                except StopIteration, RuntimeError:
+                except (StopIteration, RuntimeError):
                     break
                 ordering.pop(lru_key, None)
                 values.pop(lru_key, None)

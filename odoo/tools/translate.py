@@ -560,7 +560,7 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
             args = tuple(process_translation_arg(v) for v in args)
     try:
         return translation % args
-    except TypeError, ValueError, KeyError:
+    except (TypeError, ValueError, KeyError):
         bad = translation
         # format source first: if it also fails, raise before we log. Escape the
         # source when Markup args are present so the fallback stays a Markup with
@@ -639,7 +639,7 @@ def _get_uid(frame: object) -> int | None:
     if "user" in frame.f_locals:
         try:
             return int(frame.f_locals["user"])  # user may be a record or a uid
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             # `user` is a login string (or other non-uid local); fall through
             # to self.env.uid rather than break the caller's _() over its local
             pass
