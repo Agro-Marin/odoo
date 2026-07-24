@@ -4,12 +4,15 @@
 delegating to :class:`~odoo.orm.components.core.OrmCore` /
 :class:`~odoo.orm.components.cache.FieldCache`.  New ORM code uses ``env._core``.
 
-Status (2026-07 audit): no production code writes through this shim anymore
-(``Field._update_cache`` is the supported seam — the last two write-path
-users, in sale_timesheet_enterprise and account_product_asset, were
-migrated).  The read helpers (``contains`` / ``get_records`` / ``get_values``)
-are still used by ``addons/account`` and the ``base``/``test_orm`` suites, so
-the shim stays; migrate those before demoting it to test-only.
+Status (2026-07 audit): the write path IS still in production use —
+``env.cache.set`` / ``update`` / ``update_raw`` are called by several addons
+(website_sale ``website_snippet_filter``, iap ``iap_account``, base_account
+``account_account``, hr ``hr_employee``, l10n_gcc_invoice ``account_move``,
+calendar ``calendar_event``, html_editor ``ir_ui_view``), in addition to the
+read helpers (``contains`` / ``get_records`` / ``get_values``) used by
+``addons/account`` and the ``base``/``test_orm`` suites.  Do not demote the
+shim (or its write methods) to test-only until those are migrated to the
+supported seam (``Field._update_cache`` / ``env._core``).
 """
 
 import contextlib
@@ -212,7 +215,9 @@ class Cache:
         """
         ids: Iterable
         if all_contexts and field in model.pool.field_depends_context:
-            field_cache = self.transaction.core.get_field_data_or_none(field) or EMPTY_DICT
+            field_cache = (
+                self.transaction.core.get_field_data_or_none(field) or EMPTY_DICT
+            )
             ids = OrderedSet(
                 id_ for sub_cache in field_cache.values() for id_ in sub_cache
             )

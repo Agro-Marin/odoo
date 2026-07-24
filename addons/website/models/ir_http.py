@@ -2,7 +2,6 @@
 import contextlib
 import functools
 import logging
-import unittest
 
 import pytz
 import werkzeug
@@ -25,10 +24,16 @@ logger = logging.getLogger(__name__)
 def sitemap_qs2dom(qs, route, field="name"):
     """Convert a query_string (can contains a path) to a domain"""
     if qs and qs.lower() not in route:
+        # Drop the segments the route itself already carries, one occurrence
+        # each, keeping only the user-supplied needle(s):
+        # qs='shop/product/x' vs route='/shop/product' -> needles=['x'].
+        # (Historically done via unittest.util.unorderable_list_difference —
+        # a private test-library helper used for its list-mutation side
+        # effect; this is the same one-occurrence-per-segment semantics.)
         needles = qs.strip("/").split("/")
-        # needles will be altered and keep only element which one is not in route
-        # diff(from=['shop', 'product'], to=['shop', 'product', 'product']) => to=['product']
-        unittest.util.unorderable_list_difference(route.strip("/").split("/"), needles)
+        for segment in route.strip("/").split("/"):
+            with contextlib.suppress(ValueError):
+                needles.remove(segment)
         if len(needles) == 1:
             return Domain(field, "ilike", needles[0])
         else:
@@ -139,9 +144,9 @@ class IrHttp(models.AbstractModel):
             x.url_from: x for x in self.env["website.rewrite"].sudo().search(domain)
         }
 
-    def _generate_routing_rules(self, modules, converters):
+    def _generate_routing_rules(self, modules):
         if not request:
-            yield from super()._generate_routing_rules(modules, converters)
+            yield from super()._generate_routing_rules(modules)
             return
         # Derive the website from :meth:`_routing_map_key`, the SAME source
         # ``routing_map`` memoizes on. Reading ``request.website_routing``
@@ -157,7 +162,7 @@ class IrHttp(models.AbstractModel):
             self, website_id, cache_value=len(rewrites)
         )
 
-        for url, endpoint in super()._generate_routing_rules(modules, converters):
+        for url, endpoint in super()._generate_routing_rules(modules):
             if url in rewrites:
                 rewrite = rewrites[url]
                 url_to = rewrite.url_to

@@ -135,9 +135,21 @@ class WriteMixin(_ModelStubs):
         # based writes (add/remove/update), so their current value must be in
         # cache before the field is protected from recomputation. fetch() (vs
         # self[fname] per field) populates all records at once without
-        # triggering ensure_one().
+        # triggering ensure_one() — but unlike the per-field read it neither
+        # runs pending recomputes (a stored computed x2many pending from an
+        # earlier write would be silently discarded: fetch caches the stale DB
+        # relation, then mark_dirty's remove_to_compute drops the pending
+        # computation without running it) nor populates non-stored fields
+        # (whose baseline must be computed now, before this write's other
+        # fields are marked dirty).  Handle both explicitly.
         if x2m_inverse_fnames:
+            self._recompute_recordset(x2m_inverse_fnames)
             self.fetch(x2m_inverse_fnames)
+            for fname in x2m_inverse_fnames:
+                field = self._fields[fname]
+                if not field.store:
+                    # Union __get__ computes the whole recordset in one batch.
+                    field.__get__(self)
 
         # force the computation of fields that are computed with some assigned
         # fields, but are not assigned themselves
@@ -343,13 +355,16 @@ class WriteMixin(_ModelStubs):
             field = self._fields[fname]
             # raise (not assert): under python -O a non-column field would build
             # a malformed UPDATE failing later with an opaque column_type error.
-            if not field.is_column:
+            # (``is_column`` implies ``column_type`` is truthy, so the second
+            # branch never fires; it only narrows ``tuple[str, str] | None``.)
+            column_type = field.column_type
+            if not field.is_column or column_type is None:
                 raise RuntimeError(
                     f"_execute_update: {field} is not a stored column field"
                 )
             column = SQL.identifier(fname)
             # the type cast is necessary for some values, like NULLs
-            expr = SQL('"__tmp".%s::%s', column, SQL(field.column_type[1]))
+            expr = SQL('"__tmp".%s::%s', column, SQL(column_type[1]))
             if field.translate is True:
                 # this is the SQL equivalent of:
                 # None if expr is None else (

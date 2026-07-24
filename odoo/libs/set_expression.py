@@ -81,9 +81,7 @@ class SetDefinitions:
             ref = info["ref"]
             if ref == "*":
                 msg = "The set reference '*' is reserved for the universal set."
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
             leaf = Leaf(leaf_id, ref)
             self.__leaves[leaf_id] = leaf
             self.__leaves[ref] = leaf
@@ -465,13 +463,16 @@ class Union(SetExpression):
 
     def matches(self, user_group_ids: Iterable[int]) -> bool:
         """Return whether the given group ids match ``self``."""
+        # Materialize first: the emptiness contract below tests truthiness, and a
+        # non-empty *iterator* (e.g. ``iter([])``) is always truthy, so an empty
+        # generator would wrongly pass the guard and match the universal set.
+        user_group_ids = set(user_group_ids)
         # empty ids match nothing, even the universal set / a negation (checked
         # before is_universal on purpose -- see SetExpression.matches note)
         if self.is_empty() or not user_group_ids:
             return False
         if self.is_universal():
             return True
-        user_group_ids = set(user_group_ids)
         return any(inter.matches(user_group_ids) for inter in self.__inters)
 
     def __bool__(self) -> bool:
@@ -551,20 +552,25 @@ class Inter:
 
     @staticmethod
     def __combine(leaves: Iterable[Leaf], leaves_to_add: Iterable[Leaf]) -> list[Leaf]:
-        """Combine some existing intersection of leaves with extra leaves."""
+        """Combine some existing intersection of leaves with extra leaves.
+
+        Produces a canonical, order-independent leaf set: every added leaf is
+        checked against *all* existing leaves (not just up to the first
+        subsumption).
+        """
         result = list(leaves)
         for leaf_to_add in leaves_to_add:
-            for index, leaf in enumerate(result):
-                if leaf.isdisjoint(leaf_to_add):  # leaf & leaf_to_add = empty
-                    return [EMPTY_LEAF]
-                if leaf <= leaf_to_add:  # leaf & leaf_to_add = leaf
-                    break
-                if leaf_to_add <= leaf:  # leaf & leaf_to_add = leaf_to_add
-                    result[index] = leaf_to_add
-                    break
-            else:
-                if not leaf_to_add.is_universal():
-                    result.append(leaf_to_add)
+            if leaf_to_add.is_universal():
+                continue  # universe is the identity of intersection
+            # Disjoint with any existing leaf => the whole intersection is empty.
+            if any(leaf.isdisjoint(leaf_to_add) for leaf in result):
+                return [EMPTY_LEAF]
+            # Already implied by a narrower existing leaf => adds nothing.
+            if any(leaf <= leaf_to_add for leaf in result):
+                continue
+            # Otherwise keep it, dropping any existing leaves it subsumes.
+            result = [leaf for leaf in result if not leaf_to_add <= leaf]
+            result.append(leaf_to_add)
         return result
 
     def is_empty(self) -> bool:

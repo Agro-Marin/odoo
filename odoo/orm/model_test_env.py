@@ -27,7 +27,7 @@ from odoo.tools import OrderedSet
 from . import registration
 from .components.model_graph import ModelGraph
 from .components.storage import DictBackend
-from .fields import Boolean, Char
+from .fields import Boolean, Char, Many2one
 from .models import AbstractModel, Model
 from .primitives import SUPERUSER_ID
 from .runtime._registry_fields import _RegistryFieldsMixin
@@ -49,6 +49,10 @@ class InMemorySqlNotSupported(NotImplementedError):
     a model test from going *green while production would be red* — the central
     risk of a DB-free tier.  See :meth:`InMemoryCursor.execute`.
     """
+
+
+class InMemoryRecordRulesNotSupported(NotImplementedError):
+    """Raised on ``env["ir.rule"]`` access in a DB-free harness env."""
 
 
 # Minimal 'base' model for testing
@@ -114,13 +118,38 @@ class _TestResUsers(Model):
     name = Char()
     login = Char()
     active = Boolean(default=True)
+    # env.company resolves via user.company_id when the context carries no
+    # allowed_company_ids — required by company_dependent fields.
+    # _seed_fixtures already writes company_id=1 into the superuser row.
+    company_id = Many2one("res.company")
+
+
+class _TestResCompany(Model):
+    """Minimal ``res.company`` backing :attr:`_TestResUsers.company_id`.
+
+    Injected alongside the ``res.users`` stub so ``env.company`` (and with it
+    ``company_dependent`` fields) works DB-free; ``_seed_fixtures`` already
+    inserts the id=1 row this stub exposes. Injected only when the caller does
+    not provide a ``res.company`` model.
+    """
+
+    _name = "res.company"
+    _description = "Companies (test stub)"
+    _register = False
+    _module = None
+    _log_access = False
+
+    name = Char()
+    active = Boolean(default=True)
 
 
 class InMemoryCursor(BaseCursor):
     """Cursor backed by fixture data — no PostgreSQL required.
 
     Inherits :class:`~odoo.db.BaseCursor` for the callback containers and the
-    ``savepoint()`` / ``flush()`` machinery. :meth:`__init__` pre-builds the
+    ``flush()`` machinery (savepoints are *not* supported — like
+    :meth:`rollback`, :meth:`savepoint` fails loud because :class:`DictBackend`
+    keeps no snapshot to restore). :meth:`__init__` pre-builds the
     ``Transaction`` and assigns it to ``self.transaction``, so
     ``Environment.__new__`` skips ``Transaction(Registry(cr.dbname))`` and never
     opens a connection. Its :class:`DictBackend` ``storage`` makes ORM CRUD —
@@ -228,15 +257,41 @@ class InMemoryCursor(BaseCursor):
     # Time
 
     def now(self) -> datetime:
-        """Return the current wall-clock time as a naive UTC datetime.
+        """Return the transaction's timestamp as a naive UTC datetime.
 
-        The real cursor fetches ``now()`` from PostgreSQL for transaction
-        consistency.  InMemoryCursor uses the local clock instead — suitable
-        for tests that check *that* a timestamp is set, not its exact value.
+        The real cursor fetches ``now()`` from PostgreSQL and caches it until
+        commit/rollback (see :meth:`odoo.db.BaseCursor.now`), so every call in
+        one transaction returns the *same* instant — e.g. all records created
+        in a transaction share one ``create_date``.  InMemoryCursor uses the
+        local clock as the source but mirrors that transaction stability by
+        caching in the same ``_now`` slot; :meth:`commit` resets it, exactly
+        like production.  (A fresh ``datetime.now()`` per call would let two
+        creates in one transaction disagree — behaviour production never
+        exhibits, a false-*red* the fast tier must not introduce.)
         """
-        return datetime.now(UTC).replace(tzinfo=None)
+        if self._now is None:
+            # naive UTC, matching production's ``now() AT TIME ZONE 'UTC'``
+            self._now = datetime.now(UTC).replace(tzinfo=None)
+        return self._now
 
     # Transaction control
+
+    def savepoint(self, flush: bool = True):
+        """Fail loud — the in-memory tier cannot implement savepoints.
+
+        A savepoint's whole point is rolling back to its start, and
+        :class:`DictBackend` keeps no snapshot to restore (same limitation as
+        :meth:`rollback`).  The inherited ``BaseCursor.savepoint`` would issue
+        real ``SAVEPOINT`` SQL, so it used to die in :meth:`execute` with the
+        generic raw-SQL error and its register-a-fixture advice — nonsense for
+        transaction control.  Raise an intentional, explanatory error instead.
+        """
+        raise InMemorySqlNotSupported(
+            "InMemoryCursor (DB-free model_test_env) does not support "
+            "savepoints: DictBackend writes are applied immediately and no "
+            "snapshot exists to roll back to (same limitation as rollback()). "
+            "Use a DB-backed TransactionCase to test savepoint behaviour."
+        )
 
     @contextmanager
     def pipeline(self):
@@ -380,7 +435,36 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     # Mapping protocol
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
-        return self.models[model_name]
+        try:
+            return self.models[model_name]
+        except KeyError:
+            if model_name == "ir.rule":
+                # Loud marker: record rules are silently NOT enforced DB-free
+                # (see InMemoryRecordRulesNotSupported).  A bare KeyError here
+                # reads like a harness gap; make the intent explicit instead.
+                #
+                # The in-memory tier does not enforce record rules (nor
+                # ir.model.access ACLs): search() dispatches to the storage
+                # backend before the ir.rule security domain is applied
+                # (DictBackend declares supports_record_rules = False, see
+                # orm/runtime/backend.py), so a test asserting security-adjacent
+                # behaviour would go green while production filters records —
+                # the false-green failure mode this tier must not introduce
+                # (same rationale as InMemoryCursor.rollback / .savepoint).
+                # Raised only when the caller did not register an ir.rule model
+                # themselves; a caller-provided ir.rule model is served normally.
+                raise InMemoryRecordRulesNotSupported(
+                    "ModelRegistry (DB-free model_test_env) has no 'ir.rule' "
+                    "model: record rules are NOT enforced in this tier — "
+                    "search() dispatches to the in-memory backend before the "
+                    "ir.rule security domain (DictBackend declares "
+                    "supports_record_rules = False). A security-adjacent "
+                    "assertion would go green here while production filters "
+                    "records. Use a DB-backed TransactionCase to test record-"
+                    "rule behaviour, or pass your own ir.rule model class to "
+                    "model_test_env(...) if you intend to stub it."
+                ) from None
+            raise
 
     def __contains__(self, model_name: object) -> bool:
         return model_name in self.models
@@ -534,6 +618,14 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         )
         if not has_res_users:
             all_defs.append(_TestResUsers)
+
+        # 4d. Ensure a 'res.company' model backs res.users.company_id so
+        #     env.company (and company_dependent fields) resolves DB-free.
+        has_res_company = any(
+            getattr(cls, "_name", None) == "res.company" for cls in all_defs
+        )
+        if not has_res_company:
+            all_defs.append(_TestResCompany)
 
         # 5. Stable sort: 'base'-named models first (root of all models)
         all_defs.sort(

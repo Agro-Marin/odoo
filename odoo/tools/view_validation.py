@@ -47,6 +47,23 @@ DOMAIN_OPERATORS = {
 }
 
 
+def _filter_contextual_names(contextual_values: set[str]) -> set[str]:
+    """Filter contextual value names down to reportable value names.
+
+    Drops the bare ``parent`` reference and any name whose root is a
+    predefined evaluation symbol (``IGNORED_IN_EXPRESSION``); ``parent.*``
+    paths are kept whole while other names are reduced to their root.
+    """
+    value_names = set()
+    for name in contextual_values:
+        if name == "parent":
+            continue
+        root = name.split(".")[0]
+        if root not in IGNORED_IN_EXPRESSION:
+            value_names.add(name if root == "parent" else root)
+    return value_names
+
+
 def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     """Return the field names and contextual value names used by this domain.
 
@@ -164,18 +181,14 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
             else:
                 extract_from_domain(item_ast)
 
-    except ValueError:
+    # TypeError/AttributeError cover malformed leaves and unhandled AST node
+    # types (e.g. "foo()", "{'a': 1}", [None]) so callers get the documented
+    # ValueError instead of a raw 500.
+    except (ValueError, TypeError, AttributeError):
         msg = "Wrong domain formatting."
         raise ValueError(msg) from None
 
-    value_names = set()
-    for name in contextual_values:
-        if name == "parent":
-            continue
-        root = name.split(".")[0]
-        if root not in IGNORED_IN_EXPRESSION:
-            value_names.add(name if root == "parent" else root)
-    return field_names, value_names
+    return field_names, _filter_contextual_names(contextual_values)
 
 
 def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
@@ -275,16 +288,7 @@ def get_expression_field_names(expression: str) -> set[str]:
         return set()
     item_ast = ast.parse(expression.strip(), mode="eval").body
     contextual_values = _get_expression_contextual_values(item_ast)
-
-    value_names = set()
-    for name in contextual_values:
-        if name == "parent":
-            continue
-        root = name.split(".")[0]
-        if root not in IGNORED_IN_EXPRESSION:
-            value_names.add(name if root == "parent" else root)
-
-    return value_names
+    return _filter_contextual_names(contextual_values)
 
 
 def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
@@ -361,6 +365,7 @@ def schema_valid(arch, **kwargs):
 # environment. ir.ui.view wraps every call with _log_view_warning() to attach
 # the offending view's error context.
 # ---------------------------------------------------------------------------
+
 
 def att_names(name):
     """Yield an attribute name and its ``t-att-``/``t-attf-`` dynamic variants."""
@@ -450,7 +455,9 @@ def check_fa_class_accessibility(node, description):
     if contains_description(node):
         return []
 
-    return ["%s must have title in its tag, parents, descendants or have text" % description]
+    return [
+        "%s must have title in its tag, parents, descendants or have text" % description
+    ]
 
 
 def check_class_accessibility(node, expr):
@@ -497,8 +504,7 @@ def check_class_accessibility(node, expr):
                 and node.get("type") in ("button", "submit", "reset")
             )
             or any(
-                klass in classes
-                for klass in ("btn-group", "btn-toolbar", "btn-addr")
+                klass in classes for klass in ("btn-group", "btn-toolbar", "btn-addr")
             )
             or (node.tag == "field" and node.get("widget") == "url")
         ):

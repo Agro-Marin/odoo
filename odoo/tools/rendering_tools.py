@@ -7,7 +7,8 @@ from markupsafe import Markup
 
 from odoo.tools import safe_eval
 
-INLINE_TEMPLATE_REGEX = re.compile(r"\{\{(.+?)(\|\|\|\s*(.*?))?\}\}")
+# DOTALL: a {{ ... }} placeholder may span multiple lines
+INLINE_TEMPLATE_REGEX = re.compile(r"\{\{(.+?)(\|\|\|\s*(.*?))?\}\}", re.DOTALL)
 
 
 template_env_globals = {
@@ -68,8 +69,12 @@ def render_inline_template(
         results.append(string)
 
         if expression:
-            result = safe_eval.safe_eval(expression, variables) or default
-            if result:
+            result = safe_eval.safe_eval(expression, variables)
+            if result is None or result == "":
+                # Only "no value" triggers the ||| fallback; falsy-but-valid
+                # results (0, False, 0.0) must render as-is.
+                result = default
+            if result != "":
                 results.append(str(result))
 
     return "".join(results)

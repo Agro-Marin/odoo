@@ -17,10 +17,27 @@ from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
 from ..._recordset import is_recordset
+from ...constants import READ_GROUP_NUMBER_GRANULARITY
 from ...domain import Domain
 from ...domain.constants import SUBDOMAIN_OPERATORS
 from ...primitives import COLLECTION_TYPES, Command, NewId
 from ..base import Field, _logger
+
+
+def _strip_granularity_suffix(field_expr: str) -> str:
+    """Return ``field_expr`` without a trailing date-part granularity segment.
+
+    A domain may filter on a date part, e.g. ``('create_date.year_number', '=',
+    x)``.  The granularity suffix is a projection of the date field, not a field
+    of some comodel, so it can never be a dependency trigger: keeping it would
+    make :meth:`Field.resolve_depends` walk past the (non-relational) date field
+    and abort the whole registry build.  Only the trigger path is truncated —
+    the domain itself keeps its granularity condition.
+    """
+    prefix, _sep, last = field_expr.rpartition(".")
+    if prefix and last in READ_GROUP_NUMBER_GRANULARITY:
+        return prefix
+    return field_expr
 
 
 def _domain_depend_paths(domain: Domain) -> Iterator[str]:
@@ -34,7 +51,7 @@ def _domain_depend_paths(domain: Domain) -> Iterator[str]:
     form. ``any!`` values that are SQL/Query rather than sub-domains are skipped.
     """
     for condition in domain.iter_conditions():
-        yield condition.field_expr
+        yield _strip_granularity_suffix(condition.field_expr)
         value = condition.value
         if isinstance(value, Domain):
             subdomain = value
@@ -56,6 +73,7 @@ if typing.TYPE_CHECKING:
         ContextType,
         DomainType,
         Environment,
+        ModelLike,
         Registry,
     )
     from ...models import BaseModel
@@ -187,7 +205,7 @@ class _Relational(Field["BaseModel"]):
     ) -> None:
         """Populate ``inverses`` with ``self`` and its inverse fields."""
 
-    def get_comodel_domain(self, model: BaseModel) -> Domain:
+    def get_comodel_domain(self, model: ModelLike) -> Domain:
         """Return a domain from the domain attribute."""
         domain = self.domain
         if callable(domain):
@@ -345,7 +363,7 @@ class _RelationalMulti(_Relational):
 
     @override
     def _update_cache(
-        self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
+        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         field_patches = records.env._core.get_patches(self)
         # Take the per-record path only when some of *records* actually carry a
@@ -364,7 +382,7 @@ class _RelationalMulti(_Relational):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> tuple[int | NewId, ...]:
         # cache format: tuple(ids)
         if is_recordset(value):
@@ -452,7 +470,7 @@ class _RelationalMulti(_Relational):
 
     @override
     def convert_to_record(
-        self, value: tuple[int | NewId, ...], record: BaseModel
+        self, value: tuple[int | NewId, ...], record: ModelLike
     ) -> BaseModel:
         return self._make_corecords(record.env, value, PrefetchX2many(record, self))
 
@@ -465,13 +483,13 @@ class _RelationalMulti(_Relational):
 
     @override
     def convert_to_read(
-        self, value: BaseModel, record: BaseModel, use_display_name: bool = True
+        self, value: BaseModel, record: ModelLike, use_display_name: bool = True
     ) -> list[int]:
         return value.ids
 
     @override
     def convert_to_write(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> list[CommandValue] | typing.Literal[False]:
         if isinstance(value, tuple):
             # a tuple of ids, this is the cache format
@@ -528,12 +546,12 @@ class _RelationalMulti(_Relational):
         raise ValueError(f"Wrong value for {self}: {value}")
 
     @override
-    def convert_to_export(self, value: BaseModel, record: BaseModel) -> str:
+    def convert_to_export(self, value: BaseModel, record: ModelLike) -> str:
         return ",".join(value.mapped("display_name")) if value else ""
 
     @override
     def convert_to_display_name(
-        self, value: BaseModel, record: BaseModel
+        self, value: BaseModel, record: ModelLike
     ) -> str | typing.Literal[False]:
         raise NotImplementedError
 
@@ -748,7 +766,7 @@ class PrefetchX2many(Reversible):
 
     __slots__ = ("field", "record")
 
-    def __init__(self, record: BaseModel, field: _RelationalMulti) -> None:
+    def __init__(self, record: ModelLike, field: _RelationalMulti) -> None:
         self.record = record
         self.field = field
 

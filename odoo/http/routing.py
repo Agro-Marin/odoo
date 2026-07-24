@@ -21,6 +21,52 @@ from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
 
+# Every ``@route`` keyword the framework itself consumes, plus the werkzeug
+# ``Rule`` kwargs forwarded via :data:`ROUTING_KEYS`. ``endpoint.routing`` is an
+# open extension namespace — modules read their own keys from it (website's
+# ``sitemap=``, auth_timeout's ``check_identity=``, ...) — so unknown keys can't
+# be *rejected*; but an undeclared key at decoration time has historically been
+# a typo (``raedonly=True``) silently stored and ignored. Extension modules
+# declare their keys with :func:`register_routing_parameters` at import time
+# (dependencies import before their dependents' controllers are decorated, so
+# declarations always precede use); anything undeclared draws a warning.
+_KNOWN_ROUTING_PARAMETERS: set[str] = {
+    # consumed by the decorator / dispatchers / ir.http
+    "auth",
+    "captcha",
+    "cors",
+    "csrf",
+    "handle_params_access_error",
+    "max_content_length",
+    "readonly",
+    "save_session",
+    "type",
+    "typed",
+    *ROUTING_KEYS,
+    # Platform vocabulary declared HERE, not by its consumers: these keys are
+    # set *speculatively* by base-layer controllers (``web.web_login`` carries
+    # ``website=``/``multilang=``/``sitemap=``/``list_as_website_content=``)
+    # so that the consumer honours them WHEN installed — and that consumer
+    # (website / http_routing) imports long after the base layer decorated its
+    # routes, so consumer-side register_routing_parameters() would warn
+    # spuriously at every startup.
+    "website",  # consumed by http_routing/website ir_http
+    "multilang",  # consumed by http_routing ir_http (lang-prefixed routing)
+    "sitemap",  # consumed by website sitemap generation
+    "list_as_website_content",  # consumed by website_technical_page
+}
+
+
+def register_routing_parameters(*names: str) -> None:
+    """Declare extension ``@route`` parameter names as known.
+
+    Call at module import time, before any controller using the parameter is
+    decorated — conventionally from the owning addon's ``__init__.py``. Only
+    suppresses the unknown-parameter warning; storage in ``endpoint.routing``
+    is unconditional either way.
+    """
+    _KNOWN_ROUTING_PARAMETERS.update(names)
+
 
 class LazyCompiledBuilder:
     """Defer a werkzeug ``Rule``'s URL-builder compilation until first ``url_for``.
@@ -51,14 +97,18 @@ class LazyCompiledBuilder:
         return self
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if self._callable is None:
-            self._callable = self._compile_builder(self._append_unknown).__get__(
-                self.rule, None
-            )
-            del self.rule
-            del self._compile_builder
-            del self._append_unknown
-        return self._callable(*args, **kwargs)
+        # Routing maps are shared across worker threads, so the first url_for
+        # of a rule can race. Compilation is idempotent: concurrent first calls
+        # may each compile (last write wins), which is safe; what must NOT
+        # happen is deleting the source attributes after publishing — a peer
+        # that passed the ``None`` check would then crash on ``self.rule``
+        # (AttributeError → 500). Keep the attributes; they are three
+        # references on an object the Map retains anyway.
+        fn = self._callable
+        if fn is None:
+            fn = self._compile_builder(self._append_unknown).__get__(self.rule, None)
+            self._callable = fn
+        return fn(*args, **kwargs)
 
 
 class FasterRule(werkzeug.routing.Rule):
@@ -227,6 +277,19 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
+        # ``routes`` is decorator-internal (set above from the positional
+        # argument); everything else must be declared (see
+        # ``_KNOWN_ROUTING_PARAMETERS``) or it is very likely a typo that
+        # silently disables the option it meant to set.
+        unknown = routing.keys() - _KNOWN_ROUTING_PARAMETERS - {"routes"}
+        if unknown:
+            _logger.warning(
+                "%s defined with unknown @route parameter(s) %s; they are kept "
+                "in endpoint.routing, but no module declared them via "
+                "odoo.http.register_routing_parameters() — possible typo.",
+                fname,
+                sorted(unknown),
+            )
         # NB: ``save_session``'s bearer default is NOT baked in here. Doing so put
         # a concrete ``False`` in this fragment's routing, which then leaked
         # through the inheritance merge: an extension re-decorating a bearer route
@@ -314,7 +377,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
 
 
 def _generate_routing_rules(
-    modules: list[str], nodb_only: bool, converters: dict | None = None
+    modules: list[str], nodb_only: bool
 ) -> Generator[tuple[str, Any]]:
     """
     Two-fold algorithm used to (1) determine which method in the

@@ -23,6 +23,7 @@ from .base import Field, _logger
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
 
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 NoneType = type(None)
@@ -149,7 +150,7 @@ class Properties(Field):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -161,7 +162,7 @@ class Properties(Field):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> dict[str, typing.Any] | None:
         # any format -> cache format {name: value} or None
         if not value:
@@ -201,7 +202,7 @@ class Properties(Field):
 
     # Record format: False, or a dict {property_name: value} (as cache format).
     @override
-    def convert_to_record(self, value: typing.Any, record: BaseModel) -> Property:
+    def convert_to_record(self, value: typing.Any, record: ModelLike) -> Property:
         return Property(value or {}, self, record)
 
     # Read format: a list of dicts, each merging a property's definition with
@@ -210,14 +211,14 @@ class Properties(Field):
     #    {'name': 'aa34...', 'type': 'many2one', 'value': [1337, 'Bob'], ...}]
     @override
     def convert_to_read(
-        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+        self, value: typing.Any, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         return self.convert_to_read_multi([value], record, use_display_name)[0]
 
     def convert_to_read_multi(
         self,
         values: list[typing.Any],
-        records: BaseModel,
+        records: ModelLike,
         use_display_name: bool = True,
     ) -> list[typing.Any]:
         if not records:
@@ -255,12 +256,12 @@ class Properties(Field):
         return result
 
     @override
-    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
         """If we write a list on the child, update the definition record."""
         return value
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> typing.Any:
         if isinstance(value, Property):
             value = value._values
         return value or ""
@@ -450,9 +451,12 @@ class Properties(Field):
         return properties_list_values
 
     def _get_properties_definition(
-        self, record: BaseModel
+        self, record: ModelLike
     ) -> list[dict[str, typing.Any]] | None:
         """Return the properties definition of the given record."""
+        # definition_record is always resolved for a set-up Properties field;
+        # the assertion only narrows the optional type for the type checker
+        assert self.definition_record is not None
         container = record[self.definition_record]
         if container:
             return container.sudo()[self.definition_record_field]
@@ -788,7 +792,7 @@ class Properties(Field):
         self,
         field_sql: SQL,
         property_name: str,
-        model: BaseModel,
+        model: ModelLike,
         alias: str,
         query: Query,
     ) -> SQL:
@@ -945,7 +949,7 @@ class Property(abc.Mapping):
         self,
         values: dict[str, typing.Any],
         field: Properties,
-        record: BaseModel,
+        record: ModelLike,
     ) -> None:
         self._values = values
         self.record = record
@@ -1088,7 +1092,7 @@ class PropertiesDefinition(Field):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -1115,7 +1119,7 @@ class PropertiesDefinition(Field):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> list[dict[str, typing.Any]] | None:
         # any format -> cache format (list of dicts or None)
         if not value:
@@ -1141,7 +1145,7 @@ class PropertiesDefinition(Field):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> list[dict[str, typing.Any]]:
         # cache format -> record format (list of dicts)
         if not value:
@@ -1193,7 +1197,7 @@ class PropertiesDefinition(Field):
 
     @override
     def convert_to_read(
-        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+        self, value: typing.Any, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         # record format -> read format (list of dicts with display names)
         if not value:
@@ -1205,7 +1209,7 @@ class PropertiesDefinition(Field):
         return value
 
     @override
-    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
         return value
 
     def _validate_properties_definition(

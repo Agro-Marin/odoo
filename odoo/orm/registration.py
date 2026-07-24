@@ -17,6 +17,7 @@ from . import (
     fields,
     models,
 )
+from .helpers import ORM_CLASS_MEMOS
 from .primitives import LOG_ACCESS_COLUMNS
 from .validation import check_pg_name, is_manual_name
 
@@ -223,7 +224,10 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
 
     # avoid assigning an empty dict to save memory
     if inherits:
-        model_cls._inherits = inherits
+        # frozendict: _inherits' declared type — the class default is the
+        # shared immutable empty frozendict, so assigned values must uphold
+        # the same no-mutation guarantee.
+        model_cls._inherits = frozendict(inherits)
     if depends:
         model_cls._depends = depends
 
@@ -287,15 +291,10 @@ def _prepare_setup(model_cls: type[BaseModel]):
     # ``helpers.own_class_memo``). The class object is reused across re-setup
     # (only ``__bases__`` is reassigned, above), so these memos survive class
     # recreation — discard them here, or a re-setup that adds/removes a field
-    # keeps serving the stale tuple.
-    for _memo in (
-        "_constraint_methods__",
-        "_ondelete_methods__",
-        "_onchange_methods__",
-        "_precompute_readonly_names__",
-        "_properties_field_names__",
-        "_stored_computed_fields__",
-    ):
+    # keeps serving the stale tuple.  ORM_CLASS_MEMOS is the single registry of
+    # such keys (a hardcoded list here silently served stale tuples for any
+    # memo added elsewhere); a source-scan test pins it to the call sites.
+    for _memo in ORM_CLASS_MEMOS:
         discardattr(model_cls, _memo)
 
 
@@ -629,6 +628,16 @@ def _add_manual_models(env: Environment):
             for parent_cls in model_cls.__bases__:
                 if hasattr(parent_cls, "pool"):
                     parent_cls._inherit_children.discard(name)
+            # mirror the discard for _inherits parents (_inherits_children is
+            # populated in _init_model_class_attributes): without it a
+            # delegating custom model leaves its stale name in the parents'
+            # _inherits_children across successive registry setups.  The parent
+            # may itself be a custom model already removed by this loop, hence
+            # the .get().
+            for parent_name in model_cls._inherits:
+                inherits_parent_cls = env.registry.models.get(parent_name)
+                if inherits_parent_cls is not None:
+                    inherits_parent_cls._inherits_children.discard(name)
 
     if removed_fields:
         # discard removed custom fields from the registry's dependency maps

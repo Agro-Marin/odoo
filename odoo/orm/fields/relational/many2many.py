@@ -22,6 +22,7 @@ if typing.TYPE_CHECKING:
 
     from ..._typing import (
         CommandValue,
+        ModelLike,
         Registry,
     )
     from ...models import BaseModel
@@ -172,7 +173,7 @@ class Many2many(_RelationalMulti):
 
     @override
     def update_db(
-        self, model: BaseModel, columns: dict[str, dict[str, typing.Any]]
+        self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
         cr = model.env.cr
         # Do not reflect relations for custom fields, as they do not belong to a

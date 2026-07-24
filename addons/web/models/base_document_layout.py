@@ -6,6 +6,7 @@ from markupsafe import Markup
 from PIL.Image import Resampling
 
 from odoo import api, fields, models
+from odoo.libs.colors import get_lightness, get_saturation, rgb_to_hex
 from odoo.libs.text.html import nl2br
 from odoo.tools import html2plaintext, is_html_empty
 from odoo.tools import image as tools
@@ -344,19 +345,19 @@ class BaseDocumentLayout(models.TransientModel):
         # Lightness and saturation are calculated here.
         # - If both colors have a similar lightness, the most colorful becomes primary
         # - When the difference in lightness is too great, the brightest color becomes primary
-        l_primary = tools.get_lightness(primary)
-        l_secondary = tools.get_lightness(secondary)
+        l_primary = get_lightness(primary)
+        l_secondary = get_lightness(secondary)
         if (l_primary < 0.2 and l_secondary < 0.2) or (
             l_primary >= 0.2 and l_secondary >= 0.2
         ):
-            s_primary = tools.get_saturation(primary)
-            s_secondary = tools.get_saturation(secondary)
+            s_primary = get_saturation(primary)
+            s_secondary = get_saturation(secondary)
             if s_primary < s_secondary:
                 primary, secondary = secondary, primary
         elif l_secondary > l_primary:
             primary, secondary = secondary, primary
 
-        return tools.rgb_to_hex(primary), tools.rgb_to_hex(secondary)
+        return rgb_to_hex(primary), rgb_to_hex(secondary)
 
     def document_layout_save(self) -> dict[str, Any]:
         # meant to be overridden

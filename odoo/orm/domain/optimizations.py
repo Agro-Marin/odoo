@@ -292,6 +292,20 @@ def _optimize_in_required(condition, model):
     record binding), and stripping ``False`` from a required NOT NULL field is
     valid only for persisted records — a new record may legitimately hold
     ``False`` in memory.
+
+    That binding-dependence outlives this pass: the stripped node is stamped
+    ``(FULL, model_name)`` like any other and may be retained (e.g. an
+    ormcached record-rule domain) and later fed to ``_as_predicate`` over a
+    recordset containing NewIds — a binding the ``all(model._ids)`` guard
+    below never saw (NewId is always falsy, so any NewId in the binding
+    disables the strip *at optimization time*; the trap is the caching).
+    Since the strip destroys information (there is no form equivalent for
+    both persisted and new records), the pre-strip condition is kept
+    reachable on the result via the ``_predicate_fallback`` slot, which
+    ``DomainCondition._as_predicate`` consults for NewId-containing
+    recordsets.  Residual (documented, accepted) gaps: a strip-to-empty set
+    collapses to the FALSE singleton in the next BASIC pass, and a later
+    same-field set-merge builds a fresh node — both lose the fallback.
     """
     value = condition.value
     # Stripping False only changes anything when a False is actually present;
@@ -305,14 +319,22 @@ def _optimize_in_required(condition, model):
         field.falsy_value is None
         and (field.required or field.name == "id")
         and field in model.env.registry.not_null_fields
-        # only optimize if there are no NewId's
+        # only optimize if there are no NewId's (NewId.__bool__ is False, so
+        # this also holds for origin-carrying NewIds; note all(()) is True —
+        # the unbound model of a plain search passes vacuously, which is fine
+        # for SQL over persisted rows)
         and all(model._ids)
     ):
-        return DomainCondition(
+        stripped = DomainCondition(
             condition.field_expr,
             condition.operator,
             OrderedSet(v for v in value if v is not False),
         )
+        # keep the pre-strip form reachable for predicate evaluation over new
+        # records (see docstring); bypasses Domain immutability like the other
+        # per-node caches (_field_instance, _hash)
+        object.__setattr__(stripped, "_predicate_fallback", condition)
+        return stripped
     return condition
 
 
@@ -472,6 +494,12 @@ def _optimize_boolean_in(condition, model):
         # normalize to [True] when possible: eases search-method implementations
         operator = INVERSE_OPERATOR[operator]
         value = [True]
+    if operator == condition.operator and value is condition.value:
+        # nothing changed: keep the node (avoids allocating an identical
+        # condition on every BASIC fixpoint pass, cf.
+        # _optimize_relational_name_search); both rewrites above rebind
+        # value/operator, so identity is an exact change detector
+        return condition
     return DomainCondition(condition.field_expr, operator, value)
 
 
@@ -548,7 +576,9 @@ def _optimize_type_date_relative(condition, model):
         # nothing to resolve when the set holds no relative-date strings:
         # skip the rebuild and keep the node (avoids allocating an identical
         # condition on every DYNAMIC pass, cf. _optimize_relational_name_search)
-        or (isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value))
+        or (
+            isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value)
+        )
     ):
         return condition
     value = _value_to_date(value, model.env)
@@ -699,6 +729,17 @@ def _optimize_type_datetime(condition, model):
             domain = ~domain
         return domain
 
+    if operator == condition.operator and (
+        value is condition.value
+        # collections are rebuilt element-wise above, so identity never holds
+        # for them; fall back to the value equality DomainCondition.__eq__ uses
+        # (same class + ==) to detect the no-op conversion
+        or (value.__class__ is condition.value.__class__ and value == condition.value)
+    ):
+        # nothing changed: keep the node (avoids allocating an identical
+        # condition on every BASIC fixpoint pass, cf.
+        # _optimize_relational_name_search)
+        return condition
     return DomainCondition(field_expr, operator, value)
 
 
@@ -713,7 +754,9 @@ def _optimize_type_datetime_relative(condition, model):
         # nothing to resolve when the set holds no relative-date strings:
         # skip the rebuild and keep the node (avoids allocating an identical
         # condition on every DYNAMIC pass, cf. _optimize_relational_name_search)
-        or (isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value))
+        or (
+            isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value)
+        )
     ):
         return condition
     env = model.env
@@ -813,6 +856,14 @@ def _operator_hierarchy(condition, model):
     value = condition.value
     if value is False:
         return _FALSE_DOMAIN
+    if value is True:
+        # bool ⊂ int: without this guard True falls into the scalar-int wrap
+        # below, passes the int partition, and reaches SQL as
+        # ``parent_id IN (true)`` — a psycopg UndefinedFunction surfacing as an
+        # opaque RPC 500.  Unlike False ("not set" → no seed record, above),
+        # True names no record at all, so it is a caller error: raise the
+        # file's standard clean ValueError instead.
+        condition._raise("True is not a valid hierarchy value")
     # field: keys the result domain; parent: relation field name; comodel:
     # searches ids from the value; comodel_sudo: resolves the hierarchy
     field = condition._field(model)
@@ -838,6 +889,16 @@ def _operator_hierarchy(condition, model):
         value = [value]
     elif not isinstance(value, COLLECTION_TYPES):
         condition._raise(f"Value of type {type(value)} is not supported")
+    # Same bool ⊂ int trap for collection elements: [True]/[False] pass the int
+    # partition below and reach SQL as ``IN (true)``.  Mirror the scalar
+    # handling above — False means "not set" and seeds no record, so it is
+    # dropped (an all-False collection then collapses to FALSE naturally via
+    # the empty-seed check below, matching the scalar False → FALSE rewrite);
+    # True stays a caller error and raises.
+    if any(isinstance(v, bool) for v in value):
+        if any(v is True for v in value):
+            condition._raise("True is not a valid hierarchy value")
+        value = [v for v in value if v is not False]
     coids, other_values = partition(lambda v: isinstance(v, int), value)
     search_domain = _FALSE_DOMAIN
     if field.type == "many2many":

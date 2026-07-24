@@ -16,7 +16,7 @@ from odoo.tools import (
 from odoo.tools.misc import PENDING, SENTINEL
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel
+    from .._typing import BaseModel, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
     # Field's value type parameter (Field[T]); used in convert_to_record's return
@@ -33,7 +33,7 @@ class _FieldConvertMixin(_FieldStubs):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -48,10 +48,16 @@ class _FieldConvertMixin(_FieldStubs):
             return None
         if isinstance(value, str):
             return value
-        elif isinstance(value, bytes):
+        if isinstance(value, bytes):
             return value.decode()
-        else:
+        if isinstance(value, (int, float)):
+            # e.g. integer-keyed Selection values stored in a varchar column
             return str(value)
+        # Anything else (dict, list, recordset, arbitrary object) has no
+        # meaningful textual column form: str() would silently persist a repr
+        # like "{'a': 1}" into the column. Fields with richer column formats
+        # override this method; reaching here with a non-scalar is a bug.
+        raise TypeError(f"Invalid column value for {self}: {value!r}")
 
     @staticmethod
     def _to_json_value(value: typing.Any) -> typing.Any:
@@ -65,7 +71,7 @@ class _FieldConvertMixin(_FieldStubs):
     def convert_to_column_insert(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -91,7 +97,7 @@ class _FieldConvertMixin(_FieldStubs):
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
-    def get_column_update(self, record: BaseModel) -> typing.Any:
+    def get_column_update(self, record: ModelLike) -> typing.Any:
         """Read ``record``'s dirty cache value as a SQL parameter for UPDATE.
 
         The cache → SQL path used by
@@ -106,6 +112,7 @@ class _FieldConvertMixin(_FieldStubs):
             # (mirrors the company_dependent pattern below).
             langs_dict = {}
             flat_value = SENTINEL
+            found = False
             for cache_key, sub_cache in field_cache.items():
                 if not isinstance(sub_cache, dict):
                     # Stale flat entry ({id: scalar}) written before
@@ -113,13 +120,27 @@ class _FieldConvertMixin(_FieldStubs):
                     # _load_module_terms flush). Keep it as a fallback: a value
                     # surviving ONLY in a flat entry must not flush as SQL NULL
                     # (NotNullViolation on required translatable fields).
-                    if cache_key == record_id and sub_cache is not None:
-                        flat_value = sub_cache
+                    if cache_key == record_id:
+                        found = True
+                        if sub_cache is not None:
+                            flat_value = sub_cache
                     continue
                 if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
+                    found = True
+                    # cache_key[0] IS the language: BaseString.get_depends
+                    # normalizes 'lang' first — and STRIPS extra context deps
+                    # for stored translated fields (warned at setup), so the
+                    # sub-caches flushed here are keyed by exactly (lang,)
+                    # and this mapping is unambiguous.
                     lang = cache_key[0]
                     if value is not None:
                         langs_dict[lang] = value
+            if not found:
+                # Total miss: no sub-cache (nor flat entry) knows the record at
+                # all.  Raise KeyError like the fast path below — _flush wraps
+                # it into a diagnostic RuntimeError (see mixins/recompute.py);
+                # returning None here would silently flush SQL NULL instead.
+                raise KeyError(record_id)
             if not langs_dict and flat_value is not SENTINEL:
                 # Only a stale flat entry held a value: preserve it under the
                 # current language rather than overwriting the column with NULL.
@@ -142,27 +163,39 @@ class _FieldConvertMixin(_FieldStubs):
                     if value is PENDING:
                         return PENDING
                     return self.convert_to_column(value, record, validate=False)
-            raise AssertionError(
-                f"Value not in cache for field {self} and id={record_id}"
-            )
+            # Total miss: raise KeyError like the fast path above — _flush
+            # wraps it into a diagnostic RuntimeError (see mixins/recompute.py),
+            # whereas an AssertionError would bypass that handler entirely.
+            raise KeyError(record_id)
         # Company-dependent: collect values from all company contexts into JSONB
         values = {}
         flat_value = SENTINEL
+        found = False
         for ctx_key, cache in field_cache.items():
             if not isinstance(cache, dict):
                 # Stale flat entry (see the translate-is-True branch above):
                 # keep a non-None one as a fallback so a value surviving only in
                 # a flat entry is not flushed as NULL. The is-not-None guard also
                 # avoids 'NoneType has no attribute get'.
-                if ctx_key == record_id and cache is not None:
-                    flat_value = cache
+                if ctx_key == record_id:
+                    found = True
+                    if cache is not None:
+                        flat_value = cache
                 continue
-            if (
-                value := cache.get(record_id, SENTINEL)
-            ) is not SENTINEL and value is not PENDING:
-                values[ctx_key[0]] = self._to_json_value(
-                    self.convert_to_column(value, record)
-                )
+            if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
+                found = True
+                if value is not PENDING:
+                    values[ctx_key[0]] = self._to_json_value(
+                        self.convert_to_column(value, record)
+                    )
+        if not found:
+            # Total miss: no sub-cache (nor flat entry) knows the record at
+            # all.  Raise KeyError like the other branches — _flush wraps it
+            # into a diagnostic RuntimeError (see mixins/recompute.py);
+            # returning None here would silently flush SQL NULL.  (A record
+            # that IS known but whose values all match the fallback still
+            # returns None below — that NULL is the legitimate storage form.)
+            raise KeyError(record_id)
         if not values and flat_value is not SENTINEL:
             # Only a stale flat entry held a value: preserve it under the current
             # company rather than overwriting the column with NULL.
@@ -172,7 +205,7 @@ class _FieldConvertMixin(_FieldStubs):
         return PsycopgJson(values) if values else None
 
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         """Convert ``value`` to the cache format. Entry point of the WRITE path:
         values from :meth:`BaseModel.write`, :meth:`BaseModel.create`, or direct
@@ -188,7 +221,7 @@ class _FieldConvertMixin(_FieldStubs):
         """
         return value
 
-    def convert_to_record(self, value: typing.Any, record: BaseModel) -> T:
+    def convert_to_record(self, value: typing.Any, record: ModelLike) -> T:
         """Convert ``value`` from the cache format to the record format — the
         Python value returned by ``record.field``.  This is the READ path
         exit point, called by :meth:`__get__`.
@@ -199,7 +232,7 @@ class _FieldConvertMixin(_FieldStubs):
         return False if value is None else value
 
     def convert_to_read(
-        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+        self, value: typing.Any, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         """Convert ``value`` from the record format to the EXPORT format
         returned by :meth:`BaseModel.read` and consumed by the web client.
@@ -213,7 +246,7 @@ class _FieldConvertMixin(_FieldStubs):
         """
         return False if value is None else value
 
-    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
         """Convert ``value`` from any format to the write format accepted by
         :meth:`BaseModel.write`.  Used by :meth:`__set__` on real records to
         roundtrip a value through the conversion pipeline before delegating
@@ -225,14 +258,14 @@ class _FieldConvertMixin(_FieldStubs):
         record_value = self.convert_to_record(cache_value, record)
         return self.convert_to_read(record_value, record)
 
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> typing.Any:
         """Convert ``value`` from the record format to the export format."""
         if not value:
             return ""
         return value
 
     def convert_to_display_name(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         """Convert ``value`` from the record format to a suitable display name."""
         return str(value) if value else False

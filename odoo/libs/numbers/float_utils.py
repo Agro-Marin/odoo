@@ -56,9 +56,7 @@ def _float_check_precision(
         precision_rounding = 10**-precision_digits
     else:
         msg = "exactly one of precision_digits and precision_rounding must be specified"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return precision_rounding
 
 
@@ -137,9 +135,15 @@ def float_round(
     # stays >= a few ulp where the ulp is fine and reaches 0 once normalized_value
     # has no representable fractional part) so the nudge can only ever rescue values
     # already within representation error of a tie, never cross a boundary. The
-    # truncating UP/DOWN methods keep the un-capped `epsilon`: there it measures
-    # proximity-to-integer and must track the ulp to leave exact integers intact.
+    # truncating UP/DOWN methods must also keep `epsilon` strictly below 1 so the
+    # nudge stays a proximity-to-integer test and can never push an exact integer
+    # multiple across a boundary: uncapped, `float_round(1.2e13, 0.01, 'DOWN')`
+    # returned 1.2e13 + 0.01 and `float_round(2**52, 0, 'UP')` overshot by 3.
+    # At normal magnitudes epsilon << 0.5, so both caps are no-ops there; they
+    # only bind once the ulp approaches 1 and sub-integer precision is already
+    # lost, where any choice is within a ulp of the input.
     half_epsilon = max(0.0, min(epsilon, 0.5 - epsilon / 2))
+    trunc_epsilon = min(epsilon, 0.5)
 
     # if/elif — match/case replaced for broader C-extension compatibility
     if rounding_method == "HALF-UP":  # 0.5 rounds away from 0
@@ -147,27 +151,43 @@ def float_round(
     elif rounding_method == "HALF-EVEN":  # 0.5 rounds towards closest even number
         integral = math.floor(normalized_value)
         remainder = abs(normalized_value - integral)
-        is_half = abs(0.5 - remainder) < half_epsilon
+        # `remainder == 0.5` catches an exact, representable tie directly: once
+        # the value is large enough that half_epsilon caps to ~0, the tolerance
+        # test alone would miss it and fall through to round()'s half-up.  0.5 is
+        # exactly representable, so the equality is intentional here.
+        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069
         # if is_half & integral is odd, add odd bit to make it even
         result = integral + (integral & 1) if is_half else round(normalized_value)
     elif rounding_method == "HALF-DOWN":  # 0.5 rounds towards 0
-        result = round(normalized_value - math.copysign(half_epsilon, normalized_value))
+        integral = math.floor(abs(normalized_value))
+        remainder = abs(normalized_value) - integral
+        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069
+        if is_half:
+            # exact tie: round towards zero, i.e. keep the integral part
+            result = math.copysign(integral, normalized_value)
+        else:
+            result = round(
+                normalized_value - math.copysign(half_epsilon, normalized_value)
+            )
     elif rounding_method == "UP":  # round to number furthest from zero
-        result = float(
-            math.trunc(normalized_value + math.copysign(1 - epsilon, normalized_value))
+        result = math.trunc(
+            normalized_value + math.copysign(1 - trunc_epsilon, normalized_value)
         )
     elif rounding_method == "DOWN":  # round to number closest to zero
-        result = float(
-            math.trunc(normalized_value + math.copysign(epsilon, normalized_value))
+        result = math.trunc(
+            normalized_value + math.copysign(trunc_epsilon, normalized_value)
         )
     else:
         msg = f"unknown rounding method: {rounding_method}"
         raise ValueError(msg)
 
-    # Denormalize: reverse the normalization
+    # Denormalize: reverse the normalization.  ``float(...)`` pins the documented
+    # ``-> float`` return type: with precision_digits=0 the rounding factor is an
+    # int, and an int ``result`` (e.g. the HALF-EVEN tie branch) would otherwise
+    # make ``result * rounding_factor`` an int.
     if inverted:
-        return result / rounding_factor
-    return result * rounding_factor
+        return float(result / rounding_factor)
+    return float(result * rounding_factor)
 
 
 def float_is_zero(
@@ -408,7 +428,9 @@ if __name__ == "__main__":
     start = time.time()
     count = 0
 
-    def try_round(amount: float, expected: str, precision_digits: int = 3) -> complex | int:
+    def try_round(
+        amount: float, expected: str, precision_digits: int = 3
+    ) -> complex | int:
         result = float_repr(
             float_round(amount, precision_digits=precision_digits),
             precision_digits=precision_digits,

@@ -9,9 +9,13 @@ import re
 
 # Parsing patterns
 
-# For import/export field path ID fixing
-_FIX_DB_ID_RE = re.compile(r"([^/])\.id")
-_FIX_EXTERNAL_ID_RE = re.compile(r"([^/]):id")
+# For import/export field path ID fixing. The lookahead makes the match
+# token-based: ".id"/":id" convert only as a complete trailing designator
+# (end of name or before a "/"), so "partner_id.identifier" or
+# "partner_id:idx" are left alone instead of being mangled by a bare prefix
+# match. \Z, not $ — $ would also match before a trailing newline.
+_FIX_DB_ID_RE = re.compile(r"([^/])\.id(?=/|\Z)")
+_FIX_EXTERNAL_ID_RE = re.compile(r"([^/]):id(?=/|\Z)")
 
 # For _read_group (new API)
 regex_read_group_spec = re.compile(r"(\w+)(\.([\w\.]+))?(?::(\w+))?$")

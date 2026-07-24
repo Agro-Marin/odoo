@@ -89,9 +89,12 @@ def gc_info() -> dict[str, Any]:
         count = info["collections"] - info_init["collections"]
         times.append(
             {
-                "avg_time": time // count if count > 0 else 0,
+                # ms per collection, consistent with "time" below (was raw ns,
+                # a 10^6 discrepancy against its sibling); "pct" is a real
+                # percentage rather than a 0-1 fraction, matching its name.
+                "avg_time": _to_ms(time / count) if count > 0 else 0.0,
                 "time": _to_ms(time),
-                "pct": round(time / cumulative_time, 3),
+                "pct": round(time / cumulative_time * 100, 3),
             }
         )
     return {

@@ -25,6 +25,7 @@ if typing.TYPE_CHECKING:
 
     from odoo.tools import Query
 
+    from .._typing import ModelLike
     from ..models import BaseModel
 
 DATE_LENGTH = len(date.today().strftime(DATE_FORMAT))
@@ -95,7 +96,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
         self,
         field_sql: SQL,
         property_name: str,
-        model: BaseModel,
+        model: ModelLike,
         alias: str,
         query: Query,
     ) -> SQL:
@@ -127,7 +128,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
     def convert_to_column(
         self,
         value,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> typing.Any:
@@ -223,7 +224,7 @@ class Date(BaseDate[date]):
 
     @override
     def convert_to_cache(
-        self, value, record: BaseModel, validate: bool = True
+        self, value, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         if not value:
             return None
@@ -232,12 +233,12 @@ class Date(BaseDate[date]):
         return self.to_date(value)
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> typing.Any:
         return self.to_date(value) or ""
 
     @override
     def convert_to_display_name(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         return Date.to_string(value)
 
@@ -267,7 +268,7 @@ class Datetime(BaseDate[datetime]):
         return Datetime.now().replace(hour=0, minute=0, second=0)
 
     @staticmethod
-    def context_timestamp(record: BaseModel, timestamp: datetime) -> datetime:
+    def context_timestamp(record: ModelLike, timestamp: datetime) -> datetime:
         """Return the given timestamp converted to the client's timezone.
 
         .. note:: This method is *not* meant for use as a default initializer,
@@ -364,18 +365,18 @@ class Datetime(BaseDate[datetime]):
 
     @override
     def convert_to_cache(
-        self, value, record: BaseModel, validate: bool = True
+        self, value, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         return self.to_datetime(value)
 
     @override
-    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: ModelLike) -> typing.Any:
         value = self.convert_to_display_name(value, record)
         return self.to_datetime(value) or ""
 
     @override
     def convert_to_display_name(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         if not value:
             return False

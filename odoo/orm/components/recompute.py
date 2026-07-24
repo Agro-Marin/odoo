@@ -20,7 +20,8 @@ from collections import defaultdict
 from typing import Any
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Container, Mapping
+    from collections.abc import Set as AbstractSet
 
     from ._protocols import SchedulableField
     from .compute import ComputeEngine
@@ -78,8 +79,8 @@ class RecomputeScheduler:
     def process_entry(
         self,
         field: SchedulableField,
-        ids: set | frozenset,
-        cached_ids: set | None = None,
+        ids: AbstractSet,
+        cached_ids: Container | None = None,
     ) -> frozenset:
         """Process one trigger entry.
 
@@ -107,26 +108,41 @@ class RecomputeScheduler:
         #    Stored-computed: skip IDs already pending (_marked) or accumulated
         #    (to_recompute). Non-stored: skip already-seen IDs and filter to
         #    cached_ids (only invalidate what is cached).
-        recursive_ids = frozenset()
+        recursive_ids: frozenset = frozenset()
         if field.recursive:
             if field.is_stored_computed:
-                known = set()
+                # Two successive subtractions, never a merged ``known`` copy:
+                # ``known = set(marked) | set(to_recompute)`` is O(|pending|)
+                # per trigger entry (pending can hold 100k+ ids mid-flush,
+                # benchmarked at ~500ms for 500 entries), while ``ids - other``
+                # iterates the LEFT operand (both builtin ``set.__sub__`` and
+                # ``abc.Set.__sub__``/``__rsub__``, which ``OrderedSet`` uses,
+                # build from the iterated side ``ids``) — O(|entry ids|).
+                # Same algebra: ids - (m | r) == (ids - m) - r.
                 m = self._marked.get(field)
                 if m:
-                    known.update(m)
+                    ids = ids - m
                 r = self.to_recompute.get(field)
-                if r:
-                    known.update(r)
-                if known:
-                    ids = ids - known
+                if r and ids:
+                    ids = ids - r
             else:
                 # Deferred invalidation no longer breaks cycles implicitly, so
                 # track processed IDs explicitly.
                 seen = self._seen_recursive.get(field)
                 if seen:
                     ids = ids - seen
-                if cached_ids is not None:
-                    ids = ids & cached_ids
+                if cached_ids is not None and ids:
+                    # Intersect by iterating ``ids``, not via ``ids &
+                    # cached_ids``: ``abc.Set.__and__`` iterates the RIGHT
+                    # operand — the whole cached-id view, O(|cache|) per entry
+                    # — and would emit cache order instead of the recordset id
+                    # order the caller's OrderedSet pipeline preserves.
+                    # type(ids)(...) rebuilds the caller's concrete set type
+                    # (set / OrderedSet); ``type[AbstractSet]`` is not
+                    # expressible as iterable-constructible, hence the ignore.
+                    ids = type(ids)(  # type: ignore[call-arg]
+                        id_ for id_ in ids if id_ in cached_ids
+                    )
             if not ids:
                 return frozenset()
             # Only the non-stored branch reads `_seen_recursive`; stored fields

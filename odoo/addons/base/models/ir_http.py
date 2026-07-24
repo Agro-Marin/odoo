@@ -274,10 +274,6 @@ class IrHttp(models.AbstractModel):
             raise AccessDenied from exc
 
     @classmethod
-    def _geoip_resolve(cls) -> Any:
-        return request._geoip_resolve()
-
-    @classmethod
     def _sanitize_cookies(cls, cookies: Any) -> None:
         pass
 
@@ -382,10 +378,12 @@ class IrHttp(models.AbstractModel):
     def _redirect(cls, location: str, code: int = 303) -> Response:
         return werkzeug.utils.redirect(location, code=code, Response=Response)
 
-    def _generate_routing_rules(
-        self, modules: list[str], converters: dict[str, type]
-    ) -> Any:
-        return http._generate_routing_rules(modules, False, converters)
+    def _generate_routing_rules(self, modules: list[str]) -> Any:
+        # NB: werkzeug resolves URL converters from the Map (built with
+        # ``_get_converters()`` in :meth:`routing_map`), never per rule — the
+        # historical ``converters`` parameter threaded through here and the
+        # website override.
+        return http._generate_routing_rules(modules, False)
 
     @tools.ormcache("key", cache="routing")
     def routing_map(self, key: str | None = None) -> werkzeug.routing.Map:
@@ -399,9 +397,7 @@ class IrHttp(models.AbstractModel):
         routing_map = werkzeug.routing.Map(
             strict_slashes=False, converters=self._get_converters()
         )
-        for url, endpoint in self._generate_routing_rules(
-            mods, converters=self._get_converters()
-        ):
+        for url, endpoint in self._generate_routing_rules(mods):
             rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
             rule.merge_slashes = False
             routing_map.add(rule)

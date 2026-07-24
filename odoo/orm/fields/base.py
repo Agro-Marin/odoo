@@ -12,6 +12,7 @@ from collections.abc import (
     Collection,
     Iterable,
     Iterator,
+    Mapping,
     MutableMapping,
 )
 from operator import attrgetter
@@ -38,7 +39,7 @@ from ._field_description import _FieldDescriptionMixin
 from ._field_sql import _FieldSqlMixin
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, DomainType, ModelType, Self
+    from .._typing import BaseModel, DomainType, ModelLike, ModelType, Self
     from ..primitives import IdType
     from ..runtime import Environment, Registry
 
@@ -118,7 +119,9 @@ def resolve_mro(
 
 
 def determine(
-    needle: str | Callable[..., typing.Any], records: BaseModel, *args: object
+    needle: str | Callable[..., typing.Any] | None,
+    records: ModelLike,
+    *args: object,
 ) -> typing.Any:
     """Simple helper for calling a method given as a string or a function.
 
@@ -133,9 +136,9 @@ def determine(
         msg = "Determination requires a subject recordset"
         raise TypeError(msg)
     if isinstance(needle, str):
-        needle = getattr(records, needle)
-        if not needle.__name__.startswith("__"):
-            return needle(*args)
+        method = getattr(records, needle)
+        if not method.__name__.startswith("__"):
+            return method(*args)
     elif callable(needle):
         # getattr: callables without __name__ (e.g. functools.partial) are
         # plain callables, not dunder methods to reject
@@ -375,7 +378,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     company_dependent: bool = (
         False  # whether ``self`` is company-dependent (property field)
     )
-    default: Callable[[BaseModel], T] | T | None = (
+    default: Callable[[ModelLike], T] | T | None = (
         None  # default(recs) returns the default value
     )
 
@@ -392,7 +395,10 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     related_field: Field | None = None  # corresponding related field
     aggregator: str | None = None  # operator for aggregating values
     group_expand: (
-        str | Callable[[BaseModel, ModelType, DomainType], ModelType] | None
+        # First parameter: the model the groups are read on (a recordset or a
+        # read_group mixin fragment); second/return: a recordset for relational
+        # fields, a plain list of values for non-relational ones.
+        str | Callable[[ModelLike, typing.Any, DomainType], typing.Any] | None
     ) = None  # name of method to expand groups in formatted_read_group()
     falsy_value_label: str | None = (
         None  # value to display when the field is not set (webclient attr)
@@ -961,6 +967,17 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             check_precompute = self.precompute
 
             for index, fname in enumerate(dotnames.split(".")):
+                if not model_name:
+                    # The previous component is a non-relational field (or a
+                    # field whose comodel is unset), so 'fname' cannot resolve.
+                    # Fail with the culprit named: falling through would make
+                    # ``registry[None]`` abort the whole registry build with a
+                    # bare ``KeyError: None`` pointing at nothing.
+                    raise ValueError(
+                        f"Wrong dependency '{dotnames}' of field {self}: "
+                        f"'{field_seq[-1].name}' is not relational, so the path "
+                        f"cannot continue with '{fname}'."
+                    )
                 Model = registry[model_name]
                 if Model0._transient and not Model._transient:
                     # modifying fields on regular models should not trigger
@@ -1053,7 +1070,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     # Update database schema
 
     def update_db(
-        self, model: BaseModel, columns: dict[str, dict[str, typing.Any]]
+        self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
         """Update the database schema to implement this field.
 
@@ -1095,7 +1112,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
         return not column
 
-    def update_db_column(self, model: BaseModel, column: dict[str, typing.Any]) -> None:
+    def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
         """Create/update the column corresponding to ``self``.
 
         :param model: an instance of the field's model
@@ -1115,12 +1132,12 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             return
         self._convert_db_column(model, column)
 
-    def _convert_db_column(self, model: BaseModel, column: dict[str, typing.Any]):
+    def _convert_db_column(self, model: ModelLike, column: dict[str, typing.Any]):
         """Convert the given database column to the type of the field."""
         sql.convert_column(model.env.cr, model._table, self.name, self.column_type[1])
 
     def update_db_notnull(
-        self, model: BaseModel, column: dict[str, typing.Any]
+        self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
         """Add or remove the NOT NULL constraint on ``self``.
 
@@ -1171,11 +1188,19 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                     try:
                         value = field.default(model.browse())
                         if isinstance(value, (str, int, float, bool)):
-                            sql_default = value
+                            # Convert through the field's own column conversion
+                            # so the DEFAULT literal matches the column type: a
+                            # raw Python default of the wrong type (e.g. a str
+                            # default on an int column) would make the ALTER
+                            # itself fail.
+                            sql_default = field.convert_to_column(
+                                value, model, validate=False
+                            )
                     except Exception:
                         # Best-effort: the default factory may need a real record
-                        # or context unavailable at post-init. Skip the SQL
-                        # DEFAULT (NOT NULL still applies) but log the failure.
+                        # or context unavailable at post-init, or the value may
+                        # not convert to the column type. Skip the SQL DEFAULT
+                        # (NOT NULL still applies) but log the failure.
                         _logger.debug(
                             "Could not derive a SQL DEFAULT for %s; "
                             "applying NOT NULL without one",
@@ -1185,8 +1210,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
                 def apply_not_null(cr):
                     sql.set_not_null(cr, model._table, field.name)
-                    if sql_default is not None:
-                        sql.set_default(cr, model._table, field.name, sql_default)
 
                 model.pool.post_constraint(
                     model.env.cr,
@@ -1194,10 +1217,24 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                     key=f"add_not_null:{model._table}:{field.name}",
                 )
 
+                if sql_default is not None:
+                    # Registered under its OWN post_constraint key: each key gets
+                    # its own savepoint/retry (see runtime/_registry_schema.py),
+                    # so a DEFAULT that still fails to apply can no longer roll
+                    # back — and thereby silently cancel — the NOT NULL above.
+                    def apply_default(cr, sql_default=sql_default):
+                        sql.set_default(cr, model._table, field.name, sql_default)
+
+                    model.pool.post_constraint(
+                        model.env.cr,
+                        apply_default,
+                        key=f"set_default:{model._table}:{field.name}",
+                    )
+
         elif not self.required and has_notnull:
             sql.drop_not_null(model.env.cr, model._table, self.name)
 
-    def update_db_related(self, model: BaseModel) -> None:
+    def update_db_related(self, model: ModelLike) -> None:
         """Compute a stored related field directly in SQL."""
         comodel = model.env[self.related_field.model_name]
         join_field, comodel_field = self._related_names
@@ -1279,8 +1316,8 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     # Cache management methods
 
-    # The cache shape, owned in one place
-    # ------------------------------------
+    # The cache shape: the Field decides, the cache decodes
+    # ------------------------------------------------------
     # A field's raw cache (``env._core.get_field_data(self)``) has one of two
     # shapes, and exactly which is decided by :meth:`_is_context_dependent`:
     #
@@ -1291,10 +1328,14 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     #                        sub-dict per context.
     #
     # Every cache-shape branch in this class (and the column-flush paths in
-    # _field_convert.py) tests the predicate, and every branch that must span all
-    # contexts iterates :meth:`_context_subcaches` instead of re-deriving the
-    # ``isinstance(v, dict)`` rule. Keeping the shape knowledge here means a
-    # change to the representation touches these two helpers, not a dozen sites.
+    # _field_convert.py) tests the predicate; branches that must span all
+    # contexts (invalidation, id-collection) pass the predicate's answer to
+    # ``FieldCache`` (``env._core.invalidate`` / ``all_cached_ids``), which
+    # owns the single nested-shape decode — keyed on ``isinstance(key, tuple)``
+    # (cache keys are tuples, record ids never are), robust to the mixed state
+    # with stale flat entries written during module setup and to dict-valued
+    # flat caches (Json, Properties). The shape *decision* lives here; the
+    # shape *decode* lives in exactly one place, ``components/cache.py``.
 
     def _is_context_dependent(self, env: Environment) -> bool:
         """Whether this field's cache is keyed per context in ``env``.
@@ -1303,18 +1344,6 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         and any field whose value varies with the environment context.
         """
         return self in env._field_depends_context
-
-    @staticmethod
-    def _context_subcaches(field_data: dict[typing.Any, typing.Any]) -> list[dict]:
-        """The per-context ``{id: value}`` sub-dicts of a context-dependent field.
-
-        The raw cache is ``{cache_key: {id: value}}``. During module setup it can
-        also hold *stale flat entries* (``{id: scalar}``, written before
-        ``field_depends_context`` was populated); those are not dicts and are
-        skipped. This is the one place that decodes the nested shape for callers
-        that must span every context (invalidation, id-collection).
-        """
-        return [v for v in field_data.values() if isinstance(v, dict)]
 
     def _get_cache(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         """Return the field's cache: a ``{record_id: cache_value}`` mapping
@@ -1342,32 +1371,27 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _invalidate_cache(
         self, env: Environment, ids: Collection[IdType] | None = None
     ) -> None:
-        """Invalidate cached values for the given ids (all if ``None``)."""
-        cache = env._core.get_field_data_or_none(self)
-        if not cache:
-            return
+        """Invalidate cached values for the given ids (all if ``None``).
 
-        if self._is_context_dependent(env):
-            caches = self._context_subcaches(cache)
-        else:
-            caches = [cache]
-        for field_cache in caches:
-            if ids is None:
-                field_cache.clear()
-                continue
-            for id_ in ids:
-                field_cache.pop(id_, None)
+        Delegates to :meth:`FieldCache.invalidate` with the shape bit (see the
+        shape note above): the cache owns the nested-shape decode, including
+        the mixed setup-window state and dict-valued flat caches.
+        """
+        env._core.invalidate(
+            self, ids, context_dependent=self._is_context_dependent(env)
+        )
 
-    def _get_all_cache_ids(self, env: Environment) -> Collection[IdType]:
-        """Return all the record ids that have a value in cache in any environment."""
-        cache = env._core.get_field_data(self)
-        if self._is_context_dependent(env):
-            # cheaply "merge" the keys of the per-context dicts
-            subs = self._context_subcaches(cache)
-            return collections.ChainMap(*subs) if subs else {}
-        return cache
+    def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
+        """Return all the record ids that have a value in cache in any environment.
 
-    def _cache_missing_ids(self, records: BaseModel) -> Iterator[IdType]:
+        Delegates to :meth:`FieldCache.all_cached_ids` with the shape bit (see
+        the shape note above). The result is a read-only mapping view.
+        """
+        return env._core.all_cached_ids(
+            self, context_dependent=self._is_context_dependent(env)
+        )
+
+    def _cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
         """Generator of ids that have no value in cache.
 
         Records with :data:`PENDING` (stored computed fields awaiting
@@ -1441,7 +1465,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         )
 
     def _update_cache(
-        self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
+        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         """Update the value in the cache for the given records, and optionally
         make the field dirty for those records (for stored column fields only).
@@ -1833,7 +1857,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     # Code reading the field cache without going through __get__ (e.g.
     # _read_format) must call these precondition methods first.
 
-    def ensure_access(self, record: BaseModel) -> None:
+    def ensure_access(self, record: ModelLike) -> None:
         """Check that the current user has read access to this field.
 
         Must be called before reading from the field cache when bypassing
@@ -1861,7 +1885,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
     # Computation of field values
 
-    def ensure_computed(self, records: BaseModel) -> None:
+    def ensure_computed(self, records: ModelLike) -> None:
         """Ensure pending recomputations of ``self`` are processed.
 
         Must be called before reading from the field cache for stored computed
@@ -1875,7 +1899,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         if self.is_stored_computed and records.env._core.has_pending_field(self):
             self.recompute(records)
 
-    def recompute(self, records: BaseModel) -> None:
+    def recompute(self, records: ModelLike) -> None:
         """Process the pending computations of ``self`` on ``records``. This
         should be called only if ``self`` is computed and stored.
         """
@@ -1951,7 +1975,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 _count(),
             )
 
-    def compute_value(self, records: BaseModel) -> None:
+    def compute_value(self, records: ModelLike) -> None:
         """Invoke the compute method on ``records``; the results are in cache."""
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:
@@ -1988,7 +2012,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                 self.compute_sudo,
             )
 
-    def determine_inverse(self, records: BaseModel) -> None:
+    def determine_inverse(self, records: ModelLike) -> None:
         """Given the value of ``self`` on ``records``, inverse the computation."""
         _debug = _orm_compute.isEnabledFor(logging.DEBUG)
         if _debug:

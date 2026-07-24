@@ -23,6 +23,7 @@ if typing.TYPE_CHECKING:
     from ..._typing import (
         CommandValue,
         Environment,
+        ModelLike,
         Registry,
     )
     from ...models import BaseModel
@@ -106,7 +107,7 @@ class One2many(_RelationalMulti):
 
     @override
     def update_db(
-        self, model: BaseModel, columns: dict[str, dict[str, typing.Any]]
+        self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> None:
         if self.comodel_name in model.env:
             comodel = model.env[self.comodel_name]
@@ -128,7 +129,7 @@ class One2many(_RelationalMulti):
         return Domain.TRUE
 
     @override
-    def get_comodel_domain(self, model: BaseModel) -> Domain:
+    def get_comodel_domain(self, model: ModelLike) -> Domain:
         return super().get_comodel_domain(model) & self._additional_domain(model.env)
 
     @override

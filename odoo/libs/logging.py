@@ -66,15 +66,22 @@ class mute_logger(logging.Handler):
         """
         super().__init__()
         self.loggers: tuple[str, ...] = loggers
-        self.old_params: dict[str, tuple[list[logging.Handler], bool]] = {}
+        # Stack of saved states, one frame per active __enter__.  A single
+        # instance is reused as a decorator, so a recursive or nested call
+        # re-enters it; keeping only one ``old_params`` dict recorded the
+        # already-muted state as the "original" and left the logger muted
+        # forever on exit.  A stack restores each frame to what it saved.
+        self._saved: list[dict[str, tuple[list[logging.Handler], bool]]] = []
 
     def __enter__(self) -> None:
         """Replace the target loggers' handlers with this muting handler."""
+        saved: dict[str, tuple[list[logging.Handler], bool]] = {}
         for logger_name in self.loggers:
             logger = logging.getLogger(logger_name)
-            self.old_params[logger_name] = (logger.handlers, logger.propagate)
+            saved[logger_name] = (logger.handlers, logger.propagate)
             logger.propagate = False
             logger.handlers = [self]
+        self._saved.append(saved)
 
     def __exit__(
         self,
@@ -83,12 +90,13 @@ class mute_logger(logging.Handler):
         exc_tb: types.TracebackType | None = None,
     ) -> None:
         """Restore the target loggers' original handlers and propagation."""
-        for logger_name in self.loggers:
+        for logger_name, (handlers, propagate) in self._saved.pop().items():
             logger = logging.getLogger(logger_name)
-            logger.handlers, logger.propagate = self.old_params[logger_name]
+            logger.handlers, logger.propagate = handlers, propagate
 
     def __call__[**P, R](self, func: Callable[P, R]) -> Callable[P, R]:
         """Return a decorator that runs `func` with the loggers muted."""
+
         @wraps(func)
         def deco(*args: P.args, **kwargs: P.kwargs) -> R:
             with self:
@@ -99,25 +107,6 @@ class mute_logger(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Discard the log record, producing no output."""
         pass
-
-
-class MungedTracebackLogRecord(logging.LogRecord):
-    """Log record that modifies traceback display.
-
-    Used by lower_logging to mark tracebacks that were logged at
-    a lower level than originally intended.
-    """
-
-    def getMessage(self) -> str:
-        """Return the message with the traceback header tagged as lowered."""
-        return (
-            super()
-            .getMessage()
-            .replace(
-                "Traceback (most recent call last):",
-                "_Traceback_ (most recent call last):",
-            )
-        )
 
 
 class lower_logging(logging.Handler):
@@ -177,11 +166,21 @@ class lower_logging(logging.Handler):
             record.levelname = f"_{record.levelname}"
             record.levelno = self.to_level
             self.had_error_log = True
-            if MungedTracebackLogRecord.__base__ is logging.LogRecord:
-                MungedTracebackLogRecord.__bases__ = (record.__class__,)
-            record.__class__ = MungedTracebackLogRecord
+            # Tag the traceback header on this record only.  The old approach
+            # reassigned ``record.__class__`` to a subclass whose ``__bases__``
+            # were grafted process-globally to the first lowered record's class
+            # (never restored, racy, and clobbering records of any other class).
+            # Render the message now and rewrite it in place instead.
+            record.msg = record.getMessage().replace(
+                "Traceback (most recent call last):",
+                "_Traceback_ (most recent call last):",
+            )
+            record.args = None
 
         if logging.getLogger(record.name).isEnabledFor(record.levelno):
             for handler in self.old_handlers:
-                if handler.level <= record.levelno:
-                    handler.emit(record)
+                if record.levelno >= handler.level:
+                    # handle() (not emit()) so the handler's lock and filters
+                    # apply — prevents interleaved lines from the threaded
+                    # dev server logging concurrently during a test.
+                    handler.handle(record)

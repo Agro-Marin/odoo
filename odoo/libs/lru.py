@@ -1,9 +1,10 @@
 """Length-limited, thread-safe LRU (least recently used) mapping."""
 
 import threading
+import typing
 from collections.abc import Iterable, Iterator, MutableMapping
 
-from .iteration.sentinel import SENTINEL, Sentinel
+from .iteration.sentinel import SENTINEL
 
 __all__ = ["LRU"]
 
@@ -16,13 +17,18 @@ class LRU[K, V](MutableMapping[K, V]):
     lock-free.
     """
 
-    __slots__ = ("_count", "_lock", "_ordering", "_values")
+    __slots__ = ("_count", "_generation", "_lock", "_ordering", "_values")
 
     def __init__(self, count: int, pairs: Iterable[tuple[K, V]] = ()) -> None:
         """Build an LRU holding at most ``count`` items, seeded with ``pairs``."""
         if count <= 0:
             raise ValueError(f"LRU count must be positive, got {count!r}")
         self._count = count
+        # Monotonic clear counter. Readers that compute a value outside the lock
+        # and then store it can snapshot this before computing and skip the
+        # store if it changed, so a clear() landing mid-compute is not undone by
+        # re-caching stale data. See odoo.tools.cache.ormcache.
+        self._generation = 0
         self._lock = threading.RLock()
         self._values: dict[K, V] = {}
         #
@@ -56,8 +62,23 @@ class LRU[K, V](MutableMapping[K, V]):
             raise ValueError(f"LRU count must be positive, got {count!r}")
         with self._lock:
             self._count = count
-            while len(self) > count:
-                self.popitem()
+            values = self._values
+            ordering = self._ordering
+            while len(values) > count:
+                if len(ordering) > len(values):
+                    for k in ordering.copy():
+                        if k not in values:
+                            ordering.pop(k, None)
+                # Evict the least-recently-used key straight from ``_ordering``
+                # (O(1) via ``next(iter(...))``).  ``self.popitem()`` went through
+                # ``MutableMapping.popitem`` → ``next(iter(self))`` → ``snapshot``,
+                # rebuilding a full ordered dict copy per evicted item (O(n²)).
+                try:
+                    lru_key = next(iter(ordering))
+                except (StopIteration, RuntimeError):
+                    break
+                ordering.pop(lru_key, None)
+                values.pop(lru_key, None)
 
     def __contains__(self, key: object) -> bool:
         """Return whether ``key`` is present in the LRU."""
@@ -125,7 +146,17 @@ class LRU[K, V](MutableMapping[K, V]):
                 result.update(values)
         return result
 
-    def pop(self, key: K, /, default: V | Sentinel = SENTINEL) -> V:
+    # Overloads mirror ``MutableMapping.pop`` (typeshed): with an explicit
+    # ``default`` of any type T, the result is ``V | T`` and no KeyError is
+    # raised; without it, the result is ``V`` or KeyError.
+    @typing.overload
+    def pop(self, key: K, /) -> V: ...
+    @typing.overload
+    def pop(self, key: K, /, default: V) -> V: ...
+    @typing.overload
+    def pop[T](self, key: K, /, default: T) -> V | T: ...
+
+    def pop(self, key: K, /, default: typing.Any = SENTINEL) -> typing.Any:
         """Remove ``key`` and return its value, or ``default`` if it is absent.
 
         :raises KeyError: if ``key`` is absent and no ``default`` is given
@@ -139,5 +170,11 @@ class LRU[K, V](MutableMapping[K, V]):
     def clear(self) -> None:
         """Remove all items from the LRU."""
         with self._lock:
+            self._generation += 1
             self._ordering.clear()
             self._values.clear()
+
+    @property
+    def generation(self) -> int:
+        """Number of times this LRU has been cleared (see ``__init__``)."""
+        return self._generation

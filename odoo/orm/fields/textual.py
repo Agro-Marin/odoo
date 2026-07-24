@@ -30,13 +30,13 @@ from odoo.tools.translate import html_translate
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from .base import Field, _logger
 
-# The en_US sub-cache key for translate=True fields.  Hard-coding the 1-tuple
-# assumes the field's cache key is exactly ``(lang,)`` — guaranteed because a
-# translate=True field's depends_context is forced to ``('lang',)``:
-# company_dependent+translate is rejected at setup, stored translated fields
-# with extra context deps are refused (see get_depends), and both users of this
-# constant are guarded by ``not self.compute``.  Keep every en_US-fallback
-# cache access on this single name so the assumption lives in one place.
+# The en_US sub-cache key for translate=True fields whose depends_context is
+# exactly ``('lang',)`` — the overwhelmingly common case.  Fields with extra
+# context dependencies derive their keys through
+# :meth:`BaseString._lang_cache_key` instead (same key with the lang
+# component — always first, normalized by ``get_depends`` — swapped for the
+# target language).  Keep every per-language cache access on that helper so
+# the key-shape assumption lives in one place.
 _EN_US_KEY = ("en_US",)
 
 if typing.TYPE_CHECKING:
@@ -44,7 +44,7 @@ if typing.TYPE_CHECKING:
 
     from odoo.tools import Query
 
-    from .._typing import IdType
+    from .._typing import IdType, ModelLike
     from ..models import BaseModel
     from ..runtime import Environment
 
@@ -114,6 +114,31 @@ class BaseString(Field[str | typing.Literal[False]]):
             or (self.store and (record_id or getattr(record_id, "origin", None)))
         )
 
+    def _lang_cache_key(self, env: Environment, lang: str) -> tuple:
+        """Return the sub-cache key of ``self`` in ``env`` for language ``lang``.
+
+        The env's own cache key with the language component — always first,
+        normalized by :meth:`get_depends` — replaced by ``lang``.  A field
+        with extra context dependencies thus gets a key within the SAME extra
+        context that normal reads (:meth:`Field._get_cache_impl` via
+        ``env.cache_key``) use, instead of a bare ``(lang,)`` 1-tuple that no
+        real cache access ever consults.  For plain ``('lang',)`` fields the
+        key is the usual 1-tuple, unchanged.
+        """
+        cache_key = env.cache_key(self)
+        if len(cache_key) == 1:
+            return _EN_US_KEY if lang == "en_US" else (lang,)
+        return (lang, *cache_key[1:])
+
+    def _lang_fallback_cache_key(self, env: Environment) -> tuple:
+        """Return the en_US fallback sub-cache key of ``self`` in ``env``.
+
+        See :meth:`_lang_cache_key`: the fallback key keeps the env's extra
+        context components so a field with extra context dependencies falls
+        back within the SAME extra context.
+        """
+        return self._lang_cache_key(env, "en_US")
+
     def _scalar_translate_fallback(
         self, env: Environment, record_id: typing.Any
     ) -> typing.Any:
@@ -131,7 +156,9 @@ class BaseString(Field[str | typing.Literal[False]]):
         cur_val = self._get_cache(env).get(record_id, SENTINEL)
         if cur_val is not SENTINEL:
             return cur_val
-        fb_cache = env._core.get_field_data(self).get(_EN_US_KEY)
+        fb_cache = env._core.get_field_data(self).get(
+            self._lang_fallback_cache_key(env)
+        )
         if fb_cache is not None:
             return fb_cache.get(record_id, SENTINEL)
         return SENTINEL
@@ -153,16 +180,35 @@ class BaseString(Field[str | typing.Literal[False]]):
     def get_depends(self, model: BaseModel) -> tuple[Iterable[str], Iterable[str]]:
         if self.translate is True:
             dep, dep_ctx = super().get_depends(model)
-            if self.store and dep_ctx:
+            # Model translation: the cache layout is one flat {id: value}
+            # sub-dict per (lang + extra context) key.  Extra context deps are
+            # legitimate (e.g. a translated field related through a
+            # depends_context compute, see test_orm.compute.member), but the
+            # language is normalized FIRST in the key so every consumer that
+            # must single out the lang component — the per-language sub-keys
+            # derived by :meth:`_lang_cache_key` (en_US fallback, the
+            # prefetch_langs distribution in _insert_cache/_update_cache) and
+            # the ``cache_key[0]`` lang extraction in ``get_column_update`` —
+            # can rely on its position instead of assuming a ``(lang,)``
+            # 1-tuple.
+            extra = tuple(dict.fromkeys(ctx for ctx in dep_ctx if ctx != "lang"))
+            if extra and self.store:
+                # A stored column holds ONE value per language, so per-extra-
+                # context values cannot be persisted: keeping the extra deps
+                # would make ``get_column_update``'s per-lang flush collapse
+                # same-language sub-caches last-wins into an ambiguous stored
+                # value.  Strip them — same policy as the callable-translate
+                # branch below — so stored translated sub-caches are keyed by
+                # exactly ``(lang,)`` and the flush stays well-defined.
                 _logger.warning(
-                    "Translated stored fields (%s) cannot depend on context",
+                    "Translated stored fields (%s) cannot depend on context: "
+                    "the flushed column keeps one value per language; "
+                    "ignoring context dependencies %s",
                     self,
+                    extra,
                 )
-            # Model translation: add depends_context=('lang',) to route the cache
-            # per language (flat per-lang dicts), stored or not.
-            if "lang" not in dep_ctx:
-                dep_ctx = ("lang",) + tuple(dep_ctx)
-            return dep, dep_ctx
+                return dep, ("lang",)
+            return dep, ("lang", *extra)
         if callable(self.translate) and self.store:
             dep, dep_ctx = super().get_depends(model)
             if dep_ctx:
@@ -174,7 +220,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         return super().get_depends(model)
 
     def _convert_db_column(
-        self, model: BaseModel, column: dict[str, typing.Any]
+        self, model: ModelLike, column: dict[str, typing.Any]
     ) -> None:
         # specialized implementation for converting from/to translated fields
         if self.translate or column["udt_name"] == "jsonb":
@@ -203,7 +249,7 @@ class BaseString(Field[str | typing.Literal[False]]):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> str | None:
@@ -211,7 +257,7 @@ class BaseString(Field[str | typing.Literal[False]]):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
         if value is None or value is False:
             return None
@@ -235,7 +281,7 @@ class BaseString(Field[str | typing.Literal[False]]):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
         if value is None:
             return False
@@ -313,7 +359,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         return value
 
     @override
-    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
         return value
 
     def get_translation_dictionary(
@@ -390,7 +436,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         lang = self.translation_lang(env)
         return LangProxyDict(self, cache, lang)
 
-    def _cache_missing_ids(self, records: BaseModel) -> typing.Iterator[IdType]:
+    def _cache_missing_ids(self, records: ModelLike) -> typing.Iterator[IdType]:
         if callable(self.translate) and records.env.context.get("prefetch_langs"):
             # callable translate: always check per current language cache
             records = records.with_context(prefetch_langs=False)
@@ -415,15 +461,28 @@ class BaseString(Field[str | typing.Literal[False]]):
         if self.translate is True:
             # Model translation: per-lang flat dicts
             if env.context.get("prefetch_langs"):
-                # SQL fetched full JSONB → distribute across per-lang sub-dicts
+                # SQL fetched full JSONB → distribute across per-lang sub-dicts,
+                # keyed by the FULL cache key (lang first + any extra context
+                # components, see _lang_cache_key) so normal reads — which key
+                # by env.cache_key — find the values.  Memoized per language:
+                # the key derivation is loop-invariant across records.
                 field_data = env._core.get_field_data(self)
+                sub_caches: dict[str, dict] = {}
+
+                def sub_cache(lang: str) -> dict:
+                    sub = sub_caches.get(lang)
+                    if sub is None:
+                        sub = sub_caches[lang] = field_data.setdefault(
+                            self._lang_cache_key(env, lang), {}
+                        )
+                    return sub
+
                 installed = [lang for lang, _ in env["res.lang"].get_installed()]
                 langs = OrderedSet[str](installed + ["en_US"])
                 for id_, val in zip(records._ids, values, strict=True):
                     if val is None:
                         for lang in langs:
-                            sub = field_data.setdefault((lang,), {})
-                            sub.setdefault(id_, None)
+                            sub_cache(lang).setdefault(id_, None)
                     else:
                         # val is a JSONB dict {lang: value}; fill missing
                         # languages with the en_US fallback
@@ -433,8 +492,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                         }
                         for lang, scalar in merged.items():
                             if not lang.startswith("_"):
-                                sub = field_data.setdefault((lang,), {})
-                                sub.setdefault(id_, scalar)
+                                sub_cache(lang).setdefault(id_, scalar)
             else:
                 # Normal path: SQL returned a scalar via COALESCE
                 super()._insert_cache(records, values)
@@ -480,7 +538,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                         cache_value.setdefault(lang, val)
 
     def _update_cache(
-        self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
+        self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         if (
             self.translate is True
@@ -488,20 +546,23 @@ class BaseString(Field[str | typing.Literal[False]]):
             and isinstance(cache_value, dict)
         ):
             # model translation prefetch_langs: cache_value is {lang: scalar};
-            # distribute across per-lang sub-dicts
-            field_data = records.env._core.get_field_data(self)
+            # distribute across per-lang sub-dicts, keyed by the FULL cache key
+            # (lang first + any extra context components, see _lang_cache_key)
+            # so normal reads — which key by env.cache_key — find the values
+            env = records.env
+            field_data = env._core.get_field_data(self)
             ids = records._ids
             for lang, scalar in cache_value.items():
                 if lang.startswith("_"):
                     continue  # skip _lang variants (not used for translate=True)
-                sub = field_data.setdefault((lang,), {})
+                sub = field_data.setdefault(self._lang_cache_key(env, lang), {})
                 if len(ids) <= 1:
                     if ids:
                         sub[ids[0]] = scalar
                 else:
                     sub.update(dict.fromkeys(ids, scalar))
             if self.is_column and dirty:
-                records.env._core.mark_dirty(self, (id_ for id_ in ids if id_))
+                env._core.mark_dirty(self, (id_ for id_ in ids if id_))
             return
         # translate=True with scalar value: store + en_US fallback for new records
         if self.translate is True and cache_value is not None:
@@ -512,7 +573,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                 id_ or getattr(id_, "origin", None) for id_ in records._ids
             ):
                 en_cache = records.env._core.get_field_data(self).setdefault(
-                    _EN_US_KEY, {}
+                    self._lang_fallback_cache_key(records.env), {}
                 )
                 for id_ in records._ids:
                     en_cache.setdefault(id_, cache_value)
@@ -655,7 +716,13 @@ class BaseString(Field[str | typing.Literal[False]]):
                 for k, v in stored_translations.items()
                 if not k.startswith("_")
             }
-            from_lang_value = old_translations.pop(lang, old_translations["en_US"])
+            # SQL-migrated legacy jsonb rows may lack the "en_US" key entirely;
+            # fall back to any stored value (or the new value itself) instead of
+            # KeyError-ing the whole write.
+            fallback_value = old_translations.get("en_US")
+            if fallback_value is None:
+                fallback_value = next(iter(old_translations.values()), cache_value)
+            from_lang_value = old_translations.pop(lang, fallback_value)
             translation_dictionary = self.get_translation_dictionary(
                 from_lang_value, old_translations
             )
@@ -753,7 +820,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                             )
 
     @override
-    def to_sql(self, model: BaseModel, alias: str) -> SQL:
+    def to_sql(self, model: ModelLike, alias: str) -> SQL:
         sql_field = super().to_sql(model, alias)
         if self.translate and not model.env.context.get("prefetch_langs"):
             langs = self.get_translation_fallback_langs(model.env)
@@ -875,7 +942,7 @@ class Char(BaseString):
         return ("varchar", pg_varchar(self.size))
 
     @override
-    def update_db_column(self, model: BaseModel, column: dict[str, typing.Any]) -> None:
+    def update_db_column(self, model: ModelLike, column: dict[str, typing.Any]) -> None:
         if (
             column
             and self.column_type[0] == "varchar"
@@ -1033,7 +1100,7 @@ class Html(BaseString):
     def convert_to_column(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         values: dict | None = None,
         validate: bool = True,
     ) -> str | None:
@@ -1042,12 +1109,12 @@ class Html(BaseString):
 
     @override
     def convert_to_cache(
-        self, value: typing.Any, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
         return self._convert(value, record, validate)
 
     def _convert(
-        self, value: typing.Any, record: BaseModel, validate: bool
+        self, value: typing.Any, record: ModelLike, validate: bool
     ) -> str | None:
         if value is None or value is False:
             return None
@@ -1129,7 +1196,7 @@ class Html(BaseString):
 
     @override
     def convert_to_record(
-        self, value: typing.Any, record: BaseModel
+        self, value: typing.Any, record: ModelLike
     ) -> Markup | typing.Literal[False]:
         r = super().convert_to_record(value, record)
         if isinstance(r, bytes):
@@ -1140,7 +1207,7 @@ class Html(BaseString):
     def convert_to_read(
         self,
         value: typing.Any,
-        record: BaseModel,
+        record: ModelLike,
         use_display_name: bool = True,
     ) -> Markup | typing.Literal[False]:
         r = super().convert_to_read(value, record, use_display_name)

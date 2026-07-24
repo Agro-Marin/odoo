@@ -26,6 +26,15 @@ DEFAULT_SERVER_DATETIME_FORMAT = (
 
 DATE_LENGTH = len(datetime.date.today().strftime(DEFAULT_SERVER_DATE_FORMAT))
 
+# divisors for formatLang's rounding_unit parameter
+ROUNDING_UNIT_MAPPING = {
+    "decimals": 1,
+    "thousands": 10**3,
+    "lakhs": 10**5,
+    "millions": 10**6,
+    "units": 1,
+}
+
 # strftime only supports the directives available on the platform's libc;
 # map to the C89-standard directives, which are available everywhere, for
 # cross-platform behavior.
@@ -113,15 +122,7 @@ def formatLang(
     else:
         digits = 0
 
-    rounding_unit_mapping = {
-        "decimals": 1,
-        "thousands": 10**3,
-        "lakhs": 10**5,
-        "millions": 10**6,
-        "units": 1,
-    }
-
-    value /= rounding_unit_mapping[rounding_unit]
+    value /= ROUNDING_UNIT_MAPPING[rounding_unit]
 
     rounded_value = float_round(
         value, precision_digits=digits, rounding_method=rounding_method
@@ -382,10 +383,16 @@ def format_amount(
     trailing_zeroes: bool = True,
 ) -> str:
     fmt = f"%.{currency.decimal_places}f"
-    lang = env["res.lang"].browse(get_lang(env, lang_code).id)
+    lang = get_lang(env, lang_code)
+    # Deferred import: odoo.tools must stay importable before the addons
+    # (locale_utils type-checks the same import).
+    from odoo.addons.base.models.res_lang import format_number
 
+    # get_lang() already returns the full LangData; hand it straight to the
+    # pure formatter instead of round-tripping through browse().format(),
+    # which would re-fetch the same LangData (see formatLang).
     formatted_amount = (
-        lang.format(fmt, currency.round(amount), grouping=True)
+        format_number(fmt, currency.round(amount), lang, grouping=True)
         .replace(r" ", "\N{NO-BREAK SPACE}")
         .replace(r"-", "-\N{ZERO WIDTH NO-BREAK SPACE}")
     )
@@ -395,9 +402,7 @@ def format_amount(
         # decimal point so integer-part zeroes (e.g. "1,200" for a 0-decimal
         # currency, which never reaches here) are never removed.
         decimal_point = re.escape(lang.decimal_point)
-        formatted_amount = re.sub(
-            rf"({decimal_point}\d*?)0+$", r"\1", formatted_amount
-        )
+        formatted_amount = re.sub(rf"({decimal_point}\d*?)0+$", r"\1", formatted_amount)
         formatted_amount = re.sub(rf"{decimal_point}$", "", formatted_amount)
 
     pre = post = ""

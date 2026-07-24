@@ -1,4 +1,5 @@
-"""Decoration-time validation of ``@api.constrains`` / ``@api.depends`` specs.
+"""Decoration-time validation of ``@api.constrains`` / ``@api.depends`` /
+``@api.onchange`` / ``@api.depends_context`` specs.
 
 Tier-2 suite (real ``import odoo``, no database — run as ``pytest
 odoo/orm/tests``).  Before validation was added, a malformed spec was stored
@@ -7,9 +8,12 @@ silently and failed far from its cause:
 * callable + extra string arguments: the extras were silently dropped;
 * a list argument: ``depends([...])`` happened to raise ``AttributeError``
   from ``_check_depends_id``'s ``.split``, while ``constrains([...])`` was
-  stored and only crashed at consumption time with an unhashable ``TypeError``.
+  stored and only crashed at consumption time with an unhashable ``TypeError``;
+* ``onchange([...])`` stored ``(["a", "b"],)``, which the class build merely
+  log-warned about — and the onchange then *silently never fired*;
+* ``depends_context(42)`` only surfaced far away, at cache-key construction.
 
-Both now raise a clear ``TypeError`` at decoration time; the documented forms
+All now raise a clear ``TypeError`` at decoration time; the documented forms
 keep working unchanged.
 """
 
@@ -56,17 +60,17 @@ def test_constrains_callable_plus_extra_args_raises():
         return ["a"]
 
     with pytest.raises(TypeError, match="silently ignored"):
-        api.constrains(names, "extra")
+        api.constrains(names, "extra")  # type: ignore[call-overload]
 
 
 def test_constrains_list_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.constrains(["a", "b"])
+        api.constrains(["a", "b"])  # type: ignore[call-overload]
 
 
 def test_constrains_non_string_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.constrains("a", 42)
+        api.constrains("a", 42)  # type: ignore[call-overload]
 
 
 # ---------------------------------------------------------------------------
@@ -100,19 +104,67 @@ def test_depends_callable_plus_extra_args_raises():
         return ["a"]
 
     with pytest.raises(TypeError, match="silently ignored"):
-        api.depends(deps, "extra")
+        api.depends(deps, "extra")  # type: ignore[call-overload]
 
 
 def test_depends_list_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.depends(["a"])
+        api.depends(["a"])  # type: ignore[call-overload]
 
 
 def test_depends_non_string_arg_raises():
     with pytest.raises(TypeError, match="field-name strings"):
-        api.depends("a", None)
+        api.depends("a", None)  # type: ignore[call-overload]
 
 
 def test_depends_still_rejects_id():
     with pytest.raises(NotImplementedError):
         api.depends("partner_id.id")
+
+
+# ---------------------------------------------------------------------------
+# onchange
+# ---------------------------------------------------------------------------
+
+
+def test_onchange_strings_still_work():
+    @api.onchange("a", "b")
+    def handler(self):
+        pass
+
+    assert handler._onchange == ("a", "b")
+
+
+def test_onchange_list_arg_raises():
+    # was stored as (["a", "b"],) and the onchange silently never fired
+    with pytest.raises(TypeError, match="field-name strings"):
+        api.onchange(["a", "b"])  # type: ignore[arg-type]
+
+
+def test_onchange_non_string_arg_raises():
+    with pytest.raises(TypeError, match="field-name strings"):
+        api.onchange("a", 42)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# depends_context
+# ---------------------------------------------------------------------------
+
+
+def test_depends_context_strings_still_work():
+    @api.depends_context("company", "uid")
+    def compute(self):
+        pass
+
+    assert compute._depends_context == ("company", "uid")
+
+
+def test_depends_context_list_arg_raises():
+    with pytest.raises(TypeError, match="context-key strings"):
+        api.depends_context(["company"])  # type: ignore[arg-type]
+
+
+def test_depends_context_non_string_arg_raises():
+    # depends_context(42) used to surface only at cache-key construction
+    with pytest.raises(TypeError, match="context-key strings"):
+        api.depends_context(42)  # type: ignore[arg-type]

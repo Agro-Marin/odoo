@@ -53,6 +53,11 @@ _schema = logging.getLogger("odoo.schema")
 # ``"col\n"`` would validate as an identifier and reach SQL unquoted.
 IDENT_RE = re.compile(r"^[a-z0-9_][a-z0-9_$\-]*\Z", re.IGNORECASE)
 
+# printf-directive tokenizer for SQL.inlined(): matches each ``%`` directive
+# left-to-right, so a ``%%`` escape is consumed before its trailing character
+# can be mistaken for a directive (``%%s`` is the literal text ``%s``).
+_PRINTF_DIRECTIVE_RE = re.compile(r"%(.)", re.DOTALL)
+
 # Pre-compiled regexes for trigram pattern escaping (ilike operations)
 _WILDCARD_ESCAPE_RE = re.compile(r"(_|%|\\)")
 _TRIGRAM_PATTERN_RE = re.compile(
@@ -169,9 +174,24 @@ class SQL:
                 # multi-value positions. Use a list for a single array param.
                 # An empty tuple must render as (NULL) rather than the invalid
                 # `()` (a PostgreSQL syntax error); `x IN (NULL)` matches nothing.
+                # Caveat: `x NOT IN (NULL)` also matches nothing (SQL three-valued
+                # logic), NOT "everything" — callers must guard the empty case
+                # themselves for NOT IN (see Query.subselect for the correct
+                # `(SELECT ... WHERE FALSE)` rendering).
                 if arg:
-                    code_list.append("(%s)" % ", ".join(["%s"] * len(arg)))
-                    params_list.extend(arg)
+                    element_codes = []
+                    for element in arg:
+                        # Splice a nested SQL element into the code instead of
+                        # leaking the SQL object into params, where psycopg
+                        # cannot adapt it (fails at execute, far from here).
+                        if isinstance(element, SQL):
+                            element_codes.append(element.__code)
+                            params_list.extend(element.__params)
+                            to_flush_list.extend(element.__to_flush)
+                        else:
+                            element_codes.append("%s")
+                            params_list.append(element)
+                    code_list.append("(%s)" % ", ".join(element_codes))
                 else:
                     code_list.append("(NULL)")
             else:
@@ -209,10 +229,55 @@ class SQL:
         embedding a parameterized SQL fragment into a larger raw SQL string
         (e.g. inside an f-string that will later be passed to ``cr.execute()``
         with its own separate parameters).
+
+        .. warning:: the returned raw string is not ``%``-escaped, so an inlined
+           value containing ``%`` can be misparsed by an outer ``cr.execute()``
+           that scans for placeholders. Prefer :meth:`inlined`, which returns a
+           composable ``SQL`` object and handles escaping, whenever the result
+           is passed back through the SQL layer.
         """
         if not self.__params:
             return self.__code
         return self.__code % tuple(str(_sql.quote(v)) for v in self.__params)
+
+    def inlined(self, cr: Cursor) -> SQL:
+        """Return an equivalent ``SQL`` with the bound parameters embedded as
+        SQL literals, preserving the wrapper's metadata (``to_flush``).
+
+        read_group grouping keys need this: PostgreSQL matches SELECT /
+        GROUP BY / ORDER BY expressions by byte-identical text, but under
+        psycopg3's server-side binding each ``%s`` renders as a distinct
+        ``$N``, so a param-bearing expression (a translated field's language
+        code, a company-dependent field's fallback) would make GROUP BY differ
+        from SELECT and be rejected.  Unlike :meth:`render` (which returns a
+        plain string), the result stays a composable, executable ``SQL``: the
+        substitution is placeholder-aware, so pre-escaped ``%%`` in the code
+        survives unchanged (a raw ``code % params`` would collapse it) and
+        ``%`` characters inside the quoted literals are re-escaped.
+
+        :param cr: cursor whose connection provides the adaptation context for
+            quoting the literals (injection-safe for arbitrary values).
+        """
+        if not self.__params:
+            return self
+        params = iter(self.__params)
+
+        def substitute(match: re.Match) -> str:
+            directive = match[1]
+            if directive == "%":
+                return "%%"
+            if directive == "s":
+                literal = _sql.Literal(next(params)).as_string(cr._cnx)
+                return literal.replace("%", "%%")
+            raise ValueError(
+                f"SQL.inlined(): unsupported format directive "
+                f"%{directive} in {self.__code!r}"
+            )
+
+        code = _PRINTF_DIRECTIVE_RE.sub(substitute, self.__code)
+        # The constructor re-validates the code (`code % ()`), so a leftover
+        # placeholder fails loudly here rather than at execution.
+        return SQL(code, to_flush=self.__to_flush)
 
     def __repr__(self) -> str:
         return f"SQL({', '.join(map(repr, [self.__code, *self.__params]))})"
@@ -554,11 +619,18 @@ def _convert_column(
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
     """Drop views depending on a field so the ORM can resize it in-place."""
     for v, k in get_depending_views(cr, table, column):
+        # ``v`` is a relname straight from pg_catalog (trusted), but may be a
+        # non-identifier name (spaces, dots, embedded quotes) on customer/
+        # third-party views — which SQL.identifier would reject with ValueError,
+        # aborting the column resize.  Quote it the way PostgreSQL does
+        # (double every internal quote); safe to splice since the source is the
+        # catalog, not user input.
+        quoted = '"%s"' % v.replace('"', '""')
         cr.execute(
             SQL(
                 "DROP %s IF EXISTS %s CASCADE",
                 SQL("MATERIALIZED VIEW" if k == "m" else "VIEW"),
-                SQL.identifier(v),
+                SQL(quoted),  # pylint: disable=sql-injection
             )
         )
         _schema.debug("Drop view %r", v)
@@ -569,7 +641,7 @@ def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, 
     cr.execute(
         SQL(
             """
-        SELECT distinct quote_ident(dependee.relname), dependee.relkind
+        SELECT distinct dependee.relname, dependee.relkind
         FROM pg_depend
         JOIN pg_rewrite ON pg_depend.objid = pg_rewrite.oid
         JOIN pg_class as dependee ON pg_rewrite.ev_class = dependee.oid
@@ -822,8 +894,17 @@ def fix_foreign_key(
 
 
 def index_exists(cr: Cursor, indexname: str) -> bool:
-    """Return whether the given index exists."""
-    cr.execute(SQL("SELECT 1 FROM pg_indexes WHERE indexname=%s", indexname))
+    """Return whether the given index exists in the current schema."""
+    # Filter by current_schema like every other pg_catalog probe in this file:
+    # without it an identically-named index in another schema (e.g. a postgis
+    # or extension schema) reports as present, and create_index then silently
+    # skips creating the index in the current schema.
+    cr.execute(
+        SQL(
+            "SELECT 1 FROM pg_indexes WHERE indexname=%s AND schemaname=current_schema",
+            indexname,
+        )
+    )
     return bool(cr.rowcount)
 
 
@@ -864,7 +945,8 @@ def create_index(
     :param comment: comment to set on the index
     :param unique: whether the index is unique (default: False)
     """
-    assert expressions, "Missing expressions"
+    if not expressions:
+        raise ValueError("Missing expressions")
     if index_exists(cr, indexname):
         return
     definition = SQL(
@@ -942,7 +1024,10 @@ def increment_fields_skiplock(records: object, *fields: str) -> bool:
         return False
 
     for field in fields:
-        assert records._fields[field].type == "integer"
+        if records._fields[field].type != "integer":
+            raise ValueError(
+                f"increment_fields_skiplock: field {field!r} is not an integer"
+            )
 
     cr = records.env.cr
     tablename = records._table

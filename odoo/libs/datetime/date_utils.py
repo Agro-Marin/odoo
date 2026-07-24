@@ -306,7 +306,7 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
     elif granularity == "day":
         result = value
     elif granularity == "hour" and is_datetime:
-        return datetime.combine(value, time.min).replace(hour=value.hour)
+        return datetime.combine(value, time.min, value.tzinfo).replace(hour=value.hour)
     elif is_datetime:
         raise ValueError(
             f"Granularity must be year, quarter, month, week, day or hour for value {value}"
@@ -316,7 +316,12 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
             f"Granularity must be year, quarter, month, week or day for value {value}"
         )
 
-    return datetime.combine(result, time.min) if is_datetime else result
+    # Pass ``value.tzinfo`` so an aware input keeps its zone (wall-clock
+    # semantics): ``datetime.combine`` otherwise takes tzinfo from the naive
+    # ``time.min`` argument (None) and silently drops it.  Naive input is
+    # unaffected (tzinfo stays None).  ``value.tzinfo`` is read only when
+    # ``is_datetime`` (dates have no tzinfo).
+    return datetime.combine(result, time.min, value.tzinfo) if is_datetime else result
 
 
 def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
@@ -347,7 +352,7 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
     elif granularity == "day":
         result = value
     elif granularity == "hour" and is_datetime:
-        return datetime.combine(value, time.max).replace(hour=value.hour)
+        return datetime.combine(value, time.max, value.tzinfo).replace(hour=value.hour)
     elif is_datetime:
         raise ValueError(
             f"Granularity must be year, quarter, month, week, day or hour for value {value}"
@@ -357,7 +362,8 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
             f"Granularity must be year, quarter, month, week or day for value {value}"
         )
 
-    return datetime.combine(result, time.max) if is_datetime else result
+    # See start_of: preserve an aware input's zone that combine() would drop.
+    return datetime.combine(result, time.max, value.tzinfo) if is_datetime else result
 
 
 def add[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
@@ -424,9 +430,7 @@ def date_range[D: (date, datetime)](
             )
             if start_key != end_key:
                 msg = "Timezones of start argument and end argument seem inconsistent"
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
         if not are_naive and not are_utc and not are_others:
             msg = "Timezones of start argument and end argument mismatch"

@@ -164,9 +164,15 @@ class TestDatabaseOperations(BaseCase):
         self.assertGreater(backup_file.tell(), 0, "The backup seems corrupted")
 
         # Restore the backup under a different name (i.e. a duplicate)
+        # Patch the CONSUMING namespace (``odoo.http.wrappers`` binds the
+        # constant at import time to set ``HTTPRequest.max_content_length``);
+        # patching the ``odoo.http`` re-export never reaches it, so the
+        # 1024-byte subtest below silently ran with the real 128MiB limit and
+        # could not detect a broken per-route ``max_content_length=None``
+        # override on /web/database routes.
         with (
             self.subTest(DEFAULT_MAX_CONTENT_LENGTH=None),
-            patch.object(odoo.http, "DEFAULT_MAX_CONTENT_LENGTH", None),
+            patch.object(odoo.http.wrappers, "DEFAULT_MAX_CONTENT_LENGTH", None),
         ):
             backup_file.seek(0)
             self.session.post(
@@ -188,7 +194,7 @@ class TestDatabaseOperations(BaseCase):
         # DEFAULT_MAX_CONTENT_LENGTH must not reject this upload.
         with (
             self.subTest(DEFAULT_MAX_CONTENT_LENGTH=1024),
-            patch.object(odoo.http, "DEFAULT_MAX_CONTENT_LENGTH", 1024),
+            patch.object(odoo.http.wrappers, "DEFAULT_MAX_CONTENT_LENGTH", 1024),
         ):
             backup_file.seek(0)
             self.session.post(

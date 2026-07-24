@@ -50,13 +50,17 @@ def parse_template_string(
     keyword: str = "",
 ) -> Generator[_ExtractionResult]:
     prev_character = None
+    escaped = False
     level = 0
     inside_str = False
     expression_contents = ""
     for character in template_string[1:-1]:
         if not inside_str and character in ('"', "'", "`"):
             inside_str = character
-        elif inside_str == character and prev_character != r"\\":
+        elif inside_str == character and not escaped:
+            # a single backslash is a two-character string here (``"\\"``); the
+            # previous code compared against ``r"\\"`` (two chars), which never
+            # matched, so escaped quotes wrongly closed the tracked string
             inside_str = False
         if level or keyword:
             expression_contents += character
@@ -70,11 +74,16 @@ def parse_template_string(
                 if level == 0 and expression_contents:
                     expression_contents = expression_contents[0:-1]
                     fake_file_obj = io.BytesIO(expression_contents.encode())
+                    # sub-file linenos are 1-based; pass lineno-1 so a term on
+                    # the first line of the expression keeps the outer lineno
                     yield from extract_javascript(
-                        fake_file_obj, keywords, comment_tags, options, lineno
+                        fake_file_obj, keywords, comment_tags, options, lineno - 1
                     )
                     lineno += len(line_re.findall(expression_contents))
                     expression_contents = ""
+        # track backslash escaping so ``\"`` does not close the string but
+        # ``\\`` (escaped backslash) still does
+        escaped = character == "\\" and not escaped
         prev_character = character
     if keyword:
         yield (lineno, keyword, expression_contents, [])

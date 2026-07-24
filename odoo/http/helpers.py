@@ -101,7 +101,18 @@ def _normalize_dbfilter_host(host: str) -> str:
     attacker-varied Host from amplifying the regex cache — the same vector
     :data:`DB_MONODB_CACHE_TTL` closes for the catalog read. Lowercasing precedes
     ``removeprefix`` so an upper-case ``WWW.`` is stripped too.
+
+    A bracketed IPv6 literal (RFC 3986: ``[::1]:8069``) keeps its brackets and
+    loses only the port — a bare ``partition(":")`` would truncate it to ``[``,
+    so no dbfilter ``%h`` could ever match an IPv6 Host.
     """
+    if host.startswith("["):
+        # ``[::1]:8069`` -> ``[::1]``; a malformed bracket-open host without a
+        # closing bracket is left as-is (it can only fail to match, safely).
+        end = host.find("]")
+        if end != -1:
+            host = host[: end + 1]
+        return host.lower()
     return host.partition(":")[0].lower().removeprefix("www.")
 
 
@@ -283,33 +294,44 @@ def is_cors_preflight(request: Any, endpoint: Any) -> bool:
 _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
 
 
+def _hide_exception_internals() -> bool:
+    """Whether serialized-exception internals must be hidden from the reader."""
+    # True only for an active client request outside dev_mode — the one
+    # situation where the serialization reaches an untrusted party. Server-side
+    # consumers (ir.cron failure records, shell tooling) have no request and
+    # keep the full detail: admins read those. Shared by _exception_debug
+    # (traceback) and serialize_exception (message/arguments) so the two
+    # disclosure gates cannot drift. Gate on dev_mode ONLY, never a DB lookup:
+    # this runs on the error path where the cursor may already be broken, so a
+    # query could mask the original error. request (a LocalProxy) is falsy when
+    # no request is active.
+    return bool(request) and not config["dev_mode"]
+
+
 def _exception_debug(exception: BaseException) -> str:
     """The ``debug`` field of a serialized exception, gated for client responses.
 
-    The full traceback (server paths, code structure) is included only with no
-    active request (cron/server-side callers whose output admins read) or under
-    ``dev_mode``; otherwise it is replaced with a short note so internals are not
-    disclosed to untrusted clients. Always a ``str``, and the full traceback still
-    reaches the server log via ``Application.__call__``.
-
-    Gate on ``dev_mode`` ONLY, never a DB lookup: this runs on the error path
-    where the cursor may already be broken, so a query could mask the original
-    error.
+    The full traceback (server paths, code structure) is included only when
+    :func:`_hide_exception_internals` says the reader is trusted; otherwise it
+    is replaced with a short note. Always a ``str``, and the full traceback
+    still reaches the server log via ``Application.__call__``.
     """
-    # ``request`` (a LocalProxy) is falsy when no request is active.
-    if request and not config["dev_mode"]:
+    if _hide_exception_internals():
         return _TRACEBACK_HIDDEN
     return "".join(traceback.format_exception(exception))
 
 
 # Exception types whose human text must NEVER reach a client: raw database-driver
 # errors carry the failing SQL, schema/constraint names and sometimes row data
-# (PII). Application-level exceptions — including ``ValueError`` raised by domain
+# (PII); raw ``OSError`` text carries filesystem paths (filestore layout, session
+# dir). Application-level exceptions — including ``ValueError`` raised by domain
 # parsing etc. — keep surfacing their message, the framework's deliberate API
 # contract (see ``test_webjson2``); only the opaque infrastructure errors below
-# are genericised. The exception class ``name`` is always kept (the web client
-# branches on it) and the traceback stays gated by ``_exception_debug``.
-_OPAQUE_EXCEPTION_TYPES = (psycopg.Error,)
+# are genericised, and only for an untrusted reader (see
+# :func:`_hide_exception_internals` — cron failure records keep the detail).
+# The exception class ``name`` is always kept (the web client branches on it)
+# and the traceback stays gated by ``_exception_debug``.
+_OPAQUE_EXCEPTION_TYPES = (psycopg.Error, OSError)
 _MASKED_EXCEPTION_MESSAGE = "Internal Server Error"
 
 
@@ -321,15 +343,18 @@ def serialize_exception(
 ) -> dict[str, Any]:
     """Serialize an exception for a JSON response.
 
-    For opaque infrastructure errors (:data:`_OPAQUE_EXCEPTION_TYPES`), the human
-    ``message`` and ``arguments`` are replaced with a generic placeholder unless
-    the caller passes them explicitly — a raw ``psycopg`` error must not disclose
-    SQL/schema/row data to an untrusted client. The full detail still reaches the
-    server log via ``Application.__call__``.
+    For opaque infrastructure errors (:data:`_OPAQUE_EXCEPTION_TYPES`) serialized
+    toward an untrusted client, the human ``message`` and ``arguments`` are
+    replaced with a generic placeholder unless the caller passes them explicitly
+    — a raw ``psycopg`` error must not disclose SQL/schema/row data, nor an
+    ``OSError`` its filesystem paths. The full detail still reaches the server
+    log via ``Application.__call__``.
     """
     name = type(exception).__name__
     module = type(exception).__module__
-    opaque = isinstance(exception, _OPAQUE_EXCEPTION_TYPES)
+    opaque = (
+        isinstance(exception, _OPAQUE_EXCEPTION_TYPES) and _hide_exception_internals()
+    )
 
     if message is None:
         message = _MASKED_EXCEPTION_MESSAGE if opaque else str(exception)

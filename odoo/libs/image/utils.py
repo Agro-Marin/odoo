@@ -36,6 +36,15 @@ EXIF_TAG_ORIENTATION = 0x112
 # 8K with a ratio up to 16:10, and almost all variants of 4320p
 IMAGE_MAX_RESOLUTION = 50e6
 
+
+class ImageDecodeError(ValueError):
+    """The binary source could not be decoded as an image."""
+
+
+class ImageTooLargeError(ValueError):
+    """The image resolution exceeds ``IMAGE_MAX_RESOLUTION``."""
+
+
 # Preload PIL with the minimal subset of image formats we need.
 # preinit() registers only the common plugins; forcing _initialized to 2 makes
 # Pillow believe the full init() already ran, so a later unknown-format open()
@@ -142,20 +151,24 @@ class ImageProcess:
                 self.image = Image.open(io.BytesIO(source))
             except OSError, binascii.Error:
                 msg = "This file could not be decoded as an image file."
-                raise ValueError(msg) from None
+                raise ImageDecodeError(msg) from None
 
             # Original format has to be saved before fixing the orientation or
             # doing any other operations because the information will be lost on
             # the resulting image.
             self.original_format = (self.image.format or "").upper()
 
-            self.image = image_fix_orientation(self.image)
-
+            # Enforce the resolution cap *before* fixing orientation: EXIF
+            # transpose fully decodes and rotates the pixel buffer, so checking
+            # afterwards let an oversized image with an orientation tag be
+            # decompressed and copied before being rejected.
             w, h = self.image.size
             if verify_resolution and w * h > IMAGE_MAX_RESOLUTION:
-                raise ValueError(
+                raise ImageTooLargeError(
                     f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                 )
+
+            self.image = image_fix_orientation(self.image)
 
     def image_quality(self, quality: int = 0, output_format: str = "") -> bytes | bool:
         """Return the image resulting from all processing operations applied so far.
@@ -512,7 +525,7 @@ def binary_to_image(source: bytes) -> PILImage:
         return Image.open(io.BytesIO(source))
     except OSError, binascii.Error:
         msg = "This file could not be decoded as an image file."
-        raise ValueError(msg) from None
+        raise ImageDecodeError(msg) from None
 
 
 def base64_to_image(base64_source: str | bytes) -> Image:
@@ -526,7 +539,7 @@ def base64_to_image(base64_source: str | bytes) -> Image:
         return Image.open(io.BytesIO(base64.b64decode(base64_source)))
     except OSError, binascii.Error:
         msg = "This file could not be decoded as an image file."
-        raise ValueError(msg) from None
+        raise ImageDecodeError(msg) from None
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:

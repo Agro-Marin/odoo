@@ -334,6 +334,32 @@ class TestPrivateReadGroup(common.TransactionCase):
             ],
         )
 
+    def test_flush_read_group_company_dependent_groupby(self):
+        """Grouping by a company-dependent field must flush its dirty cache.
+
+        The grouping key inlines its bound parameters (``SQL.inlined``, needed
+        for byte-identical SELECT/GROUP BY under psycopg3 binding); the inlined
+        expression must keep the wrapper's ``to_flush`` metadata, otherwise
+        ``execute_query`` never flushes the dirty field and the groupby
+        aggregates stale values.
+        """
+        Model = self.env["test_read_group.order"]
+        record = Model.create({"name": "a", "company_dependent_name": "before"})
+        self.assertEqual(
+            Model._read_group(
+                [("id", "=", record.id)], ["company_dependent_name"], ["__count"]
+            ),
+            [("before", 1)],
+        )
+
+        record.company_dependent_name = "after"  # dirty in cache, not flushed
+        self.assertEqual(
+            Model._read_group(
+                [("id", "=", record.id)], ["company_dependent_name"], ["__count"]
+            ),
+            [("after", 1)],
+        )
+
     def test_having_clause(self):
         Model = self.env["test_read_group.aggregate"]
         Model.create({"key": 1, "value": 8})
@@ -404,6 +430,42 @@ class TestPrivateReadGroup(common.TransactionCase):
             Model._read_group([], [], ["value:sum"], having=[("value:sum", ">", 5)]),
             [(10,)],
         )
+
+    def test_having_without_groupby_falsy_domain(self):
+        # The statically-false-domain shortcut must honour ``having`` exactly
+        # like the SQL path does over zero rows: aggregates over no rows are
+        # NULL (except COUNT, which is 0), and a NULL comparison is not TRUE.
+        Model = self.env["test_read_group.aggregate"]
+        Model.create({"key": 1, "value": 8})
+
+        for having, expected in [
+            ([("value:sum", ">", 1000)], []),
+            # NULL = 0 is not TRUE, so the empty sum does NOT match 0
+            ([("value:sum", "=", 0)], []),
+            # COUNT(*) over no rows is 0, so the implicit group is kept
+            ([("__count", "=", 0)], [(0, False)]),
+        ]:
+            with self.subTest(having=having):
+                # shortcut path: statically false domain
+                self.assertEqual(
+                    Model._read_group(
+                        [("id", "in", [])],
+                        [],
+                        ["__count", "value:sum"],
+                        having=having,
+                    ),
+                    expected,
+                )
+                # SQL path: equivalent no-match domain that actually executes
+                self.assertEqual(
+                    Model._read_group(
+                        [("id", "=", -1)],
+                        [],
+                        ["__count", "value:sum"],
+                        having=having,
+                    ),
+                    expected,
+                )
 
     def test_malformed_params(self):
         Model = self.env["test_read_group.order.line"]

@@ -107,7 +107,13 @@ class CopyMixin(_ModelStubs):
             if not field.copy:
                 continue
 
-            if field.inherited and field.related.split(".")[0] in excluded:
+            # ``field.related is not None`` never fails for an inherited field
+            # (setup_related always sets it); it only narrows ``str | None``.
+            if (
+                field.inherited
+                and field.related is not None
+                and field.related.split(".")[0] in excluded
+            ):
                 # inherited fields that come from a user-provided parent record
                 # must not copy translations, as the parent record is not a copy
                 # of the old parent record

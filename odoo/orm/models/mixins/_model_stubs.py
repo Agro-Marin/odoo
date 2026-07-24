@@ -25,7 +25,14 @@ real implementation, keeping it a valid override.
 import typing
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable, Iterator, Reversible
+    from collections.abc import (
+        Callable,
+        Collection,
+        Iterable,
+        Iterator,
+        Mapping,
+        Reversible,
+    )
     from typing import Self
 
     from odoo.tools import SQL, Query
@@ -51,7 +58,8 @@ class _ModelStubs:
 
         # Registry / model metadata set during registration.
         pool: typing.Any
-        _fields: dict
+        # Read-only view: BaseModel exposes _fields as a MappingProxyType.
+        _fields: Mapping[str, Field]
         _name: str
         _table: str
         id: int
@@ -63,6 +71,9 @@ class _ModelStubs:
 
         # Model-definition class attributes (``_name = ...`` & friends).
         _inherits: dict
+        # Names of models delegating to this one via ``_inherits`` (populated
+        # in registration._init_model_class_attributes).
+        _inherits_children: set[str]
         _description: str
         _abstract: bool
         _auto: bool
@@ -79,12 +90,26 @@ class _ModelStubs:
         # the ``Self`` result; the signatures mirror the real ones exactly so
         # those remain valid overrides.
         def browse(self, ids: int | typing.Iterable[IdType] = ()) -> Self: ...
+        def new(
+            self,
+            values: ValuesType | None = None,
+            origin: Self | None = None,
+            ref: str | None = None,
+        ) -> Self: ...
         def ensure_one(self) -> Self: ...
         def exists(self) -> Self: ...
         def sudo(self, flag: bool = True) -> Self: ...
         def with_env(self, env: Environment) -> Self: ...
         def filtered(self, func: str | Callable[[Self], bool] | Domain) -> Self: ...
         def __iter__(self) -> Iterator[Self]: ...
+        def __len__(self) -> int: ...
+        # Indexing mirrors IterationMixin.__getitem__: int/slice selects
+        # records, a field name reads that field's value.
+        @typing.overload
+        def __getitem__(self, key: int | slice) -> Self: ...
+        @typing.overload
+        def __getitem__(self, key: str) -> typing.Any: ...
+        def __getitem__(self, key: int | slice | str) -> Self | typing.Any: ...
 
         # The ``with_*`` rebinding family + set algebra (all EnvironmentMixin /
         # IterationMixin), likewise returning a recordset.
@@ -131,7 +156,7 @@ class _ModelStubs:
         def _check_field_access(
             self, field: Field, operation: typing.Literal["read", "write"]
         ) -> None: ...
-        def _check_company(self, fnames: list[str] | None = None) -> None: ...
+        def _check_company(self, fnames: Collection[str] | None = None) -> None: ...
         def modified(
             self,
             fnames: Collection[str],
@@ -142,10 +167,27 @@ class _ModelStubs:
         def _recompute_recordset(
             self, fnames: Collection[str] | None = None
         ) -> None: ...
+        def _compute_field_value(self, field: Field) -> None: ...
         def invalidate_recordset(
             self, fnames: Collection[str] | None = None, flush: bool = True
         ) -> None: ...
         def flush_recordset(self, fnames: Collection[str] | None = None) -> None: ...
+        # Schema / transient / translation / properties members that field
+        # override bodies reach through a ``ModelLike``-typed receiver. Each
+        # signature mirrors its single real implementation (SchemaMixin,
+        # LifecycleMixin.is_transient classmethod, TranslationMixin, BaseModel's
+        # properties-definition converters) so those remain valid overrides.
+        def _table_has_rows(self) -> bool: ...
+        def _init_column(self, column_name: str) -> None: ...
+        @classmethod
+        def is_transient(cls) -> bool: ...
+        def _get_base_lang(self) -> str: ...
+        def _convert_to_cache_properties_definition(
+            self, value: typing.Any
+        ) -> typing.Any: ...
+        def _convert_to_column_properties_definition(
+            self, value: typing.Any
+        ) -> typing.Any: ...
         def _determine_fields_to_fetch(
             self,
             field_names: Collection[str] | None = None,

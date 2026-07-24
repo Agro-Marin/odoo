@@ -17,6 +17,7 @@ _orm_cache = logging.getLogger("odoo.orm.cache")
 
 if typing.TYPE_CHECKING:
     from ..._typing import IdType
+    from ...fields.base import Field
 
 
 class RecordCache(Mapping):
@@ -135,10 +136,16 @@ class CacheMixin(_ModelStubs):
         ):  # Avoid invalidating field_inverses for no reason
             return
 
+        fields: Collection[Field]
         if fnames is None:
             fields = self._fields.values()
         else:
-            fields = [self._fields[fname] for fname in fnames]
+            try:
+                fields = [self._fields[fname] for fname in fnames]
+            except KeyError as e:
+                raise ValueError(
+                    f"Invalid field {e.args[0]!r} on model {self._name!r}"
+                ) from e
 
         env = self.env
         field_inverses = self.pool.field_inverses

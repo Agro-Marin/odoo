@@ -10,7 +10,7 @@ import itertools
 import typing
 from collections import defaultdict
 
-from odoo.tools import SQL, unique
+from odoo.tools import SQL, Query, unique
 
 from .... import decorators as api
 from ...._typing import DomainType
@@ -453,6 +453,21 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             # domain matches records.
             self._check_read_group_spec_access(groupby, aggregates)
             if not groupby:
+                # HAVING applies to the single implicit aggregate group even
+                # without GROUP BY (see below), so the shortcut must keep or
+                # drop its one row exactly like the SQL path does over zero
+                # rows (SUM() over no rows is NULL, and NULL > 0 is not TRUE;
+                # COUNT(*) is 0).  Reuse the SQL having machinery over a
+                # known-empty source rather than re-implementing SQL's
+                # three-valued comparison semantics in Python.
+                if having:
+                    empty_query = Query(self.env, self._table, self._table_sql)
+                    empty_query.add_where(SQL("FALSE"))
+                    empty_query.having = self._read_group_having(
+                        list(having), empty_query
+                    )
+                    if not self.env.execute_query(empty_query.select(SQL("COUNT(*)"))):
+                        return []
                 # with no group, postgresql always returns a row
                 return [
                     tuple(

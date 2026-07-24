@@ -34,6 +34,11 @@ class Collector[K, T](dict[K, tuple[T, ...]]):
 
     def discard_keys_and_values(self, excludes: Iterable[K]) -> None:
         """Drop the given keys, and remove their values wherever they occur."""
+        # Materialize once: ``excludes`` is scanned twice (as keys, then as a
+        # membership test per value).  A generator would be exhausted by the
+        # first pass, silently removing nothing on the second; a list makes the
+        # per-value ``in`` test O(n) instead of O(1).
+        excludes = frozenset(excludes)
         for key in excludes:
             self.pop(key, None)
         for key, vals in list(self.items()):

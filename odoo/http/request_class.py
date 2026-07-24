@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 import babel.core
+import psycopg
 import werkzeug.datastructures
 import werkzeug.exceptions
 
@@ -59,8 +60,18 @@ def _monodb_dblist(host: str) -> list[str]:
     contract); the cheap, host-dependent :func:`db_filter` (whose regex is itself
     cached) runs per call. Only this db-less detection path is cached; the shared
     :func:`db_list` is not. Returns a fresh, caller-owned list.
+
+    Degrades to ``[]`` when PostgreSQL is unreachable, like :func:`db_list`
+    (whose ``OperationalError`` guard this cached path bypasses): monodb
+    detection failing must serve the request db-less, not 500 it — this runs in
+    ``_post_init`` for every cookie-less request, including static assets and
+    ``/web/login``. ``lru_cache`` does not cache exceptions, so a failed probe
+    is retried on the next request.
     """
-    all_dbs = _all_dbs_cached(int(time.time() // DB_MONODB_CACHE_TTL))
+    try:
+        all_dbs = _all_dbs_cached(int(time.time() // DB_MONODB_CACHE_TTL))
+    except psycopg.OperationalError:
+        return []
     return db_filter(list(all_dbs), host=host)
 
 

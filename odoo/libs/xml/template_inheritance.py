@@ -144,6 +144,11 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
     """
     if spec.tag == "xpath":
         expr = spec.get("expr")
+        if expr is None:
+            # A bare <xpath> without expr would reach _compile_xpath(None) and
+            # raise an uncaught TypeError; fail with the documented ValueError.
+            msg = "Missing 'expr' attribute in xpath specification"
+            raise ValueError(msg)
         try:
             xPath = _compile_xpath(expr)
         except etree.XPathSyntaxError as e:

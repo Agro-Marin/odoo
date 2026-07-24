@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """
 Odoo template inheritance utilities.
 
@@ -8,27 +7,19 @@ error handling (ValidationError for XPath errors) for better user experience.
 For agnostic usage without Odoo dependencies, use odoo.libs.xml.template_inheritance directly.
 """
 
-
 from typing import TYPE_CHECKING
 
 from lxml import etree
 
 from odoo.exceptions import ValidationError
 
-# Re-export everything from libs (agnostic versions)
+# Import agnostic versions for wrapping
 from odoo.libs.xml.template_inheritance import (
-    PYTHON_ATTRIBUTES,
-    SKIPPED_ELEMENT_TYPES,
     _compile_xpath,
-    add_stripped_items_before,
-    add_text_before,
-    remove_element,
 )
 from odoo.libs.xml.template_inheritance import (
     apply_inheritance_specs as _apply_inheritance_specs_base,
 )
-
-# Import agnostic versions for wrapping
 from odoo.libs.xml.template_inheritance import (
     locate_node as _locate_node_base,
 )
@@ -37,7 +28,7 @@ from odoo.tools.translate import LazyTranslate
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = []
+__all__ = ["apply_inheritance_specs", "locate_node"]
 
 _lt = LazyTranslate("base")
 
@@ -89,7 +80,8 @@ def apply_inheritance_specs(
     :raise: ValueError for other invalid specs or if nodes cannot be located
     """
     # Catch ValueError from the base implementation and convert XPath-related
-    # errors to ValidationError.
+    # errors to ValidationError; other ValueErrors propagate unchanged (their
+    # messages are dynamic, so they cannot be statically translated).
     try:
         return _apply_inheritance_specs_base(
             source, specs_tree, inherit_branding, pre_locate
@@ -98,20 +90,4 @@ def apply_inheritance_specs(
         error_msg = str(e)
         if "Invalid Expression while parsing xpath" in error_msg:
             raise ValidationError(error_msg) from e  # pylint: disable=E8502
-        # Re-raise other ValueErrors — messages are dynamic (contain view/element
-        # names from the underlying library) so cannot be statically translated.
-        if "cannot be located in parent view" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
-        if "Invalid specification for moved nodes" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
-        if "Invalid mode attribute" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
-        if "Invalid position attribute" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
-        if "Invalid attributes" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
-        if "Invalid separator" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
-        if "cannot contain text" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg) from e
         raise

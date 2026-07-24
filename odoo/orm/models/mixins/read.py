@@ -17,6 +17,7 @@ from odoo.tools.orm_profiler import _OrmProfile
 from ... import decorators as api
 from ..._typing import ValuesType
 from ...primitives import LOG_ACCESS_COLUMNS
+from ._cache_scan import can_scan_read
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -129,26 +130,6 @@ class ReadMixin(_ModelStubs):
 
         return result
 
-    # Field types whose convert_to_record + convert_to_read chain reduces to
-    # ``none_val if v is None else v``, so _read_format can inline the
-    # conversion and skip 3 method calls per (record, field) pair.
-    _SCALAR_READ_TYPES = frozenset(
-        {
-            "boolean",
-            "selection",
-            "date",
-            "datetime",
-            "char",
-            "text",  # non-translate only (translate needs dict lookup)
-            # integer is safe ONLY because Integer/Id are int4-backed (always
-            # <= MAXINT, so convert_to_read is identity).  An int8-backed
-            # integer would need the slow path and MUST NOT be added here.
-            "integer",
-            "float",
-            "monetary",
-        }
-    )
-
     def _read_format(
         self, fnames: Sequence[str], load: str = "_classic_read"
     ) -> list[ValuesType]:
@@ -165,7 +146,6 @@ class ReadMixin(_ModelStubs):
         _fields = self._fields
         _SENTINEL = SENTINEL
         _PENDING = PENDING
-        _scalar_types = self._SCALAR_READ_TYPES
 
         # Classify fields: scalar stored fields that can use the fast path
         # (inline dict.get + identity conversion) vs everything else that
@@ -180,12 +160,7 @@ class ReadMixin(_ModelStubs):
             # leaks whenever its value is cache-warm — including on all-NewId
             # recordsets, where ``fetch()`` returns early and never checks.
             field.ensure_access(self)
-            if (
-                field.store
-                and not field.relational
-                and not callable(field.translate)
-                and field.type in _scalar_types
-            ):
+            if can_scan_read(field):
                 scalar_fnames.append(name)
             else:
                 record_fnames.append(name)
@@ -199,7 +174,7 @@ class ReadMixin(_ModelStubs):
             field.ensure_computed(self)
             field_cache = field._get_cache(env)
             # None replacement: False / 0 / 0.0 depending on type.
-            none_val = field.convert_to_record(None, None)
+            none_val: typing.Any = field.convert_to_record(None, None)
             if type(field_cache) is dict:
                 # Rust path: fill cached values in one C-level pass, return only
                 # miss indices.  Needs a plain dict (not a translated LangProxy).

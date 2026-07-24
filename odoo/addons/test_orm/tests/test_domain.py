@@ -12,7 +12,6 @@ from odoo.addons.base.tests.test_expression import TransactionExpressionCase
 
 
 class TestDomain(TransactionExpressionCase):
-
     def _search(self, model, domain, init_domain=Domain.TRUE, test_complement=False):
         # just overwrite the defaults here, because we test complements manually
         return super()._search(model, domain, init_domain, test_complement)
@@ -168,12 +167,16 @@ class TestDomain(TransactionExpressionCase):
             for subset in combinations(values, length):
                 self.assertEqual(
                     self._search(EmptyInt, [("number", "in", list(subset))]),
-                    records.filtered(lambda record: record.number in subset),
+                    records.filtered(
+                        lambda record, subset=subset: record.number in subset
+                    ),
                     f"Incorrect result for search([('number', 'in', {sorted(subset)})])",
                 )
                 self.assertEqual(
                     self._search(EmptyInt, [("number", "not in", list(subset))]),
-                    records.filtered(lambda record: record.number not in subset),
+                    records.filtered(
+                        lambda record, subset=subset: record.number not in subset
+                    ),
                     f"Incorrect result for search([('number', 'not in', {sorted(subset)})])",
                 )
 
@@ -260,12 +263,20 @@ class TestDomain(TransactionExpressionCase):
                     subset_check |= {False, ""}
                 self.assertEqual(
                     self._search(EmptyChar, [("name", "in", list(subset))]),
-                    records.filtered(lambda record: record.name in subset_check),
+                    records.filtered(
+                        lambda record, subset_check=subset_check: (
+                            record.name in subset_check
+                        )
+                    ),
                     f"Incorrect result for search([('name', 'in', {list(subset)})])",
                 )
                 self.assertEqual(
                     self._search(EmptyChar, [("name", "not in", list(subset))]),
-                    records.filtered(lambda record: record.name not in subset_check),
+                    records.filtered(
+                        lambda record, subset_check=subset_check: (
+                            record.name not in subset_check
+                        )
+                    ),
                     f"Incorrect result for search([('name', 'not in', {list(subset)})])",
                 )
 
@@ -359,12 +370,20 @@ class TestDomain(TransactionExpressionCase):
                     subset_check |= {False, ""}
                 self.assertEqual(
                     self._search(records_fr, [("name", "in", list(subset))]),
-                    records_fr.filtered(lambda record: record.name in subset_check),
+                    records_fr.filtered(
+                        lambda record, subset_check=subset_check: (
+                            record.name in subset_check
+                        )
+                    ),
                     f"Incorrect result for search([('name', 'in', {list(subset)})])",
                 )
                 self.assertEqual(
                     self._search(records_fr, [("name", "not in", list(subset))]),
-                    records_fr.filtered(lambda record: record.name not in subset_check),
+                    records_fr.filtered(
+                        lambda record, subset_check=subset_check: (
+                            record.name not in subset_check
+                        )
+                    ),
                     f"Incorrect result for search([('name', 'not in', {list(subset)})])",
                 )
 
@@ -541,7 +560,6 @@ class TestDomain(TransactionExpressionCase):
 
 
 class TestDomainComplement(TransactionExpressionCase):
-
     def test_inequalities_int(self):
         Model = self.env["test_orm.empty_int"]
         Model.create([{}])
@@ -1065,6 +1083,60 @@ class TestDomainOptimize(TransactionCase):
             Domain("id", "in", OrderedSet([categ_child.id, categ.id])),
         )
 
+    def test_condition_hierarchy_boolean_values(self):
+        """Booleans in child_of/parent_of fail (True) or collapse (False) cleanly."""
+        # Regression: bool is an int subclass, so True/[True] passed the id
+        # partition and reached SQL as parent_id IN (true) — a psycopg
+        # UndefinedFunction surfacing as an opaque RPC 500.
+        model = self.env["test_orm.category"]
+        parent = model.create({"name": "parent"})
+        model.create({"name": "child", "parent": parent.id})
+        for op in ("child_of", "parent_of"):
+            for value in (True, [True], [True, parent.id]):
+                with self.assertRaises(ValueError, msg=f"{op} {value!r}"):
+                    model.search([("id", op, value)])
+            # False means "not set": it seeds no record, so alone it collapses
+            # to an empty result...
+            self.assertFalse(model.search([("id", op, False)]))
+            self.assertFalse(model.search([("id", op, [False])]))
+            # ...and mixed with real ids it is simply dropped
+            self.assertEqual(
+                model.search([("id", op, [False, parent.id])]),
+                model.search([("id", op, parent.id)]),
+            )
+
+    def test_filtered_domain_new_records_required_m2o(self):
+        """A FULL-optimized domain reused over new() records still sees the False branch."""
+        # A FULL pass strips False from required NOT NULL fields — valid for
+        # persisted rows only.  Reusing the FULL-stamped domain as a predicate
+        # over new() records (whose required m2o may legitimately be unset) must
+        # still agree with a fresh parse: the pre-strip condition is kept
+        # reachable on the optimized node.
+        model = self.env["test_orm.move_line"]
+        move = self.env["test_orm.move"].create({})
+        raw = [("move_id", "in", [False, move.id])]
+        full = Domain(raw).optimize_full(model)
+        # the strip actually fired, otherwise this test is vacuous
+        [(_, _, optimized_value)] = list(full)
+        self.assertEqual(optimized_value, [move.id])
+
+        new_record = model.new({})  # required m2o absent in memory
+        self.assertFalse(new_record.move_id)
+        self.assertEqual(
+            new_record.filtered_domain(raw),
+            new_record,
+            "fresh parse: an unset required m2o matches the False branch",
+        )
+        self.assertEqual(
+            new_record.filtered_domain(full),
+            new_record,
+            "the FULL-stamped (stripped) domain must agree with the fresh "
+            "parse over new records",
+        )
+        # sanity: over persisted records both forms agree too
+        line = model.create({"move_id": move.id})
+        self.assertEqual(line.filtered_domain(full), line.filtered_domain(raw))
+
     def test_not_optimize(self):
         # optimizations are tested with nary
         self.assertEqual(
@@ -1431,7 +1503,9 @@ class TestDomainEdgeCases(TransactionCase):
         """
         custom = Domain.custom(to_sql=lambda model, alias, query: SQL("TRUE"))
         combined = Domain("id", ">", 0) & custom
-        self.assertEqual([type(c).__name__ for c in combined.children][1], "DomainCustom")
+        self.assertEqual(
+            [type(c).__name__ for c in combined.children][1], "DomainCustom"
+        )
         # both previously raised NotImplementedError
         self.assertIsInstance(list(combined), list)
         self.assertIn("custom", repr(combined))
@@ -1445,6 +1519,7 @@ class TestDomainEdgeCases(TransactionCase):
         safe so future direct callers do not regress.
         """
         from odoo.orm.domain.optimizations import _value_to_datetime
+
         value, is_date = _value_to_datetime([], env=self.env, iso_only=False)
         self.assertEqual(list(value), [])
         self.assertTrue(is_date)

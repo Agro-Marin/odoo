@@ -469,24 +469,23 @@ class BridgeShimManager:
         ``specifiers`` must be cross-bundle specifiers (not this bundle's own
         native modules); each shim re-exports the target's names from
         ``odoo.loader.modules``.  Every shim emits a default export
-        unconditionally (matching the runtime bridge counterpart); the import
-        kinds read from this bundle only feed the star-fallback telemetry flag.
+        unconditionally (matching the runtime bridge counterpart), and the
+        import kinds only feed the discarded star-fallback telemetry flag, so
+        ``kinds={"__default__"}`` is passed directly (as in
+        :meth:`_build_parent_self_bridge`) instead of lexing the whole bundle
+        to discover kinds the shim source never depends on.
         """
         if not specifiers:
             return {}
-        # Import kinds (default/star/named) as this bundle's modules use them,
-        # so the shim's export shape matches what consumers destructure.
-        discovered, _ext = self._discover_bridge_specifiers(
-            set(), set(ODOO_EXTERNAL_LIBS)
-        )
         resolver = _BridgeExportResolver(
             ODOO_EXTERNAL_LIBS, EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
         )
         shims: dict[str, str] = {}
         for spec in sorted(specifiers):
-            kinds = discovered.get(spec) or {"__default__"}
             src_names, has_default = resolver.source_exports(spec)
-            shim, _star = _bridge_shim_source(spec, kinds, src_names, has_default)
+            shim, _star = _bridge_shim_source(
+                spec, {"__default__"}, src_names, has_default
+            )
             shims[spec] = shim
         return shims
 

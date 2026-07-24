@@ -114,9 +114,8 @@ class Query:
 
     def add_table(self, alias: str, table: SQL | None = None) -> None:
         """Add a table with a given alias to the from clause."""
-        assert alias not in self._tables and alias not in self._joins, (
-            f"Alias {alias!r} already in {self}"
-        )
+        if alias in self._tables or alias in self._joins:
+            raise ValueError(f"Alias {alias!r} already in {self}")
         self._tables[alias] = table if table is not None else SQL.identifier(alias)
         self._ids = self._ids and None
 
@@ -125,14 +124,17 @@ class Query:
     ) -> None:
         """Add a join clause with the given alias, table and condition."""
         sql_kind = _SQL_JOINS.get(kind.upper())
-        assert sql_kind is not None, f"Invalid JOIN type {kind!r}"
-        assert alias not in self._tables, f"Alias {alias!r} already used"
+        if sql_kind is None:
+            raise ValueError(f"Invalid JOIN type {kind!r}")
+        if alias in self._tables:
+            raise ValueError(f"Alias {alias!r} already used")
         table = table or alias
         if isinstance(table, str):
             table = SQL.identifier(table)
 
         if alias in self._joins:
-            assert self._joins[alias] == (sql_kind, table, condition)
+            if self._joins[alias] != (sql_kind, table, condition):
+                raise ValueError(f"Alias {alias!r} already used with a different join")
         else:
             self._joins[alias] = (sql_kind, table, condition)
             self._ids = self._ids and None
@@ -268,6 +270,15 @@ class Query:
         """Like :meth:`.select`, but for sub-queries: omit the ORDER BY clause
         when possible and wrap the query in parentheses.
         """
+        if self.groupby or self.having:
+            # subselect() rebuilds only SELECT/FROM/WHERE and would silently
+            # drop GROUP BY/HAVING, returning ungrouped ids. Use select() (which
+            # keeps them) or count_matching() instead.
+            raise ValueError(
+                "Query.subselect() does not support groupby/having; "
+                "use select() or count_matching()"
+            )
+
         if self._ids is not None and not args:
             # inject the known result instead of the subquery
             if not self._ids:
@@ -302,9 +313,10 @@ class Query:
         ``ordered`` tells whether the query must be ordered to match exactly the
         sequence ``ids``.
         """
-        assert not (self._joins or self._where_clauses or self.limit or self.offset), (
-            "Method set_result_ids() can only be called on a virgin Query"
-        )
+        if self._joins or self._where_clauses or self.limit or self.offset:
+            raise ValueError(
+                "Method set_result_ids() can only be called on a virgin Query"
+            )
         ids = tuple(ids)
         if not ids:
             self.add_where("FALSE")
@@ -339,8 +351,10 @@ class Query:
 
     def __len__(self) -> int:
         if self._ids is None:
-            if self.limit or self.offset:
-                # optimization: generate a SELECT FROM, and then count the rows
+            if self.limit or self.offset or self.groupby or self.having:
+                # Wrap in a subquery so grouping/limits are counted as rows.
+                # A bare ``SELECT COUNT(*) ... GROUP BY`` would return one count
+                # per group and [0][0] would take only the first group's size.
                 sql = SQL("SELECT COUNT(*) FROM (%s) t", self.select(""))
             else:
                 sql = self.select("COUNT(*)")

@@ -104,14 +104,27 @@ SESSION_ROTATION_INTERVAL = 60 * 60 * 3
 # made at the same time and all use the same old cookie.
 SESSION_DELETION_TIMER = 120
 
-# Paths where automatic session rotation is disabled. Websocket polling hits
-# these many times per minute; rotating there wastes a disk write per call and
-# reopens the soft-rotate race — rotation should fire on a real user action.
-SESSION_ROTATION_EXCLUDED_PATHS = (
-    "/websocket/on_closed",
-    "/websocket/peek_notifications",
-    "/websocket/update_bus_presence",
-)
+# Paths where automatic session rotation is disabled: high-frequency polling
+# endpoints hit many times per minute, where rotating wastes a disk write per
+# call and reopens the soft-rotate race — rotation should fire on a real user
+# action. The set starts EMPTY: the paths belong to the modules that serve them
+# (bus registers its websocket endpoints), keeping this core file free of
+# other modules' URL knowledge. Owners call
+# :func:`register_session_rotation_excluded_paths` at import time; consumers
+# (``Request._save_session``) hold a reference to this very set object, so
+# registrations are visible process-wide regardless of import order.
+SESSION_ROTATION_EXCLUDED_PATHS: set[str] = set()
+
+
+def register_session_rotation_excluded_paths(*paths: str) -> None:
+    """Exclude ``paths`` from automatic session rotation (see above).
+
+    For module-owned, high-frequency endpoints only: an excluded path never
+    refreshes the rotation clock, so a session whose ONLY traffic is excluded
+    paths keeps its sid until a regular request arrives.
+    """
+    SESSION_ROTATION_EXCLUDED_PATHS.update(paths)
+
 
 # Session id characters that stay stable across a "soft" rotation. This prefix
 # computes the CSRF token (so it survives soft rotation) and correlates

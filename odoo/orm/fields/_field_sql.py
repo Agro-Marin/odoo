@@ -22,7 +22,7 @@ from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ._field_stubs import _FieldStubs
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel
+    from .._typing import BaseModel, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -52,7 +52,7 @@ IN_TO_ANY_THRESHOLD = 100
 class _FieldSqlMixin(_FieldStubs):
     """SQL and domain-condition generation for a field."""
 
-    def to_sql(self, model: BaseModel, alias: str) -> SQL:
+    def to_sql(self, model: ModelLike, alias: str) -> SQL:
         """Return an :class:`SQL` object that represents the value of the given
         field from the given table alias.
 
@@ -90,7 +90,7 @@ class _FieldSqlMixin(_FieldStubs):
         self,
         field_sql: SQL,
         property_name: str,
-        model: BaseModel,
+        model: ModelLike,
         alias: str,
         query: Query,
     ) -> SQL:

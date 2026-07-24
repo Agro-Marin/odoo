@@ -215,7 +215,6 @@ class _Cleaner(clean.Cleaner):
         "letter-spacing",
         "text-transform",
         "text-decoration",
-        "text-decoration",
         "opacity",
         "float",
         "vertical-align",
@@ -594,10 +593,11 @@ def html_normalize(
     if not src:
         return src
 
-    # html: remove encoding attribute inside tags
+    # html: remove the encoding attribute inside tags, keeping the tag and its
+    # other attributes.
     src = re.sub(
-        r'(<[^>]*\s)(encoding=(["\'][^"\']*?["\']|[^\s\n\r>]+)(\s[^>]*|/)?>)',
-        "",
+        r"(<[^>]*?)\s+encoding=(?:\"[^\"]*\"|'[^']*'|[^\s>]+)",
+        r"\1",
         src,
     )
 
@@ -855,6 +855,11 @@ def html2plaintext(
         # wrong query for an unquoted value (``@id=content`` is a node-test, not
         # a string match).
         source = tree.xpath("//*[@id=$body_id]", body_id=body_id)
+        # A caller that scoped to a specific ``body_id`` wants only that node.
+        # Returning the whole document on a miss silently leaks content the
+        # caller meant to exclude, so return empty text instead.
+        if not len(source):
+            return ""
     else:
         source = tree.xpath("//body")
     if len(source):

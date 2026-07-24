@@ -16,6 +16,14 @@ Purely a typing aid: declarations under ``if typing.TYPE_CHECKING:`` and
 
 import typing
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from odoo.db import BaseCursor
+    from odoo.orm.components.model_graph import ModelGraph
+    from odoo.orm.fields import Field
+    from odoo.orm.models import BaseModel
+
 
 class _RegistryStubs:
     """Shared, typing-only view of the ``Registry`` surface."""
@@ -24,15 +32,15 @@ class _RegistryStubs:
 
     if typing.TYPE_CHECKING:
         # Set on the Registry instance in ``Registry.init`` / ``setup_models``.
-        # Containers stay at their base type (override-compatible with the
-        # precise ``self.x: set[Field] = ...`` annotations in registry.py); the
-        # two genuinely-dynamic members (the trigger graph, the unaccent SQL
-        # wrapper) stay ``Any``.
-        model_graph: typing.Any
-        models: dict
-        not_null_fields: set
-        _foreign_keys: dict
-        _constraint_queue: dict
+        # Types mirror the precise ``self.x: ... = ...`` annotations at the
+        # assignment sites in registry.py — keep both in sync. Only the
+        # unaccent SQL wrapper (a genuinely dynamic callable-or-flag) stays
+        # ``Any``.
+        model_graph: ModelGraph
+        models: dict[str, type[BaseModel]]
+        not_null_fields: set[Field]
+        _foreign_keys: dict[tuple[str, str], tuple[str, str, str, BaseModel, str]]
+        _constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]]
         has_unaccent: bool
         has_trigram: bool
         unaccent: typing.Any

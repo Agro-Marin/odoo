@@ -488,6 +488,7 @@ class RecomputeMixin(_ModelStubs):
             if not core.has_pending() and not core.is_any_dirty():
                 return
         self._recompute_recordset(fnames)
+        fields: Collection[Field]
         if fnames is None:
             fields = self._fields.values()
         else:

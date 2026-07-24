@@ -194,6 +194,11 @@ def translate_format_string_expression(term: str, callback: object) -> str | Non
     term_without_py = FORMAT_REGEX.sub(lambda g: add(g.group(0)), term)
     translated_value = callback(term_without_py)
     if translated_value:
+        # A lookup miss means the translation introduced a placeholder absent
+        # from the source (translator error or injection attempt); it is
+        # deliberately neutralized to "None" rather than evaluated -- keeping the
+        # translator's text would let it inject arbitrary t-attf/t-valuef
+        # expressions. See test_translate_xml_fstring.
         return FORMAT_REGEX.sub(
             lambda g: expressions.get(g.group(0)[2:-2], "None"),
             translated_value,
@@ -242,34 +247,30 @@ def translate_xml_node(
         ``pos`` (text may be before, inside, or after that child).
         """
         force_inline = force_inline or is_force_inline(node)
-        return (
+        # Walk forward across sibling positions iteratively: the previous code
+        # recursed on ``pos + 1``, so a long run of textless inline siblings
+        # (e.g. hundreds of <br/>) blew the recursion limit. The descent into a
+        # child (bounded by tree depth) stays recursive.
+        while True:
             # there is some text before node[pos]
-            nonspace(node[pos - 1].tail if pos else node.text)
-            or (
-                pos < len(node)
-                and translatable(node[pos], force_inline)
+            if nonspace(node[pos - 1].tail if pos else node.text):
+                return True
+            if pos >= len(node) or not translatable(node[pos], force_inline):
+                return False
+            child = node[pos]
+            if any(  # attribute to translate
+                val
                 and (
-                    any(  # attribute to translate
-                        val
-                        and (
-                            is_translatable_attrib(key, node)
-                            or (
-                                key == "value"
-                                and is_translatable_attrib_value(node[pos])
-                            )
-                            or (
-                                key == "text" and is_translatable_attrib_text(node[pos])
-                            )
-                        )
-                        for key, val in node[pos].attrib.items()
-                    )
-                    # node[pos] contains some text to translate
-                    or hastext(node[pos], 0, force_inline)
-                    # node[pos] has no text, but there is some text after it
-                    or hastext(node, pos + 1, force_inline)
+                    is_translatable_attrib(key, node)
+                    or (key == "value" and is_translatable_attrib_value(child))
+                    or (key == "text" and is_translatable_attrib_text(child))
                 )
-            )
-        )
+                for key, val in child.attrib.items()
+            ) or hastext(child, 0, force_inline):
+                # attribute to translate, or child contains text to translate
+                return True
+            # child has no text of its own: check for text after it
+            pos += 1
 
     def process(node):
         """Translate the given node."""
@@ -542,11 +543,16 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
     if has_iterable:
 
         def process_translation_arg(v):
-            return (
-                format_list(env=None, lst=v, lang_code=lang)
-                if isinstance(v, Iterable) and not isinstance(v, (str, bytes))
-                else v
-            )
+            if isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
+                # translate lazy terms nested inside the iterable in the target
+                # language; otherwise format_list str()-ifies them and they
+                # fall back to frame-guessing (untranslated / wrong language)
+                v = [
+                    el._translate(lang) if isinstance(el, LazyGettext) else el
+                    for el in v
+                ]
+                return format_list(env=None, lst=v, lang_code=lang)
+            return v
 
         if args_is_dict:
             args = {k: process_translation_arg(v) for k, v in args.items()}
@@ -554,10 +560,12 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
             args = tuple(process_translation_arg(v) for v in args)
     try:
         return translation % args
-    except TypeError, ValueError, KeyError:
+    except (TypeError, ValueError, KeyError):
         bad = translation
-        # format source first: if it also fails, raise before we log
-        translation = source % args
+        # format source first: if it also fails, raise before we log. Escape the
+        # source when Markup args are present so the fallback stays a Markup with
+        # non-Markup args escaped, matching the happy path's contract.
+        translation = (escape(source) if has_markup else source) % args
         _logger.exception("Bad translation %r for string %r", bad, source)
     return translation
 
@@ -615,7 +623,11 @@ def _get_cr(frame: object) -> object:
             return local_env.cr
         if (cr := getattr(local_self, "cr", None)) is not None:
             return cr
-    if (req := odoo.http.request) and (env := req.env):
+    # ``odoo.http`` may not be imported in a process without a running server
+    # (scripts, some CLI paths); fall through to the untranslated result rather
+    # than raising AttributeError on ``odoo.http``.
+    http = getattr(odoo, "http", None)
+    if http and (req := http.request) and (env := req.env):
         return env.cr
     return None
 
@@ -656,7 +668,8 @@ def _get_lang(frame: object, default_lang: str = "") -> str:
             return lang
         # env was found, so a later failure is benign: only log at debug
         log_level = logging.DEBUG
-    if (req := odoo.http.request) and (env := req.env) and (lang := env.lang):
+    http = getattr(odoo, "http", None)
+    if http and (req := http.request) and (env := req.env) and (lang := env.lang):
         return lang
     # Last resort: guess the user's language.
     # Pitfall: under sudo we don't know the original uid, so this may be wrong
@@ -854,8 +867,10 @@ class CSVFileReader:
                 # res_id is an id or line number
                 entry["res_id"] = int(entry["res_id"])
             elif not entry.get("imd_name"):
-                # res_id is an external id and must follow <module>.<name>
-                entry["module"], entry["imd_name"] = entry["res_id"].split(".")
+                # res_id is an external id and must follow <module>.<name>;
+                # the name part may itself contain dots (maxsplit=1), like
+                # every other xmlid parser (parse_xmlid, PoFileReader)
+                entry["module"], entry["imd_name"] = entry["res_id"].split(".", 1)
                 entry["res_id"] = None
             if entry["type"] == "model" or entry["type"] == "model_terms":
                 entry["imd_model"] = entry["name"].partition(",")[0]
@@ -1508,9 +1523,11 @@ class TranslationReader:
                 return records
 
         if model == "ir.model.fields.selection":
-            fields = defaultdict(list)
+            fields = defaultdict(lambda: self.env["ir.model.fields.selection"])
             for selection in records:
-                fields[selection.field_id] = selection
+                # accumulate: a field has one selection record per option, and
+                # all of them must be dropped for an untranslatable model
+                fields[selection.field_id] |= selection
             for field, selection in fields.items():
                 field_name = field.name
                 field_model = self.env.get(field.model)
@@ -1631,7 +1648,10 @@ class TranslationModuleReader(TranslationReader):
     ) -> None:
         super().__init__(cr, lang)
         self._modules = modules or ["all"]
-        self._path_list = [(path, True) for path in odoo.addons.__path__]
+        # (path, recursive, is_addons_root): under an addons root a file's first
+        # path component is its module; under a framework root (orm/, tools/, …)
+        # every file belongs to 'base' regardless of depth.
+        self._path_list = [(path, True, True) for path in odoo.addons.__path__]
         self._installed_modules = [
             m["name"]
             for m in self.env["ir.module.module"].search_read(
@@ -1676,13 +1696,16 @@ class TranslationModuleReader(TranslationReader):
 
     def _get_module_from_path(self, path: str) -> str:
         p = Path(path)
-        for mp, rec in self._path_list:
+        for mp, _recursive, is_addons_root in self._path_list:
             mp_path = Path(mp)
             try:
                 rel = p.relative_to(mp_path)
             except ValueError:
                 continue
-            if rec and str(p.parent) != str(mp_path):
+            # Only under an addons root does the first component name a module;
+            # framework roots (and loose files directly under a root) fall
+            # through to 'base'.
+            if is_addons_root and str(p.parent) != str(mp_path):
                 return rel.parts[0]
         return "base"  # files that are not in a module are considered as being in 'base' module
 
@@ -1763,17 +1786,17 @@ class TranslationModuleReader(TranslationReader):
         - the spreadsheet data files
         """
 
-        # Also scan these non-addon paths
+        # Also scan these non-addon paths (framework roots: all terms -> 'base')
         for bin_path in ["orm", "osv", "report", "modules", "service", "tools"]:
-            self._path_list.append((str(Path(config.root_path, bin_path)), True))
+            self._path_list.append((str(Path(config.root_path, bin_path)), True, False))
         # non-recursive scan for individual files in root directory but without
         # scanning subdirectories that may contain addons
-        self._path_list.append((config.root_path, False))
+        self._path_list.append((config.root_path, False, False))
         _logger.debug("Scanning modules at paths: %s", self._path_list)
 
         spreadsheet_files_regex = re.compile(r".*_dashboard(\.osheet)?\.json$")
 
-        for path, recursive in self._path_list:
+        for path, recursive, _is_addons_root in self._path_list:
             _logger.debug("Scanning files of modules at %s", path)
             for root, _dummy, files in os.walk(path, followlinks=True):
                 for fname in fnmatch.filter(files, "*.py"):
@@ -1917,7 +1940,20 @@ class TranslationImporter:
         if xmlids and not isinstance(xmlids, set):
             xmlids = set(xmlids)
         valid_langs = get_base_langs(lang)
-        for row in reader:
+        # All valid rows are stored under the target ``lang`` (last write wins),
+        # so they must be applied in fallback precedence order -- least specific
+        # first, target lang last. Readers sort columns alphabetically, which is
+        # wrong for e.g. zh_HK/zh_TW (zh_HK < zh_TW alphabetically, but zh_HK is
+        # the more specific one that must win). Order by get_base_langs index.
+        rows = sorted(
+            reader,
+            key=lambda r: (
+                valid_langs.index(r.get("lang", lang))
+                if r.get("lang", lang) in valid_langs
+                else -1
+            ),
+        )
+        for row in rows:
             if not row.get("value") or not row.get("src"):  # ignore empty translations
                 continue
             if row.get("type") == "code":  # ignore code translations
@@ -1990,17 +2026,31 @@ class TranslationImporter:
                         params,
                     )
 
-                    # [id, translations, id, translations, ...]
-                    params = []
+                    # A record may be reached by several xmlids in one batch;
+                    # the SELECT then returns one row per xmlid for the same
+                    # ``id``. Merge their per-term dictionaries per record first,
+                    # so each record produces a single UPDATE row (a duplicate
+                    # ``t.id`` would otherwise let PostgreSQL apply an arbitrary
+                    # one) computed from all of its xmlids' terms.
+                    rows_by_id = {}  # id_ -> [values, noupdate, {src: {lang: value}}]
                     for id_, xmlid, values, noupdate in cr.fetchall():
                         if not values:
                             continue
+                        entry = rows_by_id.get(id_)
+                        if entry is None:
+                            entry = rows_by_id[id_] = [values, noupdate, {}]
+                        merged = entry[2]
+                        for src, translations in field_dictionary[xmlid].items():
+                            merged.setdefault(src, {}).update(translations)
+
+                    # [id, translations, id, translations, ...]
+                    params = []
+                    for id_, (values, noupdate, record_dictionary) in rows_by_id.items():
                         _value_en = values.get("_en_US", values["en_US"])
                         if not _value_en:
                             continue
 
                         # {src: {lang: value}}
-                        record_dictionary = field_dictionary[xmlid]
                         langs = {
                             lang
                             for translations in record_dictionary.values()
@@ -2043,8 +2093,8 @@ class TranslationImporter:
                         for lang in langs:
                             # translate and confirm model_terms translations
                             new_val = field.translate(
-                                lambda term, td=translation_dictionary, lang=lang: td.get(term, {}).get(
-                                    lang
+                                lambda term, td=translation_dictionary, lang=lang: (
+                                    td.get(term, {}).get(lang)
                                 ),
                                 _value_en,
                             )
@@ -2275,6 +2325,23 @@ class CodeTranslations:
                 )
             }
         )
+
+    def clear(self, module_name: str | None = None) -> None:
+        """Drop cached code translations so upgraded PO files are picked up
+        without a process restart.
+
+        This cache lives for the process lifetime and is never signaled; a
+        module upgrade that rewrites its ``.po`` files must invalidate it (see
+        ``ir.module.module._load_module_terms``). Clears every module when
+        ``module_name`` is None, else only that module's entries (all langs).
+        """
+        if module_name is None:
+            self.python_translations.clear()
+            self.web_translations.clear()
+            return
+        for cache in (self.python_translations, self.web_translations):
+            for key in [k for k in cache if k[0] == module_name]:
+                del cache[key]
 
     def get_python_translations(self, module_name: str, lang: str) -> dict[str, str]:
         if (module_name, lang) not in self.python_translations:
