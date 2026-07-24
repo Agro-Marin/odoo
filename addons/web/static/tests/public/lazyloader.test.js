@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import lazyloader from "@web/legacy/js/public/lazyloader";
+import lazyloader from "@web/public/lazyloader";
 
 // `lazyloader` (src/legacy/js/public/lazyloader.js) ships in
 // `web.assets_frontend_minimal`: it blocks button/form events until the lazy
@@ -16,7 +16,7 @@ describe.current.tags("headless");
 
 // Timeout after which a script that fired neither "load" nor "error" stops
 // blocking the page. Keep in sync with SCRIPT_LOAD_TIMEOUT_DELAY in
-// `@web/legacy/js/public/lazyloader` (not exported: the production export
+// `@web/public/lazyloader` (not exported: the production export
 // surface is kept minimal on purpose).
 const SCRIPT_LOAD_TIMEOUT_DELAY = 60000;
 

@@ -230,16 +230,6 @@ function prompt(options, _qweb) {
     return def;
 }
 
-function websiteDomain(self) {
-    let websiteID;
-    self.trigger_up("context_get", {
-        callback: function (ctx) {
-            websiteID = ctx["website_id"];
-        },
-    });
-    return ["|", ["website_id", "=", false], ["website_id", "=", websiteID]];
-}
-
 /**
  * Checks if the 2 given URLs are the same, to prevent redirecting uselessly
  * from one to another.
@@ -593,7 +583,6 @@ export default {
     onceAllImagesLoaded: onceAllImagesLoaded,
     prompt: prompt,
     sendRequest: sendRequest,
-    websiteDomain: websiteDomain,
     isHTTPSorNakedDomainRedirection: isHTTPSorNakedDomainRedirection,
     svgToPNG: svgToPNG,
     webpToPNG: webpToPNG,

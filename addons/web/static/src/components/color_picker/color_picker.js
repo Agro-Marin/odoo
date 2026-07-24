@@ -24,7 +24,7 @@ registry.category("color_picker_tabs").addValidation({
     component: { validate: (c) => typeof c === "function" },
 });
 
-// These colors are already normalized as per normalizeCSSColor in @web/legacy/js/widgets/colorpicker
+// These colors are pre-normalized CSS hex strings — no further normalization needed.
 export const DEFAULT_COLORS = [
     [
         "#000000",

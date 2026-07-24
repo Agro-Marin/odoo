@@ -3,9 +3,9 @@
     <record id="view_order_form" model="ir.ui.view">
         <field name="name">ecpay_sale_order_form_inherit</field>
         <field name="model">sale.order</field>
-        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="inherit_id" ref="sale.view_sale_order_form"/>
         <field name="arch" type="xml">
-            <group name="sale_info" position="after">
+            <group name="responsible_info" position="after">
                 <group string="ECpay invoice Information" invisible="country_code != 'TW'">
                     <field name="l10n_tw_edi_is_print" readonly="1"/>
                     <field name="l10n_tw_edi_love_code" readonly="1"/>

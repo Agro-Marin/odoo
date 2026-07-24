@@ -191,8 +191,13 @@ class WebsiteSlides(WebsiteProfile):
         slides_resources = (
             slide.slide_resource_ids if slide.channel_id.is_member else []
         )
+        # The quiz survey is an implementation detail of the slide, not a
+        # survey the visitor owns; access is already gated by slide/channel
+        # read rights. Read it sudo — as the rest of the module does (see
+        # _ensure_quiz_survey and slide_quiz_question_add_or_update) — so
+        # course members without survey groups don't hit an AccessError.
         survey_questions = (
-            slide.survey_id.question_ids.filtered(lambda q: not q.is_page)
+            slide.survey_id.sudo().question_ids.filtered(lambda q: not q.is_page)
             if slide.survey_id
             else []
         )
@@ -1225,6 +1230,9 @@ class WebsiteSlides(WebsiteProfile):
 
     @http.route(["/slides/channel/join"], type="jsonrpc", auth="public", website=True)
     def slide_channel_join(self, channel_id):
+        # Historical clients sent the id as a string; ``browse`` iterates a
+        # multi-character string into bogus ids ("19" -> ('1', '9')).
+        channel_id = int(channel_id)
         if request.website.is_public_user():
             return {
                 "error": "public_user",
@@ -1242,7 +1250,7 @@ class WebsiteSlides(WebsiteProfile):
 
     @http.route(["/slides/channel/leave"], type="jsonrpc", auth="user", website=True)
     def slide_channel_leave(self, channel_id):
-        channel = request.env["slide.channel"].browse(channel_id)
+        channel = request.env["slide.channel"].browse(int(channel_id))
         channel._remove_membership(request.env.user.partner_id.ids)
         self._channel_remove_session_answers(channel)
         return True
@@ -1841,7 +1849,9 @@ class WebsiteSlides(WebsiteProfile):
         if not slide.survey_id:
             return {"error": "slide_quiz_incomplete"}
 
-        all_questions = slide.survey_id.question_ids.filtered(lambda q: not q.is_page)
+        # sudo: the backing survey is a slide implementation detail (see
+        # _get_slide_quiz_data); members without survey groups must still submit.
+        all_questions = slide.survey_id.sudo().question_ids.filtered(lambda q: not q.is_page)
         user_answers = (
             request.env["survey.question.answer"]
             .sudo()

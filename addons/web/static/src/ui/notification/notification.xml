@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
  <t t-name="web.NotificationWowl">
- <div t-on-mouseenter="freeze" t-on-mouseleave="refresh" t-attf-class="o_notification {{props.className}} d-flex mb-2 position-relative rounded shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+ <div t-on-mouseenter="freeze" t-on-mouseleave="refresh" t-attf-class="o_notification {{props.className}} d-flex mb-2 position-relative rounded shadow-lg" t-att-role="isAssertive ? 'alert' : 'status'" t-att-aria-live="isAssertive ? 'assertive' : 'polite'" aria-atomic="true">
  <span t-attf-class="o_notification_bar bg-{{props.type}} rounded-start"/>
  <div class="w-100 py-2 ps-3 pe-5 border border-start-0 rounded-end text-break">
  <button type="button" class="o_notification_close btn-close position-absolute top-0 end-0 mt-2 me-2" aria-label="Close" t-on-click="close"/>

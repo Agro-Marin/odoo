@@ -240,15 +240,26 @@ export class MultiRecordController extends Component {
         }
     }
 
-    /** Scroll to top after pager navigation. Override for view-specific selector. */
+    /**
+     * CSS selector (relative to ``rootRef``) of the scroll container reset to
+     * the top on pager navigation. Overridden per view type (e.g. the list
+     * renderer scrolls, not ``.o_content``).
+     */
+    get scrollSelector() {
+        return ".o_content";
+    }
+
+    /** Scroll to top after pager navigation. */
     onPageChangeScroll() {
-        if (this.rootRef?.el) {
-            if (this.env.isSmall) {
-                this.rootRef.el.scrollTop = 0;
-            } else {
-                /** @type {HTMLElement} */ (
-                    this.rootRef.el.querySelector(".o_content")
-                ).scrollTop = 0;
+        if (!this.rootRef?.el) {
+            return;
+        }
+        if (this.env.isSmall) {
+            this.rootRef.el.scrollTop = 0;
+        } else {
+            const el = this.rootRef.el.querySelector(this.scrollSelector);
+            if (el) {
+                el.scrollTop = 0;
             }
         }
     }

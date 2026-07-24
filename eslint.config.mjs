@@ -85,6 +85,7 @@ const COMMUNITY_MODULES = [
     "addons/sale_stock",
     "addons/mrp",
     "addons/purchase_stock",
+    "addons/l10n_tw_edi_ecpay_website_sale",
 ];
 
 // Enterprise modules live in a SEPARATE repo (addons/enterprise), so these
@@ -236,6 +237,7 @@ const COMMUNITY_NO_CONSOLE_MODULES = [
     "addons/web_tour",
     "addons/website",
     "addons/im_livechat",
+    "addons/l10n_tw_edi_ecpay_website_sale",
 ];
 
 /**

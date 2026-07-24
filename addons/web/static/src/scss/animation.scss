@@ -85,3 +85,15 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+// Respect the user's OS "reduce motion" preference EVERYWHERE. This lives in the
+// shared animation bundle (backend AND frontend), so login, portal, public
+// pages and the database manager honor it too — not only the backend webclient.
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

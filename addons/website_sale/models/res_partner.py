@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import _, api, models
+from odoo import SUPERUSER_ID, _, api, models
 from odoo.fields import Domain
 from odoo.http import request
 
@@ -40,8 +40,16 @@ class ResPartner(models.Model):
     def _get_frontend_writable_fields(self):
         """ Override `portal` to make website whitelist fields writable in portal address. """
         frontend_writable_fields = super()._get_frontend_writable_fields()
+        # Internal submission path: run as SUPERUSER to satisfy the editor
+        # gate on ``get_authorized_fields`` (the field *names* are used as a
+        # whitelist here; no metadata is exposed to the requesting user), as
+        # ``extract_data`` already does.
         frontend_writable_fields.update(
-            self.env['ir.model']._get('res.partner')._get_form_writable_fields().keys()
+            self.env['ir.model']
+            .with_user(SUPERUSER_ID)
+            ._get('res.partner')
+            ._get_form_writable_fields()
+            .keys()
         )
 
         return frontend_writable_fields

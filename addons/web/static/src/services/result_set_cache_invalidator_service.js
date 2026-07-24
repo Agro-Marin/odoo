@@ -36,7 +36,7 @@ export const RESULT_SET_REMOVING_METHODS = new Set([
  * and therefore must be invalidated when any record disappears.
  *
  * Excludes ``get_views`` (action menus, view defs — invalidated by
- * ``view_service`` and ``search_query_mutations`` on view/filter writes,
+ * ``view_service`` and the search query mixin on view/filter writes,
  * not by record removal) and ``/web/action/load`` (action defs —
  * invalidated by ``action_service`` on ``ir.actions.act_window`` writes).
  */

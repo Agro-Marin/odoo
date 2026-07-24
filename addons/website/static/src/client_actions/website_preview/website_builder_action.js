@@ -78,7 +78,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.ui = useService("ui");
         this.title = useService("title");
         this.hotkeyService = useService("hotkey");
-        this.websiteService.websiteRootInstance = undefined;
+        this.websiteService.websitePublicEnv = undefined;
         this.iframeFallbackUrl = "/website/iframefallback";
         this.iframefallback = useRef("iframefallback");
 
@@ -513,7 +513,7 @@ export class WebsiteBuilderClientAction extends Component {
                     new URL(href).pathname
                 ) {
                     // This scenario triggers a navigation inside the iframe.
-                    this.websiteService.websiteRootInstance = undefined;
+                    this.websiteService.websitePublicEnv = undefined;
 
                     this.isNavigatingToAnotherPage = new Deferred();
                 }
@@ -599,7 +599,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.ui.block();
         this.preparePublicRootReady();
         this.setIframeLoaded();
-        this.websiteService.websiteRootInstance = undefined;
+        this.websiteService.websitePublicEnv = undefined;
         if (url) {
             const urlObj = new URL(url, this.websiteContent.el.contentWindow.location);
             const pathSegments = urlObj.pathname.split("/").map(encodeURIComponent);
@@ -658,7 +658,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.websiteContent.el.contentWindow.addEventListener(
             "PUBLIC-ROOT-READY",
             (event) => {
-                this.websiteService.websiteRootInstance = event.detail.rootInstance;
+                this.websiteService.websitePublicEnv = event.detail.env;
                 deferred.resolve();
             },
             { once: true },

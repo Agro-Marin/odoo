@@ -49,4 +49,26 @@ export class ButtonBox extends Component {
     isSlotVisible(slot) {
         return !("isVisible" in slot) || slot.isVisible;
     }
+
+    /**
+     * Selection handler for an overflow ("More") DropdownItem.
+     *
+     * Each additional stat button is a self-contained ViewButton that owns its
+     * own action AND closes the dropdown (via its onClick's beforeExecute). The
+     * wrapping DropdownItem's onClick stops at ``onSelected`` + closeAll, so it
+     * only ever wins the click when the pointer resolves to the wrapper rather
+     * than the inner button — which happens on touch (notably Android Chrome),
+     * where the resulting "sheet closes, no action" is the whole bug. Forward
+     * the selection to the wrapped button so activating the row anywhere runs
+     * the action. A direct hit on the button stops propagation before reaching
+     * here, so there is no double activation.
+     *
+     * @param {MouseEvent} ev - click event from the DropdownItem
+     */
+    activateStatButton(ev) {
+        const item = /** @type {HTMLElement} */ (ev.currentTarget);
+        /** @type {HTMLElement | null} */ (
+            item.querySelector(".oe_stat_button")
+        )?.click();
+    }
 }

@@ -104,7 +104,12 @@ Layered organization under `static/src/`:
 | **Search** | `search/` | Search bar, facets, filters, group-by, favorites, embedded actions bar | 32 JS |
 | **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 42 JS |
 | **Public** | `public/` | Public (anonymous) page features | 11 JS |
-| **Legacy** | `legacy/` | Legacy compatibility namespace: Resig `Class` inheritance + public-widget loader (`legacy/js/core/`, `legacy/js/public/`) | 6 JS |
+> **The `legacy/` namespace was fully retired (2026-07-23).** The Resig `Class`
+> inheritance system, `publicWidget`, `PublicRoot` and the `root.widget` alias
+> are gone: all public-page features run on `public.interactions`. The frontend
+> app boot lives in `public/public_boot.js` (+ `public_boot_instance.js`, kept
+> out of the test bundles via a `remove` directive); the early-boot
+> `lazyloader.js` / `minimal_dom.js` moved to `public/`.
 | **Vendored-in-src** | `libs/` | FontAwesome 7 icon CSS/webfonts + its JS glue — vendored inside `src/` (unlike `static/lib/`) | 1 JS |
 
 ## JavaScript Services
@@ -264,7 +269,7 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 | `web.assets_web` | Full backend | `assets_backend` + `main.js` + `start.js` entry points |
 | `web.assets_backend` | Backend components | Bootstrap, OWL, all services, **all views including graph + pivot**, webclient shell |
 | `web.assets_frontend` | Public pages | OWL, Bootstrap, core services (no backend views) |
-| `web.assets_frontend_minimal` | Early bootstrap | Session bootstrap (session.js), cookies (core/browser/cookie.js), minimal DOM helpers (core/utils/dom/ui.js), lazyloader + minimal_dom (legacy/js/public). **Does NOT contain `module_loader.js`** — the loader shim is emitted inline, not via any bundle. |
+| `web.assets_frontend_minimal` | Early bootstrap | Session bootstrap (session.js), cookies (core/browser/cookie.js), minimal DOM helpers (core/utils/dom/ui.js), lazyloader + minimal_dom (static/src/public/). **Does NOT contain `module_loader.js`** — the loader shim is emitted inline, not via any bundle. |
 | `web.assets_frontend_lazy` | Frontend extended | Full frontend with all components |
 | `web.assets_web_dark` | Dark mode | CSS overrides for backend |
 | `web.assets_web_print` | Print | Print stylesheet overrides |
@@ -300,9 +305,9 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 > `web.tests_assets`, `web.__assets_tests_call__` and `web.qunit_suite_tests`
 > bundles (plus the `/web/tests/legacy` controller route and `static/tests/legacy/`
 > suite tree) were deleted. All JS unit testing now runs through HOOT
-> (`web.assets_unit_tests*`). The two production-relevant legacy suites (`Class`
-> and `publicWidget.Widget`) were ported to HOOT under
-> `web/static/tests/legacy_js/`.
+> (`web.assets_unit_tests*`). The `Class` and `publicWidget.Widget` suites were
+> deleted with the legacy namespace (2026-07-23); the surviving `lazyloader`
+> suite lives in `web/static/tests/public/`.
 
 ### Library Bundles
 

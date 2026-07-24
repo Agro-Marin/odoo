@@ -129,8 +129,8 @@ Disposition of the 6 former QUnit suites:
 
 | Former suite | Disposition |
 |---|---|
-| `legacy_tests/core/class_tests.js` | **Ported** → `tests/legacy_js/class.test.js` (Class is production code) |
-| `public/public_widget_tests.js` | **Ported** → `tests/legacy_js/public_widget.test.js` (publicWidget.Widget is production code) |
+| `legacy_tests/core/class_tests.js` | **Ported** → `tests/legacy_js/class.test.js`, then **deleted 2026-07-23** with the retired `Class` system |
+| `public/public_widget_tests.js` | **Ported** → `tests/legacy_js/public_widget.test.js`, then **deleted 2026-07-23** with the retired `publicWidget` (lazyloader suite moved to `tests/public/`) |
 | `core/utils/nested_sortable_tests.js` | Deleted — helper-only file (no `QUnit.test`); HOOT coverage in `tests/core/utils/nested_sortable.test.js` |
 | `views/graph_view_tests.js` | Deleted — helper-only file (no `QUnit.test`); HOOT coverage in `tests/views/graph/graph_view.test.js` |
 | `legacy_tests/helpers/test_utils_tests.js` | Deleted — meta-test of the deleted legacy `patchDate` helper (obsolete under HOOT's mock clock) |

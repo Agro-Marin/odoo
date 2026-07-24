@@ -54,7 +54,7 @@
     <menuitem
         id="menu_l10n_in_pan_entity"
         name="PAN Entity"
-        parent="account.account_transactions_menu"
+        parent="account.menu_account_transactions"
         action="l10n_in_pan_entity_action"
     />
 

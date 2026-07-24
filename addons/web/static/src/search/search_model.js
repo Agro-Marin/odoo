@@ -26,11 +26,7 @@ import {
 } from "./search_domain.js";
 import { enrichSearchItem } from "./search_enrichment.js";
 import { buildFacets } from "./search_facets.js";
-import {
-    buildIrFilterDescription,
-    irFilterToFavorite,
-    reconciliateFavorites,
-} from "./search_favorites.js";
+import { SearchFavoritesMixin } from "./search_favorites_mixin.js";
 import {
     computeGroupBy,
     computeOrderBy,
@@ -38,14 +34,10 @@ import {
     getQueryGroups,
     getSelectedGeneratorIds,
 } from "./search_group_by.js";
-import * as panelState from "./search_panel/search_panel_state.js";
-import {
-    fetchPropertiesDefinition as _fetchPropertiesDefinition,
-    fillSearchViewItemsProperty as _fillSearchViewItemsProperty,
-    getSearchItemsProperties as _getSearchItemsProperties,
-} from "./search_properties.js";
-import * as queryMut from "./search_query_mutations.js";
-import { splitAndAddDomain as _splitAndAddDomain } from "./search_split_domain.js";
+import { SearchPanelMixin } from "./search_panel/search_panel_mixin.js";
+import { SearchPropertiesMixin } from "./search_properties_mixin.js";
+import { SearchQueryMixin } from "./search_query_mixin.js";
+import { SearchSplitDomainMixin } from "./search_split_domain_mixin.js";
 import {
     arrayToMap,
     execute,
@@ -60,18 +52,19 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
 
 /**
- * Structural contract between SearchModel and its delegate modules
- * (search_query_mutations, search_split_domain, search_properties,
- * search_panel/search_panel_state). It documents the instance state AND the
- * model methods those delegates read, write, or call back into — the real seam
- * left by the facade split — so a rename on the model side is caught at the
- * seam instead of type-checking silently.
+ * Documents SearchModel's internal member surface — the instance state and
+ * methods the split-out concerns (now the panel/properties/favorites/query/
+ * split-domain mixins) read, write, or call back into. Every concern is folded
+ * into the prototype chain and accesses this surface via ``this.*``; keeping the
+ * surface enumerated here means a rename on the model side is a visible diff
+ * against a single contract rather than a silent break scattered across mixins.
+ * (Formerly the pass-`this` "delegate module" seam; the modules became mixins,
+ * but the enumerated surface is still the useful invariant.)
  *
  * The former `& Record<string, any>` escape hatch (which admitted any property
- * access and defeated the whole point) has been removed; the surface below is
- * the exhaustive set of `searchModel.*` members reached from the four delegate
- * files. Externally-provided objects (`env`, ORM/services, tree processor) are
- * intentionally `any` — they are not part of the invariant this seam guards.
+ * access and defeated the whole point) has been removed.
+ * Externally-provided objects (`env`, ORM/services, tree processor) are
+ * intentionally `any` — they are not part of the invariant this contract guards.
  * Mutations are still funneled by convention rather than through dedicated
  * helper methods (see A11 note): tightening the typedef was the low-risk half.
  *
@@ -122,6 +115,7 @@ import { getIntervalOptions } from "./utils/dates.js";
  *   createNewGroupBy: Function,
  *   toggleSearchItem: Function,
  *   toggleDateGroupBy: Function,
+ *   _withNotificationsBlocked: (fn: () => void) => void,
  *   splitAndAddDomain: Function,
  *   getSearchItems: Function,
  *   _createGroupOfSearchItems: Function,
@@ -170,7 +164,11 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @typedef {Section & { type: "filter" }} Filter */
 /** @typedef {(section: Section) => boolean} SectionPredicate */
 
-export class SearchModel extends EventBus {
+export class SearchModel extends SearchQueryMixin(
+    SearchSplitDomainMixin(
+        SearchFavoritesMixin(SearchPropertiesMixin(SearchPanelMixin(EventBus))),
+    ),
+) {
     constructor(env, services, args) {
         super();
         this.env = env;
@@ -273,10 +271,10 @@ export class SearchModel extends EventBus {
         this.defaultGroupBy = config.defaultGroupBy;
         // Declared here so the class formally satisfies its own SearchModelLike
         // contract (the seam the delegates type against): both are seam state
-        // owned by the model but written from delegates —
-        // `defaultGroupByRemoved` is set true by search_query_mutations when the
+        // owned by the model but written from delegates / mixins —
+        // `defaultGroupByRemoved` is set true by the query mixin when the
         // user dismisses the default group-by, and `_filledPropertyFields` is
-        // lazily filled (`??= new Map()`) by search_properties. Initialising to
+        // lazily filled (`??= new Map()`) by the properties mixin. Initialising to
         // undefined here is behaviour-identical to their previous
         // absent-until-written state, but lets `this` type-check at every
         // `delegate(this, ...)` call site instead of failing assignability.
@@ -606,59 +604,6 @@ export class SearchModel extends EventBus {
     // Public
     //--------------------------------------------------------------------------
 
-    /** Activate a filter of type 'field' with autocomplete value. */
-    addAutoCompletionValues(searchItemId, autocompleteValue) {
-        return queryMut.addAutoCompletionValues(this, searchItemId, autocompleteValue);
-    }
-
-    /** Remove all query elements. */
-    clearQuery() {
-        return queryMut.clearQuery(this);
-    }
-
-    /** Remove filter, field and favorite facets but keep groupBy ones. */
-    clearFilters() {
-        return queryMut.clearFilters(this);
-    }
-
-    /**
-     * Create a new filter of type 'favorite' and activate it.
-     * @param {Object} params
-     * @returns {Promise<number>}
-     */
-    async createNewFavorite(params) {
-        return queryMut.createNewFavorite(this, params);
-    }
-
-    /**
-     * Create new search items of type 'filter' and activate them.
-     * @param {Object[]} prefilters
-     * @returns {number[]} ids of the created search items
-     */
-    createNewFilters(prefilters) {
-        return queryMut.createNewFilters(this, prefilters);
-    }
-
-    /**
-     * Create a new filter of type 'groupBy' or 'dateGroupBy' and activate it.
-     * @param {string} fieldName
-     * @param {Object} [param]
-     * @returns {number} id of the created search item
-     */
-    createNewGroupBy(fieldName, { interval, invisible } = {}) {
-        return queryMut.createNewGroupBy(this, fieldName, { interval, invisible });
-    }
-
-    /** Deactivate a group, i.e. delete the query elements with given groupId. */
-    deactivateGroup(groupId) {
-        return queryMut.deactivateGroup(this, groupId);
-    }
-
-    /** Create an ir.filters record on the server. */
-    async _createIrFilters(irFilter) {
-        return queryMut.createIrFilters(this, irFilter);
-    }
-
     /**
      * @returns {Object}
      */
@@ -666,16 +611,6 @@ export class SearchModel extends EventBus {
         const state = {};
         execute(mapToArray, this, state);
         return state;
-    }
-
-    getIrFilterValues(params) {
-        const { irFilter } = this._getIrFilterDescription(params);
-        return irFilter;
-    }
-
-    getPreFavoriteValues(params) {
-        const { preFavorite } = this._getIrFilterDescription(params);
-        return preFavorite;
     }
 
     /**
@@ -713,81 +648,13 @@ export class SearchModel extends EventBus {
         return searchItems;
     }
 
-    /**
-     * Returns a sorted list of section copies, optionally filtered.
-     * @param {SectionPredicate} [predicate]
-     * @returns {Section[]}
-     */
-    getSections(predicate) {
-        return panelState.getSections(this, predicate);
-    }
-
     search() {
         this.trigger(SearchModelEvent.UPDATE);
-    }
-
-    async splitAndAddDomain(domain, groupId) {
-        return _splitAndAddDomain(this, domain, groupId);
-    }
-
-    /** Set the active value of a category. */
-    toggleCategoryValue(sectionId, valueId) {
-        return panelState.toggleCategoryValue(this, sectionId, valueId);
-    }
-
-    /** Toggle filter values on or off. */
-    toggleFilterValues(sectionId, valueIds, forceTo = null) {
-        return panelState.toggleFilterValues(this, sectionId, valueIds, forceTo);
-    }
-
-    /** Clear all values from the provided sections. */
-    clearSections(sectionIds) {
-        return panelState.clearSections(this, sectionIds);
-    }
-
-    /** Toggle a simple filter on or off. */
-    toggleSearchItem(searchItemId) {
-        return queryMut.toggleSearchItem(this, searchItemId);
-    }
-
-    /** Toggle a date filter query element. */
-    toggleDateFilter(searchItemId, generatorId) {
-        return queryMut.toggleDateFilter(this, searchItemId, generatorId);
-    }
-
-    /** Toggle a date groupBy interval. */
-    toggleDateGroupBy(searchItemId, intervalId) {
-        return queryMut.toggleDateGroupBy(this, searchItemId, intervalId);
-    }
-
-    /** Open the custom filter dialog (DomainSelectorDialog). */
-    async spawnCustomFilterDialog() {
-        return queryMut.spawnCustomFilterDialog(this);
-    }
-
-    /** Toggle groupBy sort direction. */
-    switchGroupBySort() {
-        return queryMut.switchGroupBySort(this);
-    }
-
-    /** Generate search items for properties. Delegates to search_properties.js. */
-    async getSearchItemsProperties(searchItem) {
-        return _getSearchItemsProperties(this, searchItem);
     }
 
     //--------------------------------------------------------------------------
     // Private methods
     //--------------------------------------------------------------------------
-
-    /** Lazily populate property-based search/group-by items. Delegates to search_properties.js. */
-    async fillSearchViewItemsProperty() {
-        return _fillSearchViewItemsProperty(this);
-    }
-
-    /** Fetch property definitions. Delegates to search_properties.js. */
-    async _fetchPropertiesDefinition(resModel, fieldName) {
-        return _fetchPropertiesDefinition(this, resModel, fieldName);
-    }
 
     /**
      * Activate the default favorite (if any) or all default filters.
@@ -815,16 +682,6 @@ export class SearchModel extends EventBus {
         }
     }
 
-    /** Build a category tree from ORM results. */
-    _createCategoryTree(sectionId, result) {
-        return panelState.createCategoryTree(this, sectionId, result);
-    }
-
-    /** Build a filter tree from ORM results. */
-    _createFilterTree(sectionId, result) {
-        return panelState.createFilterTree(this, sectionId, result);
-    }
-
     /**
      * Add filters of type 'filter' determined by the key array dynamicFilters.
      */
@@ -843,18 +700,6 @@ export class SearchModel extends EventBus {
     /**
      * Add filters of type 'favorite' determined by the array this.favoriteFilters.
      */
-    _createGroupOfFavorites(irFilters) {
-        let defaultFavoriteId = null;
-        irFilters.forEach((irFilter) => {
-            const favorite = this._irFilterToFavorite(irFilter);
-            this._createGroupOfSearchItems([favorite]);
-            if (favorite.isDefault) {
-                defaultFavoriteId = favorite.id;
-            }
-        });
-        return defaultFavoriteId;
-    }
-
     /**
      * Using a list (a 'pregroup') of 'prefilters', create new filters in `searchItems`
      * for each prefilter. The new filters belong to a same new group.
@@ -888,28 +733,8 @@ export class SearchModel extends EventBus {
         );
     }
 
-    /** Ensure the active category value is among existing values. */
-    _ensureCategoryValue(category, valueIds) {
-        return panelState.ensureCategoryValue(category, valueIds);
-    }
-
     _extractSearchDefaultsFromGlobalContext() {
         return extractSearchDefaults(this.globalContext);
-    }
-
-    /** Fetch values for each category at startup or reload. */
-    async _fetchCategories(categories) {
-        return panelState.fetchCategories(this, categories);
-    }
-
-    /** Fetch values for each filter section. */
-    async _fetchFilters(filters) {
-        return panelState.fetchFilters(this, filters);
-    }
-
-    /** Fetch values for the given categories and filters. */
-    async _fetchSections(categoriesToLoad, filtersToLoad) {
-        return panelState.fetchSections(this, categoriesToLoad, filtersToLoad);
     }
 
     /**
@@ -1077,48 +902,6 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     *
-     * @private
-     * @param {Object} [params={}]
-     * @returns {{ preFavorite: Object, irFilter: Object }}
-     */
-    _getIrFilterDescription(params = {}) {
-        const { description, isDefault, isShared, embeddedActionId } = params;
-        const fns = this.env.__getContext__.callbacks;
-        const localContext = Object.assign({}, ...fns.map((fn) => fn()));
-        const gs = this.env.__getOrderBy__.callbacks;
-        let localOrderBy;
-        if (gs.length) {
-            localOrderBy = gs.flatMap((g) => g());
-        }
-        return buildIrFilterDescription({
-            description,
-            isDefault,
-            isShared,
-            embeddedActionId,
-            localContext,
-            localOrderBy,
-            getContext: () => this._getContext(),
-            // withSearchPanel:false — do NOT bake the live search-panel
-            // category/filter selections into the saved favorite's domain.
-            // Activating a favorite only resets `query` (not panel state), so a
-            // baked-in panel domain would be AND-ed on top of whatever panel
-            // selection is live at activation time (stale/contradictory).
-            getDomain: () =>
-                this._getDomain({
-                    raw: true,
-                    withGlobal: false,
-                    withSearchPanel: false,
-                }),
-            getGroupBy: () => this._getGroupBy(),
-            getOrderBy: () => this._getOrderBy(),
-            globalContext: this.globalContext,
-            actionId: this.env.config.actionId,
-            resModel: this.resModel,
-        });
-    }
-
-    /**
      * @returns {OrderTerm[]}
      */
     _getOrderBy() {
@@ -1178,16 +961,6 @@ export class SearchModel extends EventBus {
         execute(arrayToMap, state, this);
     }
 
-    /**
-     * @param {Object} irFilter
-     */
-    _irFilterToFavorite(irFilter) {
-        // Passing the field metadata screens out group_by entries naming
-        // removed fields (see irFilterToFavorite) — favorites only; arch-
-        // defined groupbys don't go through this path.
-        return irFilterToFavorite(irFilter, this.searchViewFields);
-    }
-
     async _notify() {
         // Reset memoized state even when notifications are blocked: the
         // query did change, so the memos are stale either way.
@@ -1226,41 +999,6 @@ export class SearchModel extends EventBus {
     }
 
     /**
-     * Reconciliate the search items with the ir.filters.
-     * @private
-     */
-    _reconciliateFavorites() {
-        // Only reconcile when ir.filters were actually (re)loaded for this
-        // import. `this.irFilters` is set solely when the config carried them
-        // (undefined otherwise); reconciling against undefined treated every
-        // imported favorite as server-deleted and removed it — plus its active
-        // query entry. Distinguish "not loaded" (undefined) from "loaded,
-        // empty" ([]). (enterprise/knowledge overrides this to a no-op purely
-        // to dodge that data loss; this guard makes the base path safe.)
-        if (this.irFilters === undefined) {
-            return;
-        }
-        reconciliateFavorites(
-            this.searchItems,
-            this.query,
-            this.irFilters,
-            (irFilter) => this._irFilterToFavorite(irFilter),
-            (irFilters) => this._createGroupOfFavorites(irFilters),
-        );
-    }
-
-    /**
-     * Reload sections when search domain changes or search panel becomes
-     * visible. All callers (reload(), _notify()) funnel through a single Mutex
-     * so panel reloads run strictly sequentially — never overlapping — which is
-     * what makes the blockNotification window inside reloadSections safe (no
-     * second reload is awaiting when the first restores the flag).
-     */
-    async _reloadSections() {
-        return this._reloadMutex.exec(() => panelState.reloadSections(this));
-    }
-
-    /**
      * Freeze a memoized getter result in dev mode to enforce the read-only
      * convention (shared with facets/getSections). Shallow (top-level) — enough
      * to catch an accidental push/splice or top-level key assignment — and a
@@ -1285,11 +1023,6 @@ export class SearchModel extends EventBus {
         this._facets = null;
         this._enrichedSearchItems = null;
         this._sections = null;
-    }
-
-    /** Whether the query should wait for section data before proceeding. */
-    _shouldWaitForData(searchDomainChanged) {
-        return panelState.shouldWaitForData(this, searchDomainChanged);
     }
 
     /**

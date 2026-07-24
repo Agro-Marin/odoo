@@ -1,12 +1,12 @@
 // @ts-check
 
 /**
- * Pure unit tests for search/search_split_domain.js.
+ * Unit tests for search/search_split_domain_mixin.js.
  *
- * splitAndAddDomain receives the SearchModel as first argument (delegation
- * pattern); tests use a minimal mock whose query-mutation methods delegate to
- * the real search_query_mutations functions, so the query-order observable
- * (which drives facet order) is exercised through the genuine chain. The
+ * splitAndAddDomain is a SearchModel mixin method; tests build the mock on a
+ * real SearchSplitDomainMixin(SearchQueryMixin(...)) instance so its
+ * query-mutation methods run the genuine logic, exercising the query-order
+ * observable (which drives facet order) through the real chain. The
  * treeProcessor is stubbed: trees are built with the real condition_tree
  * helpers so domainFromTree runs unmocked.
  */
@@ -14,16 +14,13 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { condition, connector } from "@web/core/tree/condition_tree";
 import { computeSearchItemGroupBys, getQueryGroups } from "@web/search/search_group_by";
-import {
-    createNewFilters,
-    createNewGroupBy,
-    deactivateGroup,
-    toggleDateGroupBy,
-    toggleSearchItem,
-} from "@web/search/search_query_mutations";
-import { splitAndAddDomain } from "@web/search/search_split_domain";
+import { SearchQueryMixin } from "@web/search/search_query_mixin";
+import { SearchSplitDomainMixin } from "@web/search/search_split_domain_mixin";
 
 describe.current.tags("headless");
+
+/** Concrete class exercising the split-domain + query mixins in isolation. */
+const QueryModel = SearchSplitDomainMixin(SearchQueryMixin(class {}));
 
 /**
  * Build a minimal SearchModel mock around a stubbed treeProcessor.
@@ -32,7 +29,8 @@ describe.current.tags("headless");
  */
 function makeSearchModel(tree, overrides = {}) {
     const notifications = [];
-    const model = {
+    const model = new QueryModel();
+    Object.assign(model, {
         query: [],
         searchItems: {},
         searchViewFields: {},
@@ -66,25 +64,9 @@ function makeSearchModel(tree, overrides = {}) {
         _getSearchItemGroupBys(activeItem) {
             return computeSearchItemGroupBys(activeItem, this.searchItems);
         },
-        deactivateGroup(groupId) {
-            deactivateGroup(this, groupId);
-        },
-        createNewFilters(prefilters) {
-            return createNewFilters(this, prefilters);
-        },
-        createNewGroupBy(fieldName, options) {
-            return createNewGroupBy(this, fieldName, options);
-        },
-        toggleSearchItem(id) {
-            toggleSearchItem(this, id);
-        },
-        toggleDateGroupBy(id, intervalId) {
-            toggleDateGroupBy(this, id, intervalId);
-        },
-
         _notifications: notifications,
         ...overrides,
-    };
+    });
     return model;
 }
 
@@ -115,7 +97,7 @@ describe("splitAndAddDomain", () => {
         const model = makeSearchModel(tree);
         addItem(model, 1, { type: "filter", domain: "[]" });
 
-        await splitAndAddDomain(model, `[("foo", "=", 1), ("bar", "=", 2)]`);
+        await model.splitAndAddDomain(`[("foo", "=", 1), ("bar", "=", 2)]`);
 
         expect(queryIds(model)).toEqual([1, 2, 3]);
         const created = model.searchItems[2];
@@ -138,7 +120,7 @@ describe("splitAndAddDomain", () => {
         addItem(model, 2, { type: "filter", domain: "[]" });
         addItem(model, 3, { type: "filter", domain: "[]" });
 
-        await splitAndAddDomain(model, `[("foo", "=", 1), ("bar", "=", 2)]`, 2);
+        await model.splitAndAddDomain(`[("foo", "=", 1), ("bar", "=", 2)]`, 2);
 
         // The two new filters (ids 4, 5) take the replaced group's position.
         expect(queryIds(model)).toEqual([1, 4, 5, 3]);
@@ -160,7 +142,7 @@ describe("splitAndAddDomain", () => {
             groupBys: ["stage_id"],
         });
 
-        await splitAndAddDomain(model, `[("foo", "=", 1)]`, 5);
+        await model.splitAndAddDomain(`[("foo", "=", 1)]`, 5);
 
         // Pinned observable: recreated groupBy first, then the new filter at
         // the favorite's (pre-rotation) position, then the other groups.

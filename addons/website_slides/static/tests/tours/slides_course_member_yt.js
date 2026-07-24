@@ -1,21 +1,34 @@
 import { registry } from "@web/core/registry";
+import { patch } from "@web/core/utils/patch";
 
+let fullScreenPatched = false;
 function patchFullScreen() {
     /**
      * Alter this method for test purposes.
      * This will make the video start at 10 minutes.
      * As it lasts 10min24s, it will mark it as completed immediately.
+     *
+     * The FullscreenPlayer class is fetched from the module loader (the
+     * already-loaded frontend instance) rather than a static import: this
+     * test file lives in a separate asset bundle, and statically importing
+     * the interaction would re-evaluate its module there, re-registering it
+     * in `public.interactions` with a second `Interaction` identity (the
+     * registry schema predicate then transiently rejects it).
      */
-    const FullScreen = odoo.loader.modules.get(
-        "@website_slides/js/slides_course_fullscreen_player",
-    )[Symbol.for("default")];
-    FullScreen.include({
-        _renderSlide: function () {
+    if (fullScreenPatched) {
+        return;
+    }
+    fullScreenPatched = true;
+    const { FullscreenPlayer } = odoo.loader.modules.get(
+        "@website_slides/interactions/fullscreen_player",
+    );
+    patch(FullscreenPlayer.prototype, {
+        _renderSlide() {
             const slide = this._slideValue;
             slide.embedUrl += "&start=260";
             this._updateSlideValue(slide);
 
-            return this._super.call(this, arguments);
+            return super._renderSlide(...arguments);
         },
     });
 }

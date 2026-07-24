@@ -36,7 +36,7 @@ export const websiteService = {
         let pageDocument;
         let contentWindow;
         let lastUrl;
-        let websiteRootInstance;
+        let websitePublicEnv;
         let isRestrictedEditor;
         let isDesigner;
         let hasMultiWebsites;
@@ -224,12 +224,12 @@ export const websiteService = {
             get contentWindow() {
                 return contentWindow;
             },
-            get websiteRootInstance() {
-                return websiteRootInstance;
+            get websitePublicEnv() {
+                return websitePublicEnv;
             },
-            set websiteRootInstance(rootInstance) {
-                websiteRootInstance = rootInstance;
-                context.isPublicRootReady = !!rootInstance;
+            set websitePublicEnv(env) {
+                websitePublicEnv = env;
+                context.isPublicRootReady = !!env;
             },
             set lastUrl(url) {
                 lastUrl = url;
@@ -273,7 +273,7 @@ export const websiteService = {
             },
 
             goToWebsite({ websiteId, path, edition, translation, lang } = {}) {
-                this.websiteRootInstance = undefined;
+                this.websitePublicEnv = undefined;
                 if (lang) {
                     invalidateSnippetCache = true;
                     path = `/website/lang/${encodeURIComponent(lang)}?r=${encodeURIComponent(

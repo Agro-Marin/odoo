@@ -11,7 +11,7 @@
                     <i t-else="" class="fa-solid fa-bolt lh-base" aria-hidden="true"/>
                 </button>
                 <t t-set-slot="content">
-                    <DropdownItem t-foreach="additionalButtons" t-as="button" t-key="button_value" class="'d-flex flex-column p-0'">
+                    <DropdownItem t-foreach="additionalButtons" t-as="button" t-key="button_value" class="'d-flex flex-column p-0'" onSelected.bind="activateStatButton">
                         <t t-slot="{{ button_value }}" />
                     </DropdownItem>
                 </t>
