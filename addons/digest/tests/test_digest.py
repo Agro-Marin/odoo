@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from ast import literal_eval
@@ -44,7 +43,7 @@ class TestDigest(TestDigestCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestDigest, cls).setUpClass()
+        super().setUpClass()
         cls.reference_datetime = datetime(2024, 2, 13, 13, 30, 0)
 
         # clean messages
@@ -289,6 +288,7 @@ class TestDigest(TestDigestCommon):
                 ('quarterly', self.reference_datetime.date() + relativedelta(months=3), 'Quaterly ok'),  # just push date
                 ('quarterly', self.reference_datetime.date() + relativedelta(months=3), 'Quaterly ok'),  # just push date
             ],
+            strict=True,
         ):
             with self.subTest(logs=logs, msg=msg, periodicity=periodicity, run_date=run_date):
                 digest.write({
@@ -311,7 +311,7 @@ class TestDigest(TestDigestCommon):
 class TestUnsubscribe(MailCommon, HttpCaseWithUserDemo):
 
     def setUp(self):
-        super(TestUnsubscribe, self).setUp()
+        super().setUp()
 
         self.test_digest = self.env['digest.digest'].create({
             'kpi_mail_message_total': True,

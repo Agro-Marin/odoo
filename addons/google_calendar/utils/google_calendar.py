@@ -1,14 +1,15 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from uuid import uuid4
-import requests
 import json
 import logging
+from uuid import uuid4
+
+import requests
 
 from odoo import fields
-from odoo.addons.google_calendar.utils.google_event import GoogleEvent
-from odoo.addons.google_account.models.google_service import TIMEOUT
 
+from odoo.addons.google_account.models.google_service import TIMEOUT
+from odoo.addons.google_calendar.utils.google_event import GoogleEvent
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ def requires_auth_token(func):
 class InvalidSyncToken(Exception):
     pass
 
-class GoogleCalendarService():
+class GoogleCalendarService:
 
     def __init__(self, google_service):
         self.google_service = google_service
@@ -46,11 +47,11 @@ class GoogleCalendarService():
             params['timeMin'] = lower_bound.isoformat() + 'Z'  # Z = UTC (RFC3339)
             params['timeMax'] = upper_bound.isoformat() + 'Z'  # Z = UTC (RFC3339)
         try:
-            status, data, time = self.google_service._do_request(url, params, headers, method='GET', timeout=timeout)
+            _status, data, _time = self.google_service._do_request(url, params, headers, method='GET', timeout=timeout)
         except requests.HTTPError as e:
             if e.response.status_code == 410 and 'fullSyncRequired' in str(e.response.content):
-                raise InvalidSyncToken("Invalid sync token. Full sync required")
-            raise e
+                raise InvalidSyncToken("Invalid sync token. Full sync required") from e
+            raise
 
         if event_id:
             next_sync_token = None
@@ -61,7 +62,7 @@ class GoogleCalendarService():
         next_page_token = data.get('nextPageToken')
         while next_page_token:
             params = {'access_token': token, 'pageToken': next_page_token}
-            status, data, time = self.google_service._do_request(url, params, headers, method='GET', timeout=timeout)
+            _status, data, _time = self.google_service._do_request(url, params, headers, method='GET', timeout=timeout)
             next_page_token = data.get('nextPageToken')
             events += data.get('items', [])
 
@@ -103,8 +104,8 @@ class GoogleCalendarService():
         except requests.HTTPError as e:
             # For some unknown reason Google can also return a 403 response when the event is already cancelled.
             if e.response.status_code not in (410, 403):
-                raise e
-            _logger.info("Google event %s was already deleted" % event_id)
+                raise
+            _logger.info("Google event %s was already deleted", event_id)
 
 
     #################################

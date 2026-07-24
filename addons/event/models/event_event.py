@@ -1,23 +1,24 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-import pytz
 import textwrap
 import urllib.parse
 from datetime import datetime, timedelta
-
-from dateutil.relativedelta import relativedelta
-from markupsafe import escape
 from urllib.parse import urlparse
 
-from odoo import _, api, Command, fields, models, tools
-from odoo.addons.base.models.res_partner import _tz_get
+import pytz
+from dateutil.relativedelta import relativedelta
+from markupsafe import escape
+
+from odoo import Command, _, api, fields, models, tools
 from odoo.exceptions import ValidationError
 from odoo.fields import Datetime, Domain
-from odoo.tools import format_date, format_datetime, format_time, frozendict
-from odoo.tools.mail import is_html_empty, html_to_inner_content
+from odoo.tools import format_date, frozendict
+from odoo.tools.mail import html_to_inner_content, is_html_empty
 from odoo.tools.misc import formatLang
 from odoo.tools.translate import html_translate
+
+from odoo.addons.base.models.res_partner import _tz_get
 
 _logger = logging.getLogger(__name__)
 
@@ -240,7 +241,7 @@ class EventEvent(models.Model):
 
             if questions_tokeep_ids:
                 questions_toremove = event._origin.question_ids.filtered(
-                    lambda question: question.id not in questions_tokeep_ids)
+                    lambda question: question.id not in questions_tokeep_ids)  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
                 command = [(3, question.id) for question in questions_toremove]
             else:
                 command = [(5, 0)]
@@ -258,8 +259,8 @@ class EventEvent(models.Model):
             'open': 'seats_reserved',
             'done': 'seats_used',
         }
-        base_vals = dict((fname, 0) for fname in state_field.values())
-        results = dict((event_id, dict(base_vals)) for event_id in self.ids)
+        base_vals = dict.fromkeys(state_field.values(), 0)
+        results = {event_id: dict(base_vals) for event_id in self.ids}
         if self.ids:
             query = """ SELECT event_id, state, count(event_id)
                         FROM event_registration
@@ -637,6 +638,7 @@ class EventEvent(models.Model):
                                     "the event will be sold out and the extra registrations will remain."),
                     }
                 }
+        return None
 
     @api.depends('event_registrations_sold_out', 'seats_limited', 'seats_max', 'seats_available')
     @api.depends_context('name_with_seats_availability')
@@ -657,10 +659,11 @@ class EventEvent(models.Model):
             else:
                 name = event.name
             event.display_name = name
+        return None
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        return [dict(vals, name=self.env._("%s (copy)", event.name)) for event, vals in zip(self, vals_list)]
+        return [dict(vals, name=self.env._("%s (copy)", event.name)) for event, vals in zip(self, vals_list, strict=True)]
 
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
         if (message_operation == 'create' and self.env.user.has_group('event.group_event_registration_desk')):
@@ -744,7 +747,7 @@ class EventEvent(models.Model):
         if sold_out:
             info = []  # note: somehow using list comprehension make translate.py crash in default lang
             for item in sold_out:
-                info.append(_('%(slot_name)s: missing %(count)s seat(s)', slot_name=item[0], count=item[1]))
+                info.append(_('%(slot_name)s: missing %(count)s seat(s)', slot_name=item[0], count=item[1]))  # noqa: PERF401 - see note above, do not rewrite as a list comprehension
             raise ValidationError(
                 _('There are not enough seats available for %(event_name)s:\n%(sold_out_info)s',
                   event_name=self.name,

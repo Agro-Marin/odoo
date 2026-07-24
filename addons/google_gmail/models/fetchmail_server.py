@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models
@@ -38,7 +37,7 @@ class FetchmailServer(models.Model):
             self.google_gmail_access_token_expiration = False
             super().onchange_server_type()
 
-    def _imap_login__(self, connection):  # noqa: PLW3201
+    def _imap_login__(self, connection):
         """Authenticate the IMAP connection.
 
         If the mail server is Gmail, we use the OAuth2 authentication protocol.

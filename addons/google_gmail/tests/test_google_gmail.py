@@ -1,7 +1,9 @@
-from odoo.tests.common import TransactionCase
-from unittest import mock
 from datetime import datetime
+from unittest import mock
+
 from freezegun import freeze_time
+
+from odoo.tests.common import TransactionCase
 
 
 class TestIrMailServer(TransactionCase):
