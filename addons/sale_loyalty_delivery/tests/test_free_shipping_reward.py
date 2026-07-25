@@ -243,21 +243,21 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         self.assertEqual(len(order.line_ids.ids), 2)
         self.assertEqual(order.reward_amount, 0)
         # Shipping is 20 + 15%tax
-        self.assertEqual(sum([line.price_total for line in order._get_no_effect_on_threshold_lines()]), 23)
+        self.assertEqual(sum(line.price_total for line in order._get_no_effect_on_threshold_lines()), 23)
         self.assertEqual(order.amount_untaxed, 872.73 + 20)
 
         self._apply_promo_code(order, 'free_shipping')
         self._auto_rewards(order, programs)
         self.assertEqual(len(order.line_ids.ids), 3, "We should get the delivery line and the free delivery since we are below 872.73$")
         self.assertEqual(order.reward_amount, -20)
-        self.assertEqual(sum([line.price_total for line in order._get_no_effect_on_threshold_lines()]), 0)
+        self.assertEqual(sum(line.price_total for line in order._get_no_effect_on_threshold_lines()), 0)
         self.assertEqual(order.amount_untaxed, 872.73)
 
         sol1.product_qty = 4
         self._auto_rewards(order, programs)
         self.assertEqual(len(order.line_ids.ids), 4, "We should get a free Large Cabinet")
         self.assertEqual(order.reward_amount, -20 - 320)
-        self.assertEqual(sum([line.price_total for line in order._get_no_effect_on_threshold_lines()]), 0)
+        self.assertEqual(sum(line.price_total for line in order._get_no_effect_on_threshold_lines()), 0)
         self.assertEqual(order.amount_untaxed, 1163.64)
 
         programs |= self.env['loyalty.program'].create({
