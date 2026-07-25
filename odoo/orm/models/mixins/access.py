@@ -30,8 +30,6 @@ class AccessMixin(_ModelStubs):
 
     __slots__ = ()
 
-    # Field-level access control
-
     def _has_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> bool:
@@ -89,9 +87,6 @@ class AccessMixin(_ModelStubs):
             elif not field.groups:
                 allowed_groups_msg = _("custom field access rules")
             else:
-                # A stale xmlid in field.groups must not turn this error
-                # message builder into a ValueError: resolve leniently and
-                # render unresolvable groups as their raw xmlid.
                 groups_list = []
                 missing_xmlids = []
                 for xmlid in field.groups.split(","):
@@ -103,9 +98,7 @@ class AccessMixin(_ModelStubs):
                 groups = self.env["res.groups"].union(*groups_list).sorted("id")
                 allowed_groups_msg = _(
                     "allowed for groups %s",
-                    ", ".join(
-                        [repr(g.display_name) for g in groups] + missing_xmlids
-                    ),
+                    ", ".join([repr(g.display_name) for g in groups] + missing_xmlids),
                 )
             error_msg += _(
                 "\nUser: %(user)s\nGroups: %(allowed_groups_msg)s",
@@ -150,14 +143,11 @@ class AccessMixin(_ModelStubs):
             ]
 
         for field_name in field_names:
-            # Unknown (virtual) fields are accessible: nothing is read or written.
             field = self._fields.get(field_name)
             if field is None:
                 continue
             self._check_field_access(field, operation)
         return field_names
-
-    # Record-level access control
 
     def check_access(self, operation: str) -> None:
         """Verify that the current user is allowed to perform ``operation`` on
@@ -174,9 +164,7 @@ class AccessMixin(_ModelStubs):
 
         """
         if not self.env.su and (result := self._check_access(operation)):
-            # result[1] is a factory partial; call it to build the AccessError.
-            # Raising the bare partial would TypeError (not a BaseException).
-            raise result[1]()  # noqa: RSE102
+            raise result[1]()
 
     def has_access(self, operation: str) -> bool:
         """Return whether the current user is allowed to perform ``operation``
@@ -221,8 +209,6 @@ class AccessMixin(_ModelStubs):
                 Access._make_access_error, self._name, operation
             )
 
-        # Rule check applies only to real (truthy) ids; NewIds have no row to
-        # filter against (see docstring).
         real_self = self.browse(id_ for id_ in self._ids if id_)
         if real_self:
             Rule = self.env["ir.rule"]
@@ -255,9 +241,6 @@ class AccessMixin(_ModelStubs):
         :raise AccessError: if the operation is forbidden and raise_exception is True
         """
         if raise_exception:
-            # check_access() returns None (it only raises on denial); this
-            # deprecated shim is documented to return a bool, so a non-raising
-            # call means "allowed" -> return True.
             self.browse().check_access(operation)
             return True
         return self.browse().has_access(operation)
@@ -269,12 +252,9 @@ class AccessMixin(_ModelStubs):
         """Verify that the given operation is allowed for the current user according to ir.rules.
 
         :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
-        :return: None if the operation is allowed
         :raise UserError: if current ``ir.rules`` do not permit this operation.
         """
         self.check_access(operation)
-
-    # Company consistency checks
 
     def _check_company_domain(self, companies) -> Domain:
         """Domain to be used for company consistency between records regarding this model.
@@ -320,14 +300,9 @@ class AccessMixin(_ModelStubs):
             return
 
         inconsistencies = []
-        # Company owning property values; loop-invariant, so resolve once.
         property_company = self.env.company
         for record in self:
-            # sudo() is invariant across the field loops; build it once per
-            # record instead of re-allocating for every checked field.
             record_su = record.sudo()
-            # Part 1: records linked via relation fields must match the origin
-            # document's company, i.e. self.account_id.company_id == self.company_id
             if regular_fields:
                 if self._name == "res.company":
                     companies = record
@@ -336,8 +311,6 @@ class AccessMixin(_ModelStubs):
                 elif "company_ids" in self:
                     companies = record.company_ids
                 else:
-                    # developer diagnostic: %-args, not translated, so logging
-                    # stays lazy.
                     _logger.warning(
                         "Skipping a company check for model %s. Its fields %s "
                         "are set as company-dependent, but the model doesn't "
@@ -354,9 +327,6 @@ class AccessMixin(_ModelStubs):
                             active_test=False
                         ).filtered_domain(domain):
                             inconsistencies.append((record, name, corecords))
-            # Part 2: for property / company-dependent fields, linked records
-            # must match the company owning the property value (self.env.company),
-            # i.e. self.property_account_payable_id.company_id == self.env.company
             for name in property_fields:
                 corecords = record_su[name]
                 if corecords:

@@ -17,9 +17,6 @@ from .registry import (
 )
 from .transaction import MAX_FIXPOINT_ITERATIONS, Transaction
 
-# Registers the ORM-aware flushing savepoint as
-# BaseCursor._flushing_savepoint_cls so cr.savepoint(flush=True) restores ORM
-# cache/env state on rollback.  Last, so BaseCursor and Transaction are imported.
 from . import savepoint as _savepoint
 
 __all__ = [
@@ -28,9 +25,7 @@ __all__ = [
     "_REGISTRY_CACHES",
     "Cache",
     "DummyRLock",
-    # Environment
     "Environment",
-    # Registry
     "Registry",
     "Transaction",
     "TriggerTree",

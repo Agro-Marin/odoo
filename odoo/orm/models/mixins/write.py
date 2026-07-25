@@ -98,15 +98,14 @@ class WriteMixin(_ModelStubs):
         prof.mark("acl")
         env = self.env
 
-        # set magic fields
         bad_names = bad_field_names(self)
         vals = {key: val for key, val in vals.items() if key not in bad_names}
         if self._log_access:
             vals.setdefault("write_uid", self.env.uid)
             vals.setdefault("write_date", self.env.cr.now())
 
-        field_values = []  # [(field, value)]
-        determine_inverses = defaultdict(list)  # {inverse: fields}
+        field_values = []
+        determine_inverses = defaultdict(list)
         fnames_modifying_relations = []
         protected = set()
         x2m_inverse_fnames = []
@@ -123,36 +122,16 @@ class WriteMixin(_ModelStubs):
                 fnames_modifying_relations.append(fname)
             if field.inverse or (field.compute and not field.readonly):
                 if field.store or field.type not in ("one2many", "many2many"):
-                    # Protect the field from recomputation while it is being
-                    # inversed. For non-stored x2many fields, the value may hold
-                    # new records (from command 0) needed for inversing but that
-                    # should not survive a later recompute; not protecting the
-                    # field invalidates it from cache, forcing recomputation once
-                    # dependencies are up-to-date.
                     protected.update(self.pool.field_computed.get(field, [field]))
 
-        # Pre-read all x2many inverse fields in one batch. They use command-
-        # based writes (add/remove/update), so their current value must be in
-        # cache before the field is protected from recomputation. fetch() (vs
-        # self[fname] per field) populates all records at once without
-        # triggering ensure_one() — but unlike the per-field read it neither
-        # runs pending recomputes (a stored computed x2many pending from an
-        # earlier write would be silently discarded: fetch caches the stale DB
-        # relation, then mark_dirty's remove_to_compute drops the pending
-        # computation without running it) nor populates non-stored fields
-        # (whose baseline must be computed now, before this write's other
-        # fields are marked dirty).  Handle both explicitly.
         if x2m_inverse_fnames:
             self._recompute_recordset(x2m_inverse_fnames)
             self.fetch(x2m_inverse_fnames)
             for fname in x2m_inverse_fnames:
                 field = self._fields[fname]
                 if not field.store:
-                    # Union __get__ computes the whole recordset in one batch.
                     field.__get__(self)
 
-        # force the computation of fields that are computed with some assigned
-        # fields, but are not assigned themselves
         if protected:
             to_compute = [
                 field.name
@@ -163,56 +142,34 @@ class WriteMixin(_ModelStubs):
                 self._recompute_recordset(to_compute)
         prof.mark("classify")
 
-        # protect fields being written against recomputation
         with env.protecting(protected, self):
-            # Modifying a relational field changes the "data path" between a
-            # computed field and its dependency, so dependents must be recomputed
-            # for both the OLD and NEW values (hence two modified() calls; only
-            # needed for relational fields). E.g. moving a line from SO1 to SO2
-            # (line.order_id = so2) must recompute the total amount on both
-            # orders.
             if fnames_modifying_relations:
                 self._modified_before(fnames_modifying_relations)
             prof.mark("before")
 
-            # Fast path: singleton with a real ID — skip filtered("id") overhead
             _ids = self._ids
             if len(_ids) == 1 and _ids[0]:
                 real_recs = self
             else:
                 real_recs = self.filtered("id")
 
-            # Process fields in write_sequence order (see Field.write_sequence):
-            # 0=scalars/M2O → 10=monetary/properties → 20=x2many
             if len(field_values) > 1:
                 field_values.sort(key=lambda item: item[0].write_sequence)
             for field, value in field_values:
                 field.mark_dirty(self, value)
             prof.mark("dirty")
 
-            # Call modified() after mark_dirty: it may trigger a search ->
-            # flush -> recompute that would compute a field before its
-            # dependencies are written. E.g. writing res.partner.name recomputes
-            # display_name, which searches child_ids and flushes display_name
-            # (it is in _order) before parent_id is written, computing too early.
-            # (`test_01_website_reset_password_tour`)
             self.modified(vals)
             prof.mark("after")
 
             if self._parent_store and self._parent_name in vals:
                 self.flush_model([self._parent_name])
 
-            # Two-pass validation: pass 1 validates written fields excluding
-            # inversed (their values are already in the dirty cache); inverses
-            # run between the passes (they write to related models); pass 2
-            # validates inversed fields. (create() runs inverses before both
-            # passes since constraints may need the related records to exist.)
             inverse_fields = [f.name for fs in determine_inverses.values() for f in fs]
             real_recs._validate_fields(vals, inverse_fields)
             prof.mark("validate1")
 
             for fields in determine_inverses.values():
-                # write again on non-stored fields that have been invalidated from cache
                 for field in fields:
                     if (
                         not field.store
@@ -224,7 +181,6 @@ class WriteMixin(_ModelStubs):
                     ):
                         field.mark_dirty(real_recs, vals[field.name])
 
-                # inverse records that are not being computed
                 try:
                     fields[0].determine_inverse(real_recs)
                 except AccessError as e:
@@ -240,7 +196,6 @@ class WriteMixin(_ModelStubs):
                         ) from e
                     raise
 
-            # Pass 2: validate constraints touching inversed fields.
             real_recs._validate_fields(inverse_fields)
 
         if self._check_company_auto:
@@ -280,8 +235,6 @@ class WriteMixin(_ModelStubs):
         dict per id; rows are grouped by their field-name set so each distinct
         set of columns becomes a single batched UPDATE.
         """
-        # raise (not assert): under python -O a length mismatch would zip-
-        # truncate rows and persist wrong values on the trailing records.
         if len(self) != len(vals_list):
             raise ValueError(
                 f"_write_multi: len(records)={len(self)} != "
@@ -293,16 +246,10 @@ class WriteMixin(_ModelStubs):
 
         prof = _OrmProfile(_orm_crud)
 
-        # determine records that require updating parent_path
         parent_records = (
             self._parent_store_update_prepare(vals_list) if self._parent_store else None
         )
 
-        # Group rows by their (sorted) field-name set (see docstring). Aliased
-        # inputs like [a, b, a] stay correct because the zip below pairs each id
-        # with its own vals.
-        # Pipeline batches multiple UPDATE statements in a single round-trip;
-        # nesting is safe — psycopg3 reuses the active pipeline as a no-op.
         with self.env.cr.pipeline():
             if self._log_access:
                 log_vals = {
@@ -313,10 +260,6 @@ class WriteMixin(_ModelStubs):
             updates = defaultdict(list)
             for id_, vals in zip(self._ids, vals_list, strict=True):
                 if not vals:
-                    # Nothing to write for this record (e.g. every dirty field
-                    # flushed as PENDING on a _log_access=False model, so no
-                    # write_uid/write_date merge padded it). An empty dict would
-                    # crash `zip(*sorted(vals.items()))` on unpack; skip it.
                     continue
                 fnames, row = zip(*sorted(vals.items()), strict=False)
                 updates[fnames].append((id_,) + row)
@@ -324,7 +267,6 @@ class WriteMixin(_ModelStubs):
                 for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
                     self._execute_update(fnames, sub_rows)
 
-        # update parent_path
         if parent_records:
             parent_records._parent_store_update()
 
@@ -344,7 +286,6 @@ class WriteMixin(_ModelStubs):
         :param fnames: Tuple of field names being updated (sorted).
         :param rows: List of tuples (id, val1, val2, ...) — one per record.
         """
-        # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
         if (backend := self.env.backend) is not None:
             backend.update_rows(self, fnames, rows)
             return
@@ -353,23 +294,14 @@ class WriteMixin(_ModelStubs):
         assignments = []
         for fname in fnames:
             field = self._fields[fname]
-            # raise (not assert): under python -O a non-column field would build
-            # a malformed UPDATE failing later with an opaque column_type error.
-            # (``is_column`` implies ``column_type`` is truthy, so the second
-            # branch never fires; it only narrows ``tuple[str, str] | None``.)
             column_type = field.column_type
             if not field.is_column or column_type is None:
                 raise RuntimeError(
                     f"_execute_update: {field} is not a stored column field"
                 )
             column = SQL.identifier(fname)
-            # the type cast is necessary for some values, like NULLs
             expr = SQL('"__tmp".%s::%s', column, SQL(column_type[1]))
             if field.translate is True:
-                # this is the SQL equivalent of:
-                # None if expr is None else (
-                #     (column or {'en_US': next(iter(expr.values()))}) | expr
-                # )
                 expr = SQL(
                     """CASE WHEN %(expr)s IS NULL THEN NULL ELSE
                         COALESCE(%(table)s.%(column)s, jsonb_build_object(
@@ -417,12 +349,10 @@ class WriteMixin(_ModelStubs):
         """
         if not self._parent_store:
             return self.browse()
-        # Backends without hierarchy support skip parent_path maintenance.
         backend = self.env.backend
         if backend is not None and not backend.supports_parent_store:
             return self.browse()
 
-        # associate each new parent_id to its corresponding record ids
         parent_to_ids = defaultdict(list)
         for id_, vals in zip(self._ids, vals_list, strict=True):
             if self._parent_name in vals:
@@ -433,7 +363,6 @@ class WriteMixin(_ModelStubs):
 
         self.flush_recordset([self._parent_name])
 
-        # return the records for which the parent field will change
         sql_parent = SQL.identifier(self._parent_name)
         conditions = []
         for parent_id, ids in parent_to_ids.items():
@@ -460,16 +389,13 @@ class WriteMixin(_ModelStubs):
     def _parent_store_update(self) -> None:
         """Update the parent_path field of ``self``."""
         for parent, records in self.grouped(self._parent_name).items():
-            # determine new prefix of parent_path of records
             prefix = parent.parent_path or ""
 
-            # check for recursion
             if prefix:
                 parent_ids = {int(label) for label in prefix.split("/")[:-1]}
                 if not parent_ids.isdisjoint(records._ids):
                     raise UserError(_("Recursion Detected."))
 
-            # update parent_path of all records and their descendants
             updated = dict(
                 self.env.execute_query(
                     SQL(
@@ -488,7 +414,6 @@ class WriteMixin(_ModelStubs):
                 )
             )
 
-            # update the cache of updated nodes, and determine what to recompute
             field = self._fields["parent_path"]
             for id_, path in updated.items():
                 field._update_cache(self.browse(id_), path)

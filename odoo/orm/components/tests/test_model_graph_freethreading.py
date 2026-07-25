@@ -53,7 +53,6 @@ class TestModelGraphFreeThreading(unittest.TestCase):
         non_trigger = _field("unrelated")
         all_fields = trigger_fields + [non_trigger]
 
-        # Single-threaded reference answers to compare every worker against.
         ref_modrel = {f.name: g.is_modifying_relations(f) for f in all_fields}
         ref_deps = {
             f.name: sorted(d.name for d in g.get_dependent_fields(f))
@@ -61,7 +60,6 @@ class TestModelGraphFreeThreading(unittest.TestCase):
         }
         ref_order = {f.name: p for f, p in g.recompute_order.items()}
 
-        # The cache key-sets that must NOT change under concurrent reads.
         trees_keys = frozenset(g._trigger_trees)
         modrel_keys = frozenset(g._modifying_relations)
         order_id = id(g._recompute_order)
@@ -71,7 +69,7 @@ class TestModelGraphFreeThreading(unittest.TestCase):
 
         def worker() -> None:
             try:
-                barrier.wait()  # maximise overlap
+                barrier.wait()
                 for _ in range(self.N_ITERATIONS):
                     for f in all_fields:
                         assert g.is_modifying_relations(f) == ref_modrel[f.name]
@@ -94,7 +92,6 @@ class TestModelGraphFreeThreading(unittest.TestCase):
             t.join()
 
         self.assertEqual(errors, [], f"worker(s) raised: {errors[:3]}")
-        # No read mutated the shared caches (the freeze guarantee).
         self.assertEqual(frozenset(g._trigger_trees), trees_keys)
         self.assertEqual(frozenset(g._modifying_relations), modrel_keys)
         self.assertEqual(id(g._recompute_order), order_id, "recompute_order replaced")

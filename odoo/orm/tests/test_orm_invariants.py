@@ -33,9 +33,6 @@ from odoo.orm.model_test_env import model_test_env
 _MOD = "test_orm_invariants"
 
 
-# ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
 class IScalars(models.Model):
     """Host for every fast-path scalar field type."""
 
@@ -125,16 +122,12 @@ _FASTPATH_SCALARS = (
 )
 
 
-# ---------------------------------------------------------------------------
-# Domain operator constants
-# ---------------------------------------------------------------------------
 def test_inverse_operator_is_exact_negation_map() -> None:
     """Pin the full negation map so the derivation cannot silently drift.
 
     ``INVERSE_OPERATOR`` is derived from ``NEGATIVE_CONDITION_OPERATORS``.
     """
     expected = {
-        # negative -> positive (every NEGATIVE_CONDITION_OPERATORS entry)
         "not any": "any",
         "not any!": "any!",
         "not in": "in",
@@ -144,7 +137,6 @@ def test_inverse_operator_is_exact_negation_map() -> None:
         "not =ilike": "=ilike",
         "!=": "=",
         "<>": "=",
-        # positive -> negative (reverse; "=" canonicalises to "!=", not "<>")
         "any": "not any",
         "any!": "not any!",
         "in": "not in",
@@ -155,7 +147,6 @@ def test_inverse_operator_is_exact_negation_map() -> None:
         "=": "!=",
     }
     assert expected == INVERSE_OPERATOR
-    # the negative->positive half must equal NEGATIVE_CONDITION_OPERATORS exactly
     for neg, pos in NEGATIVE_CONDITION_OPERATORS.items():
         assert INVERSE_OPERATOR[neg] == pos
 
@@ -171,9 +162,6 @@ def test_inverse_operator_is_an_involution_on_canonical_operators() -> None:
         assert INVERSE_OPERATOR[inv] == op, f"{op} -> {inv} -> {INVERSE_OPERATOR[inv]}"
 
 
-# ---------------------------------------------------------------------------
-# Domain optimisation: original immutability + output is model-specific
-# ---------------------------------------------------------------------------
 def test_optimize_does_not_mutate_the_original_domain() -> None:
     """The optimiser returns new nodes; the original is never advanced.
 
@@ -184,14 +172,12 @@ def test_optimize_does_not_mutate_the_original_domain() -> None:
         level_before = original._opt_level
 
         out_alpha = original.optimize_full(env["i.alpha"])
-        assert original._opt_level == level_before  # untouched
+        assert original._opt_level == level_before
         assert out_alpha is not original
 
-        # Re-optimising the SAME original against a different model yields that
-        # model's result, not a cached one.
         out_beta = original.optimize_full(env["i.beta"])
-        assert list(out_alpha) == [("id", "in", [11, 22])]  # search() substituted
-        assert list(out_beta) == [("ref", "in", ["x"])]  # plain stored field
+        assert list(out_alpha) == [("id", "in", [11, 22])]
+        assert list(out_beta) == [("ref", "in", ["x"])]
 
 
 def test_optimized_output_is_model_specific_not_reusable_across_models() -> None:
@@ -203,16 +189,10 @@ def test_optimized_output_is_model_specific_not_reusable_across_models() -> None
     """
     with model_test_env(IAlpha, IBeta) as env:
         out_alpha = Domain([("ref", "=", "x")]).optimize_full(env["i.alpha"])
-        # The output is already FULL: re-optimising it against beta is a no-op,
-        # so it keeps alpha's substitution. This is *why* callers must optimise
-        # a fresh domain per model (every ORM call site does).
         reused = out_alpha.optimize_full(env["i.beta"])
-        assert list(reused) == [("id", "in", [11, 22])]  # alpha's result, stale
+        assert list(reused) == [("id", "in", [11, 22])]
 
 
-# ---------------------------------------------------------------------------
-# Scalar fast-path "no value" sentinel agreement
-# ---------------------------------------------------------------------------
 def test_scalar_none_value_is_record_independent() -> None:
     """The scalar fast paths must agree on the "no value" sentinel.
 
@@ -244,7 +224,7 @@ def _fastpath_cache_to_record(field: fields.Field) -> Callable[[Any], Any] | Non
         freevars = getattr(getattr(fn, "__code__", None), "co_freevars", ())
         if "cache_to_record" in freevars:
             return fn.__closure__[freevars.index("cache_to_record")].cell_contents
-        return None  # first __get__ in MRO is not a _make_scalar_get one
+        return None
     return None
 
 
@@ -278,7 +258,7 @@ def test_scalar_fastpath_lambda_matches_convert_to_record() -> None:
             field = model._fields[fname]
             cache_to_record = _fastpath_cache_to_record(field)
             if cache_to_record is None:
-                continue  # Char/Text use BaseString.__get__, not the lambda path
+                continue
             checked.append(fname)
             for v in _FASTPATH_CACHE_SAMPLES[fname]:
                 fast = cache_to_record(v)
@@ -287,14 +267,9 @@ def test_scalar_fastpath_lambda_matches_convert_to_record() -> None:
                     f"{fname}: fast-path lambda({v!r})={fast!r} != "
                     f"convert_to_record({v!r})={slow!r}"
                 )
-        # guard against the fast paths silently disappearing (e.g. a refactor
-        # that drops _make_scalar_get) — that would make this test vacuous.
         assert set(checked) == set(_FASTPATH_CACHE_SAMPLES), checked
 
 
-# ---------------------------------------------------------------------------
-# model_test_env degradation is visible, real errors propagate
-# ---------------------------------------------------------------------------
 def test_missing_comodel_is_tolerated_and_recorded() -> None:
     """A missing comodel degrades the field but the degradation stays visible.
 
@@ -305,8 +280,6 @@ def test_missing_comodel_is_tolerated_and_recorded() -> None:
         """Field pointing at an absent comodel."""
 
         _name = "i.withghost"
-        # Own module: model_test_env auto-discovers a whole module, and this
-        # model is intentionally degraded — keep it out of other tests' builds.
         _module = _MOD + ".ghost"
         _description = "Absent-comodel host"
 
@@ -316,7 +289,6 @@ def test_missing_comodel_is_tolerated_and_recorded() -> None:
     with model_test_env(WithGhost) as env:
         degraded = {f"{f.model_name}.{f.name}" for f in env.registry.degraded_fields}
         assert "i.withghost.ghost_id" in degraded
-        # harness remains usable for the well-formed fields
         assert env["i.withghost"].create({"name": "ok"}).name == "ok"
 
 
@@ -331,15 +303,13 @@ def test_real_dependency_error_propagates_not_swallowed() -> None:
         """A model whose dependency resolution raises by design."""
 
         _name = "i.bad"
-        # Own module: this model raises during dependency resolution by design;
-        # isolating it prevents module auto-discovery from poisoning other builds.
         _module = _MOD + ".bad"
         _description = "Broken @depends"
 
         a = fields.Integer()
         b = fields.Integer(compute="_compute_b", store=True)
 
-        @api.depends(lambda self: 1 / 0)  # raises during get_depends
+        @api.depends(lambda self: 1 / 0)
         def _compute_b(self) -> None:
             """Never reached: dependency resolution fails first."""
             for rec in self:
@@ -354,9 +324,6 @@ def test_real_dependency_error_propagates_not_swallowed() -> None:
     assert raised
 
 
-# ---------------------------------------------------------------------------
-# Monetary currency resolution
-# ---------------------------------------------------------------------------
 def test_monetary_column_rounds_via_currency() -> None:
     """``Monetary.convert_to_column`` rounds through the record's currency.
 
@@ -370,14 +337,10 @@ def test_monetary_column_rounds_via_currency() -> None:
         assert field._currency_record(inv) == cur
         assert abs(field.convert_to_column(3.14159, inv) - 3.14) < 1e-9
 
-        # no currency -> raw passthrough (no rounding)
         plain = env["i.invoice"].create({"amount": 9.999})
         assert abs(field.convert_to_column(9.999, plain) - 9.999) < 1e-9
 
 
-# ---------------------------------------------------------------------------
-# Recordset construction
-# ---------------------------------------------------------------------------
 def test_every_construction_path_sets_all_slots() -> None:
     """All recordset-construction paths populate the full ``__slots__`` set.
 
@@ -401,7 +364,6 @@ def test_every_construction_path_sets_all_slots() -> None:
             for slot in slots:
                 assert hasattr(rec, slot), f"{label}: record missing slot {slot!r}"
 
-        # canonical builder + the construction helpers that delegate to it
         assert_full(Model._spawn(env, (1,), (1,)), "_spawn")
         assert_full(Model.browse((1, 2)), "browse")
         assert_full(recs.with_env(env), "with_env")
@@ -409,15 +371,11 @@ def test_every_construction_path_sets_all_slots() -> None:
         assert_full(recs[1:], "__getitem__ slice")
         assert_full(recs[0], "__getitem__ int")
         assert_full(recs.sorted("f_int"), "sorted")
-        # the inline-mirror hot paths (size > 1 to hit the per-record loops)
         assert_full(next(iter(recs)), "__iter__")
         assert_full(next(reversed(recs)), "__reversed__")
         assert_full(env["i.scalars"], "Environment.__getitem__")
 
 
-# ---------------------------------------------------------------------------
-# Persistence backend seam (ADR-0011)
-# ---------------------------------------------------------------------------
 def test_persistence_backend_seam_is_wired() -> None:
     """CRUD dispatches through ``env.backend``, not ``transaction.storage``.
 
@@ -436,24 +394,10 @@ def test_persistence_backend_seam_is_wired() -> None:
             f"env.backend must be an InMemoryBackend in the DB-free tier, "
             f"got {backend!r}"
         )
-        # this backend has no hierarchy support; create/write skip parent_path
         assert backend.supports_parent_store is False
-        # it is derived once from the transaction's storage, not re-created
         assert env.backend is env.transaction.backend
 
 
-# ---------------------------------------------------------------------------
-# Field cache shape (Theme A1)
-# ---------------------------------------------------------------------------
-# FieldCache owns the single decode of the context-dependent cache shape
-# ({cache_key: {id: value}}); Field supplies only the shape bit
-# (_is_context_dependent) and delegates via env._core.invalidate /
-# all_cached_ids. These pin the one subtlety the Tier-2 model suite does not
-# otherwise exercise: the *mixed* setup-window state where stale flat entries
-# (written before field_depends_context was populated) coexist with
-# per-context sub-dicts. The discriminator is the KEY (cache keys are tuples,
-# record ids never are) — never the value, which would mistake dict-valued
-# caches (company-dependent Json/Properties) for per-context sub-dicts.
 def test_all_cached_ids_spans_per_context_subdicts() -> None:
     """A context-dependent field's ids are merged across per-context sub-dicts."""
     from odoo.orm.components.cache import FieldCache
@@ -477,7 +421,7 @@ def test_all_cached_ids_skips_stale_flat_entries() -> None:
         ("en_US",): {1: "a"},
         5: "stale-scalar",
         6: None,
-        7: {"json-key": "v"},  # dict-valued stale flat entry (Json)
+        7: {"json-key": "v"},
     }
     assert set(cache.all_cached_ids("G", context_dependent=True)) == {1}
 
@@ -495,15 +439,11 @@ def test_invalidate_mixed_state_never_reaches_into_json_values() -> None:
     cache = FieldCache()
     cache._data["G"] = {
         ("en_US",): {1: "a", 2: "b"},
-        1: {2: "json-payload"},  # stale flat Json entry for record id 1
+        1: {2: "json-payload"},
     }
     cache.invalidate("G", [2], context_dependent=True)
-    # id 2 trimmed from the real sub-dict...
     assert cache._data["G"][("en_US",)] == {1: "a"}
-    # ...and the stale Json value for id 1 is untouched inside (its key `2`
-    # is a JSON key, not a record id)
     assert cache._data["G"][1] == {2: "json-payload"}
-    # invalidating id 1 removes the stale flat entry wholesale
     cache.invalidate("G", [1], context_dependent=True)
     assert 1 not in cache._data["G"]
-    assert cache._data["G"][("en_US",)] == {}  # kept (identity-preserving)
+    assert cache._data["G"][("en_US",)] == {}

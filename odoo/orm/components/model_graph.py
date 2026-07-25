@@ -34,19 +34,7 @@ if TYPE_CHECKING:
     from ._protocols import FieldLike
 
 
-# _Collector — lightweight key→tuple mapping
-
-# Re-exported under the private name this module has always used.  This was a
-# line-for-line copy of ``Collector`` justified by "the Odoo import is avoided
-# to stay pure-Python testable" -- which was not true: ``odoo.libs.collections``
-# imports nothing but ``collections.abc``, and resolves fine under the
-# ``sys.modules`` stubs the standalone suites install (see
-# ``odoo/_testing_bootstrap.py``).  The fork of the code had already drifted
-# into carrying its own copy of a ``discard_keys_and_values`` bug.
 _Collector = Collector
-
-
-# TriggerTree — pure data structure
 
 
 class TriggerTree(dict):
@@ -79,9 +67,6 @@ class TriggerTree(dict):
             Remaining arguments seed the ``{edge_field: subtree}`` dict.
         """
         super().__init__(*args, **kwargs)
-        # tuple, not list: the single-tree fast path in merge() returns the
-        # shared cached tree by identity, so a mutable root would let one
-        # consumer corrupt the registry-wide, frozen trigger cache.
         self.root = tuple(root)
 
     def __bool__(self) -> bool:
@@ -113,8 +98,6 @@ class TriggerTree(dict):
         *select* is called on every field; only those it keeps stay in the tree
         nodes (e.g. drop non-stored computed fields with no cached data).
         """
-        # Fast path: single tree (common single-field write) — skip the merge
-        # overhead and return the cached tree directly when possible.
         if len(trees) == 1:
             return trees[0]._filtered(select)
 
@@ -126,7 +109,6 @@ class TriggerTree(dict):
             for label, subtree in tree.items():
                 subtrees_to_merge[label].append(subtree)
 
-        # deduplicate while preserving order
         seen: set[Any] = set()
         unique_root: list[Any] = []
         for field in root_fields:
@@ -170,45 +152,22 @@ class TriggerTree(dict):
         return result
 
 
-# _TriggerState — one published snapshot of triggers + derived caches
-
-
 class _TriggerState:
     """One published snapshot: the trigger map plus every derived cache."""
-
-    # Concurrency model: ModelGraph publishes trigger data by swapping a single
-    # _TriggerState reference — one atomic attribute assignment. Lock-free
-    # readers capture the current state once per operation, so a trigger map is
-    # only ever observed together with derived caches built from that same map;
-    # there is no window where a fresh map is served with stale trees (or vice
-    # versa).
-    #
-    # The derived caches (trees, modifying_relations, recompute_order) start
-    # empty and fill lazily on first query (or eagerly via ModelGraph.freeze).
-    # Filling is a pure function of this state's own triggers, so concurrent
-    # fills are idempotent: two threads racing a cold entry write identical
-    # values, and each dict/attribute store is atomic.
 
     __slots__ = ("modifying_relations", "recompute_order", "trees", "triggers")
 
     def __init__(self, triggers: defaultdict) -> None:
         """Wrap *triggers* with fresh, empty derived caches."""
-        # Raw trigger data: {dep_field: {path_tuple: list_of_target_fields}}
         self.triggers = triggers
-        # Lazy per-field trigger-tree cache
         self.trees: dict[Any, TriggerTree] = {}
-        # Lazy per-field is_modifying_relations cache
         self.modifying_relations: dict[Any, bool] = {}
-        # Lazy topological priority map (None until first computed)
         self.recompute_order: dict[Any, int] | None = None
 
 
 def _empty_triggers() -> defaultdict:
     """Return a fresh empty trigger map ``{dep_field: {path: [targets]}}``."""
     return defaultdict(lambda: defaultdict(list))
-
-
-# ModelGraph — frozen dependency graph
 
 
 class ModelGraph:
@@ -245,26 +204,14 @@ class ModelGraph:
 
     def __init__(self) -> None:
         """Initialize all dependency maps and an empty published snapshot."""
-        # Field inverses: _Collector {field: tuple_of_inverse_fields}
         self._inverses: _Collector = _Collector()
-        # Field dependencies: _Collector {field: tuple_of_dependency_fields}
         self._depends: _Collector = _Collector()
-        # Context dependencies: _Collector {field: tuple_of_context_keys}
         self._depends_context: _Collector = _Collector()
-        # Computed groups: {field: [field, co_field1, ...]}
         self._computed: dict[Any, list] = {}
-        # Published snapshot: trigger map + derived caches, swapped atomically.
         self._state: _TriggerState = _TriggerState(_empty_triggers())
-        # Publication epoch + invalidation barrier (see begin_invalidation).
         self._epoch: int = 0
         self._invalidation_barrier: bool = False
-        # Serializes epoch/barrier updates against epoch-validated
-        # publications. Writers only — readers never take it.
         self._publish_lock = threading.Lock()
-
-    # Introspection properties — the current snapshot's structures.
-    # Prefer the query API; these exist for the registry facade
-    # (``Registry._field_triggers`` returns ``_triggers``) and for tests.
 
     @property
     def _triggers(self) -> defaultdict:
@@ -285,8 +232,6 @@ class ModelGraph:
     def _recompute_order(self) -> dict[Any, int] | None:
         """The current snapshot's recompute order (None until computed)."""
         return self._state.recompute_order
-
-    # Construction API
 
     def add_trigger(self, dep_field: Any, path: tuple, targets: Iterable) -> None:
         """Register that *targets* depend on *dep_field* via *path*.
@@ -344,8 +289,6 @@ class ModelGraph:
             self._state = state
         return True
 
-    # Invalidation epoch — refuses stale publications during registry teardowns
-
     @property
     def trigger_epoch(self) -> int:
         """Monotonic publication epoch (see :meth:`begin_invalidation`).
@@ -357,21 +300,6 @@ class ModelGraph:
 
     def begin_invalidation(self) -> None:
         """Open a registry-teardown window: refuse epoch-validated publications."""
-        # Called (under the registry's write lock) at the START of any teardown
-        # that changes the inputs triggers are built from — full/incremental
-        # model setup, custom-field discard — before model classes are mutated.
-        # Bumping the epoch refuses rebuilds that started before the teardown;
-        # raising the barrier refuses rebuilds that start during it (which would
-        # otherwise capture the current epoch mid-mutation and publish garbage).
-        # Without this, a reader-triggered Registry._field_triggers rebuild
-        # racing the teardown could win the publication race after the
-        # teardown's own eager rebuild and publish triggers derived from
-        # half-set-up models.
-        #
-        # Balanced by end_invalidation. If a teardown dies in between, the
-        # barrier stays up: readers keep being served the last published
-        # (pre-teardown, internally consistent) snapshot until the next
-        # successful setup — the safest failure mode.
         with self._publish_lock:
             self._epoch += 1
             self._invalidation_barrier = True
@@ -422,41 +350,14 @@ class ModelGraph:
 
     def discard_fields(self, fields: Collection) -> None:
         """Remove *fields* from the graph's data structures."""
-        # Called when fields are removed from the registry (e.g. custom field
-        # deletion). Two different mutation disciplines apply — metadata
-        # collectors vs the trigger map — detailed at each step below.
         discarded = set(fields)
-        # The metadata collectors (_depends, _depends_context, _computed,
-        # _inverses) are scrubbed in place — request threads read them by key
-        # lookup only, and _depends_context must keep its identity (see
-        # reset_field_metadata). _computed only drops the discarded fields' key
-        # entries: the co-computed group lists (shared values) are not scrubbed
-        # here — the registry rebuilds the whole map from the model classes on
-        # the next field_computed access.
         for f in discarded:
             self._depends.pop(f, None)
             self._depends_context.pop(f, None)
             self._computed.pop(f, None)
 
-        # Discard from inverses (keys and values)
         self._inverses.discard_keys_and_values(fields)
 
-        # The trigger map is never mutated in place: request threads iterate it
-        # lock-free while building trigger trees, and an in-place scrub reliably
-        # crashes them with "dictionary changed size during iteration". Instead
-        # a scrubbed copy is built and published atomically as a fresh snapshot
-        # (map + empty derived caches in one swap). In production,
-        # Registry._discard_fields follows up with a full eager rebuild through
-        # _field_triggers — the real publication — but the copy-swap keeps the
-        # standalone graph correct and race-free on its own.
-        #
-        # Copy-scrub-swap of the trigger map: drop discarded deps, and scrub
-        # discarded fields where they appear as trigger *targets* of other deps
-        # (``triggers`` is ``{dep: {path: [targets]}}``: dropping a field only
-        # as a key would leave it reachable via ``get_trigger_tree(dep)``,
-        # which would then schedule a deleted field). Emptied paths and deps
-        # are dropped along the way. The published map is only read, never
-        # written, so this iteration is safe against concurrent readers.
         old_triggers = self._state.triggers
         new_triggers = _empty_triggers()
         for dep, buckets in old_triggers.items():
@@ -469,12 +370,6 @@ class ModelGraph:
 
         with self._publish_lock:
             self._state = _TriggerState(new_triggers)
-
-    # Query API — trigger trees
-    #
-    # Every public query grabs the published snapshot ONCE (``self._state``)
-    # and threads it through the private ``*_for(state, ...)`` helpers, so one
-    # operation never mixes structures from two publications.
 
     def has_triggers(self, field: Any) -> bool:
         """Return whether *field* has any dependents (is in the trigger map)."""
@@ -513,37 +408,10 @@ class ModelGraph:
         if field not in triggers:
             return TriggerTree()
 
-        # Walk the transitive closure once in pre-order, accumulating the
-        # de-duplicated target list per full path. ``seen`` holds the current
-        # path's fields to break cycles; it is a set with add/discard rather than
-        # a per-level ``tuple`` copy (``seen + (field,)``), so a chain of depth d
-        # costs O(d) membership tests instead of O(d**2). Targets for a path are
-        # merged before recursing into them, matching the previous traversal's
-        # emission order exactly (relevant when ``_concat_paths`` cancellation
-        # routes a descendant back onto an ancestor's path).
-        #
-        # Memoization: without it the walk is O(2**depth) on diamond-shaped
-        # dependency DAGs (A -> {B, C} -> D re-expands D once per incoming
-        # path), because the per-path ``root_set`` dedups *emission* but not
-        # *recursion*.  A repeated call with an identical ``(field, prefix)``
-        # key re-merges exactly the same targets under exactly the same full
-        # paths (both are functions of ``field``/``prefix``/``triggers`` only)
-        # and re-recurses identically — a strict no-op on ``collected`` — so it
-        # can be skipped, PROVIDED the cycle guard cannot interfere: the skip
-        # is valid only when no field the memoized expansion ever reached
-        # (``visited``) sits on the *current* ancestor path (``seen``), since
-        # such a field would have been pruned this time around.  ``visited``
-        # is prefix-independent (prefixes shape emitted paths, never the
-        # recursion structure), so it is memoized per field.  Expansions that
-        # were themselves pruned against an ancestor *outside* their own
-        # subtree are context-dependent and never memoized (``clean=False``);
-        # cyclic clusters therefore degrade to the plain traversal, while
-        # acyclic graphs — the pathological case — collapse to one expansion
-        # per distinct ``(field, prefix)`` pair.
         collected: dict[tuple, tuple[list, set]] = {}
         seen: set = set()
-        expanded: set[tuple] = set()  # cleanly-expanded (field, prefix) keys
-        visited_memo: dict[Any, frozenset] = {}  # field -> fields it reaches
+        expanded: set[tuple] = set()
+        visited_memo: dict[Any, frozenset] = {}
 
         def collect(field: Any, prefix: tuple) -> frozenset | None:
             """Expand *field* under *prefix*.
@@ -556,8 +424,6 @@ class ModelGraph:
             if (field, prefix) in expanded:
                 visited = visited_memo[field]
                 if visited.isdisjoint(seen):
-                    # Identical emissions already merged, identical recursion
-                    # already performed, no cycle-guard interference: skip.
                     return visited
             seen.add(field)
             visited = {field}
@@ -575,9 +441,6 @@ class ModelGraph:
                         root_list.append(target)
                 for target in targets:
                     if target in seen:
-                        # Pruned. Inside this subtree (== in ``visited``, e.g.
-                        # a self-loop) the prune is intrinsic and clean;
-                        # against an outer ancestor it is context-dependent.
                         if target not in visited:
                             clean = False
                         continue
@@ -598,11 +461,6 @@ class ModelGraph:
 
         collect(field, ())
 
-        # Materialize the tree from the per-path lists. Building each node's root
-        # once (the dedup happened above, incrementally) avoids the previous
-        # O(n**2) merge that rebuilt ``set(node.root)`` on every emission — quadratic
-        # when many targets land on one node (e.g. a chain of same-model computed
-        # fields all accumulating at the root).
         tree = TriggerTree()
         for full_path, (root_list, _root_set) in collected.items():
             current = tree
@@ -635,11 +493,6 @@ class ModelGraph:
     def _modifying_relations_for(self, state: _TriggerState, field: Any) -> bool:
         """:meth:`is_modifying_relations` against a given snapshot."""
         if field not in state.triggers:
-            # No dependents → cannot modify relations. Returned *uncached* so
-            # the cache only ever holds fields in the trigger map (a finite,
-            # precomputable set); this is what lets :meth:`freeze` make the
-            # cache complete and the graph truly read-only at runtime. The
-            # membership test is O(1), so not caching the False costs nothing.
             return False
 
         try:
@@ -658,29 +511,15 @@ class ModelGraph:
         state.modifying_relations[field] = result
         return result
 
-    # Topological ordering for recomputation
-
     @property
     def recompute_order(self) -> dict[Any, int]:
         """Return a priority map for recomputation ordering.
 
         :return: ``{field: priority}``; lower priority is recomputed first.
         """
-        # Contract: if field B (transitively) depends on field A and A and B
-        # are not part of the same dependency cycle, then order[A] < order[B].
-        # All fields of one cycle (strongly connected component) share a single
-        # priority — the convergence loop handles intra-cycle ordering — and
-        # fields downstream of a cycle still order strictly after it.
-        #
-        # Used by UnitOfWork to process pending recomputations in dependency
-        # order, reducing the number of convergence iterations from O(depth) to
-        # O(1) for acyclic dependency chains.
         state = self._state
         order = state.recompute_order
         if order is None:
-            # Computed lazily from the snapshot's trigger map via Kahn's
-            # algorithm on the SCC condensation (see _compute_recompute_order),
-            # and cached in the snapshot.
             order = state.recompute_order = self._compute_recompute_order(
                 state.triggers
             )
@@ -705,28 +544,15 @@ class ModelGraph:
 
         Returns ``{field: priority_int}`` where lower = should compute first.
         """
-        # Collect all stored-computed fields that appear as trigger targets
         all_targets: set[FieldLike] = set()
         for dep_field, paths in triggers.items():
             for targets in paths.values():
                 for target in targets:
-                    # ``store``/``compute`` are guaranteed by the ``FieldLike``
-                    # protocol, so read them directly: a defensive ``getattr``
-                    # would silently mask a missing attribute as "not
-                    # stored-computed" and drop the field from the ordering —
-                    # the exact failure mode the protocol exists to prevent.
                     if target.store and target.compute:
                         all_targets.add(target)
-                        # A dep_field that is itself stored-computed is also a
-                        # node in the ordering.  (The former `dep_field in
-                        # all_targets or ...` disjunct was dead: `all_targets`
-                        # only ever holds stored-computed fields, so membership
-                        # already implied the store/compute test below.)
                         if dep_field.store and dep_field.compute:
                             all_targets.add(dep_field)
 
-        # Build adjacency: dep_field → target means "when dep_field changes,
-        # target needs recomputation", so dep_field must be computed first.
         adjacency: dict[FieldLike, set[FieldLike]] = {
             field: set() for field in all_targets
         }
@@ -739,7 +565,6 @@ class ModelGraph:
                     if target in all_targets and target is not dep_field:
                         dep_adjacency.add(target)
 
-        # Condense to the SCC graph (acyclic by construction).
         sccs = _strongly_connected_components(adjacency)
         component_of: dict[FieldLike, int] = {}
         for component_index, component in enumerate(sccs):
@@ -756,15 +581,12 @@ class ModelGraph:
                     source_adjacency.add(sink)
                     component_in_degree[sink] += 1
 
-        # Kahn's BFS on the condensation. A DAG always drains completely, so
-        # every field is ordered — no fallback bucket needed.
         queue: list[int] = [
             index for index, degree in enumerate(component_in_degree) if degree == 0
         ]
         order: dict[FieldLike, int] = {}
         priority = 0
         while queue:
-            # Process all components at this priority level
             next_queue: list[int] = []
             for index in queue:
                 for field in sccs[index]:
@@ -777,8 +599,6 @@ class ModelGraph:
             priority += 1
 
         return order
-
-    # Freeze — eager cache population for read-only / free-threaded querying
 
     def freeze(self) -> None:
         """Eagerly populate the lazy caches, making the graph truly read-only.
@@ -806,14 +626,10 @@ class ModelGraph:
         """
         state = self._state
         for field in state.triggers:
-            # Order matters: prime the trigger tree first so the
-            # ``is_modifying_relations`` traversal of dependents hits the cache.
             self._tree_for(state, field)
             self._modifying_relations_for(state, field)
         if state.recompute_order is None:
             state.recompute_order = self._compute_recompute_order(state.triggers)
-
-    # Direct access — backward-compatible properties
 
     @property
     def field_inverses(self) -> _Collector:
@@ -834,9 +650,6 @@ class ModelGraph:
     def field_computed(self) -> dict[Any, list]:
         """Direct access to the computed-groups mapping."""
         return self._computed
-
-
-# Internal helpers
 
 
 def _strongly_connected_components(
@@ -863,7 +676,6 @@ def _strongly_connected_components(
         next_index += 1
         stack.append(root)
         on_stack.add(root)
-        # (node, resumable successor iterator) frames of the explicit DFS
         work: list[tuple[Any, Iterator[Any]]] = [(root, iter(root_successors))]
         while work:
             node, successors = work[-1]
@@ -881,7 +693,6 @@ def _strongly_connected_components(
                     lowlink[node] = index_of[successor]
             if advanced:
                 continue
-            # node's successors are exhausted: finish it
             work.pop()
             if work:
                 parent = work[-1][0]

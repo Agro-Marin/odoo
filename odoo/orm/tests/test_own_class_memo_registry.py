@@ -20,13 +20,9 @@ from odoo.orm.helpers import ORM_CLASS_MEMOS
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 
-# a call site: ``own_class_memo(<receiver>, "<literal key>"`` — possibly split
-# across lines (DOTALL lets \s* span newlines)
 _CALL_WITH_LITERAL_KEY = re.compile(
     r"own_class_memo\(\s*[\w.]+\s*,\s*\"([A-Za-z_]+)\"", re.DOTALL
 )
-# any call at all (used to prove no call passes a non-literal key that the
-# pattern above — and therefore the registry check — would silently miss)
 _ANY_CALL = re.compile(r"own_class_memo\(")
 
 
@@ -50,8 +46,6 @@ def test_every_memo_key_is_registered():
 
 
 def test_every_call_site_uses_a_literal_key():
-    # a dynamically-built key would evade the scan above AND could not be in
-    # the static registry — forbid it outright
     for path, text in _iter_sources():
         calls = len(_ANY_CALL.findall(text))
         literal = len(_CALL_WITH_LITERAL_KEY.findall(text))

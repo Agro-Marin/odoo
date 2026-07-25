@@ -26,5 +26,4 @@ Import from the public API packages (odoo.api, odoo.fields, odoo.models)
 rather than directly from odoo.orm submodules.
 """
 
-# import first for core setup
 import odoo.init

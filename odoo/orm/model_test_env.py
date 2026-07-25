@@ -55,9 +55,6 @@ class InMemoryRecordRulesNotSupported(NotImplementedError):
     """Raised on ``env["ir.rule"]`` access in a DB-free harness env."""
 
 
-# Minimal 'base' model for testing
-
-
 class _TestBase(AbstractModel):
     """Minimal ``base`` model for :class:`ModelRegistry`.
 
@@ -118,9 +115,6 @@ class _TestResUsers(Model):
     name = Char()
     login = Char()
     active = Boolean(default=True)
-    # env.company resolves via user.company_id when the context carries no
-    # allowed_company_ids — required by company_dependent fields.
-    # _seed_fixtures already writes company_id=1 into the superuser row.
     company_id = Many2one("res.company")
 
 
@@ -172,14 +166,10 @@ class InMemoryCursor(BaseCursor):
     ) -> None:
         super().__init__()
         self.dbname = registry.db_name
-        # In-memory storage for backend-agnostic CRUD
         self.storage = DictBackend()
-        # Pre-build Transaction so Environment.__new__ skips Registry(cr.dbname)
         self.transaction = Transaction(registry, storage=self.storage)
         self._fixtures: dict[str, list[tuple]] = fixtures or {}
         self._last_result: list[tuple] = []
-
-    # Query execution — fixture-backed
 
     def execute(
         self,
@@ -233,14 +223,6 @@ class InMemoryCursor(BaseCursor):
         """Return up to *size* rows from the last executed query."""
         return self._last_result[:size]
 
-    # fetchscalar() is inherited from BaseCursor (self.fetchone()-based) — the
-    # local fetchone() above makes the inherited version correct here.
-
-    # Fixtures are tuple rows with no column metadata, so the dict cursor API
-    # cannot reconstruct dict rows. Returning empty silently would hand a model
-    # method that consumes the dict API a *false green* (the failure mode this
-    # tier must not introduce, matching ``execute``'s fail-loud contract), so a
-    # populated last result fails loud instead.
     _DICT_API_UNSUPPORTED = (
         "InMemoryCursor (DB-free model_test_env) cannot serve the dict cursor "
         "API (dictfetchone/dictfetchall): fixtures are tuple rows with no column "
@@ -268,8 +250,6 @@ class InMemoryCursor(BaseCursor):
             return []
         raise InMemorySqlNotSupported(self._DICT_API_UNSUPPORTED)
 
-    # Time
-
     def now(self) -> datetime:
         """Return the transaction's timestamp as a naive UTC datetime.
 
@@ -284,11 +264,8 @@ class InMemoryCursor(BaseCursor):
         exhibits, a false-*red* the fast tier must not introduce.)
         """
         if self._now is None:
-            # naive UTC, matching production's ``now() AT TIME ZONE 'UTC'``
             self._now = datetime.now(UTC).replace(tzinfo=None)
         return self._now
-
-    # Transaction control
 
     def savepoint(self, flush: bool = True):
         """Fail loud — the in-memory tier cannot implement savepoints.
@@ -320,15 +297,13 @@ class InMemoryCursor(BaseCursor):
         no-op here would be a false-green vector: postcommit hooks registered by
         the code under test would simply never fire.
         """
-        # Same guard as the production cursor: committing inside a savepoint
-        # corrupts its rollback state.
         if self._savepoint_depth:
             raise RuntimeError(
                 "Cannot commit inside a savepoint! "
                 "This would corrupt the savepoint's rollback state."
             )
         self.flush()
-        self.clear()  # transaction cache + precommit hooks
+        self.clear()
         self._now = None
         self.prerollback.clear()
         self.postrollback.clear()
@@ -356,9 +331,6 @@ class InMemoryCursor(BaseCursor):
         """No-op — there is no connection to close."""
 
 
-# ModelRegistry — lightweight registry from class definitions
-
-
 class ModelRegistry(_RegistryFieldsMixin, Mapping):
     """Lightweight model registry built from Python class definitions.
 
@@ -378,10 +350,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     :param db_name: fake database name (default ``":memory:"``).
     """
 
-    # Inherited @locked methods (e.g. _RegistryFieldsMixin._discard_fields)
-    # acquire ``self._lock``; mirror Registry's class-level RLock so they work
-    # instead of raising AttributeError. Cheap, and correct if a test ever does
-    # thread anything.
     _lock: threading.RLock = threading.RLock()
 
     def __init__(
@@ -393,81 +361,34 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.db_name = db_name
         self.models: dict[str, type[BaseModel]] = {}
 
-        # Real dependency graph: powers cascading recomputation (triggers,
-        # inverses, computed groups) so stored computed fields recompute on
-        # create/write exactly as in production. Populated lazily by
-        # _field_triggers after field setup.
         self.model_graph = ModelGraph()
 
-        # Attributes accessed by registration._setup() and _setup_fields().
-        # Setting _init_modules=False skips manual (Studio/custom) field
-        # loading.  Empty dicts for translated/company_dependent fields
-        # skip the database-state patching that prevents data loss during
-        # module upgrades — irrelevant for testing.
         self._init_modules = False
         self._database_translated_fields: dict[str, str] = {}
         self._database_company_dependent_fields: dict[str, str] = {}
-        # Same shape as Registry.many2many_relations: Many2many.setup_nonrelated
-        # does ``pool.many2many_relations[key].add(...)``, which needs the
-        # mutable OrderedSet buckets (a Collector hands out immutable tuples).
         self.many2many_relations: defaultdict[
             tuple[str, str, str], OrderedSet[tuple[str, str]]
         ] = defaultdict(OrderedSet)
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
 
-        # ormcache support — ``pool.ormcache_lrus`` is the whole protocol
-        # :mod:`odoo.tools.cache` needs of a registry, so providing it is all a
-        # stand-in has to do.  defaultdict(dict) gives each cache name an
-        # auto-created dict (no LRU eviction needed in tests — datasets are
-        # small).
         self.ormcache_lrus: dict[str, dict] = defaultdict(dict)
 
-        # Registry-loading state — True means "fully loaded, normal operation".
-        # Checked by _prepare_create_values to allow/disallow log_access fields.
         self.ready = True
 
-        # Domain optimizer checks which fields have NOT NULL constraints.
-        # Populated during _build after field setup.
         self.not_null_fields: set = set()
 
-        # Fields whose setup / dependency resolution was degraded because a
-        # comodel was absent from this (minimal) model set — keyed by field,
-        # valued by a short reason. Exposed so a test can assert *exactly*
-        # which fields it expected to degrade; a newly-degraded field (e.g. a
-        # real @depends regression) then shows up here instead of silently
-        # resolving to no triggers. Only KeyError (missing model/field) is
-        # tolerated; any other error propagates and fails the build.
         self.degraded_fields: dict = {}
 
-        # DB-only hooks — no-ops in test registry.  Model field setup code
-        # calls these to register foreign keys, constraints, and post-init
-        # callbacks.  They're only meaningful for real database registries.
         self.has_trigram = False
 
         self._build(list(model_defs))
-
-    # Mapping protocol
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
         try:
             return self.models[model_name]
         except KeyError:
             if model_name == "ir.rule":
-                # Loud marker: record rules are silently NOT enforced DB-free
-                # (see InMemoryRecordRulesNotSupported).  A bare KeyError here
-                # reads like a harness gap; make the intent explicit instead.
-                #
-                # The in-memory tier does not enforce record rules (nor
-                # ir.model.access ACLs): search() dispatches to the storage
-                # backend before the ir.rule security domain is applied
-                # (DictBackend declares supports_record_rules = False, see
-                # orm/runtime/backend.py), so a test asserting security-adjacent
-                # behaviour would go green while production filters records —
-                # the false-green failure mode this tier must not introduce
-                # (same rationale as InMemoryCursor.rollback / .savepoint).
-                # Raised only when the caller did not register an ir.rule model
-                # themselves; a caller-provided ir.rule model is served normally.
                 raise InMemoryRecordRulesNotSupported(
                     "ModelRegistry (DB-free model_test_env) has no 'ir.rule' "
                     "model: record rules are NOT enforced in this tier — "
@@ -490,20 +411,11 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     def __len__(self):
         return len(self.models)
 
-    # Registry-compatible mutation (used by add_to_registry)
     def __setitem__(self, model_name: str, model: type[BaseModel]) -> None:
         self.models[model_name] = model
 
     def __delitem__(self, model_name: str) -> None:
         del self.models[model_name]
-
-    # Field-dependency graph (field_depends, field_depends_context,
-    # field_inverses, field_computed, _field_triggers, get_trigger_tree,
-    # get_field_trigger_tree, get_dependent_fields, is_modifying_relations) is
-    # inherited from _RegistryFieldsMixin — the same code the real Registry
-    # runs. field_depends reads model_graph._depends, populated by _build().
-
-    # No-op stubs for DB-only Registry methods
 
     def post_init(self, func, *args, **kwargs) -> None:
         """No-op — post-init callbacks are for real module loading."""
@@ -550,8 +462,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         """Identity function — no accent removal in tests."""
         return text
 
-    # Registry-compatible methods
-
     def descendants(
         self,
         model_names: Iterable[str],
@@ -574,8 +484,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 queue.extend(func(model))
         return result
 
-    # Internal: build the registry
-
     def _build(self, model_defs: list[type[BaseModel]]) -> None:
         """Register model definitions and set up field descriptors.
 
@@ -586,15 +494,12 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         """
         from .models.metaclass import MetaModel
 
-        # 1. Determine which modules we need (always include 'base')
         modules = {"base"}
         for cls in model_defs:
             module = getattr(cls, "_module", None)
             if module:
                 modules.add(module)
 
-        # 2. Collect all definitions from those modules in import order
-        #    (respects dependencies), 'base' first.
         all_defs: list[type[BaseModel]] = []
         seen_ids: set[int] = set()
 
@@ -604,60 +509,45 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     seen_ids.add(id(cls))
                     all_defs.append(cls)
 
-        # 3. Add user-provided classes not already covered (e.g. _register=False
-        #    or from unregistered modules)
         for cls in model_defs:
             if id(cls) not in seen_ids:
                 seen_ids.add(id(cls))
                 all_defs.append(cls)
 
-        # 4. Ensure 'base' is present — fall back to _TestBase if not imported
         has_base = any(getattr(cls, "_name", None) == "base" for cls in all_defs)
         if not has_base:
             all_defs.insert(0, _TestBase)
 
-        # 4b. Ensure an 'ir.default' provider is present — default_get() calls
-        #     it on every create(), so without it CRUD is unusable. Inject the
-        #     stub only when the caller hasn't supplied a real ir.default.
         has_ir_default = any(
             getattr(cls, "_name", None) == "ir.default" for cls in all_defs
         )
         if not has_ir_default:
             all_defs.append(_TestIrDefault)
 
-        # 4c. Ensure a 'res.users' model backs the create_uid/write_uid magic
-        #     fields — without it, any write after invalidate_all() crashes in
-        #     Many2one._update_inverses (see _TestResUsers).
         has_res_users = any(
             getattr(cls, "_name", None) == "res.users" for cls in all_defs
         )
         if not has_res_users:
             all_defs.append(_TestResUsers)
 
-        # 4d. Ensure a 'res.company' model backs res.users.company_id so
-        #     env.company (and company_dependent fields) resolves DB-free.
         has_res_company = any(
             getattr(cls, "_name", None) == "res.company" for cls in all_defs
         )
         if not has_res_company:
             all_defs.append(_TestResCompany)
 
-        # 5. Stable sort: 'base'-named models first (root of all models)
         all_defs.sort(
             key=lambda c: 0 if getattr(c, "_name", "") == "base" else 1,
         )
 
-        # 6. Register each definition class (creates registry model classes)
         for model_def in all_defs:
             registration.add_to_registry(self, model_def)
 
-        # 7. Create a temporary Environment for field setup
         cr = InMemoryCursor(self)
         from .runtime.environment import Environment
 
         env = Environment(cr, SUPERUSER_ID, {})
 
-        # 8. Prepare → setup → setup_fields (simplified _setup_models__)
         model_classes = list(self.models.values())
 
         for model_cls in model_classes:
@@ -669,12 +559,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         for model_cls in model_classes:
             self._setup_fields_lenient(model_cls, env)
 
-        # 9. Resolve field dependencies into model_graph._depends /
-        #    _depends_context (read back via the inherited field_depends /
-        #    field_depends_context properties), exactly as the real Registry
-        #    does in init_models(). The try/except keeps this harness usable
-        #    with a *minimal* model set, where a field may depend on a comodel
-        #    the caller didn't include; the real (full) registry never hits it.
         for model_cls in self.models.values():
             model = model_cls(env, (), ())
             for field in model._fields.values():
@@ -683,17 +567,11 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     self.field_depends[field] = tuple(depends)
                     self.field_depends_context[field] = tuple(depends_context)
                 except KeyError as exc:
-                    # KeyError == a dependency path crosses a comodel/field the
-                    # caller didn't include (legitimate for a minimal model set).
-                    # Anything else (a broken @depends, a real resolution bug)
-                    # must NOT degrade to silent no-triggers — let it propagate.
                     self.field_depends[field] = ()
                     self.field_depends_context[field] = ()
                     self.degraded_fields[field] = f"get_depends: missing {exc}"
 
         if self.degraded_fields:
-            # Surface the degradation once (not silently): a stored computed
-            # field with degraded deps will NOT recompute in this harness.
             _logger.warning(
                 "model_test_env: %d field(s) degraded (missing comodel in the "
                 "model set); their triggers/deps are inert. Inspect via "
@@ -704,7 +582,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 ),
             )
 
-        # 10. Populate not_null_fields (for domain optimizer)
         for model_cls in self.models.values():
             if model_cls._auto and not model_cls._abstract:
                 for field in model_cls._fields.values():
@@ -713,7 +590,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     ):
                         self.not_null_fields.add(field)
 
-        # 11. Post-setup hooks (no-op on BaseModel, may do work on subclasses)
         for model_cls in model_classes:
             try:
                 model_cls(env, (), ())._post_model_setup__()
@@ -741,12 +617,6 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
             try:
                 field.setup(model)
             except Exception as exc:
-                # Tolerate ONLY a missing comodel — the one legitimate gap for a
-                # minimal model set. It is recognised structurally (the comodel
-                # is absent from the registry) or as a KeyError from related-path
-                # resolution. A real setup error on a field whose comodel *is*
-                # present (bad attribute, type mismatch, broken invariant) must
-                # surface, not masquerade as a fully-configured field.
                 comodel = getattr(field, "comodel_name", None)
                 missing_comodel = bool(comodel) and comodel not in model_cls.pool
                 if not missing_comodel and not isinstance(exc, KeyError):
@@ -761,15 +631,11 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     f"setup: {type(exc).__name__}: {exc}"
                 )
             else:
-                # Track company-dependent Many2one fields (mirrors _setup_fields)
                 if field.type == "many2one" and field.company_dependent:
                     model_cls.pool.many2one_company_dependents.add(
                         field.comodel_name,
                         field,
                     )
-
-
-# model_test_env — convenience context manager
 
 
 @contextmanager
@@ -801,20 +667,15 @@ def model_test_env(
     if registry is None:
         registry = ModelRegistry(model_classes, db_name=db_name)
 
-    # Clear ormcaches: a reused registry may hold results keyed to record IDs
-    # from a previous DictBackend.
     for cache in registry.ormcache_lrus.values():
         cache.clear()
 
-    # Clear cached_property values referencing old Transaction data.
     for attr in ("_field_triggers",):
         with suppress(AttributeError):
             delattr(registry, attr)
 
     cr = InMemoryCursor(registry, fixtures=fixtures)
 
-    # Pre-seed minimal records so env.user / env.company resolve: many methods
-    # access env.company (via ormcache keys) → env.user.company_id → DictBackend.
     _seed_fixtures(cr.storage, registry)
 
     from .runtime.environment import Environment
@@ -834,11 +695,8 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
     def _inject(table: str, record_id: int, data: dict) -> None:
         """Insert a record with a specific ID, bypassing auto-increment."""
         data["id"] = record_id
-        # put_rows advances the table's sequence past record_id, so later
-        # next_id() allocations won't collide.
         storage.put_rows(table, [data])
 
-    # Partner for the company (id=1)
     if "res.partner" in registry:
         _inject(
             "res_partner",
@@ -851,7 +709,6 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
             },
         )
 
-    # Company (id=1)
     if "res.company" in registry:
         _inject(
             "res_company",
@@ -864,7 +721,6 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
             },
         )
 
-    # Superuser (id=1 = SUPERUSER_ID)
     if "res.users" in registry:
         _inject(
             "res_users",
@@ -877,10 +733,6 @@ def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
                 "partner_id": 1,
             },
         )
-        # Seed user 1 <-> company 1 into the Many2many relation store (the
-        # same {column1, column2} row shape InMemoryBackend.link_m2m_pairs
-        # writes), so ``env.user.company_ids`` resolves.  Skipped when the
-        # field's schema never got set up (e.g. degraded minimal model set).
         field = registry["res.users"]._fields.get("company_ids")
         if (
             field is not None

@@ -37,7 +37,7 @@ def _make(env):
     model = env["trans.thing"]
     b = model.create({"name": "bbb", "plain": "2"})
     a = model.create({"name": "aaa", "plain": "1"})
-    c = model.create({"name": "", "plain": "3"})  # falsy translated value
+    c = model.create({"name": "", "plain": "3"})
     return model, a, b, c
 
 
@@ -45,10 +45,7 @@ def test_sorted_by_translated_field_matches_general_path():
     with model_test_env(TransThing) as env:
         _model, a, b, c = _make(env)
         recs = b + a + c
-        # Fast path (was crashing) must equal the naive Python sort.
-        expected = tuple(
-            r.id for r in sorted(recs, key=lambda r: r.name or "")
-        )
+        expected = tuple(r.id for r in sorted(recs, key=lambda r: r.name or ""))
         assert recs.sorted("name")._ids == expected
 
 
@@ -56,7 +53,6 @@ def test_filtered_by_translated_field_matches_general_path():
     with model_test_env(TransThing) as env:
         _model, a, b, c = _make(env)
         recs = b + a + c
-        # ``c`` has a falsy name and must be dropped, order preserved.
         got = recs.filtered("name")
         expected = recs.browse(r.id for r in recs if r.name)
         assert got._ids == expected._ids == (b.id, a.id)

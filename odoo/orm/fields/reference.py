@@ -15,16 +15,6 @@ if typing.TYPE_CHECKING:
     from .._typing import ModelLike
     from ..models import BaseModel
 
-# ``env.cr.cache`` key of the transaction-scoped memo of reference targets
-# verified by a given Reference field, as ``{(model, name): {(res_model,
-# res_id), ...}}`` — one set of verified pairs per field.  Keying per field
-# (not one global set) matters: a memoized pair also implies the target model
-# passed *that field's* selection check, so the memo can be consulted before
-# ``get_values`` without letting one field's selection leak into another's.
-# ``cr.cache`` is transaction-local and cleared on commit/rollback/savepoint
-# rollback, so a rolled-back target cannot leak a stale "exists" verdict into
-# later transactions.  Only positive results are memoized: a missing target
-# may be created later in the same transaction, so negatives are re-checked.
 REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
 
 
@@ -40,8 +30,6 @@ class Reference(Selection):
     _column_type = ("varchar", pg_varchar())
 
     if not typing.TYPE_CHECKING:
-        # Bypass Selection.__get__: convert_to_record splits "model,id" and
-        # browses, whereas the Selection shortcut would return the raw string.
         __get__ = Field.__get__
 
     @override
@@ -52,30 +40,15 @@ class Reference(Selection):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
-        # A reference's column format is the string "res_model,res_id", but its
-        # *write* format also admits a recordset (``create({'ref': record})``),
-        # which ``Field.convert_to_column`` rejects as a non-scalar -- rightly,
-        # since ``str()`` on it would persist the repr ``"model(8,)"``.
-        # ``convert_to_cache`` already produces exactly the column format from
-        # either form, so normalise through it rather than duplicating the
-        # model/id formatting (and its selection + existence validation) here.
-        # Only recordsets are routed that way: strings and falsy values already
-        # are the column format, and re-validating them on every UPDATE flush
-        # would add a lookup per write.
         if is_recordset(value):
             value = self.convert_to_cache(value, record, validate)
-        # Selection's own override is bypassed: a reference is not one of its
-        # keys, so its selection lookup does not apply.
         return Field.convert_to_column(self, value, record, values, validate)
 
     @override
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> str | None:
-        # cache format: str ("model,id") or None
         if is_recordset(value):
-            # validate=False (bulk/import) trusts input: no selection lookup and
-            # no existence query, same trade as the string branch below.
             if not validate:
                 return f"{value._name},{value.id}" if value else None
             if value._name in self.get_values(record.env) and len(value) <= 1:
@@ -83,10 +56,6 @@ class Reference(Selection):
                     return None
                 res_id = value.id
                 if isinstance(res_id, int):
-                    # Same memo + existence check as the string branch: a
-                    # recordset can point at a deleted id just as easily as a
-                    # string can, and skipping the check cached a dangling
-                    # reference. NewIds are exempt (no row to verify yet).
                     memo = self._verified_pairs(record.env)
                     if (
                         value._name,
@@ -97,8 +66,6 @@ class Reference(Selection):
                         return None
                 return f"{value._name},{res_id}"
         elif isinstance(value, str):
-            # parse defensively so malformed RPC input (extra commas, non-numeric
-            # id) falls through to the uniform error below.
             res_model, sep, res_id = value.partition(",")
             if sep and res_model:
                 try:
@@ -107,21 +74,12 @@ class Reference(Selection):
                     res_id_int = None
                 if res_id_int is not None:
                     if not validate:
-                        # validate=False (bulk/import) trusts input, skipping
-                        # selection lookup and existence query alike.
                         return value
-                    # Memo first: a pair this field verified earlier in the
-                    # transaction already passed both the selection check and
-                    # the existence check — skip re-running ``get_values``
-                    # (which may execute its selection callable, e.g. an
-                    # ir.model search, per call) and the existence query.
                     memo = self._verified_pairs(record.env)
                     if (res_model, res_id_int) in memo:
                         return value
                     if res_model in self.get_values(record.env):
-                        if self._reference_exists(
-                            record, res_model, res_id_int, memo
-                        ):
+                        if self._reference_exists(record, res_model, res_id_int, memo):
                             return value
                         return None
         elif not value:
@@ -167,22 +125,15 @@ class Reference(Selection):
         if (res_model, res_id) in memo:
             return True
 
-        # candidate targets to validate: always the requested pair...
         ids_per_model: dict[str, set[int]] = {res_model: {res_id}}
 
-        # ...plus, on the batch-create path, the sibling rows' values.  The
-        # batch rows are already INSERTed when the cache is populated, so one
-        # SELECT over the prefetch ids recovers the whole batch's references.
-        # Gated to a singleton record with a wider prefetch set (the
-        # batch-create shape) so plain multi-record writes — where the column
-        # still holds pre-write values — do not pay the extra query.
         prefetch_ids = [id_ for id_ in record._prefetch_ids if isinstance(id_, int)]
         if (
             len(record._ids) == 1
             and len(prefetch_ids) > 1
             and self.store
             and self.column_type
-            and env.backend is None  # in-memory test backend: no raw SQL
+            and env.backend is None
         ):
             env.cr.execute(
                 SQL(
@@ -208,7 +159,7 @@ class Reference(Selection):
                     ids_per_model.setdefault(model, set()).add(sibling_id)
 
         for model, ids in ids_per_model.items():
-            existing = env[model].browse(ids).exists()  # one query per model
+            existing = env[model].browse(ids).exists()
             memo.update((model, id_) for id_ in existing._ids)
 
         return (res_model, res_id) in memo
@@ -264,7 +215,6 @@ class Many2oneReference(Integer):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> typing.Any:
-        # cache format: id or None
         if is_recordset(value):
             value = value._ids[0] if value._ids else None
         return super().convert_to_cache(value, record, validate)
@@ -277,8 +227,6 @@ class Many2oneReference(Integer):
         model_ids = self._record_ids_per_res_model(records)
 
         for invf in records.pool.field_inverses[self]:
-            # per-iteration subset; don't rebind the ``records`` parameter (the
-            # next iteration must re-derive from the full set, not this subset)
             recs = records.browse(model_ids[invf.model_name])
             if not recs:
                 continue
@@ -287,9 +235,6 @@ class Many2oneReference(Integer):
             if not recs:
                 continue
             ids0 = invf._get_cache(corecord.env).get(corecord.id)
-            # if the value for the corecord is not in cache, but this is a new
-            # record, assign it anyway, as you won't be able to fetch it from
-            # database (see `test_sale_order`)
             if ids0 is not None or not corecord.id:
                 ids1 = tuple(unique((ids0 or ()) + recs._ids))
                 invf._update_cache(corecord, ids1)
@@ -299,7 +244,6 @@ class Many2oneReference(Integer):
         for record in records:
             model = record[self.model_field]
             if not model and record._fields[self.model_field].compute:
-                # fallback when the model field is computed :-/
                 record._fields[self.model_field].compute_value(record)
                 model = record[self.model_field]
                 if not model:

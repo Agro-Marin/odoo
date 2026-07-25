@@ -67,12 +67,7 @@ class RecomputeMixin(_ModelStubs):
 
         core = self.env._core
 
-        # Both modes seed the scheduler's recursive-field prune from the
-        # engine's live pending map (see OrmCore.new_scheduler): ids already
-        # pending from earlier modified() calls are not re-traversed.
         if before:
-            # Pre-modification: collect what depends on self via the OLD graph,
-            # then batch-schedule.
             scheduler = core.new_scheduler()
             self._modified_trigger_loop(fnames, False, scheduler)
 
@@ -80,17 +75,8 @@ class RecomputeMixin(_ModelStubs):
                 records = self.env[field.model_name].browse(ids)
                 self.env.add_to_compute(field, records)
         else:
-            # Post-modification: the scheduler pushes each entry's delta into
-            # pending inline, so the lazy trigger-tree iterator sees newly
-            # pending fields when resolving inverse edges.  Needed for
-            # cascades: the iterator reads stored-computed fields via __get__,
-            # which only computes if the field is pending.
             scheduler = core.new_scheduler(inline=True)
             self._modified_trigger_loop(fnames, create, scheduler)
-
-        # Non-stored invalidation is drained inline during the trigger walk
-        # (see _modified_trigger_loop), so to_invalidate is always empty here —
-        # a post-loop pass would be dead code.
 
     def _modified_before(self, fnames: Collection[str]) -> None:
         """Capture dependencies BEFORE records in ``self`` are modified.
@@ -150,7 +136,6 @@ class RecomputeMixin(_ModelStubs):
             _mark_count = 0
             _invalidate_count = 0
 
-        # Fast path: skip traversal when no modified field has dependents.
         _field_triggers = self.pool._field_triggers
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
@@ -169,41 +154,27 @@ class RecomputeMixin(_ModelStubs):
                 p.record_modified(self._name, len(self), prof.elapsed)
             return
 
-        # determine what to trigger (with iterators)
         todo = [self._modified(fields, create)]
         prof.mark("tree")
 
-        # Process trigger entries lazily.  This loop only does trigger traversal
-        # (DB-coupled inverse resolution) and recursive expansion; the scheduler
-        # handles protection, cycle detection, routing, and (in inline mode)
-        # per-entry delta scheduling into the engine's pending set.
         env = self.env
         for field, records, entry_create in itertools.chain.from_iterable(todo):
-            # Recursive non-stored fields: pass cached IDs so the scheduler can
-            # filter to IDs that actually have data to invalidate.
             cached_ids = None
             if field.recursive and not field.is_stored_computed:
                 cached_ids = field._get_all_cache_ids(env).keys()
 
-            # OrderedSet keeps the recordset's id order all the way into the
-            # engine's OrderedSet pending map (deterministic recompute order).
             recursive_ids = scheduler.process_entry(
                 field,
                 OrderedSet(records._ids),
                 cached_ids=cached_ids,
             )
 
-            # Inline invalidation: invalidate non-stored fields now so a stored-
-            # computed recompute triggered mid-traversal (via __get__) reads
-            # fresh dependencies, not a stale cached related/computed value
-            # (e.g. product_tmpl_id still pointing at the old product).
             if scheduler.to_invalidate:
                 for inv_field, inv_ids in scheduler.to_invalidate:
                     inv_field._invalidate_cache(env, inv_ids)
                 scheduler.to_invalidate.clear()
 
             if recursive_ids:
-                # Recurse into the field's dependents.
                 todo.append(
                     records.browse(recursive_ids)._modified([field], entry_create)
                 )
@@ -246,11 +217,6 @@ class RecomputeMixin(_ModelStubs):
         ``(field, records, created)`` triples to recompute.
         """
 
-        # Merge the fields' trigger trees to evaluate all triggers at once.
-        # For non-stored computed fields, `_modified_triggers` may traverse the
-        # tree (extra queries) only to learn which cached records to invalidate.
-        # Fields with no cache data can be ignored, so `select` discards
-        # subtrees that only contain them.
         def select(field):
             return field.is_stored_computed or bool(field._get_all_cache_ids(self.env))
 
@@ -258,11 +224,6 @@ class RecomputeMixin(_ModelStubs):
         if not tree:
             return ()
 
-        # sudo + active_test=False is only needed when the tree has edges
-        # (relational inverse traversal reads self[invf.name] which needs
-        # ACL bypass and must include archived records).  For root-only trees
-        # (all dependents on the same model), the trigger loop only uses
-        # self._ids, so the original recordset is sufficient.
         if len(tree):
             records = self.sudo().with_context(active_test=False)
         else:
@@ -279,20 +240,15 @@ class RecomputeMixin(_ModelStubs):
         if not self:
             return
 
-        # first yield what to compute
         for field in tree.root:
             yield field, self, create
 
-        # then traverse dependencies backwards, and proceed recursively
         for field, subtree in tree.items():
             if create and field.type in ("many2one", "many2one_reference"):
-                # upon creation, no other record has a reference to self
                 continue
 
-            # subtree is another tree of dependencies
             model = self.env[field.model_name]
             for invf in model.pool.field_inverses[field]:
-                # use an inverse of field without domain
                 if not (invf.type in ("one2many", "many2many") and invf.domain):
                     if invf.type == "many2one_reference":
                         rec_ids = OrderedSet()
@@ -309,12 +265,8 @@ class RecomputeMixin(_ModelStubs):
                         except MissingError:
                             records = self.exists()[invf.name]
 
-                    # When self holds new records (NewId), the inverse lookup
-                    # returns real IDs; re-wrap them as NewId so cache lookups
-                    # work for unsaved records (which have no DB row).
                     if field.model_name == records._name:
                         if not any(self._ids):
-                            # if self are new, records should be new as well
                             records = records.browse(
                                 it and NewId(it) for it in records._ids
                             )
@@ -332,7 +284,9 @@ class RecomputeMixin(_ModelStubs):
                     cache_records = model.browse(field_cache)
                     new_ids = set(self._ids)
                     records |= cache_records.filtered(
-                        lambda r, field=field, new_ids=new_ids: not set(r[field.name]._ids).isdisjoint(new_ids)
+                        lambda r, field=field, new_ids=new_ids: (
+                            not set(r[field.name]._ids).isdisjoint(new_ids)
+                        )
                     )
 
             yield from records._modified_triggers(subtree)
@@ -362,11 +316,6 @@ class RecomputeMixin(_ModelStubs):
             return
 
         if fnames is None:
-            # Iterate stored-computed fields of the model rather than
-            # just the currently-pending ones.  An inverse method called from
-            # inside a compute may add OTHER fields to the pending set
-            # (e.g. _inverse_name adds payment_reference); a snapshot of
-            # pending_fields() would miss these newly-added entries.
             for field in self._get_stored_computed_fields():
                 self._recompute_field(field)
         else:
@@ -385,8 +334,6 @@ class RecomputeMixin(_ModelStubs):
             return
 
         if fnames is None:
-            # Same rationale as _recompute_model: iterate stored-computed
-            # fields to handle cascading additions to the pending set.
             ids = self._ids
             for field in self._get_stored_computed_fields():
                 self._recompute_field(field, ids)
@@ -409,8 +356,6 @@ class RecomputeMixin(_ModelStubs):
 
         prof = _OrmProfile(_orm_compute)
 
-        # do not force recomputation on new records; those will be
-        # recomputed by accessing the field on the records
         records = self.browse(tuple(id_ for id_ in ids if id_))
         field.recompute(records)
 
@@ -441,9 +386,6 @@ class RecomputeMixin(_ModelStubs):
 
         :param fnames: optional iterable of field names to check for dirtiness
         """
-        # Fast path: when fnames is given and there's nothing pending at all
-        # (no fields to recompute, no dirty fields), skip the entire method.
-        # This is the common case during search/read operations.
         if fnames is not None:
             core = self.env._core
             if not core.has_pending() and not core.is_any_dirty():
@@ -457,8 +399,6 @@ class RecomputeMixin(_ModelStubs):
         if fnames is None or any(
             core.has_dirty_field(self._fields[fname]) for fname in fnames
         ):
-            # Flush ALL dirty fields (see the dirty-guard note in the docstring):
-            # a partial flush could write a row with stale computed dependents.
             self._flush()
 
         prof.stop()
@@ -482,7 +422,6 @@ class RecomputeMixin(_ModelStubs):
         """
         if not self:
             return
-        # Fast path: if nothing is pending globally, skip everything
         if fnames is not None:
             core = self.env._core
             if not core.has_pending() and not core.is_any_dirty():
@@ -494,8 +433,6 @@ class RecomputeMixin(_ModelStubs):
         else:
             fields = [self._fields[fname] for fname in fnames]
         core = self.env._core
-        # Singleton fast path: avoid set creation for the common case
-        # of flushing a single record (e.g. before reading one field).
         ids = self._ids
         if len(ids) == 1:
             id_ = ids[0]
@@ -509,7 +446,6 @@ class RecomputeMixin(_ModelStubs):
                 self._flush()
 
     def _flush(self) -> None:
-        # pop dirty fields and their corresponding record ids from cache
         core = self.env._core
         dirty_field_ids = core.pop_dirty_for_model(self._name)
         if not dirty_field_ids:
@@ -522,9 +458,6 @@ class RecomputeMixin(_ModelStubs):
         cls = type(model)
         _no_prefetch = ()
 
-        # Pre-invert {field: ids} → {id: [fields]} to avoid N*M membership
-        # tests in the inner loop. This is O(total_dirty_entries) upfront
-        # instead of O(n_fields * n_records) per-record.
         id_to_fields: dict[int, list] = defaultdict(list)
         for field, ids in dirty_field_ids.items():
             for id_ in ids:
@@ -535,8 +468,6 @@ class RecomputeMixin(_ModelStubs):
         if prof.debug:
             _batch_count = 0
 
-        # Perform updates in batches to limit memory footprint.
-        # Pipeline keeps all batch UPDATEs in a single round-trip.
         BATCH_SIZE = 1000
         with env.cr.pipeline():
             for some_ids in batched(dirty_ids, BATCH_SIZE, strict=False):
@@ -546,8 +477,6 @@ class RecomputeMixin(_ModelStubs):
                 _new = object.__new__
                 try:
                     for id_ in some_ids:
-                        # HOT per-record loop: inline mirror of `_spawn` (keep
-                        # slot assignments in sync), no prefetch.
                         record = _new(cls)
                         record.env = env
                         record._ids = (id_,)
@@ -561,10 +490,6 @@ class RecomputeMixin(_ModelStubs):
                             }
                         )
                 except KeyError as e:
-                    # RuntimeError, not AssertionError: this is a runtime data-
-                    # integrity failure, and test frameworks that catch
-                    # AssertionError generically would misreport it as a test
-                    # failure rather than a fatal ORM error.
                     raise RuntimeError(
                         f"Could not find all values of {self._name}({id_}) to flush them\n"
                         f"    Context: {env.context}\n"

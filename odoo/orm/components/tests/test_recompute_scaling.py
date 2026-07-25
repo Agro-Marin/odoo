@@ -35,7 +35,7 @@ class TestKnownSubtractionSemantics(unittest.TestCase):
     def test_marked_and_accumulated_with_ordered_sets(self) -> None:
         engine = ComputeEngine(pending_factory=OrderedSet)
         field = _MockField("parent_total", stored_computed=True, recursive=True)
-        engine.schedule(field, [10, 11])  # pre-existing pending (marked)
+        engine.schedule(field, [10, 11])
 
         scheduler = RecomputeScheduler(
             engine,
@@ -43,12 +43,11 @@ class TestKnownSubtractionSemantics(unittest.TestCase):
             schedule_inline=True,
             set_factory=OrderedSet,
         )
-        scheduler.process_entry(field, OrderedSet([20, 21]))  # accumulates
+        scheduler.process_entry(field, OrderedSet([20, 21]))
         recursive_ids = scheduler.process_entry(
             field, OrderedSet([10, 20, 30, 11, 21, 31])
         )
 
-        # 10/11 in marked, 20/21 accumulated -> only 30/31 survive
         self.assertEqual(recursive_ids, frozenset({30, 31}))
         self.assertEqual(list(engine.pending_ids(field)), [10, 11, 20, 21, 30, 31])
 
@@ -120,7 +119,6 @@ class TestCachedIdsIntersection(unittest.TestCase):
             field, OrderedSet([1, 3, 5, 7]), cached_ids=cached
         )
 
-        # membership tests happened in the entry's (recordset) order
         self.assertEqual(cached.lookups, [1, 3, 5, 7])
         self.assertEqual(recursive_ids, frozenset({1, 3, 7}))
         self.assertEqual(scheduler.to_invalidate, [(field, frozenset({1, 3, 7}))])
@@ -139,7 +137,6 @@ class TestCachedIdsIntersection(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
         scheduler = RecomputeScheduler(engine)
         scheduler.process_entry(field, {1, 2}, cached_ids={1, 2})
-        # 1 seen, 4 not cached -> only 3
         recursive_ids = scheduler.process_entry(field, {1, 3, 4}, cached_ids={1, 3})
         self.assertEqual(recursive_ids, frozenset({3}))
 

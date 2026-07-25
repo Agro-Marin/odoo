@@ -38,20 +38,13 @@ class Member(models.Model):
     _log_access = False
 
     name = fields.Char()
-    # STORED translated field with an extra context dep: the extras must be
-    # stripped at setup (a stored column holds one value per language, so
-    # per-context values cannot be persisted; keeping them would make the
-    # flush collapse same-language sub-caches last-wins).
     badge = fields.Char(translate=True, depends_context=("scheme",))
     container_id = fields.Many2one(
         "tcg.container",
         compute="_compute_container_id",
-        search="_search_container_id",  # searchable: silence the resolve warning
+        search="_search_container_id",
     )
-    # translated related through a context-dependent compute: its
-    # depends_context legitimately resolves to lang + uid
     ctx_name_translated = fields.Char(related="container_id.name_translated")
-    # non-stored plain translated field with an explicit extra context dep
     label = fields.Char(translate=True, store=False, depends_context=("scheme",))
 
     @api.depends_context("uid")
@@ -72,7 +65,6 @@ def test_plain_translate_field_resolves_to_lang_only():
 def test_extra_depends_context_is_lang_first():
     with model_test_env(Container, Member) as env:
         registry = env.registry
-        # the related chain yields ('uid', 'lang'); normalization puts lang first
         related = registry["tcg.member"]._fields["ctx_name_translated"]
         assert tuple(registry.field_depends_context[related]) == ("lang", "uid")
         explicit = registry["tcg.member"]._fields["label"]
@@ -92,17 +84,12 @@ def test_fallback_key_follows_real_cache_key():
 
 
 def test_stored_translate_strips_extra_context_deps(caplog):
-    # Stored translated sub-caches must be keyed by exactly (lang,) so
-    # get_column_update's per-language flush is unambiguous — same policy
-    # as the callable-translate branch.
     import logging
 
     with caplog.at_level(logging.WARNING, logger="odoo.fields"):
         with model_test_env(Container, Member) as env:
             field = env.registry["tcg.member"]._fields["badge"]
             assert tuple(env.registry.field_depends_context[field]) == ("lang",)
-            # the flush path sees pure (lang,) keys: a write under an extra
-            # context lands in the (lang,)-keyed sub-cache
             record = env["tcg.member"].create({"name": "m"})
             record.with_context(scheme="dark").badge = "B"
             assert env.cache_key(field) == ("en_US",)
@@ -111,9 +98,6 @@ def test_stored_translate_strips_extra_context_deps(caplog):
 
 
 def test_en_us_fallback_with_extra_context_dep():
-    # A no-DB-row record written in en_US must be readable from another
-    # language via the fallback — previously the fallback probed the dead
-    # ("en_US",) key and found nothing.
     with model_test_env(Container, Member) as env:
         base = env["tcg.member"].create({"name": "m"})
         new = base.with_context(scheme="dark").new(origin=base)

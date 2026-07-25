@@ -6,7 +6,6 @@ the ``load()`` import pipeline (see :mod:`.load`).
 """
 
 import collections
-import contextlib
 import logging
 import typing
 import uuid
@@ -64,10 +63,6 @@ class ExportMixin(_ModelStubs):
                 list(self.ids),
             )
         )
-        # When a record has several xmlids, export the OLDEST one (lowest
-        # ir_model_data id): ORDER BY id + first-wins matches get_metadata()
-        # (read.py), which orders id DESC and takes the last entry, so export
-        # and metadata agree deterministically.
         xids: dict[int, tuple[str, str]] = {}
         for res_id, module, name in cr.fetchall():
             xids.setdefault(res_id, (module, name))
@@ -76,7 +71,6 @@ class ExportMixin(_ModelStubs):
             module, name = xids[record_id]
             return f"{module}.{name}" if module else name
 
-        # create missing xml ids
         missing = self.filtered(lambda r: r.id not in xids)
         if not missing:
             return ((record, to_xid(record.id)) for record in self)
@@ -118,7 +112,6 @@ class ExportMixin(_ModelStubs):
         lines = []
 
         if not _is_toplevel_call:
-            # {properties_field: {property_name: [property_type, {record_id: value}]}}
             cache_properties = self.env.cr.cache["export_properties_cache"]
         else:
             cache_properties = self.env.cr.cache["export_properties_cache"] = (
@@ -127,11 +120,9 @@ class ExportMixin(_ModelStubs):
             self._export_fetch_fields(self, fields, cache_properties)
 
         for record in self:
-            # main line of record, initially empty
             current = [""] * len(fields)
             lines.append(current)
 
-            # primary fields already exported with their secondary field(s)
             primary_done = set()
 
             for i, path in enumerate(fields):
@@ -148,19 +139,18 @@ class ExportMixin(_ModelStubs):
                     current[i] = (record._name, record.id)
                 else:
                     prop_name = None
-                    if "." in name:  # properties field
+                    if "." in name:
                         fname, prop_name = name.split(".")
                         field = record._fields[fname]
                         field_type, cache_value = cache_properties[field].get(
                             prop_name, ("char", None)
                         )
                         value = cache_value.get(record.id, "") if cache_value else ""
-                    else:  # normal field
+                    else:
                         field = record._fields[name]
                         field_type = field.type
                         value = record[name]
 
-                    # convoluted, but kept this way to reproduce former behavior
                     if not is_recordset(value):
                         current[i] = field.convert_to_export(value, record)
 
@@ -169,31 +159,37 @@ class ExportMixin(_ModelStubs):
 
                     else:
                         primary_done.add(name)
-                        # recursively export the fields that follow name; use
-                        # 'display_name' where no subfield is exported
                         fields2 = [
                             (p[1:] or ["display_name"] if p and p[0] == name else [])
                             for p in fields
                         ]
 
-                        # in import_compat mode, m2m exports as a comma-separated
-                        # list of xids or names in a single cell
                         if import_compatible and field_type == "many2many":
                             index = None
-                            # find which subfield the user wants and its column
-                            # (may not be the first one we encounter)
-                            for name in ["id", "name", "display_name"]:
-                                with contextlib.suppress(ValueError):
-                                    index = fields2.index([name])
+                            subfield = None
+                            for candidate in (".id", "id", "name", "display_name"):
+                                target = (candidate,)
+                                index = next(
+                                    (
+                                        pos
+                                        for pos, f2 in enumerate(fields2)
+                                        if tuple(f2) == target
+                                    ),
+                                    None,
+                                )
+                                if index is not None:
+                                    subfield = candidate
                                     break
                             if index is None:
-                                # none found: default to display_name, first column
-                                name = None
                                 index = i
 
-                            if name == "id":
+                            if subfield == "id":
                                 xml_ids = [xid for _, xid in value._ensure_xml_ids()]
                                 current[index] = ",".join(xml_ids)
+                            elif subfield == ".id":
+                                current[index] = ",".join(
+                                    str(rec_id) for rec_id in value.ids
+                                )
                             else:
                                 current[index] = (
                                     ",".join(value.mapped("display_name"))
@@ -204,16 +200,13 @@ class ExportMixin(_ModelStubs):
 
                         lines2 = value._export_rows(fields2, _is_toplevel_call=False)
                         if lines2:
-                            # merge first line with record's main line
                             for j, val in enumerate(lines2[0]):
                                 if val or isinstance(val, (int, float)):
                                     current[j] = val
-                            # append the other lines at the end
                             lines += lines2[1:]
                         else:
                             current[i] = ""
 
-        # export xids only at toplevel
         if _is_toplevel_call and any(f[-1] == "id" for f in fields):
             self._inject_export_xids(lines, fields)
 
@@ -228,7 +221,6 @@ class ExportMixin(_ModelStubs):
         """Fill the export cache for the ``fname`` properties field."""
         cache_properties_field = cache_properties[records._fields[fname]]
 
-        # read() runs Properties.convert_to_read_multi
         for row in records.read([fname]):
             properties = row[fname]
             if not properties:
@@ -251,9 +243,7 @@ class ExportMixin(_ModelStubs):
                 if property_type in ("many2one", "many2many"):
                     if not isinstance(value, list):
                         value = [value] if value else []
-                    value = self.env[prop["comodel"]].browse(
-                        [val[0] for val in value]
-                    )
+                    value = self.env[prop["comodel"]].browse([val[0] for val in value])
                 elif property_type == "tags" and value:
                     value = ",".join(
                         next(
@@ -275,16 +265,11 @@ class ExportMixin(_ModelStubs):
 
         fnames_by_path = dict(
             groupby(
-                [
-                    path
-                    for path in field_paths
-                    if path and path[0] not in ("id", ".id")
-                ],
+                [path for path in field_paths if path and path[0] not in ("id", ".id")],
                 lambda path: path[0],
             )
         )
 
-        # fetch needed fields (drop the '.property_name' part)
         fnames = list(unique(fname.split(".")[0] for fname in fnames_by_path))
         records.fetch(fnames)
         for fname in fnames:
@@ -294,13 +279,10 @@ class ExportMixin(_ModelStubs):
                     records, fnames_by_path, fname, cache_properties
                 )
 
-        # recurse on relational fields (incl. relational properties)
         for fname, paths in fnames_by_path.items():
-            if "." in fname:  # properties field
+            if "." in fname:
                 fname, prop_name = fname.split(".")
                 field = records._fields[fname]
-                # raise (not assert): under python -O a dotted non-property
-                # field would silently export blank data.
                 if not (field.type == "properties" and prop_name):
                     raise ValueError(
                         f"export expected a properties subfield, got {field!r}.{prop_name!r}"
@@ -309,10 +291,7 @@ class ExportMixin(_ModelStubs):
                 property_type, property_cache = cache_properties[field].get(
                     prop_name, ("char", None)
                 )
-                if (
-                    property_type not in ("many2one", "many2many")
-                    or not property_cache
-                ):
+                if property_type not in ("many2one", "many2many") or not property_cache:
                     continue
                 model = next(iter(property_cache.values())).browse()
                 subrecords = model.union(
@@ -322,7 +301,7 @@ class ExportMixin(_ModelStubs):
                         if rec_id in property_cache
                     ]
                 )
-            else:  # normal field
+            else:
                 field = records._fields[fname]
                 if not field.relational:
                     continue
@@ -335,19 +314,15 @@ class ExportMixin(_ModelStubs):
         """Resolve ``(model, id)`` placeholder cells in ``lines`` to xml-ids."""
         bymodels = collections.defaultdict(set)
         xidmap = collections.defaultdict(list)
-        # collect the (model, id) tuples in "lines" with their coordinates
         for i, line in enumerate(lines):
             for j, cell in enumerate(line):
                 if isinstance(cell, tuple):
                     bymodels[cell[0]].add(cell[1])
                     xidmap[cell].append((i, j))
-        # per model, resolve xids and inject them into the matrix
         for model, ids in bymodels.items():
             for record, xid in self.env[model].browse(ids)._ensure_xml_ids():
                 for i, j in xidmap.pop((record._name, record.id)):
                     lines[i][j] = xid
-        # raise (not assert): under python -O leftover xids would ship raw
-        # (model, id) tuples in exported cells.
         if xidmap:
             raise RuntimeError(
                 "failed to export xids for "

@@ -49,16 +49,11 @@ class _ModelStubs:
     __slots__ = ()
 
     if typing.TYPE_CHECKING:
-        # Instance slots on BaseModel (``__slots__ = ["_ids", "_prefetch_ids",
-        # "env"]``); ``env`` stays ``Any`` — Environment is Layer 3 and the
-        # pre-existing stubs deliberately did not pull it across the boundary.
         env: typing.Any
         _ids: tuple
         _prefetch_ids: typing.Any
 
-        # Registry / model metadata set during registration.
         pool: typing.Any
-        # Read-only view: BaseModel exposes _fields as a MappingProxyType.
         _fields: Mapping[str, Field]
         _name: str
         _table: str
@@ -69,10 +64,7 @@ class _ModelStubs:
         _parent_name: str
         _parent_store: bool
 
-        # Model-definition class attributes (``_name = ...`` & friends).
         _inherits: dict
-        # Names of models delegating to this one via ``_inherits`` (populated
-        # in registration._init_model_class_attributes).
         _inherits_children: set[str]
         _description: str
         _abstract: bool
@@ -83,12 +75,6 @@ class _ModelStubs:
         _table_objects: dict
         _check_company_auto: bool
 
-        # Recordset operations whose single real implementation lives on a
-        # sibling mixin (browse -> IterationMixin, sudo/with_env/ensure_one ->
-        # EnvironmentMixin, filtered -> TraversalMixin, exists -> SearchMixin).
-        # Declaring them here lets any mixin call them on ``self`` and chain on
-        # the ``Self`` result; the signatures mirror the real ones exactly so
-        # those remain valid overrides.
         def browse(self, ids: int | typing.Iterable[IdType] = ()) -> Self: ...
         def new(
             self,
@@ -103,16 +89,12 @@ class _ModelStubs:
         def filtered(self, func: str | Callable[[Self], bool] | Domain) -> Self: ...
         def __iter__(self) -> Iterator[Self]: ...
         def __len__(self) -> int: ...
-        # Indexing mirrors IterationMixin.__getitem__: int/slice selects
-        # records, a field name reads that field's value.
         @typing.overload
         def __getitem__(self, key: int | slice) -> Self: ...
         @typing.overload
         def __getitem__(self, key: str) -> typing.Any: ...
         def __getitem__(self, key: int | slice | str) -> Self | typing.Any: ...
 
-        # The ``with_*`` rebinding family + set algebra (all EnvironmentMixin /
-        # IterationMixin), likewise returning a recordset.
         def with_context(
             self, ctx: dict[str, typing.Any] | None = None, /, **overrides
         ) -> Self: ...
@@ -124,8 +106,6 @@ class _ModelStubs:
         def union(self, *args: Self) -> Self: ...
         def concat(self, *args: Self) -> Self: ...
 
-        # Query/SQL entry points (SearchMixin / AccessMixin) that other mixins —
-        # notably the read_group pipeline — call through ``self``.
         def check_access(self, operation: str) -> None: ...
         def _search(
             self,
@@ -141,7 +121,6 @@ class _ModelStubs:
             self, alias: str, field_expr: str, query: Query | None = None
         ) -> SQL: ...
 
-        # CRUD / persistence entry points other mixins call through ``self``.
         def write(self, vals: ValuesType) -> typing.Literal[True]: ...
         def fetch(self, field_names: Collection[str] | None = None) -> None: ...
         def flush_model(self, fnames: Collection[str] | None = None) -> None: ...
@@ -172,11 +151,6 @@ class _ModelStubs:
             self, fnames: Collection[str] | None = None, flush: bool = True
         ) -> None: ...
         def flush_recordset(self, fnames: Collection[str] | None = None) -> None: ...
-        # Schema / transient / translation / properties members that field
-        # override bodies reach through a ``ModelLike``-typed receiver. Each
-        # signature mirrors its single real implementation (SchemaMixin,
-        # LifecycleMixin.is_transient classmethod, TranslationMixin, BaseModel's
-        # properties-definition converters) so those remain valid overrides.
         def _table_has_rows(self) -> bool: ...
         def _init_column(self, column_name: str) -> None: ...
         @classmethod
@@ -201,9 +175,6 @@ class _ModelStubs:
             prefetch_ids: Reversible[IdType],
         ) -> Self: ...
 
-        # Read-only properties on BaseModel / EnvironmentMixin that sibling
-        # mixins read through ``self`` — declared as properties (not plain
-        # attributes) so the real read-only properties remain valid overrides.
         @property
         def _origin(self) -> Self: ...
         @property

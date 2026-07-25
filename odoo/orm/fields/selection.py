@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ModelLike
     from ..runtime import Environment
 
-    SelectValue = tuple[str, str]  # (value, string)
+    SelectValue = tuple[str, str]
     OnDeletePolicy = str | Callable[[BaseModel], None]
 
 
@@ -65,14 +65,11 @@ class Selection(Field[str | typing.Literal[False]]):
 
     selection: (
         list[SelectValue] | str | Callable[[BaseModel], list[SelectValue]] | None
-    ) = None  # [(value, string), ...], function or method name
-    validate: bool = True  # whether validating upon write
-    ondelete: dict[str, OnDeletePolicy] | None = (
-        None  # {value: policy} (what to do when value is deleted)
-    )
+    ) = None
+    validate: bool = True
+    ondelete: dict[str, OnDeletePolicy] | None = None
 
     if not typing.TYPE_CHECKING:
-        # Runtime fast path; the type checker inherits Field[str | False].__get__.
         __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     def __init__(
@@ -90,7 +87,6 @@ class Selection(Field[str | typing.Literal[False]]):
 
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
-        # selection must be computed on related field
         field = self.related_field
         self.selection = lambda model: field._description_selection(model.env)
         self._selection = None
@@ -99,9 +95,7 @@ class Selection(Field[str | typing.Literal[False]]):
         self, model_class: type[BaseModel], name: str
     ) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
-        # 'selection' and 'selection_add' are processed in _setup_attrs__
         attrs.pop("selection_add", None)
-        # provide the default group_expand implementation when requested
         if attrs.get("group_expand") is True:
             attrs["group_expand"] = self._default_group_expand
         return attrs
@@ -111,12 +105,9 @@ class Selection(Field[str | typing.Literal[False]]):
         if not self._base_fields__:
             return
 
-        # determine selection (applying 'selection_add' extensions) as a dict
         values = None
 
         for field in self._base_fields__:
-            # We cannot use field.selection or field.selection_add here
-            # because those attributes are overridden by ``_setup_attrs__``.
             if "selection" in field._args__:
                 if self.related:
                     _logger.warning(
@@ -151,8 +142,6 @@ class Selection(Field[str | typing.Literal[False]]):
                         self,
                     )
                 selection_add = field._args__["selection_add"]
-                # raise (not assert) so the error survives python -O instead of
-                # building a broken Selection field
                 if not isinstance(selection_add, list):
                     raise TypeError(
                         f"{self}: selection_add={selection_add!r} must be a list"
@@ -165,9 +154,6 @@ class Selection(Field[str | typing.Literal[False]]):
                 values_add = {
                     kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add
                 }
-                # Copy: ``_args__`` only shallow-copies kwargs, so the inner
-                # ondelete dict is the user's object. The setdefault below would
-                # otherwise mutate it and leak defaults across registry rebuilds.
                 ondelete = dict(field._args__.get("ondelete") or {})
                 new_values = [key for key in values_add if key not in values]
                 for key in new_values:
@@ -182,7 +168,6 @@ class Selection(Field[str | typing.Literal[False]]):
                         "containing the specified option."
                     )
 
-                # check ondelete values
                 for key, val in ondelete.items():
                     if callable(val) or val in ("set null", "cascade"):
                         continue
@@ -247,10 +232,8 @@ class Selection(Field[str | typing.Literal[False]]):
         selection = self.selection
         if isinstance(selection, str) or callable(selection):
             selection = determine(selection, env[self.model_name])
-            # force all values to be strings (check _get_year_selection)
             return [(str(key), str(label)) for key, label in selection]
 
-        # translate selection labels
         if env.lang:
             return env["ir.model.fields"].get_field_selection(
                 self.model_name, self.name
@@ -261,7 +244,6 @@ class Selection(Field[str | typing.Literal[False]]):
     def _default_group_expand(
         self, records: BaseModel, groups: typing.Any, domain: typing.Any
     ) -> list[str]:
-        # return a group per selection option, in definition order
         return self.get_values(records.env)
 
     def get_values(self, env: Environment) -> list[str]:

@@ -50,14 +50,14 @@ class TestDownstreamOfCycle(unittest.TestCase):
         source, a, b, c, d = (_sc(n) for n in ["source", "a", "b", "c", "d"])
         g.add_trigger(source, (), [a])
         g.add_trigger(a, (), [b])
-        g.add_trigger(b, (), [a, c])  # cycle a<->b, then downstream chain
+        g.add_trigger(b, (), [a, c])
         g.add_trigger(c, (), [d])
 
         order = g.recompute_order
         self.assertLess(order[source], order[a])
-        self.assertEqual(order[a], order[b])  # one SCC, one priority
-        self.assertLess(order[a], order[c])  # downstream of the cycle...
-        self.assertLess(order[c], order[d])  # ...stays strictly ordered
+        self.assertEqual(order[a], order[b])
+        self.assertLess(order[a], order[c])
+        self.assertLess(order[c], order[d])
 
     def test_two_cycles_in_sequence(self) -> None:
         """(a ⇄ b) → (c ⇄ d) → e: SCCs order strictly among themselves."""
@@ -90,10 +90,6 @@ class TestDownstreamOfCycle(unittest.TestCase):
 class TestSeededFuzzProperties(unittest.TestCase):
     """Seeded fuzzer: the recompute-order strict property holds on random graphs."""
 
-    # Strict property (only achievable with the SCC condensation): every
-    # trigger edge between ordered fields in different SCCs is strictly ordered;
-    # fields in the same SCC share a priority.
-
     N_TRIALS = 300
 
     def test_seeded_random_graphs(self) -> None:
@@ -101,7 +97,6 @@ class TestSeededFuzzProperties(unittest.TestCase):
             rng = random.Random(trial)
             n = rng.randint(2, 12)
             fields = [_sc(f"f{i}") for i in range(n)]
-            # a few non-stored / non-computed fields mixed in
             others = [
                 MockField(f"ns{i}", store=False, compute="_c") for i in range(2)
             ] + [MockField(f"col{i}", store=True) for i in range(2)]
@@ -128,11 +123,9 @@ class TestSeededFuzzProperties(unittest.TestCase):
                     adjacency.setdefault(dep, set()).add(target)
 
             with self.subTest(trial=trial):
-                # every stored-computed trigger target is ordered
                 for _dep, target in edges:
                     if target.store and target.compute:
                         self.assertIn(target, order)
-                # strict order across SCCs, equal priority within one SCC
                 for dep, target in edges:
                     if dep not in order or target not in order or dep is target:
                         continue

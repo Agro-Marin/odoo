@@ -120,15 +120,13 @@ class SearchMixin(_ModelStubs):
         """
         prof = _OrmProfile(_orm_read)
 
-        # first determine a query that satisfies the domain and access rules
         query = self._search(
             domain, offset=offset, limit=limit, order=order or self._order
         )
         prof.mark("search")
 
         if query.is_empty():
-            # optimization: don't execute the query at all
-            if not self.env.su:  # check access to fields
+            if not self.env.su:
                 self._determine_fields_to_fetch(field_names)
             prof.stop()
             if prof.debug:
@@ -185,25 +183,18 @@ class SearchMixin(_ModelStubs):
                 "Cannot search on display_name, no _rec_name or _rec_names_search defined on %s",
                 self._name,
             )
-            # do not restrain anything
             return Domain.TRUE
         if operator.endswith("like") and not value and "=" not in operator:
-            # optimize out the default criterion of ``like ''`` that matches everything
-            # return all when operator is positive
             return (
                 Domain.FALSE if operator in Domain.NEGATIVE_OPERATORS else Domain.TRUE
             )
         aggregator = Domain.AND if operator in Domain.NEGATIVE_OPERATORS else Domain.OR
         domains = []
         for field_name in search_fnames:
-            # field_name may be a dotted path (e.g. partner_id.name); walk it to
-            # the last field
             model = self
             segments = field_name.split(".")
             for i, fname in enumerate(segments):
                 if model is None:
-                    # An earlier segment was non-relational: raise a clear
-                    # config-time error instead of a later AttributeError.
                     raise ValueError(
                         f"Invalid _rec_names_search entry {field_name!r} on "
                         f"{self._name!r}: segment {segments[i - 1]!r} is "
@@ -211,9 +202,7 @@ class SearchMixin(_ModelStubs):
                     )
                 field = model._fields[fname]
                 model = self.env.get(field.comodel_name) if field.relational else None
-            # cast the value to the field type if needed; ignore if not castable
             if field.relational:
-                # relational fields will search on the display_name
                 domains.append([(field_name + ".display_name", operator, value)])
             elif operator.endswith("like"):
                 domains.append([(field_name, operator, value)])
@@ -224,8 +213,6 @@ class SearchMixin(_ModelStubs):
                         typed_value.append(field.convert_to_write(v, self))
                 domains.append([(field_name, operator, typed_value)])
             else:
-                # Suppress TypeError too (like the collection branch above): an
-                # unconvertible RPC value must skip this field, not crash.
                 with contextlib.suppress(ValueError, TypeError):
                     typed_value = field.convert_to_write(value, self)
                     domains.append([(field_name, operator, typed_value)])
@@ -296,9 +283,6 @@ class SearchMixin(_ModelStubs):
         terms = []
         for order_part in order.split(","):
             order_match = regex_order.match(order_part)
-            # raise (not assert) so contract holds under python -O.  The
-            # outer ``_check_qorder`` already validated the full string,
-            # so a per-part match failure indicates a regex divergence.
             if order_match is None:
                 raise RuntimeError(
                     f"Order part {order_part!r} did not match regex_order "
@@ -317,7 +301,6 @@ class SearchMixin(_ModelStubs):
             sql_nulls = SQL_ORDER_NULLS.get(nulls, SQL.EMPTY)
 
             if property_name := order_match["property"]:
-                # field_name is an expression
                 field_name = f"{field_name}.{property_name}"
             term = self._order_field_to_sql(
                 alias, field_name, sql_direction, sql_nulls, query
@@ -342,7 +325,6 @@ class SearchMixin(_ModelStubs):
         :param direction: one of ``SQL("ASC")``, ``SQL("DESC")``, ``SQL()``
         :param nulls: one of ``SQL("NULLS FIRST")``, ``SQL("NULLS LAST")``, ``SQL()``
         """
-        # field_name is an expression
         fname, property_name = parse_field_expr(field_name)
         field = self._fields.get(fname)
         if not field:
@@ -354,8 +336,6 @@ class SearchMixin(_ModelStubs):
                 return SQL.EMPTY
             self = self.with_context(__m2o_order_seen=frozenset((field, *seen)))
 
-            # figure out the applicable order_by for the m2o
-            # special case: ordering by "x_id.id" doesn't recurse on x_id's comodel
             comodel = self.env[field.comodel_name]
             if property_name == "id":
                 coorder = "id"
@@ -365,29 +345,20 @@ class SearchMixin(_ModelStubs):
                 sql_field = self._field_to_sql(alias, field_name, query)
 
             if coorder == "id":
-                # Mirror the scalar branch below: under _any_value_orderby, wrap
-                # the column in ANY_VALUE() rather than just keeping it out of
-                # GROUP BY, else a bare column in ORDER BY of a grouped query
-                # triggers PostgreSQL error 42803 (must appear in GROUP BY or an
-                # aggregate).
                 if query._any_value_orderby:
                     sql_field = SQL("ANY_VALUE(%s)", sql_field)
                 elif query._collect_order_groupby:
                     query._order_groupby.append(sql_field)
                 return SQL("%s %s %s", sql_field, direction, nulls)
 
-            # instead of ordering by the field's raw value, use the comodel's
-            # order on many2one values
             terms = []
             if nulls.code == "NULLS FIRST":
                 terms.append(SQL("%s IS NOT NULL", sql_field))
             elif nulls.code == "NULLS LAST":
                 terms.append(SQL("%s IS NULL", sql_field))
 
-            # LEFT JOIN the comodel table, in order to include NULL values, too
             _comodel, coalias = field.join(self, alias, query)
 
-            # delegate the order to the comodel
             reverse = direction.code == "DESC"
             term = comodel._order_to_sql(coorder, query, alias=coalias, reverse=reverse)
             if term:
@@ -399,14 +370,8 @@ class SearchMixin(_ModelStubs):
             sql_field = SQL("COALESCE(%s, FALSE)", sql_field)
 
         if query._any_value_orderby:
-            # Use ANY_VALUE() (PG16+) instead of adding to GROUP BY.
-            # The column is functionally dependent on the grouped column
-            # (e.g., partner.name depends on partner_id), so any arbitrary
-            # value from the group is correct for ordering.
             sql_field = SQL("ANY_VALUE(%s)", sql_field)
         elif query._collect_order_groupby:
-            # Only the read_group layer consumes _order_groupby; collecting it
-            # on plain searches would grow a list nobody reads.
             query._order_groupby.append(sql_field)
 
         return SQL("%s %s %s", sql_field, direction, nulls)
@@ -444,7 +409,6 @@ class SearchMixin(_ModelStubs):
         prof.mark("acl")
 
         domain = Domain(domain)
-        # exclude inactive records unless the domain mentions the active field
         if (
             self._active_name
             and active_test
@@ -456,15 +420,10 @@ class SearchMixin(_ModelStubs):
         ):
             domain &= Domain(self._active_name, "=", True)
 
-        # build the query
         domain = domain.optimize_full(self)
         if domain.is_false():
             return self.browse()._as_query()
 
-        # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
-        # NOTE: the in-memory tier returns here, BEFORE the ir.rule security
-        # domain below — it declares ``supports_record_rules = False`` (see
-        # backend.py). Record-rule-dependent tests must use the DB tier.
         if (backend := self.env.backend) is not None:
             return backend.search(self, domain, offset, limit, order)
 
@@ -473,7 +432,6 @@ class SearchMixin(_ModelStubs):
             query.add_where(domain._to_sql(self, self._table, query))
         prof.mark("domain")
 
-        # security access domain
         if check_access:
             self_sudo = self.sudo().with_context(active_test=False)
             sec_domain = self.env["ir.rule"]._compute_domain(self._name, "read")
@@ -484,15 +442,10 @@ class SearchMixin(_ModelStubs):
                 query.add_where(sec_domain._to_sql(self_sudo, self._table, query))
         prof.mark("rules")
 
-        # add order and limits
         if order:
             query.order = self._order_to_sql(order, query)
 
-        # In RPC, None is not available; False is used instead to mean "no limit"
         if limit is not None and limit is not False:
-            # ``True`` is a legacy alias for 1.  Coerce it: passing the bool
-            # straight through binds ``LIMIT true``, which PostgreSQL rejects
-            # (``argument of LIMIT must be type bigint, not type boolean``).
             query.limit = 1 if limit is True else limit
         if offset is not None:
             query.offset = 1 if offset is True else offset
@@ -515,7 +468,6 @@ class SearchMixin(_ModelStubs):
 
         :param ordered: whether the recordset order must be enforced by the query
         """
-        # In-memory backend sets _ids directly — skip SQL unnest.
         if (backend := self.env.backend) is not None:
             return backend.as_query(self, ordered)
         query = Query(self.env, self._table, self._table_sql)
@@ -549,16 +501,12 @@ class SearchMixin(_ModelStubs):
             domain or [], fields, offset=offset, limit=limit, order=order
         )
 
-        # 'active_test' was meant for the main search() only; drop it so
-        # _read_format() won't forward it to downstream searches (x2m, computed).
         if "active_test" in self.env.context:
             context = dict(self.env.context)
             del context["active_test"]
             records = records.with_context(context)
 
         return records._read_format(fnames=fields, **read_kwargs)
-
-    # SQL traversal utilities
 
     def _traverse_related_sql(
         self, alias: str, field: Field, query: Query
@@ -569,8 +517,6 @@ class SearchMixin(_ModelStubs):
             field in the sequence, ``model`` is that field's model, and
             ``alias`` is the model's table alias
         """
-        # raise (not assert): holds under python -O; a non-related field would
-        # otherwise crash at related.split(".") with an opaque AttributeError.
         if not (field.related and not field.store):
             raise ValueError(
                 f"_traverse_related_sql expects a non-stored related field, got {field!r}"
@@ -630,8 +576,6 @@ class SearchMixin(_ModelStubs):
             sql = field.property_to_sql(sql, property_name, self, alias, query)
         return sql
 
-    # Existence checking and row locking
-
     @api.private
     def exists(self) -> Self:
         """The subset of records in ``self`` that exist.
@@ -645,7 +589,6 @@ class SearchMixin(_ModelStubs):
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if not ids:
             return self
-        # In-memory backend checks storage directly — no SQL needed.
         if (backend := self.env.backend) is not None:
             valid_ids = {*backend.existing_ids(self, ids), *new_ids}
             return self.browse(i for i in self._ids if i in valid_ids)
@@ -680,8 +623,6 @@ class SearchMixin(_ModelStubs):
         query.add_where(
             SQL("%s = ANY(%s)", SQL.identifier(self._table, "id"), list(ids))
         )
-        # Use SKIP LOCKED instead of NOWAIT because the later aborts the
-        # transaction and we do not want to use SAVEPOINTS.
         if allow_referencing:
             lock_sql = SQL("FOR NO KEY UPDATE SKIP LOCKED")
         else:
@@ -712,10 +653,8 @@ class SearchMixin(_ModelStubs):
         if limit is not None and len(new_ids) >= limit:
             return self.browse(new_ids[:limit])
         if not ids:
-            # no real (DB) ids to lock; only NewIds remain -- nothing to query
             return self
         if limit is not None:
-            # keep the order of ids when trying to lock
             query = self.browse(ids)._as_query(ordered=True)
             query.limit = limit - len(new_ids)
         else:
@@ -733,5 +672,4 @@ class SearchMixin(_ModelStubs):
         return self.browse(i for i in self._ids if i in valid_ids)
 
 
-# Imported after the class definition to avoid a circular import.
-from odoo.tools.translate import _  # noqa: E402
+from odoo.tools.translate import _

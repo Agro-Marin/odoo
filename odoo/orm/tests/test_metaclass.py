@@ -13,8 +13,6 @@ import logging
 
 from odoo import models
 
-# The metaclass logs a warning whenever it has to *derive* _name (it wants the
-# author to make it explicit). That is expected here, so silence it.
 logging.getLogger("odoo.orm.models.metaclass").setLevel(logging.ERROR)
 
 
@@ -23,8 +21,6 @@ def test_name_derived_from_camelcase():
         _module = "test_meta_camel"
         _description = "x"
 
-    # A capital preceded by a non-underscore char gets a '.' inserted, then the
-    # whole thing is lower-cased: ResPartnerBank -> res.partner.bank.
     assert ResPartnerBank._name == "res.partner.bank"
 
 
@@ -33,16 +29,11 @@ def test_name_derivation_splits_each_consecutive_capital():
         _module = "test_meta_acronym"
         _description = "x"
 
-    # Documents the (slightly surprising but deterministic) behaviour: every
-    # capital after the first char splits, so acronyms scatter. Pin it so a
-    # change to the regex is a conscious decision, not an accident.
     assert HTTPThing._name == "h.t.t.p.thing"
 
 
 def test_inherit_string_implies_name_and_is_listified():
     class Ext(models.Model):
-        # Extending an existing model in place: a bare string _inherit must set
-        # _name to the same model and normalise _inherit to a list.
         _inherit = "res.partner"
         _module = "test_meta_inherit"
 
@@ -60,9 +51,6 @@ def test_explicit_name_is_not_derived():
 
 
 def test_slots_default_keeps_models_stateless():
-    # The metaclass injects __slots__=() so recordsets carry no per-instance
-    # __dict__ — the load-bearing invariant behind the "zero-state mixins"
-    # design. Guard it.
     class Slotted(models.Model):
         _name = "test.slotted"
         _module = "test_meta_slots"

@@ -34,10 +34,8 @@ class TestFieldCacheData(unittest.TestCase):
         an empty sub-dict for any never-cached field on every miss, leaking
         entries that later inflate iter_field_items / invalidate_all scans.
         """
-        # miss with a default
         self.cache.get_value("ghost", 1, default=None)
         self.assertNotIn("ghost", dict(self.cache.iter_field_items()))
-        # miss that raises
         with self.assertRaises(KeyError):
             self.cache.get_value("ghost2", 1)
         self.assertNotIn("ghost2", dict(self.cache.iter_field_items()))
@@ -60,7 +58,6 @@ class TestFieldCacheData(unittest.TestCase):
         d = self.cache.get_field_data("name")
         self.assertIsInstance(d, dict)
         self.assertEqual(len(d), 0)
-        # mutating the returned dict is visible to the cache
         d[1] = "Bob"
         self.assertEqual(self.cache.get_value("name", 1), "Bob")
 
@@ -68,7 +65,6 @@ class TestFieldCacheData(unittest.TestCase):
         self.assertIsNone(self.cache.get_field_data_or_none("name"))
         self.cache.set_value("name", 1, "Alice")
         self.assertIsNotNone(self.cache.get_field_data_or_none("name"))
-
 
 
 class TestFieldCacheDirty(unittest.TestCase):
@@ -102,7 +98,6 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.cache.mark_dirty("name", [])
         self.assertFalse(self.cache.is_any_dirty())
         self.assertNotIn("name", list(self.cache.iter_dirty_fields()))
-        # empty generator (all NewIds filtered out)
         self.cache.mark_dirty("ref", (i for i in [] if i))
         self.assertFalse(self.cache.is_any_dirty())
         self.assertEqual(self.cache.dirty_entry_count(), 0)
@@ -123,7 +118,6 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.cache.mark_dirty("name", [1, 2])
         ids = self.cache.pop_dirty("name")
         self.assertEqual(ids, {1, 2})
-        # after pop, field is no longer dirty
         self.assertIsNone(self.cache.get_dirty("name"))
         self.assertFalse(self.cache.is_any_dirty())
 
@@ -152,7 +146,6 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.assertEqual(self.cache.dirty_entry_count(), 1)
 
     def test_custom_dirty_factory(self) -> None:
-        # OrderedSet-like types (any MutableSet with .update()) are typical
         class OrderedSet(set):
             """Minimal ordered set stand-in for testing."""
 
@@ -195,7 +188,6 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.cache.invalidate_field("name")
         self.assertFalse(self.cache.has_value("name", 1))
         self.assertFalse(self.cache.has_value("name", 2))
-        # other field untouched
         self.assertTrue(self.cache.has_value("email", 1))
 
     def test_invalidate_field_specific_ids(self) -> None:
@@ -204,15 +196,10 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.assertTrue(self.cache.has_value("name", 2))
 
     def test_invalidate_field_nonexistent(self) -> None:
-        # should not raise
         self.cache.invalidate_field("nonexistent")
         self.cache.invalidate_field("nonexistent", [1])
 
     def test_invalidate_field_specific_ids_context_dependent(self) -> None:
-        # Context-dependent fields (translate=True, company_dependent) store
-        # ``{cache_key_tuple: {id: value}}``.  The per-id branch must scrub
-        # the ids inside every cache_key sub-dict (it used to silently no-op
-        # on this shape), mirroring ``invalidate_all``'s tuple detection.
         cache = FieldCache()
         cache._data["G"][("en_US",)] = {1: "one_en", 2: "two_en"}
         cache._data["G"][("es_MX",)] = {1: "one_es", 3: "three_es"}
@@ -225,13 +212,10 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         cache._data["G"][("en_US",)] = {1: "one_en"}
         cache._data["G"][("es_MX",)] = {1: "one_es", 2: "two_es"}
         cache.invalidate_field("G", [1])
-        # the fully-scrubbed cache_key entry is removed, the other trimmed
         self.assertNotIn(("en_US",), cache._data["G"])
         self.assertEqual(cache._data["G"][("es_MX",)], {2: "two_es"})
 
     def test_invalidate_field_flat_dict_valued_stays_flat(self) -> None:
-        # Flat fields with dict VALUES (Json, Properties) must not be treated
-        # as context-dependent: shape detection keys on tuple KEYS only.
         cache = FieldCache()
         cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
         cache.invalidate_field("json_f", [1])
@@ -246,52 +230,32 @@ class TestFieldCacheInvalidation(unittest.TestCase):
     def test_invalidate_all_preserves_dirty(self) -> None:
         self.cache.mark_dirty("name", [1])
         self.cache.invalidate_all()
-        # dirty flags survive invalidate_all
         self.assertTrue(self.cache.is_any_dirty())
 
     def test_invalidate_all_evicts_clean_on_dirty_field(self) -> None:
-        # Regression for H1 (audit round 1):
-        # ``invalidate_all`` previously preserved the *entire* sub-dict of
-        # any field with at least one dirty entry — including non-dirty
-        # record IDs.  The contract documented in the docstring is that
-        # only dirty entries survive.
         self.cache.mark_dirty("name", [1])
         self.cache.invalidate_all()
-        # dirty entry preserved
         self.assertTrue(self.cache.has_value("name", 1))
         self.assertEqual(self.cache.get_value("name", 1), "Alice")
-        # clean entry on the same field MUST be evicted
         self.assertFalse(self.cache.has_value("name", 2))
-        # clean field with no dirty entries is fully cleared
         self.assertFalse(self.cache.has_value("email", 1))
 
     def test_invalidate_all_context_dep_evicts_clean(self) -> None:
-        # Regression for H1: context-dependent shape ``{cache_key: {id: v}}``.
-        # Each cache_key sub-dict must drop non-dirty IDs, and an emptied
-        # cache_key entry must be removed.
         cache = FieldCache()
         cache._data["G"][("en_US",)] = {1: "dirty_en", 2: "clean_en"}
         cache._data["G"][("es_MX",)] = {1: "dirty_es", 3: "clean_es_only"}
         cache.mark_dirty("G", [1])
         cache.invalidate_all()
-        # both cache_keys keep id=1, drop the rest
         self.assertEqual(cache._data["G"][("en_US",)], {1: "dirty_en"})
         self.assertEqual(cache._data["G"][("es_MX",)], {1: "dirty_es"})
 
     def test_invalidate_all_flat_dict_valued_preserves_dirty(self) -> None:
-        # Regression for the shape-detection bug fixed 2026-05-04: flat fields
-        # whose values are themselves Python dicts (Json, Properties) were
-        # mis-classified as context-dependent because the heuristic checked
-        # ``isinstance(v, dict)``.  The dirty entry was silently evicted.
-        # Switching to ``isinstance(k, tuple)`` (cache_keys are tuples,
-        # record ids are not) fixes the misclassification.
         cache = FieldCache()
         cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
         cache._data["props_f"] = {1: {"prio": "high"}, 2: {"prio": "low"}}
         cache.mark_dirty("json_f", [1])
         cache.mark_dirty("props_f", [1])
         cache.invalidate_all()
-        # dirty record 1 must survive in both flat dict-valued fields
         self.assertEqual(cache._data["json_f"], {1: {"k": "v1"}})
         self.assertEqual(cache._data["props_f"], {1: {"prio": "high"}})
 
@@ -366,9 +330,7 @@ class TestPopDirtyForModel(unittest.TestCase):
         self.assertEqual(result[self.f_partner_name], {1, 2})
         self.assertEqual(result[self.f_partner_email], {3})
 
-        # sale.order dirty entry should remain
         self.assertTrue(self.cache.has_dirty_field(self.f_order_name))
-        # res.partner entries should be gone
         self.assertFalse(self.cache.has_dirty_field(self.f_partner_name))
         self.assertFalse(self.cache.has_dirty_field(self.f_partner_email))
 
@@ -376,7 +338,6 @@ class TestPopDirtyForModel(unittest.TestCase):
         self.cache.mark_dirty(self.f_order_name, [10])
         result = self.cache.pop_dirty_for_model("res.partner")
         self.assertEqual(result, {})
-        # sale.order still dirty
         self.assertTrue(self.cache.has_dirty_field(self.f_order_name))
 
     def test_returns_empty_when_no_dirty(self) -> None:

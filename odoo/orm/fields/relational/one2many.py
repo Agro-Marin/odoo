@@ -55,10 +55,8 @@ class One2many(_RelationalMulti):
 
     type = "one2many"
 
-    inverse_name: str | None = None  # name of the inverse field
-    copy: bool = False  # o2m are not copied by default
-    # whether the inverse m2o is computed — resolved once at setup (registry
-    # static) so __get__ need not re-look-up the inverse field on every access
+    inverse_name: str | None = None
+    copy: bool = False
     _inverse_is_computed: bool = False
 
     def __init__(
@@ -79,7 +77,6 @@ class One2many(_RelationalMulti):
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
         if self.inverse_name:
-            # link self to its inverse field and vice-versa
             comodel = model.env[self.comodel_name]
             try:
                 field = comodel._fields[self.inverse_name]
@@ -95,11 +92,8 @@ class One2many(_RelationalMulti):
         self, registry: Registry, inverses: Collector[Field, Field]
     ) -> None:
         if self.inverse_name:
-            # link self to its inverse field and vice-versa
             invf = registry[self.comodel_name]._fields[self.inverse_name]
             if isinstance(invf, (Many2one, Many2oneReference)):
-                # only m2o inverses are invalidated; integer inverses
-                # (res_model/res_id pairs) are not supported
                 inverses.add(self, invf)
             inverses.add(invf, self)
 
@@ -152,21 +146,17 @@ class One2many(_RelationalMulti):
         self, records: typing.Any, owner: typing.Any = None
     ) -> BaseModel | typing.Self:
         if records is not None and self._inverse_is_computed:
-            # force the computation of the (computed) inverse field to ensure
-            # that the cache value of self is consistent
             records.env[self.comodel_name]._recompute_model([self.inverse_name])
         return super().__get__(records, owner)
 
     @override
     def read(self, records: BaseModel) -> None:
-        # retrieve the lines in the comodel
         context = {"active_test": False}
         context.update(self.context)
         comodel = records.env[self.comodel_name].with_context(**context)
         inverse = self.inverse_name
         inverse_field = comodel._fields[inverse]
 
-        # optimization: fetch the inverse and active fields with search()
         domain = self.get_comodel_domain(records) & Domain(inverse, "in", records.ids)
         field_names = [inverse]
         if comodel._active_name:
@@ -178,14 +168,11 @@ class One2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        # group lines by inverse field (without prefetching other fields)
         get_id = (lambda rec: rec.id) if inverse_field.type == "many2one" else int
         group = defaultdict(list)
         for line in lines:
-            # line[inverse] may be a record or an integer
             group[get_id(line[inverse])].append(line.id)
 
-        # store result in cache
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
 
@@ -230,7 +217,6 @@ class One2many(_RelationalMulti):
                     case Command.LINK:
                         link(recs[-1], browse_lines([command[1]]))
                     case Command.CLEAR | Command.SET:
-                        # assign the given lines to the last record only
                         self._update_cache(recs, ())
                         lines = browse_lines(
                             command[2] if command[0] == Command.SET else []
@@ -244,7 +230,6 @@ class One2many(_RelationalMulti):
         create: bool = False,
     ) -> None:
         """Update real records."""
-        # records_commands_list = [(records, commands), ...]
         if not records_commands_list:
             return
 
@@ -254,9 +239,9 @@ class One2many(_RelationalMulti):
 
         if self.store:
             inverse = self.inverse_name
-            to_create = []  # line vals to create
-            to_delete = []  # line ids to delete
-            to_link = defaultdict(OrderedSet)  # {record: line_ids}
+            to_create = []
+            to_delete = []
+            to_link = defaultdict(OrderedSet)
             allow_full_delete = not create
 
             def unlink(lines):
@@ -269,17 +254,14 @@ class One2many(_RelationalMulti):
                 if to_link:
                     before = {record: record[self.name] for record in to_link}
                 if to_delete:
-                    # unlink() will remove the lines from the cache
                     comodel.browse(to_delete).unlink()
                     to_delete.clear()
                 if to_create:
-                    # create() will add the new lines to the cache of records
                     comodel.create(to_create)
                     to_create.clear()
                 if to_link:
                     for record, line_ids in to_link.items():
                         lines = comodel.browse(line_ids) - before[record]
-                        # linking missing lines should fail
                         lines.mapped(inverse)
                         lines[inverse] = record
                     to_link.clear()
@@ -292,7 +274,6 @@ class One2many(_RelationalMulti):
                                 dict(command[2], **{inverse: record.id})
                                 for record in recs
                             )
-                            allow_full_delete = False
                         case Command.UPDATE:
                             prefetch_ids = recs[self.name]._prefetch_ids
                             comodel.browse(command[1]).with_prefetch(
@@ -304,31 +285,22 @@ class One2many(_RelationalMulti):
                             unlink(comodel.browse(command[1]))
                         case Command.LINK:
                             to_link[recs[-1]].add(command[1])
-                            allow_full_delete = False
                         case Command.CLEAR | Command.SET:
                             line_ids = command[2] if command[0] == Command.SET else []
                             if not allow_full_delete:
-                                # in creation mode, don't delete if nothing
-                                # was created yet
                                 if line_ids:
-                                    # equivalent to Command.LINK
                                     if line_ids.__class__ is int:
                                         line_ids = [line_ids]
                                     to_link[recs[-1]].update(line_ids)
                                     allow_full_delete = False
                                 continue
                             flush()
-                            # assign the given lines to the last record only
                             lines = comodel.browse(line_ids)
                             domain = (
                                 self.get_comodel_domain(model)
                                 & Domain(inverse, "in", recs.ids)
                                 & Domain("id", "not in", lines.ids)
                             )
-                            # a SET/CLEAR must detach archived lines too, so
-                            # neutralize the implicit active_test filter (an
-                            # explicit active condition in the field's own
-                            # domain still applies via get_comodel_domain)
                             unlink(
                                 comodel.with_context(active_test=False).search(domain)
                             )
@@ -367,13 +339,11 @@ class One2many(_RelationalMulti):
         def browse(ids):
             return comodel.browse([id_ and NewId(id_) for id_ in ids])
 
-        # make sure self is in cache
         records[self.name]
 
         if self.store:
             inverse = self.inverse_name
 
-            # make sure self's inverse is in cache
             inverse_field = comodel._fields[inverse]
             for record in records:
                 inverse_field._update_cache(record[self.name], record.id)
@@ -392,16 +362,11 @@ class One2many(_RelationalMulti):
                         case Command.LINK:
                             browse([command[1]])[inverse] = recs[-1]
                         case Command.CLEAR:
-                            # reset the removed lines' inverse (same path as
-                            # DELETE) before dropping them from self's cache,
-                            # so the pseudo-record graph stays coherent during
-                            # onchange
                             for record in recs:
                                 if removed := record[self.name]:
                                     removed[inverse] = False
                             self._update_cache(recs, ())
                         case Command.SET:
-                            # assign the given lines to the last record only
                             last, lines = recs[-1], browse(command[2])
                             for record in recs:
                                 if removed := record[self.name] - lines:
@@ -429,9 +394,6 @@ class One2many(_RelationalMulti):
     ) -> Query:
         inverse_field = comodel._fields[self.inverse_name]
         if inverse_field not in comodel.env.registry.not_null_fields:
-            # exclude NULLs from the subquery: a NULL makes the IN test NULL
-            # instead of FALSE, discarding expected results -- e.g.
-            # "id NOT IN (42, NULL)" is never TRUE.
             if isinstance(value, Domain):
                 value &= Domain(inverse_field.name, "not in", {False})
             else:
@@ -464,13 +426,10 @@ class One2many(_RelationalMulti):
         comodel = model.env[self.comodel_name].sudo()
         inverse_field = comodel._fields[self.inverse_name]
         if not inverse_field.store:
-            # non-stored inverse: read it in Python instead of SQL (a subquery
-            # from arbitrary compute code is not feasible)
             recs = comodel.browse(coquery).with_context(prefetch_fields=False)
             if inverse_field.relational:
                 inverses = inverse_field.__get__(recs)
             else:
-                # int values, map them
                 inverses = model.browse(inverse_field.__get__(rec) for rec in recs)
             subselect = inverses._as_query(ordered=False).subselect()
             return SQL(

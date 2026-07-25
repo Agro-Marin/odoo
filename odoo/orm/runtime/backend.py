@@ -190,13 +190,8 @@ class InMemoryBackend:
     whenever a transaction was opened with a storage backend.
     """
 
-    #: This backend has no hierarchical-tree support (``parent_path``); the
-    #: ``_parent_store`` maintenance in ``create``/``write`` is skipped for it.
     supports_parent_store: bool = False
 
-    #: ``search()`` does NOT enforce ir.rule record rules: dispatch happens before
-    #: the security domain is applied (see ``SearchMixin._search``). Tests that
-    #: depend on record-rule filtering must use the DB tier.
     supports_record_rules: bool = False
 
     __slots__ = ("storage",)
@@ -204,7 +199,6 @@ class InMemoryBackend:
     def __init__(self, storage: DictBackend):
         self.storage = storage
 
-    # -- create -------------------------------------------------------------
     def create_rows(
         self,
         model: BaseModel,
@@ -231,13 +225,11 @@ class InMemoryBackend:
                     row_dict[fname] = _unwrap_json(
                         field.convert_to_column_insert(stored[fname], model, stored)
                     )
-                # Missing columns default to None (same as SQL NULL)
             row_dicts.append(row_dict)
             new_ids.append(new_id)
         self.storage.put_rows(model._table, row_dicts)
         return new_ids
 
-    # -- write --------------------------------------------------------------
     def update_rows(
         self, model: BaseModel, fnames: tuple[str, ...], rows: list[tuple]
     ) -> None:
@@ -272,8 +264,6 @@ class InMemoryBackend:
                     old_row = self.storage.get_row(model._table, id_)
                     old = old_row.get(fname) if old_row else None
                     if field.translate is True and not isinstance(old, dict):
-                        # SQL: COALESCE(col, jsonb_build_object('en_US',
-                        # jsonb_path_query_first(new, '$.*')))
                         old = {"en_US": next(iter(value.values()))}
                     if isinstance(old, dict):
                         value = {**old, **value}
@@ -281,7 +271,6 @@ class InMemoryBackend:
             updates.append((id_, values))
         self.storage.upsert_rows(model._table, updates)
 
-    # -- read ---------------------------------------------------------------
     def fetch(
         self,
         model: BaseModel,
@@ -296,7 +285,6 @@ class InMemoryBackend:
         """
         result_ids = query._ids
         if result_ids is None:
-            # Query not resolved yet: fall back to the table's known IDs.
             result_ids = tuple(self.storage.table_ids(model._table))
 
         if not result_ids:
@@ -305,8 +293,6 @@ class InMemoryBackend:
         fetched = model.browse(result_ids)
         column_fields = list(column_fields)
         if column_fields:
-            # Pre-resolve field caches once.  Context-dependent fields may
-            # fail (env.company unavailable) — write to base cache.
             env = model.env
             _fdc = env._field_depends_context
             field_caches: dict = {}
@@ -314,10 +300,6 @@ class InMemoryBackend:
                 if field not in _fdc:
                     field_caches[field] = env._core.get_field_data(field)
                 else:
-                    # cache_key may fail to resolve when the env is not fully
-                    # seeded (DictBackend tests).  Narrow the catch (as the
-                    # sibling ``search`` does) so genuine _get_cache / cache_key
-                    # bugs surface instead of being silently swallowed.
                     try:
                         field_caches[field] = field._get_cache(env)
                     except (KeyError, AttributeError, TypeError) as e:
@@ -339,13 +321,11 @@ class InMemoryBackend:
                             field.convert_to_cache(value, fetched),
                         )
 
-        # process non-column fields
         if fetched:
             for field in other_fields:
                 field.read(fetched)
         return fetched
 
-    # -- search -------------------------------------------------------------
     def search(
         self,
         model: BaseModel,
@@ -361,38 +341,25 @@ class InMemoryBackend:
 
         :return: a :class:`Query` with ``_ids`` set to matching record ids
         """
-        # Flush pending writes first.  The PostgreSQL path flushes implicitly in
-        # execute_query; the in-memory path must do it explicitly, else step 2
-        # would overwrite dirty cache values from stale storage rows.
         model.env.flush_all()
 
         all_ids = self.storage.table_ids(model._table)
         if not all_ids:
             return model.browse()._as_query(ordered=False)
 
-        # Load storage values into cache, batched by field to avoid per-record
-        # browse() allocations and per-cell method overhead.
         all_records = model.browse(all_ids)
         rows = self.storage.get_rows(model._table, all_ids)
 
-        # Pre-resolve storable fields and their cache dicts once.  For
-        # context-dependent fields, _get_cache() needs env.company, which may be
-        # absent in DictBackend tests; use field_data() directly otherwise.
         env = model.env
         fields_meta = model._fields
         _fdc = env._field_depends_context
-        storable: list[tuple] = []  # (fname, field, field_cache)
-        # Use a single sentinel browse record for convert_to_cache calls.
-        # all_ids is non-empty here (guarded by the early return above).
+        storable: list[tuple] = []
         sentinel = model.browse(all_ids[0])
         for fname, field in fields_meta.items():
             if fname != "id" and field.store and field.column_type:
                 if field not in _fdc:
                     storable.append((fname, field, env._core.get_field_data(field)))
                 else:
-                    # cache_key may fail to resolve when the env is not fully
-                    # seeded (DictBackend tests).  Narrow the catch so genuine
-                    # _get_cache / cache_key bugs surface instead of silenced.
                     try:
                         storable.append((fname, field, field._get_cache(env)))
                     except (KeyError, AttributeError, TypeError) as e:
@@ -403,7 +370,6 @@ class InMemoryBackend:
                             e,
                         )
 
-        # Batch-load directly into cache dicts (fields outer, records inner).
         for fname, field, field_cache in storable:
             convert = field.convert_to_cache
             for record_id in all_ids:
@@ -443,7 +409,6 @@ class InMemoryBackend:
         """Return the subset of real ``ids`` that currently exist in storage."""
         return set(self.storage.contains_ids(model._table, ids))
 
-    # -- lock ---------------------------------------------------------------
     def lock_for_update(
         self, model: BaseModel, *, allow_referencing: bool = False
     ) -> None:
@@ -478,7 +443,6 @@ class InMemoryBackend:
             locked = locked[:limit]
         return model.browse(locked)
 
-    # -- unlink -------------------------------------------------------------
     def delete(
         self,
         model: BaseModel,
@@ -494,24 +458,6 @@ class InMemoryBackend:
         """
         self.storage.delete_rows(model._table, list(sub_ids))
         return Data.browse(), Attachment.browse()
-
-    # -- many2many relation tables -------------------------------------------
-    #
-    # Relation pairs are stored in the shared :class:`DictBackend` as rows
-    # ``{column1: id1, column2: id2}`` under the relation-table name, keyed by
-    # a synthetic auto-increment row id (pairs have no ``id`` column in SQL
-    # either).  Because rows are keyed by *column name*, the two inverse
-    # Many2many fields of one relation (which swap ``column1``/``column2``)
-    # read and write the very same store, exactly like the single physical
-    # table in PostgreSQL.  Iteration order is dict insertion order — the
-    # closest in-memory analogue to the SQL table's physical order; the read
-    # path re-orders by the comodel query anyway (see ``Many2many.read``).
-    #
-    # Known divergence from SQL: deleting a record does NOT cascade-delete its
-    # relation rows (no foreign keys in memory).  Stale pairs are harmless:
-    # reads filter both sides — ``column1`` by the requested record ids,
-    # ``column2`` by the comodel query, which only returns live rows — and
-    # ids are never reused (monotonic sequences).
 
     def _m2m_rows(self, relation: str):
         """Yield ``(row_id, row_dict)`` for every pair row, insertion-ordered."""

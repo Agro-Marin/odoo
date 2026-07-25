@@ -89,13 +89,8 @@ class ComputeEngine:
             ``OrderedSet`` for deterministic recomputation order); defaults to
             ``set``.
         """
-        # Invariant: ``_pending`` never holds an empty set. ``schedule`` skips
-        # empty ids, and ``mark_done`` deletes a field once drained. This makes
-        # ``field in _pending`` equivalent to "has pending recomputations".
         self._pending: defaultdict[Any, set] = defaultdict(pending_factory or set)
         self._protected = _StackMap()
-
-    # Raw data access
 
     @property
     def pending(self) -> defaultdict[Any, set]:
@@ -106,8 +101,6 @@ class ComputeEngine:
         cycle detection when ``before=True``.
         """
         return self._pending
-
-    # Scheduling
 
     def schedule(self, field: Any, ids: Iterable) -> None:
         """Mark *field* for recomputation on *ids*.
@@ -122,7 +115,7 @@ class ComputeEngine:
             ids = list(ids)
             if not ids:
                 return
-            existing = self._pending[field]  # vivify via the configured factory
+            existing = self._pending[field]
         existing.update(ids)
 
     def mark_done(self, field: Any, ids: Iterable) -> None:
@@ -177,8 +170,6 @@ class ComputeEngine:
         """
         self._pending.pop(field, None)
 
-    # Protection
-
     def is_protected(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* is protected for *field*."""
         return record_id in (self._protected.get(field) or ())
@@ -199,8 +190,6 @@ class ComputeEngine:
         """Protect *ids* for *field*, merging with existing protection in scope."""
         existing = self._protected.get(field)
         self._protected[field] = existing.union(ids) if existing else ids
-
-    # Bulk operations
 
     def clear(self) -> None:
         """Clear all pending computations (protection is NOT cleared)."""

@@ -85,8 +85,6 @@ class TranslationMixin(_ModelStubs):
 
         self.check_access("write")
         field = self._fields[field_name]
-        # work on a copy: the translate=True branch pops 'en_US' below, which
-        # would otherwise mutate the caller's dict.
         translations = dict(translations)
         self._check_field_access(field, "write")
 
@@ -104,17 +102,11 @@ class TranslationMixin(_ModelStubs):
             )
 
         if not field.translate:
-            return False  # or raise error
-
-        if not field.store and not field.related and field.compute:
-            # a non-related non-stored computed field cannot be translated,
-            # even with an inverse function
             return False
 
-        # A translated related/computed field normally cannot be stored (compute
-        # supports one language only), but some developers store them anyway. For
-        # those, only the first stored translation field gets all translations;
-        # other stored related translated fields update only the flush language.
+        if not field.store and not field.related and field.compute:
+            return False
+
         if field.related and not field.store:
             related_path, field_name = field.related.rsplit(".", 1)
             return self.mapped(related_path)._update_field_translations(
@@ -122,7 +114,6 @@ class TranslationMixin(_ModelStubs):
             )
 
         if field.translate is True:
-            # falsy values (except empty str) void the corresponding translation
             if any(
                 translation and not isinstance(translation, str)
                 for translation in translations.values()
@@ -177,7 +168,6 @@ class TranslationMixin(_ModelStubs):
                 return False
 
             for lang in translations:
-                # for langs to update, replace the value with the unconfirmed one
                 if f"_{lang}" in old_values:
                     old_values[lang] = old_values.pop(f"_{lang}")
             translations = {
@@ -208,7 +198,6 @@ class TranslationMixin(_ModelStubs):
             )
 
             if digest:
-                # replace digested old_en_term with real old_en_term
                 digested2term = {
                     digest(old_en_term): old_en_term
                     for old_en_term in old_translation_dictionary
@@ -238,8 +227,6 @@ class TranslationMixin(_ModelStubs):
                 self.with_context(prefetch_langs=True), new_values, dirty=True
             )
 
-        # re-assign (even a no-op write) to mark the field modified and run
-        # any overridden write() logic
         self[field_name] = self[field_name]
         return True
 
@@ -257,7 +244,6 @@ class TranslationMixin(_ModelStubs):
         """
         self.ensure_one()
         field = self._fields[field_name]
-        # We don't forbid reading inactive/non-existing languages,
         langs = set(langs or [l[0] for l in self.env["res.lang"].get_installed()])
         self_lang = self.with_context(check_translations=True, prefetch_langs=True)
         val_en = self_lang.with_context(lang="en_US")[field_name]

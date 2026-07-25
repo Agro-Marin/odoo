@@ -10,16 +10,6 @@ if typing.TYPE_CHECKING:
     from ._typing import BaseModel, ValuesType
 
 
-# Marker attributes set on decorated methods:
-#  - _constrains: constraint dependencies (@constrains)
-#  - _depends: compute dependencies (@depends)
-#  - _onchange: onchange fields (@onchange)
-#  - _ondelete: unlink-error checks (@ondelete)
-#  - _api_model / _api_private: bool flags marking model-style / RPC-blocked
-#    methods (@api.model, @api.private)
-#  - _job_config: background-job defaults marking enqueueable methods (@api.job)
-
-
 def attrsetter(attr: str, value: object) -> Decorator:
     """Return a function that sets ``attr`` on its argument and returns it."""
 
@@ -85,9 +75,6 @@ def constrains(*args, sudo: bool = True) -> Decorator:
     One may also pass a single function as argument.  In that case, the field
     names are given by calling the function with a model instance.
     """
-    # Fail fast at decoration time: a wrong spec stored silently here either
-    # drops arguments (callable + extras) or crashes much later, at trigger
-    # registration/consumption, with an opaque unhashable-type error (list arg).
     if args and callable(args[0]):
         if len(args) > 1:
             raise TypeError(
@@ -220,10 +207,6 @@ def onchange(*args: str) -> Decorator:
         `#2693 <https://github.com/odoo/odoo/issues/2693>`_.
 
     """
-    # Fail fast at decoration time (mirrors constrains()/depends()): a list
-    # argument (``api.onchange(["a", "b"])``) was stored as ``(["a", "b"],)``,
-    # which the class build merely log-warned about — and the onchange then
-    # silently never fired. There is no callable form to preserve here.
     if not all(isinstance(arg, str) for arg in args):
         raise TypeError(
             f"onchange() arguments must be field-name strings, got {args!r}"
@@ -268,9 +251,6 @@ def depends(*args) -> Decorator:
     return value is re-validated on every invocation (the deps are recomputed
     each call; there is no memoization).
     """
-    # Fail fast at decoration time (mirrors constrains()): callable + extra
-    # arguments would silently drop the extras, and a non-string argument
-    # (e.g. a list) only crashed later with an unrelated error.
     if args and callable(args[0]):
         if len(args) > 1:
             raise TypeError(
@@ -325,10 +305,6 @@ def depends_context(*args: str) -> Decorator:
     * `uid` (current user id and superuser flag),
     * `active_test` (value in env.context or value in field.context).
     """
-    # Fail fast at decoration time (mirrors constrains()/depends()): context
-    # keys are always strings — every in-tree usage passes plain str keys — and
-    # a non-string argument (e.g. ``depends_context(42)`` or a list) only
-    # surfaced far away, during cache-key construction.
     if not all(isinstance(arg, str) for arg in args):
         raise TypeError(
             f"depends_context() arguments must be context-key strings, got {args!r}"
@@ -346,11 +322,10 @@ def autovacuum[C: Callable](method: C) -> C:
     as in :meth:`~odoo.addons.base.models.ir_cron.IrCron._commit_progress`.
     """
     if not method.__name__.startswith("_"):
-        # raise (not assert) so the constraint holds under python -O
         raise TypeError(
             f"{method.__name__}: autovacuum methods must be private (start with '_')"
         )
-    method._autovacuum = True  # type: ignore[attr-defined]
+    method._autovacuum = True
     return method
 
 
@@ -386,13 +361,10 @@ def job(
 
     def decorate[C: Callable](func: C) -> C:
         if not func.__name__.startswith("_"):
-            # raise (not assert) so the constraint holds under python -O; a
-            # public job method would also be RPC-callable, and jobs must only
-            # enter through ``delayed()``.
             raise TypeError(
                 f"{func.__name__}: job methods must be private (start with '_')"
             )
-        func._job_config = {  # type: ignore[attr-defined]
+        func._job_config = {
             "channel": channel,
             "priority": priority,
             "max_retries": max_retries,
@@ -412,7 +384,7 @@ def model[C: Callable](method: C) -> C:
         def method(self, args): ...
 
     """
-    method._api_model = True  # type: ignore[attr-defined]
+    method._api_model = True
     return method
 
 
@@ -428,7 +400,7 @@ def private[C: Callable](method: C) -> C:
     existing public methods that become non-RPC callable or for ORM
     methods.
     """
-    method._api_private = True  # type: ignore[attr-defined]
+    method._api_private = True
     return method
 
 
@@ -436,11 +408,12 @@ def readonly[C: Callable](method: C) -> C:
     """Decorate a record-style method where ``self.env.cr`` can be a
     readonly cursor when called through an RPC call.
 
+    .. code-block:: python
+
         @api.readonly
-        def method(self, args):
-            ...
+        def method(self, args): ...
     """
-    method._readonly = True  # type: ignore[attr-defined]
+    method._readonly = True
     return method
 
 
@@ -465,10 +438,8 @@ def deprecated(reason: str) -> Decorator:
             )
             return method(*args, **kwargs)
 
-        # PEP 702 standard marker: api_doc (api_doc.py) and the override-signature
-        # lint (test_override_signatures.py) both detect deprecation via this dunder.
         wrapper.__deprecated__ = reason
-        return wrapper  # type: ignore[return-value]
+        return wrapper
 
     return decorator
 
@@ -490,5 +461,5 @@ def model_create_multi[T](
             vals_list = [vals_list]
         return method(self, vals_list)
 
-    create._api_model = True  # type: ignore[attr-defined]
+    create._api_model = True
     return create

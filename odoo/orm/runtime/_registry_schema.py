@@ -35,21 +35,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
         """Call the given function, and delay it if it fails during an upgrade."""
         try:
             if key not in self._constraint_queue:
-                # skip if already queued: module A may fail to apply a constraint
-                # and module B (inheriting A) reapply it successfully; running
-                # the queued one again at end of cycle would fail on the
-                # already-existing constraint.
                 with cr.savepoint(flush=False):
                     func(cr)
             else:
-                # already queued (module A failed to apply it): keep the latest
-                # definition so finalize applies module B's version, not the
-                # stale one from module A
                 self._constraint_queue[key] = func
         except Exception as e:
-            # "%s" % e, not *e.args: an empty-args exception would raise inside
-            # this handler, and args[0] as a format string mangles messages that
-            # contain a literal '%' (e.g. a constraint body with LIKE 'a%').
             if self._is_install:
                 _schema.error("%s", e)
             else:
@@ -63,8 +53,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 with cr.savepoint(flush=False):
                     func(cr)
             except Exception as e:
-                # warn only, this is not a deployment showstopper, and
-                # can sometimes be a transient error
                 _schema.warning("%s", e)
         self._constraint_queue.clear()
 
@@ -109,14 +97,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
         if not expected:
             return
 
-        # retrieve existing indexes with their table, access method and
-        # predicate presence, scoped to the current schema (a same-named index
-        # in another schema is not ours). The access method lets us detect an
-        # index whose kind no longer matches the field (e.g. btree left behind
-        # after index='trigram'); the predicate presence distinguishes a plain
-        # btree from the partial `WHERE ... IS NOT NULL` one emitted for
-        # index='btree_not_null' (both use the btree access method, so the
-        # method alone cannot tell them apart).
         cr.execute(
             """
             SELECT idx.relname, tbl.relname, am.amname,
@@ -137,8 +117,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
 
         for indexname, tablename, field in expected:
             index = field.index
-            # raise (not assert): validates module-author `index=` input, so it
-            # must hold under python -O too.
             if index not in ("btree", "btree_not_null", "trigram", True, False, None):
                 raise ValueError(
                     f"Invalid index value {index!r} on {field}; allowed values: "
@@ -151,19 +129,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 )
                 continue
 
-            # whether the field should be backed by an index, and the access
-            # method (gin for trigram, btree otherwise) it is expected to use
             will_index = bool(index) and (
                 (not field.translate and index != "trigram")
                 or (index == "trigram" and self.has_trigram)
             )
             if indexname in existing:
-                # the index already exists; rebuild it only when it no longer
-                # matches the field: stale access method (the field changed its
-                # index kind) or stale predicate presence (a 'btree' <->
-                # 'btree_not_null' change keeps the btree method but adds or
-                # drops the partial `WHERE ... IS NOT NULL` clause — including
-                # the company_dependent variant)
                 expected_method = "gin" if index == "trigram" else "btree"
                 expected_predicate = index == "btree_not_null"
                 _table, actual_method, actual_predicate = existing[indexname]
@@ -180,9 +150,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 if index == "trigram":
                     if field.translate:
                         column_expression = f"""(jsonb_path_query_array({column_expression}, '$.*')::text)"""
-                    # add `unaccent` to the trigram index only because the
-                    # trigram indexes are mainly used for (=)ilike search and
-                    # unaccent is added only in these cases when searching
                     from odoo.modules.db import FunctionStatus
 
                     if self.has_unaccent == FunctionStatus.INDEXABLE:
@@ -197,12 +164,10 @@ class _RegistrySchemaMixin(_RegistryStubs):
                     method = "gin"
                     where = ""
                 elif index == "btree_not_null" and field.company_dependent:
-                    # company dependent condition will use extra
-                    # `AND col IS NOT NULL` to use the index.
                     expression = f"({column_expression} IS NOT NULL)"
                     method = "btree"
                     where = f"{column_expression} IS NOT NULL"
-                else:  # index in ['btree', 'btree_not_null', True]
+                else:
                     expression = f"{column_expression}"
                     method = "btree"
                     where = (
@@ -212,9 +177,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
                     )
                 try:
                     with cr.savepoint(flush=False):
-                        # drop the stale index in the same savepoint as the
-                        # recreation, so a failed rebuild rolls the drop back
-                        # and never leaves the column unindexed
                         if stale:
                             sql.drop_index(cr, indexname, tablename)
                         sql.create_index(
@@ -260,7 +222,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
         if not self._foreign_keys:
             return
 
-        # determine existing foreign keys on the tables
         tablenames = {table for table, column in self._foreign_keys}
         existing = {
             (table1, column1): (name, table2, column2, deltype)
@@ -269,7 +230,6 @@ class _RegistrySchemaMixin(_RegistryStubs):
             )
         }
 
-        # create or update foreign keys
         for key, val in self._foreign_keys.items():
             table1, column1 = key
             table2, column2, ondelete, model, module = val
@@ -312,12 +272,10 @@ class _RegistrySchemaMixin(_RegistryStubs):
         if missing_tables:
             missing = {table2model[table] for table in missing_tables}
             _logger.info("Models have no table: %s.", ", ".join(missing))
-            # recreate missing tables
             for name in missing:
                 _logger.info("Recreate table of model %s.", name)
                 env[name].init()
             env.flush_all()
-            # check again, and log errors if tables are still missing
             missing_tables = set(table2model).difference(
                 sql.existing_tables(cr, table2model)
             )

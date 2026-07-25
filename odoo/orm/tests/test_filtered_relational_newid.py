@@ -34,7 +34,7 @@ def test_filtered_m2o_keeps_new_records():
         parent = model.new({})
         child = model.new({"parent_id": parent})
         orphan = model.new({})
-        assert child.parent_id  # the field VALUE is a truthy recordset
+        assert child.parent_id
         recs = child + orphan
         by_name = recs.filtered("parent_id")
         by_func = recs.filtered(lambda r: r.parent_id)

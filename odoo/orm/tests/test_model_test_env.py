@@ -31,8 +31,6 @@ from odoo.orm.model_test_env import (
     model_test_env,
 )
 
-# All synthetic models share one module so the harness auto-discovers parents
-# and extensions together; names are distinct so they never collide.
 _MOD = "test_orm_harness"
 
 
@@ -45,7 +43,6 @@ class HWidget(models.Model):
     price = fields.Float()
     qty = fields.Integer()
     total = fields.Float(compute="_compute_total", store=True)
-    # Transitive: discounted depends on total, which depends on price/qty.
     discounted = fields.Float(compute="_compute_discounted", store=True)
 
     @api.depends("price", "qty")
@@ -69,7 +66,6 @@ class HAnimal(models.Model):
 
 
 class HAnimalLegs(models.Model):
-    # _inherit extension: add a field + a method to an existing model in place.
     _inherit = "h.animal"
     _module = _MOD
 
@@ -89,7 +85,6 @@ class HEngine(models.Model):
 
 
 class HCar(models.Model):
-    # _inherits delegation: a car has-an engine, exposing its fields.
     _name = "h.car"
     _module = _MOD
     _description = "Harness Car"
@@ -130,16 +125,7 @@ class HLine(models.Model):
             line.subtotal = line.price * line.qty
 
 
-# The three models below disable _log_access to keep their assertions focused
-# on what they exercise (m2m relation store, translated columns). The
-# historical reason — write() after invalidate_all() crashed on the degraded
-# write_uid Many2one — is gone: the harness now injects a res.users stub
-# (see _TestResUsers and test_write_after_invalidate_with_log_access).
-
-
 class HTag(models.Model):
-    # Stored Many2many with implicit relation schema, plus an `active` field so
-    # the active_test read semantics of the m2m paths can be exercised.
     _name = "h.tag"
     _module = _MOD
     _description = "Harness Tag"
@@ -161,18 +147,12 @@ class HPost(models.Model):
 
 
 class HBook(models.Model):
-    # Translated field: the column value is a {lang: value} jsonb dict.
     _name = "h.book"
     _module = _MOD
     _description = "Harness Book"
     _log_access = False
 
     title = fields.Char(translate=True)
-
-
-# ---------------------------------------------------------------------------
-# Contract
-# ---------------------------------------------------------------------------
 
 
 def test_create_persists_and_reads_back():
@@ -191,8 +171,6 @@ def test_write_updates_field():
 
 
 def test_stored_compute_cascades_on_create():
-    # The harness builds the real trigger graph, so stored computed fields are
-    # recomputed automatically on create() — no explicit compute call needed.
     with model_test_env(HWidget) as env:
         a = env["h.widget"].create({"name": "A", "price": 10.0, "qty": 3})
         b = env["h.widget"].create({"name": "B", "price": 5.0, "qty": 10})
@@ -203,14 +181,11 @@ def test_stored_compute_recomputes_on_write():
     with model_test_env(HWidget) as env:
         a = env["h.widget"].create({"name": "A", "price": 10.0, "qty": 3})
         assert a.total == 30.0
-        a.qty = 5  # writing a dependency must re-trigger the compute
+        a.qty = 5
         assert a.total == 50.0
 
 
 def test_transitive_compute_cascade():
-    # discounted <- total <- (price, qty): a change to price must cascade two
-    # levels deep. This is the bug-prone path the old stubbed harness could not
-    # exercise at all.
     with model_test_env(HWidget) as env:
         a = env["h.widget"].create({"name": "A", "price": 10.0, "qty": 3})
         assert a.total == 30.0
@@ -221,7 +196,6 @@ def test_transitive_compute_cascade():
 
 
 def test_explicit_compute_still_works():
-    # Invoking a compute method directly remains valid (and idempotent).
     with model_test_env(HWidget) as env:
         a = env["h.widget"].create({"name": "A", "price": 10.0, "qty": 3})
         a._compute_total()
@@ -229,20 +203,16 @@ def test_explicit_compute_still_works():
 
 
 def test_relational_cascade_through_one2many():
-    # The classic order/line total: amount <- line_ids.subtotal <- price/qty.
-    # Recomputation has to cross models through the One2many/Many2one inverse —
-    # the trickiest and most regression-prone path in the ORM.
     with model_test_env(HOrder) as env:
         order = env["h.order"].create({"name": "O1"})
         env["h.line"].create({"order_id": order.id, "price": 10.0, "qty": 2})
         line2 = env["h.line"].create({"order_id": order.id, "price": 5.0, "qty": 3})
-        assert order.amount == 35.0  # 20 + 15, cascaded across models on create
-        line2.qty = 5  # 25 -> order total must re-cascade to 45
+        assert order.amount == 35.0
+        line2.qty = 5
         assert order.amount == 45.0
 
 
 def test_new_record_lazy_compute():
-    # A non-stored / transient `new()` record computes its field on read.
     with model_test_env(HWidget) as env:
         n = env["h.widget"].new({"price": 2.0, "qty": 5})
         assert n.total == 10.0
@@ -267,10 +237,6 @@ def test_search_via_in_memory_backend():
 
 
 def test_filtered_id_keeps_only_saved_records():
-    # Regression: filtered("id") must keep records with a real id and drop
-    # unsaved (NewId, falsy) ones. 'id' is never stored in the field cache, so
-    # the cache-scan fast path would report every record as a miss; the special
-    # case keeps this correct without the per-record fallback.
     with model_test_env(HWidget) as env:
         saved = env["h.widget"].create([{"name": "A"}, {"name": "B"}])
         draft = env["h.widget"].new({"name": "draft"})
@@ -279,9 +245,6 @@ def test_filtered_id_keeps_only_saved_records():
 
 
 def test_write_multi_aliased_vals_not_uniform():
-    # Regression: _write_multi([a, b, a]) with `a is a` was misread as uniform
-    # (first-is-last identity) and persisted a's values onto b. Each row must
-    # keep its own values.
     with model_test_env(HWidget) as env:
         recs = env["h.widget"].create([{"qty": 1}, {"qty": 2}, {"qty": 3}])
         a, b = {"qty": 100}, {"qty": 200}
@@ -291,34 +254,19 @@ def test_write_multi_aliased_vals_not_uniform():
         assert persisted == [100, 200, 100]
 
 
-# ---------------------------------------------------------------------------
-# Regression: create() needs an ir.default provider
-# ---------------------------------------------------------------------------
-
-
 def test_ir_default_is_injected():
-    # Without an injected ir.default, default_get() raises KeyError('ir.default')
-    # on the very first create(). Guard the fix that injects the stub.
     with model_test_env(HWidget) as env:
         assert "ir.default" in env.registry
         assert env["ir.default"]._get_model_defaults("h.widget") == {}
-        # And a create() with no explicit values must not raise.
         rec = env["h.widget"].create({})
         assert rec.id
-
-
-# ---------------------------------------------------------------------------
-# Composition: _inherit (extension) and _inherits (delegation)
-# ---------------------------------------------------------------------------
 
 
 def test_inherit_extension_adds_field_and_method():
     with model_test_env(HAnimal) as env:
         cat = env["h.animal"].create({"name": "Cat", "sound": "meow"})
-        # Field from the extension class is present with its default.
         assert cat.legs == 4
         cat.legs = 3
-        # Method from the extension class is callable.
         assert cat.describe() == "Cat says meow on 3 legs"
 
 
@@ -326,14 +274,8 @@ def test_inherits_delegation_exposes_parent_fields():
     with model_test_env(HCar) as env:
         engine = env["h.engine"].create({"power": 100})
         car = env["h.car"].create({"brand": "Acme", "engine_id": engine.id})
-        # Delegated field is reachable through the child.
         assert car.power == 100
         assert car.brand == "Acme"
-
-
-# ---------------------------------------------------------------------------
-# Raw SQL is unsupported and must fail loud (no false green)
-# ---------------------------------------------------------------------------
 
 
 def test_raw_sql_fails_loud_instead_of_returning_empty():
@@ -346,7 +288,6 @@ def test_raw_sql_fails_loud_instead_of_returning_empty():
     """
     with model_test_env(HWidget) as env:
         env["h.widget"].create({"name": "A", "price": 10.0, "qty": 1})
-        # A direct raw query, and the real read_group path, both fail loud.
         with pytest.raises(InMemorySqlNotSupported):
             env.cr.execute("SELECT count(*) FROM h_widget")
         with pytest.raises(InMemorySqlNotSupported):
@@ -358,7 +299,6 @@ def test_fixtures_opt_in_for_raw_sql():
     with model_test_env(HWidget, fixtures={"SELECT 1": [(42,)]}) as env:
         env.cr.execute("SELECT 1")
         assert env.cr.fetchall() == [(42,)]
-        # Still loud for anything not registered.
         with pytest.raises(InMemorySqlNotSupported):
             env.cr.execute("SELECT 2")
 
@@ -373,23 +313,15 @@ def test_dict_cursor_api_fails_loud_for_tuple_fixture():
     """
     with model_test_env(HWidget, fixtures={"SELECT 1": [(42,)], "SELECT 0": []}) as env:
         env.cr.execute("SELECT 1")
-        # The tuple API serves the registered rows...
         assert env.cr.fetchall() == [(42,)]
         assert env.cr.fetchone() == (42,)
-        # ...but the dict API cannot, and fails loud rather than returning empty.
         with pytest.raises(InMemorySqlNotSupported):
             env.cr.dictfetchall()
         with pytest.raises(InMemorySqlNotSupported):
             env.cr.dictfetchone()
-        # A genuinely empty result is still a safe, silent [] / None.
         env.cr.execute("SELECT 0")
         assert env.cr.dictfetchall() == []
         assert env.cr.dictfetchone() is None
-
-
-# ---------------------------------------------------------------------------
-# Stored Many2many through the in-memory backend (no relation-table SQL)
-# ---------------------------------------------------------------------------
 
 
 def _fresh(env, records):
@@ -400,9 +332,6 @@ def _fresh(env, records):
 
 
 def test_m2m_model_set_builds():
-    # Regression: ModelRegistry.many2many_relations was a Collector (immutable
-    # tuple buckets), so Many2many.setup_nonrelated crashed with AttributeError
-    # ("tuple has no attribute add") and no m2m model set could even build.
     with model_test_env(HPost) as env:
         assert "h.post" in env.registry and "h.tag" in env.registry
         key = next(iter(env.registry.many2many_relations))
@@ -417,9 +346,7 @@ def test_m2m_create_set_roundtrips_through_backend():
             {"name": "p", "tag_ids": [Command.set([t1.id, t2.id])]}
         )
         _fresh(env, post)
-        # a fresh read goes storage -> backend.read_m2m_pairs (no SQL)
         assert post.tag_ids._ids == (t1.id, t2.id)
-        # inverse field reads the same pair store with swapped columns
         assert t1.post_ids._ids == (post.id,)
 
 
@@ -434,15 +361,12 @@ def test_m2m_link_unlink_commands():
         post.write({"tag_ids": [Command.unlink(t1.id)]})
         _fresh(env, post)
         assert post.tag_ids._ids == (t2.id,)
-        # re-linking an existing pair is the ON CONFLICT DO NOTHING case
         post.write({"tag_ids": [Command.link(t2.id), Command.link(t1.id)]})
         _fresh(env, post)
         assert post.tag_ids._ids == (t1.id, t2.id)
 
 
 def test_m2m_read_orders_by_comodel_order():
-    # The SQL read orders pairs by the comodel query (comodel._order, here
-    # "id"); the backend path must match regardless of link order.
     with model_test_env(HPost) as env:
         tags = env["h.tag"].create([{"name": n} for n in ("a", "b", "c")])
         post = env["h.post"].create(
@@ -461,17 +385,12 @@ def test_m2m_active_test_semantics():
         )
         t2.active = False
         _fresh(env, post)
-        # default context: archived corecords are filtered out on read
         assert post.tag_ids._ids == (t1.id,)
-        # active_test=False: the archived link is still there
         both = post.with_context(active_test=False).tag_ids
         assert both._ids == (t1.id, t2.id)
-        # SET must be able to drop the archived link too (write_real reads the
-        # old relation with active_test=False to build the delta)
         post.write({"tag_ids": [Command.set([t1.id])]})
         _fresh(env, post)
         assert post.with_context(active_test=False).tag_ids._ids == (t1.id,)
-        # and the pair really left the store, not just the cache
         assert env.cr.storage.row_count("h_post_h_tag_rel") == 1
 
 
@@ -485,29 +404,18 @@ def test_m2m_clear_command_empties_relation():
         assert env.cr.storage.row_count("h_post_h_tag_rel") == 0
 
 
-# ---------------------------------------------------------------------------
-# Translated fields: stored shape must be the plain dict (regression M6)
-# ---------------------------------------------------------------------------
-
-
 def test_translated_field_reads_back_after_invalidate():
-    # The in-memory backend used to store convert_to_column_insert output
-    # verbatim -- a psycopg Json adapter -- so after invalidate_all() the field
-    # read back as Json({'en_US': 'Hello'}) instead of 'Hello'.
     with model_test_env(HBook) as env:
         book = env["h.book"].create({"title": "Hello"})
         _fresh(env, book)
         assert book.title == "Hello"
         found = env["h.book"].search([("title", "=", "Hello")])
         assert found._ids == (book.id,)
-        # the stored column value is the parsed jsonb shape, as on PostgreSQL
         stored = env.cr.storage.get_row("h_book", book.id)["title"]
         assert stored == {"en_US": "Hello"}
 
 
 def test_translated_field_update_path_merges_and_unwraps():
-    # Same regression through update_rows (write -> flush), which must also
-    # apply the SQL path's jsonb merge against the stored dict.
     with model_test_env(HBook) as env:
         book = env["h.book"].create({"title": "Hello"})
         _fresh(env, book)
@@ -519,30 +427,20 @@ def test_translated_field_update_path_merges_and_unwraps():
         assert stored["en_US"] == "World"
 
 
-# ---------------------------------------------------------------------------
-# commit() / rollback(): no silent no-ops (previous finding #8)
-# ---------------------------------------------------------------------------
-
-
 def test_commit_flushes_and_runs_postcommit_hooks():
     with model_test_env(HWidget) as env:
         fired = []
         env.cr.postcommit.add(lambda: fired.append("post"))
         rec = env["h.widget"].create({"name": "A"})
-        rec.qty = 7  # dirty in cache only
+        rec.qty = 7
         env.cr.commit()
         assert fired == ["post"]
-        # commit ran flush: the dirty write reached storage
         assert env.cr.storage.get_row("h_widget", rec.id)["qty"] == 7
-        # and the transaction was cleared, mirroring the production cursor
         assert not env.cr.precommit
-        # records remain readable after commit (re-fetched from storage)
         assert rec.qty == 7
 
 
 def test_rollback_fails_loud():
-    # No snapshot exists to restore, and a silent no-op would diverge from
-    # production ROLLBACK -- the harness raises instead.
     with model_test_env(HWidget) as env:
         env["h.widget"].create({"name": "A"})
         with pytest.raises(InMemorySqlNotSupported):
@@ -550,23 +448,13 @@ def test_rollback_fails_loud():
 
 
 def test_savepoint_fails_loud_with_intentional_error():
-    # Same limitation as rollback (DictBackend keeps no snapshots).  The
-    # inherited savepoint() used to issue real SAVEPOINT SQL and die in
-    # execute() with the generic raw-SQL message advising to register a
-    # fixture -- nonsense for transaction control.
     with model_test_env(HWidget) as env:
         with pytest.raises(InMemorySqlNotSupported, match="savepoint"):
             env.cr.savepoint()
-        # the error is the intentional one, not the raw-SQL fixture advice
         with pytest.raises(InMemorySqlNotSupported) as exc_info:
             env.cr.savepoint(flush=False)
         assert "fixture" not in str(exc_info.value)
         assert "TransactionCase" in str(exc_info.value)
-
-
-# ---------------------------------------------------------------------------
-# ModelRegistry gaps (previous finding #14)
-# ---------------------------------------------------------------------------
 
 
 def test_clear_cache_honors_names():
@@ -575,25 +463,20 @@ def test_clear_cache_honors_names():
         caches["default"]["k"] = 1
         caches["templates.cached_values"]["k"] = 1
         caches["assets"]["k"] = 1
-        env.registry.clear_cache()  # defaults to the "default" group
+        env.registry.clear_cache()
         assert not caches["default"]
-        # "templates.cached_values" is in the "default" group (production map)
         assert not caches["templates.cached_values"]
-        # ...but unrelated caches survive (the old code wiped everything)
         assert caches["assets"] == {"k": 1}
         env.registry.clear_cache("assets")
         assert not caches["assets"]
-        # dotted composite names are rejected exactly like production
         with pytest.raises(ValueError):
             env.registry.clear_cache("templates.cached_values")
 
 
 def test_discard_fields_works_without_attributeerror():
-    # ModelRegistry inherits @locked _discard_fields; it used to lack the
-    # _lock attribute the decorator acquires.
     registry = ModelRegistry([HWidget])
     field = registry["h.widget"]._fields["total"]
-    registry._discard_fields([field])  # must not raise
+    registry._discard_fields([field])
     assert field not in registry.field_depends
 
 
@@ -614,16 +497,15 @@ def test_now_is_transaction_stable():
     create_date; commit() resets the cache for the next transaction."""
     with model_test_env(HAudit) as env:
         first = env.cr.now()
-        assert env.cr.now() is first  # cached within the transaction
+        assert env.cr.now() is first
         a = env["h.audit"].create({"name": "a"})
         b = env["h.audit"].create({"name": "b"})
         assert a.create_date == b.create_date == first
         env.cr.commit()
-        # the cache was reset: the next transaction re-reads the clock
         second = env.cr.now()
         assert second is not first
         assert second >= first
-        assert env.cr.now() is second  # and is stable again
+        assert env.cr.now() is second
 
 
 def test_write_after_invalidate_with_log_access():

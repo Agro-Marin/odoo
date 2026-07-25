@@ -32,7 +32,7 @@ def test_lock_for_update_dispatches_to_backend():
         recs = env["lock.thing"].create({"name": "a"}) + env["lock.thing"].create(
             {"name": "b"}
         )
-        recs.lock_for_update()  # was InMemorySqlNotSupported
+        recs.lock_for_update()
         recs.lock_for_update(allow_referencing=True)
 
 

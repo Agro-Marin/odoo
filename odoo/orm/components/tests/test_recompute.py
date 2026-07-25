@@ -156,13 +156,11 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         """IDs already in `marked` (engine.pending) are skipped."""
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
-        # Simulate IDs already pending from a previous call
         marked = {field: {1, 2}}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
         recursive_ids = scheduler.process_entry(field, {1, 2, 3})
 
-        # Only ID 3 is new
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {3})
 
@@ -172,9 +170,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         field = _MockField("parent_total", stored_computed=True, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        # First entry marks {1, 2}
         scheduler.process_entry(field, {1, 2})
-        # Second entry tries {2, 3} — ID 2 should be skipped
         recursive_ids = scheduler.process_entry(field, {2, 3})
 
         self.assertEqual(recursive_ids, frozenset({3}))
@@ -187,10 +183,9 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         marked = {field: {1}}
 
         scheduler = RecomputeScheduler(engine, marked=marked)
-        scheduler.process_entry(field, {2})  # marks {2}
+        scheduler.process_entry(field, {2})
         recursive_ids = scheduler.process_entry(field, {1, 2, 3})
 
-        # 1 is in marked, 2 is in to_recompute → only 3
         self.assertEqual(recursive_ids, frozenset({3}))
 
     def test_all_known_returns_empty(self) -> None:
@@ -202,7 +197,6 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         recursive_ids = scheduler.process_entry(field, {1, 2, 3})
 
         self.assertEqual(recursive_ids, frozenset())
-        # Nothing added to to_recompute
         self.assertNotIn(field, scheduler.to_recompute)
 
 
@@ -220,7 +214,6 @@ class TestRecursiveNonStored(unittest.TestCase):
             cached_ids={2, 4},
         )
 
-        # Only IDs 2 and 4 are in cache
         self.assertEqual(recursive_ids, frozenset({2, 4}))
         self.assertEqual(len(scheduler.to_invalidate), 1)
         self.assertEqual(scheduler.to_invalidate[0][1], frozenset({2, 4}))
@@ -263,16 +256,12 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        # First round: process {1, 2}
         r1 = scheduler.process_entry(field, {1, 2}, cached_ids={1, 2, 3})
         self.assertEqual(r1, frozenset({1, 2}))
 
-        # Second round (simulating recursive traversal returning same IDs):
-        # {1, 2} already seen → only {3} is new
         r2 = scheduler.process_entry(field, {1, 2, 3}, cached_ids={1, 2, 3})
         self.assertEqual(r2, frozenset({3}))
 
-        # Third round: all IDs already seen → empty
         r3 = scheduler.process_entry(field, {1, 2, 3}, cached_ids={1, 2, 3})
         self.assertEqual(r3, frozenset())
 
@@ -282,11 +271,8 @@ class TestRecursiveNonStored(unittest.TestCase):
         field = _MockField("display", stored_computed=False, recursive=True)
 
         scheduler = RecomputeScheduler(engine)
-        # First: process {1, 2} (both cached)
         scheduler.process_entry(field, {1, 2}, cached_ids={1, 2})
 
-        # Second: {1, 3, 4}, cached={1, 3}
-        # 1 already seen → removed. {3, 4} remain. cached={1,3} → {3}
         r2 = scheduler.process_entry(field, {1, 3, 4}, cached_ids={1, 3})
         self.assertEqual(r2, frozenset({3}))
 
@@ -303,7 +289,6 @@ class TestProtectionWithRecursive(unittest.TestCase):
         scheduler = RecomputeScheduler(engine)
         recursive_ids = scheduler.process_entry(field, {1, 2, 3})
 
-        # ID 2 is protected → removed before cycle detection
         self.assertEqual(recursive_ids, frozenset({1, 3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 3})
 
@@ -320,7 +305,6 @@ class TestProtectionWithRecursive(unittest.TestCase):
             cached_ids={2, 3},
         )
 
-        # 1 is protected, then filter to cached {2, 3}
         self.assertEqual(recursive_ids, frozenset({2, 3}))
 
 
@@ -373,7 +357,6 @@ class TestInlineScheduling(unittest.TestCase):
 
         scheduler = RecomputeScheduler(engine, schedule_inline=True)
         scheduler.process_entry(field, {1, 2})
-        # a mid-traversal inline compute drains the first batch
         engine.mark_done(field, [1, 2])
         scheduler.process_entry(field, {3, 4})
 
@@ -381,7 +364,6 @@ class TestInlineScheduling(unittest.TestCase):
             [set(ids) for _f, ids in engine.schedule_calls],
             [{1, 2}, {3, 4}],
         )
-        # drained ids are NOT re-pended by the later, unrelated entry
         self.assertEqual(engine.pending_ids(field), {3, 4})
 
     def test_inline_skips_protected_and_invalidate_entries(self) -> None:
@@ -395,7 +377,6 @@ class TestInlineScheduling(unittest.TestCase):
         scheduler.process_entry(stored, {1, 2})
         scheduler.process_entry(non_stored, {5})
 
-        # only the unprotected stored id reaches the engine
         self.assertEqual(engine.pending_ids(stored), {2})
         self.assertFalse(engine.has_pending_field(non_stored))
 
@@ -406,7 +387,6 @@ class TestInlineScheduling(unittest.TestCase):
         """
         engine = _SpyEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
-        # earlier modified() call left ids pending
         engine.schedule(field, [1, 2])
         engine.schedule_calls.clear()
 
@@ -415,13 +395,11 @@ class TestInlineScheduling(unittest.TestCase):
         )
         recursive_ids = scheduler.process_entry(field, {1, 2, 3})
 
-        # only the genuinely new id is traversed further and scheduled
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {3})
         self.assertEqual(engine.schedule_calls, [(field, [3])])
         self.assertEqual(engine.pending_ids(field), {1, 2, 3})
 
-        # a fully-known second traversal is a complete no-op
         engine.schedule_calls.clear()
         recursive_ids = scheduler.process_entry(field, {1, 2, 3})
         self.assertEqual(recursive_ids, frozenset())
@@ -523,11 +501,9 @@ class TestEdgeCases(unittest.TestCase):
         scheduler = RecomputeScheduler(engine, marked=marked)
         scheduler.process_entry(field, {1, 2})
 
-        # Now mutate the live marked dict (simulating engine.pending changes)
         marked[field].add(3)
         recursive_ids = scheduler.process_entry(field, {1, 2, 3, 4})
 
-        # 1, 2 in to_recompute, 3 in marked → only 4 is new
         self.assertEqual(recursive_ids, frozenset({4}))
 
     def test_interleaved_stored_and_non_stored(self) -> None:

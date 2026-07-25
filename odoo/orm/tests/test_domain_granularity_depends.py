@@ -49,8 +49,6 @@ class Order(models.Model):
     _log_access = False
 
     name = fields.Char()
-    # nested-any domain whose leaf condition filters on a date-part
-    # granularity of the partner's create_date
     line_ids = fields.One2many(
         "g.line",
         "order_id",
@@ -67,7 +65,6 @@ class BadOrder(models.Model):
     name = fields.Char()
     total = fields.Integer(compute="_compute_total")
 
-    # genuinely-bad path: 'name' is not relational, the path cannot continue
     @api.depends("name.upper")
     def _compute_total(self):
         for record in self:
@@ -80,15 +77,13 @@ def test_registry_builds_and_strips_granularity_suffix():
         field = registry["g.order"]._fields["line_ids"]
         depends = set(registry.field_depends[field])
         assert "line_ids.partner_id" in depends
-        # the trigger stops at the date field, without the granularity suffix
         assert "line_ids.partner_id.create_date" in depends
         assert not any(path.endswith("year_number") for path in depends)
-        # force full dependency resolution (used to die with KeyError: None)
-        registry._field_triggers  # noqa: B018
+        registry._field_triggers
 
 
 def test_bad_depends_path_raises_descriptive_error():
     with model_test_env(BadOrder) as env:
         registry = env.registry
         with pytest.raises(ValueError, match=r"'name' is not relational"):
-            registry._field_triggers  # noqa: B018
+            registry._field_triggers

@@ -124,7 +124,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
     ) -> None:
         """Refine each row's ``__domain`` and format date/datetime values
         (adding ``__range`` for date/datetime groups) in *rows_dict*."""
-        # imported here to avoid a circular import
         from .mixin import ReadGroupMixin
 
         for group in lazy_groupby:
@@ -170,7 +169,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
                                 range_start = range_start.replace(
                                     tzinfo=tzinfo
                                 ).astimezone(utc)
-                                # take into account possible hour change between start and end
                                 range_end = range_end.replace(tzinfo=tzinfo).astimezone(
                                     utc
                                 )
@@ -187,20 +185,16 @@ class _ReadGroupFormatMixin(_ModelStubs):
                                 format=READ_GROUP_DISPLAY_FORMAT[granularity],
                                 locale=locale,
                             )
-                        # weeks: babel is broken and ubuntu reverted a change,
-                        # so format the label by hand
                         if granularity == "week":
                             year, week = date_utils.weeknumber(
                                 babel.Locale.parse(locale),
-                                value,  # provide date or datetime without UTC conversion
+                                value,
                             )
                             label = f"W{week} {year:04}"
 
                         range_start = range_start.strftime(fmt)
                         range_end = range_end.strftime(fmt)
-                        row[group] = (
-                            label  # label for display; raw date range is in __range
-                        )
+                        row[group] = label
                         row.setdefault("__range", {})[group] = {
                             "from": range_start,
                             "to": range_end,
@@ -218,7 +212,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
                             (f"{field_name}.{granularity}", "=", value)
                         ]
                     elif not value:
-                        # group of records with an unset date: __range is False
                         row.setdefault("__range", {})[group] = False
 
                 row["__domain"] &= Domain(additional_domain)
@@ -246,8 +239,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
             options = tuple(option[0] for option in options)
             for row in rows_dict:
                 if not row[fullname]:
-                    # not a plain ('=', False): the db may hold options that no
-                    # longer exist
                     additional_domain = Domain(fullname, "=", False) | Domain(
                         fullname, "not in", options
                     )
@@ -258,14 +249,11 @@ class _ReadGroupFormatMixin(_ModelStubs):
 
         elif property_type == "many2one":
             comodel = self.env[definition.get("comodel")]
-            # same ids for prefetch and for the "not in" group domain
             prefetch_ids = all_groups = tuple(
                 row[fullname] for row in rows_dict if row[fullname]
             )
             for row in rows_dict:
                 if not row[fullname]:
-                    # not a plain ('=', False): the db may hold records that no
-                    # longer exist
                     additional_domain = Domain(fullname, "=", False) | Domain(
                         fullname, "not in", all_groups
                     )
@@ -278,7 +266,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
 
         elif property_type == "many2many":
             comodel = self.env[definition.get("comodel")]
-            # same ids for prefetch and for the "not in" group domain
             prefetch_ids = all_groups = tuple(
                 row[fullname] for row in rows_dict if row[fullname]
             )
@@ -310,7 +297,6 @@ class _ReadGroupFormatMixin(_ModelStubs):
                         additional_domain = Domain.TRUE
                 else:
                     additional_domain = Domain(fullname, "in", row[fullname])
-                    # replace raw tag value with [raw value, label, color]
                     row[fullname] = tags.get(row[fullname])
 
                 row["__domain"] &= additional_domain
@@ -320,16 +306,14 @@ class _ReadGroupFormatMixin(_ModelStubs):
                 if not row[group]:
                     row[group] = False
                     row["__domain"] &= Domain(fullname, "=", False)
-                    row["__range"] = {}
+                    row.setdefault("__range", {})[group] = False
                     continue
 
-                # date/datetime aren't JSONifiable, so stored as raw text
                 db_format = (
                     "%Y-%m-%d" if property_type == "date" else "%Y-%m-%d %H:%M:%S"
                 )
 
                 if func == "week":
-                    # value is the first day of the week (locale-dependent)
                     start = row[group].strftime(db_format)
                     end = (row[group] + datetime.timedelta(days=7)).strftime(db_format)
                 else:
@@ -342,7 +326,7 @@ class _ReadGroupFormatMixin(_ModelStubs):
                 row["__domain"] &= Domain(fullname, ">=", start) & Domain(
                     fullname, "<", end
                 )
-                row["__range"] = {group: {"from": start, "to": end}}
+                row.setdefault("__range", {})[group] = {"from": start, "to": end}
                 row[group] = babel.dates.format_date(
                     row[group],
                     format=READ_GROUP_DISPLAY_FORMAT[func],

@@ -31,11 +31,6 @@ class _RegistryStubs:
     __slots__ = ()
 
     if typing.TYPE_CHECKING:
-        # Set on the Registry instance in ``Registry.init`` / ``setup_models``.
-        # Types mirror the precise ``self.x: ... = ...`` annotations at the
-        # assignment sites in registry.py — keep both in sync. Only the
-        # unaccent SQL wrapper (a genuinely dynamic callable-or-flag) stays
-        # ``Any``.
         model_graph: ModelGraph
         models: dict[str, type[BaseModel]]
         not_null_fields: set[Field]

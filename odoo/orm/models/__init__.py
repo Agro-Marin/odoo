@@ -10,7 +10,6 @@ from .base import (
 )
 from .metaclass import MetaModel
 
-# Mixins (used internally by BaseModel, exported for subclass access)
 from .mixins import (
     AccessMixin,
     ExportMixin,

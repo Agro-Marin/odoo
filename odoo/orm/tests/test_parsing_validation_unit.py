@@ -37,7 +37,6 @@ class TestParseFieldExpr:
             ("name", ("name", None)),
             ("partner_id", ("partner_id", None)),
             ("properties.color", ("properties", "color")),
-            # only the FIRST dot splits: the rest belongs to the property part
             ("properties.color.shade", ("properties", "color.shade")),
             ("a.b.c.d", ("a", "b.c.d")),
         ],
@@ -48,13 +47,13 @@ class TestParseFieldExpr:
     @pytest.mark.parametrize(
         "expr",
         [
-            "",  # empty
-            ".",  # no field, no property
-            ".color",  # leading dot: empty field part
-            "field.",  # trailing dot: empty property part
-            "a..b",  # empty segment between dots
-            "a.b..c",  # empty inner segment in the property part
-            "a.b.",  # trailing dot after a property path
+            "",
+            ".",
+            ".color",
+            "field.",
+            "a..b",
+            "a.b..c",
+            "a.b.",
         ],
     )
     def test_malformed_dot_expressions_rejected(self, expr):
@@ -62,9 +61,6 @@ class TestParseFieldExpr:
             parse_field_expr(expr)
 
     def test_lru_cache_is_bounded(self):
-        # The parsers are RPC-reachable with unbounded distinct inputs; an
-        # unbounded cache would be a memory-exhaustion vector.  The cache is
-        # observable through functools' cache_info.
         info = parse_field_expr.cache_info()
         assert info.maxsize == _PARSE_CACHE_MAXSIZE
         for i in range(_PARSE_CACHE_MAXSIZE + 500):
@@ -77,9 +73,9 @@ class TestFixImportExportIdPaths:
         ("fieldname", "expected"),
         [
             ("name", ("name",)),
-            ("partner_id.id", ("partner_id", ".id")),  # database id
-            ("partner_id:id", ("partner_id", "id")),  # external id
-            ("partner_id/name", ("partner_id", "name")),  # plain path
+            ("partner_id.id", ("partner_id", ".id")),
+            ("partner_id:id", ("partner_id", "id")),
+            ("partner_id/name", ("partner_id", "name")),
             ("line_ids/partner_id.id", ("line_ids", "partner_id", ".id")),
             ("line_ids/partner_id:id", ("line_ids", "partner_id", "id")),
         ],
@@ -88,9 +84,6 @@ class TestFixImportExportIdPaths:
         assert fix_import_export_id_paths(fieldname) == expected
 
     def test_id_substitution_is_token_based(self):
-        # ".id"/":id" convert only as a complete trailing designator (end of
-        # name or before "/") — a bare prefix match used to mangle
-        # "partner_id.identifier" into ('partner_id', '.identifier').
         assert fix_import_export_id_paths("partner_id.identifier") == (
             "partner_id.identifier",
         )
@@ -106,8 +99,8 @@ class TestCheckPgName:
     def test_valid_names_pass(self):
         check_pg_name("res_partner")
         check_pg_name("_private")
-        check_pg_name("table$1")  # $ allowed after the first character
-        check_pg_name("a" * 63)  # exactly at the PostgreSQL limit
+        check_pg_name("table$1")
+        check_pg_name("a" * 63)
 
     def test_64_chars_rejected(self):
         with pytest.raises(ValidationError, match="too long"):
@@ -116,15 +109,15 @@ class TestCheckPgName:
     @pytest.mark.parametrize(
         "name",
         [
-            "MyTable",  # uppercase: PostgreSQL folds unquoted identifiers
-            "1table",  # cannot start with a digit
-            "$table",  # cannot start with $
-            "res-partner",  # invalid character
-            "res partner",  # whitespace
-            "res.partner",  # dot is a model-name separator, not a pg name
-            "",  # empty
-            "name\nx",  # embedded newline
-            "name\n\n",  # two trailing newlines ($ only forgives one)
+            "MyTable",
+            "1table",
+            "$table",
+            "res-partner",
+            "res partner",
+            "res.partner",
+            "",
+            "name\nx",
+            "name\n\n",
         ],
     )
     def test_invalid_characters_rejected(self, name):
@@ -132,16 +125,11 @@ class TestCheckPgName:
             check_pg_name(name)
 
     def test_trailing_newline_is_rejected(self):
-        # The validation regexes anchor with ``\Z``, not ``$`` — in Python
-        # ``$`` also matches just before ONE trailing newline, which used to
-        # let ``"name\n"`` validate (the exact trap check_method_name defends
-        # against explicitly).
         with pytest.raises(ValidationError, match="Invalid characters"):
             check_pg_name("name\n")
         assert check_object_name("res.partner\n") is False
 
     def test_length_is_checked_after_characters(self):
-        # a 64-char name with invalid characters fails on characters first
         with pytest.raises(ValidationError, match="Invalid characters"):
             check_pg_name("A" * 64)
 
@@ -154,12 +142,10 @@ class TestCheckMethodName:
     @pytest.mark.parametrize(
         "name",
         [
-            "init",  # blocked by name
+            "init",
             "_private",
-            "_",  # bare underscore is still private
+            "_",
             "__init__",
-            # newline defense: a ^...$ regex would let "_secret\nx" through
-            # ($ matches before a trailing newline; . does not match newline)
             "_secret\nx",
             "_secret\n",
         ],
@@ -169,7 +155,6 @@ class TestCheckMethodName:
             check_method_name(name)
 
     def test_init_only_matches_exactly(self):
-        # "initialize" is a legitimate public name; only "init" is special
         assert check_method_name("initialize") is None
 
 
@@ -178,11 +163,11 @@ class TestObjectAndManualNames:
         ("name", "ok"),
         [
             ("res.partner", True),
-            ("l10n_us.1099_box", True),  # later segments may start with a digit
+            ("l10n_us.1099_box", True),
             ("base", True),
-            ("1invalid", False),  # first segment must not start with a digit
-            ("Res.Partner", False),  # uppercase folds in PostgreSQL
-            ("res..partner", False),  # empty segment
+            ("1invalid", False),
+            ("Res.Partner", False),
+            ("res..partner", False),
             (".partner", False),
             ("res.partner.", False),
         ],

@@ -55,20 +55,9 @@ class LoadMixin(_ModelStubs):
         mode = self.env.context.get("mode", "init")
         current_module = self.env.context.get("module", "__import__")
         noupdate = self.env.context.get("noupdate", False)
-        # current module is needed in context for xml-id conversion
         self = self.with_context(_import_current_module=current_module)
 
         cr = self.env.cr
-        # Savepoint strategy (three roles, see ``CheckSavepoint`` tests):
-        #   1. this load-wide savepoint: the whole load is atomic, so any
-        #      recorded error rolls everything back (``ids`` becomes False);
-        #   2. one savepoint around each batch's fast-path bulk create (below);
-        #   3. on bulk-create failure, one savepoint per record in the row-by-row
-        #      recovery -- lets each record see the true prior state (so conflicts
-        #      are attributed to the right row) and rolls a failed record back in
-        #      isolation, keeping the ids of already-succeeded records. The
-        #      conflict-free path never reaches it, and base_import bounds each
-        #      load() to a batch, so recovery cost stays bounded per transaction.
         savepoint = cr.savepoint()
 
         fields = [fix_import_export_id_paths(f) for f in fields]
@@ -76,11 +65,8 @@ class LoadMixin(_ModelStubs):
         ids = []
         messages = []
 
-        # list of (xid, vals, info) for records to be created in batch
         batch = []
         batch_xml_ids = set()
-        # models that may need flushing before a name_search (we create/modify
-        # data in them): the root model and any o2m comodel
         creatable_models = {self._name}
         for field_path in fields:
             if field_path[0] in (None, "id", ".id"):
@@ -99,19 +85,12 @@ class LoadMixin(_ModelStubs):
             if not batch:
                 return
 
-            # raise (not assert): xml_id/model mutual exclusivity is a caller
-            # contract that must hold under python -O.
             if xml_id and model:
                 raise ValueError(
                     "flush can specify *either* an external id or a model, not both"
                 )
 
             if xml_id and xml_id not in batch_xml_ids:
-                # The referenced xid is not pending in the current batch, so
-                # flushing the batch cannot resolve it — skip. (The former
-                # ``xml_id not in self.env`` tested the xid against model *names*
-                # via ``Environment.__contains__``, which only skipped when the
-                # xid did not happen to collide with a model name.)
                 return
             if model and model not in creatable_models:
                 return
@@ -123,7 +102,6 @@ class LoadMixin(_ModelStubs):
             batch.clear()
             batch_xml_ids.clear()
 
-            # try to create in batch
             global_error_message = None
             try:
                 with cr.savepoint():
@@ -131,7 +109,6 @@ class LoadMixin(_ModelStubs):
                     ids.extend(recs.ids)
                 return
             except psycopg.InternalError as e:
-                # broken transaction: bail and hope the source error was logged
                 if not any(message["type"] == "error" for message in messages):
                     info = data_list[0]["info"]
                     messages.append(
@@ -152,17 +129,11 @@ class LoadMixin(_ModelStubs):
                 )
 
             errors = 0
-            # Retry record by record. Each record runs in its OWN savepoint, so a
-            # failure rolls back only that record's partial work and leaves
-            # already-succeeded records (and their ids) intact, while the failed
-            # record's error is attributed to the right row. (Under psycopg3,
-            # server notices/warnings never raise — they go to notice handlers —
-            # so only real errors reach the except clauses below.)
             for i, rec_data in enumerate(data_list, 1):
                 try:
                     with cr.savepoint():
                         rec = self._load_records([rec_data], mode == "update")
-                        cr.flush()  # surface flush exceptions inside the savepoint
+                        cr.flush()
                     ids.append(rec.id)
                 except psycopg.Error as e:
                     info = rec_data["info"]
@@ -212,15 +183,10 @@ class LoadMixin(_ModelStubs):
                 and global_error_message
                 and global_error_message not in messages
             ):
-                # 1-by-1 also failed: surface the original batch-create error
                 messages.insert(0, global_error_message)
 
-        # make 'flush' available to the methods below (e.g. when XMLID
-        # resolution fails)
         flush_recordset = self.with_context(import_flush=flush, import_cache=LRU(1024))
 
-        # Import limit comes via context: load()'s public (fields, data) API has
-        # no parameter for it and changing it would break all callers.
         limit = self.env.context.get("_import_limit")
         if limit is None:
             limit = float("inf")
@@ -253,7 +219,6 @@ class LoadMixin(_ModelStubs):
         if any(message["type"] == "error" for message in messages):
             savepoint.rollback()
             ids = False
-            # undo registry/ormcache changes
             self.pool.reset_changes()
         savepoint.close(rollback=False)
 
@@ -287,8 +252,6 @@ class LoadMixin(_ModelStubs):
         """
         fields = self._fields
 
-        # ``fname0 := fnames[0]`` may be None (unmatched columns); ``None in
-        # fields`` was always False, so the explicit None checks are equivalent.
         get_o2m_values = itemgetter_tuple(
             [
                 index
@@ -308,7 +271,6 @@ class LoadMixin(_ModelStubs):
             ]
         )
 
-        # Checks if the provided row has any non-empty one2many fields
         def only_o2m_values(row):
             return any(get_o2m_values(row)) and not any(get_nono2m_values(row))
 
@@ -324,12 +286,10 @@ class LoadMixin(_ModelStubs):
 
             f_prop_name, property_name = fname.split(".")
             if f_prop_name not in fields or fields[f_prop_name].type != "properties":
-                # Can be .id
                 continue
 
             definition = self.get_property_definition(fname)
             if not definition:
-                # Can happen if someone remove the property, UserError ?
                 raise ValueError(
                     f"Property {property_name!r} doesn't have any definition on {fname!r} field"
                 )
@@ -337,10 +297,6 @@ class LoadMixin(_ModelStubs):
             property_definitions[fname] = definition
             property_columns[f_prop_name].append(fname)
 
-        # m2o fields can't be on multiple lines so don't take it in account
-        # for only_o2m_values rows filter, but special-case it later on to
-        # be handled with relational fields (as it can have subfields).
-        # Pre-compute set of relational field names for O(1) lookup per row
         relational_fnames = {fname for fname in fields if fields[fname].relational} | {
             fname
             for fname, defn in property_definitions.items()
@@ -354,25 +310,19 @@ class LoadMixin(_ModelStubs):
         while index < len(data) and index < limit:
             row = data[index]
 
-            # copy non-relational fields to record dict
             record = {
                 fnames[0]: value
                 for fnames, value in zip(field_paths, row, strict=False)
                 if not is_relational(fnames[0])
             }
 
-            # Get all following rows which have relational values attached to
-            # the current record (no non-relational values)
             record_span = itertools.takewhile(
                 only_o2m_values,
                 (data[j] for j in range(index + 1, len(data))),
             )
-            # stitch record row back on for relational fields
             record_span = list(itertools.chain([row], record_span))
 
             for relfield, *__ in field_paths:
-                # (None is never in relational_fnames, so the explicit None
-                # check is equivalent; it only narrows ``str | None``)
                 if relfield is None or not is_relational(relfield):
                     continue
 
@@ -381,8 +331,6 @@ class LoadMixin(_ModelStubs):
                 else:
                     comodel = self.env[property_definitions[relfield]["comodel"]]
 
-                # get only cells for this sub-field, should be strictly
-                # non-empty, field path [None] is for display_name field
                 indices, subfields = zip(
                     *(
                         (index, fnames[1:] or [None])
@@ -392,8 +340,6 @@ class LoadMixin(_ModelStubs):
                     strict=False,
                 )
 
-                # return all rows which have at least one value for the
-                # subfields of relfield
                 relfield_data = [
                     it for it in map(itemgetter_tuple(indices), record_span) if any(it)
                 ]
@@ -453,8 +399,6 @@ class LoadMixin(_ModelStubs):
 
         def _log(base, record, field, exception):
             type = "warning" if isinstance(exception, Warning) else "error"
-            # log the logical field name (for automated processing) but put the
-            # human-readable name in the message
             field_name = field_names[field]
             exc_vals = dict(base, record=record, field=field_name)
             record = dict(
@@ -468,7 +412,6 @@ class LoadMixin(_ModelStubs):
                 info = {}
                 if exception.args[1] and isinstance(exception.args[1], dict):
                     info = exception.args[1]
-                # field_name lets import concatenate multiple errors per block
                 info["field_name"] = field_name
                 record.update(info)
             log(record)
@@ -480,7 +423,6 @@ class LoadMixin(_ModelStubs):
                 try:
                     dbid = int(record[".id"])
                 except ValueError:
-                    # overridden (non-int) id column
                     dbid = record[".id"]
                 if not self.search([("id", "=", dbid)]):
                     log(
@@ -500,7 +442,7 @@ class LoadMixin(_ModelStubs):
 
     def _load_records_write(self, values: ValuesType) -> None:
         self.ensure_one()
-        to_write = {}  # defer properties write so a changed definition isn't reused
+        to_write = {}
         for fname in list(values):
             if fname not in self._fields or self._fields[fname].type != "properties":
                 continue
@@ -513,8 +455,6 @@ class LoadMixin(_ModelStubs):
         self.write(values)
         if to_write:
             self.write(to_write)
-            # Clean properties now that they are written (optional — the client
-            # would otherwise clean them on the next Form-view edit).
             self._clean_properties()
 
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
@@ -535,19 +475,14 @@ class LoadMixin(_ModelStubs):
 
         imd = self.env["ir.model.data"].sudo()
 
-        # partition 'data_list' into records to create / update / leave; set
-        # data['record'] on each, then return them all.
-
-        # determine existing xml_ids
         xml_ids = [data["xml_id"] for data in data_list if data.get("xml_id")]
         existing = {
             f"{row[1]}.{row[2]}": row for row in imd._lookup_xmlids(xml_ids, self)
         }
 
-        # determine which records to create and update
-        to_create = []  # list of data
-        to_update = []  # list of data
-        imd_data_list = []  # list of data for _update_xmlids()
+        to_create = []
+        to_update = []
+        imd_data_list = []
 
         for data in data_list:
             xml_id = data.get("xml_id")
@@ -569,7 +504,7 @@ class LoadMixin(_ModelStubs):
                 continue
             d_id, _d_module, _d_name, d_model, d_res_id, d_noupdate, r_id = row
             if self._name != d_model:
-                raise ValidationError(  # pylint: disable=missing-gettext
+                raise ValidationError(
                     f"For external id {xml_id} "
                     f"when trying to create/update a record of model {self._name} "
                     f"found record of different model {d_model} ({d_id})"
@@ -584,22 +519,17 @@ class LoadMixin(_ModelStubs):
                 imd.browse(d_id).unlink()
                 to_create.append(data)
 
-        # update existing records
         for data in to_update:
             data["record"]._load_records_write(data["values"])
 
         self._load_records_warn_foreign_module(to_create)
         self._load_records_check_import_prefix(to_create)
 
-        # create records
         if to_create:
             records = self._load_records_create([data["values"] for data in to_create])
-            # strict=True: create() must return one record per vals dict; a
-            # mismatch would otherwise drop data["record"] and fail later.
             for data, record in zip(to_create, records, strict=True):
                 data["record"] = record
                 if data.get("xml_id"):
-                    # add XML ids for parent records that have just been created
                     for parent_model, parent_field in self._inherits.items():
                         if not data["values"].get(parent_field):
                             imd_data_list.append(
@@ -611,7 +541,6 @@ class LoadMixin(_ModelStubs):
                             )
                     imd_data_list.append(data)
 
-        # create or update XMLIDs
         imd._update_xmlids(imd_data_list, update)
 
         return original_self.concat(*(data["record"] for data in data_list))

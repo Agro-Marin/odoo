@@ -54,9 +54,6 @@ class CreateMixin(_ModelStubs):
         parent_fields = defaultdict(list)
         ir_defaults = self.env["ir.default"]._get_model_defaults(self._name)
 
-        # Extract the context "default_<name>" overrides once instead of
-        # building the key per requested field: default_get is on the create
-        # hot path, where the per-field string allocation dominated.
         context_defaults = {
             key[8:]: value
             for key, value in self.env.context.items()
@@ -64,7 +61,6 @@ class CreateMixin(_ModelStubs):
         }
 
         for name in fields:
-            # 1. look up context
             if name in context_defaults:
                 defaults[name] = context_defaults[name]
                 continue
@@ -73,24 +69,18 @@ class CreateMixin(_ModelStubs):
             if not field:
                 continue
 
-            # 2. look up default for non-company_dependent fields
             if not field.company_dependent and name in ir_defaults:
                 defaults[name] = ir_defaults[name]
                 continue
 
-            # 3. look up field.default
             if field.default:
                 defaults[name] = field.default(self)
                 continue
 
-            # 4. look up fallback for company_dependent fields
             if field.company_dependent and name in ir_defaults:
                 defaults[name] = ir_defaults[name]
                 continue
 
-            # 5. delegate to parent model
-            # (``related_field is not None`` never fails for an inherited
-            # field — setup_related always sets it; it only narrows the type)
             if (
                 field.inherited
                 and self._has_field_access(field, "write")
@@ -99,16 +89,12 @@ class CreateMixin(_ModelStubs):
                 field = field.related_field
                 parent_fields[field.model_name].append(field.name)
 
-        # Convert via the cache (not _convert_to_write) for x2many: the latter
-        # yields [(LINK, 2), (LINK, 3)] which the web client rejects as a
-        # default; the cache round-trip normalizes to [(SET, 0, [2, 3])].
         for fname, value in defaults.items():
             if fname in self._fields:
                 field = self._fields[fname]
                 value = field.convert_to_cache(value, self, validate=False)
                 defaults[fname] = field.convert_to_write(value, self)
 
-        # add default values for inherited fields
         for model, names in parent_fields.items():
             defaults.update(self.env[model].default_get(names))
 
@@ -120,14 +106,10 @@ class CreateMixin(_ModelStubs):
         values: ValuesType,
         _missing_defaults_cache: dict[frozenset[str], list[str]] | None = None,
     ) -> ValuesType:
-        # _missing_defaults_cache memoizes the missing-fields computation per
-        # unique set of provided keys, so a batch create with uniform keys does
-        # not iterate all model fields per record.
         vals_keys = frozenset(values)
         if _missing_defaults_cache is not None and vals_keys in _missing_defaults_cache:
             missing_defaults = _missing_defaults_cache[vals_keys]
         else:
-            # avoid overriding inherited values when parent is set
             avoid_models = set()
 
             def collect_models_to_avoid(model):
@@ -135,13 +117,11 @@ class CreateMixin(_ModelStubs):
                     if parent_fname in values:
                         avoid_models.add(parent_mname)
                     else:
-                        # manage the case where an ancestor parent field is set
                         collect_models_to_avoid(self.env[parent_mname])
 
             collect_models_to_avoid(self)
 
             def avoid(field):
-                # check whether the field is inherited from one of avoid_models
                 if avoid_models:
                     while field.inherited:
                         field = field.related_field
@@ -149,7 +129,6 @@ class CreateMixin(_ModelStubs):
                             return True
                 return False
 
-            # compute missing fields
             missing_defaults = [
                 name
                 for name, field in self._fields.items()
@@ -160,7 +139,6 @@ class CreateMixin(_ModelStubs):
                 _missing_defaults_cache[vals_keys] = missing_defaults
 
         if missing_defaults:
-            # provided values override defaults, never the other way around
             defaults = self.default_get(missing_defaults)
             for name, value in defaults.items():
                 if (
@@ -168,26 +146,18 @@ class CreateMixin(_ModelStubs):
                     and value
                     and isinstance(value[0], int)
                 ):
-                    # convert a list of ids into a list of commands
                     defaults[name] = [Command.set(value)]
                 elif (
                     self._fields[name].type == "one2many"
                     and value
                     and isinstance(value[0], dict)
                 ):
-                    # convert a list of dicts into a list of commands
                     defaults[name] = [Command.create(x) for x in value]
             defaults.update(values)
 
         else:
-            # Copy: the properties loop below and the caller mutate the result
-            # in place; aliasing ``values`` would leak back into the caller's
-            # vals_list. (The branch above already builds a fresh dict.)
             defaults = dict(values)
 
-        # delegate default properties to the properties field(s). Memoize the
-        # (usually empty) set of properties-field names per class to avoid
-        # rescanning every field per record of a create batch.
         cls = type(self)
         properties_names = own_class_memo(
             cls,
@@ -228,9 +198,6 @@ class CreateMixin(_ModelStubs):
         :raise UserError: if the operation would create a loop in an object
           hierarchy (e.g. setting an object as its own parent)
         """
-        # raise (not assert) so the contract holds under python -O: a non-list
-        # otherwise crashes far later in field classification with an opaque
-        # error.
         if not isinstance(vals_list, (list, tuple)):
             raise TypeError(
                 f"create() expects a list of dicts, got {type(vals_list).__name__}"
@@ -244,13 +211,9 @@ class CreateMixin(_ModelStubs):
             fnames = frozenset(fname for vals in vals_list for fname in vals)
             tracker.record("create", self._name, len(vals_list), fnames)
 
-        # Model-level ACL: check that the user can create this model at all.
-        # Called on an empty recordset so only ir.model.access is checked,
-        # not ir.rules (which need actual record ids).
         self = self.browse()
         self.check_access("create")
 
-        # check access to all user-provided fields
         field_names = OrderedSet(fname for vals in vals_list for fname in vals)
         field_names.update(
             field_name
@@ -268,14 +231,12 @@ class CreateMixin(_ModelStubs):
 
         new_vals_list = self._prepare_create_values(vals_list)
 
-        # classify fields for each record
         data_list = []
-        determine_inverses = defaultdict(OrderedSet)  # {inverse: fields}
+        determine_inverses = defaultdict(OrderedSet)
 
         for vals in new_vals_list:
             precomputed = vals.pop("__precomputed__", ())
 
-            # distribute fields into sets for various purposes
             data = {}
             data["stored"] = stored = {}
             data["inversed"] = inversed = {}
@@ -289,18 +250,15 @@ class CreateMixin(_ModelStubs):
                 if field.store:
                     stored[key] = val
                 if field.inherited and field.related_field is not None:
-                    # (the not-None check never fails for an inherited field —
-                    # setup_related always sets it; it only narrows the type)
                     inherited[field.related_field.model_name][key] = val
                 elif field.inverse and field not in precomputed:
                     inversed[key] = val
                     determine_inverses[field.inverse].add(field)
                 elif not field.store and not field.compute:
-                    # cache-only fields with field.inverse are handled by inversed
                     cached_only[key] = val
-                # protect editable computed fields and precomputed fields
-                # against (re)computation
-                if (field.compute and (not field.readonly or field.precompute)) or key in cached_only:
+                if (
+                    field.compute and (not field.readonly or field.precompute)
+                ) or key in cached_only:
                     protected.update(self.pool.field_computed.get(field, [field]))
                 if (
                     field.type == "many2one"
@@ -313,7 +271,6 @@ class CreateMixin(_ModelStubs):
             data_list.append(data)
         prof.mark("prep")
 
-        # create or update parent records
         for model_name, parent_name in self._inherits.items():
             parent_data_list = []
             for data in data_list:
@@ -332,25 +289,15 @@ class CreateMixin(_ModelStubs):
 
         prof.mark("parent")
 
-        # create records with stored fields
         records = self._create(data_list)
         prof.mark("sql")
 
-        # Two-pass validation: pass 1 (in _create) validates stored fields;
-        # pass 2 (below) validates inversed fields not also touching stored
-        # (those are covered by pass 1). Inverses run between the passes since
-        # they write to related models that pass 2's constraints may need.
-
-        # protect fields being written against recomputation
         protected_fields = [(data["protected"], data["record"]) for data in data_list]
         with self.env.protecting(protected_fields):
-            # fill cache-only fields (non-stored, non-computed)
             for data in data_list:
                 if vals := data["cached_only"]:
                     data["record"]._update_cache(vals)
-            # call inverse method for each group of fields
             for fields in determine_inverses.values():
-                # determine which records to inverse for those fields
                 inv_names = {field.name for field in fields}
                 inv_rec_ids = []
                 for data in data_list:
@@ -368,9 +315,6 @@ class CreateMixin(_ModelStubs):
 
                 inv_records = self.browse(inv_rec_ids)
                 next(iter(fields)).determine_inverse(inv_records)
-                # non-stored fields were cached before the inverse ran, so for
-                # x2many create commands the cache may hold NewId records;
-                # invalidate them now.
                 inv_relational_fnames = [
                     field.name
                     for field in fields
@@ -379,8 +323,6 @@ class CreateMixin(_ModelStubs):
                 inv_records.invalidate_recordset(fnames=inv_relational_fnames)
         prof.mark("trigger")
 
-        # Pass 2: validate constraints touching inversed fields, excluding
-        # those that also touch stored fields (already validated in pass 1).
         for data in data_list:
             data["record"]._validate_fields(data["inversed"], data["stored"])
 
@@ -415,8 +357,6 @@ class CreateMixin(_ModelStubs):
         """
         bad_names = bad_field_names(self)
 
-        # Also strip precomputed readonly fields to force their computation.
-        # Cache the set on the class to avoid iterating all fields per call.
         cls = type(self)
         precompute_readonly = own_class_memo(
             cls,
@@ -430,15 +370,12 @@ class CreateMixin(_ModelStubs):
         if precompute_readonly:
             bad_names = bad_names | precompute_readonly
 
-        # Memoize missing_defaults per unique key set: batch creates usually
-        # share keys, so this avoids iterating all fields N times.
         missing_defaults_cache: dict[frozenset[str], list[str]] = {}
 
         result_vals_list = []
         for vals in vals_list:
             vals = self._add_missing_default_values(vals, missing_defaults_cache)
 
-            # strip bad_names, then set magic log-access fields
             for fname in bad_names:
                 vals.pop(fname, None)
             if self._log_access:
@@ -449,7 +386,6 @@ class CreateMixin(_ModelStubs):
 
             result_vals_list.append(vals)
 
-        # add precomputed fields
         self._add_precomputed_values(result_vals_list)
 
         return result_vals_list
@@ -462,7 +398,6 @@ class CreateMixin(_ModelStubs):
         if not precomputable:
             return
 
-        # determine which vals must be completed
         vals_list_todo = [
             vals
             for vals in vals_list
@@ -471,15 +406,12 @@ class CreateMixin(_ModelStubs):
         if not vals_list_todo:
             return
 
-        # create new records for the vals that must be completed
         records = self.browse().concat(*(self.new(vals) for vals in vals_list_todo))
 
         for record, vals in zip(records, vals_list_todo, strict=True):
             vals["__precomputed__"] = precomputed = set()
             for fname, field in precomputable.items():
                 if fname not in vals:
-                    # compute stored-column fields before create so required
-                    # and constraints can apply to them
                     vals[fname] = field.convert_to_write(record[fname], self)
                     precomputed.add(field)
 
@@ -506,16 +438,13 @@ class CreateMixin(_ModelStubs):
     @api.model
     def _create(self, data_list: list[ValuesType]) -> Self:
         """Create records from the stored field values in ``data_list``."""
-        # raise (not assert): contract must hold under python -O — an empty
-        # data_list would produce no records, confusing callers.
         if not data_list:
             raise ValueError("_create() called with empty data_list")
         cr = self.env.cr
         prof = _OrmProfile(_orm_crud)
 
-        # insert rows in batches of maximum INSERT_BATCH_SIZE
-        ids: list[int] = []  # ids of created records
-        other_fields: OrderedSet[Field] = OrderedSet()  # non-column fields
+        ids: list[int] = []
+        other_fields: OrderedSet[Field] = OrderedSet()
 
         for data_sublist in batched(data_list, INSERT_BATCH_SIZE, strict=False):
             stored_list = [data["stored"] for data in data_sublist]
@@ -532,15 +461,10 @@ class CreateMixin(_ModelStubs):
                     other_fields.add(field)
 
                 if field.type == "properties":
-                    # force field.create() for properties: it may update the
-                    # parent definition
                     other_fields.add(field)
 
-            # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
             if (backend := self.env.backend) is not None:
-                ids.extend(
-                    backend.create_rows(self, stored_list, columns, col_fields)
-                )
+                ids.extend(backend.create_rows(self, stored_list, columns, col_fields))
                 continue
 
             use_copy = (
@@ -549,17 +473,7 @@ class CreateMixin(_ModelStubs):
             subprof = _OrmProfile(_orm_crud)
 
             if use_copy:
-                # COPY path: 2-5x faster than INSERT for large batches. Missing
-                # columns use None, not SQL_DEFAULT: _prepare_create_values
-                # already applied Python defaults, so remaining gaps are
-                # non-required fields whose DB default is NULL.
                 copy_rows = self._build_insert_rows(stored_list, columns, col_fields)
-                # Use binary COPY only when no column is numeric: psycopg's
-                # binary numeric dumper needs Decimal, so a float->Decimal
-                # conversion makes binary ~2x slower than text for Monetary /
-                # Float-with-digits columns. Text COPY is byte-identical, so this
-                # trades speed, never correctness. jsonb numerics (company-
-                # dependent / translated) pay no Decimal tax and stay binary.
                 use_binary = not any(
                     field.column_type[0] == "numeric" for field in col_fields
                 )
@@ -581,18 +495,11 @@ class CreateMixin(_ModelStubs):
                         len(columns),
                     )
             else:
-                # INSERT path: small batches and the empty-record edge case.
-                # Missing columns use None, not SQL_DEFAULT (same rationale as
-                # COPY): uniform rows with no DEFAULT keyword let the whole VALUES
-                # clause use standard parameter binding.
                 if col_fields:
                     rows: list[tuple] = self._build_insert_rows(
                         stored_list, columns, col_fields
                     )
                 else:
-                    # Empty-record edge case (e.g. create({})): synthesize an
-                    # ``id`` column bound to DEFAULT so PostgreSQL pulls the
-                    # next sequence value.
                     columns = ["id"]
                     rows = [(SQL_DEFAULT,) for _ in stored_list]
 
@@ -619,7 +526,6 @@ class CreateMixin(_ModelStubs):
 
         prof.mark("sql")
 
-        # put the new records in cache, and update inverse fields, for many2one
         records, inverses_update = self._populate_create_cache(ids, data_list)
         prof.mark("cache")
 
@@ -627,17 +533,13 @@ class CreateMixin(_ModelStubs):
             field._update_inverses(self.browse(record_ids), value)
         prof.mark("inverses")
 
-        # update parent_path
         records._parent_store_create()
 
-        # protect fields being written against recomputation
         protected = [(data["protected"], data["record"]) for data in data_list]
         with self.env.protecting(protected):
-            # mark computed fields as todo
             records.modified(self._fields, create=True)
 
             if other_fields:
-                # discard default values from context for other fields
                 others = records.with_context(clean_context(self.env.context))
                 for field in sorted(other_fields, key=attrgetter("_sequence")):
                     field.create(
@@ -648,14 +550,9 @@ class CreateMixin(_ModelStubs):
                         ]
                     )
 
-                # mark fields to recompute
                 records.modified([field.name for field in other_fields], create=True)
 
-        # Pass 1: validate constraints touching stored fields.
         records._validate_fields(name for data in data_list for name in data["stored"])
-        # Record-level rules against the actual created records (e.g. multi-
-        # company). Not a duplicate of the earlier model-level check, which ran
-        # on an empty recordset.
         records.check_access("create")
 
         prof.stop()
@@ -686,24 +583,19 @@ class CreateMixin(_ModelStubs):
             of {(field, cache_value): [record_ids]} for M2O inverse updates.
             Also mutates data_list entries to add 'record' key.
         """
-        # using bin_size=False to put binary values in the right place
         records = self.browse(ids)
-        inverses_update = defaultdict(list)  # {(field, value): ids}
-        common_set_vals = _BAD_NAMES_LOG  # {id, parent_path} | LOG_ACCESS_COLUMNS
+        inverses_update = defaultdict(list)
+        common_set_vals = _BAD_NAMES_LOG
 
-        # Pre-classify stored fields once (avoids re-checking per record).
-        # Also pre-get field caches to avoid repeated _get_cache() calls.
         env = self.env
-        _stored_x2m_caches = []  # x2many: [(field, cache)]
-        _stored_scalar_caches = []  # scalar: [(field, field_name, cache, default)]
+        _stored_x2m_caches = []
+        _stored_scalar_caches = []
         for field in self._fields.values():
             if not field.store:
                 continue
             if field.type in ("one2many", "many2many"):
                 _stored_x2m_caches.append((field, field._get_cache(env)))
             else:
-                # Stored computed fields get PENDING (not None) so cache reads
-                # can distinguish "not yet computed" from "genuinely null".
                 default = PENDING if field.is_stored_computed else None
                 _stored_scalar_caches.append(
                     (field, field.name, field._get_cache(env), default)
@@ -717,7 +609,6 @@ class CreateMixin(_ModelStubs):
             data_list, records.with_context(bin_size=False), strict=True
         ):
             data["record"] = record
-            # DLE P104: test_inherit.py, test_50_search_one2many
             vals = dict(
                 {k: v for d in data["inherited"].values() for k, v in d.items()},
                 **data["stored"],
@@ -725,9 +616,6 @@ class CreateMixin(_ModelStubs):
             set_vals = common_set_vals.union(vals)
 
             record_id = record._ids[0]
-            # put None/() in cache for all fields not part of the INSERT
-            # Direct cache assignment avoids _update_cache() method overhead
-            # (safe: new records have no dirty flags to check)
             for _field, cache in _stored_x2m_caches:
                 cache[record_id] = ()
             for _field, fname, cache, default in _stored_scalar_caches:
@@ -762,7 +650,6 @@ class CreateMixin(_ModelStubs):
                 {
                     "xml_id": (xid if "." in xid else f"{import_module}.{xid}"),
                     "record": rec,
-                    # note: this is not used when updating o2ms above...
                     "noupdate": noupdate,
                 }
                 for rec, xid in zip(records, xids, strict=False)
@@ -774,7 +661,6 @@ class CreateMixin(_ModelStubs):
         """Set the parent_path field on ``self`` after its creation."""
         if not self._parent_store:
             return
-        # Backends without hierarchy support skip parent_path maintenance.
         backend = self.env.backend
         if backend is not None and not backend.supports_parent_store:
             return
@@ -795,7 +681,6 @@ class CreateMixin(_ModelStubs):
             )
         )
 
-        # update the cache of updated nodes, and determine what to recompute
         field = self._fields["parent_path"]
         for id_, path in updated:
             field._update_cache(self.browse(id_), path)

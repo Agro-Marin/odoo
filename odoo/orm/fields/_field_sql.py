@@ -27,9 +27,6 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 
-# Maps domain inequality operators to their Python callables (used to filter
-# in-memory recordsets without a SQL round-trip). Moved here with the SQL methods
-# that use it (formerly in base.py).
 PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[object, object], bool]] = {
     "<": pyoperator.lt,
     ">": pyoperator.gt,
@@ -37,15 +34,6 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[object, object], bool]] = {
     ">=": pyoperator.ge,
 }
 
-# Above this many values, an ``in``/``not in`` condition is emitted as
-# ``= ANY(%s)`` / ``!= ALL(%s)`` (one array parameter) instead of
-# ``IN (%s, %s, ...)`` (one bound parameter per value). ``IN <tuple>`` makes
-# psycopg parse a query string growing O(N): a 1k/10k-row multi-column read
-# measured ~48% faster end-to-end with ANY, and a 10k-id ``browse().read()``
-# otherwise builds a ~40 KB statement. The win is concentrated at large N
-# (sub-0.1 ms below ~100 values), so small conditions keep plain ``IN``: no
-# measurable benefit, and it keeps the size-invariant canonical SQL the
-# test-suite asserts.
 IN_TO_ANY_THRESHOLD = 100
 
 
@@ -66,9 +54,6 @@ class _FieldSqlMixin(_FieldStubs):
             fallback = self.convert_to_column(
                 self.convert_to_write(fallback, model), model
             )
-            # in _read_group_orderby the result of field to sql will be mogrified and split to
-            # e.g SQL('COALESCE(%s->%s') and SQL('to_jsonb(%s))::boolean') as 2 orderby values
-            # and concatenated by SQL(',') in the final result, which works in an unexpected way
             sql_field = SQL(
                 "COALESCE(%(column)s->%(company_id)s,to_jsonb(%(fallback)s::%(column_type)s))",
                 column=sql_field,
@@ -78,10 +63,6 @@ class _FieldSqlMixin(_FieldStubs):
             )
             if self.type in ("boolean", "integer", "float", "monetary"):
                 return SQL("(%s)::%s", sql_field, SQL(self._column_type[1]))
-            # here the specified value for a company might be NULL e.g. '{"1": null}'::jsonb
-            # the result of current sql_field might be 'null'::jsonb
-            # ('null'::jsonb)::text == 'null'
-            # ('null'::jsonb->>0)::text IS NULL
             return SQL("(%s->>0)::%s", sql_field, SQL(self._column_type[1]))
 
         return sql_field
@@ -100,6 +81,69 @@ class _FieldSqlMixin(_FieldStubs):
         The query object is necessary for fields that need to add tables to the query.
         """
         raise ValueError(f"Invalid field property {property_name!r} on {self}")
+
+    def _comparand_to_column(self, value: typing.Any, model: BaseModel) -> typing.Any:
+        """Return the SQL parameter comparing *value* against this field's column.
+
+        Distinct from :meth:`convert_to_column`, which converts a value for
+        **storage**.  Storage conversion is allowed to be lossy -- ``Integer``
+        truncates (``int(2.5) == 2``), ``Float(digits=...)`` rounds
+        (``float_round(0.01000004, 6) == 0.01``) -- because the column cannot
+        hold more than that anyway.  A *comparand* is not stored: it only has to
+        order and compare correctly against the stored values, so it must be
+        converted **exactly**.  Coercing it through storage conversion silently
+        moves the comparison boundary and, since the Python evaluator does not
+        apply it, makes the two evaluators disagree:
+
+        * ``('sequence', '<', 2.5)`` became ``< 2`` and dropped every record
+          with ``sequence == 2`` (in *both* evaluators, which share
+          :meth:`_inequality_comparand`);
+        * ``('sequence', '=', 2.5)`` matched ``sequence == 2`` under
+          ``search()`` and nothing under ``filtered_domain()``;
+        * ``('rounding', '=', 0.01000004)`` on a ``Float(digits=(12, 6))``
+          matched every ``0.01`` row under ``search()`` and nothing under
+          ``filtered_domain()``.
+
+        The default keeps the historical behaviour (storage conversion); the
+        numeric field classes override it to stay exact.  PostgreSQL promotes
+        both operands to a common numeric type, so an ``int4`` column compares
+        exactly against ``2.5`` and a ``numeric`` column against a full-precision
+        ``Decimal``.
+        """
+        return self.convert_to_column(value, model, validate=False)
+
+    def _inequality_comparand(self, value: typing.Any, model: BaseModel) -> typing.Any:
+        """Coerce the right-hand side of an ordering comparison (``<``, ``>``,
+        ``<=``, ``>=``) to the field's cache format.
+
+        **Single source of truth** for the two evaluators of the same domain:
+        :meth:`_condition_to_sql` (SQL) and :meth:`filter_function` (Python).
+        They used to coerce independently -- SQL through ``convert_to_cache``,
+        Python not at all -- so ``search(domain)`` and
+        ``recs.filtered_domain(domain)`` could disagree on identical inputs:
+
+        * ``('int_field', '>', '3')`` (a string comparand, the ordinary shape
+          coming from the web client / ``ir.filters``): SQL coerced to ``3`` and
+          matched; Python left ``'3'`` and raised ``TypeError: '>' not supported
+          between instances of 'int' and 'str'`` while *building* the predicate.
+        * ``('html_field', '<', 'note')``: SQL compared against the sanitized
+          ``<p>note</p>`` (what is actually stored); Python compared against the
+          raw ``'note'``, returning a different set of records.
+
+        Only called when the field has a ``falsy_value`` (Char/Text/Html,
+        Integer, Float/Monetary, Boolean) -- the case both call sites already
+        special-cased; fields without one map a falsy comparand to SQL NULL in
+        ``convert_to_column`` instead.  The trailing ``or falsy_value``
+        normalizes a falsy comparand (``False`` / ``None`` / ``''`` / ``0``) to
+        the field's own falsy sentinel, so ``NULL`` and the sentinel keep
+        comparing alike on both sides.
+
+        Like its SQL counterpart :meth:`_comparand_to_column`, this must be
+        **exact**: the numeric field classes override it so that a threshold is
+        not truncated/rounded down to what the column happens to be able to
+        store (see there).
+        """
+        return self.convert_to_cache(value, model) or self.falsy_value
 
     def condition_to_sql(
         self,
@@ -140,14 +184,13 @@ class _FieldSqlMixin(_FieldStubs):
         if field_expr == self.name:
 
             def _value_to_column(v: typing.Any) -> typing.Any:
-                return self.convert_to_column(v, model, validate=False)
+                return self._comparand_to_column(v, model)
 
         else:
-            # reading a property, keep value as-is
+
             def _value_to_column(v: typing.Any) -> typing.Any:
                 return v
 
-        # support for SQL value
         if operator in SQL_OPERATORS and isinstance(value, SQL):
             warnings.warn(
                 "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
@@ -156,10 +199,8 @@ class _FieldSqlMixin(_FieldStubs):
             )
             return SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], value)
 
-        # nullability
         can_be_null = self not in model.env.registry.not_null_fields
 
-        # operator: in (equality)
         if operator in ("in", "not in"):
             assert isinstance(value, COLLECTION_TYPES), (
                 f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
@@ -168,7 +209,6 @@ class _FieldSqlMixin(_FieldStubs):
                 _value_to_column(v) for v in value if v is not False and v is not None
             )
             null_in_condition = len(params) < len(value)
-            # if we have a value treated as null
             if (null_value := self.falsy_value) is not None:
                 null_value = _value_to_column(null_value)
                 if null_value in params:
@@ -179,36 +219,26 @@ class _FieldSqlMixin(_FieldStubs):
             sql = None
             if params:
                 if len(params) > IN_TO_ANY_THRESHOLD:
-                    # Large list: a single array parameter keeps the SQL
-                    # constant-size (see IN_TO_ANY_THRESHOLD).  ``params`` never
-                    # contains NULL (False/None filtered above), so
-                    # ``= ANY``/``!= ALL`` match ``IN``/``NOT IN`` exactly.
                     anyall = "= ANY(%s)" if operator == "in" else "!= ALL(%s)"
                     sql = SQL(f"%s {anyall}", sql_field, list(params))
                 else:
                     sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], params)
 
             if (operator == "in") == null_in_condition:
-                # field in {val, False} => field IN vals OR field IS NULL
-                # field not in {val} => field NOT IN vals OR field IS NULL
                 if not can_be_null:
                     return sql or SQL("FALSE")
                 sql_null = SQL("%s IS NULL", sql_field)
                 return SQL("(%s OR %s)", sql, sql_null) if sql else sql_null
 
             elif operator == "not in" and null_in_condition and not sql:
-                # if we have a base query, null values are already exluded
                 return SQL("%s IS NOT NULL", sql_field) if can_be_null else SQL("TRUE")
 
             assert sql, f"Missing sql query for {operator} {value!r}"
             return sql
 
-        # operator: like
         if operator.endswith("like"):
-            # cast value to text for any like comparison
             sql_left = sql_field if self.is_text else SQL("%s::text", sql_field)
 
-            # add wildcard and unaccent depending on the operator
             need_wildcard = "=" not in operator
             if need_wildcard:
                 sql_value = SQL("%s", f"%{value}%")
@@ -223,19 +253,13 @@ class _FieldSqlMixin(_FieldStubs):
                 sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
             return sql
 
-        # operator: inequality
         if operator in (">", "<", ">=", "<="):
             accept_null_value = False
             if (null_value := self.falsy_value) is not None:
-                value = self.convert_to_cache(value, model) or null_value
+                value = self._inequality_comparand(value, model)
                 accept_null_value = can_be_null and PYTHON_INEQUALITY_OPERATOR[
                     operator
                 ](null_value, value)
-            # No fallback branch for a falsy comparand on a field with no
-            # falsy_value: every such field's convert_to_column maps False/None
-            # to None (SQL NULL) on its own.  ``Id`` used to be the exception --
-            # its identity passthrough bound a bool to an int4 column -- and that
-            # is fixed at the root in Id.convert_to_column, not patched here.
             sql_value = SQL("%s", _value_to_column(value))
 
             sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], sql_value)
@@ -243,9 +267,6 @@ class _FieldSqlMixin(_FieldStubs):
                 sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
             return sql
 
-        # operator: any
-        # relational operators override this for more specific behaviour; here we
-        # just check the field against the subselect, e.g. ('id', 'any!', Query|SQL)
         if operator in ("any!", "not any!"):
             if isinstance(value, Query):
                 subselect = value.subselect()
@@ -276,9 +297,7 @@ class _FieldSqlMixin(_FieldStubs):
         if (
             self.company_dependent
             and self.index == "btree_not_null"
-            and not (
-                self.type in ("datetime", "date") and field_expr != self.name
-            )  # READ_GROUP_NUMBER_GRANULARITY is not supported
+            and not (self.type in ("datetime", "date") and field_expr != self.name)
             and model.env["ir.default"]._evaluate_condition_with_fallback(
                 model._name, field_expr, operator, value
             )
@@ -311,7 +330,6 @@ class _FieldSqlMixin(_FieldStubs):
         )
         getter = self.expression_getter(field_expr)
 
-        # operator: in (equality)
         if operator == "in":
             assert isinstance(value, COLLECTION_TYPES) and value, (
                 f"filter_function() 'in' operator expects a collection, not a {type(value)}"
@@ -324,11 +342,8 @@ class _FieldSqlMixin(_FieldStubs):
                 return lambda rec: (val := getter(rec)) in value or not val
             return lambda rec: getter(rec) in value
 
-        # operator: like
         if operator.endswith("like"):
-            # we may get a value which is not a string
             if operator.endswith("ilike"):
-                # ilike uses unaccent and lower-case comparison
                 unaccent_python = records.env.registry.unaccent_python
 
                 def unaccent(x):
@@ -339,7 +354,6 @@ class _FieldSqlMixin(_FieldStubs):
                 def unaccent(x):
                     return str(x) if x else ""
 
-            # build a regex matching the SQL-like expression ('\' escapes in SQL)
             def build_like_regex(value: str, exact: bool):
                 yield "^" if exact else ".*"
                 escaped = False
@@ -357,7 +371,6 @@ class _FieldSqlMixin(_FieldStubs):
                         yield re.escape(char)
                 if exact:
                     yield "$"
-                # no need to match r'.*' in else because we only use .match()
 
             like_regex = re.compile(
                 "".join(build_like_regex(unaccent(value), "=" in operator)),
@@ -365,11 +378,10 @@ class _FieldSqlMixin(_FieldStubs):
             )
             return lambda rec: like_regex.match(unaccent(getter(rec)))
 
-        # operator: inequality
         if pyop := PYTHON_INEQUALITY_OPERATOR.get(operator):
             can_be_null = False
             if (null_value := self.falsy_value) is not None:
-                value = value or null_value
+                value = self._inequality_comparand(value, records)
                 can_be_null = pyop(null_value, value)
 
             def check_inequality(rec):
@@ -378,8 +390,7 @@ class _FieldSqlMixin(_FieldStubs):
                     if rec_value is False or rec_value is None:
                         return can_be_null
                     return pyop(rec_value, value)
-                except (ValueError, TypeError):
-                    # ignoring error, type mismatch
+                except ValueError, TypeError:
                     return False
 
             return check_inequality

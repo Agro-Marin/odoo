@@ -7,28 +7,12 @@ import re
 
 from odoo.exceptions import AccessError, ValidationError
 
-# Validation patterns
 
-# All three anchor with \Z, not $: in Python, $ also matches before a single
-# trailing newline, so "name\n" would validate — the same trap
-# check_method_name below defends against explicitly.
 regex_alphanumeric = re.compile(r"^[a-z0-9_]+\Z")
-# First segment must start with a letter/underscore (it prefixes the generated
-# SQL table name); later segments may start with a digit since they join via
-# ``_`` (e.g. ``l10n_us.1099_box`` → table ``l10n_us_1099_box``). This rejects
-# ``"1invalid"`` and empty segments (``"."``, ``"res..partner"``).
 regex_object_name = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)*\Z")
-# Lowercase only — PostgreSQL folds unquoted identifiers to lowercase, so
-# ``MyTable`` and ``mytable`` would silently collide.
 regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*\Z")
 
-# Manual (custom / Studio) fields and models are created at runtime rather than
-# declared in Python, and are conventionally prefixed with ``x_`` so the ORM can
-# tell them apart from code-defined ones.
 MANUAL_NAME_PREFIX = "x_"
-
-
-# Validation functions
 
 
 def is_manual_name(name: str) -> bool:
@@ -69,10 +53,6 @@ def check_method_name(name: str) -> None:
 
     :raises AccessError: if *name* matches the private-method pattern.
     """
-    # Use startswith/equality rather than a ``^(_.*|init)$`` regex: ``.`` does not
-    # match a newline and ``$`` matches before a trailing one, so a regex would
-    # let a name like ``"_secret\nx"`` slip through (defense in depth -- such a
-    # name cannot resolve to a real method, but the check must reject it).
     if name == "init" or name.startswith("_"):
         raise AccessError(
             f"Private methods (such as {name!r}) cannot be called remotely."

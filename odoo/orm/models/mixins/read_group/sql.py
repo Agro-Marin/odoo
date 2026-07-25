@@ -111,8 +111,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 today=Date.context_today(self),
             )
             currency_field_name = field.get_currency_field(self)
-            # a monetary field on a model without any currency field cannot
-            # reach the rate-conversion path; the assert only narrows the type
             assert currency_field_name is not None
             alias_rate = query.make_alias(self._table, f"{currency_field_name}__rates")
             currency_field_sql = self._field_to_sql(
@@ -210,21 +208,12 @@ class _ReadGroupSQLMixin(_ModelStubs):
             else:
                 access_model = self
 
-            # This branch builds the join directly (returning field.column2
-            # below) and never calls _field_to_sql, so the read-access check the
-            # other branches get from it must be made explicitly. Without it a
-            # groups-restricted stored many2many could be grouped — leaking its
-            # distinct values and counts — by a user who cannot read it.
             access_model._check_field_access(field, "read")
 
             if not field.store:
                 raise ValueError(
                     f"Group by non-stored many2many field: {groupby_spec!r}"
                 )
-            # many2many: query the comodel and inject it as an extra LEFT JOIN
-            # condition.
-            # a many2many always has its relation table resolved after setup;
-            # the assertion only narrows ``str | None`` for the type checker
             assert (
                 field.relation is not None
                 and field.column1 is not None
@@ -235,9 +224,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
             coquery = comodel._search(
                 codomain, bypass_access=field.bypass_search_access
             )
-            # LEFT JOIN {field.relation} AS rel_alias ON
-            #     alias.id = rel_alias.{field.column1}
-            #     AND rel_alias.{field.column2} IN ({coquery})
             rel_alias = query.make_alias(alias, field.name)
             condition = SQL(
                 "%s = %s",
@@ -266,11 +252,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         elif field.type == "boolean":
             sql_expr = SQL("COALESCE(%s, FALSE)", sql_expr)
 
-        # The grouping key is reused verbatim in SELECT / GROUP BY / ORDER BY and
-        # PostgreSQL matches them by text, so any bound parameter (translated or
-        # company-dependent field) must be inlined to keep them identical.
-        # inlined() preserves the wrapper's to_flush metadata — dropping it
-        # would let execute_query skip flushing dirty grouped fields.
         return sql_expr.inlined(self.env.cr)
 
     def _read_group_groupby_temporal(
@@ -299,18 +280,11 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
 
         if field.type == "properties":
-            # _read_group_groupby_properties already built a DATE/TIMESTAMP
-            # CASE expr, so apply date ops directly rather than via
-            # Properties.property_to_sql (which treats its arg as a JSON key,
-            # not a granularity).
             definition = self.get_property_definition(f"{field.name}.{seq_fnames}")
             prop_type = definition.get("type")
             if prop_type == "datetime":
                 if tz_name := self.env.context.get("tz"):
                     if tz_name in _get_all_timezones_set():
-                        # tz_name is allow-listed (pytz canonical names);
-                        # embedded, not bound, for GROUP BY consistency
-                        # (see ``_safe_sql_str_literal``).
                         sql_expr = SQL(
                             "timezone(%s, timezone('UTC', %%s))"
                             % _safe_sql_str_literal(tz_name),
@@ -325,33 +299,23 @@ class _ReadGroupSQLMixin(_ModelStubs):
         elif granularity in READ_GROUP_NUMBER_GRANULARITY:
             sql_expr = field.property_to_sql(sql_expr, granularity, self, alias, query)
         elif field.type == "datetime":
-            # set the timezone only
             sql_expr = field.property_to_sql(sql_expr, "tz", self, alias, query)
 
         if granularity == "week":
-            # first_week_day: 0=Monday, 1=Tuesday, ...
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
-            # Embed days_offset as a SQL int literal for GROUP BY consistency
-            # (bound params get distinct $N). ``%d`` forces int formatting, so a
-            # non-int raises TypeError rather than producing malformed SQL. The
-            # leading ``-`` is part of the format string (interval was ``-{n} DAY``).
             sql_expr = SQL(
                 "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
                 " + INTERVAL '-%d DAY')" % (days_offset, days_offset),
                 sql_expr,
             )
         elif granularity in READ_GROUP_TIME_GRANULARITY:
-            # Embed granularity as a SQL literal for GROUP BY consistency
-            # (see ``_safe_sql_str_literal``).
             sql_expr = SQL(
                 "date_trunc(%s, %%s::timestamp)" % _safe_sql_str_literal(granularity),
                 sql_expr,
             )
 
-        # A part-number granularity yields a number, so needs no conversion.
         if field.type == "date" and granularity not in READ_GROUP_NUMBER_GRANULARITY:
-            # date_trunc returns a timestamp; convert it back to a date.
             sql_expr = SQL("%s::date", sql_expr)
 
         return sql_expr
@@ -364,10 +328,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         stack: list[SQL] = []
         SUPPORTED = ("in", "not in", "<", ">", "<=", ">=", "=", "!=")
         try:
-            # The polish-notation walk below pops operands off ``stack``; an
-            # under-arity domain (e.g. ``['|', (cond)]`` or ``['&']``) — which
-            # is RPC-reachable via formatted_read_group(having=...) — would
-            # underflow the stack. Turn that IndexError into a clear ValueError.
             for item in reversed(having_domain):
                 if item == "!":
                     stack.append(SQL("(NOT %s)", stack.pop()))
@@ -382,28 +342,22 @@ class _ReadGroupSQLMixin(_ModelStubs):
                             f"Invalid having clause {item!r}: supported comparators are {SUPPORTED}"
                         )
                     sql_left = self._read_group_select(left, query)
-                    # in/not in: the right operand must be a tuple so SQL() expands
-                    # it to ``(%s, %s, ...)``; a list/set would bind as one array
-                    # param, giving invalid ``IN (ARRAY[...])``. Normalize here.
                     if operator in ("in", "not in"):
                         if isinstance(right, (list, set, frozenset)):
                             right = tuple(right)
                         if isinstance(right, tuple) and not right:
-                            # Empty collection: ``x IN (NULL)`` is never TRUE, so an
-                            # empty ``in`` matches nothing and an empty ``not in``
-                            # matches everything. Emit the constant directly —
-                            # ``NOT IN (NULL)`` evaluates to NULL and would wrongly
-                            # drop every group.
-                            stack.append(SQL("TRUE") if operator == "not in" else SQL("FALSE"))
+                            stack.append(
+                                SQL("TRUE") if operator == "not in" else SQL("FALSE")
+                            )
                             continue
-                    stack.append(SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], right))
+                    stack.append(
+                        SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], right)
+                    )
                 else:
                     raise ValueError(
                         f"Invalid having clause {item!r}: it should be a domain-like clause"
                     )
 
-            # Leftover operands combine with an implicit AND (usual domain
-            # semantics, e.g. ``[(cond1), (cond2)]``).
             while len(stack) > 1:
                 stack.append(SQL("(%s AND %s)", stack.pop(), stack.pop()))
             return stack[0]
@@ -463,19 +417,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 and field.type == "many2one"
                 and self.env[field.comodel_name]._order != "id"
             ):
-                # ANY_VALUE() (PG16+) for ORDER BY columns functionally
-                # dependent on the GROUP BY column: avoids adding comodel fields
-                # (e.g. partner.name) to GROUP BY when ordering by a many2one
-                # with a custom _order. Also needed for GROUPING SETS, where
-                # parameterized comodel fields (e.g. translated JSONB) otherwise
-                # get different placeholders in ORDER BY vs GROUPING SETS and PG
-                # rejects the query. Sets including the many2one get its (only)
-                # value; for others ordering is non-deterministic but rows are
-                # dispatched separately via GROUPING().
                 query._any_value_orderby = True
-                # Allow _order_field_to_sql (and overrides) to collect GROUP BY
-                # fallback columns into query._order_groupby: only this layer
-                # consumes them (right below).
                 query._collect_order_groupby = True
                 try:
                     sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
@@ -485,8 +427,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 if sql_order:
                     orderby_terms.append(sql_order)
                     if query._order_groupby:
-                        # Fallback for an overridden _order_to_sql that ignores
-                        # _any_value_orderby (e.g. addon overrides).
                         groupby_terms[term] = SQL(", ").join(
                             [groupby_terms[term], *query._order_groupby]
                         )
@@ -534,7 +474,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         property_type = definition.get("type")
         sql_property = self._field_to_sql(alias, f"{fname}.{property_name}", query)
 
-        # JOIN on the JSON array
         if property_type in ("tags", "many2many"):
             property_alias = query.make_alias(alias, f"{fname}_{property_name}")
             sql_property = SQL(
@@ -546,9 +485,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 property=sql_property,
             )
             if property_type == "tags":
-                # ignore invalid tags
                 tags = [tag[0] for tag in definition.get("tags") or []]
-                # ->>0 converts a JSON string into a text value
                 condition = SQL(
                     "%s->>0 = ANY(%s::text[])",
                     SQL.identifier(property_alias),
@@ -565,7 +502,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
                         )
                     )
 
-                # check the existences of the many2many
                 condition = SQL(
                     "%s::int IN (SELECT id FROM %s)",
                     SQL.identifier(property_alias),
@@ -584,7 +520,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
         elif property_type == "selection":
             options = [option[0] for option in definition.get("selection") or ()]
 
-            # check the existence of the option
             property_alias = query.make_alias(alias, f"{fname}_{property_name}")
             query.add_join(
                 "LEFT JOIN",
@@ -644,5 +579,4 @@ class _ReadGroupSQLMixin(_ModelStubs):
         elif property_type == "html":
             raise UserError(_("Grouping by HTML properties is not supported."))
 
-        # if the key is not present in the dict, fallback to false instead of none
         return SQL("COALESCE(%s, 'false')", sql_property)

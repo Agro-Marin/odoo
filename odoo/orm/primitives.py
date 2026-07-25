@@ -9,11 +9,7 @@ from odoo.tools import SQL
 type ContextType = Mapping[str, typing.Any]
 type ValuesType = dict[str, typing.Any]
 
-# Types handled as collections in the ORM
 COLLECTION_TYPES = (list, tuple, AbstractSet)
-
-
-# Identifiers
 
 
 class NewId:
@@ -30,7 +26,7 @@ class NewId:
     equality). Matches ``test_orm.test_sort``.
     """
 
-    __slots__ = ("origin", "ref", "__hash")  # noqa: RUF023
+    __slots__ = ("origin", "ref", "__hash")
 
     def __init__(self, origin: int | None = None, ref: typing.Any = None) -> None:
         self.origin = origin
@@ -61,80 +57,74 @@ class NewId:
         return self.__hash
 
     def __lt__(self, other: object) -> bool:
-        # NewId(N) is at N+0.5; NewId() is +infinity.
         if isinstance(other, NewId):
             s, o = self.origin, other.origin
             if s is None:
-                return False  # +inf is not less than anything
+                return False
             if o is None:
-                return True  # finite < +inf
+                return True
             return s < o
         if isinstance(other, int):
             if self.origin is None:
-                return False  # +inf not less than any int
-            return self.origin < other  # N+0.5 < M  iff  N < M
+                return False
+            return self.origin < other
         return NotImplemented
 
     def __le__(self, other: object) -> bool:
         if self is other:
             return True
         if isinstance(other, NewId):
-            # equality implies ≤; without this the +inf branch below would
-            # return False and break ``a == b ⟹ a <= b``.
             if self == other:
                 return True
             s, o = self.origin, other.origin
             if s is None:
-                return False  # +inf ≤ only itself (handled above)
+                return False
             if o is None:
-                return True  # finite ≤ +inf
+                return True
             return s <= o
         if isinstance(other, int):
             if self.origin is None:
-                return False  # +inf is not ≤ any int
-            return self.origin < other  # N+0.5 ≤ M  iff  N+0.5 < M  iff  N < M
+                return False
+            return self.origin < other
         return NotImplemented
 
     def __gt__(self, other: object) -> bool:
         if isinstance(other, NewId):
             s, o = self.origin, other.origin
             if s is None and o is None:
-                return False  # +inf is not strictly greater than +inf
+                return False
             if s is None:
-                return True  # +inf > finite
+                return True
             if o is None:
-                return False  # finite is not > +inf
+                return False
             return s > o
         if isinstance(other, int):
             if self.origin is None:
-                return True  # +inf > any int
-            return self.origin >= other  # N+0.5 > M  iff  N ≥ M
+                return True
+            return self.origin >= other
         return NotImplemented
 
     def __ge__(self, other: object) -> bool:
         if self is other:
             return True
         if isinstance(other, NewId):
-            # equality implies ≥; see __le__ comment.
             if self == other:
                 return True
             s, o = self.origin, other.origin
             if s is None and o is None:
-                return False  # two distinct +inf are incomparable
+                return False
             if s is None:
-                return True  # +inf ≥ finite
+                return True
             if o is None:
-                return False  # finite is not ≥ +inf
+                return False
             return s >= o
         if isinstance(other, int):
             if self.origin is None:
-                return True  # +inf ≥ any int
-            return self.origin >= other  # N+0.5 ≥ M  iff  N ≥ M
+                return True
+            return self.origin >= other
         return NotImplemented
 
     def __repr__(self) -> str:
-        # ``is not None`` (matching __eq__): origin=0 is "set", not "absent" —
-        # a truthiness check would render it anonymous and break debugging.
         if self.origin is not None:
             return f"<NewId origin={self.origin!r}>"
         if self.ref is not None:
@@ -142,8 +132,6 @@ class NewId:
         return f"<NewId 0x{id(self):x}>"
 
     def __str__(self) -> str:
-        # Origin takes precedence (matches __eq__); falsy refs (0, "", []) are
-        # not "absent ref".
         if self.origin is not None:
             id_part = repr(self.origin)
         elif self.ref is not None:
@@ -153,12 +141,7 @@ class NewId:
         return f"NewId_{id_part}"
 
 
-# Initialized as int by default, but any type should work. Some parts of the
-# ORM assume an integer (relational fields, references, hierarchies, etc.).
 type IdType = int | NewId | str
-
-
-# Commands
 
 
 class Command(enum.IntEnum):
@@ -283,16 +266,10 @@ type CommandValue = tuple[
 ]
 
 
-# SQL constants
-
-# The hard-coded super-user id (a.k.a. root user, or OdooBot).
 SUPERUSER_ID = 1
 
-# SQL default placeholder for INSERT statements
 SQL_DEFAULT = SQL("DEFAULT")
 
-# SQL operators with surrounding spaces. Hardcoded to avoid changing SQL
-# injection linting.
 SQL_OPERATORS = {
     "=": SQL(" = "),
     "!=": SQL(" != "),
@@ -313,45 +290,32 @@ SQL_OPERATORS = {
 }
 
 
-# Column constants
-
-# Special columns automatically created by the ORM for logging record access
 LOG_ACCESS_COLUMNS = ["create_uid", "create_date", "write_uid", "write_date"]
 
-# All magic columns (id + log access columns)
 MAGIC_COLUMNS = ["id"] + LOG_ACCESS_COLUMNS
 
-# Prevents access to a field through the ORM (except in sudo mode)
 NO_ACCESS = "."
 
-
-# Batch sizes
 
 INSERT_BATCH_SIZE = 100
 UPDATE_BATCH_SIZE = 100
 
 
 __all__ = [
-    # Batch Constants
     "COLLECTION_TYPES",
     "INSERT_BATCH_SIZE",
-    # Column Constants
     "LOG_ACCESS_COLUMNS",
     "MAGIC_COLUMNS",
     "NO_ACCESS",
     "SQL_DEFAULT",
     "SQL_OPERATORS",
-    # SQL Constants
     "SUPERUSER_ID",
     "UPDATE_BATCH_SIZE",
-    # Commands
     "Command",
     "CommandValue",
     "ContextType",
     "IdType",
-    # Identifiers
     "NewId",
-    # Type aliases
     "Self",
     "ValuesType",
 ]

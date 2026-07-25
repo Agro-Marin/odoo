@@ -65,9 +65,6 @@ class TestInvalidateFlat(unittest.TestCase):
     def test_dirty_flags_are_untouched(self) -> None:
         self.cache.mark_dirty("name", [1])
         self.cache.invalidate("name", [1], context_dependent=False)
-        # invalidate drops the value but never the dirty flag (that contract
-        # belongs to the flush path, exactly as with the raw-dict mutation it
-        # replaces)
         self.assertTrue(self.cache.has_dirty_field("name"))
 
 
@@ -112,11 +109,10 @@ class TestInvalidateContextDependent(unittest.TestCase):
         Json), whose *contents* must never be treated as record ids."""
         cache = self._make()
         cache._data["G"][5] = "stale-scalar"
-        cache._data["G"][1] = {3: "json-payload"}  # dict-valued stale entry
+        cache._data["G"][1] = {3: "json-payload"}
         cache.invalidate("G", [1, 5], context_dependent=True)
         self.assertNotIn(5, cache._data["G"])
         self.assertNotIn(1, cache._data["G"])
-        # the real sub-dicts were trimmed normally
         self.assertEqual(cache._data["G"][("en_US",)], {2: "two_en"})
         self.assertEqual(cache._data["G"][("es_MX",)], {3: "three_es"})
 

@@ -16,23 +16,18 @@ from odoo.orm.primitives import NewId
 class TestNewIdVsInt:
     def test_origin_newid_sits_between_n_and_n_plus_1(self):
         n = NewId(origin=5)
-        # N + 0.5 relative to int N: strictly greater
         assert n > 5
         assert n >= 5
         assert not n < 5
         assert not n <= 5
-        # int on the LEFT on purpose: int.__lt__ returns NotImplemented for a
-        # NewId, so these exercise the reflected __gt__/__ge__ dispatch
-        assert 5 < n  # noqa: SIM300
-        assert 5 <= n  # noqa: SIM300
-        # N + 0.5 relative to int N+1: strictly smaller
+        assert 5 < n
+        assert 5 <= n
         assert n < 6
         assert n <= 6
         assert not n > 6
         assert not n >= 6
-        # reflected dispatch again (see above)
-        assert 6 > n  # noqa: SIM300
-        assert 6 >= n  # noqa: SIM300
+        assert 6 > n
+        assert 6 >= n
 
     def test_originless_newid_is_plus_infinity_vs_int(self):
         n = NewId()
@@ -89,21 +84,18 @@ class TestSorting:
         items = [NewId(origin=2), 1, NewId(), 3, NewId(origin=1)]
         assert sorted(items) == [
             1,
-            items[4],  # NewId(1) at 1.5
-            items[0],  # NewId(2) at 2.5
+            items[4],
+            items[0],
             3,
-            items[2],  # NewId() at +inf
+            items[2],
         ]
 
     def test_sort_is_stable_for_int_before_equal_origin(self):
-        # int N sorts before NewId(N) (N < N + 0.5), regardless of input order
         n = NewId(origin=5)
         assert sorted([n, 5]) == [5, n]
         assert sorted([5, n]) == [5, n]
 
     def test_sort_is_stable_for_incomparable_originless_newids(self):
-        # all comparisons between distinct NewId() are False, so sorted() keeps
-        # their input order (Timsort stability)
         a, b, c = NewId(), NewId(), NewId()
         result = sorted([b, a, c])
         assert result == [b, a, c]
@@ -114,32 +106,24 @@ class TestEqualityHashAndOrigin:
     def test_equality_rules(self):
         assert NewId(origin=5) == NewId(origin=5)
         assert NewId(origin=5) != NewId(origin=6)
-        # an origin-set NewId is never equal to an origin-less one
         assert NewId(origin=5) != NewId()
         assert NewId() != NewId(origin=5)
-        # both origins None: refs decide (when both set)
         assert NewId(ref="r") == NewId(ref="r")
         assert NewId(ref="r") != NewId(ref="s")
-        # origin takes precedence over ref: one side origin-set, no match
         assert NewId(origin=5, ref="r") != NewId(ref="r")
-        # same identity is always equal
         n = NewId()
         assert n == n
 
     def test_equality_against_non_newid_is_false(self):
-        # __eq__ returns NotImplemented for non-NewId; == then falls back to
-        # identity, so a NewId never equals its origin int
         assert NewId(origin=5) != 5
-        assert NewId() != False  # noqa: E712 — the comparison IS the test
+        assert NewId() != False
 
     def test_hash_follows_origin_then_ref(self):
         assert hash(NewId(origin=5)) == hash(NewId(origin=5)) == hash(5)
         assert hash(NewId(ref="r")) == hash(NewId(ref="r")) == hash("r")
-        # a == b implies hash(a) == hash(b) for the mixed origin/ref case too
         assert hash(NewId(origin=5, ref="zzz")) == hash(NewId(origin=5))
 
     def test_origin_zero_is_set_not_absent(self):
-        # falsy origin (0) still counts as "origin set" for eq/repr
         assert NewId(origin=0) == NewId(origin=0)
         assert NewId(origin=0) != NewId()
         assert repr(NewId(origin=0)) == "<NewId origin=0>"
@@ -151,4 +135,4 @@ class TestEqualityHashAndOrigin:
 
     def test_comparison_with_unsupported_type_raises(self):
         with pytest.raises(TypeError):
-            NewId() < "abc"  # noqa: B015 — evaluating the comparison IS the test
+            NewId() < "abc"

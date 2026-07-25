@@ -13,7 +13,7 @@ class UserError(Exception):
     state of a record.
     """
 
-    http_status = 422  # Unprocessable Entity
+    http_status = 422
 
     def __init__(self, message: str) -> None:
         """
@@ -58,11 +58,11 @@ class AccessDenied(UserError):
         When you try to log with a wrong password.
     """
 
-    http_status = 403  # Forbidden
+    http_status = 403
 
     def __init__(self, message: str = "Access Denied") -> None:
         super().__init__(message)
-        self.suppress_traceback()  # must be called in `except`s too
+        self.suppress_traceback()
 
     def suppress_traceback(self) -> None:
         """
@@ -79,10 +79,8 @@ class AccessDenied(UserError):
         self.with_traceback(None)
         self.traceback = ("", "", "")
 
-        # During handling of the above exception, another exception occurred
         self.__context__ = None
 
-        # The above exception was the direct cause of the following exception
         self.__cause__ = None
 
 
@@ -94,7 +92,7 @@ class AccessError(UserError):
         When you try to read a record that you are not allowed to.
     """
 
-    http_status = 403  # Forbidden
+    http_status = 403
 
 
 class CacheMiss(KeyError):
@@ -117,7 +115,7 @@ class MissingError(UserError):
         When you try to write on a deleted record.
     """
 
-    http_status = 404  # Not Found
+    http_status = 404
 
 
 class LockError(UserError):
@@ -128,7 +126,7 @@ class LockError(UserError):
         Code tried to lock records, but could not succeed.
     """
 
-    http_status = 409  # Conflict
+    http_status = 409
 
 
 class ValidationError(UserError):

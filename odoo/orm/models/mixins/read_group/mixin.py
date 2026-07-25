@@ -85,55 +85,38 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         query = self._search(domain)
         result = [[] for __ in grouping_sets]
         if query.is_empty():
-            # Still validate the specs and field-level read access: an
-            # unauthorized (or invalid) spec must raise the same error whether
-            # or not the domain matches records.
             self._check_read_group_spec_access(
                 itertools.chain.from_iterable(grouping_sets), aggregates
             )
             return result
 
-        # grouping_sets: [(a, b), (a), ()]
-        # all_groupby_specs: (a, b)
         all_groupby_specs = tuple(
             unique(spec for groupby in grouping_sets for spec in groupby)
         )
 
-        # Many2many handling
         many2many_groupby_specs = []
-        if len(grouping_sets) > 1:  # only relevant with multiple groupings
+        if len(grouping_sets) > 1:
             many2many_groupby_specs.extend(
                 spec
                 for spec in all_groupby_specs
                 if self._groupby_spec_might_duplicate_rows(self, spec)
             )
 
-        if (
-            many2many_groupby_specs
-            and
-            # Aggregates sensitive to row duplication (sum, avg) need M2M
-            # groupings isolated.
-            any(
-                not aggregate.endswith(
-                    (
-                        ":max",
-                        ":min",
-                        ":bool_and",
-                        ":bool_or",
-                        ":array_agg_distinct",
-                        ":recordset",
-                        ":count_distinct",
-                    ),
-                )
-                for aggregate in aggregates
-                if aggregate != "__count"
+        if many2many_groupby_specs and any(
+            not aggregate.endswith(
+                (
+                    ":max",
+                    ":min",
+                    ":bool_and",
+                    ":bool_or",
+                    ":array_agg_distinct",
+                    ":recordset",
+                    ":count_distinct",
+                ),
             )
+            for aggregate in aggregates
+            if aggregate != "__count"
         ):
-            # Recursive decomposition: prevent M2M joins from corrupting
-            # aggregates in other grouping sets. For each combination of M2M
-            # fields, sub-call the grouping sets sharing that exact combination.
-
-            # ['A', 'B', 'C'] => [('A', 'B', 'C'), ('A', 'B'), ('A', 'C'), ('B', 'C'), ('A',), ('B',), ('C',), ()]
             m2m_combinaisons = (
                 groupby
                 for i in range(len(many2many_groupby_specs), -1, -1)
@@ -141,7 +124,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             )
 
             grouping_sets_to_process = dict(enumerate(grouping_sets))
-            batched_calls = []  # [([result_index, ...], [groupby, ...])]
+            batched_calls = []
 
             for m2m_comb in m2m_combinaisons:
                 if not grouping_sets_to_process:
@@ -157,14 +140,11 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 if sub_grouping_sets:
                     batched_calls.append((sub_result_indexes, sub_grouping_sets))
 
-            # raise (not assert) so this holds under python -O: a bug in the
-            # m2m_combinaisons loop must not silently drop grouping sets.
             if grouping_sets_to_process:
                 raise RuntimeError(
                     f"M2M decomposition lost grouping sets: "
                     f"{list(grouping_sets_to_process.values())}"
                 )
-            # If decomposed, make recursive calls and assemble results.
             if len(batched_calls) > 1:
                 for indexes, sub_grouping_sets in batched_calls:
                     sub_order_parts = []
@@ -173,9 +153,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     }
                     for order_part in (order or "").split(","):
                         order_part = order_part.strip()
-                        # Match the *whole* spec, not a prefix: a bare
-                        # startswith(spec) wrongly drops e.g. ``tag_id desc``
-                        # when another set groups by the prefix spec ``tag``.
                         if not any(
                             order_part == spec or order_part.startswith(f"{spec} ")
                             for spec in all_groupby_specs
@@ -189,23 +166,16 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                         aggregates=aggregates,
                         order=",".join(sub_order_parts),
                     )
-                    # One entry per input grouping set; strict=True surfaces a
-                    # contract violation instead of leaving result[index] unset.
                     for index, subresult in zip(indexes, sub_results, strict=True):
                         result[index] = subresult
                 return result
 
         elif many2many_groupby_specs and "__count" in aggregates:
-            # Common case: handle '__count' with M2M via a distinct count on
-            # 'id', avoiding another _read_grouping_sets call.
             aggregates = tuple(
                 aggregate if aggregate != "__count" else "id:count_distinct"
                 for aggregate in aggregates
             )
             if order:
-                # token-anchored replace (not str.replace): only rewrite an
-                # order term whose spec is exactly '__count', so a field named
-                # e.g. 'line__count' is not corrupted.
                 parts = []
                 for part in order.split(","):
                     part = part.strip()
@@ -214,7 +184,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     parts.append(part)
                 order = ", ".join(parts)
 
-        # SQL query construction
         groupby_terms: dict[str, SQL] = {
             spec: self._read_group_groupby(self._table, spec, query)
             for spec in all_groupby_specs
@@ -223,12 +192,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             self._read_group_select(spec, query) for spec in aggregates
         ]
         if groupby_terms:
-            # grouping_select_sql: GROUPING(a, b)
             grouping_select_sql = SQL(
                 "GROUPING(%s)", SQL(", ").join(unique(groupby_terms.values()))
             )
         else:
-            # GROUPING() is invalid SQL, so we use the 0 as literal
             grouping_select_sql = SQL("0")
 
         select_args = [
@@ -237,11 +204,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             *aggregates_terms,
         ]
 
-        # grouping_select_sql and select_args snapshotted groupby_terms.values()
-        # above; _read_group_orderby only replaces dict values in place, so
-        # positions (and the positional GROUPING() masks) stay aligned.
         query.order = self._read_group_orderby(order, groupby_terms, query)
-        # GROUPING SET ((a, b), (a), ())
         grouping_sets_sql = [
             SQL(
                 "(%s)",
@@ -255,17 +218,17 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             "GROUPING SETS (%s)", SQL(", ").join(unique(grouping_sets_sql))
         )
 
-        # Extra ORDER BY columns needed in GROUP BY were already folded into
-        # groupby_terms by _read_group_orderby, so grouping_sets_sql includes
-        # them. (The default path wraps such columns in ANY_VALUE() instead.)
-
-        # row_values: [(GROUPING(...), a1, b1, aggregates...), ...]
         row_values = self.env.execute_query(query.select(*select_args))
-        if not row_values:  # shortcut
+        if not row_values:
             return result
 
         return self._read_grouping_sets_dispatch_rows(
-            row_values, grouping_sets, all_groupby_specs, aggregates, groupby_terms, result
+            row_values,
+            grouping_sets,
+            all_groupby_specs,
+            aggregates,
+            groupby_terms,
+            result,
         )
 
     def _groupby_spec_might_duplicate_rows(self, model, spec) -> bool:
@@ -281,8 +244,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             return property_type in ("tags", "many2many")
 
         if property_name:
-            # raise (not assert) so this holds under python -O: a malformed spec
-            # must not silently look up the wrong comodel.
             if field.type != "many2one":
                 raise TypeError(
                     f"Field {fname!r} on {model._name!r}: dotted groupby spec "
@@ -309,21 +270,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         it belongs to; this maps every mask to its target result list and the
         column extractor, then dispatches the (column-transposed) rows.
         """
-        # The GROUPING() integer keys each row to its user grouping set.
         aggregates_indexes = tuple(
             range(len(all_groupby_specs), len(all_groupby_specs) + len(aggregates))
         )
 
-        # {GROUPING() bitmask: (append_method, extractor_method)}
         mask_grouping_mapping = {}
 
-        # Map each unique GROUP BY term to its bitmask bit. Terms are reversed
-        # because PostgreSQL computes the bitmask right-to-left (LSB first).
-        # https://www.postgresql.org/docs/17/functions-aggregate.html#Grouping-Operations
-        # NB: deduplicate BEFORE reversing so bit positions match GROUPING(),
-        # which is built from unique() in forward order: with duplicated terms,
-        # unique(reversed(...)) would keep the LAST forward occurrence while
-        # GROUPING() keeps the FIRST, shifting every bit assignment.
         mask_sql_mapping = {
             sql_groupby: 1 << i
             for i, sql_groupby in enumerate(
@@ -331,17 +283,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             )
         }
 
-        mask_grouping_result_indexes = defaultdict(
-            list
-        )  # manage "duplicated" groupby
+        mask_grouping_result_indexes = defaultdict(list)
         for result_index, groupby in enumerate(grouping_sets):
-            # E.g. for GROUPING SET ((a, b), (a), ()), GROUPING(a, b) is:
-            # both=0, a only=1, b only=2, none=3.
             sql_terms = {groupby_terms[groupby_spec] for groupby_spec in groupby}
             groupby_mask = sum(
                 mask
                 for sql_term, mask in mask_sql_mapping.items()
-                # bit is 0 if the term is in this set's grouping criteria, else 1
                 if sql_term not in sql_terms
             )
 
@@ -363,11 +310,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 )
 
         aggregates_start_index = len(all_groupby_specs) + 1
-        # Transpose rows to columns for efficient, column-wise post-processing.
         columns = list(zip(*row_values, strict=False))
-        # The first column is the grouping mask
         dispatch_info = map(mask_grouping_mapping.__getitem__, columns[0])
-        # Post-process values column by column
         columns = [
             *map(
                 self._read_group_postprocess_groupby,
@@ -383,21 +327,14 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             ),
         ]
 
-        # result: [
-        #   [(a1, b1, <aggregates>), (a2, b2, <aggregates>), ...],
-        #   [(a1, <aggregates>), (a2, <aggregates>), ...],
-        #   [(<aggregates>)],
-        # ]
         for (append_method, extractor), *row in zip(
             dispatch_info, *columns, strict=True
         ):
             append_method(extractor(row))
 
-        # Groupbys targeting the same column(s) share the same results.
         for duplicate_groups_indexes in mask_grouping_result_indexes.values():
             if len(duplicate_groups_indexes) < 2:
                 continue
-            # The first index's result is the source for all the others.
             source_result_group = result[duplicate_groups_indexes[0]]
             for duplicate_group_index in duplicate_groups_indexes[1:]:
                 result[duplicate_group_index] = source_result_group[:]
@@ -443,23 +380,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             prefetch set).
         :raise AccessError: if user is not allowed to access requested information
         """
-        # NB: no model-level check_access here — _search below performs the
-        # identical ``self.browse().check_access("read")`` (unless su).
         query = self._search(domain)
         if query.is_empty():
-            # Still validate the specs and field-level read access (like
-            # search_fetch does on its empty path): an unauthorized (or
-            # invalid) spec must raise the same error whether or not the
-            # domain matches records.
             self._check_read_group_spec_access(groupby, aggregates)
             if not groupby:
-                # HAVING applies to the single implicit aggregate group even
-                # without GROUP BY (see below), so the shortcut must keep or
-                # drop its one row exactly like the SQL path does over zero
-                # rows (SUM() over no rows is NULL, and NULL > 0 is not TRUE;
-                # COUNT(*) is 0).  Reuse the SQL having machinery over a
-                # known-empty source rather than re-implementing SQL's
-                # three-valued comparison semantics in Python.
                 if having:
                     empty_query = Query(self.env, self._table, self._table_sql)
                     empty_query.add_where(SQL("FALSE"))
@@ -468,7 +392,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     )
                     if not self.env.execute_query(empty_query.select(SQL("COUNT(*)"))):
                         return []
-                # with no group, postgresql always returns a row
                 return [
                     tuple(
                         self._read_group_empty_value(spec)
@@ -478,9 +401,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             return []
 
         if groupby:
-            # Without a groupby, PostgreSQL returns exactly one aggregate row;
-            # limit/offset would wrongly slice it away (offset=1 -> []). Only
-            # paginate when there are groups.
             query.limit = limit
             query.offset = offset
 
@@ -497,22 +417,16 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if groupby_terms:
             query.order = self._read_group_orderby(order, groupby_terms, query)
             query.groupby = SQL(", ").join(groupby_terms.values())
-        # HAVING is valid without GROUP BY (PostgreSQL applies it to the single
-        # implicit aggregate group), so honour ``having`` even when ``groupby``
-        # is empty. Guarding on ``having`` preserves the no-having behaviour.
         if having:
             query.having = self._read_group_having(list(having), query)
 
-        # row_values: [(a1, b1, c1), (a2, b2, c2), ...]
         row_values = self.env.execute_query(query.select(*select_args))
 
         if not row_values:
             return []
 
-        # post-process values column by column
         column_iterator = zip(*row_values, strict=False)
 
-        # column_result: [(a1, a2, ...), (b1, b2, ...), (c1, c2, ...)]
         column_result = []
         for spec in groupby:
             column = self._read_group_postprocess_groupby(spec, next(column_iterator))
@@ -520,15 +434,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         for spec in aggregates:
             column = self._read_group_postprocess_aggregate(spec, next(column_iterator))
             column_result.append(column)
-        # raise (not assert) so this holds under python -O: extra columns must
-        # not be silently dropped from the result.
         if next(column_iterator, None) is not None:
             raise RuntimeError(
                 f"Read group returned more columns than expected for "
                 f"groupby={groupby} aggregates={aggregates}"
             )
 
-        # return [(a1, b1, c1), (a2, b2, c2), ...]
         return list(zip(*column_result, strict=False))
 
     @api.model
@@ -536,9 +447,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         """Return the empty value corresponding to the given groupby spec or aggregate spec."""
         if spec == "__count":
             return 0
-        fname, chain_fnames, func = parse_read_group_spec(
-            spec
-        )  # func: None, a granularity, or an aggregate
+        fname, chain_fnames, func = parse_read_group_spec(spec)
         if func in ("count", "count_distinct"):
             return 0
         if func in ("array_agg", "array_agg_distinct"):
@@ -613,9 +522,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         """Field read-access check equivalent to :meth:`_field_to_sql`, minus
         the SQL generation (so no query/joins are needed)."""
         if field.related and not field.store:
-            # Mirror _traverse_related_sql: only sudoed related or inherited
-            # fields are convertible to SQL; path fields are then checked on
-            # the (possibly sudoed) traversed models.
             if not (self.env.su or field.compute_sudo or field.inherited):
                 raise ValueError(
                     f"Cannot convert {field} to SQL because it is not a sudoed"
@@ -684,12 +590,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         groupby = [groupby] if isinstance(groupby, str) else groupby
         lazy_groupby = groupby[:1] if lazy else groupby
 
-        # Compatibility layer mapping the old API onto _read_group:
-        # - default granularity 'month' for date/datetime groupby
-        # - `fields` -> _read_group aggregates specs
-        # - order -> _read_group order spec
-
-        annotated_groupby = {}  # {result name: explicit groupby spec}
+        annotated_groupby = {}
         for group_spec in lazy_groupby:
             field_name, property_name, granularity = parse_read_group_spec(group_spec)
             if field_name not in self._fields:
@@ -706,7 +607,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             else:
                 annotated_groupby[group_spec] = group_spec
 
-        annotated_aggregates = {  # {result name: explicit aggregate spec}
+        annotated_aggregates = {
             (
                 f"{lazy_groupby[0].split(':')[0]}_count"
                 if lazy and len(lazy_groupby) == 1
@@ -721,10 +622,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 raise ValueError(f"Invalid field specification {field_spec!r}.")
             name, func, fname = match.groups()
 
-            if fname:  # spec like "field_min:min(field)"
+            if fname:
                 annotated_aggregates[name] = f"{fname}:{func}"
                 continue
-            if func:  # spec like "field:min"
+            if func:
                 annotated_aggregates[name] = f"{name}:{func}"
                 continue
 
@@ -749,9 +650,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 ):
                     key_name = key_name.split(":")[0]
                     if order_term.startswith(f"{key_name} ") or key_name == order_term:
-                        # replace only the leading field token, preserving any
-                        # trailing direction/nulls clause (a blanket str.replace
-                        # could rewrite a later occurrence of the field name)
                         order_term = annotated + order_term[len(key_name) :]
                         break
                 new_terms.append(order_term)
@@ -780,21 +678,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         ]
 
         fill_temporal = self.env.context.get("fill_temporal")
-        # NB: lazy_groupby is required in BOTH disjuncts — filling needs a
-        # groupby to fill along; with groupby=[] and a dict fill_temporal, the
-        # old guard crashed in _read_group_fill_temporal (groupby[0]).
         if lazy_groupby and (
             (rows_dict and fill_temporal) or isinstance(fill_temporal, dict)
         ):
-            # fill_temporal = {} means True; even an empty dict may want empty
-            # columns, so apply the fill logic.
             if not isinstance(fill_temporal, dict):
                 fill_temporal = {}
             else:
-                # fill_temporal comes from the (RPC-reachable) context: keep
-                # only the keys _read_group_fill_temporal accepts as options
-                # (its defaulted parameters), ignoring unknown keys instead of
-                # crashing with TypeError on **-unpacking.
                 known_keys = {
                     name
                     for name, param in inspect.signature(
@@ -807,8 +696,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     for key, value in fill_temporal.items()
                     if key in known_keys
                 }
-            # Filling date gaps may produce more rows than ``limit``; in practice
-            # only chart views use this and they never set a limit.
             rows_dict = self._read_group_fill_temporal(
                 rows_dict,
                 lazy_groupby,
@@ -817,9 +704,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             )
 
         if lazy_groupby and lazy:
-            # read_group only fills in lazy mode (the default); eager mode would
-            # need _read_group_fill_results reimplemented. Filling may exceed
-            # ``limit``, but fill views (kanban, chart) don't set one.
             rows_dict = self._read_group_fill_results(
                 domain,
                 lazy_groupby[0],
