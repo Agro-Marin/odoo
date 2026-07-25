@@ -38,7 +38,7 @@ SQL, savepoints, ``ilike`` unaccent, ``_parent_store``) are pinned as explicit
 # stable mapping rather than by primary key.
 #
 # Candidate [REF] task (harness robustness, not a false-green):
-# ModelRegistry._Registry__caches is defaultdict(dict); ormcache's lookup reads
+# ModelRegistry.ormcache_lrus is defaultdict(dict); ormcache's lookup reads
 # d.generation (an LRU attribute), so any ormcache-decorated method invoked
 # through the harness raises AttributeError. The Tier-2 self-tests never invoke
 # such a method, so it stays latent. This suite works around it (LRU swap), but
@@ -122,7 +122,7 @@ def _isolated_registry(*classes):
         registry = ModelRegistry([*classes, _StubIrModelData, _StubIrAttachment])
     finally:
         MetaModel._module_to_models__ = saved
-    registry._Registry__caches = defaultdict(lambda: LRU(4096))
+    registry.ormcache_lrus = defaultdict(lambda: LRU(4096))
     return registry
 
 

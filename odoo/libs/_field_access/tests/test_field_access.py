@@ -32,6 +32,9 @@ from odoo_rust import (
 from odoo_rust import (
     sort_ids_by_values as _rust_sort_ids_by_values,
 )
+from odoo_rust import (
+    to_prefetch_ids as _rust_to_prefetch_ids,
+)
 
 from odoo.libs._field_access._fallback import (
     batch_cache_fill,
@@ -42,6 +45,7 @@ from odoo.libs._field_access._fallback import (
     scalar_cache_get,
     sort_ids_by_cache,
     sort_ids_by_values,
+    to_prefetch_ids,
 )
 
 if TYPE_CHECKING:
@@ -57,6 +61,21 @@ SENTINEL = MockSentinel.SENTINEL
 PENDING = MockSentinel.PENDING
 
 
+class _FakeNewId:
+    """Stand-in for ``odoo.orm.primitives.NewId``: falsy and not an int.
+
+    Defined here rather than imported so the suite keeps its no-ORM contract.
+    """
+
+    __slots__ = ()
+
+    def __bool__(self) -> bool:
+        return False
+
+    def __repr__(self) -> str:
+        return "<NewId>"
+
+
 class _FieldAccessTestMixin:
     """Shared tests — subclassed once for Rust, once for fallback."""
 
@@ -68,6 +87,61 @@ class _FieldAccessTestMixin:
     sort_ids_by_values: Callable | None = None
     sort_ids_by_cache: Callable | None = None
     batch_group_ids: Callable | None = None
+    to_prefetch_ids: Callable | None = None
+
+    # --- to_prefetch_ids ---
+
+    def test_prefetch_basic(self) -> None:
+        """Uncached positive ids follow the record's own id."""
+        self.assertEqual(self.to_prefetch_ids(1, (1, 2, 3), {}, 10), (1, 2, 3))
+
+    def test_prefetch_record_id_always_first(self) -> None:
+        """The record that triggered the miss is never dropped or reordered."""
+        self.assertEqual(self.to_prefetch_ids(7, (2, 3), {}, 10), (7, 2, 3))
+
+    def test_prefetch_skips_cached(self) -> None:
+        self.assertEqual(self.to_prefetch_ids(1, (2, 3, 4), {3: "v"}, 10), (1, 2, 4))
+
+    def test_prefetch_record_id_kept_even_when_cached(self) -> None:
+        """A cached record_id is still returned -- the caller asked for it."""
+        self.assertEqual(self.to_prefetch_ids(1, (2,), {1: "v"}, 10), (1, 2))
+
+    def test_prefetch_dedups(self) -> None:
+        self.assertEqual(self.to_prefetch_ids(1, (2, 2, 3, 2), {}, 10), (1, 2, 3))
+
+    def test_prefetch_dedups_against_record_id(self) -> None:
+        self.assertEqual(self.to_prefetch_ids(5, (5, 6, 5), {}, 10), (5, 6))
+
+    def test_prefetch_respects_max(self) -> None:
+        self.assertEqual(self.to_prefetch_ids(1, (2, 3, 4, 5), {}, 3), (1, 2, 3))
+
+    def test_prefetch_max_one(self) -> None:
+        self.assertEqual(self.to_prefetch_ids(1, (2, 3), {}, 1), (1,))
+
+    def test_prefetch_empty_prefetch_ids(self) -> None:
+        self.assertEqual(self.to_prefetch_ids(1, (), {}, 10), (1,))
+
+    def test_prefetch_new_record_returns_none(self) -> None:
+        """A NewId/0 record_id signals the caller to take its own path."""
+        self.assertIsNone(self.to_prefetch_ids(0, (1, 2), {}, 10))
+        self.assertIsNone(self.to_prefetch_ids(_FakeNewId(), (1, 2), {}, 10))
+
+    def test_prefetch_negative_record_id_returns_none(self) -> None:
+        self.assertIsNone(self.to_prefetch_ids(-1, (1, 2), {}, 10))
+
+    def test_prefetch_drops_non_positive_ids(self) -> None:
+        """0 and negatives are not record ids and must never be prefetched."""
+        self.assertEqual(self.to_prefetch_ids(1, (0, -5, 2), {}, 10), (1, 2))
+
+    def test_prefetch_drops_non_int_ids(self) -> None:
+        """str ids and NewIds cannot appear in an ``id IN (...)`` query."""
+        self.assertEqual(
+            self.to_prefetch_ids(1, ("7", _FakeNewId(), 2), {}, 10), (1, 2)
+        )
+
+    def test_prefetch_drops_ids_beyond_i64(self) -> None:
+        """Ints past i64 would overflow the accelerator's extract."""
+        self.assertEqual(self.to_prefetch_ids(1, (2**63, 2**70, 2), {}, 10), (1, 2))
 
     # --- batch_cache_fill ---
 
@@ -503,6 +577,7 @@ class TestFallback(_FieldAccessTestMixin, unittest.TestCase):
         cls.sort_ids_by_values = staticmethod(sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(batch_group_ids)
+        cls.to_prefetch_ids = staticmethod(to_prefetch_ids)
 
 
 class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
@@ -524,6 +599,7 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
         cls.sort_ids_by_values = staticmethod(_rust_sort_ids_by_values)
         cls.sort_ids_by_cache = staticmethod(_rust_sort_ids_by_cache)
         cls.batch_group_ids = staticmethod(_rust_batch_group_ids)
+        cls.to_prefetch_ids = staticmethod(_rust_to_prefetch_ids)
 
 
 class TestSortDifferential(unittest.TestCase):
@@ -547,17 +623,25 @@ class TestSortDifferential(unittest.TestCase):
     def _assert_values_match(self, values, **kw) -> None:
         ids = tuple(range(1, len(values) + 1))
         for reverse in (False, True):
-            rust = self._capture(_rust_sort_ids_by_values, ids, list(values), reverse, **kw)
+            rust = self._capture(
+                _rust_sort_ids_by_values, ids, list(values), reverse, **kw
+            )
             py = self._capture(sort_ids_by_values, ids, list(values), reverse, **kw)
-            self.assertEqual(rust, py, msg=f"values={values!r} reverse={reverse} kw={kw}")
+            self.assertEqual(
+                rust, py, msg=f"values={values!r} reverse={reverse} kw={kw}"
+            )
 
     def _assert_cache_match(self, values, **kw) -> None:
         ids = tuple(range(1, len(values) + 1))
         cache = dict(zip(ids, values, strict=True))
         for reverse in (False, True):
-            rust = self._capture(_rust_sort_ids_by_cache, cache, ids, PENDING, reverse, **kw)
+            rust = self._capture(
+                _rust_sort_ids_by_cache, cache, ids, PENDING, reverse, **kw
+            )
             py = self._capture(sort_ids_by_cache, cache, ids, PENDING, reverse, **kw)
-            self.assertEqual(rust, py, msg=f"cache values={values!r} reverse={reverse} kw={kw}")
+            self.assertEqual(
+                rust, py, msg=f"cache values={values!r} reverse={reverse} kw={kw}"
+            )
 
     def test_diff_big_ints(self) -> None:
         """Ints beyond i64 must not overflow the Rust path."""
@@ -573,12 +657,20 @@ class TestSortDifferential(unittest.TestCase):
         self._assert_values_match([1.0, float("nan"), 2.0, 0.0, float("nan")])
 
     def test_diff_dates(self) -> None:
-        self._assert_values_match([date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)])
-        self._assert_cache_match([date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)])
+        self._assert_values_match(
+            [date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)]
+        )
+        self._assert_cache_match(
+            [date(2021, 1, 1), date(2020, 6, 15), date(2022, 3, 3)]
+        )
 
     def test_diff_datetimes(self) -> None:
         self._assert_values_match(
-            [datetime(2021, 1, 1, 12, 0), datetime(2021, 1, 1, 9, 0), datetime(2020, 12, 31, 23, 59)]
+            [
+                datetime(2021, 1, 1, 12, 0),
+                datetime(2021, 1, 1, 9, 0),
+                datetime(2020, 12, 31, 23, 59),
+            ]
         )
 
     def test_diff_mixed_date_datetime(self) -> None:

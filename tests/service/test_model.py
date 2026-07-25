@@ -251,6 +251,53 @@ class TestGetPublicMethodCache:
         finally:
             cache.pop(Other, None)
 
+    def test_rebinding_the_method_invalidates_the_entry(self, mod, cache) -> None:
+        """The memo must never outlive the binding it memoized.
+
+        Nothing invalidates ``_PUBLIC_METHOD_CACHE``, and the class object is
+        unchanged by a rebind, so a stale entry would be served forever.  Not
+        hypothetical: ``addons/rpc``'s defaultdict-marshalling test patches
+        ``res.users.context_get`` and makes one RPC call; the patched lambda got
+        cached, ``patch.stop()`` restored only the class attribute, and every
+        later ``execute_kw`` for that method -- in unrelated test classes, for
+        the rest of the process -- kept getting the lambda back.  It surfaced as
+        three failures far away (``KeyError: 'lang'`` once the empty defaultdict
+        was marshalled, ``ctx['tz'] == 0`` straight from ``defaultdict(int)``).
+        """
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            original = mod.get_public_method(_FakeModel(), "public_method")
+            assert cache[_FakeModel]["public_method"] is original
+
+            def replacement(self) -> str:
+                return "replaced"
+
+            with patch.object(_FakeModel, "public_method", replacement):
+                # must observe the patch, not the memo
+                got = mod.get_public_method(_FakeModel(), "public_method")
+                assert got is replacement
+
+            # ...and must observe the restore, not the patched entry
+            assert mod.get_public_method(_FakeModel(), "public_method") is original
+
+    def test_rebound_method_is_still_access_checked(self, mod, cache) -> None:
+        """Re-resolution must re-run the guards, not merely swap the entry.
+
+        A cached public name later rebound to an ``_api_private`` callable must
+        start being rejected.
+        """
+        from odoo.exceptions import AccessError
+
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            mod.get_public_method(_FakeModel(), "public_method")
+
+            def sneaky(self) -> str:
+                return "nope"
+
+            sneaky._api_private = True  # type: ignore[attr-defined]
+            with patch.object(_FakeModel, "public_method", sneaky):
+                with pytest.raises(AccessError):
+                    mod.get_public_method(_FakeModel(), "public_method")
+
 
 # ---------------------------------------------------------------------------
 # TestForceLazyValues

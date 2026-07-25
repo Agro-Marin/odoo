@@ -478,7 +478,7 @@ class TestImportModule(odoo.tests.TransactionCase):
             self.assertIn('"name": "foo"', file_open(tmp_dir + '/foo/__manifest__.py', 'r', env=self.env).read())
             self.assertIn('"name": "foo"', file_open(other_tmp_dir + '/foo/__manifest__.py', 'r', env=self.env).read())
             tmp_folder = tmp_dir
-        self.assertFalse(self.env.transaction._Transaction__file_open_tmp_paths)
+        self.assertFalse(self.env.transaction.file_open_tmp_paths)
         with self.assertRaises(FileNotFoundError):
             file_open(tmp_folder + '/foo/__manifest__.py', 'r', env=self.env)
 

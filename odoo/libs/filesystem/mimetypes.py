@@ -3,12 +3,17 @@
 # TODO: reexport stdlib mimetypes?
 """
 
+import codecs
 import collections
 import io
 import logging
 import mimetypes
 import re
 import zipfile
+
+# Fresh decoder per call: an incremental decoder carries state between calls, so
+# a shared one would leak a truncated character's bytes into the next document.
+_utf8_incremental_decoder = codecs.getincrementaldecoder("utf-8")
 
 __all__ = [
     "MIMETYPE_HEAD_SIZE",
@@ -239,13 +244,19 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
                 # if no discriminant or no discriminant matches, return
                 # primary mime type
                 return entry.mimetype
+    # Decode incrementally rather than with a plain ``bytes.decode()``.  Cutting
+    # at a fixed 1024 bytes can land in the middle of a multi-byte character, and
+    # the resulting UnicodeDecodeError was caught and read as "not text" -- so a
+    # perfectly ordinary UTF-8 document was reported as application/octet-stream
+    # purely because of where byte 1024 fell.  An incremental decoder with
+    # ``final=False`` buffers the incomplete trailing sequence instead of
+    # failing, while still rejecting genuinely invalid UTF-8 in the body.
     try:
-        if bin_data and all(
-            c >= " " or c in "\t\n\r" for c in bin_data[:1024].decode()
-        ):
-            return "text/plain"
+        head = _utf8_incremental_decoder().decode(bin_data[:1024], False)
     except ValueError:
-        pass
+        return default
+    if head and all(c >= " " or c in "\t\n\r" for c in head):
+        return "text/plain"
     return default
 
 

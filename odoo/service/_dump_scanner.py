@@ -11,17 +11,26 @@ while still rejecting every backslash meta-command a ``psql -f`` restore of an
 attacker-supplied dump would execute (``\\!`` shell, ``\\i``/``\\copy`` file access,
 ``\\gexec``, ``\\connect``).
 
-Depends only on the stdlib (``re``, ``pathlib``) — no import cycle with ``db``.
+Depends only on the stdlib plus the leaf ``._env`` helper — no import cycle with
+``db``.
 """
 
 from __future__ import annotations
 
+import logging
 import re
+import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._env import env_int
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+# Log under the public module name, like ``_db_helpers``: operators filter on
+# ``odoo.service.db`` and should not have to learn the private split.
+_logger = logging.getLogger("odoo.service.db")
 
 
 # psql meta-commands pg_dump legitimately emits in a plain-SQL dump.  Everything
@@ -35,6 +44,38 @@ _COPY_FROM_STDIN_RE = re.compile(r"\s*COPY\b.*\bFROM\s+stdin\b", re.IGNORECASE)
 # A dollar-quote tag: ``$$`` or ``$ident$`` (the tag follows identifier rules and
 # cannot contain a ``$``), so ``$1`` (a positional param) is not a tag.
 _DOLLAR_TAG_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
+
+# PostgreSQL identifier character classes, verbatim from the backend lexer
+# (``src/backend/parser/scan.l``, shared by psql's ``psqlscan.l``)::
+#
+#     ident_start  [A-Za-z\200-\377_]
+#     ident_cont   [A-Za-z\200-\377_0-9\$]
+#
+# Note that ``$`` is an identifier CONTINUATION character.  Because flex takes
+# the LONGEST match, ``a$b$c`` is therefore ONE identifier and not ``a`` followed
+# by the dollar-quote delimiter ``$b$`` — verified against PostgreSQL 18, which
+# creates a table by that literal name.  The same rule makes the ``E`` of
+# ``fooE'x'`` the tail of the identifier ``fooE``, leaving a PLAIN literal in
+# which a backslash escapes nothing.  ``_ident_run_start`` below is how this
+# character-at-a-time scanner reproduces that longest-match behaviour.
+_IDENT_START_ASCII = frozenset(string.ascii_letters + "_")
+_IDENT_CONT_ASCII = frozenset(string.ascii_letters + string.digits + "_$")
+
+# Longest physical line :func:`_assert_dump_sql_safe` will buffer.  The largest
+# line measured across real Odoo dumps was ~1.7 MB (a wide ``COPY`` data row), so
+# 64 MiB leaves ~38x headroom while still bounding the scan; an operator with a
+# genuinely enormous row can raise it via ``ODOO_DUMP_SCAN_MAX_LINE``.  The floor
+# keeps a hostile or fat-fingered value from rejecting ordinary dumps.
+_DEFAULT_MAX_SCAN_LINE = 64 * 1024 * 1024
+_MIN_MAX_SCAN_LINE = 4 * 1024 * 1024
+
+
+def _is_ident_start(c: str) -> bool:
+    return c in _IDENT_START_ASCII or c >= "\x80"
+
+
+def _is_ident_cont(c: str) -> bool:
+    return c in _IDENT_CONT_ASCII or c >= "\x80"
 
 
 class _PsqlSqlScanner:
@@ -57,8 +98,11 @@ class _PsqlSqlScanner:
     """
 
     __slots__ = (
+        "_ident_run_is_ident",
+        "_ident_run_start",
         "at_stmt_start",
         "comment_depth",
+        "copy_pending",
         "dollar_tag",
         "in_copy_data",
         "in_double_quote",
@@ -69,9 +113,22 @@ class _PsqlSqlScanner:
 
     def __init__(self) -> None:
         self.lineno = 1
+        # The scanner's stand-in for flex's longest-match rule (see
+        # ``_IDENT_START_ASCII``): where does the token under the cursor begin?
+        # ``_ident_run_start`` is the index in the CURRENT line at which the run
+        # of identifier-continuation characters ending just before the cursor
+        # started (-1 for "no run"), and ``_ident_run_is_ident`` says whether that
+        # run is an identifier as opposed to a numeric literal.  Both are purely
+        # intra-line: a newline is not an identifier character, so no run can
+        # straddle a ``feed`` boundary.  O(1) per character.
+        self._ident_run_start = -1
+        self._ident_run_is_ident = False
         self.at_stmt_start = True  # start-of-file / just after a ';' or newline
         # Carried lexical contexts — the only state a line boundary can split.
         self.in_copy_data = False
+        # A ``COPY ... FROM stdin`` has been seen but its terminating ``;`` has
+        # not: the statement is still buffered, so psql is NOT yet reading data.
+        self.copy_pending = False
         self.comment_depth = 0  # nesting depth of an open /* ... */
         self.dollar_tag: str | None = None  # open $tag$ body, None if not in one
         self.in_single_quote = False
@@ -85,6 +142,8 @@ class _PsqlSqlScanner:
         ``None``.  Once it returns a hit the scanner must not be fed again.
         """
         n = len(line)
+        # A new physical line always starts outside any identifier run.
+        self._reset_ident_run()
 
         # --- COPY ... FROM stdin data block: everything up to a lone "\." ---
         if self.in_copy_data:
@@ -113,13 +172,21 @@ class _PsqlSqlScanner:
                 return None  # a physical line ends here by construction
 
             # COPY ... FROM stdin;  -> following lines are data until "\."
-            if self.at_stmt_start and c in "Cc":
+            #
+            # Only ARM the switch here.  psql starts reading COPY data when the
+            # statement is EXECUTED and the server answers PGRES_COPY_IN — that
+            # is, at its terminating ``;`` — not when the word ``COPY`` is read.
+            # Until then the statement merely sits in psql's query buffer, and
+            # psql still interprets meta-commands, so switching early let
+            # ``COPY t FROM stdin`` with NO semicolon swallow a following ``\!``
+            # as if it were data (verified: psql ran the shell command and still
+            # exited 0).  The ``;`` branch in the tail below completes the switch.
+            if self.at_stmt_start and c in "Cc" and not self.copy_pending:
                 rest = line[i:].rstrip("\n").rstrip("\r")
                 if _COPY_FROM_STDIN_RE.match(rest):
-                    self.in_copy_data = True
-                    self.at_stmt_start = True
-                    self.lineno += 1
-                    return None
+                    self.copy_pending = True
+                # Deliberately no ``continue``: the rest of the line is lexed as
+                # ordinary SQL so a meta-command before the ``;`` is still caught.
 
             # line comment "-- ..." — runs to end of line, no state carried
             if c == "-" and i + 1 < n and line[i + 1] == "-":
@@ -130,28 +197,46 @@ class _PsqlSqlScanner:
             # block comment "/* ... */" (PostgreSQL allows nesting)
             if c == "/" and i + 1 < n and line[i + 1] == "*":
                 self.comment_depth = 1
+                self._reset_ident_run()
                 i = self._resume_block_comment(line, i + 2, n)
                 continue
-            # dollar-quoted string  $tag$ ... $tag$
-            if c == "$":
+            # dollar-quoted string  $tag$ ... $tag$ — but only where a token may
+            # begin.  Inside an identifier ``$`` is just another identifier
+            # character (``a$b$c``); after a NUMBER it is a real delimiter
+            # (PostgreSQL 18 reports the error in ``SELECT 1$t$x$t$`` at the
+            # token ``$t$x$t$``), which is why the test is "the run so far starts
+            # with an identifier-start character", not merely "a run exists".
+            if c == "$" and not self._continues_identifier():
                 m = _DOLLAR_TAG_RE.match(line, i)
                 if m:
                     self.dollar_tag = m.group(0)
+                    self._reset_ident_run()
                     i = self._resume_dollar_body(line, m.end(), n)
                     continue
             # single-quoted string  '...'  ('' escapes; E'...' also honors \)
             if c == "'":
                 self.in_single_quote = True
+                # ``E'`` introduces an escape string only where that ``E`` STARTS
+                # a token.  In ``fooE'x'`` the ``E`` is the tail of the identifier
+                # ``fooE``, so the literal is plain and ``\`` escapes nothing.  The
+                # ``E`` has already been folded into the run, so it began a token
+                # iff the run began AT it (``run_start == i - 1``) or the run is
+                # not an identifier at all (``1E'x'`` — a number, then an E-string).
+                # ``E'`` introduces an escape string only where that ``E`` STARTS
+                # a token, i.e. where the identifier run began at the ``E`` itself.
+                # In ``fooE'x'`` the run began earlier, so the ``E`` is the tail of
+                # the identifier ``fooE`` and the literal is PLAIN — a backslash in
+                # it escapes nothing, so the literal ends at the next quote.
                 self.single_quote_escaped = (
-                    i > 0
-                    and line[i - 1] in "Ee"
-                    and not (i > 1 and (line[i - 2].isalnum() or line[i - 2] == "_"))
+                    i > 0 and line[i - 1] in "Ee" and self._ident_run_start == i - 1
                 )
+                self._reset_ident_run()
                 i = self._resume_single_quote(line, i + 1, n)
                 continue
             # quoted identifier  "..."  ("" escapes)
             if c == '"':
                 self.in_double_quote = True
+                self._reset_ident_run()
                 i = self._resume_double_quote(line, i + 1, n)
                 continue
             # a backslash outside every context above => a psql meta-command
@@ -161,11 +246,64 @@ class _PsqlSqlScanner:
                     return (self.lineno, word)
                 i += len(word)
                 self.at_stmt_start = False
+                self._reset_ident_run()
                 continue
 
-            self.at_stmt_start = c == ";" or (self.at_stmt_start and c.isspace())
+            # Extend, RESTART or break the identifier run (see
+            # ``_ident_run_start``).  The restart is the subtle case: ``$`` and
+            # the digits are identifier-CONTINUATION characters that cannot START
+            # an identifier, so in ``9a$b$c`` flex ends the numeric token ``9`` at
+            # the ``a`` and begins an identifier there — which makes the later
+            # ``$b$`` part of that identifier, not a dollar-quote delimiter.
+            # Without the restart the whole run reads as digit-led, the scanner
+            # opens a phantom dollar body and swallows the rest of the dump.
+            if _is_ident_cont(c):
+                if self._ident_run_start < 0:
+                    self._ident_run_start = i
+                    self._ident_run_is_ident = _is_ident_start(c)
+                elif not self._ident_run_is_ident and _is_ident_start(c):
+                    self._ident_run_start = i
+                    self._ident_run_is_ident = True
+            else:
+                self._reset_ident_run()
+
+            if c == ";":
+                self.at_stmt_start = True
+                if self.copy_pending:
+                    # The armed ``COPY ... FROM stdin`` is executed here, so psql
+                    # switches to reading data with the NEXT line.  The remainder
+                    # of this line keeps being lexed as SQL (nothing follows the
+                    # ``;`` in a real dump, and flagging a meta-command there is
+                    # the conservative direction).
+                    self.copy_pending = False
+                    self.in_copy_data = True
+            else:
+                self.at_stmt_start = self.at_stmt_start and c.isspace()
             i += 1
         return None
+
+    def _continues_identifier(self) -> bool:
+        """Is the cursor sitting inside an identifier rather than at a token start?
+
+        ``True`` iff the run of identifier-continuation characters ending just
+        before the cursor began with an identifier-START character.  A run that
+        began with a digit is a numeric literal, not an identifier, so a ``$``
+        after it really does open a dollar-quoted string.
+
+        This reproduces flex's longest-match rule in O(1), which matters: an
+        earlier backward-scanning version had to cap its lookback to stay linear
+        on a hostile line, and the cap was itself a bypass.  Answering "not a
+        dollar quote" is NOT the safe fallback it looks like — the scanner then
+        lexes the body\'s contents as SQL, and a lone ``\'`` in there opens a
+        phantom string literal that swallows every later meta-command.  Only
+        exactness is safe; there is no conservative direction here.
+        """
+        return self._ident_run_is_ident
+
+    def _reset_ident_run(self) -> None:
+        """Forget the current identifier run: the next character starts a token."""
+        self._ident_run_start = -1
+        self._ident_run_is_ident = False
 
     @staticmethod
     def _cmd_word(line: str, pos: int, n: int) -> str:
@@ -284,24 +422,49 @@ def _find_disallowed_psql_meta_command(text: str) -> tuple[int, str] | None:
 
 def _assert_dump_sql_safe(sql_path: str) -> None:
     """Raise ``RuntimeError`` if ``sql_path`` contains a psql meta-command that a
-    ``psql -f`` restore would interpret (shell/file/connection access).
+    ``psql -f`` restore would interpret (shell/file/connection access), or if a
+    single line is too long to scan within a bounded amount of memory.
 
     Streams the file line by line through :class:`_PsqlSqlScanner`: a restore is
     the one operation whose input size is unbounded and attacker-supplied, and
     the previous whole-file ``read()`` cost ~2x the dump size in RSS (a 10 GB
     ``dump.sql`` needed ~20 GB) inside the very worker a memory soft limit
-    watches.  Now the peak is one line.
+    watches.  Now the peak is one line — but the ATTACKER chooses the line
+    lengths, so that bound only holds if it is enforced: a newline-free dump
+    restores the old O(file) peak exactly (measured: a 419 MB single line drove
+    RSS to 879 MB, the decoded ``str`` roughly doubling the bytes).  Hence the
+    ``readline`` size cap below, which is what actually makes the peak bounded.
 
     Read as latin-1 so scanning is byte-exact and decode-error-free regardless
     of the dump's encoding — every meta-command and structural token is ASCII.
     Default (universal) newline handling, so a ``\\r\\n`` dump scans identically
     to a ``\\n`` one.
     """
+    max_line = env_int(
+        "ODOO_DUMP_SCAN_MAX_LINE",
+        _DEFAULT_MAX_SCAN_LINE,
+        minimum=_MIN_MAX_SCAN_LINE,
+        logger=_logger,
+    )
     scanner = _PsqlSqlScanner()
     hit = None
     with Path(sql_path).open(encoding="latin-1") as fh:
-        for line in fh:
-            hit = scanner.feed(line)
+        # ``readline(max_line + 1)`` never buffers more than that many characters,
+        # so a line without a terminator cannot grow the peak.  A returned chunk
+        # that is over the cap AND has no newline means the real line is longer
+        # still: refuse rather than keep reading it in fragments, which would feed
+        # the scanner a split token and desync its lexical state — the exact class
+        # of divergence that makes this scanner bypassable.
+        while chunk := fh.readline(max_line + 1):
+            if len(chunk) > max_line and not chunk.endswith("\n"):
+                raise RuntimeError(
+                    f"Refusing to restore: the dump's SQL has a line longer than "
+                    f"{max_line} characters (at line {scanner.lineno}), which "
+                    f"cannot be scanned within a bounded amount of memory. A "
+                    f"backup produced by Odoo's own dump has no such line; raise "
+                    f"ODOO_DUMP_SCAN_MAX_LINE if this dump is genuinely legitimate."
+                )
+            hit = scanner.feed(chunk)
             if hit is not None:
                 break
     if hit is not None:

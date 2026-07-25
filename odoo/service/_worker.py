@@ -64,7 +64,7 @@ from ._cron import (
     drain_cron_notifies,
     order_notified_first,
 )
-from ._env import env_float, env_int
+from ._env import env_int
 from ._helpers import (
     CRON_NOTIFY_JITTER_MAX_S,
     SLEEP_INTERVAL,
@@ -75,7 +75,7 @@ from ._helpers import (
 )
 
 # No-bind werkzeug server used by ``WorkerHTTP`` to serve one accepted connection.
-from .wsgi import BaseWSGIServerNoBind
+from .wsgi import BaseWSGIServerNoBind, http_socket_timeout
 
 if TYPE_CHECKING:
     from .server import PreforkServer
@@ -334,14 +334,11 @@ class WorkerHTTP(Worker):
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
-        # ODOO_HTTP_SOCKET_TIMEOUT tunes the socket timeout for extreme-latency
-        # setups; it also guards against accidental DoS from idle HTTP
-        # connections (prefer a buffering reverse proxy over a large value).
-        # Floor 0.1s: ``0`` would make the socket non-blocking and break every
-        # request; ``env_float`` clamps sub-floor/malformed values.
-        self.sock_timeout = env_float(
-            "ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger
-        )
+        # Shared with the threaded/evented servers (``RequestHandler.setup``) so
+        # every deployment gets the same idle-connection posture from one knob —
+        # see ``wsgi.http_socket_timeout`` for what it defends against.  Prefer a
+        # buffering reverse proxy over a large value.
+        self.sock_timeout = http_socket_timeout()
 
     def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
         client.setblocking(1)

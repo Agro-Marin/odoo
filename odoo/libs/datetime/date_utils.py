@@ -64,8 +64,9 @@ Granularity = Literal["year", "quarter", "month", "week", "day", "hour"]
 def float_to_time(hours: float) -> time:
     """Convert a number of hours into a time object.
 
-    :param hours: Number of hours (0.0 to 24.0)
+    :param hours: Number of hours, in ``[0.0, 24.0]``
     :returns: A time object
+    :raises ValueError: if ``hours`` is NaN or outside ``[0.0, 24.0]``
 
     Example::
 
@@ -74,6 +75,21 @@ def float_to_time(hours: float) -> time:
         >>> float_to_time(24.0)
         datetime.time(23, 59, 59, 999999)
     """
+    # Validate the domain explicitly.  The three out-of-domain cases used to be
+    # handled three different ways, none of them stated: a negative value fell
+    # through to ``time(-1, 0)`` and leaked "hour must be in 0..23, not -1"
+    # (or "minute must be in 0..59, not -30", depending on the fraction); NaN
+    # leaked "cannot convert float NaN to integer" from inside ``int()``; and
+    # anything above 24 was *silently clamped* to end-of-day by the carry guard
+    # below, so float_to_time(100.0) quietly returned 23:59:59.999999.  Silently
+    # accepting one kind of nonsense while crashing on another is the worst of
+    # both: callers hold user-editable hour fields (``resource.calendar
+    # .attendance.hour_from``, ``event.slot.start_hour``) and their ORM
+    # constraints are what should reject bad values -- this says so plainly
+    # instead of guessing.
+    if not 0.0 <= hours <= 24.0:  # NaN fails every comparison, so it lands here
+        msg = f"hours must be a number in [0.0, 24.0], got {hours!r}"
+        raise ValueError(msg)
     if hours == 24.0:  # noqa: RUF069  # exact sentinel: 24.0 maps to end-of-day
         return time.max
     fractional, integral = math.modf(hours)

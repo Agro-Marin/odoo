@@ -81,17 +81,40 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     """
     assert isinstance(model, BaseModel)
     cls = type(model)
-    if (per_class := _PUBLIC_METHOD_CACHE.get(cls)) is not None:
-        if (cached := per_class.get(name)) is not None:
-            return cached
-    else:
-        per_class = _PUBLIC_METHOD_CACHE[cls] = {}
 
-    e = f"Private methods (such as '{model._name}.{name}') cannot be called remotely."
-    if name.startswith("_") or name in _UNSAFE_ATTRIBUTES:
-        raise AccessError(e)
-
+    # The memo is trusted only while it still IS what the class resolves to.
+    # It exists to skip the O(MRO-depth) ``_api_private`` walk below, not to
+    # answer with a method the class no longer has: rebinding a model method on
+    # a live class (``self.patch`` in a test, ``odoo.tools.patch``, any runtime
+    # monkey-patch) used to leave the previous function cached here forever,
+    # since nothing invalidates this dict and ``patch.stop()`` restores only the
+    # class attribute.  ``addons/rpc``'s defaultdict-marshalling test patches
+    # ``res.users.context_get``, and every later ``execute_kw`` for that method
+    # -- in other test classes, for the rest of the process -- kept getting the
+    # patched lambda back.
+    #
+    # Matching by identity is what makes it safe to answer before the guards
+    # below: ONLY validated resolutions are ever stored (rejections deliberately
+    # are not, see ``_PUBLIC_METHOD_CACHE``), and the entry is keyed by class and
+    # name, so a hit means these exact checks already passed for this exact
+    # function object.  ``getattr`` on a type is a C-level lookup served by
+    # CPython's type attribute cache; the MRO walk is what is worth skipping,
+    # and an identity hit still skips all of it.
     method = getattr(cls, name, None)
+    per_class = _PUBLIC_METHOD_CACHE.get(cls)
+    if per_class is None:
+        per_class = _PUBLIC_METHOD_CACHE[cls] = {}
+    elif method is not None and per_class.get(name) is method:
+        return method
+
+    # Built where raised, never on the hot path above: an f-string per RPC call
+    # costs more than the lookup it would precede.
+    if name.startswith("_") or name in _UNSAFE_ATTRIBUTES:
+        raise AccessError(
+            f"Private methods (such as '{model._name}.{name}') "
+            f"cannot be called remotely."
+        )
+
     if not callable(method):
         # AttributeError (not TypeError, per TRY004): RPC clients treat it as
         # the canonical "method not found" signal, uniform with
@@ -117,7 +140,10 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
         if not (cla_method := mro_cls.__dict__.get(name)):
             continue
         if getattr(cla_method, "_api_private", False):
-            raise AccessError(e)
+            raise AccessError(
+                f"Private methods (such as '{model._name}.{name}') "
+                f"cannot be called remotely."
+            )
 
     per_class[name] = method
     return method
@@ -287,6 +313,14 @@ def _force_lazy_values(result: typing.Any) -> typing.Any:
     is materialized to a ``list`` first — traversing it to find lazies would
     otherwise exhaust it, handing the marshaller an empty iterator.  Re-iterable
     containers are returned unchanged.
+
+    This applies to the TOP-LEVEL result only.  A one-shot iterator NESTED inside
+    a container is still exhausted by ``_force_lazy_in``'s walk (``[gen]`` comes
+    back as ``[[]]``), and deliberately so: neither marshaller can serialise one
+    anyway — JSON raises "Object of type generator is not JSON serializable" and
+    xmlrpc "cannot marshal <class 'generator'> objects" — so such a result is
+    already an error either way, and rewriting nested containers to repair it
+    would cost a copy on every RPC result to change nothing observable.
     """
     # ``lazy`` is excluded explicitly: it proxies ``__iter__``/``__next__`` to
     # the value it wraps, so it satisfies the ``Iterator`` ABC structurally

@@ -136,7 +136,7 @@ def get_cache_key_counter(bound_method, *args, **kwargs):
     """
     model = bound_method.__self__
     ormcache_instance = bound_method.__cache__
-    cache = model.pool._Registry__caches[ormcache_instance.cache_name]
+    cache = model.pool.ormcache_lrus[ormcache_instance.cache_name]
     key = ormcache_instance.key(model, *args, **kwargs)
     counter = _COUNTERS[model.pool.db_name, ormcache_instance.method]
     return cache, key, counter

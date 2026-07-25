@@ -2243,6 +2243,266 @@ class TestDumpSqlMetaCommandScanner:
             os.unlink(path)
 
 
+class TestDumpSqlScannerLineBound:
+    """The scanner's "peak is one line" guarantee only holds if the line length
+    is enforced — the attacker picks it.
+
+    A newline-free ``dump.sql`` restores exactly the O(file) memory peak the
+    streaming rewrite existed to remove (measured: a 419 MB single line drove RSS
+    to 879 MB), inside the very worker a memory soft limit watches.
+    """
+
+    def _write(self, tmp_path, text):
+        p = tmp_path / "dump.sql"
+        p.write_text(text, encoding="latin-1")
+        return str(p)
+
+    def test_overlong_line_is_refused(self, db_mod, tmp_path, monkeypatch):
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
+        path = self._write(tmp_path, "SELECT '" + "A" * (5 * 1024 * 1024) + "';\n")
+        with pytest.raises(RuntimeError, match="longer than"):
+            db_mod._assert_dump_sql_safe(path)
+
+    def test_line_at_the_limit_is_accepted(self, db_mod, tmp_path, monkeypatch):
+        """The cap must reject only what it must: a long-but-bounded line — a wide
+        ``COPY`` data row — is ordinary in a real dump (~1.7 MB measured)."""
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
+        path = self._write(tmp_path, "SELECT '" + "A" * (2 * 1024 * 1024) + "';\n")
+        db_mod._assert_dump_sql_safe(path)  # must not raise
+
+    def test_cap_does_not_blind_the_scanner(self, db_mod, tmp_path, monkeypatch):
+        """A meta-command BEFORE an over-long line must still be reported as the
+        meta-command it is, not masked by the length refusal."""
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
+        path = self._write(
+            tmp_path, "\\! touch /tmp/pwn\nSELECT '" + "A" * (9 * 1024 * 1024) + "';\n"
+        )
+        with pytest.raises(RuntimeError, match="meta-command"):
+            db_mod._assert_dump_sql_safe(path)
+
+    def test_malformed_env_override_falls_back_to_the_default(
+        self, db_mod, tmp_path, monkeypatch
+    ):
+        """Every ODOO_* knob in this package degrades to its default on garbage
+        rather than aborting the operation."""
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", "not-a-number")
+        path = self._write(tmp_path, "SELECT 1;\n")
+        db_mod._assert_dump_sql_safe(path)  # must not raise
+
+
+class TestRestoreArchiveExpansionBound:
+    """``ZipFile.extractall`` has no size ceiling and the archive is uploaded by
+    the caller.  ``tempfile`` commonly resolves to a tmpfs, so an unbounded
+    expansion consumes RAM rather than disk."""
+
+    def _bomb(self, tmp_path, mb):
+        path = tmp_path / "bomb.zip"
+        blob = b"A" * (1024 * 1024)
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+            with z.open("dump.sql", "w") as fh:
+                for _ in range(mb):
+                    fh.write(blob)
+        return path
+
+    def test_budget_scales_with_compressed_size_but_has_a_floor(
+        self, db_mod, tmp_path
+    ):
+        small = tmp_path / "small.zip"
+        small.write_bytes(b"x" * 1024)
+        assert db_mod._unpack_budget(str(small)) == db_mod._RESTORE_MIN_UNPACKED_BYTES
+        big = tmp_path / "big.zip"
+        big.write_bytes(b"x" * (50 * 1024 * 1024))
+        assert db_mod._unpack_budget(str(big)) == (
+            50 * 1024 * 1024 * db_mod._RESTORE_MAX_EXPANSION_RATIO
+        )
+
+    def test_extraction_stops_at_the_budget(self, db_mod, tmp_path):
+        path = self._bomb(tmp_path, 200)
+        dest = tmp_path / "out"
+        dest.mkdir()
+        with zipfile.ZipFile(path) as z:
+            with pytest.raises(RuntimeError, match="expands to more than"):
+                db_mod._extract_members_bounded(
+                    z, ["dump.sql"], str(dest), 8 * 1024 * 1024
+                )
+
+    def test_counts_bytes_produced_not_the_declared_header_size(
+        self, db_mod, tmp_path
+    ):
+        """A member whose header under-reports its size must buy nothing: the
+        budget is spent against the bytes actually written."""
+        path = self._bomb(tmp_path, 40)
+        with zipfile.ZipFile(path, "a") as z:
+            z.getinfo("dump.sql").file_size = 1  # lie
+        dest = tmp_path / "out"
+        dest.mkdir()
+        with zipfile.ZipFile(path) as z:
+            with pytest.raises(RuntimeError, match="expands to more than"):
+                db_mod._extract_members_bounded(
+                    z, ["dump.sql"], str(dest), 4 * 1024 * 1024
+                )
+
+    def test_nested_members_land_intact_within_budget(self, db_mod, tmp_path):
+        """The bounded extractor replaces ``extractall``, so it must still create
+        parent directories — a real backup's filestore members are nested
+        (``filestore/27/27c0...``) and carry no explicit directory entries."""
+        path = tmp_path / "ok.zip"
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("dump.sql", "SELECT 1;\n")
+            z.writestr("filestore/27/27c0abc", b"payload-a")
+            z.writestr("filestore/3d/3daebe", b"payload-b")
+        dest = tmp_path / "out"
+        dest.mkdir()
+        with zipfile.ZipFile(path) as z:
+            written = db_mod._extract_members_bounded(
+                z,
+                ["dump.sql", "filestore/27/27c0abc", "filestore/3d/3daebe"],
+                str(dest),
+                10 * 1024 * 1024,
+            )
+        assert (dest / "filestore/27/27c0abc").read_bytes() == b"payload-a"
+        assert (dest / "filestore/3d/3daebe").read_bytes() == b"payload-b"
+        assert written == len("SELECT 1;\n") + len(b"payload-a") + len(b"payload-b")
+
+
+class TestDumpSqlScannerLexerDivergence:
+    """The scanner only protects the restore if its lexical contexts match
+    ``psql``'s exactly.
+
+    Any input that makes the scanner *enter* a context psql is not in is a total
+    bypass, not a near miss: the phantom context's terminator never arrives, so
+    the whole rest of the dump is swallowed as "data" and reported safe while
+    psql executes it.  Both cases below were verified end-to-end against
+    PostgreSQL 18 — ``psql -f`` ran the shell command, the second one while still
+    exiting 0, so the restore reported success and nothing was rolled back.
+    """
+
+    # ``$`` is an identifier CONTINUATION character in PostgreSQL's flex lexer,
+    # and longest-match wins, so ``a$b$c`` is one identifier — PostgreSQL creates
+    # a table by that literal name.  Reading ``$b$`` as a dollar-quote delimiter
+    # opened a body whose closing tag never comes.
+    @pytest.mark.parametrize("ident", ["a$b$c", "money$usd$x", "éx$q$z", "_a$t$b"])
+    def test_dollar_inside_identifier_does_not_open_a_quoted_body(
+        self, db_mod, ident
+    ):
+        sql = f"CREATE TABLE {ident} (x int);\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    # Found by randomized differential fuzzing against a live psql, not by
+    # inspection.  A run of identifier characters that STARTS with a digit is a
+    # numeric literal, and flex ends it at the first identifier-start character:
+    # ``9a$b$c`` is the number ``9`` followed by the identifier ``a$b$c``, so the
+    # ``$b$`` is again inside an identifier.  Treating the whole run as digit-led
+    # made the scanner open a phantom dollar body and swallow the rest of the dump.
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            "SELECT 1 AS 9a$b$c",       # digit-led run, identifier restarts at 'a'
+            "SELECT 1 AS a1$t$",        # identifier-led run containing a digit
+            "SELECT 1 AS 0fooE$t$x",    # digit, then identifier, then '$'
+            "SELECT 1 AS ÿ$_$",         # high-bit char is an identifier-start char
+            "SELECT 1 AS +9fooE$$z",    # run restarts after a non-identifier char
+        ],
+    )
+    def test_digit_led_run_restarts_at_the_identifier(self, db_mod, expr):
+        sql = f"{expr};\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_number_really_does_open_a_dollar_quote(self, db_mod):
+        """The mirror image: after a pure NUMBER, ``$tag$`` IS a delimiter.
+        PostgreSQL 18 reports the error in ``SELECT 1$t$x$t$`` at the token
+        ``$t$x$t$``, so a backslash inside that body is data, not a command."""
+        sql = "SELECT 1$t$ a \\! b $t$;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_missing_a_dollar_body_is_not_a_safe_fallback(self, db_mod):
+        """Refusing to open a dollar body is NOT the conservative direction.
+
+        The scanner then lexes the body's contents as SQL, and a lone quote in
+        there (``it's``) opens a phantom string literal that swallows every later
+        meta-command.  This input defeated an earlier fix whose identifier
+        lookback was capped for performance — the cap was itself a bypass.
+        """
+        run = "1" + "0" * 300
+        sql = f"SELECT {run}$$ it's $$\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_dollar_quote_after_a_token_boundary_still_opens(self, db_mod):
+        """The fix must not blind the scanner to REAL dollar-quoted bodies: a
+        backslash inside a function body is data and must stay unflagged."""
+        sql = (
+            "CREATE FUNCTION f() RETURNS text AS $_$ SELECT 'a; \\! b'; $_$ "
+            "LANGUAGE sql;\n"
+        )
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_identifier_containing_dollar_is_not_flagged(self, db_mod):
+        """A legitimate dump may contain ``$`` identifiers; they are ordinary
+        SQL, so they must not be rejected either."""
+        sql = "CREATE TABLE money$usd (x int);\nINSERT INTO money$usd VALUES (1);\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    # psql switches to reading COPY data only when the statement is EXECUTED
+    # (its terminating ``;``), not when the word COPY is read.  Without the
+    # semicolon the statement just sits in psql's buffer and meta-commands are
+    # still interpreted.
+    def test_copy_from_stdin_without_semicolon_does_not_enter_data_mode(
+        self, db_mod
+    ):
+        sql = "COPY nosuchtable FROM stdin\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_meta_command_between_copy_and_its_semicolon_is_flagged(self, db_mod):
+        """The variant that restores CLEANLY (psql exit 0): the meta-command sits
+        between ``COPY ... FROM stdin`` and the ``;`` that executes it."""
+        sql = "COPY ok FROM stdin\n\\! touch /tmp/pwn\n;\n1\n\\.\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_terminated_copy_still_treats_following_lines_as_data(self, db_mod):
+        """The normal pg_dump shape must keep working: once the ``;`` executes
+        the COPY, backslashes in the data block are data, not commands."""
+        sql = "COPY t (a,b) FROM stdin;\n1\tdata\\x\\.more\n\\.\nSELECT 1;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_semicolon_inside_copy_options_does_not_arm_data_mode_early(
+        self, db_mod
+    ):
+        """A ``;`` inside a string literal is not the statement terminator."""
+        sql = "COPY t FROM stdin WITH (DELIMITER ';');\n1\n\\.\nSELECT 1;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_e_prefix_inside_an_identifier_is_not_an_escape_string(self, db_mod):
+        """``fooE'x'`` is the identifier ``fooE`` plus a PLAIN literal, in which
+        a backslash escapes nothing — so the literal ends at the next quote and
+        what follows is live SQL."""
+        sql = "SELECT fooE'x';\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_real_escape_string_still_swallows_its_backslashes(self, db_mod):
+        sql = "SELECT E'a\\nb\\\\c';\nSELECT 1;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_token_start_tracking_stays_linear(self, db_mod):
+        """Deciding "identifier or delimiter?" must stay O(1) per character.
+
+        ``dump.sql`` is attacker-supplied and unbounded, so a line of N identifier
+        characters followed by N ``$`` must not cost O(N**2).  Doubling the line
+        must not roughly quadruple the time; the generous factor keeps this from
+        flapping on a loaded CI box while still failing on quadratic behaviour.
+        """
+        import time
+
+        def timed(size):
+            sql = "SELECT " + ("a" * size) + ("$" * size) + ";\n\\! touch /tmp/x\n"
+            t0 = time.perf_counter()
+            assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+            return time.perf_counter() - t0
+
+        timed(2000)  # warm up the interpreter
+        small, large = timed(20_000), timed(40_000)
+        assert large < max(small * 8, 0.5), f"{small=} {large=} looks quadratic"
+
+
 # ---------------------------------------------------------------------------
 # database_identifier — '%' escaping
 # ---------------------------------------------------------------------------
@@ -2457,7 +2717,13 @@ class TestDumpSqlScannerStreaming:
         real_open = type(p).open
 
         class NoSlurp:
-            """File proxy that iterates but refuses to be read in full."""
+            """File proxy that streams but refuses to be read in full.
+
+            Also pins the stronger invariant the size cap depends on: every
+            ``readline`` must carry an explicit limit.  An unbounded ``readline``
+            is as unbounded as ``read`` when the dump has no newlines, which is
+            exactly the case the cap exists for.
+            """
 
             def __init__(self, fh):
                 self._fh = fh
@@ -2470,6 +2736,14 @@ class TestDumpSqlScannerStreaming:
 
             def __iter__(self):
                 return iter(self._fh)
+
+            def readline(self, *a, **kw):
+                limit = a[0] if a else kw.get("size")
+                assert limit is not None and limit > 0, (
+                    "_assert_dump_sql_safe must bound each readline, else a "
+                    "newline-free dump is slurped one 'line' at a time"
+                )
+                return self._fh.readline(*a, **kw)
 
             def read(self, *a, **kw):  # pragma: no cover - must not be reached
                 raise AssertionError(

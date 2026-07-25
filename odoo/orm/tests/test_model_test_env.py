@@ -571,7 +571,7 @@ def test_savepoint_fails_loud_with_intentional_error():
 
 def test_clear_cache_honors_names():
     with model_test_env(HWidget) as env:
-        caches = env.registry._Registry__caches
+        caches = env.registry.ormcache_lrus
         caches["default"]["k"] = 1
         caches["templates.cached_values"]["k"] = 1
         caches["assets"]["k"] = 1

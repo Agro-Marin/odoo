@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal
 from babel import lists
 
 from odoo.libs.locale import py_to_js_locale
-from odoo.tools.misc import babel_locale_parse, get_lang
+from odoo.tools.locale_utils import babel_locale_parse, get_lang
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

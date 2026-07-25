@@ -111,9 +111,23 @@ def merge_sequences[T](*iterables: Iterable[T]) -> list[T]:
         )
         assert seq == ["A", "B", "X", "Y", "C", "Z"]
 
-    Contradictory inputs (``["a", "b"]`` and ``["b", "a"]``) are resolved on a
-    first-wins basis rather than rejected: this merges *partial* orders, so a
-    conflict is an ordinary outcome, not a data error. It has to stay that way —
+    Contradictory inputs (``["a", "b"]`` and ``["b", "a"]``) are resolved rather
+    than rejected: this merges *partial* orders, so a conflict is an ordinary
+    outcome, not a data error.
+
+    .. warning::
+
+        Which of the contradictory constraints survives is **unspecified**.  The
+        result is deterministic for a given input -- the same arguments always
+        produce the same list -- but it is decided by which edge happens to close
+        a cycle during the depth-first walk, not by the order the sequences were
+        passed in.  In particular it is *not* "the first sequence wins", as this
+        docstring used to claim: ``merge_sequences(["a", "b"], ["b", "a"])``
+        returns ``["b", "a"]``, and ``merge_sequences(["b", "a"], ["a", "b"])``
+        returns ``["a", "b"]`` -- in both cases the *second* argument's order is
+        the one that holds.  Do not build on it either way.
+
+    It has to stay that way —
     ``Selection._setup`` merges a base ``selection`` with each module's
     ``selection_add`` through here while building the registry, and a module
     reordering existing values must not take the server down. Hence

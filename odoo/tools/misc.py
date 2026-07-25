@@ -86,18 +86,20 @@ DEFINED IN THIS MODULE (not re-exports)
 - Callbacks: callback queue for pre/post commit hooks
 - clean_context: remove default_* keys from context dict
 - get_diff: HTML diff between two texts
-- SKIPPED_ELEMENT_TYPES: etree element types to ignore
 
 RE-EXPORTED FROM libs
 =====================
 - html_escape: from odoo.libs.text.html (canonical: markupsafe.escape)
+- SKIPPED_ELEMENT_TYPES: from odoo.libs.xml
+- default_parser: from odoo.libs.xml (which also installs the hardened
+  lxml global defaults, formerly configured here as an import side effect)
 """
 
 import collections
 import typing
 from difflib import HtmlDiff
 
-from lxml import etree, objectify
+from odoo.libs import xml as xml_lib
 
 # Collections — canonical: odoo.libs.collections
 from odoo.libs.collections import (
@@ -270,23 +272,19 @@ __all__ = [
 
 # List of etree._Element subclasses that we choose to ignore when parsing XML.
 # We include the *Base ones just in case, currently they seem to be subclasses of the _* ones.
-SKIPPED_ELEMENT_TYPES = (
-    etree._Comment,
-    etree._ProcessingInstruction,
-    etree.CommentBase,
-    etree.PIBase,
-    etree._Entity,
-)
+#
+# Re-exported, not redefined: ``odoo.libs.xml`` already publishes this exact
+# tuple (``libs/xml/template_inheritance.py``), and the byte-identical copy that
+# lived here was a second source of truth for "which lxml node types does Odoo
+# skip" -- the kind of duplicate that stays correct right up until one side
+# gains a node type and the other does not, at which point the two disagree
+# silently in whichever caller happened to import the stale one.
+SKIPPED_ELEMENT_TYPES = xml_lib.SKIPPED_ELEMENT_TYPES
 
-# Configure default global parser.
-# - resolve_entities=False: prevent XXE attacks (since lxml 5.0 default)
-# - decompress=False: prevent decompression bomb attacks (lxml 6.0 feature)
-etree.set_default_parser(etree.XMLParser(resolve_entities=False, decompress=False))
-default_parser = etree.XMLParser(
-    resolve_entities=False, remove_blank_text=True, decompress=False
-)
-default_parser.set_element_class_lookup(objectify.ObjectifyElementClassLookup())
-objectify.set_default_parser(default_parser)
+# The hardened lxml default parsers (XXE + decompression-bomb guards) are
+# installed by importing ``odoo.libs.xml``; ``default_parser`` is re-exported
+# for the historical import path.  See ``odoo/libs/xml/parsers.py``.
+default_parser = xml_lib.default_parser
 
 
 def clean_context(context: dict[str, typing.Any]) -> dict[str, typing.Any]:

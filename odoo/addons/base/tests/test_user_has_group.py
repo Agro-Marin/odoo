@@ -405,14 +405,14 @@ class TestHasGroup(TransactionCase):
     def test_has_group_cleared_cache_on_write(self):
         self.env.registry.clear_cache()
         self.assertFalse(
-            self.registry._Registry__caches["default"],
+            self.registry.ormcache_lrus["default"],
             "Ensure ormcache is empty",
         )
 
         def populate_cache():
             self.test_user.has_group("test_user_has_group.group0")
             self.assertTrue(
-                self.registry._Registry__caches["default"],
+                self.registry.ormcache_lrus["default"],
                 "user._has_group cache must be populated",
             )
 
@@ -420,7 +420,7 @@ class TestHasGroup(TransactionCase):
 
         self.env.ref(self.group0).write({"share": True})
         self.assertFalse(
-            self.registry._Registry__caches["default"],
+            self.registry.ormcache_lrus["default"],
             "Writing on group must invalidate user._has_group cache",
         )
 
@@ -429,7 +429,7 @@ class TestHasGroup(TransactionCase):
         # ormcache (res.groups.write calls it before super().write()).
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.assertFalse(
-            self.registry._Registry__caches["default"],
+            self.registry.ormcache_lrus["default"],
             "call_cache_clearing_methods() must invalidate user._has_group cache",
         )
 

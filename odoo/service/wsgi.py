@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 import weakref
+from contextlib import suppress
 from email.utils import parsedate_to_datetime
 from io import BytesIO
 from typing import Any
@@ -34,9 +35,34 @@ from werkzeug.urls import uri_to_iri
 
 from odoo.tools import config
 
-from ._env import env_int
+from ._env import env_float, env_int
 
 _logger = logging.getLogger("odoo.service.server")  # preserve operator log filters
+
+
+def http_socket_timeout() -> float:
+    """Per-operation socket timeout for one served HTTP connection.
+
+    Single source of truth for every server flavor: ``WorkerHTTP`` applies it to
+    each accepted socket in prefork, and ``RequestHandler.setup`` applies it on
+    the threaded and evented servers.  Sharing one knob (and one default) keeps
+    the deployments from drifting into different DoS postures.
+
+    Without it, a handler thread blocks forever in ``rfile.readline()`` waiting
+    for a request line that never arrives, while still holding one of the
+    bounded ``max_http_threads`` slots.  Measured on the threaded server: six
+    connections sending nine bytes each (``GET /slow``, no CRLF) drained the pool
+    to 0/4 and every subsequent request timed out — an unauthenticated denial of
+    service costing the attacker almost nothing.  Prefork was never exposed
+    because it has always set this; the threaded path used to set a timeout only
+    under ``--test-enable``.
+
+    This is a per-operation deadline, not a request deadline: a slow upload keeps
+    resetting it as long as bytes keep arriving.  Floor 0.1s — ``0`` would put the
+    socket in non-blocking mode and break every request.
+    """
+    return env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
+
 
 # ANSI status colors help on a TTY but pollute a log file (raw ESC sequences)
 # under systemd or a log shipper.  Detected once — stderr's tty-ness is fixed.
@@ -189,9 +215,18 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 
 class RequestHandler(CommonRequestHandler):
     def setup(self) -> None:
-        # timeout to avoid chrome headless preconnect during tests
+        # Bound the request-read phase on every connection, not just under
+        # ``--test-enable`` as this used to: an idle half-open connection
+        # otherwise parks a handler thread — and one of the bounded
+        # ``max_http_threads`` slots — forever.  See ``http_socket_timeout``.
+        # ``StreamRequestHandler.setup`` pushes ``self.timeout`` onto the socket,
+        # so it must be assigned BEFORE the ``super().setup()`` below.
+        self.timeout = http_socket_timeout()
         if config["test_enable"]:
-            self.timeout = 5
+            # Chrome-headless preconnects during tests open sockets they never
+            # write to; keep the historical 5s grace, but never shorten the
+            # shared default.
+            self.timeout = max(self.timeout, 5)
         # flag the current thread as handling a http request
         super().setup()
         me = threading.current_thread()
@@ -209,13 +244,35 @@ class RequestHandler(CommonRequestHandler):
             self.protocol_version = "HTTP/1.1"
         return environ
 
+    def _is_websocket_upgrade(self) -> bool:
+        """Whether the in-flight request asked for a websocket upgrade.
+
+        Reads ``self.headers`` DEFENSIVELY.  ``BaseHTTPRequestHandler`` assigns
+        that attribute only after it has parsed the request line, but a MALFORMED
+        request line makes it call ``send_error(400)`` — and therefore
+        ``send_header`` / ``end_headers`` — while ``self.headers`` is still
+        unset.  werkzeug's ``WSGIRequestHandler.__getattr__`` then forwards the
+        lookup to ``super()``, which has no ``headers`` either, so the override
+        raised ``AttributeError: 'super' object has no attribute 'headers'`` from
+        inside the error path: the 400 response died half-written and the client
+        got NOTHING back, while the server logged a traceback at ERROR.
+
+        That is reachable unauthenticated by anyone who can open a socket — a
+        browser sent to ``https://host:8069``, a TLS probe, a port scanner, a
+        misconfigured health check — on both servers that use this handler (the
+        threaded dev/test server and the evented long-polling subprocess).
+        ``log_request`` already guards ``self.path`` the same way.
+        """
+        headers = getattr(self, "headers", None)
+        return headers is not None and headers.get("Upgrade") == "websocket"
+
     def send_header(self, keyword: str, value: str) -> None:
         # Prevent WSGIRequestHandler from sending the "Connection: close" header
         # which is incompatible with WebSocket connections.
         if (
-            self.headers.get("Upgrade") == "websocket"
-            and keyword == "Connection"
+            keyword == "Connection"
             and value == "close"
+            and self._is_websocket_upgrade()
         ):
             # Do not keep processing requests.
             self.close_connection = True
@@ -226,13 +283,30 @@ class RequestHandler(CommonRequestHandler):
         super().end_headers(*a, **kw)
         # After end_headers, werkzeug assumes the connection is closed and discards
         # incoming data. For WebSocket upgrades, replace rfile/wfile to prevent that.
-        if self.headers.get("Upgrade") == "websocket":
+        if self._is_websocket_upgrade():
             self.rfile = BytesIO()
             self.wfile = BytesIO()
 
     def send_response(self, code: int, message: str | None = None) -> None:
         super().send_response(code, message)
         if code == 101:
+            # Hand the socket to the websocket loop with no inherited deadline.
+            # ``setup`` armed a short per-operation timeout to bound the
+            # REQUEST-READ phase (see ``http_socket_timeout``); a websocket is
+            # legitimately idle for minutes at a time, and ``bus/websocket.py``
+            # drives this socket through its own ``selectors`` loop, so it needs
+            # no timeout of ours.
+            #
+            # Both guards are best-effort on purpose, and for the same reason as
+            # ``_is_websocket_upgrade``: an attribute that is merely *usually*
+            # present must never be dereferenced bare here, because werkzeug's
+            # ``__getattr__`` turns a miss into ``AttributeError`` from inside a
+            # response path.  A client that vanished between the handshake and
+            # here likewise must not turn a completed upgrade into a 500.
+            conn = getattr(self, "connection", None)
+            if conn is not None:
+                with suppress(OSError):
+                    conn.settimeout(None)
             # Successful upgrade handshake: this handler thread is about to
             # park on a long-lived websocket serve loop (bus/websocket.py
             # ``_serve_forever`` runs in the response's close callback), so it

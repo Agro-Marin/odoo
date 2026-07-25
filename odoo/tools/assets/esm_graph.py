@@ -19,8 +19,8 @@ from pathlib import Path
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools.assets.esm_lexer import lex_module
+from odoo.tools.files import file_open, file_path
 from odoo.tools.json import scriptsafe as json
-from odoo.tools.misc import file_open, file_path
 
 _logger = logging.getLogger(__name__)
 _bridge_log = get_asset_logger("bridge")

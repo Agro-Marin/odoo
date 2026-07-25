@@ -4,6 +4,10 @@ Pure Python XML helpers with no Odoo dependencies.
 Uses standard library and lxml for XML processing.
 """
 
+# Installs Odoo's hardened lxml defaults (XXE + decompression-bomb guards) as
+# an import side effect -- see the module docstring for why it belongs here.
+from .parsers import default_parser
+
 from .utils import (
     remove_control_characters,
     create_xml_node_chain,
@@ -30,6 +34,7 @@ __all__ = [
     "apply_inheritance_specs",
     "create_xml_node",
     "create_xml_node_chain",
+    "default_parser",
     # template_inheritance
     "locate_node",
     # utils

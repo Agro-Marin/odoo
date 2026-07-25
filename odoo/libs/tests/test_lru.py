@@ -30,5 +30,30 @@ class TestLRU(unittest.TestCase):
             cache.count = 0
 
 
+class TestLRURepr(unittest.TestCase):
+    """A mapping type must not fall back to ``object.__repr__``."""
+
+    def test_repr_reports_occupancy(self):
+        lru = LRU(10, [(i, i) for i in range(3)])
+        self.assertEqual(repr(lru), "LRU(count=10, size=3, gen=0)")
+
+    def test_repr_tracks_clear_generation(self):
+        lru = LRU(4, [(1, "a")])
+        lru.clear()
+        self.assertEqual(repr(lru), "LRU(count=4, size=0, gen=1)")
+
+    def test_repr_does_not_leak_contents(self):
+        # entries are ormcache values: keys hold recordsets/contexts and values
+        # are large, so they must not be rendered into logs or a debugger pane
+        lru = LRU(4, [("secret-key", "secret-value")])
+        self.assertNotIn("secret", repr(lru))
+
+    def test_repr_uses_the_actual_class_name(self):
+        class Sub(LRU):
+            pass
+
+        self.assertTrue(repr(Sub(2)).startswith("Sub("))
+
+
 if __name__ == "__main__":
     unittest.main()

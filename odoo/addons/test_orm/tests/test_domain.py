@@ -1561,6 +1561,278 @@ class TestDomainEdgeCases(TransactionCase):
         Domain([("id", "in", list(range(10000)))])
 
 
+class TestInequalityAgainstNull(TransactionCase):
+    """``field <op> False`` on a field with no ``falsy_value`` is an empty domain.
+
+    Regression: ``('id', '>', False)`` used to reach SQL as a *bool* parameter
+    bound to an ``int4`` column, because ``Id.convert_to_column`` is an identity
+    passthrough and the inequality branch of ``Field._condition_to_sql`` only
+    normalized the value when the field defined a ``falsy_value``.  Postgres
+    raised ``UndefinedFunction: operator does not exist: integer > boolean``,
+    which aborts the whole transaction — and every model has ``id``.
+
+    Fields that *do* define a falsy sentinel (Char ``""``, Integer ``0``, Float
+    ``0.0``) compare against it and are deliberately unaffected.
+    """
+
+    def test_id_inequality_against_false_is_empty(self):
+        """All four inequality operators collapse, for False and for None."""
+        model = self.env["res.partner"]
+        for operator in (">", ">=", "<", "<="):
+            for value in (False, None):
+                with self.subTest(operator=operator, value=value):
+                    self.assertIs(
+                        Domain("id", operator, value).optimize(model),
+                        Domain.FALSE,
+                    )
+
+    def test_id_inequality_against_false_searches(self):
+        """It must not raise at the SQL level, and must match nothing."""
+        model = self.env["res.partner"]
+        self.assertTrue(model.search_count([]), "need at least one partner")
+        for operator in (">", ">=", "<", "<="):
+            with self.subTest(operator=operator):
+                self.assertEqual(model.search_count([("id", operator, False)]), 0)
+
+    def test_search_and_filtered_domain_agree(self):
+        """The SQL path and the Python predicate path must not disagree.
+
+        Collapsing at optimization time (rather than in ``condition_to_sql`` and
+        ``filter_function`` separately) is what keeps negation consistent:
+        ``~Domain.FALSE`` is TRUE in both paths, whereas SQL's three-valued
+        ``NOT (id > NULL)`` excludes every row while Python's ``not False``
+        admits every row.
+        """
+        model = self.env["res.partner"]
+        records = model.search([], limit=20)
+        self.assertTrue(records)
+        for domain in (
+            [("id", ">", False)],
+            ["!", ("id", ">", False)],
+            ["|", ("id", "<", False), ("id", ">=", False)],
+            ["!", ("id", "<=", False)],
+        ):
+            with self.subTest(domain=domain):
+                by_sql = model.search([("id", "in", records.ids), *domain])
+                by_python = records.filtered_domain(domain)
+                self.assertEqual(set(by_sql.ids), set(by_python.ids))
+
+    def test_falsy_value_fields_are_unaffected(self):
+        """Fields with a falsy sentinel keep comparing against it."""
+        model = self.env["res.partner"]
+        # Char falsy_value is "" -> compares against '', not collapsed
+        self.assertNotEqual(Domain("name", ">", False).optimize(model), Domain.FALSE)
+        # Integer falsy_value is 0 -> compares against 0, not collapsed
+        self.assertNotEqual(Domain("color", ">=", False).optimize(model), Domain.FALSE)
+
+
+class TestIdComparandValidation(TransactionCase):
+    """``Id.convert_to_column`` validates the comparand instead of the database.
+
+    ``id`` was the only field class whose ``convert_to_column`` was an identity
+    passthrough, so an ill-typed domain comparand reached psycopg and raised a
+    *database* error -- which aborts the transaction, so even a caller that
+    catches it loses every subsequent query.  Every sibling field class already
+    raised a clean Python error instead; this brings ``id`` in line.
+    """
+
+    BAD_VALUES = ("abc", b"x", [], {}, True)
+
+    def test_bad_comparand_raises_cleanly(self):
+        model = self.env["res.partner"]
+        for value in self.BAD_VALUES:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                model.search([("id", ">", value)])
+
+    def test_transaction_survives_a_bad_comparand(self):
+        """The point of the fix: the error must not poison the cursor."""
+        model = self.env["res.partner"]
+        with self.assertRaises(ValueError):
+            model.search([("id", ">", "abc")])
+        # An unrelated query must still work -- this is what a raw psycopg
+        # error made impossible.
+        self.assertTrue(self.env["res.country"].search_count([]) >= 0)
+
+    def test_valid_comparands_still_work(self):
+        model = self.env["res.partner"]
+        records = model.search([], limit=3)
+        self.assertTrue(records)
+        lowest = min(records.ids)
+        # numeric strings are parsed, as Postgres did implicitly
+        self.assertEqual(
+            model.search_count([("id", ">=", str(lowest))]),
+            model.search_count([("id", ">=", lowest)]),
+        )
+        # floats are NOT truncated: id >= 1.5 and id >= 1 differ
+        self.assertEqual(
+            set(model.search([("id", ">=", lowest + 0.5)]).ids),
+            set(model.search([("id", ">", lowest)]).ids),
+        )
+
+    def test_non_int_id_model_is_untouched(self):
+        """An ``_auto = False`` model may key on any column type.
+
+        ``test_orm.view.str.id`` is a ``_table_query`` view whose ``id`` column
+        is *text*, so the int validation must not apply to it.
+        """
+        model = self.env["test_orm.view.str.id"]
+        self.assertFalse(model._auto)
+        self.assertEqual(model.search([("name", "=", "test")]).id, "hello")
+        self.assertEqual(model.search_count([("id", "=", "hello")]), 1)
+        self.assertEqual(model.search_count([("id", ">", "a")]), 1)
+
+    def test_ordinary_id_inequalities_still_work(self):
+        """The collapse must be scoped to falsy comparands only."""
+        model = self.env["res.partner"]
+        records = model.search([], limit=5)
+        self.assertTrue(records)
+        lowest = min(records.ids)
+        self.assertEqual(
+            set(model.search([("id", "in", records.ids), ("id", ">=", lowest)]).ids),
+            set(records.ids),
+        )
+
+
+class TestSearchFilteredDomainParity(TransactionCase):
+    """``search()`` and ``filtered_domain()`` must agree on the same domain.
+
+    The two consume the same ``Domain`` but travel entirely separate backends:
+    ``search()`` goes ``_optimize(FULL) -> Field.condition_to_sql -> Postgres``,
+    ``filtered_domain()`` goes ``_optimize(...) -> Field.filter_function ->
+    Python``.  The operator semantics are implemented twice, by hand, and are
+    kept in sync only by convention -- so a gap in one shows up as a silent
+    disagreement rather than a failure.  ``('id', '>', False)`` lived exactly in
+    that seam (see :class:`TestInequalityAgainstNull`).
+
+    This walks a fixed, seeded set of generated domains over both paths.  The
+    seed is pinned so the test is deterministic; widen ``ITERATIONS`` locally to
+    fuzz harder.
+    """
+
+    ITERATIONS = 300
+    SEED = 20260724
+
+    # Only ``base`` fields, so the suite runs against a bare test_orm database.
+    # ``setUp`` still filters them against the live model, so the test keeps
+    # working if a field is moved to another module.
+    CHAR_FIELDS = ("name", "ref", "city", "email", "phone", "street", "function")
+    NUM_FIELDS = ("color", "id")
+    BOOL_FIELDS = ("active", "is_company")
+    M2O_FIELDS = ("country_id", "parent_id", "company_id")
+    SEL_FIELDS = ("type",)
+
+    def setUp(self):
+        super().setUp()
+        fields = self.env["res.partner"]._fields
+        for attr in (
+            "CHAR_FIELDS",
+            "NUM_FIELDS",
+            "BOOL_FIELDS",
+            "M2O_FIELDS",
+            "SEL_FIELDS",
+        ):
+            present = tuple(name for name in getattr(self, attr) if name in fields)
+            self.assertTrue(present, f"no usable field left in {attr}")
+            setattr(self, attr, present)
+
+    def _seed_records(self):
+        import random
+
+        rng = random.Random(self.SEED)
+        countries = self.env["res.country"].search([], limit=5).ids
+        candidates = {
+            "name": lambda: rng.choice(["", "Alpha", "beta", "Gamma Ltd", "délta"]),
+            "city": lambda: rng.choice([False, "", "Paris", "london", "Ávila"]),
+            "email": lambda: rng.choice([False, "", "a@b.com", "X@Y.COM"]),
+            "phone": lambda: rng.choice([False, "", "+33 1"]),
+            "street": lambda: rng.choice([False, "", "1 rue A", "_under"]),
+            "function": lambda: rng.choice([False, "", "CEO"]),
+            "color": lambda: rng.choice([0, 1, 2, 7]),
+            "active": lambda: rng.choice([True, True, False]),
+            "is_company": lambda: rng.choice([True, False]),
+            "country_id": lambda: rng.choice([False, *countries]),
+            "type": lambda: rng.choice(["contact", "invoice", "delivery", "other"]),
+        }
+        model_fields = self.env["res.partner"]._fields
+        usable = {n: f for n, f in candidates.items() if n in model_fields}
+        vals = [
+            {"ref": f"PARITY{i:04d}", **{n: make() for n, make in usable.items()}}
+            for i in range(60)
+        ]
+        return self.env["res.partner"].create(vals)
+
+    def _rand_leaf(self, rng):
+        kind = rng.choice(["char", "num", "bool", "m2o", "sel"])
+        if kind == "char":
+            operator = rng.choice(
+                ["=", "!=", "like", "not like", "ilike", "not ilike", "=like", "in"]
+            )
+            field = rng.choice(self.CHAR_FIELDS)
+            if operator == "in":
+                return (field, operator, rng.sample(["Alpha", "beta", "", False], 2))
+            return (
+                field,
+                operator,
+                rng.choice(["a", "Alpha", "%a%", "", False, "_lpha"]),
+            )
+        if kind == "num":
+            operator = rng.choice(["=", "!=", "<", ">", "<=", ">=", "in", "not in"])
+            field = rng.choice(self.NUM_FIELDS)
+            if operator in ("in", "not in"):
+                return (field, operator, rng.sample([0, 1, 2, 7, 999], 2))
+            return (field, operator, rng.choice([0, 1, 2, 7, False]))
+        if kind == "bool":
+            return (
+                rng.choice(self.BOOL_FIELDS),
+                rng.choice(["=", "!="]),
+                rng.choice([True, False]),
+            )
+        if kind == "m2o":
+            operator = rng.choice(["=", "!=", "in", "not in", "ilike"])
+            field = rng.choice(self.M2O_FIELDS)
+            if operator == "ilike":
+                return (field, operator, rng.choice(["a", "Fr"]))
+            if operator in ("in", "not in"):
+                return (field, operator, rng.sample([1, 2, 3, False], 2))
+            return (field, operator, rng.choice([False, 1, 2]))
+        operator = rng.choice(["=", "!=", "in", "not in"])
+        field = rng.choice(self.SEL_FIELDS)
+        if operator in ("in", "not in"):
+            return (field, operator, ["contact", "invoice"])
+        return (field, operator, rng.choice(["contact", "invoice", "delivery"]))
+
+    def _rand_domain(self, rng, depth=0):
+        if depth < 2 and rng.random() < 0.45:
+            operator = rng.choice(["&", "|", "!"])
+            if operator == "!":
+                return ["!", *self._rand_domain(rng, depth + 1)]
+            return [
+                operator,
+                *self._rand_domain(rng, depth + 1),
+                *self._rand_domain(rng, depth + 1),
+            ]
+        return [self._rand_leaf(rng)]
+
+    def test_search_matches_filtered_domain(self):
+        import random
+
+        records = self._seed_records()
+        self.env.flush_all()
+        model = self.env["res.partner"].with_context(active_test=False)
+        scope = [("id", "in", records.ids)]
+        rng = random.Random(self.SEED)
+        for _ in range(self.ITERATIONS):
+            domain = self._rand_domain(rng)
+            with self.subTest(domain=domain):
+                by_sql = model.search(scope + domain)
+                by_python = records.filtered_domain(domain)
+                self.assertEqual(
+                    set(by_sql.ids),
+                    set(by_python.ids),
+                    f"search() and filtered_domain() disagree on {domain}",
+                )
+
+
 class TestDomainConfluence(TransactionCase):
     """Lock in the two invariants ``Domain._optimize`` relies on for correctness.
 
@@ -1639,3 +1911,189 @@ class TestDomainConfluence(TransactionCase):
                 canonical,
                 "duplicate conditions must be removed order-independently",
             )
+
+
+class TestDomainAgainstRawRows(TransactionCase):
+    """Evaluate domains against the raw table, outside the ORM entirely.
+
+    Every other domain test compares two ORM paths -- ``search()`` against
+    ``filtered_domain()``. That is blind to the optimizer: both consume the SAME
+    optimized domain, so a bad rewrite in ``odoo/orm/domain/optimizations.py``
+    changes both sides identically and the comparison stays green. (Measured:
+    swapping ``child_of`` with ``parent_of`` produces zero differences between
+    the two paths.)
+
+    Here the expectation comes from a plain ``SELECT`` plus a Python evaluator,
+    so a rewrite that changes meaning has nowhere to hide. Injecting two
+    optimizer bugs -- ``'='`` building a ``not in`` set, and ``'=like'`` gaining
+    implicit wildcards -- makes this fail, which is what the differential could
+    not do.
+
+    The evaluator mirrors the IN/NOT-IN construction in
+    ``Field._condition_to_sql`` (not the optimizer above it), including the
+    ``falsy_value`` aliasing that makes ``= False`` match both NULL and ``""``.
+    If that construction is ever changed deliberately, this test must be updated
+    with it -- on purpose: it is the record of what the SQL is supposed to mean.
+    """
+
+    # (column, falsy_value) -- ``id`` is NOT NULL and has no falsy value.
+    COLUMNS = {
+        "name": "",
+        "ref": "",
+        "city": "",
+        "email": "",
+        "function": "",
+        "color": 0,
+        "active": False,
+        "is_company": False,
+        "id": None,
+    }
+
+    def setUp(self):
+        super().setUp()
+        import random
+
+        rng = random.Random(4242)
+        self.records = self.env["res.partner"].create(
+            [
+                {
+                    "name": rng.choice(["", "Alpha", "beta", "Gamma", "délta"]),
+                    "ref": f"RAW{i:03d}",
+                    "city": rng.choice([False, "", "Paris", "london"]),
+                    "email": rng.choice([False, "", "a@b.com", "X@Y.COM"]),
+                    "function": rng.choice([False, "", "CEO"]),
+                    "color": rng.choice([0, 1, 2, 7]),
+                    "active": rng.choice([True, True, False]),
+                    "is_company": rng.choice([True, False]),
+                }
+                for i in range(40)
+            ]
+        )
+        self.env.flush_all()
+        # The fixture deliberately contains inactive rows; a raw SELECT has no
+        # notion of the implicit ``active = True`` filter, so neither may search.
+        self.Partner = self.env["res.partner"].with_context(active_test=False)
+        cols = ", ".join(f'"{c}"' for c in self.COLUMNS if c != "id")
+        self.env.cr.execute(
+            f"SELECT id, {cols} FROM res_partner WHERE id = ANY(%s)",
+            (self.records.ids,),
+        )
+        self.rows = {r["id"]: r for r in self.env.cr.dictfetchall()}
+
+    def _eval_in(self, column, operator, values, raw):
+        """Mirror Field._condition_to_sql's IN / NOT IN construction."""
+        falsy = self.COLUMNS[column]
+        params = [v for v in values if v is not False and v is not None]
+        null_in = len(params) < len(values)
+        if falsy is not None:
+            if falsy in params:
+                null_in = True
+            elif null_in:
+                params = [*params, falsy]
+
+        if not params:
+            expr = False
+        elif operator == "in":
+            expr = raw is not None and raw in params
+        else:
+            # NOT IN against NULL is UNKNOWN, i.e. not true
+            expr = raw is not None and raw not in params
+
+        if (operator == "in") == null_in:
+            return expr or raw is None
+        if operator == "not in" and null_in and not params:
+            return raw is not None
+        return expr
+
+    def _expected(self, leaf):
+        column, operator, value = leaf
+        if operator in ("=", "!="):
+            operator, value = ("in" if operator == "=" else "not in"), [value]
+        return {
+            rid
+            for rid, row in self.rows.items()
+            if self._eval_in(column, operator, list(value), row[column])
+        }
+
+    def test_equality_matches_the_raw_rows(self):
+        leaves = [
+            ("name", "=", "Alpha"),
+            ("name", "!=", "Alpha"),
+            ("name", "=", False),
+            ("name", "!=", False),
+            ("city", "=", False),
+            ("city", "!=", False),
+            ("city", "=", "Paris"),
+            ("email", "!=", "a@b.com"),
+            ("function", "=", False),
+            ("color", "=", 0),
+            ("color", "!=", 0),
+            ("color", "=", 7),
+            ("active", "=", True),
+            ("active", "=", False),
+            ("active", "!=", False),
+            ("is_company", "!=", True),
+        ]
+        sizes = set()
+        for leaf in leaves:
+            with self.subTest(leaf=leaf):
+                expected = self._expected(leaf)
+                found = self.Partner.search([("id", "in", self.records.ids), leaf])
+                self.assertEqual(set(found.ids), expected)
+                sizes.add(len(expected))
+        # Guard against a vacuous pass: if every expectation were empty (or the
+        # whole fixture) the comparisons above would hold no matter what the
+        # optimizer did.
+        self.assertGreater(
+            len({s for s in sizes if 0 < s < len(self.records)}),
+            1,
+            "leaves must discriminate: expected sets are all empty or all-inclusive",
+        )
+
+    def test_set_membership_matches_the_raw_rows(self):
+        leaves = [
+            ("name", "in", ["Alpha", "beta"]),
+            ("name", "not in", ["Alpha", "beta"]),
+            ("name", "in", ["Alpha", False]),
+            ("name", "not in", ["Alpha", False]),
+            ("city", "in", [False]),
+            ("city", "not in", [False]),
+            ("color", "in", [0, 7]),
+            ("color", "not in", [0, 7]),
+            ("color", "in", [2, False]),
+            ("color", "not in", [1, 2]),
+            ("email", "in", ["a@b.com", ""]),
+        ]
+        sizes = set()
+        for leaf in leaves:
+            with self.subTest(leaf=leaf):
+                expected = self._expected(leaf)
+                found = self.Partner.search([("id", "in", self.records.ids), leaf])
+                self.assertEqual(set(found.ids), expected)
+                sizes.add(len(expected))
+        # Guard against a vacuous pass: if every expectation were empty (or the
+        # whole fixture) the comparisons above would hold no matter what the
+        # optimizer did.
+        self.assertGreater(
+            len({s for s in sizes if 0 < s < len(self.records)}),
+            1,
+            "leaves must discriminate: expected sets are all empty or all-inclusive",
+        )
+
+    def test_falsy_value_aliasing_is_not_lost(self):
+        """``= False`` must match BOTH NULL and the column's falsy value.
+
+        The rows deliberately contain city NULL and city '' -- SQL aliases them,
+        Python set algebra does not, and the optimizer's set merges rely on the
+        aliasing being applied before they run.
+        """
+        cities = {row["city"] for row in self.rows.values()}
+        self.assertIn(None, cities, "fixture must contain a NULL city")
+        self.assertIn("", cities, "fixture must contain an empty-string city")
+
+        found = self.Partner.search(
+            [("id", "in", self.records.ids), ("city", "=", False)]
+        )
+        expected = {rid for rid, row in self.rows.items() if row["city"] in (None, "")}
+        self.assertEqual(set(found.ids), expected)
+        self.assertTrue(expected)

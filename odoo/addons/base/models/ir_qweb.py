@@ -468,19 +468,6 @@ def indent_code(code: str, level: int) -> str:
     return textwrap.indent(textwrap.dedent(code).strip(), " " * 4 * level)
 
 
-def _group_caches_by_prefix(caches: Mapping[str, Any]) -> dict[str, list]:
-    """Group cache objects by the prefix before the first dot in their name.
-
-    Module-level (not a class-body loop) because a class-body ``for`` would leak
-    the loop variables as class attributes and a nested comprehension can't see
-    the class-level cache dict.
-    """
-    groups: dict[str, list] = {}
-    for name, cache in caches.items():
-        groups.setdefault(name.split(".")[0], []).append(cache)
-    return groups
-
-
 class QwebCallParameters(NamedTuple):
     context: dict[str, Any]
     view_ref: str | int
@@ -3629,21 +3616,26 @@ class _MockCursor:
 class _MockRegistry:
     """A throwaway registry holding the ormcaches for a single DB-less render.
 
-    ``ir.qweb``'s compile path is ormcached on ``self.pool._Registry__caches``;
+    ``ir.qweb``'s compile path is ormcached on ``self.pool.ormcache_lrus``;
     a fresh registry per ``render()`` keeps those caches from leaking across
     unrelated standalone renders (the caller's ``load`` may return a different
     tree for the same ref on a later call).
+
+    ``ormcache_lrus`` is the whole protocol :mod:`odoo.tools.cache` requires of
+    a ``model.pool``, so implementing it is all this stand-in has to do.  It
+    also used to build a ``_Registry__caches_groups`` mapping that no reader
+    ever existed for -- neither here nor on the real :class:`Registry` -- which
+    only stayed invisible because the name-mangled spelling made it unsearchable
+    in practice; it and its helper are gone.
     """
 
     db_name = None
 
     def __init__(self) -> None:
-        caches = {
+        self.ormcache_lrus = {
             cache_name: LRU(cache_size)
             for cache_name, cache_size in _REGISTRY_CACHES.items()
         }
-        self._Registry__caches = caches
-        self._Registry__caches_groups = _group_caches_by_prefix(caches)
 
 
 class _MockEnv(dict):

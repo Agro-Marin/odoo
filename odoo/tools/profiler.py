@@ -118,7 +118,13 @@ class Collector:
 
     def __init__(self) -> None:
         self._processed: bool = False
-        self._entries: list[dict[str, Any]] = []
+        self._entries: list[dict[str, Any]] | None = []
+        # Declared here, not created on first ``entries`` access: ``summary()``
+        # reads it whenever ``_processed`` is set, and a collector that is
+        # inspected out of the usual order would have raised AttributeError from
+        # a debugging aid.  The two fields are one state machine -- keep them
+        # defined together so it is readable as one.
+        self.processed_entries: list[dict[str, Any]] = []
         self.profiler: Profiler | None = None
 
     def start(self) -> None:

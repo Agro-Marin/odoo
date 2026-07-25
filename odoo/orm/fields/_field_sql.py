@@ -231,6 +231,11 @@ class _FieldSqlMixin(_FieldStubs):
                 accept_null_value = can_be_null and PYTHON_INEQUALITY_OPERATOR[
                     operator
                 ](null_value, value)
+            # No fallback branch for a falsy comparand on a field with no
+            # falsy_value: every such field's convert_to_column maps False/None
+            # to None (SQL NULL) on its own.  ``Id`` used to be the exception --
+            # its identity passthrough bound a bool to an int4 column -- and that
+            # is fixed at the root in Id.convert_to_column, not patched here.
             sql_value = SQL("%s", _value_to_column(value))
 
             sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], sql_value)

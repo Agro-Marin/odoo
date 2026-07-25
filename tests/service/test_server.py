@@ -21,7 +21,7 @@ import threading
 import time
 from collections import deque
 from io import BytesIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import psutil
 import psycopg
@@ -1840,6 +1840,164 @@ class TestRequestHandlerWebSocket:
             request_handler.end_headers()
         assert request_handler.rfile is original_rfile
         assert request_handler.wfile is original_wfile
+
+
+class TestRequestHandlerBeforeHeadersParsed:
+    """The WebSocket guards must tolerate ``self.headers`` not existing yet.
+
+    ``BaseHTTPRequestHandler`` assigns ``self.headers`` only after it has parsed
+    the request line.  A MALFORMED request line makes it call ``send_error(400)``
+    — hence ``send_header`` and ``end_headers`` — while the attribute is still
+    unset, and werkzeug's ``WSGIRequestHandler.__getattr__`` forwards the lookup
+    to ``super()``, which has no ``headers`` either.
+
+    Reading it unguarded raised ``AttributeError`` from inside the error path, so
+    the 400 died half-written and the client received NOTHING while the server
+    logged an ERROR traceback — reachable unauthenticated by anyone who can open
+    a socket (a browser sent to ``https://host:8069``, a TLS probe, a port
+    scanner) on both servers using this handler.  Verified end-to-end against a
+    live server: three malformed request shapes each returned b'' before the fix
+    and a proper 400 body after it.
+    """
+
+    @pytest.fixture()
+    def unparsed_handler(self, srv):
+        """A handler in the exact state ``send_error`` sees on a bad request line.
+
+        ``_sent_date_header`` / ``_sent_server_header`` ARE set, because
+        ``CommonRequestHandler.__init__`` assigns them before delegating to
+        ``socketserver.BaseRequestHandler.__init__``, which is what runs
+        ``setup()``/``handle()`` — so they always exist by the time any request
+        byte is parsed.  ``headers`` is NOT set, because only ``parse_request``
+        assigns it and it has just failed.
+        """
+        h = object.__new__(srv.RequestHandler)
+        h._sent_date_header = None
+        h._sent_server_header = None
+        h.close_connection = False
+        h.rfile = MagicMock()
+        h.wfile = MagicMock()
+        assert not hasattr(h, "headers"), "fixture must reproduce the unset state"
+        return h
+
+    def test_send_header_does_not_raise_and_forwards(self, unparsed_handler):
+        with patch.object(
+            http.server.BaseHTTPRequestHandler, "send_header"
+        ) as mock_send:
+            unparsed_handler.send_header("Server", "Werkzeug")
+            unparsed_handler.send_header("Connection", "close")
+        assert mock_send.call_args_list == [
+            call("Server", "Werkzeug"),
+            call("Connection", "close"),
+        ]
+        # No upgrade was requested, so the connection must not be flagged closed
+        # by the WebSocket branch.
+        assert unparsed_handler.close_connection is False
+
+    def test_end_headers_does_not_raise_and_keeps_streams(self, unparsed_handler):
+        original_rfile = unparsed_handler.rfile
+        original_wfile = unparsed_handler.wfile
+        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
+            unparsed_handler.end_headers()
+        assert unparsed_handler.rfile is original_rfile
+        assert unparsed_handler.wfile is original_wfile
+
+    def test_helper_reports_no_upgrade_when_headers_missing(self, unparsed_handler):
+        assert unparsed_handler._is_websocket_upgrade() is False
+
+
+class TestRequestHandlerSocketTimeout:
+    """An idle half-open connection must not park a bounded-thread slot forever.
+
+    A handler blocks in ``rfile.readline()`` until the request line arrives, so
+    without a socket timeout a client that connects and sends a few bytes with no
+    CRLF holds one of the ``max_http_threads`` slots indefinitely.  Measured
+    against a live threaded server: six such connections (nine bytes each) took
+    the pool to 0/4 and every subsequent request timed out; with the timeout
+    armed, 7 of 8 requests were served while TWELVE attackers held connections,
+    and the pool returned to 4/4 once they left.
+
+    Prefork was never exposed — ``WorkerHTTP`` has always set this on each
+    accepted socket — so both paths now resolve it from the same helper.
+    """
+
+    @pytest.fixture()
+    def wsgi_mod(self):
+        """``server.py`` re-exports names via ``from .wsgi import ...``, so it
+        binds no ``wsgi`` attribute; reach the module itself."""
+        import odoo.service.wsgi as mod
+
+        return mod
+
+    def _handler(self, srv):
+        h = object.__new__(srv.RequestHandler)
+        h.timeout = None
+        return h
+
+    def _setup_with(self, wsgi_mod, handler, test_enable):
+        cfg = {"test_enable": test_enable, "dev_mode": []}
+        with (
+            patch.object(wsgi_mod, "config", cfg),
+            patch.object(werkzeug.serving.WSGIRequestHandler, "setup"),
+        ):
+            handler.setup()
+
+    def test_timeout_is_armed_outside_test_mode(self, srv, wsgi_mod):
+        """The regression itself: this used to be armed ONLY under
+        ``--test-enable``, leaving every real deployment of the threaded and
+        evented servers open to trivial thread exhaustion."""
+        h = self._handler(srv)
+        self._setup_with(wsgi_mod, h, test_enable=False)
+        assert h.timeout == wsgi_mod.http_socket_timeout()
+        assert h.timeout > 0
+
+    def test_test_mode_keeps_the_longer_preconnect_grace(self, srv, wsgi_mod):
+        h = self._handler(srv)
+        self._setup_with(wsgi_mod, h, test_enable=True)
+        assert h.timeout >= 5
+
+    def test_prefork_and_threaded_share_one_knob(self, srv, wsgi_mod, multi, monkeypatch):
+        """Two independent defaults would let deployments drift into different
+        DoS postures, which is exactly how the threaded gap survived."""
+        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "7.5")
+        worker = srv.WorkerHTTP(multi)
+        try:
+            assert worker.sock_timeout == wsgi_mod.http_socket_timeout() == 7.5
+        finally:
+            worker.close()
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [("0", 0.1), ("-3", 0.1), ("not-a-number", 2.0), ("30", 30.0)],
+    )
+    def test_env_override_is_clamped_and_degrades_safely(
+        self, wsgi_mod, monkeypatch, raw, expected
+    ):
+        """``0`` would put the socket in non-blocking mode and break every
+        request, so it clamps to the floor rather than disabling the bound."""
+        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", raw)
+        assert wsgi_mod.http_socket_timeout() == expected
+
+    def test_upgrade_clears_the_deadline_for_the_websocket_loop(self, srv):
+        """A websocket is legitimately idle for minutes; ``bus/websocket.py``
+        drives the socket through its own selector, so the request-phase
+        deadline must be lifted once the 101 is committed."""
+        h = object.__new__(srv.RequestHandler)
+        h.connection = MagicMock()
+        h.request = MagicMock()
+        h.server = MagicMock(spec=[])  # no release_upgraded_request_slot
+        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
+            h.send_response(101)
+        h.connection.settimeout.assert_called_once_with(None)
+
+    def test_non_upgrade_response_keeps_the_deadline(self, srv):
+        h = object.__new__(srv.RequestHandler)
+        h.connection = MagicMock()
+        h.request = MagicMock()
+        h.server = MagicMock(spec=[])
+        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
+            h.send_response(200)
+        h.connection.settimeout.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

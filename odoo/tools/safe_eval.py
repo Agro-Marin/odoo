@@ -92,7 +92,18 @@ def to_opcodes(opnames: list[str], _opmap: dict[str, int] = opmap) -> Iterator[i
 
 # Opcodes that must never be usable in safe_eval; subtracted from every
 # allowed-opcode set as defence-in-depth.
-_BLACKLIST = set(
+#
+# All four opcode sets below are ``frozenset``: they are fixed for the life of
+# the process, and ``assert_valid_codeobj`` puts ``frozenset(allowed_codes)``
+# in its cache key on EVERY call.  Built from a mutable ``set`` that meant
+# re-hashing ~90 ints per validation (~0.60us of a ~0.88us cache hit, i.e. two
+# thirds of the fast path, on the domain/QWeb/server-action hot path);
+# ``frozenset(x)`` returns ``x`` itself when ``x`` is already a frozenset, and a
+# frozenset caches its hash after the first call, so both collapse to ~0.02us.
+# They are also genuinely immutable now, which is the right contract for a
+# sandbox allowlist.  ``odoo.addons.base.models.ir_qweb._SAFE_QWEB_OPCODES``
+# derives from ``_EXPR_OPCODES``/``_BLACKLIST`` and becomes a frozenset too.
+_BLACKLIST = frozenset(
     to_opcodes(
         [
             # can't provide access to accessing arbitrary modules
@@ -113,7 +124,7 @@ _BLACKLIST = set(
 )
 # opcodes necessary to build literal values
 _CONST_OPCODES = (
-    set(
+    frozenset(
         to_opcodes(
             [
                 # stack manipulations
@@ -455,6 +466,11 @@ def assert_valid_codeobj(
     cacheable = not nested_code
 
     # Fast path: identical bytecode + names + allowed set already validated.
+    #
+    # The key is built only when it can actually be used.  It hashes co_code,
+    # co_names and the whole co_consts tuple; for an expression that CONTAINS a
+    # nested code object (any lambda -- never cacheable, see above) that work was
+    # pure waste on every single evaluation.
     # Key on the allowlist's CONTENT (frozenset), not id(): a garbage-collected
     # allowlist set's id can be reused by a *different* set, which would let the
     # new allowlist silently inherit the old one's "validated" verdicts — a
@@ -474,16 +490,18 @@ def assert_valid_codeobj(
     # ``lambda: __class__`` (both closing over an enclosing local) compile to
     # byte-identical co_code with an empty co_names, differing only in
     # co_freevars.
-    cache_key = (
-        code_obj.co_code,
-        code_obj.co_names,
-        code_obj.co_consts,
-        code_obj.co_freevars,
-        code_obj.co_cellvars,
-        frozenset(allowed_codes),
-    )
-    if cacheable and cache_key in _validated_bytecode_cache:
-        return
+    cache_key = None
+    if cacheable:
+        cache_key = (
+            code_obj.co_code,
+            code_obj.co_names,
+            code_obj.co_consts,
+            code_obj.co_freevars,
+            code_obj.co_cellvars,
+            frozenset(allowed_codes),
+        )
+        if cache_key in _validated_bytecode_cache:
+            return
 
     assert_no_dunder_name(code_obj, expr)
     assert_no_dunder_format_field(code_obj, expr)

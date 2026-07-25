@@ -83,7 +83,10 @@ class StackMap[K, T](MutableMapping[K, T]):
 
     def __len__(self) -> int:
         """Return the number of distinct keys across all mappings."""
-        return sum(1 for key in self)
+        # Count the de-duplicated set directly.  ``sum(1 for key in self)`` built
+        # exactly the same set via ``__iter__`` and then threw away its length to
+        # re-count it one element at a time through a Python-level generator.
+        return len({key for mapping in self._maps for key in mapping})
 
     def __str__(self) -> str:
         """Return a readable representation of the stack of mappings."""

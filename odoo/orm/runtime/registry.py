@@ -88,8 +88,8 @@ class _RegistryCaches:
     dirty flags, inter-process sequences and signaling stay on ``Registry``.
 
     The ormcache decorator (:mod:`odoo.tools.cache`) reads the backing LRU for a
-    cache name; ``Registry`` exposes it through the legacy name-mangled
-    ``_Registry__caches`` property (a thin bridge over ``self.lrus``).
+    cache name; ``Registry`` exposes it through its public
+    :attr:`~Registry.ormcache_lrus` property (a thin bridge over ``self.lrus``).
     """
 
     __slots__ = ("lrus",)
@@ -802,13 +802,23 @@ class Registry(
         self._caches.clear_group(cache_name)
 
     @property
-    def __caches(self) -> dict[str, LRU]:
-        """Legacy bridge: the raw ``{cache_name: LRU}`` mapping.
+    def ormcache_lrus(self) -> dict[str, LRU]:
+        """The ``{cache_name: LRU}`` stores backing :mod:`odoo.tools.cache`.
 
-        Exposed as the name-mangled ``registry._Registry__caches`` that the
-        ormcache decorator (:mod:`odoo.tools.cache`) and a few tests read
-        directly. The storage itself lives on :class:`_RegistryCaches`
-        (``self._caches``); prefer ``registry._caches.lrus`` in new code.
+        This is the **public contract between the registry and the ormcache
+        decorator**, and the only registry attribute that decorator needs.  It
+        used to be reachable only as the name-mangled ``_Registry__caches``,
+        which made a cross-package protocol look like a private attribute and
+        forced every participant to spell out the mangling: ``odoo.tools.cache``
+        on its hottest path, ``odoo.tests.common.get_cache_info``, and four
+        duck-typed stand-ins (``ModelRegistry``, ``ir_qweb._MockRegistry``, two
+        test fakes) that had to *define* ``_Registry__caches`` on themselves --
+        a construct that means "private to class Registry" and is nothing of the
+        sort.  A name that says what it is keeps the storage encapsulated in
+        :class:`_RegistryCaches` while making the protocol greppable and
+        implementable.
+
+        Anything used as ``model.pool`` must provide it.
         """
         return self._caches.lrus
 

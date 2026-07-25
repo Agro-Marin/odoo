@@ -1427,7 +1427,11 @@ class configmanager:
                 )
             else:
                 self._log(logging.INFO, "Transforming --test-file into --test-tags")
-                test_tags = (self["test_tags"] or "").split(",")
+                # Drop empty parts: with no --test-tags this produced
+                # ``",/abs/path.py"``. Harmless today only because TagsSelector
+                # filters blank specs, i.e. the value is malformed and something
+                # downstream happens to tolerate it.
+                test_tags = [t for t in (self["test_tags"] or "").split(",") if t]
                 test_tags.append(str(Path(self["test_file"]).resolve()))
                 self._runtime_options["test_tags"] = ",".join(test_tags)
                 self._runtime_options["test_enable"] = True
@@ -1759,7 +1763,13 @@ class configmanager:
 
         try:
             if not rc_exists and not Path(self["config"]).parent.exists():
-                Path(str(Path(self["config"]).parent)).mkdir(parents=True)
+                # 0o700, like ``session_dir``: the file this directory is
+                # created for holds db / admin / smtp passwords, and ``save()``
+                # already chmods the file itself to 0600. Creating its parent
+                # with the default umask (world-readable + traversable on a
+                # typical 022) left the containing directory listable by every
+                # local user.
+                Path(str(Path(self["config"]).parent)).mkdir(0o700, parents=True)
             try:
                 cfg_path = Path(self["config"])
                 with cfg_path.open("w", encoding="utf-8") as file:

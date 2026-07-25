@@ -1,0 +1,96 @@
+"""Regression tests for ``get_barcode_check_digit`` input validation.
+
+``barcode.nomenclature`` exposes ``sanitize_ean``/``sanitize_upc`` as
+``@api.model`` methods, so any RPC caller reaches this helper with an arbitrary
+string.  Non-digit input used to surface as ``ValueError: invalid literal for
+int() with base 10: 'l'``.
+"""
+
+import unittest
+
+from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
+
+
+class TestRejectsNonDigits(unittest.TestCase):
+    def test_letters(self):
+        with self.assertRaises(ValueError) as ctx:
+            get_barcode_check_digit("abcdefghijklm")
+        # the message must name the input, not one stray character
+        self.assertIn("abcdefghijklm", str(ctx.exception))
+
+    def test_mixed(self):
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit("12345abc90123")
+
+    def test_punctuation(self):
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit("12-4567890123")
+
+    def test_empty(self):
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit("")
+
+    def test_none(self):
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit(None)
+
+    def test_whitespace(self):
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit(" 1234567")
+
+    def test_non_ascii_digits_rejected(self):
+        # fullwidth digits: int() would accept them, but they are not a GTIN
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit("１２３４５６７８")
+
+    def test_superscript_digits_rejected(self):
+        with self.assertRaises(ValueError):
+            get_barcode_check_digit("¹²³")
+
+
+class TestCheckDigitStillCorrect(unittest.TestCase):
+    """The GTIN algorithm itself must be untouched."""
+
+    def test_known_ean13(self):
+        # 5449000096241 is a real GTIN; recomputing must reproduce its last digit
+        self.assertEqual(get_barcode_check_digit("5449000096241"), 1)
+
+    def test_known_ean8(self):
+        self.assertEqual(get_barcode_check_digit("96385074"), 4)
+
+    def test_length_independent(self):
+        # left-padding with zeros must not change the check digit
+        self.assertEqual(
+            get_barcode_check_digit("96385074"),
+            get_barcode_check_digit("0" * 5 + "96385074"),
+        )
+
+    def test_single_digit(self):
+        self.assertEqual(get_barcode_check_digit("7"), 0)
+
+
+class TestCheckBarcodeEncodingUnaffected(unittest.TestCase):
+    """``check_barcode_encoding`` filters before calling, so it must still return
+    False (never raise) for the inputs the helper now rejects."""
+
+    def test_letters_return_false(self):
+        self.assertFalse(check_barcode_encoding("abcdefgh", "ean8"))
+
+    def test_empty_returns_false(self):
+        self.assertFalse(check_barcode_encoding("", "ean13"))
+
+    def test_wrong_length_returns_false(self):
+        self.assertFalse(check_barcode_encoding("123", "ean8"))
+
+    def test_valid_ean8(self):
+        self.assertTrue(check_barcode_encoding("96385074", "ean8"))
+
+    def test_any_encoding(self):
+        self.assertTrue(check_barcode_encoding("whatever", "any"))
+
+    def test_unknown_encoding(self):
+        self.assertFalse(check_barcode_encoding("96385074", "gs1-128"))
+
+
+if __name__ == "__main__":
+    unittest.main()

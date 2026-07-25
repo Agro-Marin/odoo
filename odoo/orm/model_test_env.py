@@ -402,11 +402,12 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
 
-        # ormcache support — the decorator accesses pool._Registry__caches
-        # (name-mangled) to store method results.  defaultdict(dict) gives
-        # each cache name an auto-created dict (no LRU eviction needed in
-        # tests — datasets are small).
-        self._Registry__caches: dict[str, dict] = defaultdict(dict)
+        # ormcache support — ``pool.ormcache_lrus`` is the whole protocol
+        # :mod:`odoo.tools.cache` needs of a registry, so providing it is all a
+        # stand-in has to do.  defaultdict(dict) gives each cache name an
+        # auto-created dict (no LRU eviction needed in tests — datasets are
+        # small).
+        self.ormcache_lrus: dict[str, dict] = defaultdict(dict)
 
         # Registry-loading state — True means "fully loaded, normal operation".
         # Checked by _prepare_create_values to allow/disallow log_access fields.
@@ -519,7 +520,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     f"clear_cache: invalid cache name {cache_name!r} (no dots allowed)"
                 )
             for container in _CACHES_BY_KEY.get(cache_name, (cache_name,)):
-                self._Registry__caches[container].clear()
+                self.ormcache_lrus[container].clear()
 
     def is_an_ordinary_table(self, model) -> bool:
         """Return ``True`` — assume all models have tables in tests."""
@@ -788,7 +789,7 @@ def model_test_env(
 
     # Clear ormcaches: a reused registry may hold results keyed to record IDs
     # from a previous DictBackend.
-    for cache in registry._Registry__caches.values():
+    for cache in registry.ormcache_lrus.values():
         cache.clear()
 
     # Clear cached_property values referencing old Transaction data.

@@ -40,7 +40,8 @@ section; when really in doubt, read the Odoo 19 source in ``core/``.
 
 **Python**
 
-* Double quotes everywhere; line length 88; ``ruff format`` is authoritative (§2.1). 🔧
+* Double quotes everywhere; line length 88; ``ruff format`` defines the style,
+  but is **never run over a whole upstream file** (§2.1). 👁
 * One model per file; file name = model ``_name`` (§1.3). 👁
 * Every model declares ``_name`` **and** ``_description`` (§2.2, §M-rules). 👁
 * Override ``create`` as ``@api.model_create_multi def create(self, vals_list)`` (§2.6). 👁
@@ -314,10 +315,29 @@ Base: `Odoo Coding Guidelines -- Python <https://www.odoo.com/documentation/19.0
 ^^^^^^^^^^^^^^^^^^^^^
 
 
-* PEP 8 compliance, **line length = 88** (enforced by ``ruff format``\ )
+* PEP 8 compliance, **line length = 88** (the style ``ruff format`` produces)
 * Break long lines at logical points; the formatter handles the mechanics
 * Import order: stdlib, third-party, odoo, odoo.addons (alphabetical within each group — enforced by isort via ``ruff``\ )
-* **Double quotes everywhere**: strings, field attributes, docstrings (enforced by ``ruff format`` with ``quote-style = "double"``\ )
+* **Double quotes everywhere**: strings, field attributes, docstrings (the style
+  ``ruff format`` produces, with ``quote-style = "double"``\ )
+
+.. important::
+
+   ``ruff format`` is **deliberately not automated in this repo**, and there is
+   no CI gate for it. ``.pre-commit-config.yaml`` runs ``ruff-check --fix`` but
+   pointedly *not* ``ruff-format``: formatting is whole-file, so running it on
+   a file this fork inherits from upstream Odoo would rewrite untouched lines
+   and turn the next upstream merge into a conflict.
+
+   So the rule is about **what you write**, not about running a command: match
+   the formatter's output in the code you add or substantially rewrite, and
+   leave the rest of the file alone. Reformatting a whole upstream file is a
+   change in its own right — justify it in the commit, don't smuggle it in.
+
+   Consequence to be aware of: ``ruff format --check`` reports pre-existing
+   drift across the tree, so a non-empty report on a file you touched does not
+   mean *you* introduced it. Check ``git diff``, not the formatter, to see what
+   is yours.
 
 .. code-block:: python
 
@@ -2123,10 +2143,13 @@ Running the standalone (Tier 1 / Tier 2) suites takes **two** invocations:
    # Tier 1 component suite + standalone unit suites (config: addons/odoo/pytest.ini)
    pytest
 
-   # Tier 2 real-ORM model suites + service tests — SEPARATE invocation.
-   # The Tier 1 suites register process-global sys.modules stubs for odoo.*,
-   # which would shadow these suites' real ``import odoo.*`` if run together.
-   pytest odoo/orm/tests tests/service
+   # Tier 2 real-ORM model suites + http-layer and service tests — SEPARATE
+   # invocation.  The Tier 1 suites register process-global sys.modules stubs for
+   # odoo.*, which would shadow these suites' real ``import odoo.*`` if run
+   # together.  Pass all three paths: omitting ``odoo/http/tests`` silently skips
+   # it (it is in no other tier's ``testpaths``), and pytest reports success on
+   # the ones that did run.
+   pytest odoo/orm/tests odoo/http/tests tests/service
 
 The ``sys.modules`` stub bootstrap shared by the standalone suites lives in
 ``odoo/_testing_bootstrap.py``; each suite's ``conftest.py`` is a thin wrapper
@@ -2660,7 +2683,8 @@ Linter-enforced — verify ``ruff check`` passes, production code (10)
 #. ``pathlib.Path`` used instead of ``os.path`` (\ ``PTH``\ )
 #. New exception re-raises use ``raise X from Y`` chaining (\ ``B904``\ )
 #. No ``datetime.utcnow()`` — uses ``datetime.now(UTC)`` (\ ``DTZ003`` / ``DTZ004``\ )
-#. ``ruff format`` has been run (consistent whitespace, double quotes, trailing commas)
+#. New / rewritten code matches ``ruff format`` style (consistent whitespace,
+   double quotes, trailing commas) — without reformatting the rest of the file (§2.1)
 #. External HTTP requests include a ``timeout`` parameter (\ ``S113``\ )
 #. No ``verify=False`` in ``requests`` / ``httpx`` calls (\ ``S501``\ )
 #. Regex patterns use raw strings ``r"..."`` — no unescaped backslashes (\ ``RUF039``\ )

@@ -1,0 +1,109 @@
+"""``stripped_sys_argv`` decides what a re-exec'd / spawned Odoo inherits.
+
+It is the function that makes ``--dev=reload`` and worker respawn safe: getting
+it wrong means a reload silently re-runs ``-i``/``-u`` (reinstalling or
+upgrading modules on every restart) or re-saves the config. It had no test.
+
+The behaviour worth pinning is the value-consuming form: ``-u base`` is two
+argv entries, so dropping ``-u`` without also dropping ``base`` would leave a
+bare positional behind. All four spellings have to work -- ``-u base``,
+``-ubase``, ``--update base`` and ``--update=base``.
+
+``find_in_path`` / ``find_pg_tool`` are covered too: they are the reason a
+missing ``wkhtmltopdf`` or ``pg_dump`` reports a clear error instead of a
+``TypeError`` from deep inside ``shutil.which``.
+"""
+
+import unittest
+from unittest import mock
+
+from odoo.tools import subprocess as tools_subprocess
+from odoo.tools.subprocess import find_in_path, find_pg_tool, stripped_sys_argv
+
+
+def strip(argv, *extra):
+    with mock.patch.object(tools_subprocess.sys, "argv", argv):
+        return stripped_sys_argv(*extra)
+
+
+class TestStrippedSysArgv(unittest.TestCase):
+    def test_program_name_is_kept(self):
+        self.assertEqual(strip(["odoo-bin"]), ["odoo-bin"])
+
+    def test_unrelated_options_are_kept(self):
+        argv = ["odoo-bin", "-c", "odoo.conf", "-d", "mydb", "--http-port=8069"]
+        self.assertEqual(strip(argv), argv)
+
+    def test_separate_value_form_drops_both_entries(self):
+        """``-u base`` is two argv entries; leaving ``base`` behind would make
+        it a stray positional for the re-exec'd process."""
+        self.assertEqual(
+            strip(["odoo-bin", "-d", "db", "-u", "base"]), ["odoo-bin", "-d", "db"]
+        )
+
+    def test_attached_short_form(self):
+        self.assertEqual(strip(["odoo-bin", "-ubase", "-d", "db"]), ["odoo-bin", "-d", "db"])
+
+    def test_long_form_with_separate_value(self):
+        self.assertEqual(
+            strip(["odoo-bin", "--update", "base", "-d", "db"]), ["odoo-bin", "-d", "db"]
+        )
+
+    def test_long_form_with_equals(self):
+        self.assertEqual(
+            strip(["odoo-bin", "--update=base", "-d", "db"]), ["odoo-bin", "-d", "db"]
+        )
+
+    def test_init_is_stripped(self):
+        self.assertEqual(strip(["odoo-bin", "-i", "sale", "-d", "db"]), ["odoo-bin", "-d", "db"])
+
+    def test_save_is_stripped(self):
+        """A re-exec must not rewrite the config file again."""
+        self.assertEqual(strip(["odoo-bin", "-s", "-d", "db"]), ["odoo-bin", "-d", "db"])
+
+    def test_i18n_overwrite_is_stripped(self):
+        self.assertEqual(
+            strip(["odoo-bin", "--i18n-overwrite", "-d", "db"]), ["odoo-bin", "-d", "db"]
+        )
+
+    def test_extra_option_can_be_stripped(self):
+        self.assertEqual(
+            strip(["odoo-bin", "-d", "db", "--test-enable"], "--test-enable"),
+            ["odoo-bin", "-d", "db"],
+        )
+
+    def test_unknown_option_to_strip_is_rejected(self):
+        """Not an assert -- the contract must hold under ``python -O`` too."""
+        with self.assertRaises(ValueError):
+            strip(["odoo-bin"], "--no-such-option")
+
+    def test_several_stripped_options_at_once(self):
+        self.assertEqual(
+            strip(["odoo-bin", "-d", "db", "-i", "sale", "-u", "base", "-s"]),
+            ["odoo-bin", "-d", "db"],
+        )
+
+    def test_a_database_named_like_a_module_is_not_confused(self):
+        """The value-consuming rule keys off the PREVIOUS argv entry, so a
+        value that merely looks like an option's value must be kept."""
+        self.assertEqual(
+            strip(["odoo-bin", "-d", "base"]), ["odoo-bin", "-d", "base"]
+        )
+
+
+class TestToolLookup(unittest.TestCase):
+    def test_find_in_path_finds_a_real_executable(self):
+        self.assertTrue(find_in_path("sh").endswith("sh"))
+
+    def test_find_in_path_raises_for_a_missing_executable(self):
+        with self.assertRaises(OSError):
+            find_in_path("odoo-no-such-binary-xyz")
+
+    def test_find_pg_tool_raises_filenotfound(self):
+        """Callers catch FileNotFoundError, not the OSError ``which`` raises."""
+        with self.assertRaises(FileNotFoundError):
+            find_pg_tool("pg_no_such_tool_xyz")
+
+
+if __name__ == "__main__":
+    unittest.main()

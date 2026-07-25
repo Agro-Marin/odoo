@@ -589,7 +589,7 @@ class OdooSassImporter(SassImporter):
 
     def canonicalize(self, url: str, from_import: bool) -> str | None:
         """Resolve an import URL to a canonical file:// URL."""
-        from odoo.tools.misc import file_path
+        from odoo.tools.files import file_path
 
         *parent_parts, filename = url.replace("\\", "/").split("/")
         parent_path_str = str(Path(*parent_parts)) if parent_parts else ""

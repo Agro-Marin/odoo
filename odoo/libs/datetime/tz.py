@@ -9,8 +9,10 @@ __all__ = [
     "utc",
 ]
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from datetime import timezone as dt_timezone
+from types import MappingProxyType
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from babel.core import get_global
@@ -166,7 +168,7 @@ def timezone(name: str) -> ZoneInfo:
     # Try the original name as a last resort
     try:
         tz = ZoneInfo(name)
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         # Honour the documented ``:raises ZoneInfoNotFoundError:`` contract; it
         # subclasses KeyError, so ``except KeyError`` callers keep working.
         # ValueError covers empty/path-like names ('', '../etc/passwd') that
@@ -210,30 +212,42 @@ def all_timezones() -> frozenset[str]:
 
 
 # Cached country -> timezones mapping
-_country_timezones: dict[str, list[str]] | None = None
+_country_timezones: Mapping[str, tuple[str, ...]] | None = None
 
 
-def country_timezones() -> dict[str, list[str]]:
+def country_timezones() -> Mapping[str, tuple[str, ...]]:
     """Return a mapping of country codes to their timezone names.
 
     Uses babel's zone_territories data to build the mapping.
     This replaces pytz.country_timezones.
 
-    :returns: A dict mapping ISO 3166 country codes to lists of timezone names
+    The result is a shared, immutable view of a process-wide cache: it is built
+    once and handed to every caller.  It used to be a plain ``dict`` of
+    ``list``s returned by identity, so a caller appending to one of the lists
+    (or assigning a key) silently corrupted the mapping for the rest of the
+    process -- a lookup table derived from CLDR data has no business being
+    editable by whoever happens to read it.  ``MappingProxyType`` over tuples
+    makes both levels unwritable without paying for a defensive copy per call.
+
+    :returns: An immutable mapping of ISO 3166 country codes to tuples of
+        timezone names
 
     Example::
 
         >>> 'America/New_York' in country_timezones()['US']
         True
         >>> country_timezones()['JP']
-        ['Asia/Tokyo']
+        ('Asia/Tokyo',)
     """
     global _country_timezones  # noqa: PLW0603  # lazily-built module-level cache
     if _country_timezones is None:
         zone_territories = get_global("zone_territories")
-        _country_timezones = {}
+        grouped: dict[str, list[str]] = {}
         for tz_name, country_code in zone_territories.items():
-            if country_code not in _country_timezones:
-                _country_timezones[country_code] = []
-            _country_timezones[country_code].append(tz_name)
+            grouped.setdefault(country_code, []).append(tz_name)
+        # Publish only once fully built: an exception midway would otherwise
+        # leave a half-filled cache installed for the rest of the process.
+        _country_timezones = MappingProxyType(
+            {code: tuple(zones) for code, zones in grouped.items()}
+        )
     return _country_timezones

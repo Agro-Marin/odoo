@@ -207,7 +207,7 @@ class ormcache:
         def lookup(*args, **kwargs):
             model = args[0]
             pool = model.pool
-            d = pool._Registry__caches[_cache_name]
+            d = pool.ormcache_lrus[_cache_name]
             key = _key(*args, **kwargs)
             counter = _counters[pool.db_name, _method]
             counter.cache_name = _cache_name
@@ -279,7 +279,7 @@ class ormcache:
 
     def add_value(self, *args: Any, cache_value: Any = None, **kwargs: Any) -> None:
         model: BaseModel = args[0]
-        d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore[attr-defined]
+        d: LRU = model.pool.ormcache_lrus[self.cache_name]  # type: ignore[attr-defined]
         key = self.key(*args, **kwargs)
         d[key] = cache_value
 
@@ -402,7 +402,7 @@ def log_ormcache_stats(
                 )
                 db_cache_stats = cache_stats[dbname]
                 db_cache_usage = cache_usage[dbname]
-                for cache_name, cache in registry._Registry__caches.items():
+                for cache_name, cache in registry.ormcache_lrus.items():
                     cache_total_size = 0
                     for cache_key, cache_value in cache.snapshot.items():
                         method = cache_key[1]
