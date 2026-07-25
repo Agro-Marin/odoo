@@ -1,23 +1,18 @@
 import time
 
-# The validity duration of a preflight response, one day.
 CORS_MAX_AGE = 60 * 60 * 24
 
-# The HTTP methods that do not require a CSRF validation.
 SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
 
-# Default CSRF token lifetime (one year). The embedded ``max_ts`` changes on
-# every issuance, acting as a per-token salt against BREACH-style attacks.
 CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 
-# The default lang to use when the browser doesn't specify it
 DEFAULT_LANG = "en_US"
 
 
 def get_default_session() -> dict[str, object]:
     """The dictionary to initialise a new session with."""
     return {
-        "context": {},  # 'lang': request.default_lang()  # must be set at runtime
+        "context": {},
         "create_time": time.time(),
         "db": None,
         "debug": "",
@@ -28,7 +23,7 @@ def get_default_session() -> dict[str, object]:
     }
 
 
-DEFAULT_MAX_CONTENT_LENGTH = 128 * 1024 * 1024  # 128MiB
+DEFAULT_MAX_CONTENT_LENGTH = 128 * 1024 * 1024
 
 MISSING_CSRF_WARNING = """\
 No CSRF validation token provided for path %r
@@ -64,18 +59,9 @@ NOT_FOUND_NODB = """\
 <!-- Alternatively, use the X-Odoo-Database header. -->
 """
 
-# Paths whose controllers call ``web.ensure_db()``: when the database becomes
-# unusable mid-request, drop the ``?db=`` parameter and retry db-less instead of
-# surfacing the registry error. Matched by exact path or ENSURE_DB_PATH_PREFIX.
-# Test-only paths don't belong here: ``test_registry.TestHttpRegistry`` patches
-# ``odoo.http.application.ENSURE_DB_PATHS`` (the consuming namespace) to add its
-# ``/test_http/ensure_db`` route.
 ENSURE_DB_PATH_PREFIX = "/odoo/"
 ENSURE_DB_PATHS = frozenset({"/odoo", "/web", "/web/login"})
 
-# The @route arguments to propagate to the werkzeug routing rule. ``frozenset``
-# because it is a shared read-only global (consumed by ``submap`` in
-# application.py and ir_http); freezing prevents accidental mutation.
 ROUTING_KEYS = frozenset(
     {
         "defaults",
@@ -90,29 +76,12 @@ ROUTING_KEYS = frozenset(
     }
 )
 
-# The default duration of a user session cookie. Inactive sessions are reaped
-# server-side as well with a threshold that can be set via an optional
-# config parameter `sessions.max_inactivity_seconds` (default: SESSION_LIFETIME)
 SESSION_LIFETIME = 60 * 60 * 24 * 7
 
-# The default duration (3h) before a session is rotated, changing the
-# session id (also on the cookie) but keeping the same content.
 SESSION_ROTATION_INTERVAL = 60 * 60 * 3
 
-# After a session is rotated, the session should be kept for a couple of
-# seconds to account for network delay between multiple requests which are
-# made at the same time and all use the same old cookie.
 SESSION_DELETION_TIMER = 120
 
-# Paths where automatic session rotation is disabled: high-frequency polling
-# endpoints hit many times per minute, where rotating wastes a disk write per
-# call and reopens the soft-rotate race — rotation should fire on a real user
-# action. The set starts EMPTY: the paths belong to the modules that serve them
-# (bus registers its websocket endpoints), keeping this core file free of
-# other modules' URL knowledge. Owners call
-# :func:`register_session_rotation_excluded_paths` at import time; consumers
-# (``Request._save_session``) hold a reference to this very set object, so
-# registrations are visible process-wide regardless of import order.
 SESSION_ROTATION_EXCLUDED_PATHS: set[str] = set()
 
 
@@ -126,24 +95,10 @@ def register_session_rotation_excluded_paths(*paths: str) -> None:
     SESSION_ROTATION_EXCLUDED_PATHS.update(paths)
 
 
-# Session id characters that stay stable across a "soft" rotation. This prefix
-# computes the CSRF token (so it survives soft rotation) and correlates
-# device-log rows. 42 base64-urlsafe chars ≈ 252 bits of entropy; see
-# :meth:`FilesystemSessionStore.generate_key` for the collision analysis.
 STORED_SESSION_BYTES = 42
 
-# The cache duration for static content from the filesystem, one week.
 STATIC_CACHE = 60 * 60 * 24 * 7
 
-# The cache duration for content where the url uniquely identifies the
-# content (usually using a hash), one year.
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
 
-# TTL (seconds) for the database catalog cached in
-# ``request_class._all_dbs_cached``. Without it, ``list_dbs(force=True)`` runs a
-# ``pg_database`` query on every db-less request. The cached list is
-# host-independent (only the cheap ``db_filter`` after it depends on the Host),
-# so a burst across many Hosts costs one query per TTL bucket, not one per host.
-# Staleness is self-healing: a new DB appears within the delay; a dropped-but-
-# cached DB routes to a RegistryError the entrypoint already recovers from.
 DB_MONODB_CACHE_TTL = 5.0

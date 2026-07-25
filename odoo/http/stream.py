@@ -31,7 +31,7 @@ class Stream:
     dedicated constructors is discouraged.
     """
 
-    type: str = ""  # 'data' or 'path' or 'url'
+    type: str = ""
     data: bytes | None = None
     path: str | None = None
     url: str | None = None
@@ -41,18 +41,12 @@ class Stream:
     download_name: str | None = None
     conditional: bool = True
     etag: bool | str = True
-    # ``float`` for path/data streams; a ``datetime`` when built from a binary
-    # field's ``write_date`` (:meth:`from_binary_field`). ``send_file`` accepts
-    # both, so the union is the honest annotation.
     last_modified: float | datetime | None = None
     max_age: int | None = None
     immutable: bool = False
     size: int | None = None
     public: bool = False
 
-    # Whitelist of kwargs accepted by ``__init__`` (kept in sync with the class
-    # attributes above). Without it, a typo like ``Stream(as_attatchment=True)``
-    # silently set a bogus attribute, leaving ``as_attachment`` at its default.
     _ALLOWED_KWARGS: frozenset[str] = frozenset(
         {
             "type",
@@ -92,8 +86,6 @@ class Stream:
             intermediate proxies, otherwise only let the browser cache
             it.
         """
-        # Validate that ``path`` resolves under a known ``addons_path`` dir
-        # (raises FileNotFoundError if missing), then build from the trusted path.
         path = file_path(path, filter_ext)
         return cls._from_trusted_path(path, public=public)
 
@@ -109,20 +101,13 @@ class Stream:
         :meth:`Request._serve_static`), not a misleading ``ValueError``.
         """
         p = Path(path)
-        st = p.stat()  # FileNotFoundError (OSError) if the file vanished
+        st = p.stat()
         if not S_ISREG(st.st_mode):
-            # A directory (or socket/fifo/device) is not streamable. Raise an
-            # OSError (not ``ValueError``) so callers mapping OSError → 404
-            # (:meth:`Request._serve_static`) degrade gracefully; a ``ValueError``
-            # would turn a directory-URL probe (``/web/static/src``) into a 500.
             msg = f"Path {path!r} is not a regular file"
             if S_ISDIR(st.st_mode):
                 raise IsADirectoryError(msg)
             raise OSError(msg)
         check = adler32(path.encode())
-        # ``st_mtime_ns`` (not ``int(st_mtime)``) so a same-second rewrite of
-        # same-length content still busts the cache. The size+adler32(path) suffix
-        # preserves the original collision resistance.
         return cls(
             type="path",
             path=path,
@@ -139,28 +124,18 @@ class Stream:
         """Create a :class:`~Stream` from a binary field."""
         data = record[field_name] or b""
 
-        # Image fields enforce base64 encoding. Binary fields don't enforce
-        # anything: raw bytes are fine, expected even. People nonetheless write
-        # base64-encoded bytes inside binary fields and expect automatic
-        # decoding when read, crazy! So attempt to decode and fall back to the
-        # raw bytes if it isn't valid base64.
         with contextlib.suppress(ValueError):
             data = base64.b64decode(
-                # Some libs add a linefeed every X (< 79) chars in the base64
-                # (email mime). validate=True rejects those, so strip them.
                 data.replace(b"\r", b"").replace(b"\n", b""),
                 validate=True,
             )
         return cls(
             type="data",
             data=data,
-            # ``record.env`` (not the global ``request.env``): the checksum does
-            # not depend on the environment, and the record's env is always
-            # live — so building a Stream from a cron/shell (no request) works.
             etag=record.env["ir.attachment"]._content_checksum(data),
             last_modified=record.write_date if record._log_access else None,
             size=len(data),
-            public=record.env.user._is_public(),  # good enough
+            public=record.env.user._is_public(),
         )
 
     def read(self) -> bytes:
@@ -182,10 +157,6 @@ class Stream:
 
         if self.type == "path":
             if self.path is None:
-                # Mirror the ``data`` branch and ``get_response``: a missing
-                # backing attribute is a ``ValueError``, not the ``TypeError``
-                # that ``Path(None)`` would raise, so callers see the documented
-                # contract.
                 msg = "There is nothing to stream, missing 'path' attribute."
                 raise ValueError(msg)
             with Path(self.path).open("rb") as file:
@@ -219,7 +190,7 @@ class Stream:
             :func:`werkzeug.utils.send_file` instead of the stream
             sensitive values. Discouraged.
         """
-        from .wrappers import Response  # lazy: avoids a stream<->wrappers import edge
+        from .wrappers import Response
 
         if self.type not in ("url", "data", "path"):
             e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
@@ -255,11 +226,11 @@ class Stream:
 
         if self.type == "data":
             res = _send_file(BytesIO(self.data), **send_file_kwargs)
-        else:  # self.type == 'path'
+        else:
             send_file_kwargs["use_x_sendfile"] = False
             x_accel_redirect: str | None = None
             if config["x_sendfile"]:
-                with contextlib.suppress(ValueError):  # outside of the filestore
+                with contextlib.suppress(ValueError):
                     fspath = Path(self.path).relative_to(
                         Path(config["data_dir"]) / "filestore"
                     )
@@ -270,17 +241,12 @@ class Stream:
             if "X-Sendfile" in res.headers and x_accel_redirect is not None:
                 res.headers["X-Accel-Redirect"] = x_accel_redirect
 
-                # In case of X-Sendfile/X-Accel-Redirect, the body is empty,
-                # yet werkzeug gives the length of the file. This makes
-                # NGINX wait for content that'll never arrive.
                 res.headers["Content-Length"] = "0"
 
-        # ``res.headers`` / ``res.cache_control`` rebuild a proxy facade on every
-        # access; hoist them so this tail mutates one facade, not one per write.
         headers = res.headers
         headers["X-Content-Type-Options"] = "nosniff"
 
-        if content_security_policy:  # see also Application.set_csp()
+        if content_security_policy:
             headers["Content-Security-Policy"] = content_security_policy
 
         cache_control = res.cache_control
@@ -291,6 +257,6 @@ class Stream:
             cache_control.pop("public", "")
             cache_control.private = True
         if immutable:
-            cache_control["immutable"] = None  # None sets the directive
+            cache_control["immutable"] = None
 
         return res

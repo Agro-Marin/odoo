@@ -8,16 +8,14 @@ from odoo.http.geoip import _GEOIP_NULL, _GeoIPNull
 
 def test_null_sentinel_is_chainable_and_falsy():
     n = _GeoIPNull()
-    # arbitrarily deep attribute chains keep returning the same sentinel
     assert n.country.iso_code.anything is n
     assert n.location.latitude is n
     assert bool(n) is False
 
 
 def test_null_sentinel_equals_none_only():
-    assert (_GEOIP_NULL == None) is True  # noqa: E711
-    assert (_GEOIP_NULL != None) is False  # noqa: E711
-    # __eq__ tested directly (avoids a yoda-condition rewrite): only None/self match
+    assert (_GEOIP_NULL == None) is True
+    assert (_GEOIP_NULL != None) is False
     assert _GEOIP_NULL.__eq__(object()) is False
     assert _GEOIP_NULL.__eq__(_GEOIP_NULL) is True
 
@@ -80,10 +78,8 @@ def test_getattr_typo_raises_even_without_geoip2():
     geoip_mod.GEOIP_EMPTY_CITY = _GEOIP_NULL
     try:
         geo = GeoIP("127.0.0.1", app=app)
-        # real model attributes still chain to the (null) records
         assert geo.location is _GEOIP_NULL
         assert geo.country is _GEOIP_NULL
-        # a typo raises, exactly like on a geoip2-equipped host
         with pytest.raises(AttributeError):
             _ = geo.locatoin
     finally:

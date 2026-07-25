@@ -21,14 +21,13 @@ def test_response_load_always_returns_facade():
     assert loaded.status_code == 201
     for result in ("txt", b"bytes", None):
         assert isinstance(Response.load(result), Response)
-    # a facade passes through unchanged
     facade = Response("x", status=202)
     assert Response.load(facade) is facade
 
 
 def test_response_ctor_from_werkzeug_response_is_not_double_wrapped():
     r = Response(werkzeug.wrappers.Response("hi", status=203))
-    assert type(r._wrapped__) is _Response  # not a nested facade
+    assert type(r._wrapped__) is _Response
     assert r.status_code == 203
 
 
@@ -77,7 +76,7 @@ def test_stream_read_path_roundtrip(tmp_path):
 
 def test_stream_rejects_unknown_kwargs():
     with pytest.raises(TypeError, match="unexpected keyword"):
-        Stream(as_attatchment=True)  # typo
+        Stream(as_attatchment=True)
 
 
 def test_stream_read_data_roundtrip():

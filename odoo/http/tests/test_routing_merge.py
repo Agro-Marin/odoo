@@ -121,7 +121,7 @@ def test_merge_never_mutates_declared_fragments():
     Parent.__module__ = "odoo.addons.ma.controllers"
 
     class Child(Parent):
-        @route(type="jsonrpc", readonly=True)  # both conflict with the parent
+        @route(type="jsonrpc", readonly=True)
         def x(self):
             return super().x()
 
@@ -131,21 +131,16 @@ def test_merge_never_mutates_declared_fragments():
     child_decl = dict(Child.__dict__["x"].original_routing)
 
     for routing in _merge(("ma", Parent), ("mb", Child)).values():
-        assert routing["type"] == "http"  # conflicting override loses
-        assert routing["readonly"] is False  # conflicting flip forced RW
+        assert routing["type"] == "http"
+        assert routing["readonly"] is False
 
-    # The declarations survive the merge untouched...
     assert dict(Parent.__dict__["x"].original_routing) == parent_decl
     assert dict(Child.__dict__["x"].original_routing) == child_decl
     assert child_decl["type"] == "jsonrpc"
     assert child_decl["readonly"] is True
-    # ...while the resolved type is stamped on the wrapper function itself,
-    # where route_wrapper reads it at dispatch time (deterministic, so
-    # re-stamping across builds is idempotent).
     assert Parent.__dict__["x"]._merged_route_type == "http"
     assert Child.__dict__["x"]._merged_route_type == "http"
 
-    # ...so a rebuild replays identically (order-independent outcome).
     for routing in _merge(("ma", Parent), ("mb", Child)).values():
         assert routing["type"] == "http"
         assert routing["readonly"] is False
@@ -180,7 +175,6 @@ def test_unknown_route_parameter_warns(caplog):
         for rec in caplog.records
     )
 
-    # A declared extension key is accepted silently.
     register_routing_parameters("probe_extension_key")
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="odoo.http.routing"):
@@ -190,3 +184,96 @@ def test_unknown_route_parameter_warns(caplog):
             return ""
 
     assert not caplog.records
+
+
+def _endpoints(*mod_cls):
+    """Like ``_merge`` but yields the endpoint objects, not just their routing."""
+    from odoo.http.routing import _generate_routing_rules
+
+    Controller.children_classes.clear()
+    for mod, cls in mod_cls:
+        Controller.children_classes[mod].append(cls)
+    with contextlib.suppress(Exception):
+        logging.disable(logging.CRITICAL)
+    result = dict(_generate_routing_rules([m for m, _ in mod_cls], False))
+    logging.disable(logging.NOTSET)
+    return result
+
+
+def test_typed_is_inherited_by_an_override_that_does_not_restate_it():
+    """``typed=True`` must survive the merge, coercion included.
+
+    Compiling the specs at DECORATION time meant an override silently lost
+    coercion while the merged routing — and the OpenAPI document built from it —
+    kept advertising the schema and its 400: a handler declaring ``n: int``
+    received the raw query string.
+    """
+    seen = {}
+
+    class Parent(Controller):
+        __module__ = "odoo.addons.merge_typed"
+
+        @route("/merge/typed", type="http", auth="none", typed=True)
+        def hit(self, n: int, **kw):
+            seen["v"] = (n, type(n).__name__)
+            return "ok"
+
+    class Child(Parent):
+        __module__ = "odoo.addons.merge_typed"
+
+        @route()
+        def hit(self, n: int, **kw):
+            seen["v"] = (n, type(n).__name__)
+            return "ok"
+
+    endpoint = _endpoints(("merge_typed", Parent), ("merge_typed", Child))[
+        "/merge/typed"
+    ]
+    assert endpoint.routing.get("typed") is True
+    endpoint(n="5")
+    assert seen["v"] == (5, "int"), "the override must coerce, not pass the raw string"
+
+
+def test_an_override_can_still_opt_out_of_typed():
+    seen = {}
+
+    class Parent(Controller):
+        __module__ = "odoo.addons.merge_untyped"
+
+        @route("/merge/untyped", type="http", auth="none", typed=True)
+        def hit(self, n: int, **kw):
+            return "ok"
+
+    class Child(Parent):
+        __module__ = "odoo.addons.merge_untyped"
+
+        @route(typed=False)
+        def hit(self, n: int, **kw):
+            seen["v"] = (n, type(n).__name__)
+            return "ok"
+
+    endpoint = _endpoints(("merge_untyped", Parent), ("merge_untyped", Child))[
+        "/merge/untyped"
+    ]
+    endpoint(n="9")
+    assert seen["v"] == ("9", "str")
+
+
+def test_typed_specs_are_stable_across_repeated_map_builds():
+    """Routing maps are rebuilt per database; the specs live on a process-global
+    function object, so a second build must not leave a different state behind."""
+    seen = {}
+
+    class Parent(Controller):
+        __module__ = "odoo.addons.merge_rebuild"
+
+        @route("/merge/rebuild", type="http", auth="none", typed=True)
+        def hit(self, n: int, **kw):
+            seen["v"] = (n, type(n).__name__)
+            return "ok"
+
+    args = (("merge_rebuild", Parent),)
+    _endpoints(*args)["/merge/rebuild"](n="3")
+    assert seen["v"] == (3, "int")
+    _endpoints(*args)["/merge/rebuild"](n="4")
+    assert seen["v"] == (4, "int")

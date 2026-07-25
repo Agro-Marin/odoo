@@ -34,8 +34,6 @@ from werkzeug.exceptions import BadRequest
 
 _PRIMITIVES: frozenset[type] = frozenset({int, float, bool, str})
 
-# HTTP/form boolean spellings. A checkbox sends "on"; querystrings and JSON-over-
-# HTTP send "true"/"1"; an absent checkbox often arrives as "" (treated false).
 _TRUE_TOKENS: frozenset[str] = frozenset({"true", "1", "on", "yes", "t"})
 _FALSE_TOKENS: frozenset[str] = frozenset({"false", "0", "off", "no", "f", ""})
 
@@ -63,12 +61,12 @@ def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
     coerce, so the caller leaves such parameters untouched.
     """
     allow_none = False
-    if isinstance(annotation, types.UnionType):  # PEP 604 ``X | None``
+    if isinstance(annotation, types.UnionType):
         args = typing.get_args(annotation)
         allow_none = type(None) in args
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) != 1:
-            return None, None, allow_none  # union of several real types: unsupported
+            return None, None, allow_none
         annotation = non_none[0]
 
     origin = typing.get_origin(annotation)
@@ -78,7 +76,7 @@ def _resolve(annotation: Any) -> tuple[type | None, type | None, bool]:
         item_args = typing.get_args(annotation)
         item = item_args[0] if item_args else None
         if item not in _PRIMITIVES:
-            item = None  # list[<non-primitive>] -> elements pass through
+            item = None
         return list, item, allow_none
     if annotation in _PRIMITIVES:
         return annotation, None, allow_none
@@ -95,37 +93,23 @@ def build_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
     """
     specs: dict[str, ParamSpec] = {}
     params = list(inspect.signature(endpoint).parameters.values())
-    for param in params[1:]:  # skip the bound controller ``self`` (params[0])
+    for param in params[1:]:
         if param.kind not in (
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
             inspect.Parameter.KEYWORD_ONLY,
         ):
             continue
         if param.annotation is inspect.Parameter.empty:
-            continue  # unannotated -> pass through unchanged
+            continue
         annotation = param.annotation
         if isinstance(annotation, str):
-            # ``from __future__ import annotations`` leaves every annotation a
-            # string; without evaluation, ``typed=True`` silently coerced
-            # nothing in such modules. Evaluate per parameter against the
-            # handler's globals (deliberately NOT the all-or-nothing
-            # ``get_type_hints``, where one unresolvable name — say a
-            # TYPE_CHECKING-only return type — would disable coercion for
-            # every other parameter). An annotation that cannot be evaluated
-            # passes through like any unsupported one.
-            # The string is developer-authored source (what ``inspect.signature
-            # (eval_str=True)`` would eval), not request data — S307 doesn't
-            # apply; the silent pass-through on failure IS the documented
-            # degradation, hence no log (S112).
             try:
-                annotation = eval(  # noqa: S307
-                    annotation, getattr(endpoint, "__globals__", None)
-                )
-            except Exception:  # noqa: S112
+                annotation = eval(annotation, getattr(endpoint, "__globals__", None))
+            except Exception:
                 continue
         target, item, allow_none = _resolve(annotation)
         if target is None:
-            continue  # unsupported annotation -> pass through unchanged
+            continue
         specs[param.name] = ParamSpec(
             target=target,
             item=item,
@@ -144,7 +128,7 @@ def _to_bool(name: str, value: Any) -> bool:
             return True
         if token in _FALSE_TOKENS:
             return False
-    if isinstance(value, int):  # JSON 0/1 (bool already handled above)
+    if isinstance(value, int):
         return bool(value)
     raise BadRequest(f"parameter {name!r} must be a boolean")
 
@@ -170,25 +154,16 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
     if target is str:
         if isinstance(value, str):
             return value
-        # Whitelist what may be stringified: only JSON scalars (int/float/bool)
-        # convert to a meaningful string. Anything else — a dict/list, raw
-        # ``bytes``, or a werkzeug ``FileStorage`` posted under a str-typed field
-        # — would silently arrive as its Python ``repr`` (e.g.
-        # ``"<FileStorage: 'x.png' ...>"``), never what the caller meant, so
-        # reject it. ``bool`` is an ``int`` subclass, covered here.
+        if isinstance(value, bool):
+            raise BadRequest(f"parameter {name!r} must be a string")
         if isinstance(value, (int, float)):
             return str(value)
         raise BadRequest(f"parameter {name!r} must be a string")
     if target is bool:
         return _to_bool(name, value)
     if target is int:
-        # bool is an int subclass; a JSON ``true`` for an int param is a type
-        # error, not silently 1.
         if isinstance(value, bool):
             raise BadRequest(f"parameter {name!r} must be an integer")
-        # ``int(3.7)`` truncates: a fractional JSON number for an int param is
-        # a caller bug, not a value to round silently. Integral floats (JS
-        # clients serialize 3 as 3.0) are accepted.
         if isinstance(value, float) and not value.is_integer():
             raise BadRequest(f"parameter {name!r} must be an integer")
         _reject_non_json_number(name, value, "an integer")
@@ -204,13 +179,10 @@ def _coerce_scalar(name: str, value: Any, target: type) -> Any:
             result = float(value)
         except TypeError, ValueError:
             raise BadRequest(f"parameter {name!r} must be a number") from None
-        # ``float("nan")`` / ``float("inf")`` parse from a query string but are
-        # never a meaningful request value: NaN poisons comparisons downstream
-        # and neither round-trips through JSON. Fail closed.
         if not math.isfinite(result):
             raise BadRequest(f"parameter {name!r} must be a finite number")
         return result
-    return value  # unreachable: build_param_specs only stores primitives
+    return value
 
 
 def _coerce_value(name: str, value: Any, spec: ParamSpec) -> Any:

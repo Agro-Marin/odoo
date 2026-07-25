@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import logging
 import threading
@@ -7,7 +8,7 @@ from typing import Any
 from urllib.parse import urlencode, urlparse
 
 import werkzeug.routing
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
 from werkzeug.wrappers import Response
 
@@ -31,9 +32,6 @@ from .wrappers import HTTPRequest
 
 _logger = logging.getLogger(__name__)
 
-# Cached ProxyFix instance — we only use it for the side effect of
-# rewriting environ keys (X-Forwarded-For/Proto/Host), no need to
-# instantiate a new middleware on every request.
 _proxy_fix = ProxyFix_(
     lambda environ, start_response: [],
     x_for=1,
@@ -96,15 +94,11 @@ class _locked_cached_property(functools.cached_property):
         if instance is None:
             return self
         if self.attrname is None:
-            # No __set_name__ ran (e.g. attached dynamically); defer to the
-            # base implementation, which raises the appropriate TypeError.
             return super().__get__(instance, owner)
         cache = instance.__dict__
         val = cache.get(self.attrname, _UNSET)
         if val is _UNSET:
             with self.lock:
-                # Re-read under the lock: a peer may have filled it while we
-                # waited, in which case we must not run the factory again.
                 val = cache.get(self.attrname, _UNSET)
                 if val is _UNSET:
                     val = self.func(instance)
@@ -114,8 +108,6 @@ class _locked_cached_property(functools.cached_property):
 
 class Application:
     """Odoo WSGI application"""
-
-    # See also: https://www.python.org/dev/peps/pep-3333
 
     def initialize(self) -> None:
         """
@@ -150,23 +142,14 @@ class Application:
 
         netloc, path = urlparse(url)[1:3]
         try:
-            # First segment is empty for absolute paths (``/foo/static/bar``);
-            # ``split`` raises ``ValueError`` for paths without three ``/``
-            # separators (already malformed for our purposes).
             _leading, module, static, resource = path.split("/", 3)
         except ValueError:
             return None
 
-        # Hostnames are case-insensitive (RFC 4343): compare the URL authority to
-        # ``host`` case-folded, else a same-host URL spelled ``Example.com`` misses
-        # the local-static fast path and falls through to slower attachment serving.
         host = host.lower()
         if netloc and netloc.lower() != host:
             return None
 
-        # A hostless URL like ``odoo.com/<addon>/static/<file>`` has no ``//``, so
-        # ``urlparse`` leaves ``netloc`` empty and puts the authority in the first
-        # path segment (``_leading``). Validate that against ``host`` too.
         if not netloc and _leading and _leading.lower() != host:
             return None
 
@@ -188,10 +171,6 @@ class Application:
         for url, endpoint in _generate_routing_rules(
             [""] + config["server_wide_modules"], nodb_only=True
         ):
-            # ``FasterRule`` (lazy builder compilation), like the per-database map
-            # in ``ir.http.routing_map`` — the nodb map used a plain ``Rule`` and
-            # paid full builder-compilation up front for rules that are only
-            # matched, never ``url_for``-built.
             rule = FasterRule(url, endpoint=endpoint, **rule_routing_kwargs(endpoint))
             rule.merge_slashes = False
             nodb_routing_map.add(rule)
@@ -232,8 +211,6 @@ class Application:
         try:
             return geoip2.database.Reader(config["geoip_city_db"])
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
-            # Debug, not info: an absent/misconfigured City db is an expected
-            # optional-feature state, logged once per worker.
             _logger.debug(
                 "Couldn't load Geoip City file at %s (%s). IP Resolver disabled.",
                 config["geoip_city_db"],
@@ -318,31 +295,16 @@ class Application:
             exc_info=exc.__cause__,
         )
         request.db = None
-        # The logout is made durable only when the failure is durable too:
-        # * db_absent is True — the database is confirmed dropped; a session
-        #   bound to it must not stay logged in on disk.
-        # * db_absent is False and not transient — the database exists but its
-        #   registry is durably broken (corrupt schema); logging out prevents a
-        #   per-request registry-rebuild storm.
-        # Every passing condition — catalog unreachable (db_absent is None, e.g.
-        # PostgreSQL restarting) or a transient failure against an existing
-        # database (connection loss through a warm pool, pool starvation under
-        # load) — keeps the session file: the request is still served logged-out
-        # and db-less (so ensure_db() controllers redirect to the selector as
-        # usual), but with can_save = False the logout stays in-memory, and the
-        # user is still logged in once the blip passes.
         durable = exc.db_absent is True or (
             exc.db_absent is False and not exc.transient
         )
         if not durable:
-            request.session.can_save = False  # in-memory logout only
+            request.session.can_save = False
         request.session.logout()
         if (
             httprequest.path.startswith(ENSURE_DB_PATH_PREFIX)
             or httprequest.path in ENSURE_DB_PATHS
         ):
-            # ensure_db() protected routes: remove ?db= from the query string so
-            # db-less serving does not bounce straight back to the broken db
             args_nodb = request.httprequest.args.copy()
             args_nodb.pop("db", None)
             request.reroute(
@@ -392,9 +354,50 @@ class Application:
         else:
             from werkzeug.exceptions import InternalServerError
 
-            # ``str(Exception()) == ""``; pass ``None`` so werkzeug uses its
-            # built-in 500 description instead of an empty <p>.
             exc.error_response = InternalServerError(str(exc) or None)
+
+    def _finalize_error_response(self, exc: Exception, request: Request | None) -> None:
+        """Run the post-dispatch pipeline over ``exc.error_response``.
+
+        Error responses are built by ``handle_error`` and returned straight to
+        the WSGI server, so they used to skip :meth:`Dispatcher.post_dispatch`
+        entirely. Everything that step contributes was therefore silently lost
+        on *every* failing request:
+
+        * the CORS headers ``pre_dispatch`` staged on ``future_response`` — so a
+          cross-origin caller of a ``cors=`` route saw an opaque browser CORS
+          failure instead of the 400/500 the server actually sent, making the
+          error unreadable and undebuggable from the client;
+        * the ``session_id`` cookie, so a session created (or rotated) during a
+          request that then failed never reached the client — the next request
+          minted yet another session;
+        * ``set_csp``'s ``X-Content-Type-Options: nosniff``.
+
+        ``handle_error`` may hand back an ``HTTPException`` rather than a
+        ``Response`` (``HttpDispatcher`` returns HTTP exceptions as-is), so
+        materialise it first — ``get_response`` is the same conversion
+        ``HTTPException.__call__`` would perform at WSGI time, only earlier, so
+        the headers have something to land on.
+
+        Best-effort by construction: this runs inside the entrypoint's ``except``
+        block, where the cursor is already closed and the registry may be gone. A
+        failure here must never replace the error being reported, so it is logged
+        and the un-decorated response is kept.
+        """
+        if request is None or not request._post_init_done:
+            return
+        try:
+            response = exc.error_response
+            if isinstance(response, HTTPException):
+                response = response.get_response(request.httprequest.environ)
+            request.dispatcher.post_dispatch(response)
+            exc.error_response = response
+        except Exception:
+            _logger.warning(
+                "Could not post-process the error response; "
+                "CORS/session headers may be missing.",
+                exc_info=True,
+            )
 
     def __call__(
         self, environ: dict[str, object], start_response: Callable
@@ -413,8 +416,6 @@ class Application:
         self._apply_proxy_fix(environ)
 
         with HTTPRequest(environ) as httprequest:
-            # Build/push inside the try so early failures (e.g. bad environ)
-            # become an Odoo error response instead of bubbling raw to WSGI.
             request: Request | None = None
             pushed = False
             try:
@@ -424,6 +425,9 @@ class Application:
 
                 request._post_init()
                 threading.current_thread().url = httprequest.url
+
+                if "\x00" in httprequest.path:
+                    raise NotFound
 
                 static_file = self.get_static_file(httprequest.path)
                 if static_file:
@@ -441,15 +445,17 @@ class Application:
                 return response(environ, start_response)
 
             except Exception as exc:
-                # Log here (traceback rooted at ``__call__``), then ensure the
-                # exception carries a WSGI error response.
                 self._log_request_exception(exc)
                 self._ensure_error_response(exc, request)
+                self._finalize_error_response(exc, request)
                 return exc.error_response(environ, start_response)
 
             finally:
                 if pushed:
                     _request_stack.pop()
+                if request is not None and request.httprequest is not httprequest:
+                    with contextlib.suppress(Exception):
+                        request.httprequest.close()
 
 
 root = Application()

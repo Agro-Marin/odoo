@@ -21,20 +21,11 @@ from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
 
-# Every ``@route`` keyword the framework itself consumes, plus the werkzeug
-# ``Rule`` kwargs forwarded via :data:`ROUTING_KEYS`. ``endpoint.routing`` is an
-# open extension namespace — modules read their own keys from it (website's
-# ``sitemap=``, auth_timeout's ``check_identity=``, ...) — so unknown keys can't
-# be *rejected*; but an undeclared key at decoration time has historically been
-# a typo (``raedonly=True``) silently stored and ignored. Extension modules
-# declare their keys with :func:`register_routing_parameters` at import time
-# (dependencies import before their dependents' controllers are decorated, so
-# declarations always precede use); anything undeclared draws a warning.
 _KNOWN_ROUTING_PARAMETERS: set[str] = {
-    # consumed by the decorator / dispatchers / ir.http
     "auth",
     "captcha",
     "cors",
+    "cors_credentials",
     "csrf",
     "handle_params_access_error",
     "max_content_length",
@@ -43,17 +34,10 @@ _KNOWN_ROUTING_PARAMETERS: set[str] = {
     "type",
     "typed",
     *ROUTING_KEYS,
-    # Platform vocabulary declared HERE, not by its consumers: these keys are
-    # set *speculatively* by base-layer controllers (``web.web_login`` carries
-    # ``website=``/``multilang=``/``sitemap=``/``list_as_website_content=``)
-    # so that the consumer honours them WHEN installed — and that consumer
-    # (website / http_routing) imports long after the base layer decorated its
-    # routes, so consumer-side register_routing_parameters() would warn
-    # spuriously at every startup.
-    "website",  # consumed by http_routing/website ir_http
-    "multilang",  # consumed by http_routing ir_http (lang-prefixed routing)
-    "sitemap",  # consumed by website sitemap generation
-    "list_as_website_content",  # consumed by website_technical_page
+    "website",
+    "multilang",
+    "sitemap",
+    "list_as_website_content",
 }
 
 
@@ -91,19 +75,9 @@ class LazyCompiledBuilder:
         self._append_unknown = append_unknown
 
     def __get__(self, *args: Any) -> LazyCompiledBuilder:
-        # Rule.compile binds the result via _compile_builder(...).__get__(self, None),
-        # so the builder must be a descriptor; returning self here keeps this lazy
-        # wrapper alive through that binding.
         return self
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        # Routing maps are shared across worker threads, so the first url_for
-        # of a rule can race. Compilation is idempotent: concurrent first calls
-        # may each compile (last write wins), which is safe; what must NOT
-        # happen is deleting the source attributes after publishing — a peer
-        # that passed the ``None`` check would then crash on ``self.rule``
-        # (AttributeError → 500). Keep the attributes; they are three
-        # references on an object the Map retains anyway.
         fn = self._callable
         if fn is None:
             fn = self._compile_builder(self._append_unknown).__get__(self.rule, None)
@@ -122,13 +96,29 @@ def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
     """Build the werkzeug ``Rule`` keyword arguments for ``endpoint``.
 
     Returns the :data:`ROUTING_KEYS` subset of ``endpoint.routing``, appending
-    ``OPTIONS`` to ``methods`` when an allow-list is set so a CORS preflight
-    reaches the dispatcher instead of a ``405``. Shared by both routing maps
-    (nodb and per-database) so they cannot drift on accepted methods.
+    ``OPTIONS`` to ``methods`` when an allow-list is set **and the route declares
+    ``cors``** — the only case where a preflight must reach the dispatcher rather
+    than 405. Shared by both routing maps (nodb and per-database) so they cannot
+    drift on accepted methods.
+
+    The ``cors`` condition is load-bearing, not cosmetic. Appending ``OPTIONS``
+    unconditionally widened every ``methods=``-restricted route: only a ``cors``
+    route is short-circuited by :meth:`Dispatcher.pre_dispatch`'s 204 preflight,
+    so on a CORS-less route the OPTIONS request fell through to the endpoint —
+    and because ``OPTIONS`` is in :data:`SAFE_HTTP_METHODS`, CSRF validation was
+    skipped on the way. A ``@route(methods=["POST"], csrf=True)`` handler
+    therefore ran, with its query parameters, for
+    ``OPTIONS /path?...`` — the exact request the author excluded. Routes that
+    genuinely serve OPTIONS themselves (WebDAV, the mail-plugin handshake) list
+    it in their own ``methods=`` and are unaffected.
     """
     routing = submap(endpoint.routing, ROUTING_KEYS)
     methods = routing.get("methods")
-    if methods is not None and "OPTIONS" not in methods:
+    if (
+        methods is not None
+        and "OPTIONS" not in methods
+        and endpoint.routing.get("cors")
+    ):
         routing["methods"] = [*methods, "OPTIONS"]
     return routing
 
@@ -156,7 +146,7 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
     named: set[str] = set()
     params = list(inspect.signature(endpoint).parameters.values())
     bound_self_name = params[0].name if params else "self"
-    for param in params[1:]:  # skip the bound controller ``self`` (params[0])
+    for param in params[1:]:
         if param.kind is inspect.Parameter.VAR_KEYWORD:
             accepts_var_keyword = True
         elif param.kind in (
@@ -165,6 +155,26 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
         ):
             named.add(param.name)
     return accepts_var_keyword, frozenset(named), bound_self_name
+
+
+def _apply_param_specs(func: Callable, specs: dict[str, Any] | None) -> None:
+    """Attach compiled ``typed=`` parameter specs to a route wrapper.
+
+    ``func._param_specs`` drives coercion inside ``route_wrapper``;
+    ``func.typed_list_params`` names the ``list``-annotated parameters that
+    :meth:`HttpDispatcher.dispatch` must re-read with ``getlist``, because the
+    flat ``get_http_params`` merge keeps only one value per key.
+
+    Both are written together and unconditionally — including as ``None`` — so a
+    rebuild that turns coercion *off* (an override declaring ``typed=False``)
+    cannot leave a stale spec behind on a process-global function object.
+    """
+    func._param_specs = specs
+    func.typed_list_params = (
+        frozenset(name for name, spec in specs.items() if spec.target is list)
+        if specs
+        else None
+    )
 
 
 def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
@@ -206,6 +216,15 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     :param Iterable[str] methods: A list of http methods (verbs) this
         route applies to. If not specified, all methods are allowed.
     :param str cors: The Access-Control-Allow-Origin cors directive value.
+    :param bool cors_credentials: Allow a cross-origin caller to send
+        credentials (the session cookie). The CORS spec forbids answering a
+        credentialed request with ``Allow-Origin: *``, so when this is set the
+        request's own ``Origin`` is echoed back — provided ``cors`` is ``'*'`` or
+        names that exact origin — together with
+        ``Access-Control-Allow-Credentials: true`` and ``Vary: Origin``. An
+        ``Origin`` the route does not allow gets no CORS headers at all, so the
+        browser blocks it. ``False`` by default; without it a ``cors=`` route
+        cannot be called cross-origin with cookie authentication.
     :param bool csrf: Whether CSRF protection should be enabled for the
         route. Enabled by default for ``'http'``-type requests, disabled
         by default for ``'jsonrpc'``-type requests.
@@ -217,6 +236,10 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
         of its query/form key (``?a=1&a=2`` → ``[1, 2]``) on ``type='http'``
         routes. Only annotated parameters are affected; unannotated ones pass
         through unchanged. ``False`` by default.
+
+        Inherited like every other routing key: an override that re-decorates
+        without restating ``typed=True`` still gets coercion, compiled against
+        *its own* signature. Pass ``typed=False`` on the override to opt out.
     :param bool | Callable[[Controller, rule, dict], bool] readonly:
         Whether this endpoint should open a cursor on a read-only
         replica instead of (by default) the primary read/write database.
@@ -250,7 +273,6 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     def decorator(endpoint: Callable) -> Callable:
         fname = f"<function {endpoint.__module__}.{endpoint.__name__}>"
 
-        # Sanitize the routing
         if routing.get("type") == "json":
             warnings.warn(
                 "Since 19.0, @route(type='json') is a deprecated alias to @route(type='jsonrpc')",
@@ -260,15 +282,10 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
             routing["type"] = "jsonrpc"
         route_type = routing.get("type", "http")
         if route_type not in _dispatchers:
-            # Use a real exception rather than ``assert`` so ``python -O`` does
-            # not let unknown types through to a later KeyError at dispatch.
             raise ValueError(
                 f"@route(type={route_type!r}) is not one of {list(_dispatchers)}"
             )
         if route:
-            # Materialize to a list: the routing maps (nodb + one per database)
-            # each iterate ``routes``, so a one-shot iterable (generator) would
-            # register the routes on the first build and vanish from the rest.
             routing["routes"] = [route] if isinstance(route, str) else list(route)
         wrong = routing.pop("method", None)
         if wrong is not None:
@@ -277,10 +294,6 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
-        # ``routes`` is decorator-internal (set above from the positional
-        # argument); everything else must be declared (see
-        # ``_KNOWN_ROUTING_PARAMETERS``) or it is very likely a typo that
-        # silently disables the option it meant to set.
         unknown = routing.keys() - _KNOWN_ROUTING_PARAMETERS - {"routes"}
         if unknown:
             _logger.warning(
@@ -290,87 +303,48 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
                 sorted(unknown),
             )
-        # NB: ``save_session``'s bearer default is NOT baked in here. Doing so put
-        # a concrete ``False`` in this fragment's routing, which then leaked
-        # through the inheritance merge: an extension re-decorating a bearer route
-        # as ``auth='user'`` (without restating ``save_session``) silently kept the
-        # stateless ``False`` and never persisted its session cookie. The default
-        # is instead resolved from the *final merged* auth in
-        # :func:`_generate_routing_rules`, so it tracks the auth the route actually
-        # ends up with. An explicit ``save_session=`` on any fragment still wins.
 
-        # Classify the endpoint's accepted params once; route_wrapper runs on
-        # every request and ``inspect.signature`` is comparatively expensive.
         accepts_var_keyword, accepted_params, bound_self_name = _route_param_filter(
             endpoint
         )
 
-        # Opt-in typed routing: coerce/validate annotated params against the
-        # handler's type hints (see odoo.http._params). ``None`` for the common
-        # untyped route, so route_wrapper pays nothing.
-        param_specs = build_param_specs(endpoint) if routing.get("typed") else None
-
-        # ``controller_self`` is positional-only (``/``) and not named ``self``:
-        # the wrapper is called as ``endpoint(**request.params)``, so a request
-        # arg named ``self`` lands in ``**params`` (to be filtered) instead of
-        # colliding with the bound instance.
         @functools.wraps(endpoint)
         def route_wrapper(controller_self, /, *args, **params):
             if accepts_var_keyword:
                 params_ok = params
                 params_ko = None
-                # ``**kwargs`` forwards every arg, but the first positional is
-                # still the bound ``self``; drop a same-named request arg.
                 if bound_self_name in params:
                     params_ok = {
                         k: v for k, v in params.items() if k != bound_self_name
                     }
                     params_ko = {bound_self_name}
             elif params.keys() <= accepted_params:
-                # Hot path: every arg is accepted, so forward ``params`` unchanged
-                # instead of rebuilding the dict and an empty set difference.
                 params_ok = params
                 params_ko = None
             else:
                 params_ok = {k: v for k, v in params.items() if k in accepted_params}
                 params_ko = params.keys() - accepted_params
             if params_ko:
-                # ``params_ko`` is already a set in every branch reaching here.
                 _logger.warning("%s called ignoring args %s", fname, params_ko)
 
+            param_specs = route_wrapper._param_specs
             if param_specs is not None:
-                # Typed route: coerce/validate annotated params (raises 400 on a
-                # missing-required or uncoercible value).
                 params_ok = coerce_params(params_ok, param_specs)
 
             result = endpoint(controller_self, *args, **params_ok)
-            # The route's type decides whether the result is coerced into a
-            # Response. A fragment may omit ``type`` (inheriting it), so read
-            # the merged type stamped on this wrapper by
-            # ``_check_and_complete_route_definition`` during the map build;
-            # before any build (a direct call in tests) fall back to the
-            # fragment's own declaration.
             route_type = getattr(route_wrapper, "_merged_route_type", None) or (
                 routing.get("type", "http")
             )
             if route_type == "http":
-                # Pass ``fname`` so ``Response.load``'s misuse diagnostics name
-                # the offending endpoint instead of the literal "<function>".
                 return Response.load(result, fname)
             return result
 
         route_wrapper.original_routing = routing
         route_wrapper.original_endpoint = endpoint
-        if param_specs:
-            # Names of ``list``-annotated params, so ``HttpDispatcher.dispatch``
-            # can re-read repeated query/form keys via ``getlist`` — the flat
-            # ``get_http_params`` merge keeps only one value per key. Set only
-            # when non-empty so untyped routes carry no extra attribute.
-            typed_list_params = frozenset(
-                name for name, spec in param_specs.items() if spec.target is list
-            )
-            if typed_list_params:
-                route_wrapper.typed_list_params = typed_list_params
+        _apply_param_specs(
+            route_wrapper,
+            build_param_specs(endpoint) if routing.get("typed") else None,
+        )
         return route_wrapper
 
     return decorator
@@ -411,12 +385,8 @@ def _generate_routing_rules(
         defined at the given ``modules`` (often system wide modules or
         installed modules). Modules in this context are Odoo addons.
         """
-        # Controllers defined outside of odoo addons are outside of the
-        # controller inheritance/extension mechanism.
         yield from (ctrl() for ctrl in Controller.children_classes.get("", []))
 
-        # Controllers defined inside of odoo addons can be extended in
-        # other installed addons. Rebuild the class inheritance here.
         highest_controllers = []
         for module in modules:
             highest_controllers.extend(Controller.children_classes.get(module, []))
@@ -438,8 +408,7 @@ def _generate_routing_rules(
 
     for ctrl in build_controllers():
         for method_name, method in inspect.getmembers(ctrl, inspect.ismethod):
-            # Skip this method if it is not @route decorated anywhere in
-            # the hierarchy
+
             def is_method_a_route(cls: type, method_name: str = method_name) -> bool:
                 return (
                     getattr(
@@ -454,39 +423,29 @@ def _generate_routing_rules(
                 continue
 
             merged_routing = {
-                # 'type': 'http',  # set below
                 "auth": "user",
                 "methods": None,
                 "routes": [],
             }
 
-            # Walk the MRO ancestors-first, skipping Controller and object. Filter
-            # by identity, not a ``mro()[:-2]`` slice, which would drop mixins
-            # after Controller and lose their ``@route`` decorators.
             ancestors = [
                 cls
                 for cls in reversed(type(ctrl).mro())
                 if cls is not Controller and cls is not object
             ]
             defining_cls = None
-            for cls in unique(ancestors):  # ancestors first
+            for cls in unique(ancestors):
                 if method_name not in cls.__dict__:
                     continue
                 submethod = getattr(cls, method_name)
 
                 if not hasattr(submethod, "original_routing"):
-                    # An override that forgot to re-apply @route: log once and
-                    # skip (auto-decorating would mask the missing decorator).
                     _logger.warning(
                         "The endpoint %s is overridden without @route(); skipping this override.",
                         f"{cls.__module__}.{cls.__name__}.{method_name}",
                     )
                     continue
 
-                # Remember the most-derived ancestor that declared a @route
-                # fragment, so the "without any route" warning names a real class.
-                # The loop variable ``cls`` would instead leak the synthetic
-                # merged controller (``type(name, ...)`` above).
                 defining_cls = cls
 
                 merged_routing.update(
@@ -504,24 +463,15 @@ def _generate_routing_rules(
             if nodb_only and merged_routing["auth"] != "none":
                 continue
 
-            # Resolve ``save_session``'s default from the FINAL merged auth (see
-            # the ``route`` decorator): a ``bearer`` route is stateless by default,
-            # everything else persists its session. An explicit ``save_session=``
-            # anywhere in the chain is already in ``merged_routing`` and wins.
             merged_routing.setdefault(
                 "save_session", merged_routing["auth"] != "bearer"
             )
 
-            # Freeze the merged routing so dispatchers can't mutate it at request
-            # time; convert the ``methods`` list to a tuple too.
             if isinstance(merged_routing.get("methods"), list):
                 merged_routing["methods"] = tuple(merged_routing["methods"])
             frozen_routing = MappingProxyType(merged_routing)
 
             for url in merged_routing["routes"]:
-                # Duplicate the function (partial + update_wrapper) and set the
-                # merged routing ONLY on the copy, so the original method stays
-                # immutable while keeping ``original_routing``/``original_endpoint``.
                 endpoint = functools.partial(method)
                 functools.update_wrapper(endpoint, method)
                 endpoint.routing = frozen_routing
@@ -569,25 +519,15 @@ def _check_and_complete_route_definition(
             routing_type,
         )
     fragment["type"] = routing_type
-    # Stamp the resolved type on the wrapper FUNCTION (not the declaration
-    # dict): ``route_wrapper`` needs it at dispatch time to decide Response
-    # coercion, including for mid-chain wrappers reached via ``super()`` calls.
-    # The value depends only on the fixed class hierarchy (first-declared type
-    # wins), so re-stamping on every build writes the same value — no
-    # cross-build contamination, unlike the ``readonly`` correction below.
     submethod._merged_route_type = routing_type
 
-    # Param coercion (``typed=True``) is compiled into each wrapper AT DECORATION
-    # TIME from its own ``@route`` arguments — it cannot be inherited through the
-    # routing merge. An override that forgets to restate ``typed=True`` therefore
-    # silently loses coercion while the merged routing (and the OpenAPI document)
-    # still advertise it; warn so the divergence is visible.
-    if merged_routing.get("typed") and "typed" not in fragment:
-        _logger.warning(
-            "The endpoint %s overrides a typed=True route without restating "
-            "typed=True; parameter coercion is DISABLED for this override.",
-            f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
-        )
+    effective_typed = bool(fragment.get("typed", merged_routing.get("typed", False)))
+    if effective_typed:
+        fragment["typed"] = True
+    _apply_param_specs(
+        submethod,
+        build_param_specs(submethod.original_endpoint) if effective_typed else None,
+    )
 
     default_auth = fragment.get("auth", merged_routing["auth"])
     default_mode = fragment.get("readonly", default_auth == "none")

@@ -48,18 +48,6 @@ class _RequestCsrfMixin:
 
         hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
 
-        # Persist the session so its sid prefix survives to the validating
-        # request. A brand-new anonymous session is never dirtied by a plain GET,
-        # so without this touch it is never written to disk and the next
-        # request's ``renew_missing`` hands out a fresh sid whose prefix no longer
-        # matches the token (spurious "Session expired").
-        #
-        # Gate on ``is_new``: a session already loaded from the store is durably
-        # persisted, so its sid already survives — re-touching it would rewrite
-        # the session file on *every* page render (the CSRF token is embedded in
-        # every page, and re-injected even on cache hits), turning each anonymous
-        # page view into a session write. Persisting the sid exactly once, on the
-        # request that mints the session, is sufficient and avoids that churn.
         if self.session.is_new:
             self.session.touch()
         return f"{hm}o{max_ts}"
@@ -89,12 +77,6 @@ class _RequestCsrfMixin:
         except ValueError:
             return False
 
-        # ``hm`` is attacker-controlled (the token part before the last "o").
-        # A legitimate token's ``hm`` is an ASCII hex digest; ``consteq``
-        # (hmac.compare_digest) raises TypeError on a non-ASCII string, which
-        # would surface as an unauthenticated 500 and break this method's bool
-        # contract. A non-ASCII ``hm`` can never match a hexdigest, so fail
-        # closed before the constant-time compare.
         if not hm.isascii():
             return False
 
