@@ -14,6 +14,7 @@ import unittest
 
 from odoo.db.ddl import (
     _SCHEMA_CHANGING_DDL,
+    _changes_schema,
     _ddl_keyword,
     _find_value_markers,
     _inline_ddl_params,
@@ -84,7 +85,7 @@ class TestDdlKeyword(unittest.TestCase):
     def test_keyword_extraction(self):
         cases = {
             "CREATE TABLE t (x int)": "CREATE",
-            "   alter table t add c int": "ALTER",  # case-folded to UPPER
+            "   alter table t add c int": "ALTER",
             "DROP TABLE t": "DROP",
             "COMMENT ON TABLE t IS %s": "COMMENT",
             "GRANT SELECT ON t TO r": "GRANT",
@@ -96,11 +97,9 @@ class TestDdlKeyword(unittest.TestCase):
         }
         for qs, expected in cases.items():
             self.assertEqual(_ddl_keyword(qs), expected, qs)
-            # _classify_ddl stays a strict bool mirroring "is there a keyword"
             self.assertIs(_classify_ddl(qs), expected is not None, qs)
 
     def test_schema_changing_set(self):
-        # CREATE/ALTER/DROP/DO change shape; COMMENT/GRANT/REVOKE never do.
         self.assertEqual(
             _SCHEMA_CHANGING_DDL, frozenset({"CREATE", "ALTER", "DROP", "DO"})
         )
@@ -137,7 +136,7 @@ class TestDDLKeywordPrefixGate(unittest.TestCase):
     def test_gate_and_regex_never_disagree(self):
         from odoo.db.ddl import _DDL_KEYWORDS, _DDL_PREFIXES, _RE_DDL
 
-        def gate(qs):  # mirrors the fast prefix gate in Cursor.execute()
+        def gate(qs):
             head = qs[:64].lstrip()
             if len(head) < 2 and len(qs) > 64:
                 head = qs.lstrip()
@@ -156,8 +155,6 @@ class TestDDLKeywordPrefixGate(unittest.TestCase):
                 f"-- lead\n{kw} foo",
                 f"/* lead */ {kw} foo",
                 kw.lower() + " foo",
-                # leading whitespace that overflows the 64-char gate window:
-                # 62 (last that fits 2 keyword chars), 63 (boundary), 64, 80.
                 " " * 62 + f"{kw} foo",
                 " " * 63 + f"{kw} foo",
                 " " * 64 + f"{kw} foo",
@@ -188,7 +185,6 @@ class TestInlineDdlParams(unittest.TestCase):
 
     def test_positional_inlines_and_quotes(self):
         self.assertEqual(_inline_ddl_params("DEFAULT %s", (7,), None), "DEFAULT 7")
-        # strings are single-quoted and internal quotes doubled
         self.assertEqual(
             _inline_ddl_params("c = %s", ("o'reilly",), None), "c = 'o''reilly'"
         )
@@ -197,23 +193,16 @@ class TestInlineDdlParams(unittest.TestCase):
         self.assertEqual(_inline_ddl_params("a = %(x)s", {"x": "v"}, None), "a = 'v'")
 
     def test_named_dict_missing_key_raises_valueerror(self):
-        # A marker whose key is absent must raise the same clear ValueError the
-        # positional path raises on a count mismatch — not a bare KeyError from
-        # inside re.sub (no statement context, no marker name).
         with self.assertRaises(ValueError) as cm:
             _inline_ddl_params("DEFAULT %(naem)s", {"name": 1}, None)
         self.assertIn("naem", str(cm.exception))
 
     def test_named_dict_unused_key_is_lenient(self):
-        # Extra/unused keys are ignored, matching psycopg's %(name)s binding and
-        # the legacy ``qs % params`` formatting (rejecting them would be a
-        # behaviour change, unlike the positional count check).
         self.assertEqual(
             _inline_ddl_params("a = %(x)s", {"x": "v", "unused": 9}, None), "a = 'v'"
         )
 
     def test_named_dict_missing_with_literal_percent(self):
-        # The %%-escape must not be mistaken for a missing-key marker.
         with self.assertRaises(ValueError):
             _inline_ddl_params("'100%%' DEFAULT %(v)s", {}, None)
         self.assertEqual(
@@ -221,8 +210,6 @@ class TestInlineDdlParams(unittest.TestCase):
         )
 
     def test_literal_percent_is_unescaped_around_marker(self):
-        # `%%` is a literal percent, not a marker; it must survive as a single
-        # `%`, while the real `%s` is replaced.  Naive `qs % params` raises here.
         self.assertEqual(
             _inline_ddl_params("IS '50%% done' DEFAULT %s", ("v",), None),
             "IS '50% done' DEFAULT 'v'",
@@ -254,12 +241,80 @@ class TestFindValueMarkers(unittest.TestCase):
 
     def test_basic_and_escapes(self):
         self.assertEqual(_find_value_markers("%s and %s"), [0, 7])
-        # %% is a literal percent, not a marker
         self.assertEqual(_find_value_markers("LIKE 'a%%s'"), [])
-        # the space at index 11 means the second marker starts at 12, not 11
         self.assertEqual(_find_value_markers("x %s y %% z %s"), [2, 12])
         self.assertEqual(_find_value_markers("%%"), [])
         self.assertEqual(_find_value_markers("ends %s"), [5])
+
+
+class TestChangesSchema(unittest.TestCase):
+    """Cache invalidation must look past the LEADING statement.
+
+    ``Cursor.execute`` keys the prepared-statement / catalog-cache drop on this,
+    not on ``_ddl_keyword`` alone: a multi-statement string can hide its ALTER
+    behind a harmless first statement, and the next ``SELECT *`` on a cached
+    plan then raises FeatureNotSupported (0A000, not retryable -> HTTP 500).
+    """
+
+    def _check(self, qs):
+        return _changes_schema(qs, _ddl_keyword(qs))
+
+    def test_single_statement_schema_ddl(self):
+        for qs in (
+            "CREATE TABLE t (id int)",
+            "ALTER TABLE t ADD COLUMN c int",
+            "DROP TABLE t",
+            "DO $$ BEGIN END $$",
+            "  -- note\n  ALTER TABLE t ALTER COLUMN c TYPE text",
+        ):
+            with self.subTest(qs=qs):
+                self.assertTrue(self._check(qs))
+
+    def test_single_statement_non_schema_ddl_and_dml(self):
+        for qs in (
+            "SELECT 1",
+            "UPDATE t SET a = 1",
+            "COMMENT ON TABLE t IS 'x'",
+            "GRANT SELECT ON t TO PUBLIC",
+            "REVOKE ALL ON t FROM PUBLIC",
+            "TRUNCATE TABLE t",
+        ):
+            with self.subTest(qs=qs):
+                self.assertFalse(self._check(qs))
+
+    def test_ddl_hidden_behind_a_leading_non_ddl_statement(self):
+        """The reproduced defect: BEGIN hides the ALTER from a leading-keyword
+        test, so the caches were never dropped."""
+        for qs in (
+            "BEGIN; ALTER TABLE t ADD COLUMN c int; COMMIT",
+            "SET LOCAL lock_timeout = '5s'; DROP TABLE t",
+            "SELECT 1; CREATE INDEX i ON t (id)",
+            "UPDATE t SET a = 1;\n  ALTER TABLE t DROP COLUMN b",
+        ):
+            with self.subTest(qs=qs):
+                self.assertTrue(self._check(qs), qs)
+
+    def test_multi_statement_without_schema_ddl_stays_false(self):
+        for qs in (
+            "SELECT 1; SELECT 2",
+            "BEGIN; UPDATE t SET a = 1; COMMIT",
+            "SET x = 1; COMMENT ON TABLE t IS 'y'",
+        ):
+            with self.subTest(qs=qs):
+                self.assertFalse(self._check(qs))
+
+    def test_leading_schema_ddl_short_circuits_before_any_scan(self):
+        qs = "CREATE TABLE t (id int); COMMENT ON TABLE t IS 'x'"
+        self.assertTrue(_changes_schema(qs, "CREATE"))
+
+    def test_over_reports_rather_than_misses(self):
+        """A semicolon inside a literal can produce a false positive; that costs
+        one needless cache drop.  The reverse (missing a real DDL boundary) is
+        what corrupts, and cannot happen: every boundary IS a semicolon."""
+        self.assertTrue(self._check("SELECT 'a; DROP TABLE t'"))
+
+    def test_no_semicolon_never_pays_for_a_split(self):
+        self.assertFalse(_changes_schema("SELECT " + "x" * 10_000, None))
 
 
 if __name__ == "__main__":

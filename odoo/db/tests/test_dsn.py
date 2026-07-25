@@ -142,8 +142,6 @@ class TestConnectErrorTranslation(unittest.TestCase):
         )
 
     def test_transient_errors_return_none(self):
-        # Retrying these may succeed — they must NOT be classified permanent,
-        # or a momentary blip becomes a hard failure.
         for msg in (
             "connection refused",
             "connection timeout",

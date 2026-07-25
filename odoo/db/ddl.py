@@ -19,14 +19,6 @@ from typing import Any
 
 from psycopg import sql as _sql
 
-# DDL keywords that need client-side parameter inlining: PostgreSQL's extended
-# query protocol rejects $N parameters in DDL structural positions (column
-# types, constraints, comments, sequence options).
-#
-# Excluded (Odoo never parameterizes them): TRUNCATE, SET, VACUUM, ANALYZE,
-# REINDEX, CLUSTER, LOCK.  To add one, edit only this tuple — the regex
-# (``_RE_DDL``) and the prefix gate (``_DDL_PREFIXES``) are both derived from it
-# at import, so they cannot drift (exercised by ``TestDDLKeywordPrefixGate``).
 _DDL_KEYWORDS: tuple[str, ...] = (
     "CREATE",
     "ALTER",
@@ -36,30 +28,17 @@ _DDL_KEYWORDS: tuple[str, ...] = (
     "REVOKE",
     "DO",
 )
-# Comment introducers that may precede a DDL keyword (``-- ...`` / ``/* ... */``).
-# The regex skips them, so the prefix gate must admit them too.
 _COMMENT_PREFIXES: frozenset[str] = frozenset(("--", "/*"))
 
-# Match the DDL keyword even when preceded by SQL comments: without the
-# comment-skip, ``-- migrate\nCREATE TABLE ...`` slips past detection and a
-# later ``SELECT *`` raises "cached plan must not change result type".
 _RE_DDL = _re.compile(
     r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*"
-    r"(" + "|".join(_DDL_KEYWORDS) + r")\b",  # group(1) = the matched keyword
+    r"(" + "|".join(_DDL_KEYWORDS) + r")\b",
     _re.IGNORECASE | _re.DOTALL,
 )
-# First two chars for fast prefix filtering — skips the regex on the 99% of
-# queries that are SELECT/INSERT/UPDATE/DELETE (which share no 2-char prefix
-# with any DDL keyword).  Derived from ``_DDL_KEYWORDS`` so it can't drift.
 _DDL_PREFIXES: frozenset[str] = (
     frozenset(kw[:2] for kw in _DDL_KEYWORDS) | _COMMENT_PREFIXES
 )
 
-# DDL that changes a relation's shape or existence.  Only these invalidate the
-# prepared-statement cache and the process-global schema_cache.  COMMENT/GRANT/
-# REVOKE need param inlining but don't change shape, so they skip it; ``DO`` may
-# run arbitrary DDL, so it's treated as schema-changing.  Tested against the
-# UPPERCASE keyword from :func:`_ddl_keyword`.
 _SCHEMA_CHANGING_DDL: frozenset[str] = frozenset({"CREATE", "ALTER", "DROP", "DO"})
 
 
@@ -74,6 +53,14 @@ def _ddl_keyword(qs: str) -> str | None:
     SELECT/INSERT/UPDATE/DELETE queries.  The check reads a 64-char lstripped
     window to avoid copying a 100KB+ query; deep indentation (>=63 leading
     spaces) falls back to a full lstrip so it can't slip past the gate.
+
+    .. note::
+        Only the LEADING statement is inspected, which is what parameter
+        inlining needs (psycopg cannot bind server-side params into a
+        multi-statement string at all — it raises "cannot insert multiple
+        commands into a prepared statement" — so such a statement only ever
+        runs with ``params=None``).  Cache invalidation must look further:
+        see :func:`_changes_schema`.
     """
     head = qs[:64].lstrip()
     if len(head) < 2 and len(qs) > 64:
@@ -83,6 +70,40 @@ def _ddl_keyword(qs: str) -> str | None:
         return None
     m = _RE_DDL.match(qs)
     return m.group(1).upper() if m is not None else None
+
+
+def _changes_schema(qs: str, leading: str | None) -> bool:
+    """True when ANY statement in *qs* changes a relation's shape.
+
+    :meth:`Cursor.execute` uses this — not ``leading in _SCHEMA_CHANGING_DDL`` —
+    to decide whether to drop the prepared-statement and catalog caches, because
+    a multi-statement string can hide its DDL behind a harmless first statement.
+    ``"BEGIN; ALTER TABLE t ADD COLUMN c int; COMMIT"`` leads with ``BEGIN``, so
+    a leading-keyword test misses it and the next ``SELECT *`` on a cached plan
+    raises ``FeatureNotSupported`` ("cached plan must not change result type") —
+    sqlstate 0A000, which is not retryable, so the RPC loop turns it into a 500.
+
+    Cost: the ``";"`` test is a single scan, ~27ns on a typical ORM query
+    against a ~18µs round-trip, and only queries that actually contain a
+    semicolon pay for the split.
+
+    Splitting on every ``";"`` is deliberately naive.  It cannot MISS a real
+    statement boundary (every boundary is a semicolon, so every following
+    statement becomes a fragment whose start is examined); it can only
+    over-report, when a semicolon inside a string literal or a dollar-quoted
+    body happens to be followed by a DDL keyword.  Over-reporting costs one
+    unnecessary cache drop and is safe, so the trade is right way round — a
+    real SQL tokenizer here would buy nothing but risk.
+
+    :param qs: the statement text.
+    :param leading: the result of :func:`_ddl_keyword` for *qs*, reused so the
+        common single-statement path costs nothing extra.
+    """
+    if leading in _SCHEMA_CHANGING_DDL:
+        return True
+    if ";" not in qs:
+        return False
+    return any(_ddl_keyword(part) in _SCHEMA_CHANGING_DDL for part in qs.split(";")[1:])
 
 
 def _find_value_markers(query: str) -> list[int]:
@@ -98,16 +119,12 @@ def _find_value_markers(query: str) -> list[int]:
         if query[i] == "%":
             if query[i + 1] == "s":
                 out.append(i)
-            # skip the full token: '%%' escape, '%s' marker, or '%x' junk
             i += 2
         else:
             i += 1
     return out
 
 
-# Named-parameter markers for the dict path: ``%(name)s`` to substitute or
-# ``%%`` as an escaped percent.  A bare ``%`` (e.g. ``-- 50% off``) matches
-# neither and is left untouched, instead of crashing ``qs % {...}``.
 _DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
 
 
@@ -126,13 +143,6 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
     :raises ValueError: if the positional marker count differs from *params*.
     """
     if isinstance(params, dict):
-        # %(name)s style.  Substitute via a %%-aware regex (not ``qs % {...}``)
-        # so a literal % in the DDL body (e.g. ``IS 'imported -- 50% off'``) is
-        # preserved; re.sub with a callable repl inserts values verbatim, so % or
-        # \ in them are safe.
-        # Validate referenced names up-front: a missing key would otherwise raise
-        # a context-less ``KeyError`` from inside re.sub.  Extra keys are left
-        # lenient (both psycopg and ``qs % params`` ignore them).
         referenced = {
             m.group(1) for m in _DICT_MARKER_RE.finditer(qs) if m.group(1) is not None
         }
@@ -146,14 +156,11 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
 
         def _sub_named(m: _re.Match) -> str:
             name = m.group(1)
-            if name is None:  # matched the '%%' escape
+            if name is None:
                 return "%"
             return _sql.quote(params[name], ctx)
 
         return _DICT_MARKER_RE.sub(_sub_named, qs)
-    # Splice quoted values at the real %s markers (not ``qs % (...)``, which
-    # misreads a literal % in the DDL body as a format spec).  _find_value_markers
-    # is %%-aware; literal %% is unescaped to % in the surrounding segments.
     markers = _find_value_markers(qs)
     if len(markers) != len(params):
         raise ValueError(
@@ -161,7 +168,6 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
             f"marker(s) but {len(params)} param(s)"
         )
     out, prev = [], 0
-    # lengths already validated equal above; strict=True is belt-and-braces
     for pos, value in zip(markers, params, strict=True):
         out.append(qs[prev:pos].replace("%%", "%"))
         out.append(_sql.quote(value, ctx))

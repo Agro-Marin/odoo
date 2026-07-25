@@ -7,14 +7,14 @@ from contextlib import contextmanager, suppress
 from datetime import datetime
 from inspect import currentframe
 from time import monotonic
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, NoReturn, Self
 
 import psycopg
 
-# Rust-accelerated rows→dicts conversion (~2.5x faster than pure Python).
 from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import IsolationLevel
 from psycopg import sql as _sql
+from psycopg.pq import TransactionStatus as _TxStatus
 
 from odoo import tools
 from odoo.libs.func import frame_codeinfo
@@ -22,59 +22,39 @@ from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time
 
 from .bulk import _BulkAccessMixin
-from .ddl import _SCHEMA_CHANGING_DDL, _ddl_keyword, _inline_ddl_params
+from .ddl import _changes_schema, _ddl_keyword, _inline_ddl_params
 from .errors import _log_sql_error
 from .metrics import _MetricsMixin
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
-from .schema_cache import schema_cache
+from .schema_cache import TransactionSchemaCache
 from .utils import categorize_query
 
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
 
-    # when type checking, the BaseCursor exposes methods of the psycopg cursor
     _CursorProtocol = psycopg.Cursor
 else:
     _CursorProtocol = object
 
 _logger = logging.getLogger(__name__)
 
-
-def _clear_schema_caches(dbname: str | None = None) -> None:
-    """Drop cached schema lookups (column types, id sequences).
-
-    Delegating wrapper kept as :mod:`odoo.db`'s cache-invalidation hook (called
-    from ``close_db`` / ``drain_*``); the state and clear logic live in
-    :class:`~odoo.db.schema_cache.SchemaCache`.
-
-    :param dbname: only drop entries for this database; ``None`` drops all.
-    """
-    schema_cache.clear(dbname)
+_TX_IDLE = _TxStatus.IDLE
 
 
-# _CursorProtocol declares the available methods and type information,
-# at runtime, it is just an `object`
 class BaseCursor(_CursorProtocol):
     """Base class for cursors that manage pre/post commit hooks."""
 
-    BATCH_SIZE = 1000  # max array size per = ANY() query — keeps planner efficient
-    _MAX_FLUSH_PASSES = 10  # flush()↔precommit ping-pong budget before giving up
+    BATCH_SIZE = 1000
+    _MAX_FLUSH_PASSES = 10
 
-    # Class used by ``savepoint(flush=True)``.  Defaults to the db-layer
-    # :class:`_FlushingSavepoint`; the ORM overrides it on import with its
-    # cache/env-restoring subclass, keeping the db→ORM dependency one-directional.
     _flushing_savepoint_cls: type[Savepoint] = _FlushingSavepoint
 
     transaction: Transaction | None
     cache: dict[Any, Any]
     dbname: str
-    # Number of SAVEPOINTs currently open on THIS cursor.  Maintained by every
-    # ``Savepoint`` and read by ``Cursor.commit``/``rollback`` to forbid
-    # committing/rolling back the whole transaction while a savepoint is live.
-    # Lives on the cursor (not the ORM ``transaction``) so it also guards bare
-    # ``db_connect`` cursors and ``savepoint(flush=False)``.
-    _savepoint_depth: int
+    _savepoint_depth: int = 0
+    _closed: bool = False
 
     def __init__(self) -> None:
         self.precommit = Callbacks()
@@ -84,9 +64,6 @@ class BaseCursor(_CursorProtocol):
         self._now: datetime | None = None
         self._savepoint_depth = 0
         self.cache = {}
-        # Attached lazily by ``Environment.__new__`` on first Environment
-        # construction (not by ``registry.cursor()``); done there, not here, to
-        # avoid a cyclic module dependency.
         self.transaction = None
 
     def flush(self) -> None:
@@ -98,21 +75,15 @@ class BaseCursor(_CursorProtocol):
         ping-pong; a hook that unconditionally re-adds itself instead loops
         forever inside ``Callbacks.run()``.
         """
-        # Repeat flush + drain until a pass produces no new work.
         for _ in range(self._MAX_FLUSH_PASSES):
             if self.transaction is not None:
                 self.transaction.flush()
             if not self.precommit:
                 return
             self.precommit.run()
-        # Final flush after the last drain: the convergence check runs *before*
-        # each ``run()``, so without this the last run's effect is never
-        # re-examined and a chain settling on the final pass would raise spuriously.
         if self.transaction is not None:
             self.transaction.flush()
         if self.precommit:
-            # Raise, don't warn: commit() would otherwise COMMIT and clear()
-            # the still-pending hooks, silently dropping their work.
             raise RuntimeError(
                 f"flush() did not converge after {self._MAX_FLUSH_PASSES} "
                 f"iterations: precommit hooks keep triggering new ORM changes; "
@@ -134,18 +105,19 @@ class BaseCursor(_CursorProtocol):
 
     def discard_cached_plans(self) -> None:
         """Drop cached statement plans held by the underlying connection."""
-        # No-op here: only the real :class:`Cursor` wraps a psycopg connection
-        # with an auto-prepared-statement cache.  Declared on the base (unlike
-        # ``fetchone``, which is deliberately left to ``TestCursor``'s
-        # ``__getattr__`` delegation) so registry signaling can call it on any
-        # ``BaseCursor``: in-memory and test cursors have nothing to discard —
-        # a ``TestCursor``'s underlying real connection is already invalidated
-        # by ``_invalidate_caches_after_ddl`` when DDL runs through it, and in
-        # test mode ``check_signaling`` is patched out anyway.
+
+    def _on_rollback_to_savepoint(self) -> None:
+        """Hook: a ``ROLLBACK TO SAVEPOINT`` just undid part of this transaction.
+
+        No-op here — only the real :class:`Cursor` carries transaction-scoped
+        catalog facts that a partial rollback can invalidate.  Declared on the
+        base (like :meth:`discard_cached_plans`) so :class:`Savepoint` can call
+        it without knowing which cursor flavour it holds.
+        """
 
     def execute(
         self,
-        query: str | SQL | _sql.Composable,
+        query: str | bytes | SQL | _sql.Composable,
         params: tuple | list | dict | None = None,
         log_exceptions: bool = True,
         prepare: bool | None = None,
@@ -176,11 +148,6 @@ class BaseCursor(_CursorProtocol):
         """
         if flush:
             cls = self._flushing_savepoint_cls
-            # Fail loudly instead of silently corrupting the cache: a cursor with
-            # an ORM transaction MUST use a savepoint that restores ORM state on
-            # rollback.  If it doesn't, the ORM injection seam (set as an import
-            # side effect of ``odoo.orm.runtime``) was not wired — a broken import
-            # order — and ``ROLLBACK TO SAVEPOINT`` would leave a stale cache.
             if self.transaction is not None and not cls._restores_orm_state:
                 raise RuntimeError(
                     f"cursor has an ORM transaction but {cls.__name__} does not "
@@ -209,9 +176,6 @@ class BaseCursor(_CursorProtocol):
         traceback: object,
     ) -> None:
         try:
-            # Skip the commit when the block already closed the cursor: there is
-            # nothing to commit and the connection is back in the pool (commit()
-            # would now raise on the closed cursor).
             if exc_type is None and not self._closed:
                 self.commit()
         finally:
@@ -223,11 +187,6 @@ class BaseCursor(_CursorProtocol):
         Returns ``None`` if no rows are available.  Eliminates the
         common ``cr.fetchone()[0]`` pattern which raises on empty results.
         """
-        # Implemented over fetchone() rather than left abstract: a
-        # ``NotImplementedError`` body would be found by MRO and shadow the
-        # __getattr__ delegation TestCursor relies on (fetchone() is deliberately
-        # not declared on the base, so TestCursor forwards it to the real
-        # cursor).  Cursor overrides this to save one attribute hop.
         row = self.fetchone()
         return row[0] if row else None
 
@@ -253,7 +212,6 @@ class BaseCursor(_CursorProtocol):
         """Return the transaction's timestamp ``NOW() AT TIME ZONE 'UTC'``."""
         if self._now is None:
             self.execute("SELECT (now() AT TIME ZONE 'UTC')")
-            # A SELECT always yields exactly one row, so fetchone() is never None.
             self._now = self.fetchone()[0]
         return self._now
 
@@ -292,8 +250,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     sql_into_log: dict[str, tuple[int, float]]
     sql_log_count: int
 
-    # Class-level default so an instance whose __init__ failed reads as closed
-    # (and the ``self._closed`` lookup in __getattr__ doesn't recurse).
     _closed: bool = True
 
     def __init__(
@@ -309,15 +265,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
         self.sql_log_count = 0
 
-        # __del__ calls close() only when _closed is False; keep it True until
-        # init fully succeeds so a failure below doesn't trigger close().
         self._closed: bool = True
 
         self.__pool: ConnectionPool = pool
         self.dbname = dbname
 
-        # Cache the creating thread (avoids threading.current_thread() per
-        # execute()); used only to pin query-count/time metrics to that thread.
+        self._schema_cache = TransactionSchemaCache()
+
         self._thread = threading.current_thread()
 
         self._cnx: psycopg.Connection = pool.borrow(dsn, key=key)
@@ -327,37 +281,19 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self.__caller = frame_codeinfo(currentframe(), 2)
             else:
                 self.__caller = False
-            # See the docstring of this class.
             self._cnx.isolation_level = IsolationLevel.REPEATABLE_READ
             self._cnx.read_only = pool.readonly
-            # Cache the mode on the cursor: after _close() returns _cnx to the
-            # pool another cursor may own it and flip read_only, so reading it
-            # off _cnx post-close would return stale/foreign state.
             self._readonly = bool(pool.readonly)
 
-            # FAKETIME test mode: pin search_path so it survives a later
-            # rollback.  Inside this try (and before _closed=False) so a failure
-            # is unwound by the except below rather than leaking to __del__.
             if (
                 os.getenv("ODOO_FAKETIME_TEST_MODE")
                 and self.dbname in tools.config["db_name"]
             ):
                 self.execute("SET search_path = public, pg_catalog;")
-                # Commit on the raw connection: the public ``commit()`` guards
-                # on ``self._closed`` (still True here, so it would raise
-                # "Cursor already closed"), and no ORM flush/savepoint state
-                # exists yet during __init__. Persists search_path across later
-                # rollbacks.
                 self._cnx.commit()
 
-            self._closed = False  # only after all setup succeeds
+            self._closed = False
         except Exception:
-            # Close _obj if it was created (psycopg_pool's reset() rolls back
-            # but does not close open cursors), then return the connection.
-            # Read _obj from __dict__, not getattr(): if ``_cnx.cursor()`` itself
-            # raised, _obj is unset and getattr would route through __getattr__
-            # (``_closed`` still True → InterfaceError), masking the real error
-            # and skipping give_back() — leaking the connection and its permit.
             obj = self.__dict__.get("_obj")
             if obj is not None:
                 with suppress(Exception):
@@ -373,10 +309,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         row = self._obj.fetchone()
         if row is None:
             return None
-        # A returned row guarantees a result set — a result-less statement makes
-        # fetchone() raise, not return a row — hence a non-empty description.
-        # strict=True: psycopg guarantees len(row) == len(description), so a
-        # mismatch is a driver bug that should raise, not drop columns.
         return {
             col.name: val for col, val in zip(self._obj.description, row, strict=True)
         }
@@ -394,8 +326,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return _rows_to_dicts(self._col_names(), rows)
 
     def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
-        # Match BaseCursor.dictfetchmany: size <= 0 yields no rows.  Without
-        # this, psycopg's fetchmany(-1) raises InterfaceError instead.
         if size <= 0:
             return []
         rows = self._obj.fetchmany(size)
@@ -408,10 +338,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if not rows:
             return []
         return self._rows_to_dict_list(rows)
-
-    # -- Explicit forwarding for commonly-used psycopg Cursor methods -------
-    # Avoids __getattr__ lookup overhead on the hot path and makes the public
-    # interface discoverable for IDEs/type checkers.
 
     def fetchone(self) -> tuple[Any, ...] | None:
         return self._obj.fetchone()
@@ -440,7 +366,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         params: tuple | list | dict | None = None,
         *,
         writer: Any = None,
-    ) -> Any:  # psycopg.Copy — not imported to keep the module surface small
+    ) -> Any:
         """Raw passthrough to psycopg's ``cursor.copy()`` COPY context manager.
 
         Low-level escape hatch: unlike :meth:`copy_from` it records no metrics
@@ -450,11 +376,25 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         """
         return self._obj.copy(statement, params, writer=writer)
 
+    def _refuse_copy(self) -> NoReturn:
+        raise TypeError(
+            f"{type(self).__name__} cannot be copied: it owns a borrowed pooled "
+            f"connection and an open transaction.  A shallow copy shares "
+            f"``_obj``/``_cnx``, so the copy's ``__del__`` would roll back and "
+            f"return the connection to the pool while the original is still "
+            f"using it (and log a spurious 'Cursor not closed explicitly').  "
+            f"Pass the cursor around, or open a second one via "
+            f"``registry.cursor()``."
+        )
+
+    def __copy__(self) -> NoReturn:
+        self._refuse_copy()
+
+    def __deepcopy__(self, memo: dict) -> NoReturn:
+        self._refuse_copy()
+
     def __del__(self) -> None:
         if not self._closed and not self._cnx.closed:
-            # Not closed explicitly: GC will reclaim the cursor, but the
-            # connection is not returned to the pool — risking pool exhaustion
-            # and blocking operations like dropping the database.
             msg = "Cursor not closed explicitly\n"
             if self.__caller:
                 msg += f"Cursor was created at {self.__caller[0]}:{self.__caller[1]}"
@@ -465,30 +405,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     def execute(
         self,
-        query: str | SQL | _sql.Composable,
+        query: str | bytes | SQL | _sql.Composable,
         params: tuple | list | dict | None = None,
         log_exceptions: bool = True,
         prepare: bool | None = None,
     ) -> None:
-        # ``prepare=False`` opts a statement out of psycopg's automatic
-        # prepared-statement cache. Needed for statements whose *result shape*
-        # can change under them -- notably ``SELECT *`` over a catalog table that
-        # modules extend (``ir_model``): once such a plan is cached, the next
-        # ALTER on that table makes every later execution fail with
-        # "cached plan must not change result type". discard_cached_plans()
-        # clears the connection that ran the DDL, but a pooled connection that
-        # merely holds the stale plan is only reached via registry signalling,
-        # which does not fire in a single-process run.
-        #
-        # No creating-thread assertion here: the real invariant is "no
-        # CONCURRENT execute on the same connection", not "same thread".
-        # TestCursor deliberately shares one real cursor across the test and
-        # HTTP worker threads (serialized by an RLock), which a thread check
-        # would flag.  ``self._thread`` is kept only to pin metrics.
 
         if isinstance(query, SQL):
-            # Explicit check (survives ``python -O``): silently dropping params
-            # would execute a different query than intended.
             if params is not None:
                 raise ValueError(
                     "Unexpected parameters combined with a SQL query object"
@@ -496,45 +419,29 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             query, params = query.code, query.params
         else:
             if isinstance(query, _sql.Composable):
-                # psycopg's sanctioned way to compose dynamic statements with
-                # safely quoted identifiers (sql.Identifier / SQL.format), used
-                # by SQL-view report models for CREATE VIEW.  Resolve to the
-                # final statement text once, with this connection's adaptation
-                # context, so DDL detection, client-side param inlining,
-                # logging and metrics all see the exact SQL the server runs.
                 query = query.as_string(self._cnx)
             if params and not isinstance(params, (tuple, list, dict)):
                 raise ValueError(
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
-        # Detect DDL once.  It drives two decisions: every DDL keyword needs
-        # client-side param inlining ($N is rejected in DDL positions), but only
-        # schema-changing DDL (CREATE/ALTER/DROP/DO) invalidates the caches.
-        # ``query`` is always a str here (SQL unwrapped to ``.code``, Composable
-        # resolved via ``as_string`` above), so nothing is left to coerce.
-        qs = query
-        ddl_kw = _ddl_keyword(qs)  # uppercase keyword, or None when not DDL
+        if isinstance(query, bytes):
+            try:
+                qs = query.decode()
+            except UnicodeDecodeError:
+                qs = ""
+        else:
+            qs = query
+        ddl_kw = _ddl_keyword(qs)
         is_ddl = ddl_kw is not None
 
         if params and is_ddl:
-            # Inline params as client-side quoted literals (see _inline_ddl_params).
             query = _inline_ddl_params(qs, params, self._cnx)
             params = None
 
-        # Resolve the DEBUG gate once, before ``start``, so isEnabledFor stays
-        # out of the measured window.
         debug = _logger.isEnabledFor(logging.DEBUG)
-        # Read the thread's query_hooks once: it gates the wall-clock ``start``
-        # (skipped when no profiler is installed) and is handed to
-        # ``_record_metrics`` below, so this hot path touches the thread attribute
-        # once instead of twice.  t0 (monotonic) always times the query —
-        # wall-clock could step back under NTP and make ``delay`` negative.
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
-        # Resolve _obj BEFORE the logged try: on a closed cursor the attribute
-        # access raises InterfaceError via __getattr__, and inside the try it
-        # would be logged as a spurious ERROR-level "bad query" first.
         obj = self._obj
         t0 = monotonic()
         try:
@@ -542,9 +449,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         except Exception as e:
             if log_exceptions:
                 _log_sql_error(e, query)
-            # Failed statements are deliberately not counted (the raise exits
-            # before _record_metrics): counters reflect successful queries only,
-            # keeping query-count assertions deterministic across retry loops.
             raise
         finally:
             delay = monotonic() - t0
@@ -555,56 +459,39 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     self._format(query, params),
                 )
 
-        if ddl_kw in _SCHEMA_CHANGING_DDL:
-            # COMMENT/GRANT/REVOKE are DDL but don't change shape, so they skip this.
+        if _changes_schema(qs, ddl_kw):
             self._invalidate_caches_after_ddl()
 
         self._record_metrics(
             delay, query=query, params=params, start=start, hooks=hooks
         )
 
-        # Advanced stats (DEBUG only).  Categorize on ``qs`` (already built for
-        # DDL detection) — same table, one fewer str() than re-stringifying query.
         if debug:
             query_type, table = categorize_query(qs)
             self._record_sql_log(query_type, table, delay)
 
     def discard_cached_plans(self) -> None:
         """Drop the schema-dependent caches attached to this connection / db."""
-        # Two caches go stale on a schema change (CREATE/ALTER/DROP/DO) and
-        # neither self-heals. Two callers, one per side of a schema change:
-        # :meth:`_invalidate_caches_after_ddl` — the connection that RAN the DDL
-        # (``drain_db``/registry signaling clears the other workers' idle
-        # connections, never this live one); and ``Registry.check_signaling`` — a
-        # cursor already checked out while ANOTHER worker changed the schema: the
-        # pool drain only recycles IDLE connections, so this one keeps its stale
-        # plans, and a re-executed prepared statement raises
-        # ``FeatureNotSupported`` (sqlstate 0A000 — not an ``OperationalError``,
-        # not a retryable sqlstate, so the RPC retry loop turns it straight into a
-        # 500).
-        #
-        # Safe to call mid-transaction as long as the transaction is healthy
-        # (both callers run right after a *successful* statement): DEALLOCATE is
-        # session state, valid inside read-only transactions too.
-        #
-        # Cache 1 — psycopg's auto-prepared-statement cache on this connection:
-        # CREATE/ALTER make cached ``SELECT *`` plans stale ("cached plan must not
-        # change result type"). ``_prepared.clear()`` (private API) queues a
-        # ``DEALLOCATE ALL``.
         try:
             self._cnx._prepared.clear()
         except AttributeError:
-            # Private API gone: disabling auto-prepare stops NEW prepares but
-            # leaves the existing stale plans, so drop them explicitly too —
-            # ``prepare_threshold = None`` alone only stops preparing NEW
-            # statements.
             self._cnx.prepare_threshold = None
             self._cnx.execute("DEALLOCATE ALL")
-        # Cache 2 — the process-global ``schema_cache`` ``copy_from`` populates:
-        # ALTER/DROP make cached column types/sequences stale, and a later binary
-        # ``copy_from`` would feed ``set_types()`` stale types and corrupt the
-        # COPY. Drop this db's entries to force a re-lookup.
-        schema_cache.clear(self.dbname)
+        self._schema_cache.clear()
+
+    def _on_rollback_to_savepoint(self) -> None:
+        """Drop catalog facts a partial rollback may have invalidated.
+
+        ``ROLLBACK TO SAVEPOINT`` can undo DDL executed inside the savepoint,
+        including DDL whose *post*-change types this cursor already read and
+        memoized (the DDL cleared the cache, then the lookup repopulated it).
+        Those entries now describe a schema that was rolled back, so a later
+        binary ``copy_from`` would encode with types the table no longer has.
+        Unlike ``commit``/``rollback`` this does not end the transaction, so the
+        ``ROW EXCLUSIVE`` locks stay held — only the facts are dropped, and the
+        next lookup re-reads them under the lock already in hand.
+        """
+        self._schema_cache.clear()
 
     def _invalidate_caches_after_ddl(self) -> None:
         """Drop the caches a schema-changing DDL invalidates on this connection.
@@ -635,10 +522,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             caller logs its own message).  Symmetric with :meth:`execute` —
             without it a caller could quiet single-statement failures but not
             their batched equivalent.
+
+        .. note::
+            **Query accounting.**  This records **N** queries for N parameter
+            sets — one round-trip, but N statements for the server to plan and
+            execute.  :meth:`copy_from` records **1** for an N-row COPY, which
+            really is one statement.  See that method for why the counters
+            measure requested SQL work rather than packets.
         """
         if isinstance(query, SQL):
-            # executemany's params come from params_seq, not the SQL object.
-            # Silently dropping embedded params hides caller bugs.
             if query.params:
                 raise ValueError(
                     "executemany does not support SQL objects with embedded "
@@ -646,26 +538,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 )
             query = query.code
         elif isinstance(query, _sql.Composable):
-            # Same normalization as execute(): resolve psycopg-composed
-            # statements (sql.Identifier quoting) to their final text once.
             query = query.as_string(self._cnx)
 
-        # Materialize an unsized sequence: a generator is always truthy (so the
-        # empty check below would miss an empty one) and has no len() (so metrics
-        # would record 1 for an N-row batch).  Sized callers pay nothing.
         if not hasattr(params_seq, "__len__"):
             params_seq = list(params_seq)
         if not params_seq:
             return
 
-        # ``start`` is consumed only by query_hooks (profiler); skip the
-        # wall-clock read when none are installed.  t0 (monotonic) is always
-        # needed for the duration.  See execute() for the NTP rationale and the
-        # single-read-of-query_hooks rationale.
         hooks = getattr(self._thread, "query_hooks", None)
         start = real_time() if hooks else 0.0
-        # See execute(): resolve _obj outside the logged try so a closed
-        # cursor raises cleanly instead of logging a spurious ERROR first.
         obj = self._obj
         t0 = monotonic()
         try:
@@ -680,7 +561,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 _logger.debug(
                     "[%.3f ms] executemany (%d rows): %s",
                     1000 * delay,
-                    len(params_seq),  # always sized: materialized above
+                    len(params_seq),
                     query,
                 )
 
@@ -688,9 +569,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             delay, len(params_seq), query=query, start=start, hooks=hooks
         )
 
-        # Advanced per-table stats (DEBUG only), mirroring execute() so batched
-        # writes aren't invisible in the SQL log.  ``query`` is always a str here
-        # (SQL unwrapped above) and executemany is never DDL.
         if _logger.isEnabledFor(logging.DEBUG):
             query_type, table = categorize_query(query)
             self._record_sql_log(query_type, table, delay)
@@ -719,60 +597,48 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             yield
 
     def close(self) -> None:
-        # Test self._closed, NOT self.closed: the property also reports True on
-        # a dropped _cnx, so short-circuiting on it would skip _close() and leak
-        # the semaphore slot and self._obj.
         if not self._closed:
             self._close()
 
     def _close(self) -> None:
-        # No ``if not self._obj`` guard: _close() is only reached via
-        # close()/__del__ (both gated on ``_closed``), so _obj is always live.
-        #
-        # The outer try/finally guarantees give_back() runs even if the
-        # bookkeeping above it raises — otherwise the connection and its
-        # semaphore permit leak, and the pool wedges under load.
         try:
             self.cache.clear()
 
-            # advanced stats only at logging.DEBUG level
             self.print_log()
 
             self._obj.close()
         finally:
-            # Mark closed BEFORE deleting _obj: otherwise a delegated attribute
-            # access (e.g. from a rollback hook) would recurse in __getattr__.
             self._closed = True
 
-            # Free the cursor eagerly: cursors aren't GC'd promptly (browse
-            # records hold references), and a shortage can overload the server.
             del self._obj
 
-            # Maintenance databases need no special-casing here: the pool
-            # never pools them at all (see ConnectionPool._borrow_direct).
             keep_in_pool = True
             try:
-                # Guard-free: _closed is already True here, and the connection
-                # is still owned (give_back runs in the finally below).
                 self._do_rollback()
             except Exception:
-                _logger.debug("Failed to rollback on cursor close", exc_info=True)
-                keep_in_pool = False
+                _logger.debug("Failed to roll back on cursor close", exc_info=True)
+                keep_in_pool = self._connection_is_clean()
             finally:
                 self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
+    def _connection_is_clean(self) -> bool:
+        """True when the connection has no transaction open, so it may be pooled.
+
+        ``transaction_status`` is a libpq-local field (no round-trip).  Only
+        ``IDLE`` is accepted: ``INTRANS``/``INERROR`` mean the ROLLBACK did not
+        happen and ``UNKNOWN`` means the socket is gone, both of which make the
+        connection unsafe to hand to the next borrower.  Any failure reading it
+        (a closed connection) answers "not clean".
+        """
+        try:
+            return self._cnx.info.transaction_status == _TX_IDLE
+        except Exception:
+            return False
+
     def commit(self) -> None:
         """Perform an SQL `COMMIT`"""
-        # Closed-guard: after _close() returns the connection to the pool,
-        # self._cnx may be checked out by another cursor in another thread; a
-        # public commit here would commit that foreign transaction.  Misuse
-        # raises rather than corrupts, matching the savepoint-depth check below.
         if self._closed:
             raise psycopg.InterfaceError("Cursor already closed")
-        # Explicit check (survives ``python -O``): committing inside a savepoint
-        # corrupts its rollback state.  Cursor-level depth (see
-        # ``_savepoint_depth``) so it also covers bare cursors and
-        # ``savepoint(flush=False)``.
         if self._savepoint_depth:
             raise RuntimeError(
                 "Cannot commit inside a savepoint! "
@@ -781,6 +647,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.flush()
         self._cnx.commit()
         self.clear()
+        self._schema_cache.clear()
         self._now = None
         self.prerollback.clear()
         self.postrollback.clear()
@@ -793,12 +660,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         so hooks can still read uncommitted transaction state (e.g. for cache
         invalidation decisions).  After ROLLBACK, that data is gone.
         """
-        # Closed-guard: see commit(); a public rollback on a returned connection
-        # would roll back a foreign transaction.  _close() uses the guard-free
-        # _do_rollback() below (it still owns the connection although _closed).
         if self._closed:
             raise psycopg.InterfaceError("Cursor already closed")
-        # Explicit check (survives ``python -O``); cursor-level depth, see commit().
         if self._savepoint_depth:
             raise RuntimeError(
                 "Cannot rollback inside a savepoint! "
@@ -816,16 +679,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         try:
             self.prerollback.run()
         finally:
-            # Always issue the SQL ROLLBACK, even if a prerollback hook raised:
-            # skipping it would leave the aborted transaction open on the
-            # connection (public rollback() has no recovery path; _close does).
             self._cnx.rollback()
+            self._schema_cache.clear()
         self._now = None
         self.postrollback.run()
 
     def __getattr__(self, name: str) -> Any:
-        # Short-circuit on closed so access to a dead cursor raises cleanly
-        # instead of emitting a misleading deprecation warning first.
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         if self._closed:
             msg = "Cursor already closed"
             raise psycopg.InterfaceError(msg)
@@ -857,15 +718,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
 
 if TYPE_CHECKING:
-    # Static guard: assert Cursor provides every member _BulkAccessMixin needs
-    # (see _CursorInternals in bulk.py), so drift is a type error here, not a
-    # latent AttributeError inside copy_from / execute_values.
     from .bulk import _CursorInternals
 
     def _assert_cursor_satisfies_bulk_host(_c: Cursor) -> _CursorInternals:
         return _c
 
-    # Same guard for the metrics-mixin coupling (see _MetricsHost in metrics.py).
     from .metrics import _MetricsHost
 
     def _assert_cursor_satisfies_metrics_host(_c: Cursor) -> _MetricsHost:

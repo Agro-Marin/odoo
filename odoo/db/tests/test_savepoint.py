@@ -23,9 +23,6 @@ class _StubCursor:
     def __init__(self, raise_on=None):
         self._savepoint_depth = 0
         self.sql = []
-        # substring that, when present in an executed statement, raises — used
-        # to simulate a ROLLBACK TO / RELEASE against a savepoint that no longer
-        # exists (e.g. released behind the object's back).
         self._raise_on = raise_on
 
     def execute(self, query):
@@ -56,8 +53,6 @@ class TestSavepointDepth(unittest.TestCase):
         self.assertIn("ROLLBACK TO SAVEPOINT", cr.sql[1])
 
     def test_failed_close_still_balances_and_marks_closed(self):
-        # RELEASE fails, but the depth must still return to 0 and the savepoint
-        # must be marked closed (so it is never retried).
         cr = _StubCursor(raise_on="RELEASE")
         sp = Savepoint(cr)
         with self.assertRaises(RuntimeError):
@@ -66,15 +61,11 @@ class TestSavepointDepth(unittest.TestCase):
         self.assertTrue(sp.closed)
 
     def test_double_close_after_failure_does_not_go_negative(self):
-        # H3 regression: a ROLLBACK TO that fails (savepoint released behind our
-        # back) used to leave closed=False, so a second close() decremented the
-        # depth again — driving it to -1 and permanently wedging the cursor.
         cr = _StubCursor(raise_on="ROLLBACK TO")
         sp = Savepoint(cr)
         with self.assertRaises(RuntimeError):
             sp.close(rollback=True)
         self.assertEqual(cr._savepoint_depth, 0)
-        # A second close() must be a no-op (the close() gate reads .closed).
         sp.close(rollback=True)
         self.assertEqual(cr._savepoint_depth, 0)
 
@@ -99,6 +90,67 @@ class TestSavepointDepth(unittest.TestCase):
                 raise ValueError("boom")
         self.assertEqual(cr._savepoint_depth, 0)
         self.assertTrue(any("ROLLBACK TO SAVEPOINT" in q for q in cr.sql))
+
+
+class TestDepthCounterFailsSafe(unittest.TestCase):
+    """``_savepoint_depth`` must exist even on a half-built cursor.
+
+    ``Savepoint`` guards its ``+1``/``-1`` with ``hasattr`` — needed because
+    ``TestCursor._check_savepoint`` reuses this class with a RAW psycopg cursor,
+    which has no depth counter.  That guard fails *open*: if a ``BaseCursor``
+    subclass ever skipped ``super().__init__()``, the attribute would be absent,
+    the counter would never move, and ``commit()`` inside a savepoint would be
+    silently permitted — corrupting the savepoint's rollback state rather than
+    raising.
+
+    Every subclass in the tree does call ``super().__init__()`` today, so this
+    is defence in depth, not a live defect.  The class-level default on
+    ``BaseCursor`` (mirroring ``_closed``, which got one for the same reason)
+    is what keeps the guard armed regardless; these tests pin both halves.
+    """
+
+    def test_base_cursor_carries_a_class_level_default(self):
+        from odoo.db.cursor import BaseCursor
+
+        self.assertEqual(BaseCursor._savepoint_depth, 0)
+
+    def test_subclass_skipping_super_init_still_counts(self):
+        from odoo.db.cursor import BaseCursor
+
+        class _NoInitCursor(BaseCursor):
+            def __init__(self):
+                self.sql = []
+
+            def execute(
+                self,
+                query: object,
+                params: object = None,
+                log_exceptions: bool = True,
+            ) -> None:
+                self.sql.append(query)
+
+        cr = _NoInitCursor()
+        sp = Savepoint(cr)
+        self.assertEqual(
+            cr._savepoint_depth, 1, "the guard must arm even without __init__"
+        )
+        sp.close(rollback=False)
+        self.assertEqual(cr._savepoint_depth, 0)
+
+    def test_raw_cursor_without_the_counter_is_still_supported(self):
+        """The ``hasattr`` guard must stay: TestCursor passes a raw psycopg cursor."""
+
+        class _RawLike:
+            def __init__(self):
+                self.sql = []
+
+            def execute(self, query):
+                self.sql.append(query)
+
+        cr = _RawLike()
+        Savepoint(cr).close(rollback=False)
+        self.assertFalse(hasattr(cr, "_savepoint_depth"))
+        self.assertTrue(any("RELEASE SAVEPOINT" in q for q in cr.sql))
 
 
 if __name__ == "__main__":
