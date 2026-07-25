@@ -36,6 +36,34 @@ _IDENTITY_TYPES = frozenset(
 )
 _CHAR_TEXT_TYPES = frozenset({"char", "text"})
 
+# Types whose RAW cache value has the same truthiness as the record value, so
+# ``filtered(field_name)`` can test the cache slot directly.  Wider than the
+# other sets because truthiness is a weaker property than identity or
+# comparability: a dict-valued cache (json, properties) is falsy exactly when
+# the record value is, and binary's cache is the bytes/False the record returns.
+# Relational types are excluded structurally (see can_scan_truthy), so they are
+# absent here rather than filtered out separately.
+_TRUTHY_TYPES = frozenset(
+    {
+        "boolean",
+        "integer",
+        "float",
+        "monetary",
+        "char",
+        "text",
+        "html",
+        "date",
+        "datetime",
+        "selection",
+        "binary",
+        "json",
+        "properties",
+        "properties_definition",
+        "reference",
+        "many2one_reference",
+    }
+)
+
 # Types eligible for the ID-based sort: non-relational, non-boolean scalars
 # whose cache value is directly comparable.  Boolean is excluded because it
 # sorts via expression_getter (not raw cache access).
@@ -85,13 +113,25 @@ def can_scan_identity(field: Field) -> bool:
 
 def can_scan_truthy(field: Field) -> bool:
     """``filtered(field_name)`` truthiness scan: ``bool(raw cache value)``
-    must equal ``bool(field value)``.  Relational fields are excluded: a
-    many2one caches the comodel id, and for an unsaved record that is a
+    must equal ``bool(field value)``.
+
+    Allowlisted like every other mode here.  This was the one predicate written
+    as a denylist (``not field.relational and not callable(field.translate)``),
+    which inverted the default: a field type nobody had thought about was opted
+    IN to raw scanning, and was only correct by luck.  ``vector`` -- defined
+    outside core, so not visible to the reasoning in this module -- was being
+    scanned on that basis.  Now an unlisted type takes the ``Field.__get__``
+    path: slower, never wrong, and it fails toward correctness when someone adds
+    a field type.
+
+    Every type below was verified against ``__get__`` over 1654 (model, field)
+    pairs across the registry.  Relational types stay out for the original
+    reason: a many2one caches the comodel id, and on an unsaved record that is a
     ``NewId`` whose ``__bool__`` is False while the field value is a truthy
     one-record recordset.  Per-term-translated fields cache ``{lang: value}``
-    dicts the C scanner cannot read.
+    dicts the C scanner cannot read, hence the ``translate`` check.
     """
-    return not field.relational and not callable(field.translate)
+    return field.type in _TRUTHY_TYPES and not callable(field.translate)
 
 
 def can_scan_sorted(field: Field) -> bool:

@@ -17,12 +17,9 @@ from collections.abc import (
 )
 from operator import attrgetter
 
-from odoo_rust import (
-    to_prefetch_ids as _to_prefetch_ids_rust,  # type: ignore[import-untyped]
-)
-
 from odoo.exceptions import AccessError, MissingError
 from odoo.libs._field_access import scalar_cache_get as _scalar_cache_get
+from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import (
     SQL,
@@ -1430,15 +1427,28 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         field_cache = self._get_cache(record.env)
         prefetch_ids = record._prefetch_ids
         record_id = record.id
-        # Rust fast path (~3-5x): real records with tuple prefetch IDs and dict
-        # cache. LangProxyDict and PrefetchX2many use the Python path below.
+        # Accelerated path (~3-5x): real records with tuple prefetch IDs and a
+        # plain dict cache. LangProxyDict and PrefetchX2many take the Python
+        # path below, as does a NewId/0 record_id -- for which the accelerator
+        # returns None. Its contract is pinned by the differential oracle in
+        # odoo/libs/_field_access/_fallback.py (tests/test_field_access.py runs
+        # every case against both implementations).
+        #
+        # NOTE the accelerator and the loop below are deliberately NOT
+        # equivalent for exotic ids: the accelerator keeps only positive i64
+        # ids, the loop keeps any truthy one (so also negative ints, str ids,
+        # ints past i64). Neither occurs for real rows, and record_id itself is
+        # always retained either way, so this only changes how wide a prefetch
+        # batch is -- never which record the caller gets.
         if isinstance(prefetch_ids, tuple) and type(field_cache) is dict:
-            result = _to_prefetch_ids_rust(
+            result = _to_prefetch_ids(
                 record_id, prefetch_ids, field_cache, PREFETCH_MAX
             )
             if result is not None:
                 return record.browse(result)
-        # Python path: NewId records or non-tuple prefetch IDs
+        # Python path: NewId records, or a cache/prefetch shape the accelerator
+        # does not accept. ``bool(id_) == kind`` keeps NewId records grouped with
+        # NewIds and real records with real ids.
         kind = bool(record_id)
         result = [record_id]
         # Skip IDs already cached (O(1) lookup); track added IDs to dedup

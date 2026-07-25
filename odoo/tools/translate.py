@@ -33,18 +33,14 @@ from psycopg.types.json import Json
 import odoo
 import odoo.release
 from odoo.exceptions import UserError
+from odoo.libs.collections import OrderedSet, ReadonlyDict
 
 import odoo.addons
 from .config import config
+from .files import file_open, file_path
 from .i18n import format_list
-from .misc import (
-    SKIPPED_ELEMENT_TYPES,
-    OrderedSet,
-    ReadonlyDict,
-    file_open,
-    file_path,
-    get_iso_codes,
-)
+from .locale_utils import get_iso_codes
+from .misc import SKIPPED_ELEMENT_TYPES
 
 __all__ = [
     "LazyTranslate",
@@ -526,6 +522,15 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
             has_lazy = True
         elif isinstance(v, Iterable) and not isinstance(v, (str, bytes)):
             has_iterable = True
+            # A Markup hidden *inside* an iterable counts too.  Only the
+            # top-level scan existed, so ``_("Missing: %s", [Markup(html), "b"])``
+            # skipped the escape below AND came back as a plain ``str`` carrying
+            # raw HTML -- the one combination that is unsafe in both directions:
+            # callers that treat a ``_()`` result as markup injected it verbatim,
+            # and callers that escape it mangled the markup the caller meant to
+            # pass. Consistent with the top-level case, which returns Markup.
+            if not has_markup and any(isinstance(el, Markup) for el in v):
+                has_markup = True
         if has_markup and has_lazy and has_iterable:
             break
     if has_markup:
@@ -551,6 +556,14 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
                     el._translate(lang) if isinstance(el, LazyGettext) else el
                     for el in v
                 ]
+                if any(isinstance(el, Markup) for el in v):
+                    # Escape the plain elements, keep the Markup ones, and mark
+                    # the join safe: ``format_list`` str()-ifies everything and
+                    # returns a plain str, so without this the ``%`` below would
+                    # escape the whole thing again and destroy the caller's
+                    # markup. babel's separators are safe literals.
+                    v = [el if isinstance(el, Markup) else escape(el) for el in v]
+                    return Markup(format_list(env=None, lst=v, lang_code=lang))
                 return format_list(env=None, lst=v, lang_code=lang)
             return v
 

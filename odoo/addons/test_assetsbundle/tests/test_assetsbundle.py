@@ -2923,7 +2923,7 @@ class TestAssetsManifest(AddonManifestPatched):
 class AssetsNodeOrmCacheUsage(TransactionCase):
 
     def cache_keys(self):
-        keys = list(self.env.registry._Registry__caches["assets"])
+        keys = list(self.env.registry.ormcache_lrus["assets"])
 
         asset_keys = [
             key

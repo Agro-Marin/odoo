@@ -30,7 +30,6 @@ from .config import config
 # exists, and tempfile never reuses a name, so a stale entry can never alias a
 # different directory.
 @functools.lru_cache(maxsize=512)
-@functools.lru_cache(maxsize=512)
 def _addons_dir_paths(addons_dir: str) -> tuple[Path, Path]:
     """Return ``(normalised, resolved)`` forms of an addons-path directory.
 
@@ -108,7 +107,7 @@ def file_path(
         addons_paths = [str(Path(p).parent) for p in module.__path__]
     else:
         temporary_paths = (
-            env.transaction._Transaction__file_open_tmp_paths if env else []
+            env.transaction.file_open_tmp_paths if env else []
         )
         addons_paths = [
             *odoo.addons.__path__,
@@ -207,7 +206,7 @@ def file_open_temporary_directory(env: Environment) -> Generator[str]:
     """
     with tempfile.TemporaryDirectory() as module_dir:
         try:
-            env.transaction._Transaction__file_open_tmp_paths.append(module_dir)
+            env.transaction.file_open_tmp_paths.append(module_dir)
             yield module_dir
         finally:
-            env.transaction._Transaction__file_open_tmp_paths.remove(module_dir)
+            env.transaction.file_open_tmp_paths.remove(module_dir)

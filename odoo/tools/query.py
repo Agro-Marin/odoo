@@ -59,16 +59,16 @@ class Query:
         "_any_value_orderby",
         "_collect_order_groupby",
         "_env",
+        "_groupby",
+        "_having",
         "_ids",
         "_joins",
+        "_limit",
+        "_offset",
         "_order",
         "_order_groupby",
         "_tables",
         "_where_clauses",
-        "groupby",
-        "having",
-        "limit",
-        "offset",
     )
 
     def __init__(self, env: object, alias: str, table: SQL | None = None) -> None:
@@ -86,7 +86,7 @@ class Query:
         self._where_clauses: list[SQL] = []
 
         # groupby, having, order, limit, offset
-        self.groupby: SQL | None = None
+        self._groupby: SQL | None = None
         self._order_groupby: list[SQL] = []
         # When True, _order_field_to_sql wraps ORDER BY columns in
         # ANY_VALUE() (PG16+) instead of appending to _order_groupby.
@@ -99,13 +99,23 @@ class Query:
         # plain (ungrouped) searches leave it False so ordered searches don't
         # grow a list nobody consumes.
         self._collect_order_groupby: bool = False
-        self.having: SQL | None = None
+        self._having: SQL | None = None
         self._order: SQL | None = None
-        self.limit: int | None = None
-        self.offset: int | None = None
+        self._limit: int | None = None
+        self._offset: int | None = None
 
         # memoized result
         self._ids: tuple[int, ...] | None = None
+
+    def _invalidate_ids(self) -> None:
+        """Drop the memoized result after a change to the query's shape.
+
+        ``self._ids and None`` (rather than a plain ``None``) deliberately keeps
+        the *empty* memo: a query already known to return nothing still returns
+        nothing once further restrictions are added, and ``is_empty()`` relies on
+        that.
+        """
+        self._ids = self._ids and None
 
     @staticmethod
     def make_alias(alias: str, link: str) -> str:
@@ -117,7 +127,7 @@ class Query:
         if alias in self._tables or alias in self._joins:
             raise ValueError(f"Alias {alias!r} already in {self}")
         self._tables[alias] = table if table is not None else SQL.identifier(alias)
-        self._ids = self._ids and None
+        self._invalidate_ids()
 
     def add_join(
         self, kind: str, alias: str, table: str | SQL | None, condition: SQL
@@ -137,14 +147,14 @@ class Query:
                 raise ValueError(f"Alias {alias!r} already used with a different join")
         else:
             self._joins[alias] = (sql_kind, table, condition)
-            self._ids = self._ids and None
+            self._invalidate_ids()
 
     def add_where(self, where_clause: str | SQL, where_params: tuple = ()) -> None:
         """Add a condition to the where clause."""
         self._where_clauses.append(
             SQL(where_clause, *where_params)  # pylint: disable=sql-injection
         )
-        self._ids = self._ids and None
+        self._invalidate_ids()
 
     def join(
         self,
@@ -210,6 +220,25 @@ class Query:
         self.add_join("LEFT JOIN", rhs_alias, rhs_table, condition)
         return rhs_alias
 
+    # ------------------------------------------------------------------
+    # Shape attributes.
+    #
+    # ``groupby``/``having``/``limit``/``offset``/``order`` all change what the
+    # query returns, so every one of them invalidates the memoized ``_ids`` --
+    # exactly like ``add_table``/``add_join``/``add_where`` already did.  They
+    # used to be plain slots (only ``order`` had a property, and only to coerce
+    # a ``str``), which left the class with two classes of mutator: three that
+    # invalidated and four that silently did not.
+    #
+    # That asymmetry is reachable.  ``_as_query()`` materializes ``_ids`` via
+    # ``set_result_ids``, and ``BaseModel.try_lock_for_update`` then assigns
+    # ``query.limit`` to that already-memoized query.  It survives only because
+    # it happens to call ``select()``, which reads the live ``limit``; the memo
+    # consumers -- ``subselect()`` (which substitutes the raw id tuple for the
+    # sub-query), ``get_result_ids()``, ``__len__``, ``__iter__``, ``__bool__``
+    # -- would all have ignored the LIMIT and returned the unbounded set.
+    # ------------------------------------------------------------------
+
     @property
     def order(self) -> SQL | None:
         return self._order
@@ -219,6 +248,43 @@ class Query:
         self._order = (
             SQL(value) if value is not None else None  # pylint: disable=sql-injection
         )
+        self._invalidate_ids()
+
+    @property
+    def groupby(self) -> SQL | None:
+        return self._groupby
+
+    @groupby.setter
+    def groupby(self, value: SQL | None):
+        self._groupby = value
+        self._invalidate_ids()
+
+    @property
+    def having(self) -> SQL | None:
+        return self._having
+
+    @having.setter
+    def having(self, value: SQL | None):
+        self._having = value
+        self._invalidate_ids()
+
+    @property
+    def limit(self) -> int | None:
+        return self._limit
+
+    @limit.setter
+    def limit(self, value: int | None):
+        self._limit = value
+        self._invalidate_ids()
+
+    @property
+    def offset(self) -> int | None:
+        return self._offset
+
+    @offset.setter
+    def offset(self, value: int | None):
+        self._offset = value
+        self._invalidate_ids()
 
     @property
     def table(self) -> str:

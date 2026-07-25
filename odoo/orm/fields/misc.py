@@ -9,7 +9,7 @@ from odoo.libs.json import loads as _fast_loads
 from odoo.tools import SQL
 from odoo.tools.json import orjson_default
 
-from ..primitives import IdType
+from ..primitives import IdType, NewId
 from .base import Field, _make_scalar_get
 
 if typing.TYPE_CHECKING:
@@ -190,7 +190,62 @@ class Id(Field[IdType | typing.Literal[False]]):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
-        return value
+        """Coerce a value to the id column's type, or fail cleanly.
+
+        Upstream returns ``value`` unchanged.  That identity passthrough made
+        ``id`` the ONLY field class that let an ill-typed domain comparand reach
+        psycopg: every sibling (``Integer.convert_to_column`` is ``int(value or
+        0)``, Char/Date/... likewise convert or raise) turns a bad value into a
+        clean Python ``ValueError``, but ``('id', '>', x)`` passed ``x`` straight
+        through to the driver.  The database then raised -- ``operator does not
+        exist: integer > boolean`` for ``False``, ``invalid input syntax for type
+        integer`` for ``"abc"``/``[]``, ``integer > bytea`` for bytes -- which
+        ABORTS THE TRANSACTION, so a caller that catches the error still loses
+        every subsequent query.  Every model has ``id``, so this affected every
+        model's ``search()``.
+
+        Validation applies only to ORM-created tables (``_auto``), whose ``id``
+        really is ``int4``.  An ``_auto = False`` model builds its own relation
+        -- ``test_orm.view.str.id`` is a ``_table_query`` view whose id column is
+        *text* -- so there the value passes through untouched, exactly as before.
+
+        On a real table, conversions are chosen to preserve every previously
+        working call:
+
+        * ``False``/``None`` -> ``None`` (SQL NULL).  ``id`` is ``NOT NULL`` and
+          always positive, so an unset comparand can only mean "no value"; the
+          domain optimizer collapses that shape to the FALSE domain before it
+          ever gets here (see ``_optimize_inequality_against_null``).
+        * ``int``/``float`` pass through UNCHANGED -- notably floats are *not*
+          truncated, because ``id >= 1.5`` and ``id >= 1`` select different rows.
+        * ``str`` is parsed as an integer, matching what Postgres already did
+          implicitly for ``('id', '>', "123")``.
+        * anything else raises ``ValueError`` naming the field -- a clean,
+          catchable error that leaves the transaction usable.
+
+        ``NewId`` always passes through: an in-memory id reaching SQL is a
+        caller-side bug, and this method is not the place to re-diagnose it.
+        """
+        if value is None or value is False:
+            return None
+        if isinstance(value, NewId):
+            return value
+        # A model that manages its own relation (_auto = False, e.g. a
+        # _table_query SQL view) may key on any column type, so nothing here can
+        # be assumed about it -- keep upstream's passthrough.
+        if not record._auto:
+            return value
+        # bool is a subclass of int; True is not a record id.
+        if value is True:
+            raise ValueError(f"Invalid id value for {self}: {value!r}")
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value)
+            except ValueError:
+                raise ValueError(f"Invalid id value for {self}: {value!r}") from None
+        raise ValueError(f"Invalid id value for {self}: {value!r}")
 
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
         # do not flush; id is never flushed, just return the identifier

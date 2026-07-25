@@ -13,7 +13,8 @@ from PIL import Image, PdfImagePlugin
 from odoo import modules
 from odoo.libs.text.arabic_reshaper import reshape
 from odoo.libs.parse_version import parse_version
-from odoo.tools.misc import file_open, SENTINEL
+from odoo.libs.iteration import SENTINEL
+from odoo.tools.files import file_open
 
 from . import _pypdf as pypdf
 

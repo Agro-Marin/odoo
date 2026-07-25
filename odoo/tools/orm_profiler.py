@@ -209,9 +209,19 @@ class OrmProfiler:
                 f"{agg.records:6d} records, {agg.time * 1000:8.1f} ms"
             )
 
-        # Top hotspots (cap at 20 to avoid log spam)
-        lines.append("  Top hotspots by time:")
-        for (operation, model_name), stats in sorted_entries[:20]:
+        # Top hotspots (cap at 20 to avoid log spam).  Say so when the list is
+        # cut: a silently truncated report reads as "these are all the model/op
+        # pairs that ran", which is exactly the wrong conclusion to draw from a
+        # profile.
+        shown = sorted_entries[:20]
+        if len(sorted_entries) > len(shown):
+            lines.append(
+                f"  Top hotspots by time (showing {len(shown)} of "
+                f"{len(sorted_entries)}):"
+            )
+        else:
+            lines.append("  Top hotspots by time:")
+        for (operation, model_name), stats in shown:
             pct = (stats.time / self._total_time * 100) if self._total_time else 0
             lines.append(
                 f"    {operation:>10s} {model_name}: "

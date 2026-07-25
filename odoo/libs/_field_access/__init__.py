@@ -9,6 +9,7 @@ __all__ = [
     "scalar_cache_get",
     "sort_ids_by_cache",
     "sort_ids_by_values",
+    "to_prefetch_ids",
 ]
 
 from odoo_rust import (  # type: ignore[import-untyped]
@@ -19,6 +20,7 @@ from odoo_rust import (  # type: ignore[import-untyped]
     batch_group_ids,
     sort_ids_by_cache,
     sort_ids_by_values,
+    to_prefetch_ids,
 )
 
 # scalar_cache_get always uses the Python implementation: the hit path (3 dict

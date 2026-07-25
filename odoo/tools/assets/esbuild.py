@@ -163,6 +163,13 @@ def minify_js(
             input=source,
             capture_output=True,
             text=True,
+            # Pin the pipe codec.  ``text=True`` alone decodes with
+            # ``locale.getencoding()``, so under a non-UTF-8 process locale the
+            # JS round trip is lossy in both directions -- non-ASCII string
+            # literals and identifiers get mangled or raise UnicodeDecodeError,
+            # for a binary we explicitly ask to emit UTF-8 (``--charset=utf8``).
+            # ``file_open`` forces the same encoding for exactly this reason.
+            encoding="utf-8",
             timeout=timeout_s,
             check=False,  # returncode handled below; failure is non-fatal
         )
@@ -936,6 +943,10 @@ class EsbuildCompiler:
                 input=entry_text,
                 capture_output=True,
                 text=True,
+                # Same reason as ``minify_js``: ``text=True`` alone picks the
+                # process locale's codec.  The failure dump below already spells
+                # ``encoding="utf-8"`` out for the very same text.
+                encoding="utf-8",
                 timeout=timeout_s,
                 cwd=str(Path(odoo.__path__[0]).parent),
                 check=False,  # returncode is inspected explicitly below

@@ -903,6 +903,15 @@ def html2plaintext(
         )
 
     tree = etree.fromstring(html_content, parser=etree.HTMLParser())
+    if tree is None:
+        # The HTML parser yields None for input that carries no element at all
+        # -- a lone comment ("<!-- x -->"), a bare doctype, a stray processing
+        # instruction.  Every line below dereferences ``tree``, so this used to
+        # surface as "AttributeError: 'NoneType' object has no attribute
+        # 'xpath'" from deep inside the mail pipeline, on content an inbound
+        # message can trivially carry.  There is no text in such a document, so
+        # the answer is the empty string, exactly as for empty input above.
+        return ""
 
     if body_id is not None:
         # Bind ``body_id`` as an XPath variable rather than interpolating it: an

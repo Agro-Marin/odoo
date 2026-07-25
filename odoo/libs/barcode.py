@@ -71,6 +71,12 @@ def get_barcode_font() -> str:
     return font
 
 
+# ASCII digits only: ``\d`` also matches Unicode decimal digits, so a barcode
+# written in fullwidth (U+FF10..U+FF19) or Arabic-Indic digits validated as a
+# legal EAN-8 and then round-tripped through int() without complaint.
+_ASCII_DIGITS_RE = re.compile(r"\A[0-9]+\Z")
+
+
 def get_barcode_check_digit(numeric_barcode: str) -> int:
     """Compute and return the barcode check digit.
 
@@ -81,7 +87,21 @@ def get_barcode_check_digit(numeric_barcode: str) -> int:
 
     :param numeric_barcode: the barcode to verify/recompute the check digit
     :return: the number corresponding to the right check digit.
+    :raises ValueError: if ``numeric_barcode`` is not all ASCII digits.
     """
+    # Reject non-digits up front, naming the offending value.  The bare int()
+    # below raised "invalid literal for int() with base 10: 'l'" -- a message
+    # that names a single character and neither the input nor the function that
+    # rejected it.  That surfaces on a live path: ``barcode.nomenclature``
+    # exposes ``sanitize_ean``/``sanitize_upc`` as ``@api.model`` methods, so any
+    # RPC caller can hand over a non-numeric prefix and get an opaque 500.
+    # ASCII-only, like ``check_barcode_encoding``: ``str.isdigit()`` accepts
+    # superscripts and other Unicode digits that int() then rejects anyway,
+    # and fullwidth digits that int() silently *accepts* -- neither is a GTIN.
+    if not _ASCII_DIGITS_RE.match(numeric_barcode or ""):
+        msg = f"barcode must be a non-empty string of ASCII digits, got {numeric_barcode!r}"
+        raise ValueError(msg)
+
     # Multiply value of each position by
     # N1  N2  N3  N4  N5  N6  N7  N8  N9  N10 N11 N12 N13 N14 N15 N16 N17 N18
     # x3  X1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  CHECKSUM
@@ -105,11 +125,6 @@ _BARCODE_SIZES = {
     "upca": 12,
     "sscc": 18,
 }
-
-# ASCII digits only: ``\d`` also matches Unicode decimal digits, so a barcode
-# written in fullwidth (U+FF10..U+FF19) or Arabic-Indic digits validated as a
-# legal EAN-8 and then round-tripped through int() without complaint.
-_ASCII_DIGITS_RE = re.compile(r"\A[0-9]+\Z")
 
 
 def check_barcode_encoding(barcode: str, encoding: str) -> bool:

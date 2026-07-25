@@ -375,7 +375,28 @@ class ThreadedServer(CommonServer):
             t.start()
 
     def http_spawn(self) -> None:
-        self.httpd = ThreadedWSGIServerReloadable(self.interface, self.port, self.app)
+        try:
+            self.httpd = ThreadedWSGIServerReloadable(
+                self.interface, self.port, self.app
+            )
+        except SystemExit:
+            # werkzeug reports a failed bind (EADDRINUSE, EACCES, an interface
+            # that does not resolve) by ``print``-ing to sys.stderr and calling
+            # ``sys.exit(1)`` -- see werkzeug.serving.BaseWSGIServer.__init__.
+            # Nothing of that reaches a logger, so under ``--logfile`` the only
+            # report goes to the terminal (or to /dev/null) while the log itself
+            # ends with an ordinary "Initialization done, shutting down": a
+            # server that never bound its port is indistinguishable from a clean
+            # run, and the only other signal is the exit status. Restate it
+            # through the logger, then let the exit propagate unchanged.
+            self.logger.critical(
+                "Failed to bind the HTTP server to %s:%s -- the address is "
+                "unavailable (already in use, or not permitted). Nothing will "
+                "be served; see the message on stderr for the OS-level cause.",
+                self.interface,
+                self.port,
+            )
+            raise
         threading.Thread(
             target=self.httpd.serve_forever,
             name="odoo.service.httpd",

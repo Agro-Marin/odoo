@@ -43,7 +43,6 @@ class Transaction:
     """An object holding ORM data structures for a transaction."""
 
     __slots__ = (
-        "_Transaction__file_open_tmp_paths",
         "_cache_store",
         "_compute_engine",
         "_last_env",
@@ -55,6 +54,7 @@ class Transaction:
         "core",
         "default_env",
         "envs",
+        "file_open_tmp_paths",
         "registry",
         "storage",
         "unit_of_work",
@@ -110,8 +110,14 @@ class Transaction:
             OrmProfiler() if _orm_profiling_enabled else None
         )
 
-        # temporary directories (see odoo.tools.file_open_temporary_directory)
-        self.__file_open_tmp_paths = []  # type: ignore[misc, var-annotated] # noqa: PLE0237
+        # Temporary directories that ``odoo.tools.files.file_open`` may read
+        # from, for this transaction only (see file_open_temporary_directory).
+        # A plain public attribute: it is read and mutated from odoo.tools, so
+        # spelling it ``self.__file_open_tmp_paths`` only meant the slot had to
+        # be declared pre-mangled above and every caller had to hand-write
+        # ``_Transaction__file_open_tmp_paths`` -- private in name, cross-package
+        # in fact.
+        self.file_open_tmp_paths: list[str] = []
 
     def flush(self) -> None:
         """Flush pending computations and updates in the transaction."""

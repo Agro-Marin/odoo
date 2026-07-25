@@ -1,0 +1,84 @@
+"""Tests pinning the documented semantics of ``merge_sequences``.
+
+The docstring used to promise that contradictory inputs resolve "first-wins".
+They do not: which constraint survives is decided by the depth-first walk, and
+in practice the *second* argument's order is the one that holds.  These tests
+pin what the function actually does so the docstring cannot drift back.
+"""
+
+import unittest
+
+from odoo.libs.iteration.sorting import merge_sequences, topological_sort
+
+
+class TestMergeSequencesDocumentedExample(unittest.TestCase):
+    def test_worked_example(self):
+        self.assertEqual(
+            merge_sequences(
+                ["A", "B", "C"],
+                ["Z"],
+                ["Y", "C"],
+                ["A", "X", "Y"],
+            ),
+            ["A", "B", "X", "Y", "C", "Z"],
+        )
+
+    def test_single_sequence_is_identity(self):
+        self.assertEqual(merge_sequences(["A", "B", "C"]), ["A", "B", "C"])
+
+    def test_no_arguments(self):
+        self.assertEqual(merge_sequences(), [])
+
+
+class TestMergeSequencesConflicts(unittest.TestCase):
+    """Conflicts resolve, deterministically, but NOT first-wins."""
+
+    def test_not_first_wins(self):
+        self.assertEqual(merge_sequences(["a", "b"], ["b", "a"]), ["b", "a"])
+
+    def test_symmetric_case_confirms_it_is_not_last_wins_either(self):
+        self.assertEqual(merge_sequences(["b", "a"], ["a", "b"]), ["a", "b"])
+
+    def test_deterministic(self):
+        args = (["x", "y"], ["y", "x"], ["x", "y"])
+        self.assertEqual(merge_sequences(*args), merge_sequences(*args))
+
+    def test_conflict_never_raises(self):
+        # Selection._setup merges selection_add through here while building the
+        # registry; a module reordering existing values must not take the
+        # server down.
+        merge_sequences(["a", "b", "c"], ["c", "b", "a"])
+
+    def test_all_elements_survive(self):
+        result = merge_sequences(["a", "b"], ["b", "a"], ["c"])
+        self.assertEqual(sorted(result), ["a", "b", "c"])
+
+
+class TestTopologicalSortStrictness(unittest.TestCase):
+    """``topological_sort`` is the strict counterpart; a cycle is a data error."""
+
+    def test_cycle_raises_by_default(self):
+        with self.assertRaises(ValueError):
+            topological_sort({"a": ["b"], "b": ["a"]})
+
+    def test_cycle_tolerated_when_not_strict(self):
+        self.assertEqual(
+            sorted(topological_sort({"a": ["b"], "b": ["a"]}, strict=False)), ["a", "b"]
+        )
+
+    def test_self_edge_is_not_a_cycle(self):
+        # a manifest without "depends" defaults to ["base"], so base depends on
+        # itself (ir_asset._topological_sort relies on this)
+        self.assertEqual(topological_sort({"base": ["base"]}), ["base"])
+
+    def test_dependency_absent_from_elems_is_never_emitted(self):
+        self.assertEqual(topological_sort({"a": ["ghost"]}), ["a"])
+
+    def test_deep_chain_does_not_blow_the_stack(self):
+        depth = 50_000
+        elems = {i: [i + 1] for i in range(depth)} | {depth: []}
+        self.assertEqual(len(topological_sort(elems)), depth + 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

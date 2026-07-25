@@ -4,6 +4,7 @@ Replaces passlib (abandoned since 2020, broken on Python 3.13+) with ~100 lines
 of stdlib code. All existing password hashes in databases remain valid.
 """
 
+import binascii
 import hashlib
 import hmac
 import os
@@ -25,9 +26,16 @@ def _ab64_encode(data: bytes) -> str:
 
 
 def _ab64_decode(data: str) -> bytes:
-    """Decode passlib's 'adapted base64' back to bytes."""
+    """Decode passlib's 'adapted base64' back to bytes.
+
+    ``-len(b) % 4`` (not ``4 - len(b) % 4``): the latter appends four ``=`` when
+    the length is already a multiple of four.  b64decode happens to tolerate the
+    surplus, so nothing broke, but the two forms only agree by accident and the
+    ~4/4-length case never occurs for the 16-byte salt / 64-byte checksum this
+    module writes.
+    """
     b = data.replace(".", "+").encode("ascii")
-    b += b"=" * (4 - len(b) % 4)  # restore padding
+    b += b"=" * (-len(b) % 4)  # restore padding
     return b64decode(b)
 
 
@@ -44,11 +52,25 @@ def _format_hash(rounds: int, salt: bytes, checksum: bytes) -> str:
 
 
 def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
-    """Parse an MCF hash string; return (rounds, salt_bytes, checksum_bytes) or None."""
+    """Parse an MCF hash string; return (rounds, salt_bytes, checksum_bytes) or None.
+
+    A hash that *looks* like the MCF format but whose salt/checksum is not valid
+    base64 is unparseable, not a crash: ``_MCF_RE`` accepts ``[^$]+`` for both
+    fields, so ``$pbkdf2-sha512$1$a$b`` matched here and then blew up inside
+    ``b64decode`` with ``binascii.Error``.  That exception escaped
+    :meth:`CryptContext.verify`, which every login path calls with a hash read
+    straight from ``res_users.password`` — a single truncated or hand-edited row
+    (bad restore, partial migration, manual UPDATE) turned "wrong password" into
+    an uncaught HTTP 500 on the login route.  Returning ``None`` routes it to the
+    same "does not verify" outcome as any other unrecognised hash.
+    """
     m = _MCF_RE.match(hash_str)
     if not m:
         return None
-    return int(m.group(1)), _ab64_decode(m.group(2)), _ab64_decode(m.group(3))
+    try:
+        return int(m.group(1)), _ab64_decode(m.group(2)), _ab64_decode(m.group(3))
+    except (binascii.Error, ValueError):
+        return None
 
 
 def pbkdf2_sha512_hash(password: str, rounds: int = _DEFAULT_ROUNDS) -> str:
@@ -87,6 +109,15 @@ class CryptContext:
             rounds, salt, expected = parsed
             actual = _pbkdf2_sha512(password, salt, rounds)
             return hmac.compare_digest(actual, expected)
+        if self.identify(hash_str) == "pbkdf2_sha512":
+            # MCF-shaped but unparseable (see :func:`_parse_hash`).  Fail closed
+            # instead of falling through to the plaintext comparison below: that
+            # branch exists for values that were never hashed (legacy plaintext
+            # passwords), and applying it to a *damaged hash* makes the stored
+            # hash string itself a working password.  ``identify`` is the exact
+            # discriminator -- it is the same "$pbkdf2-sha512$" prefix test that
+            # ``verify_and_update`` already uses to pick a scheme.
+            return False
         # plaintext fallback
         if "plaintext" in self._schemes:
             return hmac.compare_digest(

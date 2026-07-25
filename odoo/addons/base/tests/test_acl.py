@@ -539,7 +539,7 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         """
         Access = self.env["ir.model.access"]
         registry = self.env.registry
-        caches = registry._Registry__caches
+        caches = registry.ormcache_lrus
 
         def cached(bucket, method_name):
             return [

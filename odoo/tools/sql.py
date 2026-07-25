@@ -30,8 +30,7 @@ from odoo.libs.sql import (
     pg_varchar,
     reverse_order,
 )
-
-from .misc import named_to_positional_printf
+from odoo.libs.utils import named_to_positional_printf
 
 __all__ = [
     "SQL",

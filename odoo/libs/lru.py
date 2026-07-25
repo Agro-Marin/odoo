@@ -126,6 +126,22 @@ class LRU[K, V](MutableMapping[K, V]):
         """Return the number of items currently in the LRU."""
         return len(self._values)
 
+    def __repr__(self) -> str:
+        """Return a summary of the LRU's occupancy, without dumping its contents.
+
+        ``MutableMapping`` supplies no ``__repr__``, so this fell back to
+        ``object.__repr__`` -- "<odoo.libs.lru.LRU object at 0x...>", which tells
+        a reader debugging a cache neither how full it is nor how often it has
+        been cleared.  Deliberately *not* the usual ``{k: v, ...}`` mapping repr:
+        this type backs ``ormcache``, whose entries are large and whose keys hold
+        recordsets and contexts, so rendering them in a log line or a debugger's
+        variable pane would be a wall of text (and would touch every value).
+        """
+        return (
+            f"{type(self).__name__}"
+            f"(count={self._count}, size={len(self._values)}, gen={self._generation})"
+        )
+
     def __iter__(self) -> Iterator[K]:
         """Iterate over keys, least recently used first."""
         return iter(self.snapshot)

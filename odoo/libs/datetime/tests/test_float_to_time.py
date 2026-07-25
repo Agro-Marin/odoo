@@ -22,6 +22,45 @@ class TestFloatToTime(unittest.TestCase):
     def test_sentinel_24(self):
         self.assertEqual(float_to_time(24.0), time.max)
 
+    def test_boundaries_accepted(self):
+        self.assertEqual(float_to_time(0.0), time(0, 0))
+        self.assertEqual(float_to_time(23.99), time(23, 59))
+
+
+class TestOutOfDomain(unittest.TestCase):
+    """Out-of-range input is rejected uniformly.
+
+    The three cases used to behave three different ways: a negative value leaked
+    "hour must be in 0..23, not -1" from ``time()``, NaN leaked "cannot convert
+    float NaN to integer" from ``int()``, and anything above 24 was silently
+    clamped to end-of-day.
+    """
+
+    def test_negative(self):
+        with self.assertRaises(ValueError) as ctx:
+            float_to_time(-1.0)
+        self.assertIn("[0.0, 24.0]", str(ctx.exception))
+
+    def test_small_negative(self):
+        # this one used to leak a *minute* error rather than an hour one
+        with self.assertRaises(ValueError):
+            float_to_time(-0.5)
+
+    def test_above_24_no_longer_silently_clamped(self):
+        for value in (24.5, 25.0, 100.0):
+            with self.assertRaises(ValueError):
+                float_to_time(value)
+
+    def test_nan(self):
+        with self.assertRaises(ValueError):
+            float_to_time(float("nan"))
+
+    def test_infinity(self):
+        with self.assertRaises(ValueError):
+            float_to_time(float("inf"))
+        with self.assertRaises(ValueError):
+            float_to_time(float("-inf"))
+
 
 if __name__ == "__main__":
     unittest.main()

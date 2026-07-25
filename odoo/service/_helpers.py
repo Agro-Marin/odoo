@@ -89,6 +89,7 @@ def cron_database_list() -> list[str]:
 __all__ = (
     "CRON_NOTIFY_JITTER_MAX_S",
     "SLEEP_INTERVAL",
+    "capped_backoff",
     "cron_database_list",
     "empty_pipe",
     "memory_info",

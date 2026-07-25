@@ -72,6 +72,32 @@ class frozendict[K, T](dict[K, T]):
         msg = "'|=' not supported on frozendict"
         raise NotImplementedError(msg)
 
+    def __reduce__(self) -> tuple[Any, tuple[type, dict[K, T]]]:
+        """Rebuild the frozendict from its class and a plain dict of its items.
+
+        Without this, a frozendict could not be copied or pickled at all.
+        ``dict`` subclasses are reconstructed by ``copyreg`` through the
+        "dictitems" slot of the pickle protocol, which replays the contents with
+        ``obj[key] = value`` -- straight into the ``__setitem__`` override above,
+        so ``copy.copy``, ``copy.deepcopy`` and ``pickle.dumps`` every one of
+        them raised ``NotImplementedError: '__setitem__' not supported on
+        frozendict``.  No in-tree caller trips this today (nothing deep-copies
+        or pickles a structure holding one -- sessions serialize through orjson,
+        not pickle), so this is a latent hole rather than a live bug: an
+        immutable *value* type that cannot be copied is simply broken, and any
+        future caller would meet it as a puzzling crash far from here.
+
+        Reconstruction goes through :func:`_rebuild_frozendict` rather than
+        ``type(self)(items)`` so it does not depend on the subclass constructor
+        accepting a mapping -- a subclass with its own ``__init__`` signature
+        would otherwise fail to unpickle.  ``deepcopy`` still recurses into the
+        items argument, so the (possibly mutable) *values* are deep-copied and
+        shared references stay shared through the memo.  The cached ``_hash`` is
+        deliberately not carried over -- it is recomputed on demand from the
+        reconstructed contents.
+        """
+        return (_rebuild_frozendict, (type(self), dict(self)))
+
     def __hash__(self) -> int:  # type: ignore[override]
         """Return a cached hash computed from the key/value pairs."""
         try:
@@ -80,3 +106,17 @@ class frozendict[K, T](dict[K, T]):
             h = hash(frozenset((key, freehash(val)) for key, val in self.items()))
             object.__setattr__(self, "_hash", h)
             return h
+
+
+def _rebuild_frozendict[K, T](cls: type, items: dict[K, T]) -> Any:
+    """Reconstruct a ``frozendict`` (or subclass) from its items.
+
+    Used by :meth:`frozendict.__reduce__`.  Builds the instance with
+    ``dict.__new__`` and fills it through ``dict.update``, both of which bypass
+    the immutability overrides -- so reconstruction works for any subclass
+    whatever its ``__init__`` signature, and the result is still immutable to
+    every public entry point.
+    """
+    obj = dict.__new__(cls)
+    dict.update(obj, items)
+    return obj

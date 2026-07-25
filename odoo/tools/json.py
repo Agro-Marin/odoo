@@ -2,6 +2,7 @@
 import dataclasses
 from datetime import date, datetime
 
+from odoo.libs.collections import ReadonlyDict
 from odoo.libs.func import lazy
 from odoo.libs.json import (
     ScriptSafeJSON as JSON,
@@ -19,8 +20,6 @@ from odoo.libs.json import (
 from odoo.libs.json import (
     loads as fast_loads,
 )
-
-from .misc import ReadonlyDict
 
 
 def json_default(obj: object) -> object:

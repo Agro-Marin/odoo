@@ -28,11 +28,14 @@ class _Pool:
     db_name = "testdb"
 
     def __init__(self):
-        # the closure reads the name-mangled ``pool._Registry__caches``; assign
-        # the literal name via __dict__ (a plain attribute here would mangle to
-        # ``_Pool__caches``). Real caches are LRU stores (the lookup reads their
+        # ``ormcache_lrus`` is the only thing the ormcache closure asks of a
+        # pool, so a plain attribute is enough.  It used to need
+        # ``self.__dict__["_Registry__caches"] = ...`` because writing that
+        # name in a class body would mangle it to ``_Pool__caches`` -- a fake
+        # forced to smuggle in an attribute belonging to a class it does not
+        # subclass.  Real caches are LRU stores (the lookup reads their
         # ``.generation``), so mirror that here rather than using a plain dict.
-        self.__dict__["_Registry__caches"] = defaultdict(lambda: LRU(1000))
+        self.ormcache_lrus = defaultdict(lambda: LRU(1000))
 
 
 class _Model:

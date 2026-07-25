@@ -13,6 +13,62 @@ from operator import itemgetter as _itemgetter
 
 _itemgetter_1 = _itemgetter(1)
 
+# pyo3's ``extract::<i64>()`` succeeds only for Python ints that fit in an i64
+# (bool is an int subclass, so it extracts as 0/1 -- deliberately mirrored).
+_I64_MIN = -(2**63)
+_I64_MAX = 2**63 - 1
+
+
+def _as_i64(value: object) -> int | None:
+    """Return *value* as an i64, or ``None`` if Rust's extract would fail."""
+    if isinstance(value, int) and _I64_MIN <= value <= _I64_MAX:
+        return value
+    return None
+
+
+def to_prefetch_ids(
+    record_id: object,
+    prefetch_ids: tuple,
+    field_cache: dict,
+    prefetch_max: int,
+) -> tuple | None:
+    """Select the record IDs to prefetch alongside *record_id*.
+
+    Oracle for ``odoo_rust.to_prefetch_ids``, the computational core of
+    ``Field._to_prefetch``.  Returns ``None`` when *record_id* is not a positive
+    i64 (a NewId or 0), signalling the caller to take its own Python path --
+    prefetching only ever makes sense for real, persisted rows.
+
+    An id joins the result when it is a positive i64, is not already cached, and
+    has not been added yet.  *record_id* itself is always first, so the record
+    that triggered the miss is never dropped no matter what else is filtered out.
+
+    This is deliberately STRICTER than the loop it mirrors in
+    ``Field._to_prefetch``, which admits any truthy id (``bool(id_) == kind``).
+    That admitted negative ints, ``str`` ids and ints beyond i64 -- values that
+    can only produce a nonsense prefetch query -- and, because the Rust path
+    rejected them, the two disagreed with no test to catch it.
+    """
+    rec_id = _as_i64(record_id)
+    if rec_id is None or rec_id <= 0:
+        return None
+
+    seen = {rec_id}
+    result = [record_id]
+    for id_ in prefetch_ids:
+        if len(result) >= prefetch_max:
+            break
+        id_val = _as_i64(id_)
+        if id_val is None or id_val <= 0:
+            continue
+        # Cache membership is keyed by the original object, like the Rust
+        # PyDict_Contains; ``seen`` dedups on the i64 so 1 and True collapse
+        # exactly as they do there.
+        if id_ not in field_cache and id_val not in seen:
+            seen.add(id_val)
+            result.append(id_)
+    return tuple(result)
+
 
 def batch_cache_get(
     field_cache: dict,

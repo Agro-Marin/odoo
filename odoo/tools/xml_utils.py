@@ -16,7 +16,7 @@ from odoo.libs.xml import (
     create_xml_node_chain,
     remove_control_characters,
 )
-from odoo.tools.misc import file_open
+from odoo.tools.files import file_open
 
 __all__ = [
     "cleanup_xml_node",
@@ -109,7 +109,14 @@ def _check_with_xsd(
     if env:
         parser.resolvers.add(odoo_resolver(env, prefix))
         if isinstance(stream, str) and stream.endswith(".xsd"):
-            attachment = env["ir.attachment"].search([("name", "=", stream)])
+            # ``limit=1`` like every other XSD-attachment lookup in this module
+            # (``load_xsd_files_from_url`` uses it in both branches).  Nothing
+            # makes the name unique -- ``load_xsd_files_from_url`` updates the
+            # first match rather than deduplicating, and an operator can create
+            # a second attachment by hand -- so an unbounded search returned a
+            # multi-record set and ``attachment.raw`` raised "Expected singleton"
+            # out of what is otherwise a well-behaved validation helper.
+            attachment = env["ir.attachment"].search([("name", "=", stream)], limit=1)
             if not attachment:
                 raise FileNotFoundError
             stream = BytesIO(attachment.raw)

@@ -33,9 +33,23 @@ _HEADER_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def extract_rfc2822_addresses(text: str) -> list[str]:
-    """Return a list of valid RFC 2822 addresses found in ``text``.
+    """Return a list of addresses found in ``text``, with punycoded domains.
 
-    Malformed addresses and non-ASCII ones are silently ignored.
+    Addresses whose *domain* cannot be encoded to ASCII (``idna.IDNAError``) are
+    dropped; every other candidate is kept.
+
+    .. warning::
+
+        The result is **not** guaranteed to be pure ASCII.  Only the domain is
+        punycoded -- a non-ASCII **local part** is passed through unchanged, so
+        ``"DéBoulonneur@examplé.com"`` yields ``"DéBoulonneur@xn--exampl-gva.com"``
+        (deliberate, and pinned by ``TestMail.test_extract_rfc2822_addresses``).
+        This docstring used to claim non-ASCII addresses were "silently
+        ignored", which was never true.
+
+        Callers that need an ASCII-only envelope address (SMTP without the
+        SMTPUTF8 extension) must check for themselves -- ``ir_mail_server``
+        currently assumes this function guarantees it and does not.
 
     :param text: Raw text potentially containing email addresses
     :returns: List of formatted email addresses
@@ -312,6 +326,15 @@ def formataddr(pair: tuple[str, str], charset: str = "utf-8") -> str:
     Set the charset to ascii to get a RFC-2822 compliant email. The realname
     will be base64 encoded (if necessary) and the domain part of the email
     will be punycode encoded (if necessary).
+
+    .. warning::
+
+        The **local part is never re-encoded**, whatever ``charset`` says: there
+        is no punycode equivalent for it, and folding it would change the
+        mailbox being addressed.  So ``charset="ascii"`` yields a pure-ASCII
+        result only when the local part is already ASCII; otherwise the address
+        needs the SMTPUTF8 extension to be deliverable.  Check the local part
+        yourself if you must guarantee ASCII.
 
     :param pair: Tuple of (name, email_address)
     :param charset: Character set to use (default: 'utf-8')

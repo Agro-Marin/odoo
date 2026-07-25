@@ -1,9 +1,9 @@
-"""Regression tests for ``odoo.libs.datetime.tz.timezone``."""
+"""Regression tests for ``odoo.libs.datetime.tz``."""
 
 import unittest
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from odoo.libs.datetime.tz import timezone
+from odoo.libs.datetime.tz import country_timezones, timezone
 
 
 class TestTimezone(unittest.TestCase):
@@ -20,6 +20,29 @@ class TestTimezone(unittest.TestCase):
         # the legacy tzdata name is "Turkey" (not "Türkiye"); it must resolve on
         # systems whose trimmed tzdata drops the backward-compat links.
         self.assertIsInstance(timezone("Turkey"), ZoneInfo)
+
+
+class TestCountryTimezones(unittest.TestCase):
+    """The CLDR-derived lookup table is shared; callers must not be able to edit it."""
+
+    def test_lookup(self):
+        self.assertIn("America/New_York", country_timezones()["US"])
+        self.assertEqual(country_timezones()["JP"], ("Asia/Tokyo",))
+
+    def test_mapping_is_not_writable(self):
+        with self.assertRaises(TypeError):
+            country_timezones()["ZZ"] = ("Nowhere/Land",)
+
+    def test_zone_lists_are_not_writable(self):
+        # it used to hand out the cache's own lists, so `.append` on a returned
+        # value corrupted the table for every later caller in the process.
+        with self.assertRaises(AttributeError):
+            country_timezones()["US"].append("Bogus/Zone")
+
+    def test_repeated_calls_are_consistent(self):
+        first = country_timezones()
+        self.assertIs(first, country_timezones())
+        self.assertEqual(first["US"], country_timezones()["US"])
 
 
 if __name__ == "__main__":

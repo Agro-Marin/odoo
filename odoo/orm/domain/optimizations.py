@@ -549,6 +549,42 @@ def _value_to_date(
     raise ValueError(f"Failed to cast {value!r} into a date")
 
 
+@operator_optimization([">", "<", ">=", "<="])
+def _optimize_inequality_against_null(condition, model):
+    """``field <op> False`` is an empty domain when the field has no falsy value.
+
+    Fields that define a ``falsy_value`` (Char ``""``, Integer ``0``, Float
+    ``0.0``) compare against that sentinel, so ``False`` is meaningful for them
+    and this optimization does not apply. For the rest (Id, Date, Datetime,
+    Selection, Binary, Many2one) an unset comparand is SQL NULL, and every
+    ``x <op> NULL`` is NULL — i.e. matches nothing.
+
+    Collapsing here, rather than in ``condition_to_sql`` / ``filter_function``,
+    is what keeps the SQL and Python paths in agreement: it makes the node a
+    plain boolean constant, so negation is handled by the domain algebra
+    (``~_FALSE_DOMAIN`` is TRUE) instead of by SQL's three-valued ``NOT NULL``
+    (which excludes every row) in one path and Python's two-valued ``not False``
+    (which admits every row) in the other. ``_optimize_type_date`` has always
+    done exactly this for dates; this generalizes it to every field with no
+    falsy value.
+
+    Without it, ``('id', '>', False)`` reached SQL as a bool parameter bound to
+    an int4 column and raised ``UndefinedFunction: operator does not exist:
+    integer > boolean``, aborting the transaction — on every model, since every
+    model has ``id``.
+    """
+    value = condition.value
+    if value is not False and value is not None:
+        return condition
+    # A property expression ("field.prop") reads a JSON sub-value, not the
+    # column, so the field's falsy_value does not describe it — leave it alone.
+    if "." in condition.field_expr:
+        return condition
+    if condition._field(model).falsy_value is not None:
+        return condition
+    return _FALSE_DOMAIN
+
+
 @field_type_optimization(["date"])
 def _optimize_type_date(condition, model):
     """Make sure we have a date type in the value"""

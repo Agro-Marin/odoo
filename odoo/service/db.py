@@ -497,6 +497,69 @@ def _retry_terminate_then_ddl(
     ) from last_error
 
 
+# Archive-bomb bound for ``restore_db``.  The uploaded zip is attacker-supplied
+# and ``extractall`` writes it out with no ceiling; a 1.5 MiB archive of
+# compressible filler expands ~1000x, and ``tempfile`` commonly resolves to a
+# tmpfs (``/tmp``), so the expansion lands in RAM rather than on disk.  Real Odoo
+# backups measured 7.1x overall and 7.1-7.7x for the SQL alone (the worst case —
+# a filestore of already-compressed images/PDFs only lowers it), so 50x leaves
+# ~6.5x headroom.  ``ODOO_RESTORE_MAX_EXPANSION_RATIO`` raises it for an unusually
+# compressible-but-legitimate backup; the floor keeps a tiny archive with a
+# harmlessly high ratio (a few KiB of SQL) from being refused.
+_RESTORE_MAX_EXPANSION_RATIO = 50
+_RESTORE_MIN_UNPACKED_BYTES = 100 * 1024 * 1024
+_EXTRACT_CHUNK_BYTES = 1024 * 1024
+
+
+def _extract_members_bounded(
+    z: zipfile.ZipFile, members: list[str], dest: str, budget: int
+) -> int:
+    """Extract ``members`` into ``dest``, aborting once ``budget`` bytes are written.
+
+    Replaces ``ZipFile.extractall``, which has no size ceiling.  Counts the bytes
+    actually produced rather than trusting each member's declared ``file_size``,
+    so a header that under-reports its own size buys nothing.  Returns the total
+    written.
+
+    Path safety is already established by the caller's ZipSlip check over
+    ``namelist()`` — a superset of ``members`` — so this only has to create the
+    parent directories.
+    """
+    dest_path = Path(dest)
+    written = 0
+    for member in members:
+        info = z.getinfo(member)
+        target = dest_path / member
+        if info.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with z.open(info) as src, target.open("wb") as out:
+            while chunk := src.read(_EXTRACT_CHUNK_BYTES):
+                written += len(chunk)
+                if written > budget:
+                    raise RuntimeError(
+                        f"Refusing to restore: the archive expands to more than "
+                        f"{budget} bytes, over {_RESTORE_MAX_EXPANSION_RATIO}x its "
+                        f"compressed size. Raise "
+                        f"ODOO_RESTORE_MAX_EXPANSION_RATIO if this backup is "
+                        f"genuinely that compressible."
+                    )
+                out.write(chunk)
+    return written
+
+
+def _unpack_budget(dump_file: str) -> int:
+    """Bytes ``restore_db`` will let an archive expand to (see the constants)."""
+    ratio = env_int(
+        "ODOO_RESTORE_MAX_EXPANSION_RATIO",
+        _RESTORE_MAX_EXPANSION_RATIO,
+        minimum=1,
+        logger=_logger,
+    )
+    return max(Path(dump_file).stat().st_size * ratio, _RESTORE_MIN_UNPACKED_BYTES)
+
+
 def _pg_dump_total_timeout() -> float:
     """Wall-clock ceiling (seconds) for any single ``pg_dump`` invocation.
 
@@ -1019,7 +1082,16 @@ def restore_db(
 
                     # only extract known members!
                     filestore = [m for m in z.namelist() if m.startswith("filestore/")]
-                    z.extractall(dump_dir, ["dump.sql"] + filestore)
+                    # Bounded extraction, NOT ``extractall``: see
+                    # ``_extract_members_bounded``.  The ceiling matters most here
+                    # because ``dump_dir`` is a ``tempfile`` directory, which is
+                    # commonly a tmpfs — an unbounded expansion consumes RAM.
+                    _extract_members_bounded(
+                        z,
+                        ["dump.sql"] + filestore,
+                        dump_dir,
+                        _unpack_budget(dump_file),
+                    )
 
                     if filestore:
                         filestore_path = str(Path(dump_dir, "filestore"))

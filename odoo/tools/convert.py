@@ -32,7 +32,8 @@ if TYPE_CHECKING:
     from odoo.api import Environment
 
 from .config import config
-from .misc import SKIPPED_ELEMENT_TYPES, file_open, file_path
+from .files import file_open, file_path
+from .misc import SKIPPED_ELEMENT_TYPES
 from .safe_eval import pytz, safe_eval, time
 
 _logger = logging.getLogger(__name__)

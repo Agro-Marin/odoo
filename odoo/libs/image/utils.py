@@ -154,6 +154,14 @@ class ImageProcess:
         """
         self.source = source or False
         self.operationsCount = 0
+        # Always defined.  It used to be set only on the PIL branch, so for an
+        # empty, SVG or WEBP source the attribute simply did not exist and any
+        # read of it raised AttributeError -- on a *public* attribute of a public
+        # class, whose value is genuinely "unknown" in exactly those cases.  The
+        # methods below only reach it behind a ``self.image`` check, so nothing
+        # in-tree trips it today; that is precisely why it is worth pinning
+        # before something does.
+        self.original_format = ""
 
         if not source or source[:1] == b"<":
             # don't process empty source or SVG
@@ -501,13 +509,31 @@ def average_dominant_color(
 
         0. the average color of the dominant set as: tuple(R, G, B)
         1. list of remaining colors, used to evaluate subsequent dominant colors
+    :raises ValueError: if ``colors`` is empty, or if every entry has a zero count
     """
+    # State the two degenerate inputs instead of letting them fall through.
+    # ``max(())`` raised "max() iterable argument is empty" and an all-zero
+    # count set raised a bare ZeroDivisionError from the averaging below --
+    # neither names this function or its argument.  The shape is a natural trap
+    # because the second return value feeds straight back in as the first
+    # argument (``primary, remaining = ...; average_dominant_color(remaining)``),
+    # and ``remaining`` empties out; the in-tree caller in
+    # ``base_document_layout`` does guard both, so this is API hygiene rather
+    # than a live crash.
+    if not colors:
+        msg = "colors must be a non-empty list of (count, (r, g, b, a)) tuples"
+        raise ValueError(msg)
+    total_count = sum(col[0] for col in colors)
+    if not total_count:
+        msg = "colors must contain at least one entry with a non-zero count"
+        raise ValueError(msg)
+
     dominant_color = max(colors)
     dominant_rgb = dominant_color[1][:3]
     dominant_set = [dominant_color]
     remaining = []
 
-    margins = [max_margin * (1 - dominant_color[0] / sum(col[0] for col in colors))] * 3
+    margins = [max_margin * (1 - dominant_color[0] / total_count)] * 3
 
     colors = [c for c in colors if c is not dominant_color]
 
