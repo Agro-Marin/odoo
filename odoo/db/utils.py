@@ -8,16 +8,9 @@ from psycopg.adapt import Loader
 
 from odoo import tools
 
-# Emit the ODOO_PGAPPNAME deprecation at most once per process: db_connect()
-# (which calls connection_info_for) runs repeatedly across a process's life —
-# per cron job, per log flush, and from odoo.service.db — so an unguarded warn()
-# would keep re-firing.
 _ODOO_PGAPPNAME_WARNED = False
 
 
-# Converts PostgreSQL numeric/decimal to Python float (Odoo convention).
-# float loses precision vs Decimal, but the whole stack (ORM, reports, JS
-# client) assumes float.  psycopg3 never calls load() with None.
 class _NumericToFloatLoader(Loader):
     def load(self, data: bytes) -> float:
         return float(data)
@@ -57,20 +50,12 @@ def is_maintenance_db(db_name: str) -> bool:
     )
 
 
-# Query categorization patterns — debug-stats only, not correctness.  The
-# optional `"?` handles quoted identifiers; the optional schema prefix matches
-# `public.res_users` / `"public"."res_users"`.  Misclassification only skews
-# debug stats.
 re_from = re.compile(
     r'\bfrom\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
 )
 re_into = re.compile(
     r'\binto\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
 )
-# Anchored (^) on purpose: an unanchored ``\bupdate\b`` would also hit the
-# row-locking clause of ``SELECT ... FOR UPDATE`` (common in the ORM) and
-# misfile reads as writes.  ``WITH ... UPDATE`` slips past the anchor and falls
-# through to the from/other buckets — same approximation as before.
 re_update = re.compile(
     r'^\s*update\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
 )
@@ -88,19 +73,15 @@ def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     :param decoded_query: The SQL query string to categorize
     :return: A tuple of (query_type, table_name) where query_type is 'from', 'into', or 'other'
     """
-    # Anchored UPDATE/DELETE first: their bodies may contain INTO/FROM inside
-    # subqueries or string literals that would mislead the unanchored searches.
     res_update = re_update.match(decoded_query)
     if res_update:
         return "into", res_update.group(1)
 
     if re_delete.match(decoded_query):
-        res_from = re_from.search(decoded_query)  # DELETE FROM <table>
+        res_from = re_from.search(decoded_query)
         return ("into", res_from.group(1)) if res_from else ("other", None)
 
     res_into = re_into.search(decoded_query)
-    # prioritize `insert` over `select` so `select` subqueries are not
-    # considered when inside a `insert`
     if res_into:
         return "into", res_into.group(1)
 
@@ -111,18 +92,13 @@ def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     return "other", None
 
 
-# TCP health parameters: detect dead connections faster than default
-# Linux keepalives (which wait ~2h). psycopg passes these as libpq
-# connection keywords. Keywords override DSN values when both are set.
 _HEALTH_PARAMS: dict[str, str] = {
-    "connect_timeout": "10",  # 10s connection timeout
-    "tcp_user_timeout": "30000",  # 30s TCP retransmission timeout
-    "keepalives": "1",  # enable TCP keepalives
-    "keepalives_idle": "60",  # first probe after 60s idle
-    "keepalives_interval": "10",  # 10s between probes
-    "keepalives_count": "3",  # give up after 3 failures
-    # Pin to 3.0 so psycopg accepts the downgrade when PgBouncer (which only
-    # speaks 3.0) sits between Odoo and PG18.
+    "connect_timeout": "10",
+    "tcp_user_timeout": "30000",
+    "keepalives": "1",
+    "keepalives_idle": "60",
+    "keepalives_interval": "10",
+    "keepalives_count": "3",
     "min_protocol_version": "3.0",
 }
 
@@ -137,7 +113,7 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
     :param bool readonly: load defaults from ``db_replica_*`` instead of ``db_*``.
     :rtype: (str, dict)
     """
-    global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603 — process-wide once-flag
+    global _ODOO_PGAPPNAME_WARNED
     app_name = tools.config["db_app_name"]
     if "ODOO_PGAPPNAME" in os.environ:
         if not _ODOO_PGAPPNAME_WARNED:
@@ -148,19 +124,15 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
             )
             _ODOO_PGAPPNAME_WARNED = True
         app_name = os.environ["ODOO_PGAPPNAME"]
-    # Manual interpolation (security), trimmed to the default NAMEDATALEN=63.
     app_name = app_name.replace("{pid}", str(os.getpid()))[:63]
 
     if db_or_uri.startswith(("postgresql://", "postgres://")):
-        # extract db from uri
         us = urlsplit(db_or_uri)
         if len(us.path) > 1:
             db_name = us.path[1:]
         elif us.username:
             db_name = us.username
         else:
-            # No path and no username: malformed URI.  Falling back to the
-            # hostname as the dbname label is almost certainly wrong — warn.
             warnings.warn(
                 f"PostgreSQL URI {db_or_uri!r} has no database path and no "
                 f"username; using hostname {us.hostname!r} as the database "
@@ -169,9 +141,6 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
                 stacklevel=2,
             )
             db_name = us.hostname
-        # Only inject keys not already in the URI's query string: psycopg applies
-        # kwargs over DSN values, so spreading _HEALTH_PARAMS blindly would
-        # override an operator's explicit ?connect_timeout=60 (and application_name).
         uri_keys = {k for k, _ in parse_qsl(us.query)}
         merged = {k: v for k, v in _HEALTH_PARAMS.items() if k not in uri_keys}
         info = {"dsn": db_or_uri, **merged}
@@ -182,9 +151,6 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
     for p in ("host", "port", "user", "password", "sslmode"):
         cfg = tools.config["db_" + p]
-        # A read-only replica overrides only host/port (the only registered
-        # ``db_replica_*`` options); a streaming replica shares the primary's
-        # roles, so user/password/sslmode are inherited from ``db_*``.
         if readonly and p in ("host", "port"):
             replica_cfg = tools.config.get("db_replica_" + p)
             if replica_cfg:

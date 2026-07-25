@@ -2,8 +2,8 @@
 
 The COPY / multi-row VALUES machinery — ``copy_from`` (PostgreSQL COPY protocol,
 optional binary mode and pre-generated ids), ``execute_values`` (single-``%s``
-VALUES expansion) and the ``_get_column_types`` catalog lookup that binary COPY
-needs — split out of :mod:`odoo.db.cursor` into a mixin so the core transaction
+VALUES expansion) and the ``_get_column_type_oids`` catalog lookup that binary
+COPY needs — split out of :mod:`odoo.db.cursor` into a mixin so the core transaction
 surface stays small.
 
 ``_BulkAccessMixin`` is **not** standalone: it is mixed into :class:`Cursor`
@@ -21,22 +21,29 @@ from decimal import Decimal as _Decimal
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
+from psycopg import errors as _errors
+from psycopg import pq as _pq
 from psycopg import sql as _sql
+from psycopg.adapt import Transformer as _Transformer
 
 from odoo.tools import SQL
 from odoo.tools.misc import real_time
 
 from .ddl import _find_value_markers
 from .errors import CURSOR_LOGGER_NAME, _log_sql_error
-from .schema_cache import schema_cache
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
+
+_TEXT_OID = 25
+_NUMERIC_OID = 1700
 
 if TYPE_CHECKING:
     import threading
     from typing import Protocol
 
     import psycopg
+
+    from .schema_cache import TransactionSchemaCache
 
     class _CursorInternals(Protocol):
         """The host-cursor surface that :class:`_BulkAccessMixin` relies on.
@@ -50,6 +57,7 @@ if TYPE_CHECKING:
         _obj: psycopg.Cursor
         _cnx: psycopg.Connection
         _thread: threading.Thread
+        _schema_cache: TransactionSchemaCache
         dbname: str
 
         def execute(
@@ -73,8 +81,12 @@ if TYPE_CHECKING:
         def _record_sql_log(
             self, query_type: str, table: str | None, delay: float
         ) -> None: ...
-        def _get_column_types(self, table: str, columns: list[str]) -> list[str]: ...
+        def _get_column_type_oids(
+            self, table: str, columns: list[str]
+        ) -> list[int]: ...
+        def _can_dump_binary(self, oids: list[int]) -> bool: ...
         def _resolve_id_sequence(self, table: str) -> str: ...
+        def _lock_table_for_bulk(self, table: str) -> None: ...
 
 
 class _BulkAccessMixin:
@@ -91,6 +103,7 @@ class _BulkAccessMixin:
         template: str | None = None,
         page_size: int = 100,
         fetch: bool = False,
+        log_exceptions: bool = True,
     ) -> list[tuple[Any, ...]] | None:
         """Execute a query with multiple parameter sets using VALUES clause.
 
@@ -99,16 +112,24 @@ class _BulkAccessMixin:
 
         For simple multi-row INSERTs, prefer :meth:`executemany` which
         auto-pipelines for better performance.
+
+        :param query: SQL containing exactly one ``%s`` marker for the VALUES list
+        :param argslist: one sequence (or scalar) of parameters per VALUES row
+        :param template: placeholder snippet for one row, e.g. ``(%s, %s::int)``;
+            defaults to one built from each row's length
+        :param page_size: rows per batched statement
+        :param fetch: return every result row instead of ``None``; also disables
+            the pipelining used for multi-batch runs
+        :param log_exceptions: If False, suppress logging of failures (the
+            caller logs its own message).  Symmetric with :meth:`Cursor.execute`
+            and :meth:`Cursor.executemany` — without it a caller could quiet a
+            single-statement failure but not its batched equivalent, which is
+            exactly the case where the log is noisiest.
         """
         if isinstance(query, _sql.Composable):
             query = query.as_string(self._obj)
-        # Reject non-positive page_size up front: 0 crashes range() cryptically,
-        # and <0 yields an empty range() that silently drops every row.
         if page_size <= 0:
             raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
-        # Require exactly one real `%s` marker (where the VALUES row-list
-        # expands); ``%%`` escapes are skipped.  Validate BEFORE the empty
-        # short-circuit so a malformed query is rejected regardless of batch size.
         markers = _find_value_markers(query)
         if len(markers) != 1:
             raise ValueError(
@@ -120,14 +141,9 @@ class _BulkAccessMixin:
             return [] if fetch else None
         results = []
         batches = range(0, len(argslist), page_size)
-        # The text around the single marker is loop-invariant — split it once
-        # rather than re-slicing ``query`` for every batch.
         prefix, suffix = query[:marker_pos], query[marker_pos + 2 :]
-        # Pipeline multi-batch non-fetch executions for single round-trip
         use_pipeline = len(argslist) > page_size and not fetch
         ctx = self._cnx.pipeline() if use_pipeline else _nullcontext()
-        # Placeholder strings depend only on the row length — memoize them
-        # across rows and batches instead of rebuilding "(%s, %s, ...)" per row.
         ph_by_len: dict[int, str] = {}
         try:
             with ctx:
@@ -150,17 +166,11 @@ class _BulkAccessMixin:
                             placeholders.append(template or "(%s)")
                             params.append(row)
                     full_query = f"{prefix}{', '.join(placeholders)}{suffix}"
-                    self.execute(full_query, params)
+                    self.execute(full_query, params, log_exceptions)
                     if fetch:
                         results.extend(self.fetchall())
         except Exception as e:
-            # In pipeline mode a queued execute() does NOT raise; the failure
-            # surfaces here, at sync on context exit, so it bypassed execute()'s
-            # own _log_sql_error.  Log it once here (on the original query, since
-            # the failing batch can't be attributed) to match the non-pipelined
-            # path.  Non-pipelined failures already logged inside execute() and
-            # would double-log, so only the pipelined path logs here.
-            if use_pipeline:
+            if use_pipeline and log_exceptions:
                 _log_sql_error(e, query)
             raise
         return results if fetch else None
@@ -174,6 +184,7 @@ class _BulkAccessMixin:
         returning_ids: bool = False,
         binary: bool = False,
         on_error: str | None = None,
+        log_exceptions: bool = True,
     ) -> list[int] | None:
         """Bulk insert rows using PostgreSQL COPY protocol.
 
@@ -198,9 +209,14 @@ class _BulkAccessMixin:
                 imports that still need IDs, chunk the input externally
                 or use ``returning_ids=False`` plus batched
                 ``INSERT ... RETURNING id``.
-        :param binary: If True, use binary COPY format (faster but requires
-            exact type matching via ``set_types()``). Column types are looked
-            up from ``pg_attribute`` and cached per table.
+        :param binary: If True, *prefer* binary COPY format (faster, but
+            requires exact type matching via ``set_types()``).  Column type
+            OIDs are looked up from ``pg_attribute`` and cached per
+            transaction.  This is a performance hint, not a guarantee: a table
+            with a column psycopg cannot encode client-side (an extension type
+            such as PostGIS ``geometry`` or ``vector``, a composite, a range)
+            silently falls back to text COPY, which inserts identical rows —
+            see :meth:`_can_dump_binary`.
         :param on_error: Error handling for data type conversion errors
             (PG17+, text/CSV mode only).  ``'ignore'`` skips malformed rows
             instead of aborting the entire operation.  Useful for fault-
@@ -208,15 +224,24 @@ class _BulkAccessMixin:
             option has no effect in binary mode) or ``returning_ids=True``
             (the pre-allocated sequence IDs cannot be reconciled with
             server-side row skipping — use batched INSERT … RETURNING).
+        :param log_exceptions: If False, suppress logging of failures (the
+            caller logs its own message).  Symmetric with
+            :meth:`Cursor.execute` / :meth:`Cursor.executemany`.
         :return: list of generated IDs when *returning_ids* is True, else None
+
+        .. note::
+            **Query accounting.**  A COPY of N rows counts as **one** query
+            (``sql_counter``, the thread's ``query_count``,
+            ``assertQueryCount``), because it is one statement in one
+            round-trip.  :meth:`Cursor.executemany` of N rows counts **N** —
+            also one round-trip, but N statements for the server to plan and
+            execute.  The asymmetry is deliberate: the counters exist to expose
+            how much SQL work was asked for (the N+1 patterns
+            ``assertQueryCount`` hunts), not how many packets were sent.
         """
         if not columns:
-            # ``COPY t () FROM STDIN`` is a cryptic PG syntax error deep in the
-            # COPY context; fail fast at the boundary instead.
             raise ValueError("copy_from: columns must be a non-empty list")
         if on_error is not None and on_error not in ("ignore", "stop"):
-            # Whitelist: on_error is interpolated into the COPY options
-            # clause below — never let an arbitrary string through.
             raise ValueError(
                 f"copy_from: invalid on_error {on_error!r}; "
                 f"allowed values: 'ignore', 'stop'."
@@ -235,16 +260,12 @@ class _BulkAccessMixin:
                 "inserts that need IDs."
             )
         if returning_ids:
-            # Need the count up-front (to pre-generate ids) and rows is iterated
-            # twice, so materialize an unsized input.  Sized callers (the ORM
-            # bulk-create path) pay nothing.
             if not hasattr(rows, "__len__"):
                 rows = list(rows)
             count = len(rows)
             if count == 0:
                 return []
             seq_name = self._resolve_id_sequence(table)
-            # Pre-generate IDs from the sequence
             self.execute(
                 SQL(
                     "SELECT nextval(%s::regclass) FROM generate_series(1, %s)",
@@ -254,19 +275,18 @@ class _BulkAccessMixin:
             )
             ids = [row[0] for row in self.fetchall()]
             columns = ["id", *columns]
-            # strict: nextval() generated exactly len(rows) ids; a mismatch is a
-            # logic error, not something to silently truncate.
             rows = [(id_, *row) for id_, row in zip(ids, rows, strict=True)]
         else:
             ids = None
-            # Skip the COPY round-trip for a sized empty input.  Only sized
-            # inputs are tested, so a one-shot generator is never consumed early.
             if hasattr(rows, "__len__") and len(rows) == 0:
                 return None
 
+        col_types = self._get_column_type_oids(table, columns) if binary else None
+        if col_types is not None and not self._can_dump_binary(col_types):
+            binary = False
+            col_types = None
+
         cols_sql = _sql.SQL(", ").join(map(_sql.Identifier, columns))
-        # Build COPY options: FORMAT and ON_ERROR are independent (ON_ERROR has
-        # no effect in binary mode).
         copy_opts = []
         if binary:
             copy_opts.append("FORMAT BINARY")
@@ -282,27 +302,15 @@ class _BulkAccessMixin:
             opts_sql,
         )
 
-        # Look up column types BEFORE the COPY context: inside it the connection
-        # is in COPY mode and cannot run other queries (would block forever).
-        col_types = self._get_column_types(table, columns) if binary else None
-
-        # psycopg3's binary numeric dumper requires Decimal, not float.
-        # Pre-compute which column indices need float→Decimal conversion.
         if col_types:
             _numeric_idxs = frozenset(
-                i for i, t in enumerate(col_types) if t == "numeric"
+                i for i, oid in enumerate(col_types) if oid == _NUMERIC_OID
             )
         else:
             _numeric_idxs = None
 
-        # ``start`` and ``metrics_query`` are only for the profiler's query_hooks;
-        # resolve hook presence once and skip both when none are installed.
         have_hooks = getattr(self._thread, "query_hooks", None)
-        start = real_time() if have_hooks else 0.0  # t0 (monotonic) times the COPY
-        # Resolve _obj outside the logged try (see Cursor.execute): on a closed
-        # cursor the attribute access raises InterfaceError, and inside the try
-        # it would first be logged as a spurious ERROR — and the error handler
-        # itself would re-raise on ``copy_stmt.as_string(self._obj)``.
+        start = real_time() if have_hooks else 0.0
         obj = self._obj
         t0 = monotonic()
         row_count = 0
@@ -312,10 +320,6 @@ class _BulkAccessMixin:
                     copy.set_types(col_types)
                 for row in rows:
                     if _numeric_idxs:
-                        # Convert only the numeric columns (float→Decimal).
-                        # Mutating a list copy at the known indices beats
-                        # rebuilding the whole tuple per row (~2x faster, wide
-                        # tables).  isinstance covers float subclasses.
                         row = list(row)
                         for i in _numeric_idxs:
                             v = row[i]
@@ -324,10 +328,8 @@ class _BulkAccessMixin:
                     copy.write_row(row)
                     row_count += 1
         except Exception as e:
-            # Route through _log_sql_error so a recoverable serialization
-            # failure / deadlock during a bulk COPY is demoted to WARNING and
-            # retried, like execute().  The COPY is rendered to text only here.
-            _log_sql_error(e, copy_stmt.as_string(self._obj), label="COPY")
+            if log_exceptions:
+                _log_sql_error(e, copy_stmt.as_string(self._obj), label="COPY")
             raise
         finally:
             delay = monotonic() - t0
@@ -339,8 +341,6 @@ class _BulkAccessMixin:
                     row_count,
                 )
 
-        # Render copy_stmt to text only when a profiler hook will read it
-        # (``have_hooks``); None is harmless when none are installed.
         metrics_query = copy_stmt.as_string(self._obj) if have_hooks else None
         self._record_metrics(delay, query=metrics_query, start=start, hooks=have_hooks)
 
@@ -349,28 +349,58 @@ class _BulkAccessMixin:
 
         return ids
 
+    def _lock_table_for_bulk(self: _CursorInternals, table: str) -> None:
+        """Take COPY's own ``ROW EXCLUSIVE`` lock *before* reading column types.
+
+        Binary COPY encodes every value **client-side** from types read out of
+        the catalog, so those types are only authoritative while a lock
+        conflicting with ``ACCESS EXCLUSIVE`` is held.  Without this, a
+        concurrent ``ALTER TABLE`` can commit while our ``COPY`` sits waiting
+        for its lock, and the COPY then writes values encoded with the *pre*-DDL
+        types — silently, for a same-width change such as ``int4`` → ``date``.
+        The window is as long as the DDL transaction runs, so it is not a narrow
+        race.
+
+        Deliberately NOT taken for :meth:`_resolve_id_sequence`: a stale
+        sequence name cannot corrupt anything, it can only fail loudly
+        (``nextval`` on a dropped sequence raises ``UndefinedTable``; ids from a
+        swapped sequence collide on the primary key).  Paying a lock round-trip
+        there would cost every text-mode ``returning_ids`` COPY a query for no
+        correctness gain.
+
+        This is the same lock mode on the same relation that ``COPY`` acquires
+        anyway, just taken a few hundred microseconds earlier and (as always)
+        held to end of transaction: no new lock ordering, no new deadlock class,
+        no new blocking behaviour.  Issued once per table per transaction.
+        """
+        cache = self._schema_cache
+        if table in cache.locked_tables:
+            return
+        self.execute(SQL("LOCK TABLE %s IN ROW EXCLUSIVE MODE", SQL.identifier(table)))
+        cache.locked_tables.add(table)
+
     def _resolve_id_sequence(self: _CursorInternals, table: str) -> str:
-        """Return the sequence name backing *table*'s ``id`` column (cached).
+        """Return the sequence name backing *table*'s ``id`` column.
 
         ``pg_get_serial_sequence`` only finds a sequence *owned* by the column,
         but ``_inherits`` children share the parent's, so fall back to
         ``pg_depend`` (the sequence referenced by the column's ``DEFAULT``).
-        Memoized per ``(dbname, table)``; ``set_id_sequence`` skips temp
-        sequences (see :class:`SchemaCache`).
+        Memoized on the cursor for this transaction only (see
+        :mod:`odoo.db.schema_cache`).
+
+        No table lock is taken here — unlike the column types this value is
+        never used to encode data client-side, so a stale name fails loudly
+        rather than corrupting (see :meth:`_lock_table_for_bulk`).
 
         :raises ValueError: if no serial sequence backs ``<table>.id``.
         """
-        seq_name = schema_cache.get_id_sequence(self.dbname, table)
+        cache = self._schema_cache
+        seq_name = cache.get_id_sequence(table)
         if seq_name is not None:
             return seq_name
         self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", table))
         (seq_name,) = self.fetchone()
         if seq_name is None:
-            # Shared sequence (e.g. _inherits): find via pg_depend.  Anchor on
-            # ``%s::regclass`` (search_path-resolved, like the primary lookup
-            # above) rather than joining pg_class on relname — a bare relname
-            # matches every same-named table in every schema and LIMIT 1 then
-            # picks one arbitrarily, returning another schema's sequence.
             self.execute(
                 SQL(
                     """SELECT s.oid::regclass::text
@@ -391,38 +421,115 @@ class _BulkAccessMixin:
             if not row or not row[0]:
                 raise ValueError(f"No serial sequence found for {table}.id")
             seq_name = row[0]
-        schema_cache.set_id_sequence(self.dbname, table, seq_name)
+        cache.set_id_sequence(table, seq_name)
         return seq_name
 
-    def _get_column_types(
-        self: _CursorInternals, table: str, columns: list[str]
-    ) -> list[str]:
-        """Look up PostgreSQL base type names for binary COPY.
+    def _can_dump_binary(self: _CursorInternals, oids: list[int]) -> bool:
+        """True when psycopg can encode every one of *oids* in binary format.
 
-        Results are cached in the process-global ``schema_cache`` since schema
-        doesn't change during a session.
+        Binary COPY makes the *client* produce the on-the-wire bytes, so it only
+        works for types psycopg has a binary dumper for.  Anything outside that
+        set — an extension type (``vector`` from the ``ai`` chain, PostGIS
+        ``geometry``), a composite, a range — has a server-assigned OID psycopg
+        has never heard of, and ``set_types()`` raises *inside* the COPY context.
+
+        Asking up front turns that crash into a one-line decision to use text
+        COPY instead, which encodes the same rows through the same adapters and
+        differs only in speed.  ``binary=True`` is therefore a performance hint,
+        not a semantic request: a caller that needs to know can compare the
+        returned row count / ids, but nothing about the inserted data changes.
+
+        The probe runs ``Transformer.set_dumper_types`` — the *exact* call
+        :meth:`psycopg.Copy.set_types` makes — rather than looking the dumper
+        classes up in ``connection.adapters``.  The two disagree: a lookup finds
+        a generic array dumper for *any* array OID, but instantiating it also
+        resolves the ELEMENT dumper, and that is what fails for ``point[]``,
+        ``xml[]``, ``bpchar[]``, ``money[]`` and 36 other array types.  A
+        class-only lookup therefore passed them and let the crash back into the
+        COPY context — the very failure this guard exists to remove.  Sharing
+        psycopg's own code path leaves no fidelity gap to drift (asserted over
+        every column-capable type in ``pg_type`` by
+        ``TestCanDumpBinaryMatchesSetTypes``).
         """
-        types = schema_cache.get_column_types(self.dbname, table, columns)
+        try:
+            _Transformer(self._cnx).set_dumper_types(oids, _pq.Format.BINARY)
+        except _errors.Error:
+            _logger.debug(
+                "copy_from: no binary dumper for type oid(s) %s; using text COPY",
+                oids,
+            )
+            return False
+        return True
+
+    def _get_column_type_oids(
+        self: _CursorInternals, table: str, columns: list[str]
+    ) -> list[int]:
+        """Look up the PostgreSQL type OID to encode each column as, for binary COPY.
+
+        OIDs rather than ``pg_type.typname``: psycopg resolves a *name* through
+        its type registry, which only knows the built-in scalar names — so an
+        array column (``typname`` ``_int4``) raised ``KeyError: couldn't find the
+        type '_int4'`` even though psycopg dumps ``int4[]`` perfectly well by
+        OID.  An OID is also unambiguous, where a bare ``typname`` is not
+        (two schemas may hold same-named types).
+
+        The recursive CTE below costs about 20 µs more than the plain
+        ``pg_type`` join it replaced (measured: 75 µs -> 95 µs over
+        ``res_partner``'s 41 columns).  That is paid once per (table, columns)
+        per transaction, against a COPY that exists to move thousands of rows,
+        so uniform correctness is the right trade — but it *is* a cost, not a
+        saving.
+
+        Two type classes need translating rather than passing through:
+
+        * **domains** resolve to their ultimate base type (recursively — a
+          domain over a domain is legal).  PostgreSQL assigns each domain a
+          fresh OID no dumper is registered for, but a domain's wire format *is*
+          its base type's.
+        * **enums** resolve to ``text``: ``enum_recv`` reads the label as a
+          plain string, so the binary representation is byte-identical, and the
+          per-enum OID would again have no dumper.
+
+        Anything still undumpable (extension types, composites, ranges) is
+        caught by :meth:`_can_dump_binary`, which falls back to text COPY.
+
+        Read under the ``ROW EXCLUSIVE`` lock taken by
+        :meth:`_lock_table_for_bulk` and memoized on the cursor for the rest of
+        this transaction — binary COPY encodes values client-side, so feeding
+        ``set_types()`` a type the table no longer has corrupts the COPY.  See
+        :mod:`odoo.db.schema_cache` for why this must not outlive the lock.
+        """
+        cache = self._schema_cache
+        types = cache.get_column_types(table, columns)
         if types is None:
+            self._lock_table_for_bulk(table)
             self.execute(
                 SQL(
-                    # ::regclass so search_path is honored (TEMP tables live in
-                    # pg_temp_N), matching the returning_ids sequence lookup.
-                    # n.nspname is fetched to detect temp relations (cache skip).
-                    """SELECT a.attname, t.typname, n.nspname
-                    FROM pg_attribute a
-                    JOIN pg_type t ON a.atttypid = t.oid
-                    JOIN pg_class c ON c.oid = a.attrelid
-                    JOIN pg_namespace n ON n.oid = c.relnamespace
-                    WHERE a.attrelid = %s::regclass
-                      AND a.attnum > 0 AND NOT a.attisdropped
-                      AND a.attname = ANY(%s)""",
+                    """WITH RECURSIVE resolved AS (
+                        SELECT a.attname::text AS name, a.atttypid AS type_oid,
+                               t.typtype, t.typbasetype, 0 AS depth
+                          FROM pg_attribute a
+                          JOIN pg_type t ON t.oid = a.atttypid
+                         WHERE a.attrelid = %s::regclass
+                           AND a.attnum > 0 AND NOT a.attisdropped
+                           AND a.attname = ANY(%s)
+                        UNION ALL
+                        SELECT r.name, b.oid, b.typtype, b.typbasetype, r.depth + 1
+                          FROM resolved r
+                          JOIN pg_type b ON b.oid = r.typbasetype
+                         WHERE r.typtype = 'd' AND r.depth < 16
+                    )
+                    SELECT DISTINCT ON (name)
+                           name,
+                           CASE WHEN typtype = 'e' THEN %s::oid ELSE type_oid END
+                      FROM resolved
+                     ORDER BY name, depth DESC""",
                     table,
                     list(columns),
+                    _TEXT_OID,
                 )
             )
-            rows = self.fetchall()
-            type_map = {name: typ for name, typ, _ns in rows}
+            type_map = dict(self.fetchall())
             missing = [col for col in columns if col not in type_map]
             if missing:
                 raise ValueError(
@@ -430,10 +537,5 @@ class _BulkAccessMixin:
                     f"{table!r} (current_schema)"
                 )
             types = [type_map[col] for col in columns]
-            # Cache the resolved types; set_column_types() skips temp relations
-            # (see :class:`SchemaCache`).  rows is non-empty (missing-column
-            # check passed), so rows[0][2] is this relation's namespace.
-            schema_cache.set_column_types(
-                self.dbname, table, columns, types, namespace=rows[0][2]
-            )
+            cache.set_column_types(table, columns, types)
         return types

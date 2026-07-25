@@ -16,13 +16,34 @@ dependency one-directional.
 from __future__ import annotations
 
 import itertools
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
 
 if TYPE_CHECKING:
     from .cursor import BaseCursor
 
-# Monotonic counter for savepoint names (thread-safe via CPython's GIL).
 _savepoint_counter = itertools.count()
+
+
+@runtime_checkable
+class SavepointHost(Protocol):
+    """What :class:`Savepoint` actually requires of the object it is given.
+
+    Deliberately *not* ``BaseCursor``.  ``Savepoint`` was annotated that way,
+    but ``TestCursor._check_savepoint`` constructs one over a **raw
+    ``psycopg.Cursor``** — on purpose, so the SAVEPOINT/RELEASE statements stay
+    out of the query counts and the profiler.  The annotation was therefore a
+    lie the type checker reported on every such call site, and the two
+    ``hasattr``/``getattr`` guards below read as defensive noise instead of what
+    they are: the runtime half of an optional-member contract.
+
+    Naming that contract makes both halves honest — ``execute`` is required,
+    ``_savepoint_depth`` and ``_on_rollback_to_savepoint`` are the extras a full
+    :class:`~odoo.db.cursor.BaseCursor` adds and a raw cursor does not.
+    """
+
+    def execute(self, query: Any, /, *args: Any, **kwargs: Any) -> Any:
+        """Run one statement.  The only member every host must provide."""
+        ...
 
 
 class Savepoint:
@@ -35,23 +56,18 @@ class Savepoint:
     unconditionally.  It may also be closed explicitly inside the body (rolls
     back by default).
 
-    :param BaseCursor cr: the cursor to execute the ``SAVEPOINT`` queries on
+    :param SavepointHost cr: anything that can ``execute`` a statement — a
+        :class:`~odoo.db.cursor.BaseCursor`, or the raw psycopg cursor
+        ``TestCursor`` uses to keep this SQL out of the query counts.
     """
 
     __slots__ = ("_cr", "closed", "name")
 
-    def __init__(self, cr: BaseCursor):
+    def __init__(self, cr: SavepointHost):
         self.name = f"sp{next(_savepoint_counter)}"
         self._cr = cr
         self.closed: bool = False
-        # f-string SQL is safe: name is always "sp{int}" from our counter, never
-        # user input.  Identifier would add quote/adapt overhead for no benefit.
         cr.execute(f'SAVEPOINT "{self.name}"')
-        # Bump the cursor-level open-savepoint depth the commit/rollback guard
-        # reads (see ``BaseCursor._savepoint_depth``).  After the SQL succeeds, so
-        # a failed SAVEPOINT leaves the depth at 0.  The ``hasattr`` guard covers
-        # ``TestCursor._check_savepoint``, which reuses this class with a raw
-        # psycopg cursor (no ``_savepoint_depth``); ``_close`` mirrors it.
         if hasattr(cr, "_savepoint_depth"):
             cr._savepoint_depth += 1
 
@@ -71,15 +87,14 @@ class Savepoint:
             self._close(rollback)
 
     def rollback(self) -> None:
-        # Guard against rolling back a closed savepoint: its name has been
-        # RELEASEd, so ``ROLLBACK TO`` would abort the whole outer transaction
-        # with InvalidSavepointSpecification.  ``_close`` calls this *before*
-        # marking closed, so its internal rollback is unaffected.
         if self.closed:
             raise RuntimeError(
                 f'Savepoint "{self.name}" is already closed; cannot roll back'
             )
         self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
+        notify = getattr(self._cr, "_on_rollback_to_savepoint", None)
+        if notify is not None:
+            notify()
 
     def _close(self, rollback: bool) -> None:
         try:
@@ -87,14 +102,6 @@ class Savepoint:
                 self.rollback()
             self._cr.execute(f'RELEASE SAVEPOINT "{self.name}"')
         finally:
-            # Mark closed and balance __init__'s +1 exactly once — even on a
-            # ROLLBACK TO / RELEASE failure.  A failed close leaves the savepoint
-            # in an unknown state (e.g. released behind our back), so it must NOT
-            # be retried: a second _close would ROLLBACK TO a released name
-            # (aborting the outer transaction) AND decrement the depth again,
-            # driving it negative and permanently wedging commit()/rollback().
-            # Setting ``closed`` here makes the ``close()`` gate a no-op on retry.
-            # ``hasattr`` guard mirrors __init__'s (TestCursor._check_savepoint).
             self.closed = True
             if hasattr(self._cr, "_savepoint_depth"):
                 self._cr._savepoint_depth -= 1
@@ -115,23 +122,14 @@ class _FlushingSavepoint(Savepoint):
 
     __slots__ = ()
 
-    # Whether ``_restore_orm_state`` actually restores the ORM cache/env on
-    # rollback.  False here (the hooks are no-ops); the ORM subclass sets it
-    # True.  ``BaseCursor.savepoint`` asserts on it so a transaction-bearing
-    # cursor can never silently use this non-restoring base (see that method).
+    if TYPE_CHECKING:
+        _cr: BaseCursor
+
     _restores_orm_state: bool = False
 
     def __init__(self, cr: BaseCursor) -> None:
-        # Flush BEFORE the SAVEPOINT is opened (super().__init__ below): this
-        # drains pre-existing pending work into the outer transaction so the
-        # savepoint captures only work done inside the block.  The in-block work
-        # is kept by the second flush in _close().
         cr.flush()
-        # ORM hook: snapshot any state that must be restored on rollback.
         self._save_orm_state(cr)
-        # Base ``Savepoint.__init__`` issues the SAVEPOINT SQL and bumps the
-        # cursor-level ``_savepoint_depth`` (only after the SQL succeeds) — the
-        # single counter the commit/rollback guard reads.
         super().__init__(cr)
 
     def _save_orm_state(self, cr: BaseCursor) -> None:
@@ -149,7 +147,7 @@ class _FlushingSavepoint(Savepoint):
 
     def rollback(self) -> None:
         cr = self._cr
-        super().rollback()  # SQL ROLLBACK TO SAVEPOINT first
+        super().rollback()
         if cr.transaction is not None:
             self._restore_orm_state(cr)
 
@@ -162,6 +160,4 @@ class _FlushingSavepoint(Savepoint):
             rollback = True
             raise
         finally:
-            # Base ``Savepoint._close`` issues ROLLBACK TO / RELEASE and balances
-            # ``_savepoint_depth`` (see there).
             super()._close(rollback)

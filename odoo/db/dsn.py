@@ -25,15 +25,10 @@ import hashlib
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
 
-# Permanent connection failures: retrying can't help (the database, role, or
-# password is wrong, not transient capacity).  The pre-flight probe raises these
-# immediately instead of letting psycopg_pool retry into a ~30s ``PoolTimeout``.
-# NB: InvalidPassword (28P01) is NOT a subclass of
-# InvalidAuthorizationSpecification (28000) in psycopg 3 — list both.
 _NON_RETRYABLE_CONNECT_ERRORS: tuple[type[psycopg.Error], ...] = (
-    psycopg.errors.InvalidCatalogName,  # 3D000 — database does not exist
-    psycopg.errors.InvalidAuthorizationSpecification,  # 28000 — role / pg_hba rejection
-    psycopg.errors.InvalidPassword,  # 28P01 — wrong password
+    psycopg.errors.InvalidCatalogName,
+    psycopg.errors.InvalidAuthorizationSpecification,
+    psycopg.errors.InvalidPassword,
 )
 
 
@@ -96,8 +91,6 @@ def _normalize_dsn_key(dsn: dict | str) -> frozenset:
     the equivalent keywords route to one pool) is via :func:`_expand_conninfo`.
     """
     dsn = _expand_conninfo(dsn)
-    # BLAKE2s-64 is fast, collision-resistant enough for pool routing, and
-    # avoids leaking password length information via the key repr.
     password = dsn.get("password")
     if password:
         pw_fp = hashlib.blake2s(str(password).encode(), digest_size=8).hexdigest()

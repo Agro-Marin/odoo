@@ -21,15 +21,6 @@ from .errors import CURSOR_LOGGER_NAME
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
 
-# Global SQL query counter (debug/profiling).  A bare, non-atomic int:
-# approximate by design, since a process-wide lock on every query would
-# serialise all completions (a scalability bottleneck, worst on free-threaded
-# builds).  Accuracy by mode:
-#   * forked workers (--workers=N): own counter per process — exact.
-#   * threaded under the GIL (--workers=0): the GIL serialises `+=`, loss ~0%.
-#   * free-threaded (PYTHON_GIL=0): `+=` races and loses most concurrent
-#     increments (~93% with 24 threads).  Don't rely on it there; use the
-#     thread's own `query_count` (bumped below, no cross-thread contention).
 sql_counter: int = 0
 
 
@@ -87,6 +78,8 @@ class _MetricsMixin:
         Centralises all post-execution bookkeeping so that execute(),
         executemany() and copy_from() share one code path.
 
+        :param delay: query wall time in seconds
+        :param count: number of queries to account for (a batch counts as many)
         :param query: The executed query (passed to hooks, may be None)
         :param params: The query parameters (passed to hooks, may be None)
         :param start: Monotonic timestamp before execution (passed to hooks)
@@ -94,11 +87,9 @@ class _MetricsMixin:
             than re-read here: the caller already read it to gate ``start``, and
             this runs on every query.
         """
-        global sql_counter  # noqa: PLW0603 — intentionally process-global
+        global sql_counter
         self.sql_log_count += count
         sql_counter += count
-        # hasattr() below isn't worth replacing with try/except (~50ns vs the
-        # 1-5ms query time); keep the explicit style.
         t = self._thread
         if hasattr(t, "query_count"):
             t.query_count += count
@@ -140,8 +131,6 @@ class _MetricsMixin:
             total = 0.0
             if sqllog:
                 _logger.debug("SQL LOG %s:", log_type)
-                # Sort by accumulated time, slowest first — the costliest tables
-                # are what this debug log exists to surface.
                 for table, (stat_count, stat_time) in sorted(
                     sqllog.items(), key=lambda kv: kv[1][1], reverse=True
                 ):
