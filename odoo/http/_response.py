@@ -73,19 +73,12 @@ class _RequestResponseMixin:
         :param collections.abc.Mapping cookies: cookies to set on the client
         :rtype: :class:`~odoo.http.Response`
         """
-        # ``dumps_bytes``: orjson's native output is bytes, and werkzeug stores a
-        # bytes body as-is — the previous ``dumps`` (str) decoded the buffer only
-        # for werkzeug to re-encode it, two full passes per JSON response on the
-        # RPC hot path. Content-Length is computed by werkzeug on serialize.
         data = _fast_dumps_bytes(data, default=orjson_default)
 
         headers = werkzeug.datastructures.Headers(headers)
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json; charset=utf-8"
 
-        # Pass the ``Headers`` object straight through (not ``to_wsgi_list()``):
-        # werkzeug keeps a ``Headers`` as-is, so flattening to a list just to have
-        # it rebuilt is wasted work on this hot path.
         return self.make_response(data, headers, cookies, status)
 
     def not_found(self, description: str | None = None) -> NotFound:
@@ -100,11 +93,6 @@ class _RequestResponseMixin:
             location = "/" + urlunsplit(
                 urlsplit(location)._replace(scheme="", netloc="")
             ).lstrip("/\\")
-        # Gate the ORM-backed redirect on ``env`` not ``db``: on the error path
-        # ``_serve_db``'s ``finally`` nulls ``env`` while ``db`` stays set (e.g.
-        # the SessionExpired branch redirects here), and ``self.env["ir.http"]``
-        # would raise. The plain werkzeug redirect skips website/portal rewriting
-        # but is the right degradation while the request is unwinding an error.
         if self.db and self.env is not None:
             return self.env["ir.http"]._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
@@ -117,16 +105,8 @@ class _RequestResponseMixin:
         local: bool = True,
     ) -> Response:
         if query:
-            # A MultiDict (e.g. ``request.httprequest.args``, forwarded by every
-            # lang-ladder redirect in http_routing) holds repeated keys, but its
-            # ``items()`` yields one value per key and ``urlencode`` consumes it
-            # as a plain mapping -- ``?attrib=1&attrib=2`` would collapse to
-            # ``?attrib=1``. Flatten to pairs first.
             if isinstance(query, werkzeug.datastructures.MultiDict):
                 query = list(query.items(multi=True))
-            # Per RFC 3986 the query must precede the fragment. Append ?<query>
-            # to the pre-'#' part, then reattach #<fragment>; otherwise
-            # /foo#bar + ?a=b yields /foo#bar?a=b and the server never sees ?a=b.
             pre, hash_, fragment = location.partition("#")
             separator = "&" if "?" in pre else "?"
             pre += separator + urlencode(query)
@@ -163,9 +143,6 @@ class _RequestResponseMixin:
         string. This acts as a light redirection: it does not return a
         3xx response to the browser but still changes the current URL.
         """
-        # WSGI encoding dance (PEP 3333): re-encode UTF-8 then decode latin-1, so
-        # every byte maps to one char. latin-1 covers all bytes 0-255, so strict
-        # decode never fails.
         if isinstance(path, str):
             path = path.encode("utf-8")
         path = path.decode("latin1")
@@ -173,16 +150,12 @@ class _RequestResponseMixin:
         if query_string is None:
             query_string = self.httprequest.environ["QUERY_STRING"]
 
-        # Change the WSGI environment
         environ = self.httprequest.raw_environ.copy()
         environ["PATH_INFO"] = path
         environ["QUERY_STRING"] = query_string
-        # Only append ``?<qs>`` when there is a query string, so an empty one
-        # doesn't leave a dangling ``?`` on RAW_URI.
         environ["RAW_URI"] = f"{path}?{query_string}" if query_string else path
-        # REQUEST_URI left as-is so it still contains the original URI
 
-        # Create and expose a new request from the modified WSGI env
         httprequest = HTTPRequest(environ)
+        httprequest._adopt_body_state(self.httprequest)
         threading.current_thread().url = httprequest.url
         self.httprequest = httprequest

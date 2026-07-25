@@ -23,10 +23,6 @@ from .constants import (
 )
 from .core import request
 
-# A session id is sha512().digest()[:-1] base64-urlsafe-encoded: 63 bytes → 84
-# chars, no padding. Its static prefix (first STORED_SESSION_BYTES chars) survives
-# soft rotation; the suffix is replaced. The assert below pins the prefix shorter
-# than the full sid, so a bad STORED_SESSION_BYTES fails at import, not at runtime.
 _SESSION_KEY_LENGTH = 84
 assert STORED_SESSION_BYTES < _SESSION_KEY_LENGTH, (
     f"STORED_SESSION_BYTES ({STORED_SESSION_BYTES}) must be < "
@@ -35,14 +31,8 @@ assert STORED_SESSION_BYTES < _SESSION_KEY_LENGTH, (
 _base64_urlsafe_re = re.compile(rf"^[A-Za-z0-9_-]{{{_SESSION_KEY_LENGTH}}}$")
 _session_identifier_re = re.compile(rf"^[A-Za-z0-9_-]{{{STORED_SESSION_BYTES}}}$")
 
-# Cap the per-session ``_trace`` device-log list so a session on many devices/IPs
-# doesn't grow unbounded. Eviction is LRU by ``last_activity``.
 _TRACE_MAX_ENTRIES = 50
 
-# How stale a loaded session file's mtime may get before ``get`` bumps it (one
-# day). ``vacuum`` reaps by mtime, but a session that is read on every request
-# and never modified (anonymous browsing after its one CSRF-mint save) is never
-# rewritten — without the bump it would be deleted while actively in use.
 _MTIME_REFRESH_INTERVAL = 24 * 60 * 60
 
 
@@ -50,7 +40,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
     """Place where to load and save session objects."""
 
     def get_session_filename(self, sid: str) -> str:
-        # scatter sessions across 4096 (64^2) directories
         if not self.is_valid_key(sid):
             raise ValueError(f"Invalid session id {sid!r}")
         return str(Path(self.path, sid[:2], sid))
@@ -62,25 +51,47 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 dirname.mkdir(mode=0o0700)
         super().save(session)
 
+    def new(self) -> Session:
+        session = super().new()
+        session.store = self
+        return session
+
     def get(self, sid: str) -> Session:
         session = super().get(sid)
+        session.store = self
         if not session.is_new:
-            # Loaded from disk: refresh a stale mtime so ``vacuum`` measures
-            # inactivity, not time-since-last-write (see
-            # :data:`_MTIME_REFRESH_INTERVAL`). At most one touch per interval
-            # per session; the extra ``stat`` is negligible next to the read.
             with contextlib.suppress(OSError):
                 path = Path(self.get_session_filename(session.sid))
                 if path.stat().st_mtime < time.time() - _MTIME_REFRESH_INTERVAL:
                     os.utime(path)
         return session
 
+    def keep_alive(self, session: Session) -> None:
+        """Refresh the session file's mtime without rewriting its contents.
+
+        ``vacuum`` reaps by mtime, so "extend this session's lifetime" -- what
+        :meth:`Session.touch` asks for, and what several core controllers call it
+        for (``/odoo``, ``/web/session/get_session_info``) -- needs nothing more
+        than an ``utime``. Routing it through :meth:`save` instead cost a full
+        atomic rewrite (``mkstemp`` + ``fchmod`` + write + **fsync** + rename) of
+        byte-identical content on *every* such request: ~1.2 ms of blocking IO on
+        local NVMe, far worse on the network filestores the store is written for.
+
+        This is the write-path counterpart of the lazy refresh :meth:`get`
+        already does on read past :data:`_MTIME_REFRESH_INTERVAL`.
+
+        Falls back to a real save when the file is not there yet: a brand-new
+        session's first ``touch()`` (``Request.csrf_token``) is exactly what
+        persists it, and there is no mtime to bump.
+        """
+        try:
+            os.utime(self.get_session_filename(session.sid))
+        except OSError:
+            self.save(session)
+
     def delete_old_sessions(self, session: Session) -> None:
         if "gc_previous_sessions" in session:
             if session["create_time"] + SESSION_DELETION_TIMER < time.time():
-                # Delete ONLY the pre-rotation files sharing the static prefix,
-                # keeping the current file intact — a delete-then-save would leave
-                # a window where ``renew_missing`` logs the user out.
                 self.delete_from_identifiers(
                     [session.sid[:STORED_SESSION_BYTES]],
                     exclude_sid=session.sid,
@@ -89,28 +100,20 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 self.save(session)
 
     def rotate(self, session: Session, env: Any, soft: bool = False) -> None:
-        # Soft rotation keeps the static prefix (so the CSRF token still works) and
-        # replaces the rest; hard rotation changes the whole sid (e.g. on logout).
         if soft:
-            # Concurrent requests share the old session; adopt the already-rotated
-            # one rather than creating a new sid per request.
             static = session.sid[:STORED_SESSION_BYTES]
             recent_session = self.get(session.sid)
             if "next_sid" in recent_session:
-                # A concurrent request already rotated; adopt its sid and
-                # authoritative metadata (token, create_time, gc marker), then
-                # flush this session's local edits so they are not lost.
                 new_sid = recent_session["next_sid"]
+                peer_state = self.get(new_sid)
+                if peer_state.is_new:
+                    if session.is_modified():
+                        self.save(session)
+                    return
                 if session.is_modified():
-                    # Loaded from the pre-rotation file during the grace window,
-                    # so this ``__data`` carries the peer's ``next_sid`` /
-                    # ``deletion_time``. Drop them before flushing onto ``new_sid``
-                    # — a stale ``deletion_time`` would log the user out later and
-                    # a stale ``next_sid`` would re-arm a spurious rotation.
                     for key in ("next_sid", "deletion_time"):
                         if key in session:
                             del session[key]
-                    peer_state = self.get(new_sid)
                     for key in ("session_token", "create_time", "gc_previous_sessions"):
                         if key in peer_state:
                             session[key] = peer_state[key]
@@ -118,20 +121,15 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     self.save(session)
                 else:
                     session.sid = new_sid
-                # A completed rotation clears ``should_rotate`` (matching every
-                # other path). Defensive: this branch is only reached with it
-                # already ``False`` today, but keeps ``rotate()`` self-consistent.
                 session.should_rotate = False
                 return
             next_sid = static + self.generate_key()[STORED_SESSION_BYTES:]
         else:
             next_sid = self.generate_key()
 
-        # Compute the new token BEFORE any destructive disk op, so a failure
-        # (e.g. transient DB error) leaves the session intact and the user in.
         new_token = None
         if session.uid:
-            if not env:
+            if env is None:
                 msg = "Saving an authenticated session requires an environment"
                 raise ValueError(msg)
             new_token = (
@@ -150,9 +148,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             self.delete(session)
             session.sid = next_sid
 
-        # ``_compute_session_token`` can return ``False`` (deleted/forged user);
-        # ``is not None`` would let it through and log the user out next request.
-        # Treat any falsy token as "don't update".
         if new_token:
             session.session_token = new_token
         session.should_rotate = False
@@ -160,24 +155,13 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         self.save(session)
 
     def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
-        # Operate on THIS store's directory (``self.path``), not the global
-        # ``root.session_store.path`` — the latter ignored ``self`` and vacuumed
-        # the singleton's filestore regardless of which store was called.
         threshold = time.time() - max_lifetime
         base_path = Path(self.path)
-        # Only the scattered ``<base>/<sid[:2]>/<sid>`` layout exists: every
-        # writer goes through the overridden ``get_session_filename``, and the
-        # pre-scatter flat layout died with Odoo 16 — its 7-day-lifetime files
-        # cannot have survived to this fork, so no flat glob / ``get()``
-        # migration is kept.
         for path in base_path.glob("*/*"):
             with contextlib.suppress(OSError):
                 st = path.stat()
                 if S_ISREG(st.st_mode) and st.st_mtime < threshold:
                     path.unlink()
-        # Atomic-write temp files orphaned by a crash mid-``save`` land in the
-        # store root (``mkstemp(dir=self.path)``) and are invisible to the
-        # ``*/*`` glob above; reap them past the same threshold.
         for path in base_path.glob(f"*{sessions._fs_transaction_suffix}"):
             with contextlib.suppress(OSError):
                 st = path.stat()
@@ -185,29 +169,25 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                     path.unlink()
 
     def generate_key(self, salt: bytes | None = None) -> str:
-        # 84-char case-sensitive base64 key. Even on a case-insensitive filesystem
-        # (NTFS), the 42-char stored prefix gives ≈217 bits of entropy (vs 160 for
-        # the vendored hex ``generate_key``), so collisions are negligible.
         key = str(time.time()).encode() + os.urandom(64)
-        hash_key = sha512(key).digest()[:-1]  # prevent base64 padding
+        hash_key = sha512(key).digest()[:-1]
         return base64.urlsafe_b64encode(hash_key).decode("utf-8")
 
     def is_valid_key(self, key: str) -> bool:
         return _base64_urlsafe_re.match(key) is not None
 
     def get_missing_session_identifiers(self, identifiers: Iterable[str]) -> set[str]:
-        """
+        """Return the identifiers with no session file on the filesystem.
+
         :param identifiers: session identifiers whose file existence must be checked
                             each is the first 42 chars of a session sid
         :type identifiers: iterable
         :return: the identifiers which are not present on the filesystem
         :rtype: set
         """
-        # Use ``identifiers`` to scan only the needed directories (up to 4096).
         identifiers = set(identifiers)
         base = Path(self.path)
         directories = {str(base / identifier[:2]) for identifier in identifiers}
-        # Remove the identifiers for which a file is present on the filesystem.
         for directory in directories:
             with (
                 contextlib.suppress(OSError),
@@ -234,14 +214,10 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         files_to_unlink: list[Path] = []
         base_path = Path(self.path)
         for identifier in identifiers:
-            # Reject non-matching identifiers so a malicious ``res.device.log``
-            # can't delete sessions from another database.
             if not _session_identifier_re.match(identifier):
                 msg = "Identifier format incorrect, did you pass in a string instead of a list?"
                 raise ValueError(msg)
             parent_dir = base_path / identifier[:2]
-            # Defense-in-depth: the regex already restricts ``identifier``, but
-            # re-check the path in case it is loosened or ``base_path`` is symlinked.
             if parent_dir.is_relative_to(base_path):
                 files_to_unlink.extend(parent_dir.glob(identifier + "*"))
         for fn in files_to_unlink:
@@ -251,9 +227,6 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 fn.unlink()
 
 
-# JSON-native types that round-trip through the session file without coercion.
-# ``tuple`` is excluded: it becomes a list in JSON (allowed, but callers must
-# re-tuple if they need tuple semantics).
 _SESSION_JSON_PRIMITIVES = (str, int, float, bool, type(None))
 
 
@@ -266,7 +239,6 @@ def _coerce_session_value(value: Any) -> Any:
     if isinstance(value, _SESSION_JSON_PRIMITIVES):
         return value
     if isinstance(value, dict):
-        # JSON object keys must be strings; validate then recurse on values.
         coerced = {}
         for k, v in value.items():
             if not isinstance(k, str):
@@ -276,7 +248,6 @@ def _coerce_session_value(value: Any) -> Any:
             coerced[k] = _coerce_session_value(v)
         return coerced
     if isinstance(value, (list, tuple)):
-        # tuple → list: allowed, but the caller gets a list back.
         return [_coerce_session_value(v) for v in value]
     raise TypeError(
         f"Session values must be JSON-serializable "
@@ -306,27 +277,18 @@ class Session(collections.abc.MutableMapping):
         "is_new",
         "should_rotate",
         "sid",
+        "store",
     )
 
     def __init__(self, data: dict[str, Any], sid: str, new: bool = False) -> None:
         self.can_save: bool = True
-        # ``data`` is always trusted here: ``{}`` or a payload the store just
-        # parsed from a session file, so already JSON-native. Assign directly
-        # rather than routing every key through ``__setitem__`` /
-        # ``_coerce_session_value`` — that validation is for *application* writes
-        # and ran on every authenticated session load (≈300 isinstance walks at
-        # the ``_trace`` cap). ``dict(data)`` is the shallow copy the vendored base
-        # made; the store drops its reference, so the session owns the data.
         self.__data: dict[str, Any] = dict(data)
         self.is_dirty: bool = False
-        # Serialized snapshot for nested-mutation detection, captured per
-        # request by ``mark_clean``. ``None`` until then: ``is_modified`` falls
-        # back to ``is_dirty`` so a session inspected before its first
-        # ``mark_clean`` still reports explicit writes correctly.
         self.__baseline: bytes | None = None
         self.is_new: bool = new
         self.should_rotate: bool = False
         self.sid: str = sid
+        self.store: Any = None
 
     def __getitem__(self, item: str) -> Any:
         return self.__data[item]
@@ -368,9 +330,6 @@ class Session(collections.abc.MutableMapping):
         self.__data.clear()
         self.is_dirty = True
 
-    #
-    # Session properties
-    #
     @property
     def uid(self) -> int | None:
         return self.get("uid")
@@ -405,9 +364,6 @@ class Session(collections.abc.MutableMapping):
 
     @property
     def debug(self) -> str:
-        # Coerce to ``str`` on read so consumers can rely on it. A hand-edited
-        # session file could carry ``"debug": null``, which ``setdefault`` won't
-        # replace, and ``"assets" in None`` would then 500 a static asset.
         return self.get("debug") or ""
 
     @debug.setter
@@ -422,9 +378,6 @@ class Session(collections.abc.MutableMapping):
     def session_token(self, session_token: str | None) -> None:
         self["session_token"] = session_token
 
-    #
-    # Session methods
-    #
     def authenticate(self, env: Any, credential: dict[str, Any]) -> dict[str, Any]:
         """
         Authenticate the current user with the given db, login and
@@ -442,8 +395,6 @@ class Session(collections.abc.MutableMapping):
         wsgienv = {
             "interactive": True,
             "base_location": request.httprequest.url_root.rstrip("/"),
-            # ``.get`` not ``[...]``: a no-Host request should not KeyError the
-            # login into a 500.
             "HTTP_HOST": request.httprequest.environ.get("HTTP_HOST", ""),
             "REMOTE_ADDR": request.httprequest.environ.get("REMOTE_ADDR", ""),
         }
@@ -455,7 +406,6 @@ class Session(collections.abc.MutableMapping):
         self["pre_login"] = credential["login"]
         self["pre_uid"] = pre_uid
 
-        # if 2FA is disabled we finalize immediately
         user = env["res.users"].browse(pre_uid)
         if auth_info.get("mfa") == "skip" or not user._mfa_url():
             self.finalize(env)
@@ -489,14 +439,14 @@ class Session(collections.abc.MutableMapping):
         )
 
     def logout(self, keep_db: bool = False) -> None:
-        db = self.db if keep_db else None  # get_default_session()["db"] is None
+        db = self.db if keep_db else None
         debug = self.debug
         self.clear()
         self.update(get_default_session(), db=db, debug=debug)
         self.context["lang"] = request.default_lang() if request else DEFAULT_LANG
         self.should_rotate = True
 
-        if request and request.env:
+        if request and request.env is not None:
             request.env["ir.http"]._post_logout()
 
     def touch(self) -> None:
@@ -517,6 +467,26 @@ class Session(collections.abc.MutableMapping):
         self.is_dirty = False
         self.__baseline = _dumps_bytes(self.__data)
 
+    def has_content_changed(self) -> bool:
+        """Whether the stored *data* differs from the last :meth:`mark_clean`.
+
+        The question :meth:`is_modified` cannot answer on its own: it also
+        reports ``True`` for a bare :meth:`touch`, which asks to extend the
+        session's lifetime rather than to rewrite it (see
+        :meth:`FilesystemSessionStore.keep_alive`). Only a content change needs
+        the file rewritten.
+
+        Detects in-place mutation of nested values that bypass
+        :meth:`__setitem__`. Before the first :meth:`mark_clean` (no baseline
+        yet) it falls back to :attr:`is_dirty`. The byte comparison can yield a
+        false *positive* for a semantically equal dict serialized differently
+        (key re-insertion changing order, ``1`` rewritten as ``1.0``); the cost
+        is one spurious session save, never a missed one.
+        """
+        if self.__baseline is None:
+            return self.is_dirty
+        return _dumps_bytes(self.__data) != self.__baseline
+
     def is_modified(self) -> bool:
         """Whether the session changed since the last :meth:`mark_clean`.
 
@@ -528,18 +498,17 @@ class Session(collections.abc.MutableMapping):
         changing order, ``1`` rewritten as ``1.0``); the cost is one spurious
         session save, never a missed one.
         """
-        if self.__baseline is None:
-            return self.is_dirty
-        return self.is_dirty or _dumps_bytes(self.__data) != self.__baseline
+        return self.is_dirty or self.has_content_changed()
 
     def update_trace(self, request: Any) -> dict[str, Any] | None:
-        """
+        """Record the request's device (platform, browser, IP) in the session trace.
+
+        A known device is refreshed at most hourly; a new one is appended,
+        evicting the least recently active entry past ``_TRACE_MAX_ENTRIES``.
+
         :return: dict if a device log has to be inserted, ``None`` otherwise
         """
         if self.get("_trace_disable"):
-            # ``_trace_disable`` suppresses device logging for automated technical
-            # sessions. Only admins can set it (no unprivileged path), and other
-            # auditing (server/proxy logs, record metadata) still applies.
             return None
 
         user_agent = request.httprequest.user_agent
@@ -553,7 +522,6 @@ class Session(collections.abc.MutableMapping):
                 and trace["browser"] == browser
                 and trace["ip_address"] == ip_address
             ):
-                # If the device logs are not up to date (i.e. not updated for one hour or more)
                 if now - trace["last_activity"] >= 3600:
                     trace["last_activity"] = now
                     self.is_dirty = True
@@ -577,6 +545,17 @@ class Session(collections.abc.MutableMapping):
         return new_trace
 
     def _delete_old_sessions(self) -> None:
-        from .application import root  # lazy import
+        """Reap the pre-rotation files this session left behind.
 
-        root.session_store.delete_old_sessions(self)
+        Dispatched to the store this session was LOADED from, not the global
+        ``root.session_store``. Reaching for the singleton meant a session from
+        store A garbage-collected against store B — the same defect already
+        fixed in :meth:`FilesystemSessionStore.vacuum` (which used to read
+        ``root.session_store.path`` instead of ``self.path``), and the last
+        global reach-in on the session path now that ``Request`` and ``GeoIP``
+        take their collaborators by injection. It also drops a
+        ``session -> application`` import cycle that needed a lazy import.
+        """
+        if self.store is None:
+            return
+        self.store.delete_old_sessions(self)

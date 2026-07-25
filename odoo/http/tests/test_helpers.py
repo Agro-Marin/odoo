@@ -18,7 +18,7 @@ def test_content_disposition_encodes_unicode_and_quotes():
     header = content_disposition('résumé "x".pdf')
     assert header.startswith("attachment; filename*=UTF-8''")
     assert "r%C3%A9sum%C3%A9" in header
-    assert '"' not in header  # quote(safe='') percent-encodes it
+    assert '"' not in header
 
 
 def test_content_disposition_inline():
@@ -49,7 +49,6 @@ def test_dbfilter_host_normalized_exactly_once():
     config["dbfilter"] = "^%h$"
     _compiled_dbfilter.cache_clear()
     try:
-        # %h must resolve to "www.example.com" (one www. stripped, not two)
         assert db_filter(["www.example.com"], host="www.www.example.com") == [
             "www.example.com"
         ]
@@ -71,7 +70,6 @@ def test_is_cors_preflight_returns_real_bool():
     endpoint = types.SimpleNamespace(routing={"cors": "https://example.com"})
     result = is_cors_preflight(_fake_request("OPTIONS"), endpoint)
     assert result is True
-    # non-OPTIONS -> False; no cors -> False
     assert is_cors_preflight(_fake_request("GET"), endpoint) is False
     no_cors = types.SimpleNamespace(routing={})
     assert is_cors_preflight(_fake_request("OPTIONS"), no_cors) is False
@@ -85,7 +83,7 @@ def test_db_filter_without_request_uses_empty_host():
     from odoo.tools import config
 
     saved = config["dbfilter"]
-    config["dbfilter"] = "^%d$"  # %d -> "" without a Host -> matches nothing
+    config["dbfilter"] = "^%d$"
     try:
         assert db_filter(["somedb"]) == []
     finally:
@@ -97,10 +95,8 @@ def test_restore_thread_attr_deletes_when_absent():
     t = threading.current_thread()
     if hasattr(t, "_probe_attr"):
         del t._probe_attr
-    # absent before -> restored to absent
     _restore_thread_attr(t, "_probe_attr", sentinel, sentinel)
     assert not hasattr(t, "_probe_attr")
-    # present before -> restored to value
     _restore_thread_attr(t, "_probe_attr", 42, sentinel)
     assert t._probe_attr == 42
     del t._probe_attr
@@ -111,7 +107,6 @@ def test_normalize_dbfilter_host_ipv6_keeps_brackets():
     3986) to ``[``, so no dbfilter %h could ever match an IPv6 client."""
     assert _normalize_dbfilter_host("[::1]:8069") == "[::1]"
     assert _normalize_dbfilter_host("[2001:DB8::1]") == "[2001:db8::1]"
-    # malformed (no closing bracket): left as-is, may only fail to match
     assert _normalize_dbfilter_host("[::1") == "[::1"
 
 
@@ -127,11 +122,9 @@ def test_serialize_exception_masks_infra_errors_for_clients_only():
     secret_os = OSError("/srv/filestore/prod/.session/secret-layout")
     secret_pg = psycopg.OperationalError("UPDATE res_users SET password=...")
 
-    # No active request (cron/shell): full message kept for admins.
     assert "filestore" in serialize_exception(secret_os)["message"]
     assert "res_users" in serialize_exception(secret_pg)["message"]
 
-    # Active request: masked.
     _request_stack.push(types.SimpleNamespace())
     try:
         for exc in (secret_os, secret_pg):
@@ -139,7 +132,6 @@ def test_serialize_exception_masks_infra_errors_for_clients_only():
             assert data["message"] == "Internal Server Error"
             assert data["arguments"] == ()
             assert data["name"].endswith(type(exc).__name__)
-        # Application-level exceptions keep their message (API contract).
         assert serialize_exception(ValueError("bad domain"))["message"] == "bad domain"
     finally:
         _request_stack.pop()

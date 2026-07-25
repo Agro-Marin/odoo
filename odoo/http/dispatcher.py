@@ -6,6 +6,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import werkzeug.exceptions
+import werkzeug.wrappers
 from werkzeug.exceptions import (
     HTTPException,
     InternalServerError,
@@ -20,23 +21,58 @@ from odoo.exceptions import UserError
 
 from .constants import CORS_MAX_AGE, MISSING_CSRF_WARNING, SAFE_HTTP_METHODS
 from .exceptions import SessionExpiredException
-from .helpers import get_session_max_inactivity, serialize_exception
+from .helpers import serialize_exception
 from .wrappers import Response
 
 if TYPE_CHECKING:
     from .request_class import Request
 else:
-    # ``Request`` is used ONLY in annotations here, never as a runtime value, so
-    # we don't import it at runtime — that would re-form the Request<->Dispatcher
-    # cycle and force the old bottom-of-file late import. The ``else: Any``
-    # fallback is the pattern blessed by ``test_lint.test_pep649`` (and used by
-    # ``odoo.tools.{files,sql}``): annotations like ``request: Request`` resolve
-    # to ``Any`` under PEP 649 introspection instead of raising ``NameError``.
     Request = Any
 
 _logger = logging.getLogger(__name__)
 
 _dispatchers: dict[str, type[Dispatcher]] = {}
+
+_DEFAULT_ALLOWED_METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
+
+
+def infer_dispatcher_for_unmatched(request: Request) -> type[Dispatcher]:
+    """The dispatcher to answer a request that matched no route.
+
+    A matched request gets its dispatcher from ``@route(type=...)``. An unmatched
+    one has no route to ask, and :meth:`Request.__init__` seeds ``HttpDispatcher``
+    "until we match" — but nothing ever revised it, so *every* unmatched URL was
+    answered in HTML no matter what the client sent. A JSON caller hitting a
+    typo'd path got ``404`` with ``Content-Type: text/html``; the web client's rpc
+    layer can only classify that as a generic ``InvalidResponseError``, unable to
+    tell "this route does not exist" from "the server returned garbage".
+
+    Selection is by request ``Content-Type``, most specific first:
+
+    * ``application/json-rpc`` — claimed only by :class:`JsonRPCDispatcher`.
+    * ``application/json`` — claimed by BOTH JSON dispatchers, so the tie is
+      broken toward :class:`Json2Dispatcher`, because it is the one that
+      PRESERVES THE STATUS CODE. ``JsonRPCDispatcher`` follows the JSON-RPC
+      convention of answering ``200`` with the error in the body; for a path that
+      does not exist that would turn a ``404`` into a ``200``, hiding a broken
+      integration from any client that (correctly) keys on the status. ``json2``
+      answers ``404`` with a JSON body, which fixes the actual defect — an HTML
+      body sent to a JSON caller — without trading away HTTP semantics.
+      The web client is no worse off than before: ``rpc.js`` classifies a non-2xx
+      JSON body without an ``error`` key as ``InvalidResponseError``
+      (``!parsed.error && !response.ok``), exactly as it already did for the HTML
+      one.
+    * anything else — :class:`HttpDispatcher`, as before.
+
+    Explicit precedence, not ``_dispatchers`` iteration order: registration order
+    is an accident of import order and must not decide what a client is sent.
+    """
+    mimetype = request.httprequest.mimetype
+    for routing_type in ("json2", "jsonrpc"):
+        dispatcher = _dispatchers.get(routing_type)
+        if dispatcher is not None and mimetype in dispatcher.mimetypes:
+            return dispatcher
+    return _dispatchers["http"]
 
 
 class Dispatcher(ABC):
@@ -46,17 +82,18 @@ class Dispatcher(ABC):
     @classmethod
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        existing = _dispatchers.get(cls.routing_type)
+        routing_type = getattr(cls, "routing_type", None)
+        if routing_type is None:
+            return
+        existing = _dispatchers.get(routing_type)
         if existing is not None and existing is not cls:
-            # Silently overriding here masked typo'd ``routing_type``
-            # collisions during fork refactors; warn so reviewers see it.
             _logger.warning(
                 "Dispatcher routing_type=%r already registered as %s; %s overrides it.",
-                cls.routing_type,
+                routing_type,
                 existing.__name__,
                 cls.__name__,
             )
-        _dispatchers[cls.routing_type] = cls
+        _dispatchers[routing_type] = cls
 
     def __init__(self, request: Request) -> None:
         self.request = request
@@ -80,36 +117,56 @@ class Dispatcher(ABC):
         routing = rule.endpoint.routing
         self.request.session.can_save &= routing.get("save_session", True)
 
+        httprequest = self.request.httprequest
         set_header = self.request.future_response.headers.set
         cors = routing.get("cors")
-        if cors:
-            set_header("Access-Control-Allow-Origin", cors)
-            set_header(
-                "Access-Control-Allow-Methods",
-                (
-                    "POST"
-                    if routing["type"] == JsonRPCDispatcher.routing_type
-                    else ", ".join(routing["methods"] or ["GET", "POST"])
-                ),
-            )
+        vary: list[str] = []
 
-        if cors and self.request.httprequest.method == "OPTIONS":
+        if cors:
+            allow_origin = cors
+            if routing.get("cors_credentials"):
+                vary.append("Origin")
+                origin = httprequest.headers.get("Origin")
+                if origin and cors in ("*", origin):
+                    allow_origin = origin
+                    set_header("Access-Control-Allow-Credentials", "true")
+                else:
+                    allow_origin = None
+            if allow_origin:
+                set_header("Access-Control-Allow-Origin", allow_origin)
+                set_header(
+                    "Access-Control-Allow-Methods",
+                    (
+                        "POST"
+                        if routing["type"] == JsonRPCDispatcher.routing_type
+                        else ", ".join(routing["methods"] or ["GET", "POST"])
+                    ),
+                )
+
+        is_preflight = bool(cors) and httprequest.method == "OPTIONS"
+        if is_preflight:
             set_header("Access-Control-Max-Age", CORS_MAX_AGE)
-            # Reflect the exact headers the browser requests instead of a
-            # hand-maintained allow-list (which silently broke streaming clients
-            # until ``Range`` was added). This is no auth boundary: forbidden
-            # headers stay browser-enforced and the request still passes the
-            # route's own auth. The static list is the fallback when a preflight
-            # names no headers.
             set_header(
                 "Access-Control-Allow-Headers",
-                self.request.httprequest.headers.get("Access-Control-Request-Headers")
+                httprequest.headers.get("Access-Control-Request-Headers")
                 or "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
             )
-            # ``abort`` raises an HTTPException carrying our 204; _serve.py
-            # catches it (``code is None`` branch), runs ``post_dispatch`` to add
-            # CORS/CSP/session headers, and returns it. No endpoint runs.
+            vary.append("Access-Control-Request-Headers")
+
+        if vary:
+            set_header("Vary", ", ".join(vary))
+
+        if is_preflight:
             werkzeug.exceptions.abort(Response(status=204))
+
+        if httprequest.method == "OPTIONS" and "OPTIONS" not in (
+            routing.get("methods") or ()
+        ):
+            response = Response(status=204)
+            response.headers["Allow"] = ", ".join(
+                [*(routing.get("methods") or _DEFAULT_ALLOWED_METHODS), "OPTIONS"]
+            )
+            werkzeug.exceptions.abort(response)
 
         if "max_content_length" in routing:
             max_content_length = routing["max_content_length"]
@@ -181,20 +238,12 @@ class HttpDispatcher(Dispatcher):
         """
         self.request.params = self.request.get_http_params() | args
 
-        # ``get_http_params``'s flat merge keeps one value per key, silently
-        # dropping the rest of ``?a=1&a=2``. For a typed route's
-        # ``list``-annotated params (the only place multi-values have declared
-        # meaning), re-read every value via ``getlist``. Path args are never
-        # lists, so keys bound by the rule are left alone.
         list_params = getattr(endpoint, "typed_list_params", None)
         if list_params:
             httprequest = self.request.httprequest
             for name in list_params:
                 if name in args:
                     continue
-                # ``files`` included: a ``<input type="file" multiple>`` posts
-                # several FileStorage entries under one key, and the flat merge
-                # keeps only the first — same loss as repeated query params.
                 values = (
                     httprequest.args.getlist(name)
                     + httprequest.form.getlist(name)
@@ -203,7 +252,6 @@ class HttpDispatcher(Dispatcher):
                 if len(values) > 1:
                     self.request.params[name] = values
 
-        # Check for CSRF token for relevant requests
         if (
             self.request.httprequest.method not in SAFE_HTTP_METHODS
             and endpoint.routing.get("csrf", True)
@@ -220,9 +268,6 @@ class HttpDispatcher(Dispatcher):
                     )
                 else:
                     _logger.warning(MISSING_CSRF_WARNING, self.request.httprequest.path)
-                # Phrasing matches ``website.form``'s own raise (kept identical
-                # for log scrapers / screens): an expired session is the dominant
-                # cause of CSRF rejection in practice.
                 msg = "Session expired (invalid CSRF token)"
                 raise werkzeug.exceptions.BadRequest(msg)
 
@@ -239,33 +284,21 @@ class HttpDispatcher(Dispatcher):
         :param Exception exc: the exception that occurred.
         :returns: a WSGI application
         """
-        root = self.request.app
-
         if isinstance(exc, SessionExpiredException):
             session = self.request.session
             was_connected = session.uid is not None
             session.logout(keep_db=True)
-            response = self.request.redirect_query(
+            if not was_connected:
+                session.should_rotate = False
+            return self.request.redirect_query(
                 "/web/login", {"redirect": self.request.httprequest.full_path}
             )
-            if was_connected:
-                root.session_store.rotate(session, self.request.env)
-                # secure / samesite come from ``_apply_cookie_defaults``.
-                response.set_cookie(
-                    "session_id",
-                    session.sid,
-                    max_age=get_session_max_inactivity(self.request.env),
-                    httponly=True,
-                )
-            return response
 
         if isinstance(exc, HTTPException):
             return exc
 
         if isinstance(exc, UserError):
             description = exc.args[0] if exc.args else str(exc) or None
-            # ``UserError`` and subclasses always define ``http_status``; read it
-            # directly (consistent with ``Json2Dispatcher.handle_error``).
             status = exc.http_status
             exc_cls = werkzeug_default_exceptions.get(status)
             if exc_cls is not None:
@@ -322,21 +355,12 @@ class JsonRPCDispatcher(Dispatcher):
         try:
             self.jsonrequest = self.request.get_json_data()
         except ValueError:
-            # Malformed JSON: no request id is parseable, so a JSON-RPC error
-            # envelope cannot be built — abort+Response bypasses handle_error.
             werkzeug.exceptions.abort(Response("Invalid JSON data", status=400))
 
-        # JSON-RPC requires a top-level object; check explicitly rather than
-        # letting ``dict.get`` raise AttributeError on a list/scalar/null body.
         if not isinstance(self.jsonrequest, dict):
-            # must use abort+Response to bypass handle_error
             werkzeug.exceptions.abort(Response("Invalid JSON-RPC data", status=400))
 
         self.request_id = self.jsonrequest.get("id")
-        # Only by-name params (a JSON Object) are supported. A present-but-non
-        # -object ``params`` cannot merge with the path-arg dict; reject it
-        # clearly instead of an opaque ``dict | list`` TypeError. Missing
-        # ``params`` defaults to ``{}``.
         params = self.jsonrequest.get("params", {})
         if not isinstance(params, dict):
             e = f"JSON-RPC params must be an object (got {type(params).__name__!r})."
@@ -357,7 +381,7 @@ class JsonRPCDispatcher(Dispatcher):
         :returns: a WSGI application
         """
         error = {
-            "code": 0,  # we don't care about this code
+            "code": 0,
             "message": "Odoo Server Error",
             "data": serialize_exception(exc),
         }
@@ -378,10 +402,6 @@ class JsonRPCDispatcher(Dispatcher):
             response["error"] = error
         else:
             response["result"] = result
-            # Envelope versioning: ``@versioned_envelope`` stashes a content hash
-            # on ``request._response_version``. Lift it beside ``result`` so the JS
-            # rpc layer can reattach it — works for list results, which can't carry
-            # an in-payload ``__version`` key.
             version = getattr(self.request, "_response_version", None)
             if version is not None:
                 response["version"] = version
@@ -405,16 +425,7 @@ class Json2Dispatcher(Dispatcher):
         )
 
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
-        # "args" are the path parameters, "id" in /web/image/<id>
         httprequest = self.request.httprequest
-        # CSRF defense for state-changing requests.  A json2 route is normally
-        # called with ``Content-Type: application/json``, which forces a CORS
-        # preflight cross-origin (the same protection jsonrpc relies on).  An
-        # empty/non-JSON body on an unsafe method is a cross-site "simple
-        # request" that skips that preflight and could drive a state change from
-        # the path args alone, so reject it unless the route opts out
-        # (``csrf=False``).  A non-JSON request WITH a body is already refused by
-        # ``is_compatible_with`` (415); this closes the empty-body gap.
         if (
             httprequest.method not in SAFE_HTTP_METHODS
             and httprequest.mimetype not in self.mimetypes
@@ -424,12 +435,6 @@ class Json2Dispatcher(Dispatcher):
                 "State-changing json2 requests must use the 'application/json' "
                 "Content-Type (CSRF protection)."
             )
-        # Gate on the actual body, not content_length: a chunked request
-        # (Transfer-Encoding: chunked) has content_length None, so gating on it
-        # dropped the body and ran the endpoint with path args only — a
-        # state-changing json2 route would silently execute with defaults.
-        # get_data() reads (and caches) the full body regardless of framing;
-        # get_json_data() below reuses that cache.
         if httprequest.get_data(cache=True):
             try:
                 self.jsonrequest = self.request.get_json_data()
@@ -437,10 +442,6 @@ class Json2Dispatcher(Dispatcher):
                 e = f"could not parse the body as json: {exc.args[0]}"
                 raise werkzeug.exceptions.BadRequest(e) from exc
             if self.jsonrequest is not None and not isinstance(self.jsonrequest, dict):
-                # Top-level arrays/scalars cannot merge with the path-arg dict and
-                # have no sensible default; reject with a clear 400 instead of
-                # silently discarding the body. ``null`` is exempt: it means "no
-                # body", handled by the ``is None`` branch below (path args alone).
                 e = (
                     "JSON request body must be an object (got "
                     f"{type(self.jsonrequest).__name__!r})."
@@ -454,6 +455,8 @@ class Json2Dispatcher(Dispatcher):
         result = self._call_endpoint(endpoint)
         if isinstance(result, Response):
             return result
+        if isinstance(result, werkzeug.wrappers.Response):
+            return Response(result)
         return self.request.make_json_response(result)
 
     def handle_error(self, exc: Exception) -> collections.abc.Callable:
@@ -471,7 +474,6 @@ class Json2Dispatcher(Dispatcher):
                 message=exc.description,
                 arguments=(exc.description, exc.code),
             )
-            # strip Content-Type (we set our own) but keep the remaining headers
             headers = [(k, v) for k, v in exc.get_headers() if k != "Content-Type"]
         else:
             status = HTTPStatus.INTERNAL_SERVER_ERROR

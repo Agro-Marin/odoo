@@ -3,6 +3,7 @@ import functools
 import logging
 import threading
 import time
+from collections.abc import Iterable
 from typing import Any
 
 import babel.core
@@ -38,17 +39,38 @@ from .wrappers import FutureResponse, HTTPRequest, Response
 
 _logger = logging.getLogger(__name__)
 
+_UNIONED_HEADERS = frozenset({"vary"})
+
+
+def _cookie_name(set_cookie_value: str) -> str:
+    """The cookie name of a ``Set-Cookie`` header value.
+
+    ``"session_id=abc; Path=/; HttpOnly"`` -> ``"session_id"``. A cookie name
+    cannot contain ``=``, so the first one always delimits it.
+    """
+    return set_cookie_value.partition("=")[0].strip()
+
+
+def _union_header_tokens(values: Iterable[str]) -> str:
+    """Combine comma-separated header token lists into one, order-preserving.
+
+    Tokens are de-duplicated case-insensitively while keeping the first spelling
+    seen. ``*`` absorbs everything: for ``Vary`` it means "varies on unspecified
+    dimensions", which no list of named tokens can narrow.
+    """
+    seen: dict[str, str] = {}
+    for value in values:
+        for token in value.split(","):
+            token = token.strip()
+            if token:
+                seen.setdefault(token.lower(), token)
+    if "*" in seen:
+        return "*"
+    return ", ".join(seen.values())
+
 
 @functools.lru_cache(maxsize=1)
 def _all_dbs_cached(_ttl_bucket: int) -> tuple[str, ...]:
-    # Host-independent catalog read cached under a single entry (see
-    # :data:`DB_MONODB_CACHE_TTL`): a burst of db-less requests across many Hosts
-    # costs one ``pg_database`` query per TTL bucket, not one per host. The key
-    # ``_ttl_bucket`` (``int(time()//DB_MONODB_CACHE_TTL)``) expires the entry
-    # every TTL seconds; ``maxsize=1`` keeps only the live bucket; a tuple is
-    # cached so the shared entry can't be mutated. ``_list_all_dbs`` resolves from
-    # this module's namespace, keeping the ``request_class._list_all_dbs`` test
-    # monkeypatch effective.
     return tuple(_list_all_dbs(force=True))
 
 
@@ -70,7 +92,7 @@ def _monodb_dblist(host: str) -> list[str]:
     """
     try:
         all_dbs = _all_dbs_cached(int(time.time() // DB_MONODB_CACHE_TTL))
-    except psycopg.OperationalError:
+    except psycopg.Error:
         return []
     return db_filter(list(all_dbs), host=host)
 
@@ -100,12 +122,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     """
 
     def __init__(self, httprequest: HTTPRequest, app: Any = None) -> None:
-        # ``app`` is the :class:`Application` serving this request.
-        # ``Application.__call__`` injects ``app=self``, making the dependency
-        # explicit on the hot path instead of a ``root`` singleton lazy import;
-        # the fallback keeps standalone constructors (tests, tooling) working and
-        # lets a test inject a fake app. ``Any`` (not ``Application``) avoids a
-        # request_class<->application import cycle, staying ``test_pep649``-clean.
         if app is None:
             from .application import root
 
@@ -114,7 +130,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         self.httprequest: HTTPRequest = httprequest
         self.future_response: FutureResponse = FutureResponse()
-        self.dispatcher = _dispatchers["http"](self)  # until we match
+        self.dispatcher = _dispatchers["http"](self)
         self.params: dict[str, Any] = {}
 
         self.geoip: GeoIP = GeoIP(httprequest.remote_addr, app=app)
@@ -135,28 +151,18 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if not sid or not root.session_store.is_valid_key(sid):
             session = root.session_store.new()
         else:
-            # ``get()`` honours ``renew_missing=True``, returning a fresh sid when
-            # the file is missing. Do NOT override ``session.sid`` back to the
-            # client value — that lets a client dictate their own session id,
-            # weakening session-fixation defence (hard rotation on login is the
-            # primary mitigation, see :meth:`Session.finalize`).
             session = root.session_store.get(sid)
 
         for key, val in get_default_session().items():
             session.setdefault(key, val)
-        # A hand-edited / cross-version session file can carry ``"context": null``;
-        # ``setdefault`` won't overwrite that ``None``, so ``.get("lang")`` and
-        # later in-place ``context[...] = ...`` would AttributeError — a 500 on
-        # every request with that cookie. Normalise a non-dict context to a fresh
-        # dict here (the getter can't coerce on read: callers mutate it in place).
         if not isinstance(session.context, dict):
             session.context = {}
         if not session.context.get("lang"):
             session.context["lang"] = self.default_lang()
+        if session.pop("_rotate_pending", None):
+            session.should_rotate = True
 
         dbname = None
-        # HTTP/1.0 or malformed clients may omit Host; fall back to "" (db_filter's
-        # default) rather than KeyError-ing the request into a 500.
         host = self.httprequest.environ.get("HTTP_HOST", "")
         header_dbname = self.httprequest.headers.get("X-Odoo-Database")
         if session.db and db_filter([session.db], host=host):
@@ -165,19 +171,13 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 e = "Cannot use both the session_id cookie and the x-odoo-database header."
                 raise werkzeug.exceptions.Forbidden(e)
         elif header_dbname:
-            # The X-Odoo-Database header marks a stateless API call, so the session
-            # is never persisted — even when ``db_filter`` rejects the named db and
-            # the request is served db-less. Only API clients send it (browsers
-            # never do), so degrading to "no session save" is harmless.
-            session.can_save = False  # stateless
+            session.can_save = False
             if db_filter([header_dbname], host=host):
                 dbname = header_dbname
         else:
-            # Memoised per host (short TTL): otherwise this ``pg_database`` query
-            # runs on every db-less request. See ``_monodb_dblist``.
             all_dbs = _monodb_dblist(host)
             if len(all_dbs) == 1:
-                dbname = all_dbs[0]  # monodb
+                dbname = all_dbs[0]
 
         if session.db != dbname:
             if session.db:
@@ -188,15 +188,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 session.logout(keep_db=False)
             session.db = dbname
 
-        # Baseline the session after framework setup so application changes —
-        # including in-place nested mutation (``session.context[...] = ...``) —
-        # are detected by ``is_modified`` at save time.
         session.mark_clean()
         return session, dbname
 
-    # =====================================================
-    # Getters and setters
-    # =====================================================
     def update_env(
         self,
         user: int | Any | None = None,
@@ -210,8 +204,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         :param dict context: optional context dictionary to change the current context
         :param bool su: optional boolean to change the superuser mode
         """
-        # ``cr=None`` keeps the current cursor: ``Environment.__call__`` resolves
-        # ``cr = self.cr if cr is None else cr``.
         self.env = self.env(None, user, context, su)
         self.env.transaction.default_env = self.env
         threading.current_thread().uid = self.env.uid
@@ -231,9 +223,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             return None
 
         try:
-            # ``parse_locale`` returns a 4- or 5-tuple (5th is a modifier, e.g.
-            # ``it-IT@euro``, which a client can send via Accept-Language). Slice
-            # to the first two so a modifier resolves instead of ValueError-ing.
             code, territory = babel.core.parse_locale(lang, sep="-")[:2]
             if territory:
                 lang = f"{code}_{territory}"
@@ -246,20 +235,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     @functools.cached_property
     def cookies(self):
         cookies = werkzeug.datastructures.MultiDict(self.httprequest.cookies)
-        if self.registry:
+        if self.registry is not None:
             self.registry["ir.http"]._sanitize_cookies(cookies)
         return werkzeug.datastructures.ImmutableMultiDict(cookies)
 
-    # =====================================================
-    # Helpers
-    # =====================================================
-    # CSRF helpers (``csrf_token``/``validate_csrf``) live on
-    # :class:`_RequestCsrfMixin`.
-
     def default_context(self) -> dict[str, Any]:
-        # ``get_default_session()['context']`` is ``{}`` today, so ``lang`` is the
-        # only effective key. Add new keys here explicitly rather than a
-        # ``dict|dict`` merge.
         return {"lang": self.default_lang()}
 
     def default_lang(self) -> str:
@@ -286,9 +266,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         }
 
     def get_json_data(self) -> Any:
-        # orjson parses UTF-8 bytes directly (RFC 8259), so feed it the raw body
-        # and skip werkzeug's decode-to-str. Invalid UTF-8 (already malformed JSON)
-        # raises the same ValueError callers handle.
         return _fast_loads(self.httprequest.get_data())
 
     def _get_profiler_context_manager(self) -> contextlib.AbstractContextManager:
@@ -298,13 +275,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         nothing.
         """
         if self.session.get("profile_session") and self.db:
-            # ``.get(..., "")`` not ``[...]`` so a session with ``profile_session``
-            # but no ``profile_expiration`` (manual edit) treats it as elapsed and
-            # disables profiling instead of KeyError-ing the request.
             if self.session.get("profile_expiration", "") < str(
                 odoo.fields.Datetime.now()
             ):
-                # avoid having session profiling for too long if user forgets to disable profiling
                 self.session["profile_session"] = None
                 _logger.warning("Profiling expiration reached, disabling profiling")
             elif "set_profiling" in self.httprequest.path:
@@ -312,14 +285,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             elif self.httprequest.path.startswith("/websocket"):
                 _logger.debug("Profiling disabled for websocket")
             elif odoo.evented:
-                # only longpolling should be in a evented server, but this is an additional safety
                 _logger.debug("Profiling disabled for evented server")
             else:
                 try:
-                    # ``.get`` with ir_profile's defaults (``collectors=[]``,
-                    # ``params={}``) so a session missing those keys gets the
-                    # default instead of a KeyError mislogged as "Failure during
-                    # Profiler creation" by the broad ``except`` below.
                     return profiler.Profiler(
                         db=self.db,
                         description=self.httprequest.full_path,
@@ -333,32 +301,116 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         return contextlib.nullcontext()
 
+    def _reset_for_replay(self, cr: Any = None) -> None:
+        """Return per-request state to what the FIRST dispatch attempt started from.
+
+        A handler body can run more than once for a single client request: the
+        read-only → read/write promotion in :meth:`_serve_db` replays it, and so
+        does the serialization-retry loop in
+        :func:`odoo.service.transaction.retrying`. A replay that inherits the
+        aborted attempt's state is not a replay — it is a different request:
+
+        * ``env`` — a handler that called :meth:`update_env` (user, context, and
+          notably ``su=True``, which no ``ir.http._auth_method_*`` resets) before
+          its failing write would pre-seed the retry with those privileges.
+          Rebuilt from the session, the same expression that built attempt one.
+        * ``future_response`` — headers are *staged* here and merged into the
+          response at the end. ``Set-Cookie`` is accumulated (one per cookie), so
+          a cookie set before the failing write is emitted once per attempt;
+          everything staged is re-staged by the replayed run anyway.
+
+        Both replay sites call this, so they cannot drift. ``params`` is NOT
+        reset: the dispatcher rebuilds it from the (rewound) request body on each
+        attempt. Uploaded files are rewound separately by
+        :func:`~odoo.http.helpers.rewind_uploaded_files`, which the retry loop
+        also shares.
+
+        :param cr: cursor for the rebuilt environment; defaults to the current
+            one. Pass it explicitly when the cursor is being swapped.
+        """
+        self.future_response = FutureResponse()
+        if cr is None and self.env is not None:
+            cr = self.env.cr
+        if cr is not None:
+            self.env = odoo.api.Environment(cr, self.session.uid, self.session.context)
+
     def _inject_future_response(self, response: Response) -> Response:
         """Merge ``future_response`` headers into ``response``.
 
-        ``Set-Cookie`` (one per cookie) is accumulated; every other header on
-        ``future_response`` (CORS, CSP, session-id replacement) is single-valued
-        and is set, not extended — a blind :meth:`Headers.extend` duplicated them,
-        yielding two ``Content-Type`` headers on hand-built responses.
+        Single-valued headers (CORS, CSP, ``Content-Type``…) are *set*, not
+        extended — a blind :meth:`Headers.extend` duplicated them, yielding two
+        ``Content-Type`` headers on hand-built responses. A name staged more than
+        once is appended after the first, so a legitimately repeatable header is
+        not collapsed to its last value.
+
+        LIST-valued headers are exempt from the override, because "override" is
+        meaningless for them: both sides contributed real values and replacing
+        one discards it. They are combined instead, per :data:`_UNIONED_HEADERS`
+        and, for ``Set-Cookie``, by the name-wise merge below.
+
+        * ``Set-Cookie`` repeats *across producers*, not just within the staging
+          area: handlers set cookies straight on the response (``auth_totp``'s
+          trusted-device cookie, ``web``'s ``content_density``, ``utm``'s
+          attribution cookies, ``frontend_lang`` on website redirects) while the
+          framework stages ``session_id`` here. ``set()`` on the staged one
+          dropped *every* cookie the handler had put on the response — silently,
+          on every session-modifying request, which is most of them.
+
+          Appending instead keeps them, but then a staged cookie and a handler
+          cookie of the SAME name both ship, and which one the browser stores is
+          left to header order. Merge by cookie NAME: a staged cookie replaces
+          its namesake and nothing else, so ``session_id`` wins deterministically
+          while every unrelated handler cookie survives.
+        * ``Vary`` is a token list, and ``pre_dispatch`` stages it for every
+          ``cors_credentials`` route and every preflight. Overriding it would
+          drop a handler's own ``Vary: Accept-Encoding`` and leave the response
+          cached under a key that ignores an axis it really varies on.
+
+        Everything else is single-valued (CORS origin, CSP, ``Content-Type``…):
+        the staged value wins, so a route's declaration cannot be quietly
+        weakened from inside a handler. A name staged more than once is appended
+        after the first, so a repeatable header is never collapsed to its last
+        value.
         """
-        # ``response.headers`` builds a fresh facade on each access; hoist it once.
-        # The facade wraps the live werkzeug ``Headers``, so writes still land on
-        # the real response.
         headers = response.headers
-        for key, value in self.future_response.headers.items():
-            if key.lower() == "set-cookie":
+        staged = self.future_response.headers
+
+        staged_cookies = staged.getlist("Set-Cookie")
+        if staged_cookies:
+            staged_names = {_cookie_name(cookie) for cookie in staged_cookies}
+            kept = [
+                cookie
+                for cookie in headers.getlist("Set-Cookie")
+                if _cookie_name(cookie) not in staged_names
+            ]
+            headers.setlist("Set-Cookie", kept + staged_cookies)
+
+        overridden: set[str] = set()
+        for key, value in staged.items():
+            lowered = key.lower()
+            if lowered == "set-cookie":
+                continue
+            if lowered in _UNIONED_HEADERS:
+                headers.set(key, _union_header_tokens([*headers.getlist(key), value]))
+            elif lowered in overridden:
                 headers.add(key, value)
             else:
                 headers.set(key, value)
+                overridden.add(lowered)
         return response
-
-    # Response builders (``make_response``/``make_json_response``/``redirect``/
-    # ``render``/``reroute``/``not_found``) live on
-    # :class:`_RequestResponseMixin`.
 
     def _save_session(self, env: odoo.api.Environment | None = None) -> None:
         """
         Save a modified session on disk.
+
+        Two different questions, deliberately kept apart. ``content_changed``
+        asks whether the stored bytes differ, which is what makes a rewrite
+        necessary. ``modified`` is the broader "does the client need to hear
+        about this", and is additionally true for a bare :meth:`Session.touch`
+        -- a request that only asks to extend the session's lifetime. Those get
+        :meth:`~odoo.http.session.FilesystemSessionStore.keep_alive`, an
+        ``utime``, rather than an atomic rewrite + fsync of identical bytes.
+        Both still count as *written*, so the cookie is refreshed either way.
 
         :param env: an environment to compute the session token.
             MUST be left ``None`` (in which case it uses the request's
@@ -373,41 +425,43 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if not sess.can_save:
             return
 
-        # Computed once for both the save gate and the cookie check below: the
-        # branches in between either don't mutate the session, or are rotations
-        # that change ``sess.sid`` (making the cookie check true regardless).
-        modified = sess.is_modified()
+        content_changed = sess.has_content_changed()
+        modified = sess.is_dirty or content_changed
 
-        if sess.should_rotate:
-            root.session_store.rotate(sess, env)  # it saves
+        can_rotate = not sess.uid or (env is not None and not env.cr.closed)
+
+        if sess.should_rotate and can_rotate:
+            root.session_store.rotate(sess, env)
+            written = True
+        elif sess.should_rotate:
+            sess["_rotate_pending"] = True
+            root.session_store.save(sess)
+            written = True
         elif (
-            sess.uid
+            can_rotate
+            and sess.uid
             and time.time() >= sess["create_time"] + SESSION_ROTATION_INTERVAL
             and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
         ):
             root.session_store.rotate(sess, env, True)
-        elif modified:
+            written = True
+        elif content_changed:
             root.session_store.save(sess)
+            written = True
+        elif modified:
+            root.session_store.keep_alive(sess)
+            written = True
+        else:
+            written = False
 
-        # Compare against the RAW client cookie, not the sanitized ``self.cookies``
-        # facade: the values are identical (``_sanitize_cookies`` ignores
-        # ``session_id``), but reading the facade forces an ``ir.http`` call on the
-        # session-save path of requests that never touch ``request.cookies``.
+        on_disk = written or not sess.is_new
+
         cookie_sid = self.httprequest.session_id
-        if modified or cookie_sid != sess.sid:
-            # Logged-out sessions skip the DB query: the inactivity timeout only
-            # matters when authenticated, and the connection may be dead.
+        if on_disk and (modified or cookie_sid != sess.sid):
             max_age = get_session_max_inactivity(env) if sess.uid else SESSION_LIFETIME
-            # secure / samesite are filled in by ``_apply_cookie_defaults``
-            # based on request scheme.
             self.future_response.set_cookie(
                 "session_id",
                 sess.sid,
                 max_age=max_age,
                 httponly=True,
             )
-
-
-# Routing methods (`_set_request_dispatcher`, `_serve_static`, `_serve_db`,
-# `_serve_nodb`, `_update_served_exception`, `_serve_ir_http_fallback`,
-# `_serve_ir_http`) live on :class:`_RequestServeMixin` in `_serve.py`.

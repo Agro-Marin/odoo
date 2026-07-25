@@ -32,17 +32,9 @@ def _apply_cookie_defaults(
     ``"Lax"``, so no cookie leaves the server without Secure / SameSite when they
     apply.
     """
-    if expires == -1:  # not provided → default 1 year
-        # Timezone-aware: werkzeug's ``http_date`` treats a naive datetime as
-        # UTC, so a naive ``datetime.now()`` shifted the Expires header by the
-        # server's UTC offset (6h early on a UTC-6 host).
+    if expires == -1:
         expires = datetime.now(tz=UTC) + timedelta(days=365)
 
-    # Guard on ``env`` not ``db``: ``_is_allowed_cookie`` is an ``ir.http`` (ORM)
-    # call needing a live env. They diverge on the error path, where
-    # ``_serve_db``'s ``finally`` nulled ``env`` but ``db`` is still set. The only
-    # cookie set env-less is ``session_id`` (``cookie_type="required"``), always
-    # allowed, so skipping the consent check there is correct.
     if (
         request
         and request.env is not None
@@ -73,14 +65,9 @@ def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
 class HTTPRequest:
     def __init__(self, environ: dict[str, Any]) -> None:
         httprequest = werkzeug.wrappers.Request(environ)
-        httprequest.user_agent_class = (
-            UserAgent  # vendored: werkzeug removed its built-in parser
-        )
+        httprequest.user_agent_class = UserAgent
         httprequest.parameter_storage_class = werkzeug.datastructures.ImmutableMultiDict
         httprequest.max_content_length = DEFAULT_MAX_CONTENT_LENGTH
-        # Werkzeug 3.1 capped these at 500 KB / 1000 parts; Odoo needs more for
-        # base64 fields, HTML and import data, and One2many forms can exceed 1000
-        # parts (e.g. 200 invoice lines x 5+ fields each).
         httprequest.max_form_memory_size = 10 * 1024 * 1024
         httprequest.max_form_parts = 10_000
 
@@ -108,6 +95,33 @@ class HTTPRequest:
         the werkzeug/wsgi keys filtered out of :attr:`environ`.
         """
         return self.__environ
+
+    def _adopt_body_state(self, other: HTTPRequest) -> None:
+        """Inherit ``other``'s already-materialised request body.
+
+        A WSGI input stream can be read exactly once. :meth:`Request.reroute`
+        builds a *new* wrapper over a copy of the environ — including the same,
+        possibly already-drained, ``wsgi.input`` — so if the body had been
+        materialised (``form``/``files`` parsed, or ``get_data`` cached) the new
+        wrapper would try to re-read it: the parser blocks waiting for bytes that
+        will never come, the socket eventually times out, and the request dies as
+        a ``400`` after stalling the connection.
+
+        Rerouting means "serve this same request under a different path", so the
+        body is the same body: hand the parsed result over instead. werkzeug
+        keeps all of it in ``__dict__`` (``cached_property``) plus
+        ``_cached_data``, so adopting is a dict copy. When nothing was
+        materialised yet — the usual case, since ``http_routing`` reroutes from
+        ``ir.http._match``, before dispatch parses anything — this copies
+        nothing and behaves exactly as before.
+        """
+        src = other.__wrapped
+        dst = self.__wrapped
+        for key in ("stream", "data", "form", "files"):
+            if key in src.__dict__:
+                dst.__dict__[key] = src.__dict__[key]
+        if getattr(src, "_cached_data", None) is not None:
+            dst._cached_data = src._cached_data
 
     def __enter__(self) -> HTTPRequest:
         return self
@@ -230,11 +244,6 @@ class _Response(werkzeug.wrappers.Response):
             raise result
 
         if isinstance(result, werkzeug.wrappers.Response):
-            # Wrap in the facade like every other branch: a raw ``_Response``
-            # fails ``isinstance(x, Response)`` (ProxyMeta has no
-            # ``__instancecheck__``), so a facade-typed check downstream —
-            # e.g. ``Json2Dispatcher.dispatch`` deciding pass-through vs
-            # re-serialization — would silently misroute it.
             response = cls.force_type(result)
             response.set_default()
             return Response(response)
@@ -332,7 +341,7 @@ class Headers(Proxy):
     add = ProxyFunc(None)
     add_header = ProxyFunc(None)
     clear = ProxyFunc(None)
-    copy = ProxyFunc(lambda v: Headers(v))  # noqa: PLW0108
+    copy = ProxyFunc(lambda v: Headers(v))
     extend = ProxyFunc(None)
     get = ProxyFunc()
     get_all = ProxyFunc()
@@ -383,7 +392,6 @@ class ResponseStream(Proxy):
 class Response(Proxy):
     _wrapped__ = _Response
 
-    # werkzeug.wrappers.Response attributes
     __call__ = ProxyFunc()
     add_etag = ProxyFunc(None)
     age = ProxyAttr()
@@ -401,7 +409,7 @@ class Response(Proxy):
     delete_cookie = ProxyFunc(None)
     direct_passthrough = ProxyAttr(bool)
     expires = ProxyAttr()
-    force_type = ProxyFunc(lambda v: Response(v))  # noqa: PLW0108
+    force_type = ProxyFunc(lambda v: Response(v))
     freeze = ProxyFunc(None)
     get_data = ProxyFunc()
     get_etag = ProxyFunc()
@@ -414,7 +422,7 @@ class Response(Proxy):
     json = ProxyAttr()
     last_modified = ProxyAttr()
     location = ProxyAttr(str)
-    make_conditional = ProxyFunc(lambda v: Response(v))  # noqa: PLW0108
+    make_conditional = ProxyFunc(lambda v: Response(v))
     make_sequence = ProxyFunc(None)
     max_cookie_size = ProxyAttr(int)
     mimetype = ProxyAttr(str)
@@ -427,7 +435,6 @@ class Response(Proxy):
     status_code = ProxyAttr(int)
     stream = ProxyAttr(ResponseStream)
 
-    # odoo.http._response attributes
     load = ProxyFunc()
     set_default = ProxyFunc(None)
     qcontext = ProxyAttr()
@@ -445,15 +452,9 @@ class Response(Proxy):
             elif isinstance(arg, _Response):
                 response = arg
             elif isinstance(arg, werkzeug.wrappers.Response):
-                # Build the wrapped ``_Response`` directly — ``load`` now
-                # returns the facade, which must not be nested inside another.
                 response = _Response.force_type(arg)
                 response.set_default()
         if response is not None and kwargs:
-            # Wrapping an existing response: constructor kwargs (``status=``,
-            # ``headers=`` …) would be silently dropped, since the wrapped object
-            # keeps its own. Fail loudly so the caller sets them on the response
-            # itself instead of shipping a response with the wrong status.
             raise TypeError(
                 f"Response(existing_response) ignores keyword arguments "
                 f"{sorted(kwargs)}; set them on the response object instead."
@@ -466,17 +467,6 @@ class Response(Proxy):
         super().__init__(response)
 
 
-# Monkey-patch werkzeug.exceptions so ``HTTPException.get_response`` returns our
-# :class:`Response` and ``abort`` accepts our :class:`Response`. The originals are
-# stashed on the module so a reload (test isolation, importlib.reload) doesn't
-# re-wrap an already-patched version into infinite recursion.
-#
-# This is the SECOND werkzeug patch site; the first is ``odoo/_monkeypatches/
-# werkzeug.py`` (the conventional home). These two cannot be merged: the patches
-# below wrap werkzeug objects *into* :class:`Response`/:class:`_Response`, so they
-# need ``odoo.http.wrappers`` loaded — whereas ``_monkeypatches`` fires the moment
-# ``werkzeug`` is first imported, long before this module exists. They therefore
-# live where their dependency is satisfied, applied when http is imported.
 if not hasattr(werkzeug.exceptions, "_odoo_original_get_response"):
     werkzeug.exceptions._odoo_original_get_response = HTTPException.get_response
 if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
@@ -514,6 +504,24 @@ class FutureResponse:
     def __init__(self) -> None:
         self.headers = werkzeug.datastructures.Headers()
 
+    def _drop_staged_cookie(self, key: str) -> None:
+        """Remove a previously staged cookie named ``key``.
+
+        Staging is a *description* of the cookies the response will carry, so
+        the same name must appear at most once — unlike a real response, where
+        werkzeug's ``set_cookie`` blindly appends. Re-staging happens for real:
+        :meth:`Request._save_session` runs once per ``post_dispatch``, and
+        ``post_dispatch`` runs a second time over the error response when a
+        request fails *after* a successful dispatch (a failing ``COMMIT``, a
+        post-commit hook), which would otherwise emit two ``session_id``
+        cookies. Last writer wins, matching plain ``set_cookie`` semantics.
+        """
+        prefix = f"{key}="
+        staged = self.headers.getlist("Set-Cookie")
+        kept = [cookie for cookie in staged if not cookie.startswith(prefix)]
+        if len(kept) != len(staged):
+            self.headers.setlist("Set-Cookie", kept)
+
     @functools.wraps(werkzeug.Response.set_cookie)
     def set_cookie(
         self,
@@ -536,6 +544,7 @@ class FutureResponse:
             secure,
             samesite,
         )
+        self._drop_staged_cookie(key)
         werkzeug.Response.set_cookie(
             self,
             key,

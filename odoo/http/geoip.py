@@ -6,15 +6,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 
-# GeoIP / MaxMind — only available if geoip2 is installed (maxminddb is a
-# transitive dependency, imported together so both are present or both ``None``).
-# Code referencing ``maxminddb.InvalidDatabaseError`` /
-# ``geoip2.errors.AddressNotFoundError`` in an ``except`` must guard with
-# ``if geoip2 is not None`` — else the clause evaluates against ``None`` and
-# raises AttributeError. These live here (the geoip domain module) rather than in
-# ``constants``, which stays a leaf of plain literals with no third-party imports.
-
-
 class _GeoIPNull:
     """Chainable null sentinel returned by :class:`GeoIP` when geoip2 isn't installed.
 
@@ -47,7 +38,6 @@ class _GeoIPNull:
         return 0
 
     def __getitem__(self, _key):
-        # Subdivisions[0] etc. are always gated by truthiness in callers.
         raise IndexError
 
     def __str__(self):
@@ -65,8 +55,6 @@ try:
     import geoip2.models
     import maxminddb
 
-    # geoip2 >= 2.x builds its model from the raw response mapping; ``{}`` is the
-    # empty placeholder (``None`` raised AttributeError as of geoip2 2.9).
     GEOIP_EMPTY_COUNTRY = geoip2.models.Country({})
     GEOIP_EMPTY_CITY = geoip2.models.City({})
 except ImportError:
@@ -89,31 +77,14 @@ def _none_if_null(value: Any) -> Any:
     return None if value is _GEOIP_NULL else value
 
 
-# Exception tuples for the ``except`` clauses below. With geoip2/maxminddb absent
-# we cannot name their exception classes (evaluating them against ``None`` raises
-# AttributeError at except-match time), so fall back to ``OSError`` /
-# ``LookupError``.
 _GEOIP_DB_ERRORS: tuple[type[BaseException], ...] = (
     (OSError, maxminddb.InvalidDatabaseError) if maxminddb is not None else (OSError,)
 )
 _GEOIP_NOT_FOUND: type[BaseException] = (
     geoip2.errors.AddressNotFoundError if geoip2 is not None else LookupError
 )
-# A malformed/missing IP makes geoip2 raise ``ValueError`` (bad address) or
-# ``TypeError`` (``self.ip is None``), not ``AddressNotFoundError``. ``self.ip``
-# is the attacker-influenceable ``remote_addr``; per the :class:`GeoIP` contract a
-# bad address yields an empty record, so catch these and degrade to "no GeoIP"
-# rather than 500-ing a page that reads ``geoip.location.time_zone`` unguarded.
 _GEOIP_BAD_ADDRESS: tuple[type[BaseException], ...] = (ValueError, TypeError)
 
-# The public attribute surface of the geoip2 Country/City models, used by
-# ``GeoIP.__getattr__`` when geoip2 is ABSENT: ``hasattr`` probes against the
-# ``_GeoIPNull`` sentinel are always true, so without these sets any typo'd
-# attribute silently chained through the sentinel while the same typo raises
-# ``AttributeError`` on a geoip2-equipped host — environment-dependent behavior
-# that hides bugs on exactly the machines least likely to exercise GeoIP.
-# ``test_geoip`` asserts parity with the real models whenever geoip2 is
-# importable, so these cannot silently drift across geoip2 upgrades.
 _GEOIP_COUNTRY_MODEL_ATTRS = frozenset(
     {
         "continent",
@@ -148,16 +119,13 @@ class GeoIP(collections.abc.Mapping):
 
     .. code-block:: python
 
-        >>> GeoIP("127.0.0.1").country.iso_code
-        >>> odoo_ip = socket.gethostbyname("odoo.com")
-        >>> GeoIP(odoo_ip).country.iso_code
+        >>> GeoIP("127.0.0.1").country.iso_code  # doctest: +SKIP
+        >>> odoo_ip = socket.gethostbyname("odoo.com")  # doctest: +SKIP
+        >>> GeoIP(odoo_ip).country.iso_code  # doctest: +SKIP
         'FR'
     """
 
     def __init__(self, ip: str, app: Any = None) -> None:
-        # ``app`` is the :class:`Application` holding the cached GeoIP ``Reader``s.
-        # Request injects its own; the lazy fallback keeps standalone constructors
-        # (``res.device``, tests) working without the module singleton.
         if app is None:
             from .application import root
 
@@ -169,8 +137,6 @@ class GeoIP(collections.abc.Mapping):
     def _city_record(self):
         root = self.app
 
-        # ``root.geoip_city_db`` is ``None`` when geoip2 is absent or the
-        # database could not be opened (that failure is cached on ``root``).
         city_db = root.geoip_city_db
         if city_db is None:
             return GEOIP_EMPTY_CITY
@@ -180,7 +146,7 @@ class GeoIP(collections.abc.Mapping):
             return GEOIP_EMPTY_CITY
         except _GEOIP_NOT_FOUND:
             return GEOIP_EMPTY_CITY
-        except _GEOIP_BAD_ADDRESS:  # malformed / missing IP -> empty, per contract
+        except _GEOIP_BAD_ADDRESS:
             return GEOIP_EMPTY_CITY
 
     @functools.cached_property
@@ -188,12 +154,7 @@ class GeoIP(collections.abc.Mapping):
         root = self.app
 
         if "_city_record" in vars(self):
-            # the City class inherits from the Country class and the
-            # city record is in cache already, save a geolocalization
             return self._city_record
-        # ``None`` when geoip2 is absent or the Country database could not be
-        # opened; fall back to the City database, which yields an empty record
-        # on its own failure — preserving the historical OSError→city fallback.
         country_db = root.geoip_country_db
         if country_db is None:
             return self._city_record
@@ -203,7 +164,7 @@ class GeoIP(collections.abc.Mapping):
             return self._city_record
         except _GEOIP_NOT_FOUND:
             return GEOIP_EMPTY_COUNTRY
-        except _GEOIP_BAD_ADDRESS:  # malformed / missing IP -> empty, per contract
+        except _GEOIP_BAD_ADDRESS:
             return GEOIP_EMPTY_COUNTRY
 
     @property
@@ -215,12 +176,7 @@ class GeoIP(collections.abc.Mapping):
         return _none_if_null(self.country.iso_code or self.continent.code)
 
     def __getattr__(self, attr: str) -> Any:
-        # Determine whether the attribute exists on the country object or
-        # on the city object.
         if geoip2 is None:
-            # The null sentinel answers ``hasattr`` for anything; gate on the
-            # real model surface so a typo raises AttributeError exactly like
-            # it does on a geoip2-equipped host (see the sets above).
             if attr in _GEOIP_COUNTRY_MODEL_ATTRS:
                 return getattr(self._country_record, attr)
             if attr in _GEOIP_CITY_ONLY_MODEL_ATTRS:
@@ -235,7 +191,6 @@ class GeoIP(collections.abc.Mapping):
     def __bool__(self) -> bool:
         return bool(self.country_name)
 
-    # Old dict API, undocumented for now, will be deprecated some day
     def __getitem__(self, item: str) -> Any:
         match item:
             case "country_name":

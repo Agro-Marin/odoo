@@ -113,11 +113,18 @@ ir.http._handle_error
   or RO) that occurred inside of ``service.transaction.retrying``. It
   returns a http response that wraps the error that occurred.
 
+Application._finalize_error_response
+  The error response built above bypasses the normal dispatch flow, so the
+  entrypoint runs ``Dispatcher.post_dispatch`` over it explicitly before
+  handing it to the WSGI server. Without that step an error response would
+  carry none of what post-dispatch contributes — CORS headers, the
+  ``session_id`` cookie and the session save behind it, CSP — which is why
+  the error path is the *only* place that calls post_dispatch out of band.
+
 This package was split from a monolithic http.py for maintainability.
 All symbols are re-exported for backward compatibility.
 """
 
-# Constants
 from .constants import (
     CORS_MAX_AGE,
     CSRF_TOKEN_MAX_AGE,
@@ -138,19 +145,15 @@ from .constants import (
     register_session_rotation_excluded_paths,
 )
 
-# Session internals (for tests)
 from .session import _session_identifier_re
 
-# Exceptions
 from .exceptions import (
     RegistryError,
     SessionExpiredException,
 )
 
-# Protocols
 from ._protocols import HttpExtension
 
-# Helper functions
 from .helpers import (
     content_disposition,
     db_filter,
@@ -162,13 +165,10 @@ from .helpers import (
     serialize_exception,
 )
 
-# Stream
 from .stream import Stream
 
-# Controller
 from .controller import Controller
 
-# Routing
 from .routing import (
     FasterRule,
     LazyCompiledBuilder,
@@ -179,13 +179,11 @@ from .routing import (
     _check_and_complete_route_definition,
 )
 
-# Session
 from .session import (
     FilesystemSessionStore,
     Session,
 )
 
-# GeoIP
 from .geoip import (
     GEOIP_EMPTY_CITY,
     GEOIP_EMPTY_COUNTRY,
@@ -194,14 +192,12 @@ from .geoip import (
     maxminddb,
 )
 
-# Core request state
 from .core import (
     _request_stack,
     request,
     borrow_request,
 )
 
-# HTTP wrappers
 from .wrappers import (
     HTTPRequest,
     Response,
@@ -212,10 +208,8 @@ from .wrappers import (
     _Response,
 )
 
-# Request
 from .request_class import Request
 
-# Dispatchers
 from .dispatcher import (
     Dispatcher,
     HttpDispatcher,
@@ -224,24 +218,14 @@ from .dispatcher import (
     _dispatchers,
 )
 
-# Application
 from .application import (
     Application,
     root,
 )
 
-# Re-exported for backward compatibility. NOTE: this binding is NOT an effective
-# monkeypatch point for the request path. The ONLY ``Registry(self.db)`` call site
-# is ``_serve.py`` (``_serve_db`` → ``_acquire_registry_cursor``), which resolves
-# ``Registry`` from its OWN namespace, so patching ``odoo.http.Registry`` leaves it
-# untouched — a regression from the monolithic ``http.py``, where one namespace
-# made this patch point work. Patch ``odoo.http._serve.Registry`` to steer
-# dispatch. ``request_class.py`` also imports ``Registry`` but has NO call site
-# (annotation-only).
 from odoo.modules.registry import Registry
 
 __all__ = [
-    # Constants
     "CORS_MAX_AGE",
     "CSRF_TOKEN_MAX_AGE",
     "DEFAULT_LANG",
@@ -259,19 +243,12 @@ __all__ = [
     "STATIC_CACHE",
     "STATIC_CACHE_LONG",
     "STORED_SESSION_BYTES",
-    # Application
     "Application",
-    # Controller
     "Controller",
-    # Dispatchers
     "Dispatcher",
-    # Routing rules
     "FasterRule",
-    # Session
     "FilesystemSessionStore",
-    # Wrappers
     "FutureResponse",
-    # GeoIP
     "GeoIP",
     "HTTPRequest",
     "Headers",
@@ -280,28 +257,21 @@ __all__ = [
     "Json2Dispatcher",
     "JsonRPCDispatcher",
     "LazyCompiledBuilder",
-    # Registry
     "Registry",
-    # Exceptions
     "RegistryError",
-    # Request
     "Request",
     "Response",
     "ResponseCacheControl",
     "ResponseStream",
     "Session",
     "SessionExpiredException",
-    # Stream
     "Stream",
     "_Response",
-    # Routing
     "_check_and_complete_route_definition",
     "_dispatchers",
     "_generate_routing_rules",
-    # Core
     "_request_stack",
     "borrow_request",
-    # Helpers
     "content_disposition",
     "db_filter",
     "db_list",

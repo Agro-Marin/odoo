@@ -24,24 +24,19 @@ def _spec(fn):
 
 
 def test_resolve_optional_forms_are_equivalent():
-    # PEP 604 ``X | None`` plus the legacy ``typing.Optional`` / ``typing.Union``
-    # spellings must all reduce the same. The legacy forms are built via getattr
-    # so this file itself stays PEP-604-clean under ruff.
-    optional = getattr(typing, "Optional")  # noqa: B009
-    union = getattr(typing, "Union")  # noqa: B009
+    optional = getattr(typing, "Optional")
+    union = getattr(typing, "Union")
     assert _resolve(int | None) == (int, None, True)
     assert _resolve(optional[int]) == (int, None, True)
     assert _resolve(union[int, None]) == (int, None, True)
-    # A union of two real types is unsupported -> pass through.
     assert _resolve(int | str) == (None, None, False)
 
 
 def test_resolve_list_forms():
-    legacy_list = getattr(typing, "List")  # noqa: B009
+    legacy_list = getattr(typing, "List")
     assert _resolve(list) == (list, None, False)
     assert _resolve(list[int]) == (list, int, False)
     assert _resolve(legacy_list[int]) == (list, int, False)
-    # list[<non-primitive>] keeps the list target but drops the item type.
     assert _resolve(list[dict]) == (list, None, False)
 
 
@@ -49,7 +44,6 @@ def test_build_specs_skips_unannotated_and_unsupported():
     def ep(self, n: int, raw, note: bytes = b"", opt: int | None = None): ...
 
     specs = _spec(ep)
-    # ``raw`` unannotated, ``note`` unsupported (bytes) -> both skipped.
     assert set(specs) == {"n", "opt"}
     assert specs["n"] == ParamSpec(int, None, False, True)
     assert specs["opt"] == ParamSpec(int, None, True, False)
@@ -76,7 +70,6 @@ def test_int_rejects_bool_and_fractional_float():
     for bad in (True, 3.7):
         with pytest.raises(BadRequest):
             coerce_params({"n": bad}, _spec(ep))
-    # integral float accepted (JS serializes 3 as 3.0).
     assert coerce_params({"n": 3.0}, _spec(ep)) == {"n": 3}
 
 
@@ -142,20 +135,33 @@ def test_str_param_rejects_non_scalars(value):
         coerce_params({"note": value}, _spec(ep))
 
 
-def test_str_param_stringifies_json_scalars():
+def test_str_param_stringifies_json_numbers():
     def ep(self, note: str): ...
 
     assert coerce_params({"note": 5}, _spec(ep)) == {"note": "5"}
-    assert coerce_params({"note": True}, _spec(ep)) == {"note": "True"}
     assert coerce_params({"note": 2.5}, _spec(ep)) == {"note": "2.5"}
+
+
+def test_str_param_rejects_bool():
+    """A JSON ``true`` is a type error for a str param, not the text "True".
+
+    ``bool`` is an ``int`` subclass, so it used to fall into the numeric
+    stringify branch and arrive as ``"True"`` — capitalised, not even the JSON
+    spelling, and a Python-ism leaking into the request contract. ``int`` and
+    ``float`` params already reject ``bool``; ``str`` now agrees.
+    """
+
+    def ep(self, note: str): ...
+
+    with pytest.raises(BadRequest):
+        coerce_params({"note": True}, _spec(ep))
 
 
 def test_string_annotations_are_resolved():
     """Regression: under ``from __future__ import annotations`` every annotation
     is a string, and ``typed=True`` silently coerced nothing."""
 
-    # The quotes ARE the point here (simulating future-annotations strings).
-    def ep(self, n: "int", opt: "int | None" = None): ...  # noqa: UP037
+    def ep(self, n: "int", opt: "int | None" = None): ...
 
     specs = _spec(ep)
     assert specs["n"] == ParamSpec(int, None, False, True)
@@ -164,10 +170,7 @@ def test_string_annotations_are_resolved():
 
 
 def test_unresolvable_string_annotation_passes_through():
-    # Evaluation is per parameter: the unresolvable ``ghost`` (e.g. a
-    # TYPE_CHECKING-only name) degrades to pass-through without disabling
-    # coercion for the resolvable ``n`` next to it.
-    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: F821, UP037
+    def ep(self, n: "int", ghost: "NotARealName" = None): ...
 
     specs = _spec(ep)
     assert set(specs) == {"n"}
@@ -178,10 +181,8 @@ def test_required_missing_raises_optional_missing_skips():
     def ep(self, n: int, opt: int | None = None): ...
 
     specs = _spec(ep)
-    # required ``n`` absent -> 400.
     with pytest.raises(BadRequest):
         coerce_params({}, specs)
-    # optional ``opt`` absent -> skipped, ``n`` supplied so no error.
     assert coerce_params({"n": 1}, specs) == {"n": 1}
 
 
@@ -201,5 +202,4 @@ def test_list_of_ints_and_untyped_list():
         "ids": [1, 2],
         "raw": ["a", 3],
     }
-    # a scalar for a list param is wrapped into a single-element list.
     assert coerce_params({"ids": "7"}, specs) == {"ids": [7]}

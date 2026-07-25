@@ -35,28 +35,23 @@ def test_match_does_not_compile_the_builder():
     rule = FasterRule("/shop/<int:pid>", endpoint="shop")
     m = _map(rule)
     adapter = m.bind("example.com")
-    # The whole point of FasterRule: a pure match must not force builder
-    # compilation. Both werkzeug builders stay lazy through a match.
     endpoint, args = adapter.match("/shop/42")
     assert endpoint == "shop"
     assert args == {"pid": 42}
-    assert _uncompiled(rule)  # never built
+    assert _uncompiled(rule)
 
 
 def test_build_materialises_lazily_and_works():
     rule = FasterRule("/shop/<int:pid>", endpoint="shop")
     m = _map(rule)
     adapter = m.bind("example.com")
-    assert _uncompiled(rule)  # lazy until the first url_for
+    assert _uncompiled(rule)
     built = adapter.build("shop", {"pid": 7})
     assert built == "/shop/7"
-    # The first url_for materialises the builder werkzeug used (the
-    # append_unknown=True one, ``_build_unknown``).
     assert rule._build_unknown._callable is not None
 
 
 def test_faster_rule_is_a_drop_in_werkzeug_rule():
-    # Same matching semantics as a plain Rule for a non-trivial converter set.
     fast = _map(FasterRule("/a/<int:n>", endpoint="e")).bind("h")
     plain = _map(werkzeug.routing.Rule("/a/<int:n>", endpoint="e")).bind("h")
     assert fast.match("/a/5") == plain.match("/a/5")
@@ -64,13 +59,9 @@ def test_faster_rule_is_a_drop_in_werkzeug_rule():
 
 def test_concurrent_first_build_is_thread_safe():
     """Concurrent first builds of a shared rule all succeed and agree."""
-    # Routing maps are shared across worker threads, so a rule's FIRST url_for
-    # can race. The lazy builder used to delete its source attributes after
-    # materialising; a peer that had already passed the None check then crashed
-    # on self.rule (AttributeError → 500).
     n_threads = 8
     old_interval = sys.getswitchinterval()
-    sys.setswitchinterval(1e-6)  # force preemption inside the tiny race window
+    sys.setswitchinterval(1e-6)
     try:
         for _ in range(20):
             rule = FasterRule("/x/<int:i>/<name>", endpoint="e")
@@ -82,7 +73,7 @@ def test_concurrent_first_build_is_thread_safe():
                 barrier.wait()
                 try:
                     results.append(adapter.build("e", {"i": 1, "name": "a"}))
-                except Exception as exc:  # the failure mode under test
+                except Exception as exc:
                     errors.append(exc)
 
             threads = [threading.Thread(target=build) for _ in range(n_threads)]
@@ -97,7 +88,6 @@ def test_concurrent_first_build_is_thread_safe():
 
 
 def test_empty_endpoint_map_build_roundtrip():
-    # A converter-free static rule builds without args.
     rule = FasterRule("/health", endpoint="health")
     adapter = _map(rule).bind("h")
     assert adapter.match("/health") == ("health", {})

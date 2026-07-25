@@ -83,7 +83,7 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
     """
     try:
         dbs = odoo.service.db.list_dbs(force)
-    except psycopg.OperationalError:
+    except psycopg.Error:
         return []
     return db_filter(dbs, host)
 
@@ -107,8 +107,6 @@ def _normalize_dbfilter_host(host: str) -> str:
     so no dbfilter ``%h`` could ever match an IPv6 Host.
     """
     if host.startswith("["):
-        # ``[::1]:8069`` -> ``[::1]``; a malformed bracket-open host without a
-        # closing bracket is left as-is (it can only fail to match, safely).
         end = host.find("]")
         if end != -1:
             host = host[: end + 1]
@@ -161,35 +159,20 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     :returns: The original list filtered.
     :rtype: list[str]
     """
-    # Safety floor, independent of dbfilter/db_name semantics: the PG system
-    # databases and the creation template are never servable. This is the
-    # single validation funnel for every request-supplied name (session
-    # cookie, X-Odoo-Database header, ?db= via ensure_db), so stripping here
-    # means such a request degrades to "no database" instead of opening
-    # connections against cluster infrastructure. list_dbs() already excludes
-    # them from enumeration; this covers names the client supplies directly.
     protected_dbs = odoo.service.db.SYSTEM_DBS | {config["db_template"]}
     dbs = [db for db in dbs if db not in protected_dbs]
     if config["dbfilter"]:
         if host is None:
-            # ``request`` is an unbound LocalProxy outside a request (shell,
-            # cron): attribute access raises RuntimeError, so probe truthiness
-            # and degrade to the empty host rather than crash the caller.
             host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
-        # Normalise before the cache lookup so equivalent Host spellings
-        # (``www.``/``:port``) share one compiled-regex entry.
         host = _normalize_dbfilter_host(host)
         dbfilter_re = _compiled_dbfilter(config["dbfilter"], host)
         dbs = [db for db in dbs if dbfilter_re.match(db)]
         if config["db_name"]:
-            # --database also set: intersect (see docstring).
             exposed = set(config["db_name"])
             dbs = [db for db in dbs if db in exposed]
         return dbs
 
     if config["db_name"]:
-        # In case --db-filter is not provided and --database is passed, Odoo will
-        # use the value of --database as a comma separated list of exposed databases.
         return sorted(set(config["db_name"]).intersection(dbs))
 
     return dbs
@@ -228,10 +211,6 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
     :rtype: Any
     """
     thread = threading.current_thread()
-    # Track absence, not just the value: when an attribute was unset before this
-    # call, restoring it to ``None`` would leave ``hasattr`` true, so a consumer
-    # reading ``getattr(thread, "dbname", <sentinel>)`` would see ``None`` instead
-    # of its default. Delete on the way out to restore the exact prior state.
     sentinel = object()
     prev_uid = getattr(thread, "uid", sentinel)
     prev_dbname = getattr(thread, "dbname", sentinel)
@@ -242,15 +221,13 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
             dispatch = _get_rpc_dispatcher(service_name)
             return dispatch(method, params)
         finally:
-            # Restore caller thread-local state so downstream code in the
-            # same request does not observe ``None`` for uid/dbname.
             _restore_thread_attr(thread, "uid", prev_uid, sentinel)
             _restore_thread_attr(thread, "dbname", prev_dbname, sentinel)
 
 
 def get_session_max_inactivity(env: Any) -> int:
     """Get the maximum session inactivity time in seconds."""
-    if not env or env.cr.closed:
+    if env is None or env.cr.closed:
         return SESSION_LIFETIME
 
     ICP = env["ir.config_parameter"].sudo()
@@ -271,8 +248,6 @@ def get_session_max_inactivity(env: Any) -> int:
         )
         return SESSION_LIFETIME
     except psycopg.Error:
-        # Connection may be dead (e.g. database just dropped); fall back to the
-        # default lifetime instead of crashing the request.
         _logger.debug(
             "Could not read session max inactivity from DB, using default.",
             exc_info=True,
@@ -296,15 +271,6 @@ _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."
 
 def _hide_exception_internals() -> bool:
     """Whether serialized-exception internals must be hidden from the reader."""
-    # True only for an active client request outside dev_mode — the one
-    # situation where the serialization reaches an untrusted party. Server-side
-    # consumers (ir.cron failure records, shell tooling) have no request and
-    # keep the full detail: admins read those. Shared by _exception_debug
-    # (traceback) and serialize_exception (message/arguments) so the two
-    # disclosure gates cannot drift. Gate on dev_mode ONLY, never a DB lookup:
-    # this runs on the error path where the cursor may already be broken, so a
-    # query could mask the original error. request (a LocalProxy) is falsy when
-    # no request is active.
     return bool(request) and not config["dev_mode"]
 
 
@@ -321,16 +287,6 @@ def _exception_debug(exception: BaseException) -> str:
     return "".join(traceback.format_exception(exception))
 
 
-# Exception types whose human text must NEVER reach a client: raw database-driver
-# errors carry the failing SQL, schema/constraint names and sometimes row data
-# (PII); raw ``OSError`` text carries filesystem paths (filestore layout, session
-# dir). Application-level exceptions — including ``ValueError`` raised by domain
-# parsing etc. — keep surfacing their message, the framework's deliberate API
-# contract (see ``test_webjson2``); only the opaque infrastructure errors below
-# are genericised, and only for an untrusted reader (see
-# :func:`_hide_exception_internals` — cron failure records keep the detail).
-# The exception class ``name`` is always kept (the web client branches on it)
-# and the traceback stays gated by ``_exception_debug``.
 _OPAQUE_EXCEPTION_TYPES = (psycopg.Error, OSError)
 _MASKED_EXCEPTION_MESSAGE = "Internal Server Error"
 

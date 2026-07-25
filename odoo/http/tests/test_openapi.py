@@ -26,7 +26,6 @@ def _route(rule, *, methods=frozenset(), routing=None, handler=None):
 
 
 def test_effective_methods_defaults_when_no_allow_list():
-    # Regression: a route with no explicit ``methods`` must still document verbs.
     http_route = _route("/v", methods=frozenset(), routing={"type": "http"})
     assert _effective_methods(http_route) == frozenset({"GET", "POST"})
     rpc_route = _route("/rpc", methods=frozenset(), routing={"type": "jsonrpc"})
@@ -36,7 +35,6 @@ def test_effective_methods_defaults_when_no_allow_list():
 def test_effective_methods_strips_implicit_verbs():
     r = _route("/v", methods=frozenset({"GET", "HEAD", "OPTIONS"}))
     assert _effective_methods(r) == frozenset({"GET"})
-    # a route left with only implicit verbs falls back to the default.
     only_implicit = _route("/v", methods=frozenset({"HEAD", "OPTIONS"}))
     assert _effective_methods(only_implicit) == frozenset({"GET", "POST"})
 
@@ -120,7 +118,6 @@ def test_path_param_not_duplicated_as_query_param():
     ident_params = [p for p in op["parameters"] if p["name"] == "ident"]
     assert len(ident_params) == 1
     assert ident_params[0]["in"] == "path"
-    # the genuine query param still shows up
     assert {p["name"] for p in op["parameters"]} == {"ident", "q"}
 
 
@@ -139,7 +136,7 @@ def test_path_param_not_duplicated_in_request_body():
     )
     op = build_openapi([route])["paths"]["/item/{ident}"]["post"]
     body = op["requestBody"]["content"]["application/json"]["schema"]
-    assert set(body["properties"]) == {"name"}  # ident excluded
+    assert set(body["properties"]) == {"name"}
     assert body["required"] == ["name"]
     assert [p["name"] for p in op["parameters"] if p["in"] == "path"] == ["ident"]
 

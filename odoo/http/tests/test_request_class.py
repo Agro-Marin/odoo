@@ -27,22 +27,15 @@ def test_monodb_dblist_filters_cached_catalog(fresh_monodb_cache):
     ):
         assert request_class._monodb_dblist("h") == ["a", "b"]
         assert request_class._monodb_dblist("h") == ["a", "b"]
-    # The catalog read is memoised within the TTL bucket; only the (cheap,
-    # host-dependent) db_filter runs per call.
     assert lister.call_count == 1
 
 
 def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
     """PostgreSQL down yields no databases (db-less serving), not a propagated error."""
-    # This runs in _post_init for every cookie-less request, including static
-    # assets and /web/login; db_list has the same guard and the memoised monodb
-    # path must not lose it.
     boom = psycopg.OperationalError("connection refused")
     with patch.object(request_class, "_list_all_dbs", side_effect=boom):
         assert request_class._monodb_dblist("h") == []
 
-    # lru_cache does not cache the failure: once PostgreSQL is back, the
-    # very next probe sees the catalog again.
     with (
         patch.object(request_class, "_list_all_dbs", return_value=["only"]),
         patch.object(
@@ -50,3 +43,30 @@ def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
         ),
     ):
         assert request_class._monodb_dblist("h") == ["only"]
+
+
+def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
+    """Any psycopg failure of the catalog read must yield "no databases".
+
+    The guard used to name ``OperationalError`` only, so a base ``psycopg.Error``
+    (or e.g. an InsufficientPrivilege on ``pg_database``) escaped and 500'd the
+    request — with an HTML body, on a path that runs for every cookie-less
+    request: static assets, ``/web/login``, the health probes.
+    """
+    for exc in (
+        psycopg.Error("boom"),
+        psycopg.OperationalError("refused"),
+        psycopg.errors.InsufficientPrivilege("denied"),
+    ):
+        request_class.clear_monodb_cache()
+        with patch.object(request_class, "_list_all_dbs", side_effect=exc):
+            assert request_class._monodb_dblist("h") == []
+
+
+def test_db_list_degrades_on_any_psycopg_error():
+    from odoo.http import helpers
+
+    with patch.object(
+        helpers.odoo.service.db, "list_dbs", side_effect=psycopg.Error("boom")
+    ):
+        assert helpers.db_list(force=True, host="h") == []

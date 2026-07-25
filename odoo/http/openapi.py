@@ -22,8 +22,6 @@ from ._params import ParamSpec, build_param_specs
 
 OPENAPI_VERSION = "3.1.0"
 
-# Maps a werkzeug path converter to a JSON Schema type; anything not listed
-# (string/default, path, any, uuid) documents as a plain string.
 _CONVERTER_SCHEMA: dict[str, dict[str, str]] = {
     "int": {"type": "integer"},
     "float": {"type": "number"},
@@ -36,19 +34,12 @@ _PRIMITIVE_SCHEMA: dict[type, dict[str, str]] = {
     str: {"type": "string"},
 }
 
-# ``<int:id>`` / ``<id>`` / ``<any(a,b):x>`` -> converter (optional) + name.
 _RULE_ARG_RE = re.compile(
     r"<(?:(?P<conv>[a-zA-Z_]\w*)(?:\([^>]*\))?:)?(?P<name>[a-zA-Z_]\w*)>"
 )
 
-# HTTP verbs werkzeug adds implicitly; not emitted as OpenAPI operations.
 _IMPLICIT_METHODS = frozenset({"HEAD", "OPTIONS"})
 
-# When a route declares no ``methods`` allow-list, werkzeug lets it match every
-# verb. The framework's own default for that case (``Dispatcher.pre_dispatch``'s
-# CORS ``Access-Control-Allow-Methods``) is POST for ``jsonrpc`` and GET+POST
-# otherwise; mirror it here so the document and the runtime can't drift and an
-# unrestricted route is no longer emitted with zero operations.
 _DEFAULT_METHODS_JSONRPC = frozenset({"POST"})
 _DEFAULT_METHODS_OTHER = frozenset({"GET", "POST"})
 
@@ -63,7 +54,6 @@ def _effective_methods(route: RouteInfo) -> frozenset[str]:
     return _DEFAULT_METHODS_OTHER
 
 
-# Characters not allowed in an operationId slug (collapsed to ``_``).
 _ID_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9]+")
 
 
@@ -145,7 +135,6 @@ def _path_template(rule: str) -> tuple[str, list[dict[str, Any]]]:
     return _RULE_ARG_RE.sub(repl, rule), params
 
 
-# auth value -> (security-scheme name, scheme definition)
 _SECURITY_SCHEMES: dict[str, tuple[str, dict[str, str]]] = {
     "bearer": ("bearerAuth", {"type": "http", "scheme": "bearer"}),
     "user": ("sessionCookie", {"type": "apiKey", "in": "cookie", "name": "session_id"}),
@@ -182,12 +171,6 @@ def build_operation(
     parameters = list(path_params)
     route_type = route.routing.get("type", "http")
     if route.routing.get("typed"):
-        # A path parameter is usually ALSO annotated on the handler (that's how it
-        # gets coerced), so ``build_param_specs`` returns it too. It is already
-        # documented as ``in: path`` from the URL template — drop it from the
-        # query/body specs, else the same name is emitted twice (once ``in: path``,
-        # once a spurious ``in: query`` / body property telling clients to pass a
-        # path value in the query string or JSON body).
         path_param_names = {p["name"] for p in path_params}
         specs = {
             name: spec
@@ -226,7 +209,7 @@ def build_operation(
         security_schemes[name] = definition
         operation["security"] = [{name: []}]
     elif auth in ("public", "none"):
-        operation["security"] = []  # explicitly unauthenticated
+        operation["security"] = []
 
     return operation
 

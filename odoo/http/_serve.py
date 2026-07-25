@@ -27,7 +27,12 @@ from odoo.service.transaction import retrying
 from odoo.tools import config
 
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
-from .dispatcher import HttpDispatcher, JsonRPCDispatcher, _dispatchers
+from .dispatcher import (
+    HttpDispatcher,
+    JsonRPCDispatcher,
+    _dispatchers,
+    infer_dispatcher_for_unmatched,
+)
 from .exceptions import RegistryError
 from .helpers import is_cors_preflight, rewind_uploaded_files
 from .stream import Stream
@@ -60,8 +65,6 @@ class _RequestServeMixin:
                 f"but {routing['routes'][0]!r} is type={routing['type']!r}.\n\n"
                 "Please verify the Content-Type request header and try again."
             )
-            # werkzeug doesn't let us add headers to UnsupportedMediaType
-            # so use the following (ugly) to still achieve what we want
             res = UnsupportedMediaType(e).get_response()
             res.headers["Accept"] = ", ".join(dispatcher_cls.mimetypes)
             raise UnsupportedMediaType(response=res)
@@ -80,16 +83,12 @@ class _RequestServeMixin:
 
         try:
             if filepath is None:
-                # Cold path: resolve module/resource from the request path. The
-                # trusted-path branch (hot path) skips this parsing entirely.
                 module, _, path = self.httprequest.path[1:].partition("/static/")
                 directory = root.static_path(module)
                 if not directory:
                     raise NotFound(f'Module "{module}" not found.\n')
                 filepath = werkzeug.security.safe_join(directory, path)
                 if filepath is None:
-                    # ``safe_join`` returns None for traversal/absolute paths;
-                    # treat as missing (404) rather than 500.
                     raise NotFound(f'File "{path}" not found in module {module}.\n')
                 stream = Stream.from_path(filepath, public=True)
             else:
@@ -101,8 +100,7 @@ class _RequestServeMixin:
             )
             root.set_csp(res)
             return res
-        except OSError:  # cover both missing file and invalid permissions
-            # Cold error path only: recompute module/resource for the 404 message.
+        except OSError:
             module, _, path = self.httprequest.path[1:].partition("/static/")
             raise NotFound(f'File "{path}" not found in module {module}.\n') from None
 
@@ -146,44 +144,23 @@ class _RequestServeMixin:
         except HTTPException as exc:
             if exc.code is not None:
                 raise
-            # Valid response returned via werkzeug.exceptions.abort
             return self._serve_aborted(exc)
 
     def _acquire_registry_cursor(self) -> Any:
         """Open the database registry and return its initial read-only cursor."""
-        # Sets self.registry and returns the open RO cursor. The database_breaking
-        # suite in test_registry.py guards the recovery (OperationalError → db
-        # gone; ProgrammingError → broken schema).
         cr = None
         try:
             registry = Registry(self.db)
             cr = registry.cursor(readonly=True)
             self.registry = registry.check_signaling(cr)
-            # Ownership transfers to the caller only on this clean return;
-            # _serve_db's finally then closes it. On failure the except arm below
-            # closes cr itself (a naive return would leak the connection).
             return cr
         except (
-            # Broad, legacy arm (no dedicated test): guards a registry observed
-            # mid-Registry.new (inserted into registries before setup_signaling
-            # runs), but can also mask a real bug in this path — re-run that
-            # suite before narrowing it.
-            AttributeError,
-            # A warm pool surfaces a downed PostgreSQL as PoolError
-            # (_getconn_with_retry wraps the psycopg_pool PoolTimeout), NOT as a
-            # raw OperationalError — only cold/direct connections raise the
-            # latter. Without it, an outage 500s every request on an
-            # already-visited database instead of degrading (caught live by the
-            # Playwright outage scenario; the service layer already pairs the
-            # two, see _threaded.py/_worker.py).
             PoolError,
             psycopg.OperationalError,
             psycopg.ProgrammingError,
         ) as e:
             db_absent = None
             try:
-                # If DB no longer exists, clean up stale registry to prevent
-                # repeated 30s hangs on subsequent requests.
                 from odoo.db import close_db
                 from odoo.service.db import list_dbs
 
@@ -192,67 +169,48 @@ class _RequestServeMixin:
                     Registry.delete(self.db)
                     close_db(self.db)
             except Exception:
-                # ``db_absent`` stays ``None``: the catalog itself is
-                # unreachable, so the recovery path treats the outage as
-                # transient (see :class:`RegistryError`).
                 _logger.debug(
                     "Stale-registry cleanup after RegistryError failed",
                     exc_info=True,
                 )
             finally:
-                # Ours until the clean ``return`` above; close it so a failure
-                # between cursor-open and that return cannot leak the connection.
                 if cr is not None:
                     cr.close()
             err = RegistryError(f"Cannot get registry {self.db}")
             err.db_absent = db_absent
-            # ProgrammingError is a durably broken schema; everything else in
-            # the tuple (connection loss, pool starvation, mid-build registry)
-            # is a passing condition. The recovery path only makes the logout
-            # durable for non-transient failures (see RegistryError).
             err.transient = not isinstance(e, psycopg.ProgrammingError)
             raise err from e
 
     def _serve_db(self) -> Response:
         """Load the ORM and use it to process the request."""
-        # reuse the same cursor for building, checking the registry, for
-        # matching the controller endpoint and serving the data
         cr = None
         try:
-            # Open the registry + initial RO cursor. RegistryError (broken/absent
-            # db) propagates to Application.__call__, which retries db-less.
             cr = self._acquire_registry_cursor()
             threading.current_thread().dbname = self.registry.db_name
 
-            # find the controller endpoint to use
             self.env = odoo.api.Environment(cr, self.session.uid, self.session.context)
             try:
                 rule, args = self.registry["ir.http"]._match(self.httprequest.path)
             except NotFound as not_found_exc:
-                # no controller endpoint matched -> fallback or 404
+                self.dispatcher = infer_dispatcher_for_unmatched(self)(self)
                 serve_func = functools.partial(
                     self._serve_ir_http_fallback, not_found_exc
                 )
                 readonly = True
             else:
-                # a controller endpoint matched -> dispatch the request
                 self._set_request_dispatcher(rule)
                 serve_func = functools.partial(self._serve_ir_http, rule, args)
                 readonly = rule.endpoint.routing["readonly"]
                 if callable(readonly):
                     readonly = readonly(rule.endpoint.func.__self__, rule, args)
 
-            # keep on using the RO cursor when a readonly route matched,
-            # and for serve fallback
+            promoted = False
+
             if readonly and cr.readonly:
                 threading.current_thread().cursor_mode = "ro"
                 try:
                     return retrying(serve_func, env=self.env)
                 except psycopg.errors.ReadOnlySqlTransaction as exc:
-                    # A read-only-marked controller attempted a write. Do NOT
-                    # raise: fall through to the ``if cr.readonly:`` swap below,
-                    # which retries on a read/write cursor. Adding an
-                    # ``else``/``return`` here would silently disable that retry.
                     _logger.warning(
                         "%s, retrying with a read/write cursor — readonly route "
                         "%s %s attempted a write, so its handler runs a second "
@@ -264,45 +222,25 @@ class _RequestServeMixin:
                         exc_info=True,
                     )
                     threading.current_thread().cursor_mode = "ro->rw"
-                    # ``ReadOnlySqlTransaction`` is a psycopg ``InternalError``,
-                    # NOT one of ``retrying``'s handled classes (IntegrityError /
-                    # OperationalError / ConcurrencyError) — so retrying performed
-                    # NONE of its failure-path preparation for it (no rollback, no
-                    # session re-fetch, no upload rewind). This clause is the only
-                    # replay preparation; both steps below are required, not
-                    # belt-and-braces. The aborted RO cursor needs no explicit
-                    # rollback: it is closed below and the pool resets the
-                    # connection on return.
-                    #
-                    # The RO attempt consumed uploaded file streams (now at EOF);
-                    # rewind them so the RW retry re-reads the body instead of an
-                    # empty upload.
                     self._rewind_input_files(exc)
-                    # The aborted RO attempt may have mutated the in-memory
-                    # session (e.g. a handler that set session.uid/context before
-                    # its first write); re-fetch it so the RW replay starts from
-                    # persisted state.
                     self.session = self._get_session_and_dbname()[0]
+                    promoted = True
                 except Exception as exc:
-                    # ``_update_served_exception`` attaches ``error_response`` to
-                    # ``exc``; the bare ``raise`` preserves the original traceback.
                     self._update_served_exception(exc)
                     raise
             else:
                 threading.current_thread().cursor_mode = "rw"
 
-            # we must use a RW cursor when a read/write route matched, or
-            # there was a ReadOnlySqlTransaction error
             if cr.readonly:
                 cr.close()
                 cr = self.env.registry.cursor()
             else:
-                # already a RW cursor; start a new transaction to avoid
-                # repeatable-read serialization errors (``retrying`` skips
-                # check_signaling and would just succeed the second time).
                 cr.rollback()
             assert not cr.readonly
-            self.env = self.env(cr=cr)
+            if promoted:
+                self._reset_for_replay(cr)
+            else:
+                self.env = self.env(cr=cr)
             try:
                 return retrying(serve_func, env=self.env)
             except Exception as exc:
@@ -311,7 +249,6 @@ class _RequestServeMixin:
         except HTTPException as exc:
             if exc.code is not None:
                 raise
-            # Valid response returned via werkzeug.exceptions.abort
             return self._serve_aborted(exc)
         finally:
             self.env = None
@@ -342,12 +279,12 @@ class _RequestServeMixin:
           debugger, so ``__call__`` is the handler of last resort).
         """
         if isinstance(exc, HTTPException) and exc.code is None:
-            return  # bubble up to _serve_db
+            return
         if (
             "werkzeug" in config["dev_mode"]
             and self.dispatcher.routing_type != JsonRPCDispatcher.routing_type
         ):
-            return  # bubble up to Application.__call__'s error handler
+            return
         if not hasattr(exc, "error_response"):
             if isinstance(exc, AccessDenied):
                 exc.suppress_traceback()
@@ -360,6 +297,7 @@ class _RequestServeMixin:
         another way. If none does, raise a 404 Not Found carrying the rendered
         error page.
         """
+        self.registry["ir.http"]._apply_max_upload_size()
         self.params = self.get_http_params()
         self.registry["ir.http"]._auth_method_public()
         response = self.registry["ir.http"]._serve_fallback()
@@ -368,9 +306,7 @@ class _RequestServeMixin:
             return response
 
         no_fallback = NotFound()
-        no_fallback.__context__ = (
-            not_found  # During handling of {not_found}, {no_fallback} occurred:
-        )
+        no_fallback.__context__ = not_found
         no_fallback.error_response = self.registry["ir.http"]._handle_error(no_fallback)
         raise no_fallback
 
