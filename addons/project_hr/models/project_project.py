@@ -41,7 +41,7 @@ class ProjectProject(models.Model):
         default=None,
     )
 
-    @api.depends("employee_id")
+    @api.depends("employee_id.user_id")
     def _compute_user_id(self):
         """Derive user_id from the assigned project manager employee."""
         for project in self:

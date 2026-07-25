@@ -68,7 +68,7 @@ class ProjectTask(models.Model):
             )
         return self.env["hr.employee"]
 
-    @api.depends("employee_ids")
+    @api.depends("employee_ids.user_id")
     def _compute_user_ids(self):
         """Sync user_ids from the assigned employees."""
         for task in self:

@@ -441,8 +441,64 @@ class TestReservationSync(TransactionCase):
         self.assertFalse(task.reservation_ids)
 
     # ------------------------------------------------------------------
-    # ``hr.employee.resource_id`` change propagates to reservations
+    # ``hr.employee.user_id`` change repropagates the stored identity mirror
     # ------------------------------------------------------------------
+
+    def test_reassigning_employee_user_repropagates_task_user_ids(self):
+        """Relinking an assigned employee to a new user must refresh user_ids."""
+        task = self.env["project.task"].create(
+            {
+                "name": "User repropagation",
+                "project_id": self.project.id,
+                "employee_ids": [Command.link(self.employee.id)],
+            }
+        )
+        self.assertEqual(task.user_ids, self.user_with_resource)
+
+        new_user = self.env["res.users"].create(
+            {
+                "name": "Relinked User",
+                "login": "relinked.task@test",
+                "company_id": self.company_home.id,
+                "company_ids": [Command.set([self.company_home.id])],
+                "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+            }
+        )
+        self.employee.user_id = new_user
+
+        self.assertEqual(
+            task.user_ids,
+            new_user,
+            "user_ids must follow the employee's relinked user.",
+        )
+
+    def test_reassigning_employee_user_repropagates_project_user_id(self):
+        """Relinking the manager employee to a new user must refresh user_id."""
+        project = self.env["project.project"].create(
+            {
+                "name": "PM repropagation",
+                "company_id": self.company_home.id,
+                "employee_id": self.employee.id,
+            }
+        )
+        self.assertEqual(project.user_id, self.user_with_resource)
+
+        new_user = self.env["res.users"].create(
+            {
+                "name": "Relinked Manager",
+                "login": "relinked.project@test",
+                "company_id": self.company_home.id,
+                "company_ids": [Command.set([self.company_home.id])],
+                "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+            }
+        )
+        self.employee.user_id = new_user
+
+        self.assertEqual(
+            project.user_id,
+            new_user,
+            "user_id must follow the employee's relinked user.",
+        )
 
     # ------------------------------------------------------------------
     # PMI hours model: planned / allocated / unallocated
