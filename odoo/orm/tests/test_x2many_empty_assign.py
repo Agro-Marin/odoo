@@ -49,15 +49,12 @@ class Node(models.Model):
     @api.depends("name")
     def _compute_tags(self):
         for record in self:
-            # mirrors res.groups._compute_all_implied_by_ids: .ids is empty
-            # for a NewId, so this assigns [] on new records
             record.computed_tag_ids = record.ids
 
 
 def test_computed_m2m_assigning_empty_on_new_record():
     with model_test_env(Tag, Line, Node) as env:
         node = env["e.node"].new({"name": "n"})
-        # must not raise "Compute method failed to assign"
         assert node.computed_tag_ids._ids == ()
 
 

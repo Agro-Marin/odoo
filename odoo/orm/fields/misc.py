@@ -1,3 +1,4 @@
+import contextlib
 import typing
 from typing import override
 
@@ -9,7 +10,8 @@ from odoo.libs.json import loads as _fast_loads
 from odoo.tools import SQL
 from odoo.tools.json import orjson_default
 
-from ..primitives import IdType, NewId
+from ..primitives import COLLECTION_TYPES, IdType, NewId
+from ._field_sql import PYTHON_INEQUALITY_OPERATOR
 from .base import Field, _make_scalar_get
 
 if typing.TYPE_CHECKING:
@@ -27,7 +29,6 @@ class Boolean(Field[bool]):
     falsy_value = False
 
     if not typing.TYPE_CHECKING:
-        # Runtime fast path; the type checker inherits Field[bool].__get__.
         __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @override
@@ -64,14 +65,12 @@ class Boolean(Field[bool]):
                 field_expr, operator, value, model, alias, query
             )
 
-        # get field and check access
         sql_field = model._field_to_sql(alias, field_expr, query)
 
-        # express all conditions as (field_expr, 'in', possible_values)
         possible_values = (
             {bool(v) for v in value}
             if operator == "in"
-            else {True, False} - {bool(v) for v in value}  # operator == 'not in'
+            else {True, False} - {bool(v) for v in value}
         )
         if len(possible_values) != 1:
             return SQL("TRUE") if possible_values else SQL("FALSE")
@@ -105,8 +104,6 @@ class Json(Field):
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> typing.Any:
         if not value:
-            # Normalize all falsy values (None, False, {}, []) to None;
-            # convert_to_record maps None back to False ("no value").
             return None
         return _fast_loads(_fast_dumps(value, default=orjson_default))
 
@@ -128,18 +125,12 @@ class Json(Field):
     def convert_to_export(self, value: typing.Any, record: ModelLike) -> str:
         if not value:
             return ""
-        # default=orjson_default (as in convert_to_cache) lets non-native types
-        # (date, Decimal) serialise instead of raising.
         return _fast_dumps(value, default=orjson_default)
 
 
 class Id(Field[IdType | typing.Literal[False]]):
     """Special case for field 'id'."""
 
-    # The value is not necessarily an integer (may be a NewId).
-    # ``type`` is "integer" so the client/views see the id column as integer,
-    # but Integer owns the "integer" ttype in _by_type__: Id is the magic id
-    # column, never instantiated from a DB ttype, so it opts out of registration.
     type = "integer"
     _register_type = False
     column_type = ("int4", "int4")
@@ -150,7 +141,7 @@ class Id(Field[IdType | typing.Literal[False]]):
     prefetch = False
 
     def update_db(self, model: ModelLike, columns: dict[str, typing.Any]) -> None:
-        pass  # this column is created with the table
+        pass
 
     @typing.overload
     def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
@@ -168,7 +159,6 @@ class Id(Field[IdType | typing.Literal[False]]):
         if record is None:
             return self
 
-        # kept inline for speed: record.id is extremely hot
         ids = record._ids
         size = len(ids)
         if size == 0:
@@ -230,12 +220,8 @@ class Id(Field[IdType | typing.Literal[False]]):
             return None
         if isinstance(value, NewId):
             return value
-        # A model that manages its own relation (_auto = False, e.g. a
-        # _table_query SQL view) may key on any column type, so nothing here can
-        # be assumed about it -- keep upstream's passthrough.
         if not record._auto:
             return value
-        # bool is a subclass of int; True is not a record id.
         if value is True:
             raise ValueError(f"Invalid id value for {self}: {value!r}")
         if isinstance(value, (int, float)):
@@ -244,20 +230,66 @@ class Id(Field[IdType | typing.Literal[False]]):
             try:
                 return int(value)
             except ValueError:
+                pass
+            try:
+                return float(value)
+            except ValueError:
                 raise ValueError(f"Invalid id value for {self}: {value!r}") from None
         raise ValueError(f"Invalid id value for {self}: {value!r}")
 
     def to_sql(self, model: ModelLike, alias: str) -> SQL:
-        # do not flush; id is never flushed, just return the identifier
         assert self.store, "id field must be stored"
         return SQL.identifier(alias, self.name)
+
+    @override
+    def filter_function(
+        self,
+        records: BaseModel,
+        field_expr: str,
+        operator: str,
+        value: typing.Any,
+    ) -> typing.Any:
+        """Coerce the comparand the way :meth:`convert_to_column` does, then
+        filter as usual.
+
+        ``id`` has no ``falsy_value``, so the base implementation never coerces a
+        comparand -- while ``condition_to_sql`` always does.  So
+        ``('id', '>=', '3')`` (a *string* comparand: the ordinary web-client /
+        ``ir.filters`` shape) selected the expected rows under ``search()`` and
+        **nothing** under ``filtered_domain()``, where the raw ``3 >= '3'``
+        ``TypeError`` is swallowed by ``check_inequality``; ``('id', '=', '3')``
+        likewise compared ``3 in {'3'}``.
+
+        The domain optimizer cannot do it instead: ``_optimize_numeric_comparand``
+        deliberately skips ``id`` because it is the ORM's hottest condition (every
+        prefetch optimizes ``('id', 'in', ids)`` over a machine-built int
+        collection, where the scan measured +46% on ``optimize_full``).  Here the
+        scan is paid once per predicate, on the Python evaluator only.
+
+        A value that is not an id at all is *dropped* from an equality set (it
+        matches no row, which is what the SQL side concludes too -- see
+        ``_canonicalize_numeric_sets``), while an ordering comparison against one
+        raises, exactly as ``condition_to_sql`` does through
+        :meth:`convert_to_column`.
+        """
+        if operator == "in" and isinstance(value, COLLECTION_TYPES):
+            if any(v.__class__ is str for v in value):
+                coerced = set()
+                for v in value:
+                    with contextlib.suppress(ValueError):
+                        coerced.add(self.convert_to_column(v, records, validate=False))
+                if not coerced:
+                    return lambda _: False
+                value = coerced
+        elif value.__class__ is str and operator in PYTHON_INEQUALITY_OPERATOR:
+            value = self.convert_to_column(value, records, validate=False)
+        return super().filter_function(records, field_expr, operator, value)
 
     def expression_getter(self, field_expr: str) -> typing.Any:
         if field_expr != "id.origin":
             return super().expression_getter(field_expr)
 
         def getter(record: BaseModel) -> typing.Any:
-            # guard the empty recordset (upstream returned False, not IndexError)
             ids = record._ids
             if not ids:
                 return False

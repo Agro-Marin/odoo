@@ -35,10 +35,6 @@ class _FieldStubs:
     __slots__ = ()
 
     if typing.TYPE_CHECKING:
-        # Plain class attributes set on Field (see orm/fields/base.py). Types
-        # mirror Field's own annotations; the T-parameterised ``falsy_value`` and
-        # the Field-valued ``inherited_field`` stay ``Any`` to avoid pulling the
-        # generic / a forward ref into this typing-only base.
         name: str
         model_name: str
         string: str | None
@@ -54,12 +50,6 @@ class _FieldStubs:
         inherited_field: typing.Any
         _column_type: tuple[str, str] | None
 
-        # Subclass-declared attributes the model mixins read through a plain
-        # ``Field``-typed variable (they guard on ``field.type`` /
-        # ``field.relational``, which the type checker cannot narrow by).
-        # Types mirror the real declarations: _Relational (relational/_base.py)
-        # for bypass_search_access / check_company / context, Many2many for
-        # relation / column1 / column2.
         bypass_search_access: bool
         check_company: bool
         context: ContextType
@@ -67,21 +57,11 @@ class _FieldStubs:
         column1: str | None
         column2: str | None
 
-        # Shared Field methods the convert/sql mixins call through ``self``. Real
-        # implementations own the cache-shape predicate and the company-dependent
-        # fallback authority (see base.py); declared here so siblings reuse them.
         def _is_context_dependent(self, env: Environment) -> bool: ...
         def _company_dependent_fallback_raw(
             self, records: typing.Any
         ) -> typing.Any: ...
 
-        # Subclass-defined methods the model mixins call through a plain
-        # ``Field``-typed variable. Each signature mirrors the single real
-        # implementation exactly (so it remains a valid override): _Relational /
-        # One2many for get_comodel_domain, Monetary for get_currency_field,
-        # Many2one for join, Properties for _add_default_values and
-        # convert_to_read_multi, BaseString (textual.py) for
-        # _get_stored_translations.
         def get_comodel_domain(self, model: ModelLike) -> Domain: ...
         def get_currency_field(self, model: ModelLike) -> str | None: ...
         def join(

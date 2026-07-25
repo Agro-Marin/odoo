@@ -56,11 +56,8 @@ class Thing(models.Model):
 
 def _write_survives_pending(env, field_name):
     record = env["x.thing"].create({"src": "a"})
-    # warm the cache so the write path cannot accidentally trigger the
-    # compute through a cold-cache read (the masking observed on models
-    # whose write() pre-reads fields)
-    record.name_plain, record.name_trans  # noqa: B018
-    record.write({"src": "b"})  # -> both computed fields pending
+    record.name_plain, record.name_trans
+    record.write({"src": "b"})
     record.write({field_name: "manual"})
     field = record._fields[field_name]
     assert not env._core.has_pending_field(field) or (
@@ -106,12 +103,8 @@ def test_every_mark_dirty_override_runs_the_prologue():
         for match in pattern.finditer(text):
             indent = match.group(1)
             body_start = match.end()
-            # body = until the next line at the same or lower indentation
-            # that starts a new def/decorator (crude but stable for a scan)
             rest = text[body_start:]
-            end = re.search(
-                rf"^{indent}(?:@|def |[A-Za-z_])", rest, re.MULTILINE
-            )
+            end = re.search(rf"^{indent}(?:@|def |[A-Za-z_])", rest, re.MULTILINE)
             body = rest[: end.start()] if end else rest
             found += 1
             assert any(marker in body for marker in markers), (

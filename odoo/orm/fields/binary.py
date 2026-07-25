@@ -20,11 +20,8 @@ if typing.TYPE_CHECKING:
     from .._typing import ModelLike
     from ..models import BaseModel
 
-# Binary data is returned as memoryview by psycopg.
 _BINARY = memoryview
 
-# First byte of SVG-ish content: 'P' is '<' (0x3C) base64-encoded, '<' is a
-# plaintext XML tag opening. Used to restrict SVG upload to system users.
 _SVG_MAGIC_BYTES = frozenset({b"P", b"<"})
 
 
@@ -37,9 +34,9 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     type = "binary"
 
-    prefetch = False  # not prefetched by default
-    _depends_context = ("bin_size",)  # depends on context (content or size)
-    attachment = True  # whether value is stored in attachment
+    prefetch = False
+    _depends_context = ("bin_size",)
+    attachment = True
 
     @functools.cached_property
     def column_type(self):
@@ -61,12 +58,8 @@ class Binary(Field[bytes | typing.Literal[False]]):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> bytes | None:
-        # Binaries are transferred/stored as base64 strings (legacy convention),
-        # sometimes as unicode, hence the str() cast below. ASCII-only on
-        # purpose: raw binary must be passed as bytes.
         if not value:
             return None
-        # Detect SVG content to restrict its upload to system users.
         if isinstance(value, str):
             value = value.encode()
         if validate and value[:1] in _SVG_MAGIC_BYTES:
@@ -76,7 +69,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
                 )
             except binascii.Error:
                 decoded_value = value
-            # Full mimetype detection
             if (
                 guess_mimetype(decoded_value).startswith("image/svg")
                 and not record.env.is_system()
@@ -98,7 +90,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
     @override
     def get_column_update(self, record: ModelLike) -> bytes | None:
         """Return the raw binary bytes for ``record``, bypassing bin_size."""
-        # force bin_size=False to get actual data, not the size
         bin_size_name = "bin_size_" + self.name
         record = record.with_context(**{"bin_size": False, bin_size_name: False})
         value = self._get_cache(record.env)[record.id]
@@ -111,18 +102,12 @@ class Binary(Field[bytes | typing.Literal[False]]):
         if isinstance(value, _BINARY):
             return bytes(value)
         if isinstance(value, str):
-            # the cache must contain bytes or memoryview, but sometimes a string
-            # is given when assigning a binary field (test `TestFileSeparator`)
             return value.encode()
         if isinstance(value, int) and (
             record.env.context.get("bin_size")
             or record.env.context.get("bin_size_" + self.name)
         ):
-            # If the client requests only the size of the field, we return that
-            # instead of the content. Presumably a separate request will be done
-            # to read the actual content, if necessary.
             value = human_size(value)
-            # human_size can return False (-> None) or a string (-> encoded)
             return value.encode() if value else None
         return None if value is False else value
 
@@ -140,27 +125,21 @@ class Binary(Field[bytes | typing.Literal[False]]):
         if records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name
         ):
-            # always compute without bin_size
             records_no_bin_size = records.with_context(
                 **{"bin_size": False, bin_size_name: False}
             )
             super().compute_value(records_no_bin_size)
-            # manually update the bin_size cache
             field_cache_data = self._get_cache(records_no_bin_size.env)
             field_cache_size = self._get_cache(records.env)
             for record in records:
                 try:
                     value = field_cache_data[record.id]
-                    # don't decode non-attachments to be consistent with pg_size_pretty
                     if not self.is_column:
                         with contextlib.suppress(TypeError, binascii.Error):
                             value = base64.b64decode(value)
-                    # isinstance guarantees a len()-able bytes/memoryview, and
-                    # human_size(int) cannot raise — no TypeError guard needed.
                     if isinstance(value, (bytes, _BINARY)):
                         value = human_size(len(value))
                     cache_value = self.convert_to_cache(value, record)
-                    # the dirty flag is independent from this assignment
                     field_cache_size[record.id] = cache_value
                 except KeyError:
                     pass
@@ -174,7 +153,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
                 return s.encode("utf-8")
             return s
 
-        # values are stored in attachments, retrieve them
         assert self.attachment
         domain = [
             ("res_model", "=", records._name),
@@ -193,7 +171,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
         assert self.attachment
         if not record_values:
             return
-        # create the attachments that store the values
         env = record_values[0][0].env
         env["ir.attachment"].sudo().create(
             [
@@ -212,10 +189,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        # Reset BOTH the global and per-field bin_size keys before touching the
-        # cache: convert_to_cache honors either, so leaving bin_size_<name>
-        # active would size-convert an int value into a human_size string and
-        # cache it as content. Mirrors get_column_update / compute_value.
         records = records.with_context(
             **{"bin_size": False, "bin_size_" + self.name: False}
         )
@@ -223,7 +196,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
             super().mark_dirty(records, value)
             return
 
-        # prologue: cancel pending recompute, convert, drop unmodified records
         records, cache_value = self._mark_dirty_prologue(records, value)
         if not records:
             return
@@ -232,7 +204,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
         self._update_cache(records, cache_value)
 
-        # retrieve and adapt the attachments that store the values
         if self.store and any(records._ids):
             real_records = records.filtered("id")
             atts = records.env["ir.attachment"].sudo()
@@ -245,10 +216,8 @@ class Binary(Field[bytes | typing.Literal[False]]):
                     ]
                 )
             if value:
-                # update the existing attachments
                 atts.write({"datas": value})
                 atts_records = records.browse(atts.mapped("res_id"))
-                # create the missing attachments
                 missing = real_records - atts_records
                 if missing:
                     atts.create(
@@ -284,9 +253,6 @@ class Binary(Field[bytes | typing.Literal[False]]):
         assert operator in ("in", "not in") and set(value) == {False}, (
             "Should have been done in Domain optimization"
         )
-        # Use a correlated NOT EXISTS/EXISTS rather than NOT IN/IN: on a large
-        # ir_attachment, materializing the full res_id list is a bottleneck,
-        # while EXISTS lets PostgreSQL short-circuit on the first match.
         return SQL(
             "%sEXISTS (SELECT 1 FROM ir_attachment WHERE res_model = %s AND res_field = %s AND res_id = %s)",
             SQL("NOT ") if operator == "in" else SQL(),
@@ -333,9 +299,6 @@ class Image(Binary):
         for record, value in record_values:
             new_value = self._image_process(value, record.env)
             new_record_values.append((record, new_value))
-            # when setting related image field, keep the unprocessed image in
-            # cache to let the inverse method use the original image; the image
-            # will be resized once the inverse has been applied
             cache_value = self.convert_to_cache(
                 value if self.related else new_value, record
             )
@@ -344,10 +307,6 @@ class Image(Binary):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        # Reset the bin_size context up front so the cache writes below land in
-        # the (False,) sub-cache (unprocessed content), not size strings.
-        # Binary.mark_dirty resets its own local records, which doesn't
-        # propagate back to the `records` we convert/cache here.
         records = records.with_context(
             **{"bin_size": False, "bin_size_" + self.name: False}
         )
@@ -355,30 +314,19 @@ class Image(Binary):
             new_value = self._image_process(value, records.env)
         except UserError:
             if not any(records._ids):
-                # Invalid value on a new record: in onchange the client may send
-                # the field's "bin size" instead of its content (to save
-                # bandwidth). Skip the assignment; the value comes from origin.
                 return
             raise
 
         super().mark_dirty(records, new_value)
         if self.related:
-            # keep the unprocessed image in cache so the inverse method gets
-            # the original (same reason as create()); resized afterwards by
-            # _inverse_related
             cache_value = self.convert_to_cache(value, records)
             self._update_cache(records, cache_value, dirty=True)
-        # non-related: super() already cached the processed value and marked
-        # only the actually-modified records dirty; re-caching here would
-        # re-mark ALL records and emit no-op UPDATEs for column-stored images
 
     @override
     def _inverse_related(self, records: BaseModel) -> None:
         super()._inverse_related(records)
         if not (self.max_width and self.max_height):
             return
-        # the inverse has been applied with the original image; now we fix the
-        # cache with the resized value
         for record in records:
             value = self._process_related(record[self.name], record.env)
             self._update_cache(record, value, dirty=True)
@@ -394,9 +342,6 @@ class Image(Binary):
                 and self.max_height == self.related_field.max_height
             )
         ):
-            # no need to process images for computed fields, or related fields
-            # (when the related field already applies the same resizing) —
-            # excess Pillow processing quickly leads to MemoryError on upgrades
             return value
         try:
             img = base64.b64decode(value or "") or False
@@ -406,19 +351,18 @@ class Image(Binary):
         if img and guess_mimetype(img, "") == "image/webp":
             if not self.max_width and not self.max_height:
                 return value
-            # Fetch resized version.
             Attachment = env["ir.attachment"]
             checksum = Attachment._content_checksum(img)
             origins = Attachment.search(
                 [
-                    ["id", "!=", False],  # No implicit condition on res_field.
+                    ["id", "!=", False],
                     ["checksum", "=", checksum],
                 ]
             )
             if origins:
                 origin_ids = [attachment.id for attachment in origins]
                 resized_domain = [
-                    ["id", "!=", False],  # No implicit condition on res_field.
+                    ["id", "!=", False],
                     ["res_model", "=", "ir.attachment"],
                     ["res_id", "in", origin_ids],
                     [
@@ -429,7 +373,6 @@ class Image(Binary):
                 ]
                 resized = Attachment.sudo().search(resized_domain, limit=1)
                 if resized:
-                    # Fallback on non-resized image (value).
                     return resized.datas or value
             return value
 
@@ -453,6 +396,4 @@ class Image(Binary):
         try:
             return self._image_process(super()._process_related(value, env), env)
         except UserError:
-            # Avoid the following `write` to fail if the related image was saved
-            # invalid, which can happen for pre-existing databases.
             return False

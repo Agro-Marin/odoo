@@ -5,10 +5,6 @@ import os
 
 from ...primitives import LOG_ACCESS_COLUMNS, SUPERUSER_ID
 
-# Min batch size to use COPY instead of INSERT. COPY avoids SQL parsing
-# overhead but adds +1 query (nextval) for ID pre-generation; below this,
-# multi-row INSERT RETURNING is a single query. Break-even ~5 rows on PG18;
-# 10 is conservative.
 COPY_THRESHOLD = int(os.environ.get("ODOO_COPY_THRESHOLD", "10"))
 COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
     "1",
@@ -16,9 +12,6 @@ COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
     "yes",
 )
 
-# Names stripped from create()/write() vals, precomputed to avoid rebuilding
-# per call. _BAD_NAMES_LOG adds the log-access columns for _log_access models;
-# create() re-adds those via setdefault. Derived from LOG_ACCESS_COLUMNS.
 _BAD_NAMES = frozenset({"id", "parent_path"})
 _BAD_NAMES_LOG = _BAD_NAMES | frozenset(LOG_ACCESS_COLUMNS)
 

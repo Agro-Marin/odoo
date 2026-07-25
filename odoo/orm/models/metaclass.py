@@ -16,8 +16,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 
-# BaseModel.__init__ is (self, env, ids, prefetch_ids); read from the class
-# dict, self is included, so the expected parameter count is 4.
 _BASE_MODEL_INIT_PARAM_COUNT = 4
 
 
@@ -35,8 +33,8 @@ class MetaModel(type):
     _field_definitions: list[Field]
     _table_object_definitions: list[TableObject]
     _name: str
-    _register: bool  # need to define on each Model, default: True
-    _log_access: bool  # when defined, add update log columns
+    _register: bool
+    _log_access: bool
     _module: str | None
     _abstract: bool
     _auto: bool
@@ -48,15 +46,11 @@ class MetaModel(type):
         bases: tuple[type, ...],
         attrs: dict[str, typing.Any],
     ) -> MetaModel:
-        # prevent assignment of non-fields on recordsets
         attrs.setdefault("__slots__", ())
-        # populated via Field.__set_name__()
         attrs.setdefault("_field_definitions", [])
-        # populated via TableObject.__set_name__()
         attrs.setdefault("_table_object_definitions", [])
 
         if attrs.get("_register", True):
-            # determine '_module'
             if "_module" not in attrs:
                 module = attrs["__module__"]
                 if not module.startswith("odoo.addons."):
@@ -71,7 +65,6 @@ class MetaModel(type):
                 attrs["_inherit"] = [_inherit]
 
             if not attrs.get("_name"):
-                # add '.' before each uppercase letter preceded by a non-underscore char
                 attrs["_name"] = re.sub(r"(?<=[^_])([A-Z])", r".\1", name).lower()
                 _logger.warning(
                     "Class %s has no _name, please make it explicit: _name = %r",
@@ -79,8 +72,6 @@ class MetaModel(type):
                     attrs["_name"],
                 )
 
-            # raise (not assert) — under python -O a missing _name would slip
-            # through and crash much later in registration with an opaque error.
             if not attrs.get("_name"):
                 raise ValueError(
                     f"Model class {name!r} must define a '_name' attribute"
@@ -110,22 +101,18 @@ class MetaModel(type):
         if not attrs.get("_register", True):
             return
 
-        # Remember which models to instantiate for this module.
         if cls._module:
             cls._module_to_models__[cls._module].append(cls)
 
-        # Coerce explicit ``_inherit = None`` to (): the membership test below
-        # would otherwise raise an opaque TypeError on NoneType.
         if cls._inherit is None:
             cls._inherit = ()
         if not cls._abstract and cls._name not in cls._inherit:
-            # this class defines a model: add magic fields
+
             def add_default(name: str, field: Field) -> None:
                 if name not in attrs:
                     setattr(cls, name, field)
                     field.__set_name__(cls, name)
 
-            # make sure `id` field is still a `fields.Id`
             if not isinstance(cls.id, Id):
                 raise TypeError(f"Field {cls.id} is not an instance of fields.Id")
 

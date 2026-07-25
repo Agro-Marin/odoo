@@ -28,29 +28,15 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
 
     __slots__ = ("_saved_default_env",)
 
-    # This subclass DOES restore ORM cache/env on rollback (see the hooks below),
-    # so ``BaseCursor.savepoint`` accepts it for transaction-bearing cursors.
     _restores_orm_state = True
 
     def _save_orm_state(self, cr: BaseCursor) -> None:
-        # default_env is the only durable state to snapshot; cache / compute
-        # state is ephemeral (clear() handles it), and a registry reload is
-        # detected at restore time by identity against the live
-        # ``Registry.registries`` — nothing to save for it.
         txn = cr.transaction
         self._saved_default_env = txn.default_env if txn else None
 
     def _restore_orm_state(self, cr: BaseCursor) -> None:
-        # Only called by the base class when a transaction is attached.
         txn = cr.transaction
         txn.default_env = self._saved_default_env
-        # Detect a registry reload by object IDENTITY, not by registry_sequence:
-        # a reload replaces the entry in ``Registry.registries`` with a NEW
-        # object and never mutates the old one that ``txn.registry`` still holds,
-        # while ``registry_sequence`` only changes in ``signal_changes`` (commit
-        # time, forbidden inside a savepoint) — so the old sequence check could
-        # essentially never fire and left ``txn.registry`` pointing at a stale
-        # registry after ``clear()``.  A full ``reset()`` re-wires it.
         current = type(txn.registry).registries.get(txn.registry.db_name)
         if current is not None and current is not txn.registry:
             txn.reset()
@@ -60,7 +46,4 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
                 reset_cached_properties(env)
 
 
-# Make cr.savepoint(flush=True) use the ORM-aware variant once the ORM is
-# imported.  Before this, the db layer's plain _FlushingSavepoint is the default
-# — fine, since no transaction is ever attached without the ORM.
 BaseCursor._flushing_savepoint_cls = _OrmFlushingSavepoint

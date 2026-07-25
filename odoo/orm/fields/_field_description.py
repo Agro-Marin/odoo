@@ -50,10 +50,9 @@ class _FieldDescriptionMixin(_FieldStubs):
         return bool(self.store or self.search)
 
     def _description_sortable(self, env: Environment) -> bool:
-        if self.is_column:  # shortcut
+        if self.is_column:
             return True
         if self.inherited_field and self.inherited_field._description_sortable(env):
-            # avoid recomputing for inherited field
             return True
 
         model = env[self.model_name]
@@ -63,14 +62,13 @@ class _FieldDescriptionMixin(_FieldStubs):
                 model._table, self.name, SQL.EMPTY, SQL.EMPTY, query
             )
             return True
-        except (ValueError, AccessError):
+        except ValueError, AccessError:
             return False
 
     def _description_groupable(self, env: Environment) -> bool:
-        if self.is_column:  # shortcut
+        if self.is_column:
             return True
         if self.inherited_field and self.inherited_field._description_groupable(env):
-            # avoid recomputing for inherited field
             return True
 
         model = env[self.model_name]
@@ -81,14 +79,13 @@ class _FieldDescriptionMixin(_FieldStubs):
         try:
             model._read_group_groupby(model._table, groupby, query)
             return True
-        except (ValueError, AccessError):
+        except ValueError, AccessError:
             return False
 
     def _description_aggregator(self, env: Environment) -> str | None:
-        if not self.aggregator or self.is_column:  # shortcut
+        if not self.aggregator or self.is_column:
             return self.aggregator
         if self.inherited_field and self.inherited_field._description_aggregator(env):
-            # avoid recomputing for inherited field
             return self.inherited_field.aggregator
 
         model = env[self.model_name]
@@ -96,7 +93,7 @@ class _FieldDescriptionMixin(_FieldStubs):
         try:
             model._read_group_select(f"{self.name}:{self.aggregator}", query)
             return self.aggregator
-        except (ValueError, AccessError):
+        except ValueError, AccessError:
             return None
 
     def _description_string(self, env: Environment) -> str:
@@ -114,9 +111,7 @@ class _FieldDescriptionMixin(_FieldStubs):
         return self.help
 
     def _description_falsy_value_label(self, env) -> str | None:
-        return (
-            env._(self.falsy_value_label) if self.falsy_value_label else None  # pylint: disable=gettext-variable,E8502
-        )
+        return env._(self.falsy_value_label) if self.falsy_value_label else None
 
     def is_editable(self) -> bool:
         """Return whether the field can be editable in a view."""

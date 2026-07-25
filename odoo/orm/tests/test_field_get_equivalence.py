@@ -52,7 +52,6 @@ from odoo.tools.misc import PENDING, SENTINEL
 
 _MOD = "test_field_get_equivalence"
 
-# canonical descriptor: the reference oracle every fast path must match.
 _CANONICAL_GET = fields.Field.__get__
 
 
@@ -61,9 +60,6 @@ def _term_translate(_callback, value):
     return value
 
 
-# ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
 class GCurrency(models.Model):
     """Minimal ``res.currency`` double so Monetary/Many2one run DB-free."""
 
@@ -98,7 +94,6 @@ class GHost(models.Model):
     _module = _MOD
     _description = "Fast-path field host"
 
-    # scalar-lambda fast paths (_make_scalar_get)
     f_bool = fields.Boolean()
     f_int = fields.Integer()
     f_float = fields.Float()
@@ -107,22 +102,14 @@ class GHost(models.Model):
     f_date = fields.Date()
     f_dt = fields.Datetime()
     currency_id = fields.Many2one("res.currency")
-    # textual fast paths (BaseString / Html)
     f_char = fields.Char()
     f_text = fields.Text()
     f_html = fields.Html()
-    # relational fast paths (Many2one / One2many / _Relational)
     f_m2o = fields.Many2one("res.currency")
     child_ids = fields.One2many("g.child", "parent_id")
-    # translated
     f_tchar = fields.Char(translate=True)
-    # sanitize="email_outgoing" is the one Html config that KEEPS translate=True
-    # (sanitize=True would normalize translate to the html_translate callable),
-    # so the BaseString/Html en_US fallback branch stays reachable. Mirrors the
-    # real mail.template.body_html field named in Html.__get__'s docstring.
     f_thtml = fields.Html(translate=True, sanitize="email_outgoing")
     f_ctchar = fields.Char(translate=_term_translate)
-    # stored computed (exercises the is_stored_computed / pending branch)
     f_scomp = fields.Integer(compute="_compute_scomp", store=True)
 
     @api.depends("f_int")
@@ -131,12 +118,6 @@ class GHost(models.Model):
             rec.f_scomp = (rec.f_int or 0) + 1
 
 
-# ---------------------------------------------------------------------------
-# Field-type metadata
-# ---------------------------------------------------------------------------
-# scalar-lambda + textual singleton-valued fields whose fast path can be
-# compared cell-for-cell against the canonical Field.__get__ on a cache HIT.
-# Each entry: field name -> list of raw cache values (incl. None + falsy).
 _SCALAR_DIFFERENTIAL = {
     "f_bool": [None, False, True],
     "f_int": [None, 0, 7],
@@ -149,15 +130,10 @@ _SCALAR_DIFFERENTIAL = {
     "f_text": [None, "", "multi\nline"],
 }
 
-# every singleton-valued field type (scalars + textual + html) — these raise on
-# multi-record access and go through the ACL preamble on a singleton read.
 _SINGLETON_FIELDS = (*_SCALAR_DIFFERENTIAL, "f_html")
 
-# relational fields: multi-record returns a recordset (no ensure_one raise).
 _RELATIONAL_FIELDS = ("f_m2o", "child_ids")
 
-# every field carrying a specialized/generated __get__ that runs the inlined ACL
-# preamble (Id is intentionally excluded — see the Id tests).
 _ACL_FIELDS = (*_SINGLETON_FIELDS, *_RELATIONAL_FIELDS)
 
 
@@ -183,9 +159,6 @@ def _put_cache(field, rec, value):
     field._get_cache(rec.env)[rec.id] = value
 
 
-# ===========================================================================
-# 1. Differential: fast path == canonical Field.__get__ on a cache HIT
-# ===========================================================================
 def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
     """(oracle 6) For a singleton cache hit, every scalar-lambda and Char/Text
     fast path returns exactly what canonical ``Field.__get__`` returns for the
@@ -197,7 +170,6 @@ def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
         for fname, samples in _SCALAR_DIFFERENTIAL.items():
             field = host._fields[fname]
             fast = type(field).__get__
-            # a scalar/textual fast path must NOT be the canonical method itself
             assert fast is not _CANONICAL_GET, fname
             for raw in samples:
                 _put_cache(field, host, raw)
@@ -207,7 +179,6 @@ def test_scalar_and_textual_fastpath_matches_canonical_on_cache_hit():
                     f"{fname}: fast={got!r} != canonical={ref!r} (raw={raw!r})"
                 )
                 assert got is not PENDING and got is not SENTINEL
-                # oracle (6): equals convert_to_record(cache_value)
                 assert got == field.convert_to_record(raw, host), fname
 
 
@@ -225,7 +196,6 @@ def test_many2one_fastpath_matches_canonical_on_cache_hit():
             got = fast(field, host)
             ref = _CANONICAL_GET(field, host)
             assert got == ref, f"m2o fast={got!r} != canonical={ref!r} (raw={raw!r})"
-            # observable identity: right ids, right comodel
             assert got._name == "res.currency"
             assert got.ids == (ref.ids)
 
@@ -245,9 +215,6 @@ def test_html_fastpath_matches_canonical_on_normal_hit():
         assert str(got) == str(ref)
 
 
-# ===========================================================================
-# 2. Null / empty recordset -> falsy default (== base)
-# ===========================================================================
 def test_empty_recordset_returns_type_falsy_default_matching_base():
     """(oracle 2) An empty recordset returns the type's falsy default, identical
     to canonical ``Field.__get__``.  Scalars/textual return the scalar falsy
@@ -261,7 +228,6 @@ def test_empty_recordset_returns_type_falsy_default_matching_base():
             got = type(field).__get__(field, empty)
             ref = _CANONICAL_GET(field, empty)
             assert got == ref, f"{fname}: empty fast={got!r} != base={ref!r}"
-        # spot-check the concrete falsy values
         assert type(empty._fields["f_int"]).__get__(empty._fields["f_int"], empty) == 0
         assert (
             type(empty._fields["f_bool"]).__get__(empty._fields["f_bool"], empty)
@@ -272,10 +238,6 @@ def test_empty_recordset_returns_type_falsy_default_matching_base():
         assert got._name == "res.currency" and len(got) == 0
 
 
-# ===========================================================================
-# 3. Multi-record access raises (singleton-valued types) / returns recordset
-#    (relational types)
-# ===========================================================================
 def test_multirecord_singleton_types_raise_via_ensure_one():
     """(oracle 5) For scalar/textual/html fields, multi-record access raises the
     same exception as canonical ``Field.__get__`` (ensure_one path).
@@ -310,9 +272,6 @@ def test_multirecord_relational_types_return_recordset_not_raise():
         assert got_lines._name == "g.child"
 
 
-# ===========================================================================
-# 4. ACL preamble fires identically on every fast path (semantic text-pin)
-# ===========================================================================
 class _AclSpy:
     """Install controllable ``_has_field_access`` / ``_check_field_access`` on a
     model class and record their calls, so the preamble branch can be observed
@@ -398,7 +357,7 @@ def test_acl_preamble_allows_when_has_field_access_true():
     """
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
-        host = host.with_env(env(user=2, su=False))  # env.su is read-only; derive one
+        host = host.with_env(env(user=2, su=False))
         assert host.env.su is False
         spy = _AclSpy(type(host))
         spy.allow = True
@@ -408,7 +367,7 @@ def test_acl_preamble_allows_when_has_field_access_true():
                 orig = field.groups
                 field.groups = "base.group_system"
                 try:
-                    type(field).__get__(field, host)  # must not raise
+                    type(field).__get__(field, host)
                 finally:
                     field.groups = orig
             assert spy.has_calls >= len(_ACL_FIELDS)
@@ -468,10 +427,6 @@ def test_acl_denied_multirecord_relational_also_raises():
 
 def test_id_field_has_no_acl_preamble_by_design():
     """A grouped+denied ``id`` field does not raise: ``Id.__get__`` has no ACL preamble."""
-    # Documented divergence: Id.__get__ carries NO ACL preamble by design (the
-    # id field is never group-restricted and record.id is the single hottest
-    # access). This freezes that intentional exemption — by-design, not a bug —
-    # so even a contrived grouped+denied id field returns without raising.
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, *_ = _seed(env)
         rec_id = host.id
@@ -482,16 +437,13 @@ def test_id_field_has_no_acl_preamble_by_design():
         orig = idf.groups
         idf.groups = "base.group_system"
         try:
-            assert type(idf).__get__(idf, host) == rec_id  # no raise
+            assert type(idf).__get__(idf, host) == rec_id
             assert spy.check_calls == 0
         finally:
             idf.groups = orig
             spy.restore()
 
 
-# ===========================================================================
-# 5. Id field invariants (base __get__ is not applicable)
-# ===========================================================================
 def test_id_field_invariants():
     """``Id.__get__`` is not differential-comparable to base (``id`` is not a
     cached column).  Guard its own contract: null->False, singleton->id, and a
@@ -509,9 +461,6 @@ def test_id_field_invariants():
             get(idf, host + host2)
 
 
-# ===========================================================================
-# 6. PENDING is never returned; protected -> falsy default, else fetch
-# ===========================================================================
 def test_pending_in_cache_is_never_returned_protected_yields_falsy():
     """(oracle 4) PENDING in cache, record PROTECTED (being computed): base pops
     PENDING and returns the type's falsy default (0) instead of a wasted NULL
@@ -526,8 +475,7 @@ def test_pending_in_cache_is_never_returned_protected_yields_falsy():
         with env.protecting([field], host):
             got = type(field).__get__(field, host)
         assert got is not PENDING
-        assert got == 0  # falsy default while protected/computing
-        # base agrees under the same setup
+        assert got == 0
         _put_cache(field, host, PENDING)
         with env.protecting([field], host):
             ref = _CANONICAL_GET(field, host)
@@ -542,7 +490,7 @@ def test_pending_in_cache_unprotected_falls_through_to_fetch():
     with model_test_env(GHost, GChild, GCurrency) as env:
         host = env["g.host"].create({"f_int": 7})
         field = host._fields["f_int"]
-        stored = type(field).__get__(field, host)  # warm & read the real value
+        stored = type(field).__get__(field, host)
         assert stored == 7
         _put_cache(field, host, PENDING)
         got = type(field).__get__(field, host)
@@ -557,17 +505,16 @@ def test_stored_computed_pending_guard_recomputes_and_never_leaks_pending():
     returned — on both the scalar fast path and canonical base.
     """
     with model_test_env(GHost, GChild, GCurrency) as env:
-        host = env["g.host"].create({"f_int": 3})  # f_scomp computed -> 4
+        host = env["g.host"].create({"f_int": 3})
         field = host._fields["f_scomp"]
         assert field.is_stored_computed
-        assert type(field).__get__(field, host) == 4  # warm
-        # stale PENDING + a scheduled recompute
+        assert type(field).__get__(field, host) == 4
         _put_cache(field, host, PENDING)
         env._core.schedule(field, [host.id])
         got = type(field).__get__(field, host)
         assert got is not PENDING
         assert got == 4
-        assert not env._core.has_pending_field(field)  # recompute cleared it
+        assert not env._core.has_pending_field(field)
 
 
 def test_pending_evicted_for_scalar_via_scalar_cache_get():
@@ -581,7 +528,6 @@ def test_pending_evicted_for_scalar_via_scalar_cache_get():
         _put_cache(field, host, PENDING)
         got = type(field).__get__(field, host)
         assert got is not PENDING
-        # not stored-computed, real row: falls through to fetch -> stored 9
         assert got == 9
 
 
@@ -593,17 +539,12 @@ def test_relational_pending_protected_yields_empty_recordset():
     with model_test_env(GHost, GChild, GCurrency) as env:
         host, _cur_a, _cur_b = _seed(env)
         field = host._fields["f_m2o"]
-        # Many2one singleton fast path: PENDING -> scalar_cache_get SENTINEL ->
-        # Field.__get__ handles it. Assert never leaks PENDING.
         _put_cache(field, host, PENDING)
         got = type(field).__get__(field, host)
         assert got is not PENDING
         assert got._name == "res.currency"
 
 
-# ===========================================================================
-# 7. Translated fields
-# ===========================================================================
 def test_translate_true_en_us_fallback_diverges_from_base_and_is_correct():
     """translate=True, origin-less NEW record, read in a non-en language: the
     BaseString fast path returns the en_US fallback value, whereas canonical
@@ -615,10 +556,8 @@ def test_translate_true_en_us_fallback_diverges_from_base_and_is_correct():
     with model_test_env(GHost, GChild, GCurrency) as env:
         field = env["g.host"]._fields["f_tchar"]
         assert field.translate is True
-        # new record with no origin, warm en_US
         rec = env["g.host"].new({"f_tchar": "english"})
         assert rec.f_tchar == "english"
-        # read in another language: fast path must fall back to en_US
         other = rec.with_context(lang="fr_FR")
         of = other._fields["f_tchar"]
         got = type(of).__get__(of, other)

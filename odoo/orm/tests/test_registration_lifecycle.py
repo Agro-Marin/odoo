@@ -29,8 +29,6 @@ from odoo import fields, models
 from odoo.orm import registration
 from odoo.orm.model_test_env import ModelRegistry
 
-# Circular _inherits
-
 
 class CycA(models.Model):
     _name = "regcyc.a"
@@ -48,7 +46,6 @@ class CycB(models.Model):
 
 
 class CycAExt(models.Model):
-    # extension closing the cycle: a _inherits b _inherits a
     _inherit = "regcyc.a"
     _module = "test_reg_cycle"
     _inherits = {"regcyc.b": "b_id"}
@@ -57,13 +54,8 @@ class CycAExt(models.Model):
 
 
 def test_circular_inherits_raises_type_error():
-    # Without the _setup_in_progress__ marker, Phase 3 of _setup would recurse
-    # a → b → a → ... until RecursionError.
     with pytest.raises(TypeError, match="Circular _inherits chain involving model"):
         ModelRegistry([CycA, CycB, CycAExt])
-
-
-# _check_model_extension: abstract / transient transforms
 
 
 class AbsThing(models.AbstractModel):
@@ -123,9 +115,6 @@ def test_extension_cannot_make_model_transient():
         ModelRegistry([PlainThing, PlainThingTransientExt])
 
 
-# _check_model_parent_extension: abstract child of concrete parent
-
-
 class ConcreteParent(models.Model):
     _name = "regpar.parent"
     _module = "test_reg_parent_ext"
@@ -148,9 +137,6 @@ def test_abstract_model_cannot_inherit_concrete_model():
         ModelRegistry([ConcreteParent, AbstractChild])
 
 
-# _check_inherits: delegate field validation
-
-
 class MissParent(models.Model):
     _name = "regmiss.parent"
     _module = "test_reg_inherits_missing"
@@ -162,7 +148,6 @@ class MissChild(models.Model):
     _module = "test_reg_inherits_missing"
     _description = "Miss Child"
     _inherits = {"regmiss.parent": "parent_id"}
-    # no parent_id field at all
 
 
 def test_inherits_without_field_raises_type_error():
@@ -186,7 +171,6 @@ class BadFlagsChild(models.Model):
     _description = "Bad Flags Child"
     _inherits = {"regbad.parent": "parent_id"}
 
-    # delegate is implied by _inherits, but required=False fails the check
     parent_id = fields.Many2one("regbad.parent", ondelete="cascade")
 
 
@@ -197,9 +181,6 @@ def test_inherits_field_must_be_required_with_cascade_or_restrict():
         r"ondelete='cascade' or 'restrict'",
     ):
         ModelRegistry([BadFlagsParent, BadFlagsChild])
-
-
-# _validate_rec_name / _validate_active_name
 
 
 class BadRecName(models.Model):
@@ -220,7 +201,6 @@ class BadActiveName(models.Model):
     _name = "regact.bad"
     _module = "test_reg_active_name"
     _description = "Bad Active Name"
-    # 'name' IS a field, but only 'active'/'x_active' are allowed
     _active_name = "name"
 
     name = fields.Char()
@@ -239,7 +219,6 @@ class MissingActiveName(models.Model):
     _name = "regact.missing"
     _module = "test_reg_active_missing"
     _description = "Missing Active Field"
-    # right name, but the field does not exist on the model
     _active_name = "active"
 
 
@@ -269,12 +248,8 @@ def test_rec_name_and_active_name_auto_detection():
     registry = ModelRegistry([AutoNames, NoNames])
     assert registry["regauto.thing"]._rec_name == "name"
     assert registry["regauto.thing"]._active_name == "active"
-    # no 'name'/'active' fields: both stay unset
     assert registry["regauto.bare"]._rec_name is None
     assert registry["regauto.bare"]._active_name is None
-
-
-# add_to_registry: same-_name-without-_inherit replacement warning
 
 
 class DupFirst(models.Model):
@@ -307,14 +282,9 @@ def test_same_name_without_inherit_warns_and_replaces(caplog):
     assert "'test_reg_duplicate'" in messages[0]
     assert "Did you mean to inherit it?" in messages[0]
 
-    # the second fresh definition silently discarded the first one's fields —
-    # exactly the data loss the warning surfaces
     model_fields = registry["regdup.thing"]._fields
     assert "b" in model_fields
     assert "a" not in model_fields
-
-
-# pop_field: _rec_name / display-name-depends fixup
 
 
 class PopThing(models.Model):
@@ -331,7 +301,6 @@ def test_pop_field_fixes_rec_name_and_display_name_depends():
     model_cls = registry["regpop.thing"]
     display_name = model_cls._fields["display_name"]
 
-    # preconditions established by setup: auto rec_name and its display_name dep
     assert model_cls._rec_name == "name"
     assert registry.field_depends[display_name] == ("name",)
 
@@ -341,9 +310,6 @@ def test_pop_field_fixes_rec_name_and_display_name_depends():
     assert popped.name == "name"
     assert "name" not in model_cls._fields
     assert model_cls._rec_name is None
-    # display_name no longer depends on the popped field.  field_depends is a
-    # Collector: assigning the filtered (now empty) tuple removes the key, and
-    # lookups default to () — both reads pin that contract.
     assert registry.field_depends[display_name] == ()
     assert display_name not in registry.field_depends
 

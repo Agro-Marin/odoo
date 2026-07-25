@@ -16,13 +16,6 @@ from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
 from odoo.orm.components.core import OrmCore
 
-# Drift guard (ADR-0010 step 3): each OrmCore pass-through and the
-# FieldCache/ComputeEngine method it MUST delegate to, with the call arity.
-# ``clear_cache`` is the one intentional rename (-> cache.clear); ``new_scheduler``
-# is a factory, not a pass-through, and is covered by its own tests above.
-# (orm_method, target, underlying_method, arity, returns_value)
-# ``returns_value`` is False for the void pass-throughs (the facade calls but
-# does not return the result) — for those only the delegation is checked.
 _DELEGATIONS = [
     ("get_field_data", "cache", "get_field_data", 1, True),
     ("get_field_data_or_none", "cache", "get_field_data_or_none", 1, True),
@@ -50,17 +43,16 @@ _DELEGATIONS = [
     ("pop_protection", "engine", "pop_protection", 0, True),
     ("protect", "engine", "protect", 2, False),
 ]
-_NON_PASSTHROUGH = {"new_scheduler"}  # factory, not a same-name delegation
+_NON_PASSTHROUGH = {
+    "new_scheduler",
+    "find_pending_write",
+}
 
-# Same-name pass-throughs taking a keyword-only argument, checked by their own
-# drift test: (orm_method, target, underlying, positional_arity, kwarg_names,
-# returns_value)
 _KWARG_DELEGATIONS = [
     ("invalidate", "cache", "invalidate", 2, ("context_dependent",), False),
     ("all_cached_ids", "cache", "all_cached_ids", 1, ("context_dependent",), True),
 ]
 
-# Lightweight field stub — hashable, named for debugging.
 FakeField = namedtuple("FakeField", ["model_name", "name"])
 
 
@@ -76,7 +68,6 @@ class TestOrmCoreCache(unittest.TestCase):
         self.core.cache.set_value(self.f1, 1, "Alice")
         data = self.core.get_field_data(self.f1)
         self.assertEqual(data[1], "Alice")
-        # mutations on the returned dict are visible through the cache
         data[2] = "Bob"
         self.assertEqual(self.core.cache.get_value(self.f1, 2), "Bob")
 
@@ -84,8 +75,6 @@ class TestOrmCoreCache(unittest.TestCase):
         self.assertIsNone(self.core.get_field_data_or_none(self.f1))
         self.core.cache.set_value(self.f1, 1, "X")
         self.assertIsNotNone(self.core.get_field_data_or_none(self.f1))
-
-    # -- dirty tracking --
 
     def test_mark_dirty_and_pop(self) -> None:
         self.core.mark_dirty(self.f1, [1, 2])
@@ -99,7 +88,6 @@ class TestOrmCoreCache(unittest.TestCase):
         self.core.mark_dirty(self.f1, [1, 2])
         dirty = self.core.get_dirty(self.f1)
         self.assertEqual(dirty, {1, 2})
-        # get_dirty does NOT remove — still dirty
         self.assertTrue(self.core.has_dirty_field(self.f1))
 
     def test_get_dirty_none(self) -> None:
@@ -107,8 +95,6 @@ class TestOrmCoreCache(unittest.TestCase):
 
     def test_pop_dirty_empty(self) -> None:
         self.assertIsNone(self.core.pop_dirty(self.f1))
-
-    # -- patches --
 
     def test_add_and_get_patches(self) -> None:
         self.core.add_patch(self.f1, 1, 100)
@@ -118,8 +104,6 @@ class TestOrmCoreCache(unittest.TestCase):
 
     def test_get_patches_none(self) -> None:
         self.assertIsNone(self.core.get_patches(self.f1))
-
-    # -- iteration --
 
     def test_iter_field_items(self) -> None:
         self.core.cache.set_value(self.f1, 1, "a")
@@ -178,10 +162,7 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertFalse(self.core.has_pending_field(self.f1))
 
     def test_discard_field_noop(self) -> None:
-        # should not raise
         self.core.discard_field(self.f1)
-
-    # -- protection --
 
     def test_protection_lifecycle(self) -> None:
         self.core.push_protection()
@@ -203,15 +184,12 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertTrue(self.core.is_protected(self.f1, 1))
         self.assertFalse(self.core.is_protected(self.f1, 2))
 
-    # -- scheduler factory --
-
     def test_new_scheduler_is_bound_to_engine(self) -> None:
         from odoo.orm.components.recompute import RecomputeScheduler
 
         sched = self.core.new_scheduler()
         self.assertIsInstance(sched, RecomputeScheduler)
         self.assertIs(sched._engine, self.core.engine)
-        # each call returns a fresh, independent scheduler
         self.assertIsNot(sched, self.core.new_scheduler())
 
     def test_new_scheduler_seeds_marked_from_live_pending_in_both_modes(self) -> None:
@@ -227,12 +205,10 @@ class TestOrmCoreCompute(unittest.TestCase):
         for sched in (batch, inline):
             self.assertIs(sched._marked, self.core.engine.pending)
             self.assertEqual(sched._marked.get(self.f1), {1, 2})
-        # live, not a copy: later scheduling is visible to existing schedulers
         self.core.schedule(self.f2, [3])
         self.assertEqual(batch._marked.get(self.f2), {3})
 
     def test_new_scheduler_inline_flag(self) -> None:
-        # Only the inline scheduler pushes entries into the engine's pending.
         self.assertFalse(self.core.new_scheduler()._inline)
         self.assertTrue(self.core.new_scheduler(inline=True)._inline)
 
@@ -258,7 +234,6 @@ class TestOrmCoreLifecycle(unittest.TestCase):
         self.core.cache.set_value(self.f1, 1, "v")
         self.core.schedule(self.f1, [1])
         self.core.clear_cache()
-        # cache data is gone, but compute state survives
         self.assertIsNone(self.core.cache.get_value(self.f1, 1, None))
         self.assertTrue(self.core.has_pending_field(self.f1))
 
@@ -325,8 +300,6 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
         )
 
     def test_has_pending_matches_engine(self) -> None:
-        # facade.has_pending() is the no-arg "any pending" predicate, faithful
-        # to ComputeEngine.has_pending().
         self.assertEqual(self.core.has_pending(), self.engine.has_pending())
         self.core.schedule(self.f1, [1])
         self.assertEqual(self.core.has_pending(), self.engine.has_pending())

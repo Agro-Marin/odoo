@@ -19,8 +19,6 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ModelLike
 
     M = typing.TypeVar("M", bound=BaseModel)
-    # Field's value type parameter (Field[T]); used in convert_to_record's return
-    # annotation. Lazy (PEP 649), so only needed for type-checking.
     T = typing.TypeVar("T")
 
 
@@ -51,12 +49,7 @@ class _FieldConvertMixin(_FieldStubs):
         if isinstance(value, bytes):
             return value.decode()
         if isinstance(value, (int, float)):
-            # e.g. integer-keyed Selection values stored in a varchar column
             return str(value)
-        # Anything else (dict, list, recordset, arbitrary object) has no
-        # meaningful textual column form: str() would silently persist a repr
-        # like "{'a': 1}" into the column. Fields with richer column formats
-        # override this method; reaching here with a non-scalar is a bug.
         raise TypeError(f"Invalid column value for {self}: {value!r}")
 
     @staticmethod
@@ -89,9 +82,6 @@ class _FieldConvertMixin(_FieldStubs):
             return PsycopgJson({"en_US": value, record.env.lang or "en_US": value})
         if not self.company_dependent:
             return value
-        # superuser fallback (shared helper): the dedup must compare against
-        # the same fallback the read paths COALESCE to, or a user-scoped
-        # ir.default makes the inserted value read back as the global default
         fallback = self._company_dependent_fallback_raw(record)
         if value == self.convert_to_column(fallback, record):
             return None
@@ -108,18 +98,11 @@ class _FieldConvertMixin(_FieldStubs):
         record_id = record.id
         field_cache = record.env._core.get_field_data(self)
         if self.translate is True:
-            # Model translation: reconstruct {lang: value} from per-lang sub-dicts
-            # (mirrors the company_dependent pattern below).
             langs_dict = {}
             flat_value = SENTINEL
             found = False
             for cache_key, sub_cache in field_cache.items():
                 if not isinstance(sub_cache, dict):
-                    # Stale flat entry ({id: scalar}) written before
-                    # field_depends_context was populated (e.g. a
-                    # _load_module_terms flush). Keep it as a fallback: a value
-                    # surviving ONLY in a flat entry must not flush as SQL NULL
-                    # (NotNullViolation on required translatable fields).
                     if cache_key == record_id:
                         found = True
                         if sub_cache is not None:
@@ -127,56 +110,34 @@ class _FieldConvertMixin(_FieldStubs):
                     continue
                 if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
                     found = True
-                    # cache_key[0] IS the language: BaseString.get_depends
-                    # normalizes 'lang' first — and STRIPS extra context deps
-                    # for stored translated fields (warned at setup), so the
-                    # sub-caches flushed here are keyed by exactly (lang,)
-                    # and this mapping is unambiguous.
                     lang = cache_key[0]
                     if value is not None:
                         langs_dict[lang] = value
             if not found:
-                # Total miss: no sub-cache (nor flat entry) knows the record at
-                # all.  Raise KeyError like the fast path below — _flush wraps
-                # it into a diagnostic RuntimeError (see mixins/recompute.py);
-                # returning None here would silently flush SQL NULL instead.
                 raise KeyError(record_id)
             if not langs_dict and flat_value is not SENTINEL:
-                # Only a stale flat entry held a value: preserve it under the
-                # current language rather than overwriting the column with NULL.
                 langs_dict[record.env.lang or "en_US"] = flat_value
             return PsycopgJson(langs_dict) if langs_dict else None
         if self.translate:
-            # callable translate: single flat dict {id: {lang: value}}
             value = field_cache[record_id]
             return PsycopgJson(value) if value else None
         if not self.company_dependent:
             if not self._is_context_dependent(record.env):
-                # Fast path: direct cache read + column conversion (most fields)
                 value = field_cache[record_id]
                 if value is PENDING:
                     return PENDING
                 return self.convert_to_column(value, record, validate=False)
-            # Context-dependent: find first available value across contexts
             for cache in field_cache.values():
                 if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                     if value is PENDING:
                         return PENDING
                     return self.convert_to_column(value, record, validate=False)
-            # Total miss: raise KeyError like the fast path above — _flush
-            # wraps it into a diagnostic RuntimeError (see mixins/recompute.py),
-            # whereas an AssertionError would bypass that handler entirely.
             raise KeyError(record_id)
-        # Company-dependent: collect values from all company contexts into JSONB
         values = {}
         flat_value = SENTINEL
         found = False
         for ctx_key, cache in field_cache.items():
             if not isinstance(cache, dict):
-                # Stale flat entry (see the translate-is-True branch above):
-                # keep a non-None one as a fallback so a value surviving only in
-                # a flat entry is not flushed as NULL. The is-not-None guard also
-                # avoids 'NoneType has no attribute get'.
                 if ctx_key == record_id:
                     found = True
                     if cache is not None:
@@ -189,16 +150,8 @@ class _FieldConvertMixin(_FieldStubs):
                         self.convert_to_column(value, record)
                     )
         if not found:
-            # Total miss: no sub-cache (nor flat entry) knows the record at
-            # all.  Raise KeyError like the other branches — _flush wraps it
-            # into a diagnostic RuntimeError (see mixins/recompute.py);
-            # returning None here would silently flush SQL NULL.  (A record
-            # that IS known but whose values all match the fallback still
-            # returns None below — that NULL is the legitimate storage form.)
             raise KeyError(record_id)
         if not values and flat_value is not SENTINEL:
-            # Only a stale flat entry held a value: preserve it under the current
-            # company rather than overwriting the column with NULL.
             values[record.env.company.id] = self._to_json_value(
                 self.convert_to_column(flat_value, record)
             )

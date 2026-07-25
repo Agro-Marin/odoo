@@ -76,11 +76,11 @@ class Many2many(_RelationalMulti):
 
     type = "many2many"
 
-    _explicit: bool = True  # whether schema is explicitly given
-    relation: str | None = None  # name of table
-    column1: str | None = None  # column of table referring to model
-    column2: str | None = None  # column of table referring to comodel
-    ondelete: OnDelete | None = "cascade"  # optional ondelete for the column2 fkey
+    _explicit: bool = True
+    relation: str | None = None
+    column1: str | None = None
+    column2: str | None = None
+    ondelete: OnDelete | None = "cascade"
 
     def __init__(
         self,
@@ -103,7 +103,6 @@ class Many2many(_RelationalMulti):
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
-        # only 'cascade'/'restrict' make sense for m2m; reject anything else
         if self.ondelete not in ("cascade", "restrict"):
             raise ValueError(
                 f"The m2m field {self.name} of model {model._name} declares its ondelete policy "
@@ -113,7 +112,6 @@ class Many2many(_RelationalMulti):
             if not (self.relation and self.column1 and self.column2):
                 if not self.relation:
                     self._explicit = False
-                # table name is based on the stable alphabetical order of tables
                 comodel = model.env[self.comodel_name]
                 if not self.relation:
                     tables = sorted([model._table, comodel._table])
@@ -127,13 +125,11 @@ class Many2many(_RelationalMulti):
                     self.column1 = f"{model._table}_id"
                 if not self.column2:
                     self.column2 = f"{comodel._table}_id"
-            # check validity of table name
             check_pg_name(self.relation)
         else:
             self.relation = self.column1 = self.column2 = None
 
         if self.relation:
-            # check whether other fields use the same schema
             fields = model.pool.many2many_relations[
                 self.relation, self.column1, self.column2
             ]
@@ -141,13 +137,13 @@ class Many2many(_RelationalMulti):
                 field = model.pool[mname]._fields[fname]
                 if (
                     (field is self)
-                    or (  # same model: relation parameters must be explicit
+                    or (
                         self.model_name == field.model_name
                         and self.comodel_name == field.comodel_name
                         and self._explicit
                         and field._explicit
                     )
-                    or (  # different models: one model must be _auto=False
+                    or (
                         self.model_name != field.model_name
                         and not (model._auto and model.env[field.model_name]._auto)
                     )
@@ -163,7 +159,6 @@ class Many2many(_RelationalMulti):
         self, registry: Registry, inverses: Collector[Field, Field]
     ) -> None:
         if self.relation:
-            # retrieve inverse fields, and link them in field_inverses
             for mname, fname in registry.many2many_relations[
                 self.relation, self.column2, self.column1
             ]:
@@ -176,9 +171,6 @@ class Many2many(_RelationalMulti):
         self, model: ModelLike, columns: dict[str, dict[str, typing.Any]]
     ) -> bool:
         cr = model.env.cr
-        # Do not reflect relations for custom fields, as they do not belong to a
-        # module. They are automatically removed when dropping the corresponding
-        # 'ir.model.field'.
         if not self.manual:
             model.pool.post_init(
                 model.env["ir.model.relation"]._reflect_relation,
@@ -211,8 +203,6 @@ class Many2many(_RelationalMulti):
             return True
 
         model.pool.post_init(self.update_db_foreign_keys, model)
-        # relation table already existed: nothing created, no recompute needed
-        # (base contract: True == field must be recomputed on existing rows)
         return False
 
     def update_db_foreign_keys(self, model: BaseModel) -> None:
@@ -246,13 +236,10 @@ class Many2many(_RelationalMulti):
         context.update(self.context)
         comodel = records.env[self.comodel_name].with_context(**context)
 
-        # bypass access during search when _search is overridden, to avoid
-        # filtering all comodel records before joining
         filter_access = self.bypass_search_access and is_search_overridden(
             type(comodel)
         )
 
-        # make the query for the lines
         domain = self.get_comodel_domain(records)
         try:
             query = comodel._search(
@@ -263,15 +250,9 @@ class Many2many(_RelationalMulti):
                 records.env._("Failed to read field %s", self) + "\n" + str(e)
             ) from e
 
-        # retrieve pairs (record, line) and group by record
         group = defaultdict(list)
         if (backend := records.env.backend) is not None:
-            # In-memory tier: raw pairs come from the backend's pair store; the
-            # (backend-served) comodel query above replaces the SQL JOIN — it
-            # drops dead/filtered corecord ids and dictates the ordering.
-            position = {
-                id2: index for index, id2 in enumerate(query.get_result_ids())
-            }
+            position = {id2: index for index, id2 in enumerate(query.get_result_ids())}
             pairs = backend.read_m2m_pairs(
                 records, self.relation, self.column1, self.column2, records.ids
             )
@@ -281,7 +262,6 @@ class Many2many(_RelationalMulti):
             for ids2 in group.values():
                 ids2.sort(key=position.__getitem__)
         else:
-            # join with many2many relation table
             sql_id1 = SQL.identifier(self.relation, self.column1)
             sql_id2 = SQL.identifier(self.relation, self.column2)
             query.add_join(
@@ -298,17 +278,14 @@ class Many2many(_RelationalMulti):
             for id1, id2 in records.env.execute_query(query.select(sql_id1, sql_id2)):
                 group[id1].append(id2)
 
-        # filter using record rules
         if filter_access and group:
             corecord_ids = OrderedSet(id_ for ids in group.values() for id_ in ids)
             accessible_corecords = comodel.browse(corecord_ids)._filtered_access("read")
             if len(accessible_corecords) < len(corecord_ids):
-                # some records are inaccessible, remove them from groups
                 corecord_ids = set(accessible_corecords._ids)
                 for id1, ids in group.items():
                     group[id1] = [id_ for id_ in ids if id_ in corecord_ids]
 
-        # store result in cache
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
 
@@ -330,17 +307,12 @@ class Many2many(_RelationalMulti):
         records whose relation changed; ``*_relation`` map each record id to its
         ``OrderedSet`` of corecord ids.
         """
-        # update the cache of self
         for record in records:
             self._update_cache(record, tuple(new_relation[record.id]))
 
-        # determine the corecords for which the relation has changed
         modified_corecord_ids = set()
 
-        # process pairs to add (beware of duplicates)
-        pairs = [
-            (x, y) for x, ys in new_relation.items() for y in ys - old_relation[x]
-        ]
+        pairs = [(x, y) for x, ys in new_relation.items() for y in ys - old_relation[x]]
         if pairs:
             if store:
                 if (backend := records.env.backend) is not None:
@@ -358,8 +330,6 @@ class Many2many(_RelationalMulti):
                         )
                     )
 
-            # update the cache of inverse fields. OrderedSet (not set) keeps the
-            # inverse cache deterministic, matching the real-record path.
             y_to_xs = defaultdict(OrderedSet)
             for x, y in pairs:
                 y_to_xs[y].add(x)
@@ -383,10 +353,7 @@ class Many2many(_RelationalMulti):
                     except KeyError:
                         pass
 
-        # process pairs to remove
-        pairs = [
-            (x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]
-        ]
+        pairs = [(x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]]
         if pairs:
             y_to_xs = defaultdict(set)
             for x, y in pairs:
@@ -399,14 +366,9 @@ class Many2many(_RelationalMulti):
                         records, self.relation, self.column1, self.column2, pairs
                     )
                 else:
-                    # express pairs as the union of cartesian products:
-                    #    pairs = [(1, 11), (1, 12), (1, 13), (2, 11), (2, 12), (2, 14)]
-                    # -> y_to_xs = {11: {1, 2}, 12: {1, 2}, 13: {1}, 14: {2}}
-                    # -> xs_to_ys = {{1, 2}: {11, 12}, {2}: {14}, {1}: {13}}
                     xs_to_ys = defaultdict(set)
                     for y, xs in y_to_xs.items():
                         xs_to_ys[frozenset(xs)].add(y)
-                    # delete the rows where (id1 IN xs AND id2 IN ys) OR ...
                     records.env.cr.execute(
                         SQL(
                             "DELETE FROM %s WHERE %s",
@@ -424,7 +386,6 @@ class Many2many(_RelationalMulti):
                         )
                     )
 
-            # update the cache of inverse fields
             for invf in records.pool.field_inverses[self]:
                 inv_cache = invf._get_cache(comodel.env)
                 for y, xs in y_to_xs.items():
@@ -437,8 +398,6 @@ class Many2many(_RelationalMulti):
                         pass
 
         if modified_corecord_ids:
-            # trigger the recomputation of fields that depend on the inverse
-            # fields of self on the modified corecords
             corecords = comodel.browse(modified_corecord_ids)
             corecords.modified(
                 [
@@ -454,7 +413,6 @@ class Many2many(_RelationalMulti):
         records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]],
         create: bool = False,
     ) -> None:
-        # records_commands_list = [(records, commands), ...]
         if not records_commands_list:
             return
 
@@ -462,29 +420,20 @@ class Many2many(_RelationalMulti):
         comodel = model.env[self.comodel_name].with_context(**self.context)
         comodel = self._check_sudo_commands(comodel)
 
-        # determine old and new relation {x: ys}
         ids = OrderedSet(rid for recs, cs in records_commands_list for rid in recs.ids)
         records = model.browse(ids)
 
         if self.store:
-            # on a cache miss `record[self.name]` runs 2 queries (access-rule
-            # check + data fetch); `self.read` skips the access-rule query.
             missing_ids = tuple(self._cache_missing_ids(records))
             if missing_ids:
                 self.read(records.browse(missing_ids))
 
-        # determine new relation {x: ys}.
-        # Read with active_test=False so archived links are part of the delta:
-        # a SET/CLEAR must be able to remove archived links too (the cache holds
-        # all ids; convert_to_record otherwise filters inactive on read). Mirrors
-        # _RelationalMulti.convert_to_write's current-value read.
         old_relation = {
             record.id: OrderedSet(record[self.name]._ids)
             for record in records.with_context(active_test=False)
         }
         new_relation = {x: OrderedSet(ys) for x, ys in old_relation.items()}
 
-        # operations on new relation
         def relation_add(xs, y):
             for x in xs:
                 new_relation[x].add(y)
@@ -498,15 +447,14 @@ class Many2many(_RelationalMulti):
                 new_relation[x] = OrderedSet(ys)
 
         def relation_delete(ys):
-            # the pairs (x, y) have been cascade-deleted from relation
             for ys1 in old_relation.values():
                 ys1 -= ys
             for ys1 in new_relation.values():
                 ys1 -= ys
 
         for recs, commands in records_commands_list:
-            to_create = []  # line vals to create
-            to_delete = []  # line ids to delete
+            to_create = []
+            to_delete = []
             for command in commands or ():
                 if not isinstance(command, (list, tuple)) or not command:
                     continue
@@ -525,7 +473,6 @@ class Many2many(_RelationalMulti):
                     case Command.LINK:
                         relation_add(recs._ids, command[1])
                     case Command.CLEAR | Command.SET:
-                        # new lines must no longer be linked to records
                         to_create = [
                             (set(ids) - set(recs._ids), vals)
                             for (ids, vals) in to_create
@@ -536,19 +483,14 @@ class Many2many(_RelationalMulti):
                         )
 
             if to_create:
-                # create lines in batch, and link them
                 lines = comodel.create([vals for ids, vals in to_create])
                 for line, (ids, _vals) in zip(lines, to_create, strict=True):
                     relation_add(ids, line.id)
 
             if to_delete:
-                # delete lines in batch
                 comodel.browse(to_delete).unlink()
                 relation_delete(to_delete)
 
-        # check comodel access of added records
-        # we check the su flag of the environment of records, because su may be
-        # disabled on the comodel
         if not model.env.su:
             try:
                 comodel.browse(
@@ -581,7 +523,6 @@ class Many2many(_RelationalMulti):
         def new(id_):
             return id_ and NewId(id_)
 
-        # determine old and new relation {x: ys}
         old_relation = {
             record.id: OrderedSet(record[self.name]._ids)
             for records, _ in records_commands_list
@@ -593,11 +534,6 @@ class Many2many(_RelationalMulti):
             for command in commands:
                 if not isinstance(command, (list, tuple)) or not command:
                     continue
-                # Each command applies only to the records of its own pair
-                # (recs), not to every record in the batch -- mirrors write_real
-                # and One2many.write_new. Using new_relation.values() here would
-                # cross-contaminate: record A's LINK/CREATE would also land on
-                # record B when a single write_new call carries multiple pairs.
                 match command[0]:
                     case Command.CREATE:
                         line_id = comodel.new(command[2], ref=command[1]).id
@@ -615,7 +551,6 @@ class Many2many(_RelationalMulti):
                         for id_ in recs._ids:
                             new_relation[id_].add(line_id)
                     case Command.CLEAR | Command.SET:
-                        # new lines must no longer be linked to records
                         line_ids = command[2] if command[0] == Command.SET else ()
                         line_ids = OrderedSet(new(line_id) for line_id in line_ids)
                         for id_ in recs._ids:
@@ -625,8 +560,6 @@ class Many2many(_RelationalMulti):
             return
 
         records = model.browse(old_relation)
-        # new records: no relation-table writes (store=False), but inverse-field
-        # caches and dependents are kept in sync exactly as for real records.
         self._apply_relation_delta(
             records, comodel, old_relation, new_relation, store=False
         )
@@ -645,8 +578,6 @@ class Many2many(_RelationalMulti):
         rel_table, rel_id1, rel_id2 = self.relation, self.column1, self.column2
         rel_alias = query.make_alias(alias, self.name)
         if not coquery.where_clause:
-            # no constraints on the comodel query: existence in the relation
-            # table alone decides the match (same NOT sense as the branch below)
             return SQL(
                 "%sEXISTS (SELECT 1 FROM %s AS %s WHERE %s = %s)",
                 SQL("NOT ") if not exists else SQL.EMPTY,

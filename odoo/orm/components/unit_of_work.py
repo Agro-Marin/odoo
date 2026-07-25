@@ -80,19 +80,13 @@ class UnitOfWork:
         """
         self._recompute_order = order
 
-    # Inspection
-
     def dirty_models(self) -> list[str]:
         """Return unique model names with dirty fields, in first-seen order."""
-        # ``model_name`` is guaranteed by the FieldLike protocol (read directly,
-        # like the sibling FieldCache.pop_dirty_for_model) — no getattr guard.
         seen: dict[str, None] = {}
         for fld in self.cache.iter_dirty_fields():
             if fld.model_name not in seen:
                 seen[fld.model_name] = None
         return list(seen)
-
-    # Convergence detection
 
     @staticmethod
     def _field_label(field: Any) -> str:
@@ -139,7 +133,6 @@ class UnitOfWork:
         if prev_snapshot is None or curr_snapshot != prev_snapshot:
             return True, []
 
-        # Stalled — same fields with same counts
         stalled = sorted(f"{self._field_label(f)}({cnt})" for f, cnt in curr_snapshot)
         return False, stalled
 
@@ -158,8 +151,6 @@ class UnitOfWork:
 
         stalled = sorted(self._field_label(f) for f in self.cache.iter_dirty_fields())
         return False, stalled
-
-    # Convergence loops
 
     def run_recompute_loop(
         self,
@@ -181,9 +172,6 @@ class UnitOfWork:
             that called ``recompute_fn`` count; the final empty pass does not.
         """
         result = LoopResult()
-        # Resolve the order source once per loop. A callable (wired by
-        # Transaction) reads the live registry order, surviving a registry
-        # reload / metadata rebuild that invalidates field identities.
         order = self._recompute_order
         if callable(order):
             order = order()
@@ -191,27 +179,12 @@ class UnitOfWork:
         for iteration in range(self.max_iterations):
             fields = self.engine.pending_real_fields()
             if not fields:
-                # This pass did no work — count only the prior working passes.
                 result.iterations = iteration
                 result.converged = True
-                # Converged: discard any stall recorded on a prior iteration so
-                # the result is not internally inconsistent (converged + stalled).
                 result.stalled_fields = []
                 break
 
-            # No per-iteration progress snapshot: a count-based check
-            # (``recompute_snapshot``/``check_convergence``) cannot tell a stall
-            # from real progress when a pass computes a field on some records
-            # while scheduling it on others (same field, same count, different
-            # ids) — aborting there would drop computations.  ``max_iterations``
-            # is a large backstop; a genuine cycle is caught there rather than
-            # risk a false stall.  The helpers remain (unit-tested) for a future
-            # id-level stall detector.
-
-            # Sort by topological priority: dependencies (lower value) compute
-            # first, so their results are cached when dependents run.
             if order:
-                # Unknown fields sort last (max priority) — safe for dynamic ones.
                 _max = len(order)
                 fields.sort(key=lambda f: order.get(f, _max))
 
@@ -222,8 +195,6 @@ class UnitOfWork:
             pending = self.engine.pending_real_fields()
             result.converged = not pending
             if result.converged:
-                # Discard any stall recorded on an earlier iteration: converging
-                # exactly on the last iteration must not report stalled fields.
                 result.stalled_fields = []
             else:
                 result.stalled_fields = sorted(self._field_label(f) for f in pending)
@@ -251,44 +222,25 @@ class UnitOfWork:
         result = LoopResult()
 
         for iteration in range(self.max_iterations):
-            # Inner recompute loop
             recompute_result = self.run_recompute_loop(recompute_fn)
             if not recompute_result.converged:
-                # Computes must settle before flushing: break immediately on
-                # recompute non-convergence.  This pass partially executed
-                # (the inner loop ran recompute_fn), so it counts.
                 result.iterations = iteration + 1
                 result.converged = False
                 result.stalled_fields = recompute_result.stalled_fields
                 break
 
-            # Collect dirty models
             model_names = self.dirty_models()
             if not model_names:
-                # Nothing to flush: this pass counts only if its inner
-                # recompute loop actually ran computations.
                 result.iterations = iteration + (
                     1 if recompute_result.iterations else 0
                 )
                 result.converged = True
-                # Converged: discard any stall recorded on a prior iteration so
-                # the result is not internally inconsistent (converged + stalled).
                 result.stalled_fields = []
                 break
 
-            # No per-iteration flush-progress snapshot (see run_recompute_loop):
-            # a converging flush can re-dirty the same field on different records
-            # via modified(), so a label/count-based check would false-stall.
-            # ``max_iterations`` is the large backstop for a genuine flush cycle.
-
-            # Flush all dirty models
             flush_fn(model_names)
         else:
             result.iterations = self.max_iterations
-            # The final flush_fn can schedule new recomputations (via modified())
-            # that have not yet produced dirty fields. Treating "no dirty models"
-            # as converged would return success while those computes were never
-            # run or persisted — silent data loss instead of a RuntimeError.
             dirty_models = self.dirty_models()
             pending = self.engine.pending_real_fields()
             result.converged = not dirty_models and not pending

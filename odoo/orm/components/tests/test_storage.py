@@ -33,7 +33,6 @@ class TestDictBackendInsert(unittest.TestCase):
     def test_insert_different_tables(self) -> None:
         ids1 = self.backend.insert_rows("partner", ["name"], [("Alice",)])
         ids2 = self.backend.insert_rows("product", ["name"], [("Widget",)])
-        # separate sequences
         self.assertEqual(ids1, [1])
         self.assertEqual(ids2, [1])
 
@@ -98,11 +97,9 @@ class TestDictBackendUpdate(unittest.TestCase):
         self.assertEqual(rows, [("Alicia", "new@x.com")])
 
     def test_update_nonexistent_id(self) -> None:
-        # should not raise
         self.backend.update_rows("partner", [(999, {"name": "Ghost"})])
 
     def test_update_nonexistent_table(self) -> None:
-        # should not raise
         self.backend.update_rows("nonexistent", [(1, {"name": "Ghost"})])
 
 
@@ -128,12 +125,10 @@ class TestDictBackendDelete(unittest.TestCase):
         self.assertEqual(self.backend.row_count("partner"), 0)
 
     def test_delete_nonexistent(self) -> None:
-        # should not raise
         self.backend.delete_rows("partner", [999])
         self.assertEqual(self.backend.row_count("partner"), 2)
 
     def test_delete_nonexistent_table(self) -> None:
-        # should not raise
         self.backend.delete_rows("nonexistent", [1])
 
 
@@ -184,7 +179,6 @@ class TestDictBackendSealedApi(unittest.TestCase):
         self.assertEqual(self.backend.table_ids("partner"), [5, 6])
 
     def test_put_rows_advances_sequence_past_explicit_id(self) -> None:
-        # put_rows with id=5 must push next_id() beyond 5 to avoid collision
         self.backend.put_rows("partner", [{"id": 5, "name": "Alice"}])
         self.assertEqual(self.backend.next_id("partner"), 6)
 
@@ -197,20 +191,22 @@ class TestDictBackendSealedApi(unittest.TestCase):
     def test_upsert_updates_existing(self) -> None:
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice", "age": 30}])
         self.backend.upsert_rows("partner", [(1, {"age": 31})])
-        self.assertEqual(self.backend.get_row("partner", 1), {"id": 1, "name": "Alice", "age": 31})
+        self.assertEqual(
+            self.backend.get_row("partner", 1), {"id": 1, "name": "Alice", "age": 31}
+        )
 
     def test_upsert_inserts_missing(self) -> None:
-        # unlike update_rows, upsert creates a row for an unknown id
         self.backend.upsert_rows("partner", [(7, {"name": "New"})])
         self.assertEqual(self.backend.get_row("partner", 7), {"id": 7, "name": "New"})
 
     def test_update_rows_skips_missing(self) -> None:
-        # contrast: update_rows must NOT create the row
         self.backend.update_rows("partner", [(7, {"name": "New"})])
         self.assertIsNone(self.backend.get_row("partner", 7))
 
     def test_get_rows_returns_only_existing(self) -> None:
-        self.backend.put_rows("partner", [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}])
+        self.backend.put_rows(
+            "partner", [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}]
+        )
         rows = self.backend.get_rows("partner", [1, 2, 99])
         self.assertEqual(set(rows), {1, 2})
         self.assertEqual(rows[1]["name"], "A")
@@ -231,15 +227,13 @@ class TestDictBackendSearch(unittest.TestCase):
 
     def setUp(self) -> None:
         self.backend = DictBackend()
-        # order rows pointing at partners + an amount for comparison ops
         self.backend.insert_rows(
             "order",
             ["partner_id", "amount"],
             [(1, 100), (2, 200), (1, 300), (3, 200)],
-        )  # ids 1..4
+        )
 
     def test_default_equality(self) -> None:
-        # matches the docstring example: partner_id == 1 -> rows 1 and 3
         self.assertEqual(self.backend.search_rows("order", "partner_id", 1), [1, 3])
 
     def test_explicit_equality(self) -> None:

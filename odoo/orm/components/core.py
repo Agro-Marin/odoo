@@ -60,8 +60,6 @@ class OrmCore:
         self.cache = cache if cache is not None else FieldCache()
         self.engine = engine if engine is not None else ComputeEngine()
 
-    # Cache: data access
-
     def get_field_data(self, field: Any) -> dict[Any, Any]:
         """Return the live cache dict for *field* (``{id: value}``).
 
@@ -73,8 +71,6 @@ class OrmCore:
     def get_field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
         """Return the cache dict for *field*, or ``None`` if nothing cached."""
         return self.cache.get_field_data_or_none(field)
-
-    # Cache: invalidation (field-scoped, shape-explicit)
 
     def invalidate(
         self,
@@ -98,8 +94,6 @@ class OrmCore:
         Spans all contexts. See :meth:`FieldCache.all_cached_ids`.
         """
         return self.cache.all_cached_ids(field, context_dependent=context_dependent)
-
-    # Cache: dirty tracking
 
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*."""
@@ -125,7 +119,36 @@ class OrmCore:
         """Return whether any field has dirty entries."""
         return self.cache.is_any_dirty()
 
-    # Cache: patches (x2many)
+    def find_pending_write(
+        self, fields: Iterable[Any], ids: Collection | None
+    ) -> tuple[Any, list] | None:
+        """Return the first ``(field, dirty_ids)`` with a pending write, or ``None``.
+
+        Scans *fields* for one that is still dirty on *ids*.
+
+        Shared by every caller that is about to DROP cached values without
+        flushing first: dropping the value while leaving the dirty flag breaks
+        the "dirty ⇒ value present" invariant, and the next flush then either
+        re-fetches the database value and writes it straight back (the pending
+        write is lost, silently) or fails with an opaque "Could not find all
+        values ... to flush". Both invalidation entry points --
+        ``BaseModel.invalidate_model`` / ``invalidate_recordset`` (via
+        ``CacheMixin._invalidate_cache``) and the legacy ``env.cache.invalidate``
+        -- consult this, so neither can drift from the other.
+
+        ``ids is None`` means "every record of the field", so any dirty entry
+        counts.
+        """
+        for field in fields:
+            dirty_ids = self.cache.get_dirty(field)
+            if not dirty_ids:
+                continue
+            if ids is None:
+                return field, sorted(dirty_ids)
+            overlap = sorted(dirty_ids.intersection(ids))
+            if overlap:
+                return field, overlap
+        return None
 
     def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
         """Record a deferred x2many addition."""
@@ -135,13 +158,9 @@ class OrmCore:
         """Return the patches dict for *field*, or ``None``."""
         return self.cache.get_patches(field)
 
-    # Cache: iteration
-
     def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
         """Iterate over ``(field, cache_dict)`` pairs."""
         return self.cache.iter_field_items()
-
-    # Compute: scheduling
 
     def schedule(self, field: Any, ids: Iterable) -> None:
         """Mark *field* for recomputation on *ids*."""
@@ -204,8 +223,6 @@ class OrmCore:
         """Remove *field* from pending recomputations."""
         self.engine.discard_field(field)
 
-    # Compute: protection
-
     def is_protected(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* is protected for *field*."""
         return self.engine.is_protected(field, record_id)
@@ -225,8 +242,6 @@ class OrmCore:
     def protect(self, field: Any, ids: frozenset) -> None:
         """Protect *ids* for *field* in the current scope."""
         self.engine.protect(field, ids)
-
-    # Lifecycle
 
     def clear_cache(self) -> None:
         """Clear only cache data + dirty + patches (not compute state)."""

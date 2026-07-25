@@ -7,23 +7,14 @@ field paths. Widely shared (6+ consumers for parse_field_expr alone).
 import functools
 import re
 
-# Parsing patterns
 
-# For import/export field path ID fixing. The lookahead makes the match
-# token-based: ".id"/":id" convert only as a complete trailing designator
-# (end of name or before a "/"), so "partner_id.identifier" or
-# "partner_id:idx" are left alone instead of being mangled by a bare prefix
-# match. \Z, not $ — $ would also match before a trailing newline.
 _FIX_DB_ID_RE = re.compile(r"([^/])\.id(?=/|\Z)")
 _FIX_EXTERNAL_ID_RE = re.compile(r"([^/]):id(?=/|\Z)")
 
-# For _read_group (new API)
 regex_read_group_spec = re.compile(r"(\w+)(\.([\w\.]+))?(?::(\w+))?$")
 
-# For read_group (old API)
 regex_field_agg = re.compile(r"(\w+)(?::(\w+)(?:\((\w+)\))?)?")
 
-# For ORDER BY in read_group context (single order part, no anchors)
 regex_order_part_read_group = re.compile(
     r"""
     \s*
@@ -35,7 +26,6 @@ regex_order_part_read_group = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
-# For ORDER BY clause parsing (used by search and sort operations)
 regex_order = re.compile(
     r"""
     ^
@@ -53,13 +43,6 @@ regex_order = re.compile(
 )
 
 
-# Parsing functions
-
-
-# Bounded cache: these parsers are reachable from authenticated RPC with
-# user-controlled, effectively unbounded distinct inputs (e.g.
-# ``props.<arbitrary>``). An unbounded ``functools.cache`` would be a slow
-# memory-exhaustion vector; LRU caps memory while keeping the hot set.
 _PARSE_CACHE_MAXSIZE = 2048
 
 

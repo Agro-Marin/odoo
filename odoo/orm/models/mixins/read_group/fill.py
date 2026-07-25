@@ -36,31 +36,42 @@ class _ReadGroupFillMixin(_ModelStubs):
         read_group_result: list[dict],
         read_group_order: str | None = None,
     ) -> list[dict]:
-        """Fill in empty groups for all possible values of the grouped field."""
+        """Fill in empty groups for all possible values of the grouped field.
+
+        ``groupby`` must name a field of ``self`` (optionally with a granularity,
+        or a property sub-key): everything below resolves ``group_expand`` and the
+        comodel from the *head* of the spec while reading the group values out of
+        ``read_group_result[groupby]``, so the two only agree when the head IS the
+        grouped field.  A relational path (``"partner_id.country_id"``) would pair
+        the head's comodel with the LEAF's recordsets and browse the wrong model.
+        Unreachable today -- ``read_group`` rejects a non-property dotted spec
+        before it gets here, and it is the only caller -- so this is a contract
+        guard, not a fix: an addon calling this directly gets a clear error
+        instead of a silently mis-modelled expansion.
+        """
         field_name = groupby.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
         if not field.group_expand:
             return read_group_result
+        if "." in groupby.split(":", maxsplit=1)[0] and field.relational:
+            raise ValueError(
+                f"_read_group_fill_results does not support a relational path: "
+                f"{groupby!r} groups by the leaf field while {field} carries the "
+                f"group_expand. Expand on the leaf's model instead."
+            )
 
-        # field.group_expand is a callable (or method name) returning the groups
-        # to display, as a recordset or list of values. Used e.g. by kanban
-        # views to show columns even when they hold no record.
         group_expand = field.group_expand
         if isinstance(group_expand, str):
             group_expand = getattr(self.env.registry[self._name], group_expand)
-        # raise (not assert) so this holds under python -O: a non-callable
-        # group_expand must fail clearly here, not opaquely at the call sites.
         if not callable(group_expand):
             raise TypeError(
                 f"group_expand of {field} must be callable or a method name, "
                 f"got {group_expand!r}"
             )
 
-        # determine all groups that should be returned
         values = [line[groupby] for line in read_group_result if line[groupby]]
 
         if field.relational:
-            # groups is a recordset; determine order on groups's model
             groups = self.env[field.comodel_name].browse(value.id for value in values)
             values = group_expand(self, groups, domain).sudo()
             if read_group_order == groupby + " desc":
@@ -70,7 +81,6 @@ class _ReadGroupFillMixin(_ModelStubs):
                 return value and value.id
 
         else:
-            # groups is a list of values
             values = group_expand(self, values, domain)
             if read_group_order == groupby + " desc":
                 values.reverse()
@@ -78,8 +88,6 @@ class _ReadGroupFillMixin(_ModelStubs):
             def value2key(value):
                 return value
 
-        # Merge current results with all groups, preserving read_group_result
-        # order (for a many2one field).
         read_group_result_as_dict = {}
         for line in read_group_result:
             read_group_result_as_dict[value2key(line[groupby])] = line
@@ -90,7 +98,6 @@ class _ReadGroupFillMixin(_ModelStubs):
         }
 
         result = {}
-        # fill result with the values order
         for value in values:
             key = value2key(value)
             if key in read_group_result_as_dict:
@@ -102,7 +109,6 @@ class _ReadGroupFillMixin(_ModelStubs):
             key = value2key(line[groupby])
             result[key] = line
 
-        # add folding information if present
         if field.relational and groups._fold_name in groups._fields:
             fold = {
                 group.id: group[groups._fold_name]
@@ -130,7 +136,6 @@ class _ReadGroupFillMixin(_ModelStubs):
             bound
         )
         if granularity == "hour":
-            # date_utils.start_of supports day-and-coarser granularities only.
             value = value.replace(minute=0, second=0, microsecond=0)
         else:
             value = date_utils.start_of(value, granularity)
@@ -211,7 +216,6 @@ class _ReadGroupFillMixin(_ModelStubs):
         :rtype: list[dict]
         :return: list
         """
-        # min_groups is used by web clients (fill_temporal context key); keep.
         first_group = groupby[0]
         field_name = first_group.split(":")[0].split(".")[0]
         field = self._fields[field_name]
@@ -223,20 +227,13 @@ class _ReadGroupFillMixin(_ModelStubs):
         granularity = first_group.split(":")[1] if ":" in first_group else "month"
         days_offset = 0
         if granularity == "week":
-            # Week groups are locale-dependent, so filled groups must be too,
-            # to avoid overlaps.
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
         interval = READ_GROUP_TIME_GRANULARITY[granularity]
 
-        # Existing non-null datetimes, sorted: the bounds below assume
-        # chronological order, but ``data`` follows the caller's ``orderby``,
-        # which may be descending.
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
         existing_from, existing_to = existing[0], existing[-1]
 
-        # Resolve the bounds: explicit ones are parsed/snapped via the shared
-        # helper; absent ones fall back to the existing extrema.
         if fill_from:
             fill_from = self._read_group_fill_temporal_bound(
                 field, granularity, days_offset, fill_from

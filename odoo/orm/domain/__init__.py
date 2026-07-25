@@ -29,11 +29,9 @@ from .constants import (
 )
 
 from .ast import (
-    # Optimization infrastructure
     OptimizationLevel,
     MAX_OPTIMIZE_ITERATIONS,
     ANY_TYPES,
-    # Domain classes
     Domain,
     DomainBool,
     DomainNot,
@@ -44,10 +42,8 @@ from .ast import (
     DomainCondition,
 )
 
-# Importing registers all optimization functions; must follow the AST imports.
 from . import optimizations
 
-# Re-export optimization decorators for extending
 from .optimizations import (
     operator_optimization,
     field_type_optimization,
@@ -64,10 +60,8 @@ __all__ = [
     "INVERSE_OPERATOR",
     "MAX_OPTIMIZE_ITERATIONS",
     "NEGATIVE_CONDITION_OPERATORS",
-    # Constants
     "STANDARD_CONDITION_OPERATORS",
     "TRUE_LEAF",
-    # Domain classes
     "Domain",
     "DomainAnd",
     "DomainBool",
@@ -76,7 +70,6 @@ __all__ = [
     "DomainNary",
     "DomainNot",
     "DomainOr",
-    # Optimization infrastructure
     "OptimizationLevel",
     "field_type_optimization",
     "nary_condition_optimization",

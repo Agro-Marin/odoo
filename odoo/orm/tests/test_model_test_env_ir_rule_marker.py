@@ -52,17 +52,14 @@ def test_env_ir_rule_access_raises_loud_marker():
         assert "record rules are NOT enforced" in message
         assert "supports_record_rules" in message
         assert "TransactionCase" in message
-        # registry lookup raises the same marker
         with pytest.raises(InMemoryRecordRulesNotSupported):
             env.registry["ir.rule"]
 
 
 def test_membership_probes_stay_false_and_quiet():
-    # Guarded probes must neither raise nor pretend the model exists.
     with model_test_env(Widget) as env:
         assert "ir.rule" not in env
         assert "ir.rule" not in env.registry
-        # other missing models keep the plain KeyError contract
         with pytest.raises(KeyError):
             env.registry["no.such.model"]
 
@@ -76,7 +73,6 @@ def test_caller_provided_ir_rule_model_is_served():
 
 
 def test_harness_crud_untouched_by_marker():
-    # The marker must not disturb ordinary DB-free CRUD.
     with model_test_env(Widget) as env:
         record = env["irm.widget"].create({"name": "w"})
         assert record.name == "w"

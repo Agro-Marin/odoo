@@ -58,8 +58,8 @@ class Many2one(_Relational):
     type = "many2one"
     _column_type = ("int4", "int4")
 
-    ondelete: OnDelete | None = None  # what to do when value is deleted
-    delegate: bool = False  # whether self implements delegation
+    ondelete: OnDelete | None = None
+    delegate: bool = False
 
     @typing.overload
     def __get__(self, record: None, owner: typing.Any = None) -> typing.Self: ...
@@ -76,8 +76,6 @@ class Many2one(_Relational):
             return self
         ids = record._ids
         if len(ids) != 1:
-            # multi-record or empty: delegate to the _Relational batch path,
-            # which performs the access check and pending guard itself.
             return super().__get__(record, owner)
         env = record.env
         if not (not self.groups or env.su or record._has_field_access(self, "read")):
@@ -86,13 +84,11 @@ class Many2one(_Relational):
             self.recompute(record)
         value = _scalar_cache_get(env.__dict__, self, ids[0], PENDING, SENTINEL)
         if value is not SENTINEL:
-            # inlined convert_to_record (singleton fast path)
             rs = object.__new__(record.pool[self.comodel_name])
             rs.env = env
             rs._ids = () if value is None else (value,)
             rs._prefetch_ids = PrefetchMany2one(record, self)
             return rs
-        # cache miss: full Field.__get__ triggers a DB fetch
         return Field.__get__(self, record, owner)
 
     def __init__(
@@ -106,10 +102,8 @@ class Many2one(_Relational):
     @override
     def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
         super()._setup_attrs__(model_class, name)
-        # determine self.delegate
         if name in model_class._inherits.values():
             self.delegate = True
-            # self.delegate implies self.bypass_search_access
             self.bypass_search_access = True
         elif self.delegate:
             comodel_name = self.comodel_name or "comodel_name"
@@ -121,13 +115,9 @@ class Many2one(_Relational):
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
-        # ondelete: assign a default if unset; 'set null' on a required m2o
-        # below is rejected as a programming error.
         if not self.ondelete:
             comodel = model.env[self.comodel_name]
             if model.is_transient() and not comodel.is_transient():
-                # m2o from a TransientModel can block deletion via foreign keys,
-                # so default to 'cascade' unless stated otherwise.
                 self.ondelete = "cascade" if self.required else "set null"
             else:
                 self.ondelete = "restrict" if self.required else "set null"
@@ -165,13 +155,10 @@ class Many2one(_Relational):
         if self.company_dependent:
             return
         comodel = model.env[self.comodel_name]
-        # foreign keys don't work on views, and custom models may be sql views
         if not model._is_an_ordinary_table() or not comodel._is_an_ordinary_table():
             return
-        # ir_actions is inherited, so foreign key doesn't work on it
         if not comodel._auto or comodel._table == "ir_actions":
             return
-        # create/update the foreign key, and reflect it in 'ir.model.constraint'
         model.pool.add_foreign_key(
             model._table,
             self.name,
@@ -203,7 +190,6 @@ class Many2one(_Relational):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> int | NewId | None:
-        # cache format: id or None
         if type(value) is int or type(value) is NewId:
             id_ = value
         elif is_recordset(value):
@@ -211,32 +197,19 @@ class Many2one(_Relational):
                 raise ValueError(f"Wrong value for {self}: {value!r}")
             id_ = value._ids[0] if value._ids else None
         elif isinstance(value, tuple):
-            # value is a pair (id, name) or a tuple of ids. Reject x2many Command
-            # tuples: they would degrade to ``id_ = command_int`` and silently
-            # corrupt the m2o.
             if validate:
                 self._reject_command_tuple(value)
-            # normalise falsy ids to None: web clients send (False, "") for "no
-            # value". A literal False/0 would yield _ids=(False,) with len()==1
-            # but bool()==False, an inconsistent recordset.
             id_ = (value[0] or None) if value else None
         elif isinstance(value, dict):
-            # return a new record (with the given field 'id' as origin)
             comodel = record.env[self.comodel_name]
             origin = comodel.browse(value.get("id"))
             id_ = comodel.new(value, origin=origin).id
         elif validate and value:
-            # A truthy unrecognised value (e.g. a numeric string "42" from a lax
-            # RPC client) must not silently clear the relation.  ``__set__``
-            # already rejects it via ``convert_to_write``; ``write()`` reaches
-            # here, so raise for the same consistency instead of writing None.
-            # Falsy values (False/None/"") fall through and clear, as before.
             raise ValueError(f"Wrong value for {self}: {value!r}")
         else:
             id_ = None
 
         if self.delegate and record and not any(record._ids):
-            # if all records are new, then so is the parent
             id_ = id_ and NewId(id_)
 
         return id_
@@ -245,7 +218,6 @@ class Many2one(_Relational):
     def convert_to_record(
         self, value: int | NewId | None, record: ModelLike
     ) -> BaseModel:
-        # use registry directly; object.__new__ bypasses type.__call__ dispatch
         rs = object.__new__(record.pool[self.comodel_name])
         rs.env = record.env
         rs._ids = () if value is None else (value,)
@@ -255,7 +227,6 @@ class Many2one(_Relational):
     def convert_to_record_multi(
         self, values: list[int | NewId | None], records: BaseModel
     ) -> BaseModel:
-        # return the ids as a recordset without duplicates
         rs = object.__new__(records.pool[self.comodel_name])
         rs.env = records.env
         rs._ids = tuple(unique(id_ for id_ in values if id_ is not None))
@@ -270,34 +241,11 @@ class Many2one(_Relational):
         use_display_name: bool = True,
     ) -> int | tuple[int, str] | typing.Literal[False]:
         if use_display_name and value:
-            # Fork policy (mirrors web_read's m2o branch, see the web-audit
-            # commit 134645d31b2 on addons/web/models/web_read.py): the target's
-            # display name is exposed only when the user can actually read the
-            # target.  Upstream returned ``(id, value.sudo().display_name)``
-            # regardless, leaking record-rule-restricted names (e.g. a partner
-            # hidden by a multi-company rule) through classic read()/RPC even
-            # though web_read() already degrades such targets to False.  An
-            # inaccessible target now degrades to False here too, like every
-            # other empty m2o.  Superuser/sudo envs keep full visibility
-            # (_filtered_access short-circuits on env.su), and the raw id stays
-            # available through read(..., load=None) — matching web_read's
-            # fields-less branch, since the id is a column of a record the user
-            # CAN read.  The name of an *accessible* target is still computed
-            # with sudo, exactly as before, so its computation cannot trip on
-            # group-restricted dependee fields.
-            #
-            # Perf: ir.model.access.check and ir.rule._compute_domain are
-            # ormcached, and rule-less comodels short-circuit before any record
-            # filtering, so the per-record check is cheap on the common path.
-            # web_read() itself batches via _filtered_access and never enters
-            # this branch (it reads with load=None).
             try:
                 if not value._filtered_access("read"):
                     return False
-                # value.sudo() prefetches the same records as value
                 return (value.id, value.sudo().display_name)
             except MissingError:
-                # should not happen unless the foreign key is missing
                 return False
         else:
             return value.id
@@ -313,7 +261,6 @@ class Many2one(_Relational):
         if is_recordset(value) and value._name == self.comodel_name:
             return value.id
         if isinstance(value, tuple):
-            # value is either a pair (id, name), or a tuple of ids
             self._reject_command_tuple(value)
             return value[0] if value else False
         if isinstance(value, dict):
@@ -346,10 +293,8 @@ class Many2one(_Relational):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        # discard recomputation of self on records
         records.env.remove_to_compute(self, records)
 
-        # discard the records that are not modified
         cache_value = self.convert_to_cache(value, records)
 
         if self.bypass_search_access and not records.env.su:
@@ -364,13 +309,10 @@ class Many2one(_Relational):
         if not records:
             return
 
-        # remove records from the cache of one2many fields of old corecords
         self._remove_inverses(records)
 
-        # update the cache of self
         self._update_cache(records, cache_value, dirty=True)
 
-        # update the cache of one2many fields of new corecord
         self._update_inverses(records, cache_value)
 
     def _remove_inverses(self, records: BaseModel) -> None:
@@ -380,7 +322,6 @@ class Many2one(_Relational):
             return
 
         record_ids = set(records._ids)
-        # align(id) returns a NewId if records are new, a real id otherwise
         align = (
             (lambda id_: id_) if all(record_ids) else (lambda id_: id_ and NewId(id_))
         )
@@ -410,9 +351,6 @@ class Many2one(_Relational):
             if not valid_records:
                 continue
             ids0 = invf._get_cache(corecord.env).get(corecord.id)
-            # if the value for the corecord is not in cache, but this is a new
-            # record, assign it anyway, as you won't be able to fetch it from
-            # database (see `test_sale_order`)
             if ids0 is not None or not corecord.id:
                 ids1 = tuple(unique((ids0 or ()) + valid_records._ids))
                 invf._update_cache(corecord, ids1)
@@ -448,7 +386,6 @@ class Many2one(_Relational):
             operator not in ("any", "not any", "any!", "not any!")
             or field_expr != self.name
         ):
-            # non-'any' operators: build the condition from the column type
             return super().condition_to_sql(
                 field_expr, operator, value, model, alias, query
             )
@@ -459,14 +396,8 @@ class Many2one(_Relational):
         bypass_access = operator in ("any!", "not any!") or self.bypass_search_access
         positive = operator in ("any", "any!")
 
-        # decide whether to use a LEFT JOIN
         left_join = bypass_access and isinstance(value, Domain)
         if left_join and not positive:
-            # for 'not any!' with mostly positive conditions, NOT IN is better:
-            # it has a better chance to use indexes. So prefer LEFT JOIN only
-            # when negatives dominate, except when filtering on 'id'.
-            #   `field NOT IN (SELECT ... WHERE z = y)` better than
-            #   `LEFT JOIN ... ON field = id WHERE z <> y`
             left_join = sum(
                 (-1 if cond.operator in Domain.NEGATIVE_OPERATORS else 1)
                 for cond in value.iter_conditions()

@@ -32,20 +32,6 @@ class SchemaMixin(_ModelStubs):
         if not self._parent_store:
             return
 
-        # Each record is associated to a string 'parent_path', that represents
-        # the path from the record's root node to the record. The path is made
-        # of the node ids suffixed with a slash (see example below). The nodes
-        # in the subtree of record are the ones where 'parent_path' starts with
-        # the 'parent_path' of record.
-        #
-        #               a                 node | id | parent_path
-        #              / \                  a  | 42 | 42/
-        #            ...  b                 b  | 63 | 42/63/
-        #                / \                c  | 84 | 42/63/84/
-        #               c   d               d  | 85 | 42/63/85/
-        #
-        # Note: the final '/' is necessary to match subtrees correctly: '42/63'
-        # is a prefix of '42/630', but '42/63/' is not a prefix of '42/630/'.
         _logger.info("Computing parent_path for table %s...", self._table)
         query = SQL(
             """ WITH RECURSIVE __parent_store_compute(id, parent_path) AS (
@@ -69,9 +55,6 @@ class SchemaMixin(_ModelStubs):
     def _check_removed_columns(self, log: bool = False) -> None:
         if self._abstract:
             return
-        # iterate on the database columns to drop the NOT NULL constraints of
-        # fields which were required but have been removed (or will be added by
-        # another module)
         cr = self.env.cr
         cols = {name for name, field in self._fields.items() if field.is_column}
         for col_name, col_data in sql.table_columns(cr, self._table).items():
@@ -89,8 +72,6 @@ class SchemaMixin(_ModelStubs):
 
     def _init_column(self, column_name: str) -> None:
         """Initialize the value of the given column for existing rows."""
-        # get the default value; ideally, we should use default_get(), but it
-        # fails due to ir.default not being ready
         field = self._fields[column_name]
         if field.default:
             value = field.default(self)
@@ -98,9 +79,6 @@ class SchemaMixin(_ModelStubs):
             value = field.convert_to_column_insert(value, self)
         else:
             value = None
-        # Write value if non-NULL, except for booleans for which False means
-        # the same as NULL - this saves us an expensive query on large tables,
-        # if the boolean is required we still write False to allow NOT NULL constraints.
         necessary = (
             (value is not None) if field.type != "boolean" or field.required else value
         )
@@ -149,9 +127,6 @@ class SchemaMixin(_ModelStubs):
         """
         raise_on_invalid_object_name(self._name)
 
-        # This prevents anything called by this method (in particular default
-        # values) from prefetching a field for which the corresponding column
-        # has not been added in database yet!
         self = self.with_context(prefetch_fields=False)
 
         cr = self.env.cr
@@ -191,7 +166,6 @@ class SchemaMixin(_ModelStubs):
             if not must_create_table:
                 self._check_removed_columns(log=False)
 
-            # update the database schema for fields
             columns = sql.table_columns(cr, self._table)
             fields_to_compute = []
 
@@ -199,15 +173,12 @@ class SchemaMixin(_ModelStubs):
                 if not field.store:
                     continue
                 if field.manual and not update_custom_fields:
-                    continue  # don't update custom fields
+                    continue
                 new = field.update_db(self, columns)
                 if new and field.compute:
                     fields_to_compute.append(field)
 
             if fields_to_compute:
-                # mark existing records for computation now, so that computed
-                # required fields are flushed before the NOT NULL constraint is
-                # added to the database
                 cr.execute(SQL("SELECT id FROM %s", SQL.identifier(self._table)))
                 records = self.browse(row[0] for row in cr.fetchall())
                 if records:
@@ -270,7 +241,6 @@ class SchemaMixin(_ModelStubs):
             )
             if message := cons_rec.message:
                 return message
-            # get the message from the object
             if message := cons.get_error_message(self, exc.diag):
                 return message
         return self._sql_error_to_message_generic(exc)
@@ -334,14 +304,10 @@ class SchemaMixin(_ModelStubs):
             info["field_display"] = (
                 f"'{', '.join(columns)}' ({format_list(self.env, column_names)})"
             )
-            info["detail"] = diag.message_detail  # contains conflicting key and value
+            info["detail"] = diag.message_detail
             return self.env._(
                 "The value for %(field_display)s already exists.\n\nDetail: %(detail)s\n",
                 **info,
             )
 
-        # No good message can be created for psycopg.errors.CheckViolation
-
-        # fallback — strip so the message has no trailing newline (PostgreSQL/
-        # psycopg may append one) in user-facing import/UI errors.
         return str(exc).strip()

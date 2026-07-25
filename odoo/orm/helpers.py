@@ -7,7 +7,7 @@ level to avoid circular imports between the models and fields layers.
 import typing
 from operator import itemgetter
 
-from odoo_rust import origin_ids as _origin_ids_rust  # type: ignore[import-untyped]
+from odoo_rust import origin_ids as _origin_ids_rust
 
 from odoo.tools import SQL
 
@@ -15,9 +15,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
     from .models.base import BaseModel
-
-
-# ID utilities
 
 
 def _origin_ids_python(ids: Iterable) -> list[int]:
@@ -38,17 +35,6 @@ def _origin_ids(ids: Iterable) -> list[int]:
     return _origin_ids_python(ids)
 
 
-# Class-level memoization
-
-# Every key memoized on a registry model class via :func:`own_class_memo`.
-# The class object survives re-setup (registration only reassigns
-# ``__bases__``), so ``registration._prepare_setup`` discards each of these
-# keys — otherwise a re-setup that adds/removes a field or method keeps
-# serving the stale memo.  Any new ``own_class_memo`` call site MUST add its
-# key here; the source-scan test
-# ``odoo/orm/tests/test_own_class_memo_registry.py`` fails on drift (the call
-# sites live in ``models/``, which cannot reference this tuple in their
-# literal key argument, hence the scan).
 ORM_CLASS_MEMOS: tuple[str, ...] = (
     "_constraint_methods__",
     "_onchange_methods__",
@@ -80,9 +66,6 @@ def own_class_memo[T](cls: type, key: str, factory: typing.Callable[[], T]) -> T
     return value
 
 
-# Record utilities
-
-
 def itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
     """Build an itemgetter that always returns an n-tuple (n = len(items)).
 
@@ -101,14 +84,11 @@ def to_record_ids(arg) -> list[int]:
 
     ``arg`` may be a recordset, an integer, or an iterable of integers.
     """
-    # imported here to avoid circular dep
     from .models.base import BaseModel
 
     if isinstance(arg, BaseModel):
         return arg.ids
     elif isinstance(arg, bool):
-        # bool is a subclass of int; a bare bool carries no record id, and
-        # returning ``[True]`` would violate the ``list[int]`` contract.
         return []
     elif isinstance(arg, int):
         return [arg] if arg else []
@@ -153,9 +133,6 @@ def get_columns_from_sql_diagnostics(
     )
     columns = cr.fetchone()
     return columns[0] if columns else []
-
-
-# Company domain helpers
 
 
 def check_company_domain_parent_of(

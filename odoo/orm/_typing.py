@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """Composite ORM type aliases that depend on multiple ORM layers.
 
 - DomainType: search domain (Domain object or list of tuples)
@@ -13,7 +12,6 @@ shadowing the stdlib ``types`` module. At runtime imports only ``primitives``
 import typing
 from typing import Self
 
-# Re-export from primitives (zero-dep, Layer 0)
 from .primitives import ContextType, IdType, ValuesType
 
 if typing.TYPE_CHECKING:
@@ -24,14 +22,7 @@ if typing.TYPE_CHECKING:
     from .primitives import CommandValue
     from .runtime import Environment, Registry
 
-# Composite type aliases (PEP 695 — RHS lazily evaluated)
 type DomainType = Domain | list[str | tuple[str, str, typing.Any]]
-# Any recordset-shaped receiver: a full BaseModel, or one of the stateless
-# model mixins (WriteMixin, ReadMixin, ...) that BaseModel is composed from.
-# The mixins pass ``self`` into Field methods; at runtime that ``self`` is
-# always a real recordset, but the type checker only sees the defining mixin.
-# Field methods that reach only through the shared ``_ModelStubs`` surface
-# annotate their model parameter with this alias instead of ``BaseModel``.
 type ModelLike = BaseModel | _ModelStubs
 ModelType = typing.TypeVar("ModelType", bound="BaseModel")
 
@@ -41,7 +32,6 @@ __all__ = [
     "IdType",
     "ModelLike",
     "ModelType",
-    # Type aliases
     "Self",
     "ValuesType",
 ]

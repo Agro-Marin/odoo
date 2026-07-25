@@ -49,7 +49,6 @@ def test_context_dependent_total_miss_raises_keyerror():
         field = record._fields["per_uid"]
         assert field._is_context_dependent(env), "test premise"
         env.invalidate_all()
-        # used to raise AssertionError, which _flush does not wrap
         with pytest.raises(KeyError):
             field.get_column_update(record)
 
@@ -59,14 +58,11 @@ def test_translate_total_miss_raises_keyerror():
         record = env["gcu.thing"].create({"name": "a", "name_tr": "hello"})
         field = record._fields["name_tr"]
         env.invalidate_all()
-        # used to silently return None (flushing SQL NULL)
         with pytest.raises(KeyError):
             field.get_column_update(record)
 
 
 def test_translate_none_value_still_flushes_null():
-    # A record PRESENT in cache with value None is not a miss: it must keep
-    # returning None (SQL NULL), not raise.
     with model_test_env(Thing) as env:
         record = env["gcu.thing"].create({"name": "a", "name_tr": "hello"})
         record.name_tr = False
@@ -80,14 +76,11 @@ def test_company_dependent_total_miss_raises_keyerror():
         field = record._fields["memo"]
         assert field.company_dependent, "test premise"
         env.invalidate_all()
-        # used to silently return None (flushing SQL NULL)
         with pytest.raises(KeyError):
             field.get_column_update(record)
 
 
 def test_company_dependent_present_falsy_value_is_not_a_miss():
-    # A record PRESENT in cache with a falsy value is not a miss: it must
-    # keep flushing an explicit per-company null, not raise.
     with model_test_env(Thing) as env:
         record = env["gcu.thing"].create({"name": "a", "memo": "hello"})
         record.memo = False

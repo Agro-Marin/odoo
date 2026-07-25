@@ -1,7 +1,3 @@
-# Exports features of the ORM to developers.
-# This is a `__init__.py` file to avoid merge conflicts on `odoo/models.py`.
-
-# Constants
 from odoo.orm.constants import (
     READ_GROUP_AGGREGATE,
     READ_GROUP_DISPLAY_FORMAT,
@@ -11,7 +7,6 @@ from odoo.orm.constants import (
 from odoo.orm.primitives import LOG_ACCESS_COLUMNS, MAGIC_COLUMNS, ValuesType
 from odoo.orm.parsing import regex_order
 
-# Model classes
 from odoo.orm.models import (
     AbstractModel,
     BaseModel,
@@ -20,10 +15,8 @@ from odoo.orm.models import (
     TransientModel,
 )
 
-# Table objects
 from odoo.orm.models.table_objects import Constraint, Index, UniqueIndex
 
-# Registration utilities
 from odoo.orm.registration import (
     add_field,
     add_to_registry,
@@ -31,7 +24,6 @@ from odoo.orm.registration import (
     pop_field,
 )
 
-# Utilities
 from odoo.orm.helpers import (
     check_companies_domain_parent_of,
     check_company_domain_parent_of,
@@ -40,10 +32,6 @@ from odoo.orm.helpers import (
 from odoo.orm.parsing import fix_import_export_id_paths, parse_read_group_spec
 from odoo.orm.validation import check_object_name, check_pg_name, is_manual_name
 
-# The curated public surface. Addon and application code imports model features
-# from here (and from odoo.api / odoo.fields), never from odoo.orm.* directly,
-# so the ORM's internal layout can evolve freely. Enforced by the
-# `facade-boundary` contract in tooling/architecture/layer_check.py (ADR-0008).
 __all__ = [
     "LOG_ACCESS_COLUMNS",
     "MAGIC_COLUMNS",

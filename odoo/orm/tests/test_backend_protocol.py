@@ -24,7 +24,6 @@ _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 _MIXINS_DIR = _ORM_DIR / "models" / "mixins"
 _DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
 
-# Attribute (capability-flag) members: read as attributes, not dispatched as calls.
 _ATTRIBUTE_MEMBERS = {"supports_parent_store", "supports_record_rules"}
 
 
@@ -42,7 +41,6 @@ def test_in_memory_backend_implements_the_whole_protocol():
 
 
 def test_every_protocol_method_has_a_dispatch_site():
-    # collect ``backend.<name>(`` uses in the mixins and the field layer
     dispatched: set[str] = set()
     for directory in _DISPATCH_DIRS:
         for path in directory.rglob("*.py"):
@@ -56,13 +54,11 @@ def test_every_protocol_method_has_a_dispatch_site():
         f"SQL against the in-memory backend): {sorted(missing_dispatch)}"
     )
     assert not unknown_dispatch, (
-        f"dispatch to backend methods not on the Protocol: "
-        f"{sorted(unknown_dispatch)}"
+        f"dispatch to backend methods not on the Protocol: {sorted(unknown_dispatch)}"
     )
 
 
 def test_supports_parent_store_is_consulted():
-    # the one attribute member is read (not called) in create/write
     consulted = any(
         "backend.supports_parent_store" in path.read_text()
         for path in _MIXINS_DIR.rglob("*.py")

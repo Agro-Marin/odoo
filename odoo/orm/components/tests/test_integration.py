@@ -23,20 +23,16 @@ class TestCacheComputeLifecycle(unittest.TestCase):
     def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
-        # Use strings as mock field keys
         self.name_field = "name"
-        self.total_field = "total"  # stored computed
+        self.total_field = "total"
 
     def test_create_triggers_compute(self) -> None:
         """After creating a record, mark stored-computed fields for recomputation."""
-        # Simulate _create: insert cache values
         self.cache.set_value(self.name_field, 1, "Alice")
-        self.cache.set_value(self.total_field, 1, None)  # placeholder
+        self.cache.set_value(self.total_field, 1, None)
 
-        # Mark computed field for recomputation
         self.engine.schedule(self.total_field, [1])
 
-        # Verify state
         self.assertTrue(self.engine.has_pending_field(self.total_field))
         self.assertEqual(self.cache.get_value(self.name_field, 1), "Alice")
 
@@ -45,11 +41,9 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.cache.set_value(self.total_field, 1, None)
         self.engine.schedule(self.total_field, [1])
 
-        # Simulate recomputation
         self.cache.set_value(self.total_field, 1, 42.0)
         self.engine.mark_done(self.total_field, [1])
 
-        # Verify
         self.assertFalse(self.engine.has_pending_field(self.total_field))
         self.assertEqual(self.cache.get_value(self.total_field, 1), 42.0)
 
@@ -58,22 +52,18 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.cache.set_value(self.name_field, 1, "Alice")
         self.cache.mark_dirty(self.name_field, [1])
 
-        # Simulate flush: pop dirty, write to storage
         dirty_ids = self.cache.pop_dirty(self.name_field)
         self.assertIn(1, dirty_ids)
 
-        # After pop, field is no longer dirty
         self.assertFalse(self.cache.has_dirty_field(self.name_field))
 
     def test_protection_prevents_recompute(self) -> None:
         """Protected fields are skipped during recomputation."""
         self.engine.schedule(self.total_field, [1, 2, 3])
 
-        # Protect record 2
         self.engine.push_protection()
         self.engine.protect(self.total_field, frozenset([2]))
 
-        # Simulate recompute loop: skip protected records
         pending = self.engine.pending_ids(self.total_field)
         to_recompute = [
             id_
@@ -83,22 +73,19 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.assertEqual(sorted(to_recompute), [1, 3])
 
         self.engine.pop_protection()
-        # After popping, record 2 is no longer protected
         self.assertFalse(self.engine.is_protected(self.total_field, 2))
 
     def test_invalidation_preserves_dirty(self) -> None:
         """invalidate_all() clears non-dirty data but keeps dirty entries intact."""
         self.cache.set_value(self.name_field, 1, "Alice")
-        self.cache.set_value(self.total_field, 1, 42.0)  # non-dirty
+        self.cache.set_value(self.total_field, 1, 42.0)
         self.cache.mark_dirty(self.name_field, [1])
 
         self.cache.invalidate_all()
 
-        # Dirty data is preserved (flush still needs to read values)
         self.assertTrue(self.cache.has_value(self.name_field, 1))
         self.assertEqual(self.cache.get_value(self.name_field, 1), "Alice")
         self.assertTrue(self.cache.has_dirty_field(self.name_field))
-        # Non-dirty data is cleared
         self.assertFalse(self.cache.has_value(self.total_field, 1))
 
 
@@ -111,58 +98,47 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
 
     def test_create_flush_read(self) -> None:
         """Simulate: create in cache → flush to storage → read back."""
-        # Create in cache
         self.cache.set_value("name", 1, "Alice")
         self.cache.set_value("email", 1, "alice@example.com")
         self.cache.mark_dirty("name", [1])
         self.cache.mark_dirty("email", [1])
 
-        # Flush to storage
         name_dirty = self.cache.pop_dirty("name")
         email_dirty = self.cache.pop_dirty("email")
         self.assertEqual(name_dirty, {1})
         self.assertEqual(email_dirty, {1})
 
-        # Write to backend
         self.storage.insert_rows(
             "partner",
             ["name", "email"],
             [("Alice", "alice@example.com")],
         )
 
-        # Read back from storage
         rows = self.storage.fetch_rows("partner", [1], ["name", "email"])
         self.assertEqual(rows, [("Alice", "alice@example.com")])
 
     def test_update_flush(self) -> None:
         """Simulate: update in cache → flush dirty to storage."""
-        # Initial state in storage
         self.storage.insert_rows("partner", ["name"], [("Alice",)])
 
-        # Update in cache
         self.cache.set_value("name", 1, "Alicia")
         self.cache.mark_dirty("name", [1])
 
-        # Flush
         dirty = self.cache.pop_dirty("name")
         for id_ in dirty:
             value = self.cache.get_value("name", id_)
             self.storage.update_rows("partner", [(id_, {"name": value})])
 
-        # Verify
         rows = self.storage.fetch_rows("partner", [1], ["name"])
         self.assertEqual(rows, [("Alicia",)])
         self.assertFalse(self.cache.has_dirty_field("name"))
 
     def test_x2many_patches(self) -> None:
         """Test deferred x2many additions via cache patches."""
-        # Parent record has cached child IDs
         self.cache.set_value("line_ids", 1, (10, 11))
 
-        # New child is created, deferred patch added
         self.cache.add_patch("line_ids", 1, 12)
 
-        # When _update_cache runs, it merges patches
         patches = self.cache.get_patches("line_ids")
         self.assertIsNotNone(patches)
         self.assertEqual(patches[1], [12])
@@ -177,22 +153,18 @@ class TestMultiRecordCompute(unittest.TestCase):
 
     def test_batch_schedule_and_compute(self) -> None:
         """Schedule multiple records, compute them in batch."""
-        # Create 5 records with pending total computation
         for i in range(1, 6):
             self.cache.set_value("amount", i, i * 10.0)
             self.cache.set_value("total", i, None)
         self.engine.schedule("total", range(1, 6))
 
-        # Verify all pending
         self.assertEqual(len(self.engine.pending_ids("total")), 5)
 
-        # Compute in batch
         for id_ in list(self.engine.pending_ids("total")):
             amount = self.cache.get_value("amount", id_)
-            self.cache.set_value("total", id_, amount * 1.16)  # add tax
+            self.cache.set_value("total", id_, amount * 1.16)
         self.engine.mark_done("total", range(1, 6))
 
-        # Verify
         self.assertFalse(self.engine.has_pending())
         self.assertAlmostEqual(self.cache.get_value("total", 3), 34.8)
 
@@ -204,12 +176,10 @@ class TestMultiRecordCompute(unittest.TestCase):
         self.engine.push_protection()
         self.engine.protect("total", frozenset([3, 4]))
 
-        # Inner scope sees merged protection
         self.assertTrue(self.engine.is_protected("total", 1))
         self.assertTrue(self.engine.is_protected("total", 3))
 
         self.engine.pop_protection()
-        # After popping inner, 3 and 4 are no longer protected
         self.assertTrue(self.engine.is_protected("total", 1))
         self.assertFalse(self.engine.is_protected("total", 3))
 
@@ -239,7 +209,6 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         f_val = self._field("m", "val")
         f_double = self._field("m", "double")
 
-        # Create record
         self.cache.set_value(f_val, 1, 5)
         self.cache.mark_dirty(f_val, [1])
         self.engine.schedule(f_double, [1])
@@ -256,7 +225,6 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         def flush_fn(model_names):
             flushed_models.extend(model_names)
             for model_name in model_names:
-                # Pop dirty and write to storage
                 for field in [f_val, f_double]:
                     if field.model_name == model_name:
                         dirty_ids = self.cache.pop_dirty(field)
@@ -264,7 +232,10 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
                             self.storage.upsert_rows(
                                 model_name,
                                 [
-                                    (id_, {field.name: self.cache.get_value(field, id_)})
+                                    (
+                                        id_,
+                                        {field.name: self.cache.get_value(field, id_)},
+                                    )
                                     for id_ in dirty_ids
                                 ],
                             )
@@ -292,7 +263,6 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
                 self.cache.set_value(f_b, 1, val * 2)
                 self.cache.mark_dirty(f_b, [1])
                 self.engine.mark_done(f_b, [1])
-                # Recomputing B triggers C
                 self.engine.schedule(f_c, [1])
             elif field == f_c:
                 val = self.cache.get_value(f_b, 1)
@@ -308,7 +278,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
 
         result = self.uow.run_flush_loop(recompute_fn, flush_fn)
         self.assertTrue(result.converged)
-        self.assertEqual(self.cache.get_value(f_c, 1), 106)  # (3*2) + 100
+        self.assertEqual(self.cache.get_value(f_c, 1), 106)
 
 
 class _MockSchedulableField(NamedTuple):
@@ -349,7 +319,6 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         scheduler = self.RecomputeScheduler(self.engine, marked={})
         scheduler.process_entry(f, {1, 2, 3, 4})
 
-        # Records 2 and 3 are protected — only 1 and 4 scheduled
         self.assertEqual(scheduler.to_recompute[f], {1, 4})
         self.engine.pop_protection()
 
@@ -368,16 +337,12 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         """Recursive stored-computed field prevents re-scheduling already-marked IDs."""
         f = self._field("m", "parent_path", recursive=True, stored_computed=True)
 
-        # Pre-mark ID 1 as already pending
         self.engine.schedule(f, [1])
         scheduler = self.RecomputeScheduler(self.engine, marked=self.engine.pending)
 
-        # Process entry with IDs including already-pending ID 1
         recursive_ids = scheduler.process_entry(f, {1, 2, 3})
 
-        # ID 1 excluded (already marked), IDs 2 and 3 scheduled
         self.assertEqual(scheduler.to_recompute[f], {2, 3})
-        # Recursive IDs returned for further traversal (also without 1)
         self.assertEqual(recursive_ids, frozenset({2, 3}))
 
 

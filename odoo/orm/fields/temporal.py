@@ -71,9 +71,6 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             case "day_of_month":
                 return lambda value: value.day
             case "day_of_week":
-                # Match PostgreSQL date_part('dow', …) used by the SQL path:
-                # Sunday=0..Sat=6. ``tm_wday`` is Monday=0, which made in-memory
-                # filtered_domain disagree with search on ``date.day_of_week``.
                 return lambda value: value.isoweekday() % 7
             case "hour_number" if self.type == "datetime":
                 return lambda value: value.hour
@@ -82,7 +79,6 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             case "second_number" if self.type == "datetime":
                 return lambda value: value.second
             case "hour_number" | "minute_number" | "second_number":
-                # for dates, it is always 0
                 return lambda value: 0
         assert property_name not in READ_GROUP_NUMBER_GRANULARITY, (
             f"Property not implemented {property_name}"
@@ -102,26 +98,19 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
     ) -> SQL:
         sql_expr = field_sql
         if self.type == "datetime" and (tz_name := model.env.context.get("tz")):
-            # only use the timezone from the context
             if tz_name in _get_all_timezones_set():
-                # Embed the timezone as a SQL literal (not a parameter) so the
-                # expression is identical in SELECT and GROUP BY: server-side
-                # binding gives each %s a unique $N, which PostgreSQL treats as
-                # a different expression.
                 sql_expr = SQL(
                     "timezone('%s', timezone('UTC', %%s))" % tz_name, sql_expr
                 )
             else:
                 _logger.warning("Grouping in unknown / legacy timezone %r", tz_name)
         if property_name == "tz":
-            # set only the timezone
             return sql_expr
         if property_name not in READ_GROUP_NUMBER_GRANULARITY:
             raise ValueError(
                 f"Error when processing the granularity {property_name} is not supported. Only {', '.join(READ_GROUP_NUMBER_GRANULARITY.keys())} are supported"
             )
         granularity = READ_GROUP_NUMBER_GRANULARITY[property_name]
-        # Embed granularity as a SQL literal for GROUP BY consistency (see above).
         return SQL("date_part('%s', %%s)" % granularity, sql_expr)
 
     @override
@@ -142,7 +131,6 @@ class Date(BaseDate[date]):
     _column_type = ("date", "date")
 
     if not typing.TYPE_CHECKING:
-        # Runtime fast path; the type checker inherits BaseDate[date].__get__.
         __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @staticmethod
@@ -169,7 +157,7 @@ class Date(BaseDate[date]):
         """
         today = timestamp or datetime.now()
         tz = record.env.tz
-        today_utc = today.replace(tzinfo=utc)  # UTC = no DST
+        today_utc = today.replace(tzinfo=utc)
         today = today_utc.astimezone(tz)
         return today.date()
 
@@ -196,20 +184,14 @@ class Date(BaseDate[date]):
                 return value.date()
             return value
         if not isinstance(value, str):
-            # a dict/list would raise an opaque KeyError(slice) below; callers
-            # (e.g. _search_display_name) rely on a typed conversion error
             raise TypeError(f"expected str or date, got {value!r}")
         value = value[:DATE_LENGTH]
-        # fromisoformat (C-level) is ~44x faster than strptime for ISO dates, but
-        # it rejects non-zero-padded components (e.g. "2020-9-30") that the legacy
-        # strptime parser accepted. Keep the fast path and fall back to strptime
-        # for those so imports/onchange remain backwards compatible.
         try:
             return date.fromisoformat(value)
         except ValueError:
             return datetime.strptime(value, DATE_FORMAT).date()
 
-    from_string = to_date  # deprecated alias, kept for backwards compatibility
+    from_string = to_date
 
     @staticmethod
     def to_string(
@@ -228,8 +210,6 @@ class Date(BaseDate[date]):
     ) -> typing.Any:
         if not value:
             return None
-        # to_date() truncates a datetime to a date, so data files that pass a
-        # datetime to a Date field (e.g. CRM demo data) are handled there.
         return self.to_date(value)
 
     @override
@@ -250,7 +230,6 @@ class Datetime(BaseDate[datetime]):
     _column_type = ("timestamp", "timestamp")
 
     if not typing.TYPE_CHECKING:
-        # Runtime fast path; the type checker inherits BaseDate[datetime].__get__.
         __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @staticmethod
@@ -259,7 +238,6 @@ class Datetime(BaseDate[datetime]):
 
         .. note:: This function may be used to compute default values.
         """
-        # drop microseconds: they don't comply with the server datetime format
         return datetime.now().replace(microsecond=0)
 
     @staticmethod
@@ -284,7 +262,7 @@ class Datetime(BaseDate[datetime]):
         """
         assert isinstance(timestamp, datetime), "Datetime instance expected"
         tz = record.env.tz
-        utc_timestamp = timestamp.replace(tzinfo=utc)  # UTC = no DST
+        utc_timestamp = timestamp.replace(tzinfo=utc)
         return utc_timestamp.astimezone(tz)
 
     @staticmethod
@@ -304,28 +282,21 @@ class Datetime(BaseDate[datetime]):
         if isinstance(value, date):
             if isinstance(value, datetime):
                 if value.tzinfo:
-                    # aware datetimes: normalize to naive UTC
                     if value.tzinfo is UTC or value.tzinfo == UTC:
                         return value.replace(tzinfo=None)
                     return value.astimezone(UTC).replace(tzinfo=None)
                 return value
             return datetime.combine(value, time.min)
 
-        # fromisoformat (C-level) is ~61x faster than strptime for ISO datetimes,
-        # but it rejects non-zero-padded components (e.g. "2020-9-30 5:00:00")
-        # that the legacy strptime parser accepted. Keep the fast path and fall
-        # back to strptime for those so imports remain backwards compatible.
         try:
             value = datetime.fromisoformat(value)
         except ValueError:
             value = datetime.strptime(value[:DATETIME_LENGTH], DATETIME_FORMAT)
-        # ISO strings with offsets (e.g. Luxon's toISO() from the JS client)
-        # yield aware datetimes: normalize to naive UTC like the datetime path.
         if value.tzinfo:
             return value.astimezone(UTC).replace(tzinfo=None)
         return value
 
-    from_string = to_datetime  # deprecated alias, kept for backwards compatibility
+    from_string = to_datetime
 
     @staticmethod
     def to_string(
@@ -354,10 +325,6 @@ class Datetime(BaseDate[datetime]):
             if (
                 tz_name := record.env.context.get("tz")
             ) and tz_name in _get_all_timezones_set():
-                # The cached value is a naive UTC datetime; anchor it to UTC
-                # before converting. A bare ``astimezone`` on a naive value
-                # assumes server-local time, wrong on non-UTC servers (matches
-                # the SQL path and ``context_timestamp``).
                 dt = dt.replace(tzinfo=utc).astimezone(get_timezone(tz_name))
             return get_property(dt)
 

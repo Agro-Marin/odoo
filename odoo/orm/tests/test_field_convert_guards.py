@@ -29,7 +29,6 @@ def test_base_convert_to_column_scalarish_only():
     with model_test_env(Thing) as env:
         record = env["fcg.thing"].browse()
         field = record._fields["name"]
-        # call the BASE implementation explicitly (Char overrides it)
         convert = Field.convert_to_column
         assert convert(field, None, record) is None
         assert convert(field, False, record) is None
@@ -47,7 +46,6 @@ def test_id_origin_getter_handles_empty_and_new():
     with model_test_env(Thing) as env:
         Model = env["fcg.thing"]
         getter = Model._fields["id"].expression_getter("id.origin")
-        # empty recordset: False, not IndexError
         assert getter(Model.browse()) is False
         record = Model.create({"name": "x"})
         assert getter(record) == record.id

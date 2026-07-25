@@ -33,7 +33,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 
-EMPTY_DICT = frozendict()  # type: ignore[var-annotated]
+EMPTY_DICT = frozendict()
 
 
 class Cache:
@@ -61,7 +61,6 @@ class Cache:
         self.transaction = transaction
 
     def __repr__(self) -> str:
-        # debugging: show cache content with dirty flags as stars
         data: dict[Field, dict] = {}
         core = self.transaction.core
         for field, field_cache in sorted(
@@ -108,10 +107,7 @@ class Cache:
         try:
             field_cache = self._get_field_cache(record, field)
             return field_cache[record._ids[0]]
-        except (KeyError, IndexError):
-            # IndexError: empty recordset (record._ids == ()); treat as a miss
-            # rather than leaking an opaque IndexError past the default/CacheMiss
-            # contract.
+        except KeyError, IndexError:
             if default is SENTINEL:
                 raise CacheMiss(record, field) from None
             return default
@@ -239,21 +235,34 @@ class Cache:
         the whole field.  Invalidating a context-dependent field for a record
         invalidates that field on the record in all environments.
 
-        Unsafe: invalidating a dirty field drops the value to be written.
+        Refuses to drop a field that still holds a pending write: this used to
+        break the "dirty ⇒ value present" invariant, after which the next flush
+        either wrote the re-fetched database value back over the pending one
+        (silent loss) or died with "Could not find all values ... to flush".
+        The check is the same one ``invalidate_model`` / ``invalidate_recordset``
+        run — :meth:`OrmCore.find_pending_write` — so the modern and legacy
+        entry points cannot disagree.  Flush first if you need both.
         """
         if spec is None:
             self.transaction.invalidate_field_data()
             return
         env = next(iter(self.transaction.envs), None)
         if env is None:
-            # All envs GC'd: without one we cannot invalidate context-aware
-            # caches.  Return a no-op (logged at debug) rather than raising.
             _logger.debug(
                 "Cache.invalidate: skipped %d entries — no environments left "
                 "in transaction (all GC'd)",
                 len(spec) if hasattr(spec, "__len__") else -1,
             )
             return
+        core = self.transaction.core
+        for field, ids in spec:
+            if (found := core.find_pending_write((field,), ids)) is not None:
+                _field, overlap = found
+                raise ValueError(
+                    f"Cache.invalidate: refusing to drop {field} on records "
+                    f"{overlap[:10]}; they hold a pending write that would be "
+                    f"silently lost.  Flush those records first."
+                )
         for field, ids in spec:
             field._invalidate_cache(env, ids)
 
@@ -282,7 +291,6 @@ class Cache:
         invalids = []
 
         def process(model: BaseModel, field: Field, field_cache):
-            # ignore new records, records to flush, and PENDING placeholders
             dirty_ids = core.get_dirty(field) or ()
             _pending = PENDING
             ids = [
@@ -293,7 +301,6 @@ class Cache:
             if not ids:
                 return
 
-            # select the column for the given ids
             query = Query(env, model._table, model._table_sql)
             sql_id = SQL.identifier(model._table, "id")
             sql_field = model._field_to_sql(model._table, field.name, query)
@@ -305,7 +312,6 @@ class Cache:
             query.add_where(SQL("%s = ANY(%s)", sql_id, list(ids)))
             env.cr.execute(query.select(sql_id, sql_field))
 
-            # compare returned values with corresponding values in cache
             for id_, value in env.cr.fetchall():
                 cached = field_cache[id_]
                 if value == cached or (not value and not cached):
@@ -319,7 +325,6 @@ class Cache:
                 )
 
         for field, field_cache in core.iter_field_items():
-            # check column fields only
             if (
                 not field.store
                 or not field.column_type
@@ -331,15 +336,10 @@ class Cache:
             model = env[field.model_name]
             if field in depends_context:
                 for context_keys, inner_cache in field_cache.items():
-                    # cache_keys are built from depends_context — their length
-                    # is invariant.  strict=True surfaces any future shape drift.
                     context = dict(
                         zip(depends_context[field], context_keys, strict=True)
                     )
                     if "company" in context:
-                        # the cache key 'company' actually comes from context
-                        # key 'allowed_company_ids' (see property env.company
-                        # and method env.cache_key())
                         context["allowed_company_ids"] = [context.pop("company")]
                     process(model.with_context(context), field, inner_cache)
             else:

@@ -24,7 +24,6 @@ class ResLang(models.AbstractModel):
     _description = "res.lang stub"
 
     def _get_data(self, code=None, **kwargs):
-        # en_US active, like a standard database
         return code == "en_US"
 
 
@@ -42,10 +41,8 @@ def test_write_over_legacy_row_without_en_us():
     with model_test_env(ResLang, Doc) as env:
         doc = env["ttl.doc"].create({"name": "d"})
         field = doc._fields["body"]
-        # a migrated jsonb row carrying only a non-en_US translation
         legacy = {"fr_FR": "Bonjour"}
         with patch.object(field, "_get_stored_translations", return_value=legacy):
-            # used to raise KeyError: 'en_US'
             field._mark_dirty_model_term_translation(doc, "Hello", "de_DE")
         cache = field._get_cache(doc.with_context(prefetch_langs=True).env)
         assert cache[doc.id] == {"fr_FR": "Hello", "de_DE": "Hello"}

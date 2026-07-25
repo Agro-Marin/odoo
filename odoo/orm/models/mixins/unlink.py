@@ -48,18 +48,12 @@ class UnlinkMixin(_ModelStubs):
         from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
         for func in self._ondelete_methods:
-            # func._ondelete is True if it should be called during uninstallation
             if func._ondelete or not self.env.context.get(MODULE_UNINSTALL_FLAG):
                 func(self)
         prof.mark("ondelete")
 
-        # TOFIX: avoids an infinite loop where recomputing a field triggers
-        # recompute of another field sharing the same compute function, which
-        # re-triggers both.
         core = self.env._core
         if core.has_pending():
-            # Iterate pending entries (typically few) rather than all model
-            # fields (often 100+); clear only entries for the current model.
             model_name = self._name
             deleted_ids = self._ids
             for field in list(core.pending_fields()):
@@ -77,9 +71,6 @@ class UnlinkMixin(_ModelStubs):
         ir_model_data_unlink = Data
         ir_attachment_unlink = Attachment
 
-        # Capture ALL dependency paths before deletion (see _modified_before
-        # docstring for why unlink passes ALL fields, not just relational ones).
-        # Example: deleting a sale order line recomputes the order's total amount.
         with self.env.protecting(self._fields.values(), self):
             self._modified_before(self._fields)
         prof.mark("before")
@@ -95,9 +86,6 @@ class UnlinkMixin(_ModelStubs):
             ir_attachment_unlink |= attachments
         prof.mark("sql")
 
-        # Invalidate the *whole* cache: the ORM doesn't track all DB-side
-        # changes (e.g. cascading deletes), and targeted invalidation misses
-        # non-stored computed/related fields reached through multi-hop FK chains.
         self.env.invalidate_all(flush=False)
 
         if ir_model_data_unlink:
@@ -105,7 +93,6 @@ class UnlinkMixin(_ModelStubs):
         if ir_attachment_unlink:
             ir_attachment_unlink.unlink()
 
-        # auditing: deletions are infrequent and leave no trace in the database
         _unlink.info(
             "User #%s deleted %s records with IDs: %r",
             self.env.uid,
@@ -153,7 +140,6 @@ class UnlinkMixin(_ModelStubs):
         :param Attachment: ir.attachment model proxy (sudo)
         :return: (data_records, attachment_records) to unlink after all batches
         """
-        # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
         if (backend := self.env.backend) is not None:
             return backend.delete(self, sub_ids, Data, Attachment)
 
@@ -170,15 +156,8 @@ class UnlinkMixin(_ModelStubs):
             )
         )
 
-        # Remove the ir_model_data reference for xml/csv-created records:
-        # they have no real FK, so the reference would dangle. Done as
-        # superuser and with no context to avoid access restrictions and
-        # side-effects during admin calls.
         data = Data.search([("model", "=", self._name), ("res_id", "in", sub_ids)])
 
-        # Likewise remove the relevant ir_attachment records (via raw SQL:
-        # ir_attachment's search() is overridden to hide attachments of
-        # deleted records).
         cr.execute(
             SQL(
                 "SELECT id FROM ir_attachment WHERE res_model=%s AND res_id = ANY(%s)",
@@ -188,9 +167,6 @@ class UnlinkMixin(_ModelStubs):
         )
         attachments = Attachment.browse(row[0] for row in cr.fetchall())
 
-        # block deleting a record used as an ir.default fallback for a company-
-        # dependent m2o, unless MODULE_UNINSTALL_FLAG (then discard_records below
-        # clears the fallback)
         if (
             many2one_fields := self.env.registry.many2one_company_dependents[self._name]
         ) and not self.env.context.get(MODULE_UNINSTALL_FLAG):
@@ -219,11 +195,6 @@ class UnlinkMixin(_ModelStubs):
                     )
                 )
 
-        # on delete set null/restrict for jsonb company-dependent many2one.
-        # Defensive: the JSONPath below interpolates each id via f-string
-        # (psycopg can't bind parameters inside a jsonpath expression). Safe
-        # because ``self.ids`` returns only ints; reject anything else loudly so
-        # a future caller can't smuggle a SQL fragment through ``sub_ids``.
         if many2one_fields and not all(
             isinstance(id_, int) and id_ > 0 for id_ in sub_ids
         ):
@@ -262,9 +233,6 @@ class UnlinkMixin(_ModelStubs):
                         )
                     )
             else:
-                # Set null on company-dependent M2O references.
-                # RETURNING id lets us trigger modified() on affected
-                # records so their computed dependents get recomputed.
                 affected = self.env.execute_query(
                     SQL(
                         """
@@ -292,8 +260,6 @@ class UnlinkMixin(_ModelStubs):
                     affected_recs = model.browse(row[0] for row in affected)
                     affected_recs.modified([field.name])
 
-        # For the same reason, remove the defaults having some of the
-        # records as value
         Defaults.discard_records(records)
 
         return data, attachments

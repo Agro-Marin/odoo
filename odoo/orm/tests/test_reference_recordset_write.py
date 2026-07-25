@@ -34,9 +34,7 @@ class Holder(models.Model):
 def test_dangling_recordset_write_is_dropped():
     with model_test_env(Target, Holder) as env:
         holder = env["refw.holder"].create({"name": "h"})
-        # write() passes the raw recordset to convert_to_cache(validate=True)
         holder.write({"ref": env["refw.target"].browse(99999)})
-        # same degradation as the string branch: dangling target -> no value
         assert not holder.ref
 
 

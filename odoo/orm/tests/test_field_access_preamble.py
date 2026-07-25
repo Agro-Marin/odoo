@@ -11,50 +11,59 @@ for the conversion lambdas. Pure source scan -- no import, no database.
 """
 
 import pathlib
+import re
 
 _FIELDS_DIR = pathlib.Path(__file__).resolve().parent.parent / "fields"
 
-# canonical preamble, modulo the singleton/recordset variable name
 _CANONICAL = 'not (not self.groups or env.su or {rec}._has_field_access(self, "read"))'
 _ALLOWED = {_CANONICAL.format(rec="record"), _CANONICAL.format(rec="records")}
 
-# every site is expected to use the canonical form; update deliberately if the
-# ACL semantics change (and change ALL sites together).
 _EXPECTED_SITES = {
     ("base.py", 3),
-    ("textual.py", 2),  # BaseString.__get__ + Html.__get__ (en_US fallback path)
+    ("textual.py", 2),
     ("relational/many2one.py", 1),
     ("relational/_base.py", 1),
 }
 
 
-def _iter_access_lines():
+def _iter_sources():
+    """Yield ``(rel, flattened_source)``.
+
+    Whitespace runs are collapsed to one space so the guard sees a logical
+    statement rather than physical lines: at deep indentation the preamble
+    exceeds the line limit, and ``ruff format`` legitimately wraps it across
+    several lines. That is a formatting change, not a semantic divergence, and
+    must not read as drift here.
+    """
     for path in sorted(_FIELDS_DIR.rglob("*.py")):
         rel = path.relative_to(_FIELDS_DIR).as_posix()
-        for line in path.read_text().splitlines():
-            if "_has_field_access(self," in line:
-                yield rel, line.strip()
+        flat = re.sub(r"\s+", " ", path.read_text())
+        # A wrap puts the delimiters on their own lines, which collapses to
+        # ``not ( not ...  )``; drop the padding so the canonical form matches.
+        flat = re.sub(r"\(\s+", "(", flat)
+        flat = re.sub(r"\s+\)", ")", flat)
+        yield rel, flat
 
 
-def _has_canonical_preamble(line: str) -> bool:
-    return any(form in line for form in _ALLOWED)
+def _canonical_count(source: str) -> int:
+    return sum(source.count(form) for form in _ALLOWED)
 
 
 def test_every_field_access_check_uses_the_canonical_preamble():
-    for rel, line in _iter_access_lines():
-        # only the read-access preamble is guarded here
-        if '_has_field_access(self, "read")' not in line:
-            continue
-        assert _has_canonical_preamble(line), (
-            f"divergent field-ACL preamble in {rel}: {line!r}"
+    for rel, source in _iter_sources():
+        total = source.count('_has_field_access(self, "read")')
+        canonical = _canonical_count(source)
+        assert total == canonical, (
+            f"divergent field-ACL preamble in {rel}: {total} read-access check(s) "
+            f"but only {canonical} in canonical form"
         )
 
 
 def test_field_access_preamble_site_set_is_unchanged():
     counts: dict[str, int] = {}
-    for rel, line in _iter_access_lines():
-        if _has_canonical_preamble(line):
-            counts[rel] = counts.get(rel, 0) + 1
+    for rel, source in _iter_sources():
+        if n := _canonical_count(source):
+            counts[rel] = n
     assert set(counts.items()) == _EXPECTED_SITES, (
         f"field-ACL preamble sites changed: {sorted(counts.items())}. If this is "
         f"intentional, update _EXPECTED_SITES -- and make sure every copy still "

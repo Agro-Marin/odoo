@@ -29,27 +29,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.registry")
 
-# MODEL DEFINITIONS vs MODEL CLASSES
-#
-# "Model definitions" are the (mostly static) classes written in module source;
-# custom models are the exception, built dynamically. "Model classes" are what
-# the registry holds and what recordsets are instances of; each is built
-# dynamically when the registry loads, inheriting from all of the model's
-# definitions (in reverse order, to match override order) plus, for inherited
-# models, the parent model classes — so extensions to a parent are visible on
-# the child. It also carries metadata inferred from its parents.
-#
-# E.g. with definitions A1/A2/A3 of model 'a' and B1/B2 of model 'b'
-# (_inherit=['a','b']), parents of 'a' are (A2, A1) and of 'b' are (B2, a, B1),
-# giving MRO 'a' = [a, A2, A1, Model] and 'b' = [b, B2, a, A2, A1, B1, Model].
-#
-# FIELDS: a field can be shared across registries (saving memory/time) only when
-# set up directly on its model definition. It cannot be shared when it is
-# related, overridden across definitions, or inherited from another model —
-# because the field object is a key in per-registry dicts (cache, pending
-# computations). Magic fields ('id', 'display_name', ...) are added on
-# definition classes (not model classes) so they too can be shared.
-
 
 def is_model_definition(cls: type) -> bool:
     """Return whether ``cls`` is a model definition class."""
@@ -65,7 +44,6 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
     """Add a model definition to the registry, creating or extending its model
     class, and return that model class.
     """
-    # raise (not assert) so the contract holds under python -O
     if not is_model_definition(model_def):
         raise TypeError(f"{model_def!r} is not a model definition class")
 
@@ -80,13 +58,11 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
             "please define models.Constraint on the model."
         )
 
-    # all models except 'base' implicitly inherit from 'base'
     name = model_def._name
     parent_names = list(model_def._inherit)
     if name != "base":
         parent_names.append("base")
 
-    # create or retrieve the model's class
     if name in parent_names:
         if name not in registry:
             raise TypeError(f"Model {name!r} does not exist in registry.")
@@ -94,10 +70,6 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
         _check_model_extension(model_cls, model_def)
     else:
         if name in registry:
-            # A second fresh definition of an already-registered model (same
-            # _name, no self-`_inherit`) — a classic accidental collision between
-            # two modules.  It silently discards the first definition's fields
-            # and metadata; surface it instead of losing work without a trace.
             _logger.warning(
                 "Model %r defined in module %r replaces the existing definition "
                 "(same _name without _inherit). Did you mean to inherit it?",
@@ -108,20 +80,19 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
             name,
             (model_def,),
             {
-                "pool": registry,  # this makes it a model class
+                "pool": registry,
                 "_name": name,
                 "_register": False,
                 "_original_module": model_def._module,
-                "_inherit_module": {},  # map parent to introducing module
-                "_inherit_children": OrderedSet(),  # names of children models
-                "_inherits_children": set(),  # names of children models
-                "_fields__": {},  # populated in _setup()
-                "_table_objects": frozendict(),  # populated in _setup()
+                "_inherit_module": {},
+                "_inherit_children": OrderedSet(),
+                "_inherits_children": set(),
+                "_fields__": {},
+                "_table_objects": frozendict(),
             },
         )
         model_cls._fields = MappingProxyType(model_cls._fields__)
 
-    # determine all the classes the model should inherit from
     bases = LastOrderedSet([model_def])
     for parent_name in parent_names:
         if parent_name not in registry:
@@ -138,16 +109,12 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
             model_cls._inherit_module[parent_name] = model_def._module
             parent_cls._inherit_children.add(name)
 
-    # model_cls.__bases__ must be assigned those classes; however, this
-    # operation is quite slow, so we do it once in method _prepare_setup()
     model_cls._base_classes__ = tuple(bases)
 
-    # determine the attributes of the model's class
     _init_model_class_attributes(model_cls)
 
     check_pg_name(model_cls._table)
 
-    # Transience
     if model_cls._transient and not model_cls._log_access:
         msg = (
             "TransientModels must have log_access turned on, "
@@ -155,10 +122,8 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
         )
         raise TypeError(msg)
 
-    # update the registry after all checks have passed
     registry[name] = model_cls
 
-    # mark all impacted models for setup
     for model_name in registry.descendants([name], "_inherit", "_inherits"):
         registry[model_name]._setup_done__ = False
 
@@ -198,7 +163,6 @@ def _check_model_parent_extension(
 
 def _init_model_class_attributes(model_cls: type[BaseModel]):
     """Initialize model class attributes."""
-    # raise (not assert) so the contract holds under python -O
     if not is_model_class(model_cls):
         raise TypeError(f"{model_cls!r} is not a registry model class")
 
@@ -210,7 +174,6 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
 
     for base in reversed(model_cls._base_classes__):
         if is_model_definition(base):
-            # the following attributes are not taken from registry classes
             if model_cls._name not in base._inherit and not base._description:
                 _logger.warning("The model %s has no _description", model_cls._name)
             model_cls._description = base._description or model_cls._description
@@ -222,21 +185,15 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
         for mname, fnames in base._depends.items():
             depends.setdefault(mname, []).extend(fnames)
 
-    # avoid assigning an empty dict to save memory
     if inherits:
-        # frozendict: _inherits' declared type — the class default is the
-        # shared immutable empty frozendict, so assigned values must uphold
-        # the same no-mutation guarantee.
         model_cls._inherits = frozendict(inherits)
     if depends:
         model_cls._depends = depends
 
-    # update _inherits_children of parent models
     registry = model_cls.pool
     for parent_name in model_cls._inherits:
         registry[parent_name]._inherits_children.add(model_cls._name)
 
-    # recompute attributes of _inherit_children models
     for child_name in model_cls._inherit_children:
         _init_model_class_attributes(registry[child_name])
 
@@ -244,20 +201,15 @@ def _init_model_class_attributes(model_cls: type[BaseModel]):
 def setup_model_classes(env: Environment):
     registry = env.registry
 
-    # setup ir.model before adding manual fields: _add_manual_models may rely
-    # on overrides (e.g. is_mail_thread via env['ir.model']._instantiate_attrs)
     _prepare_setup(registry["ir.model"])
 
-    # add manual models
     if registry._init_modules:
         _add_manual_models(env)
 
-    # prepare the setup on all models
     models_classes = list(registry.values())
     for model_cls in models_classes:
         _prepare_setup(model_cls)
 
-    # do the actual setup
     for model_cls in models_classes:
         _setup(model_cls, env)
 
@@ -271,7 +223,6 @@ def setup_model_classes(env: Environment):
 def _prepare_setup(model_cls: type[BaseModel]):
     """Prepare the setup of the model."""
     if model_cls._setup_done__:
-        # raise (not assert) so the invariant holds under python -O
         if model_cls.__bases__ != model_cls._base_classes__:
             raise TypeError(
                 f"Model {model_cls._name!r}: __bases__ diverged from "
@@ -279,21 +230,12 @@ def _prepare_setup(model_cls: type[BaseModel]):
             )
         return
 
-    # changing base classes is costly, do it only when necessary
     if model_cls.__bases__ != model_cls._base_classes__:
         model_cls.__bases__ = model_cls._base_classes__
 
-    # reset those attributes on the model's class for _setup_fields() below
     for attr in ("_rec_name", "_active_name"):
         discardattr(model_cls, attr)
 
-    # reset properties memoized on model_cls's own __dict__ (via
-    # ``helpers.own_class_memo``). The class object is reused across re-setup
-    # (only ``__bases__`` is reassigned, above), so these memos survive class
-    # recreation — discard them here, or a re-setup that adds/removes a field
-    # keeps serving the stale tuple.  ORM_CLASS_MEMOS is the single registry of
-    # such keys (a hardcoded list here silently served stale tuples for any
-    # memo added elsewhere); a source-scan test pins it to the call sites.
     for _memo in ORM_CLASS_MEMOS:
         discardattr(model_cls, _memo)
 
@@ -313,18 +255,12 @@ def _setup(model_cls: type[BaseModel], env: Environment):
     if model_cls._setup_done__:
         return
 
-    # Detect cyclic _inherits before Phase 3 recurses to stack overflow:
-    # _setup_done__ is set only in Phase 4, so a cycle would re-enter forever.
-    # Read the marker MRO-blind (``__dict__.get``, not ``getattr``): registry
-    # classes inherit from their parents' registry classes, so ``getattr`` could
-    # see an ancestor mid-setup and raise with the wrong model name.
     if model_cls.__dict__.get("_setup_in_progress__", False):
         raise TypeError(f"Circular _inherits chain involving model {model_cls._name!r}")
     model_cls._setup_in_progress__ = True
     try:
         _setup_phases(model_cls, env)
     finally:
-        # Remove the marker rather than leaving a ``False`` on every class dict.
         del model_cls._setup_in_progress__
 
 
@@ -332,35 +268,27 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
     """The 7 setup phases of :func:`_setup`, split out so the caller can wrap
     them in a cycle-detection guard.
     """
-    # Cache the model definition classes (non-registry classes from MRO),
-    # used by fields.resolve_mro() and field collection below.
     model_cls._model_classes__ = tuple(
         c for c in model_cls.mro() if getattr(c, "pool", None) is None
     )
 
-    # Phase 1: collect field definitions and install them on the model
     _collect_and_install_fields(model_cls, env)
 
-    # Phase 2: add manual (studio/custom) fields
     if model_cls.pool._init_modules:
         _add_manual_fields(model_cls, env)
 
-    # Phase 3: resolve _inherits delegation and add inherited fields
     _check_inherits(model_cls)
     for parent_name in model_cls._inherits:
         _setup(model_cls.pool[parent_name], env)
     _add_inherited_fields(model_cls)
 
-    # Phase 4: initialize field metadata (mark setup done first to avoid cycles)
     model_cls._setup_done__ = True
     for field in model_cls._fields.values():
         field.prepare_setup()
 
-    # Phase 5-6: validate rec_name and active_name
     _validate_rec_name(model_cls)
     _validate_active_name(model_cls)
 
-    # Phase 7: build table objects (constraints, indexes)
     _build_table_objects(model_cls)
 
 
@@ -370,15 +298,12 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
     Patches translate / company_dependent state from the database to prevent
     data loss during module upgrades.
     """
-    # Clear existing fields to avoid clashes with inheritance between models
     for name in model_cls._fields:
         discardattr(model_cls, name)
     model_cls._fields__.clear()
 
-    # Collect the definitions of each field (base definition + overrides)
     definitions = defaultdict(list)
     for cls in reversed(model_cls._model_classes__):
-        # this condition is an optimization of is_model_definition(cls)
         if isinstance(cls, models.MetaModel):
             for field in cls._field_definitions:
                 definitions[field.name].append(field)
@@ -446,7 +371,6 @@ def _patch_company_dependent_field(
         False,
     )
     if not company_dependent:
-        # validate column type in case it was changed by an upgrade script
         col = sql.table_columns(env.cr, model_cls._table).get(name)
         if col and col["udt_name"] == "jsonb":
             _logger.debug(
@@ -460,7 +384,6 @@ def _patch_company_dependent_field(
 def _validate_rec_name(model_cls: type[BaseModel]):
     """Determine and validate the _rec_name attribute."""
     if model_cls._rec_name:
-        # raise (not assert) so the validation holds under python -O
         if model_cls._rec_name not in model_cls._fields:
             raise TypeError(
                 f"Invalid _rec_name={model_cls._rec_name!r} "
@@ -475,7 +398,6 @@ def _validate_rec_name(model_cls: type[BaseModel]):
 def _validate_active_name(model_cls: type[BaseModel]):
     """Determine and validate the _active_name attribute."""
     if model_cls._active_name:
-        # raise (not assert) so the validation holds under python -O
         if (
             model_cls._active_name not in model_cls._fields
             or model_cls._active_name not in ("active", "x_active")
@@ -493,11 +415,6 @@ def _validate_active_name(model_cls: type[BaseModel]):
 
 def _build_table_objects(model_cls: type[BaseModel]):
     """Build the table objects (constraints, indexes) for the model."""
-    # The MetaModel attaches a fresh empty list to every class it constructs
-    # (including the registry class created at registration.add_to_registry),
-    # so a non-empty list here means a constraint was declared on the registry
-    # class itself rather than on a model definition.  raise (not assert) so
-    # the invariant holds under python -O.
     if model_cls._table_object_definitions:
         raise TypeError(
             f"Model {model_cls._name!r}: registry class must not own "
@@ -537,19 +454,10 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
     if model_cls._abstract or not model_cls._inherits:
         return
 
-    # When two _inherits parents share a field name, the last in iteration
-    # order wins; warn so accidental collisions surface in the logs.  Only
-    # names that will actually be inherited can collide: fields already
-    # defined on the model itself (including the magic fields id,
-    # display_name, create_uid/date, write_uid/date that every parent also
-    # carries) are never inherited, so they are filtered out *before*
-    # collision tracking — otherwise every model with two _inherits parents
-    # would log six spurious magic-field warnings.
     to_inherit: dict[str, tuple[str, Field]] = {}
     for parent_model_name, parent_fname in model_cls._inherits.items():
         for name, field in model_cls.pool[parent_model_name]._fields.items():
             if name in model_cls._fields:
-                # redefined locally: never inherited, not a collision
                 continue
             if (existing := to_inherit.get(name)) is not None:
                 _logger.warning(
@@ -563,13 +471,7 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
                 )
             to_inherit[name] = (parent_fname, field)
 
-    # add the inherited fields (none of them is redefined locally: names
-    # present in model_cls._fields were filtered out above)
     for name, (parent_fname, field) in to_inherit.items():
-        # inherited fields are implemented as related fields, with the
-        # following specific properties:
-        #  - reading inherited fields should not bypass access rights
-        #  - copy inherited fields iff their original field is copied
         field_cls = type(field)
         add_field(
             model_cls,
@@ -596,16 +498,12 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
             field.setup(model)
         except Exception:
             if field.base_field.manual:
-                # WARNING (not DEBUG): manual fields are user-created (Studio);
-                # the system recovers by skipping, but the user must see it.
                 _logger.warning(
                     "Skipping manual field %s.%s during setup; the field will not be available",
                     model_cls._name,
                     name,
                     exc_info=True,
                 )
-                # Setup can fail for a manual related/function field whose
-                # dependency (e.g. comodel) is not loaded yet.
                 bad_fields.append(name)
                 continue
             raise
@@ -618,40 +516,22 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
 
 def _add_manual_models(env: Environment):
     """Add extra models to the registry."""
-    # clean up registry first
     removed_fields = OrderedSet()
     for name, model_cls in list(env.registry.items()):
         if model_cls._custom:
             removed_fields.update(model_cls._fields.values())
             del env.registry.models[name]
-            # remove the model's name from its parents' _inherit_children
             for parent_cls in model_cls.__bases__:
                 if hasattr(parent_cls, "pool"):
                     parent_cls._inherit_children.discard(name)
-            # mirror the discard for _inherits parents (_inherits_children is
-            # populated in _init_model_class_attributes): without it a
-            # delegating custom model leaves its stale name in the parents'
-            # _inherits_children across successive registry setups.  The parent
-            # may itself be a custom model already removed by this loop, hence
-            # the .get().
             for parent_name in model_cls._inherits:
                 inherits_parent_cls = env.registry.models.get(parent_name)
                 if inherits_parent_cls is not None:
                     inherits_parent_cls._inherits_children.discard(name)
 
     if removed_fields:
-        # discard removed custom fields from the registry's dependency maps
-        # (notably field_setup_dependents); otherwise they leak and duplicate
-        # across successive registry setups
         env.registry._discard_fields(list(removed_fields))
 
-    # can't use self._fields for translated fields: not set up yet
-    # prepare=False: ``ir_model`` is extended by many modules (mail, sms, bus,
-    # web, spreadsheet, ...), so this SELECT * changes result shape whenever one
-    # of them installs. Cached as a prepared plan, the next such ALTER makes
-    # every later registry setup on that connection raise
-    # "cached plan must not change result type" -- reproducible today on a full
-    # `-i mail --test-enable` run, which fails TestFetchmail.tearDownClass.
     env.cr.execute(
         "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'",
         prepare=False,
@@ -659,7 +539,6 @@ def _add_manual_models(env: Environment):
     for model_data in env.cr.dictfetchall():
         attrs = env["ir.model"]._instantiate_attrs(model_data)
 
-        # adapt _auto and _log_access if necessary
         table_name = model_data["model"].replace(".", "_")
         table_kind = sql.table_kind(env.cr, table_name)
         if table_kind not in (sql.TableKind.Regular, None):
@@ -699,19 +578,16 @@ def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
 
 def add_field(model_cls: type[BaseModel], name: str, field: Field):
     """Add ``field`` under ``name`` on ``model_cls``."""
-    # name must be an existing field on the model or an _inherits parent, or a
-    # custom field (starting with `x_`)
     is_class_field = any(
         isinstance(getattr(model, name, None), fields.Field)
         for model in [model_cls]
         + [model_cls.pool[inherit] for inherit in model_cls._inherits]
     )
     if not (is_class_field or is_manual_name(name)):
-        raise ValidationError(  # pylint: disable=missing-gettext
+        raise ValidationError(
             f"The field `{name}` is not defined in the `{model_cls._name}` Python class and does not start with 'x_'"
         )
 
-    # Assert the attribute to assign is a Field
     if not isinstance(field, fields.Field):
         raise ValidationError(
             _("You can only add `fields.Field` objects to a model fields")
@@ -726,7 +602,6 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     setattr(model_cls, name, field)
     field._toplevel = True
     field.__set_name__(model_cls, name)
-    # add field as an attribute and in model_cls._fields__ (for reflection)
     model_cls._fields__[name] = field
 
 
@@ -735,7 +610,6 @@ def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
     field = model_cls._fields__.pop(name, None)
     discardattr(model_cls, name)
     if model_cls._rec_name == name:
-        # fixup _rec_name and display_name's dependencies
         model_cls._rec_name = None
         if model_cls.display_name in model_cls.pool.field_depends:
             model_cls.pool.field_depends[model_cls.display_name] = tuple(

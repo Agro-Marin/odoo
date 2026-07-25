@@ -12,7 +12,6 @@ from typing import Any
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
-# Supported comparison operators for search_rows
 _OPERATORS: dict[str, Callable] = {
     "=": eq,
     "!=": ne,
@@ -68,8 +67,6 @@ class DictBackend:
         """
         tbl = self._tables.setdefault(table, {})
         new_ids: list[int] = []
-        # strict=True so a column/row width mismatch fails loudly rather than
-        # silently dropping columns.
         for row in rows:
             self._sequences[table] += 1
             id_ = self._sequences[table]
@@ -133,9 +130,7 @@ class DictBackend:
         """Return the full row dict for a single ID, or None."""
         return self._tables.get(table, {}).get(id_)
 
-    def get_rows(
-        self, table: str, ids: list[int]
-    ) -> dict[int, dict[str, Any]]:
+    def get_rows(self, table: str, ids: list[int]) -> dict[int, dict[str, Any]]:
         """Return ``{id: row_dict}`` for the given *ids* that exist.
 
         Batch form of :meth:`get_row` for the search/read paths.

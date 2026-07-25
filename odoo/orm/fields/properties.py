@@ -14,6 +14,7 @@ from odoo.libs.json import fast_clone
 from odoo.tools import SQL, OrderedSet, html_sanitize, is_list_of
 from odoo.tools.misc import frozendict, has_list_types
 
+from .._recordset import is_recordset
 from ..domain import Domain
 from ..parsing import parse_field_expr
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
@@ -31,17 +32,12 @@ NoneType = type(None)
 
 def check_property_field_value_name(property_name: str) -> None:
     """Validate that ``property_name`` is alphanumeric and within length limits."""
-    # fullmatch (not match): ``$`` matches before a trailing newline, so a name
-    # like ``"foo\n"`` would otherwise pass and be embedded literally into SQL.
     if not (0 < len(property_name) <= 512) or not regex_alphanumeric.fullmatch(
         property_name
     ):
         raise ValueError(f"Wrong property field value name {property_name!r}.")
 
 
-# Property pseudo-types whose value references comodel records: they carry a
-# ``comodel``, contribute res_ids to prefetch, and gain display_names. The
-# many2one/many2many distinction stays explicit where handling differs.
 RELATIONAL_PROPERTY_TYPES = frozenset(("many2one", "many2many"))
 
 
@@ -70,18 +66,14 @@ class Properties(Field):
     _column_type = ("jsonb", "jsonb")
     copy = False
     prefetch = False
-    write_sequence = 10  # because it must be written after the definition field
+    write_sequence = 10
 
-    # the field is computed editable by design (see the compute method below)
     store = True
     readonly = False
     precompute = True
 
     definition = None
-    definition_record = (
-        None  # field on the current model that points to the definition record
-    )
-    # field on the definition record that defined the Properties field definition
+    definition_record = None
     definition_record_field = None
 
     _description_definition_record = property(attrgetter("definition_record"))
@@ -100,7 +92,6 @@ class Properties(Field):
     }
 
     ALLOWED_TYPES = (
-        # standard types
         "boolean",
         "integer",
         "float",
@@ -110,12 +101,10 @@ class Properties(Field):
         "date",
         "datetime",
         "monetary",
-        # relational like types
         "many2one",
         "many2many",
         "selection",
         "tags",
-        # UI types
         "separator",
     )
 
@@ -126,14 +115,12 @@ class Properties(Field):
 
     def _setup_definition_attrs(self, model_class: type[BaseModel]) -> None:
         if self.definition:
-            # determine definition_record and definition_record_field
             assert self.definition.count(".") == 1
             self.definition_record, self.definition_record_field = (
                 self.definition.rsplit(".", 1)
             )
 
             if not self.inherited_field:
-                # make the field computed, and set its dependencies
                 self._depends = (self.definition_record,)
                 self.compute = self._compute
 
@@ -144,8 +131,6 @@ class Properties(Field):
             self.definition = self.inherited_field.definition
             self._setup_definition_attrs(model)
 
-    # Database/cache format: None, or a dict {property_name: value}, e.g.
-    # {'3adf37f3258cfe40': 'red', 'aa34746a6851ee4e': 1337}.
     @override
     def convert_to_column(
         self,
@@ -164,7 +149,6 @@ class Properties(Field):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> dict[str, typing.Any] | None:
-        # any format -> cache format {name: value} or None
         if not value:
             return None
 
@@ -172,8 +156,7 @@ class Properties(Field):
             value = value._values
 
         elif isinstance(value, dict):
-            # avoid accidental side effects from shared mutable data
-            value = fast_clone(value)
+            value = fast_clone(self._recordsets_to_ids(value, record))
 
         elif isinstance(value, str):
             value = json.loads(value)
@@ -181,8 +164,6 @@ class Properties(Field):
                 raise ValueError(f"Wrong property value {value!r}")
 
         elif isinstance(value, list):
-            # Convert the list with all definitions into a simple dict
-            # {name: value} to store the strict minimum on the child
             self._remove_display_name(value)
             value = self._list_to_dict(value)
 
@@ -190,7 +171,6 @@ class Properties(Field):
             raise TypeError(f"Wrong property type {type(value)!r}")
 
         if validate:
-            # Sanitize `_html` flagged properties
             for property_name, property_value in value.items():
                 if property_name.endswith("_html"):
                     value[property_name] = html_sanitize(
@@ -200,15 +180,62 @@ class Properties(Field):
 
         return value
 
-    # Record format: False, or a dict {property_name: value} (as cache format).
+    def _recordsets_to_ids(
+        self, values: dict[str, typing.Any], record: ModelLike
+    ) -> dict[str, typing.Any]:
+        """Return *values* with any recordset replaced by its stored id form.
+
+        ``convert_to_cache`` accepts four input formats, and the dict one was the
+        only one that stored its values verbatim: ``Property`` carries already
+        normalized ``_values``, and the list format goes through
+        ``_list_to_dict``, which validates relational values. So a dict holding
+        what the RECORD format hands back -- ``record.attributes['m2o_prop']`` is
+        a recordset, by design (see :class:`Property`) -- reached the JSONB column
+        unconverted and died inside psycopg with ``TypeError: Object of type
+        res.partner is not JSON serializable``, at flush time and far from the
+        assignment that caused it.
+
+        That made ``record.attributes = {name: record.attributes[name]}`` fail
+        for relational properties while assigning the whole ``Property``
+        succeeded -- an asymmetry with no reason to exist.
+
+        The stored form depends on the DECLARED type (``many2one`` keeps a scalar
+        id, ``many2many`` a list), which the recordset itself cannot tell us: a
+        one-record many2many is a list of one id, not a scalar. So the definition
+        decides. When it cannot be read (no container, or a write spanning
+        several containers) an unresolvable recordset is refused by name, which
+        is still far better than the psycopg failure it replaces.
+        """
+        if not any(is_recordset(value) for value in values.values()):
+            return values
+
+        types_by_name: dict[str, str] = {}
+        with contextlib.suppress(Exception):
+            for definition in self._get_properties_definition(record) or ():
+                if definition.get("name"):
+                    types_by_name[definition["name"]] = definition.get("type")
+
+        converted = dict(values)
+        for name, value in values.items():
+            if not is_recordset(value):
+                continue
+            property_type = types_by_name.get(name)
+            if property_type == "many2one":
+                converted[name] = value.id
+            elif property_type == "many2many":
+                converted[name] = value.ids
+            else:
+                raise ValueError(
+                    f"Cannot store a recordset in property {name!r} of "
+                    f"{self}: its definition declares "
+                    f"{property_type or 'no relational type'}"
+                )
+        return converted
+
     @override
     def convert_to_record(self, value: typing.Any, record: ModelLike) -> Property:
         return Property(value or {}, self, record)
 
-    # Read format: a list of dicts, each merging a property's definition with
-    # its value; relational values carry a display name. E.g.
-    #   [{'name': '3adf...', 'type': 'char', 'value': 'red', ...},
-    #    {'name': 'aa34...', 'type': 'many2one', 'value': [1337, 'Bob'], ...}]
     @override
     def convert_to_read(
         self, value: typing.Any, record: ModelLike, use_display_name: bool = True
@@ -223,19 +250,14 @@ class Properties(Field):
     ) -> list[typing.Any]:
         if not records:
             return values
-        # raise (not assert): asserts are stripped under -O, and this gives a
-        # clearer message than the strict-zip below
         if len(values) != len(records):
             raise ValueError(
                 f"convert_to_read_multi: expected {len(records)} values, got {len(values)}"
             )
 
-        # each value is either False or a dict
         result = []
         for record, value in zip(records, values, strict=True):
-            value = (
-                value._values if isinstance(value, Property) else value
-            )  # Property -> dict
+            value = value._values if isinstance(value, Property) else value
             if definition := self._get_properties_definition(record):
                 value = value or {}
                 assert isinstance(value, dict), f"Wrong type {value!r}"
@@ -245,7 +267,6 @@ class Properties(Field):
 
         res_ids_per_model = self._get_res_ids_per_model(records.env, result)
 
-        # value is in record format
         for value in result:
             self._parse_json_types(value, records.env, res_ids_per_model)
 
@@ -276,7 +297,6 @@ class Properties(Field):
 
         :return: ``{model: existing_record_ids}`` for the needed models.
         """
-        # ids per model we need to fetch in batch to put in cache
         ids_per_model = defaultdict(OrderedSet)
 
         for record_values in values_list:
@@ -300,16 +320,14 @@ class Properties(Field):
                 ids_per_model[comodel].update(default)
                 ids_per_model[comodel].update(property_value)
 
-        # check existence and pre-fetch in batch
         res_ids_per_model = {}
         for model, ids in ids_per_model.items():
             recs = env[model].browse(ids).exists()
             res_ids_per_model[model] = set(recs.ids)
 
             for record in recs:
-                # read a field to pre-fetch the recordset
                 with contextlib.suppress(AccessError):
-                    record.display_name  # noqa: B018  # touch the field to trigger recordset prefetch
+                    record.display_name
 
         return res_ids_per_model
 
@@ -339,7 +357,6 @@ class Properties(Field):
             )
 
         if isinstance(value, dict):
-            # don't need to write on the container definition
             return super().mark_dirty(records, value)
 
         definition_changed = any(
@@ -355,7 +372,6 @@ class Properties(Field):
             for definition in value:
                 definition.pop("definition_changed", None)
 
-            # update the properties definition on the container
             container = records[self.definition_record]
             if container:
                 properties_definition = fast_clone(value)
@@ -400,16 +416,13 @@ class Properties(Field):
             properties_values = properties_values._values
 
         if not values.get(self.definition_record):
-            # container is not given in the value, can not find properties definition
             return {}
 
         container_id = values[self.definition_record]
-        # Check for int or recordset (recordsets have _ids attribute)
         if not isinstance(container_id, int) and not hasattr(container_id, "_ids"):
             raise ValueError(f"Wrong container value {container_id!r}")
 
         if isinstance(container_id, int):
-            # retrieve the container record
             current_model = env[self.model_name]
             definition_record_field = current_model._fields[self.definition_record]
             container_model_name = definition_record_field.comodel_name
@@ -423,9 +436,6 @@ class Properties(Field):
                 and any(d.get("definition_changed") for d in properties_values)
             )
         ):
-            # setting a parent without properties may change its definition on
-            # create; but if the value is set without changing the definition,
-            # the passed values can be ignored
             return {}
 
         assert isinstance(properties_values, (list, dict))
@@ -454,8 +464,6 @@ class Properties(Field):
         self, record: ModelLike
     ) -> list[dict[str, typing.Any]] | None:
         """Return the properties definition of the given record."""
-        # definition_record is always resolved for a set-up Properties field;
-        # the assertion only narrows the optional type for the type checker
         assert self.definition_record is not None
         container = record[self.definition_record]
         if container:
@@ -499,7 +507,6 @@ class Properties(Field):
                             display_name,
                         )
                     except AccessError:
-                        # protect from access error message, show an empty name
                         property_definition[value_key] = (property_value, None)
                     except MissingError:
                         property_definition[value_key] = False
@@ -556,7 +563,6 @@ class Properties(Field):
 
             elif property_type == "many2many":
                 if is_list_of(property_value, (list, tuple)):
-                    # [(35, 'Admin'), (36, 'Demo')] -> [35, 36]
                     property_definition[value_key] = [
                         many2many_value[0] for many2many_value in property_value
                     ]
@@ -571,7 +577,6 @@ class Properties(Field):
         """
         for definition in values_list:
             if definition.get("definition_changed") and not definition.get("name"):
-                # keep only the first 64 bits
                 definition["name"] = str(uuid.uuid4()).replace("-", "")[:16]
 
     @classmethod
@@ -601,7 +606,6 @@ class Properties(Field):
                 continue
 
             if property_type == "boolean":
-                # E.G. convert zero to False
                 property_value = bool(property_value)
 
             elif property_type in ("char", "text") and not isinstance(
@@ -610,17 +614,12 @@ class Properties(Field):
                 property_value = False
 
             elif property_value and property_type == "selection":
-                # check if the selection option still exists
                 options = property_definition.get("selection") or []
-                options = {
-                    option[0] for option in options if option or ()
-                }  # always length 2
+                options = {option[0] for option in options if option or ()}
                 if property_value not in options:
-                    # maybe the option has been removed on the container
                     property_value = False
 
             elif property_value and property_type == "tags":
-                # remove all tags that are not defined on the container
                 all_tags = {tag[0] for tag in property_definition.get("tags") or ()}
                 property_value = [tag for tag in property_value if tag in all_tags]
 
@@ -637,7 +636,6 @@ class Properties(Field):
                     property_value = []
 
                 elif len(property_value) != len(set(property_value)):
-                    # remove duplicated value and preserve order
                     property_value = list(dict.fromkeys(property_value))
 
                 property_value = (
@@ -651,8 +649,6 @@ class Properties(Field):
                 )
 
             elif property_type == "html":
-                # field name should end with `_html` to be legit and sanitized,
-                # otherwise do not trust the value and force False
                 property_value = (
                     property_definition["name"].endswith("_html") and property_value
                 )
@@ -683,9 +679,14 @@ class Properties(Field):
             property_type = property_definition.get("type")
             property_model = property_definition.get("comodel")
             if property_value is None:
-                # Do not store None key
                 continue
 
+            if is_recordset(property_value):
+                property_value = (
+                    property_value.id
+                    if property_type == "many2one"
+                    else property_value.ids
+                )
             if property_type not in ("integer", "float") or property_value != 0:
                 property_value = property_value or False
             if (
@@ -693,7 +694,6 @@ class Properties(Field):
                 and property_model
                 and property_value
             ):
-                # check that value are correct before storing them in database
                 if (
                     property_type == "many2many"
                     and property_value
@@ -745,18 +745,14 @@ class Properties(Field):
             value = property_value.get(property_name)
             if value:
                 return value
-            # find definition to check the type
             for definition in self._get_properties_definition(record) or ():
                 if definition.get("name") == property_name:
                     break
             else:
-                # definition not found
                 return value or False
 
             if not value and definition["type"] in RELATIONAL_PROPERTY_TYPES:
                 return record.env.get(definition.get("comodel"))
-            # falsy non-relational values (incl. numeric 0 / 0.0 preserved by
-            # Property.__getitem__) propagate as-is — do not collapse to False
             return value
 
         return get_property
@@ -772,15 +768,6 @@ class Properties(Field):
         elif (
             operator == "in"
             and isinstance(value, COLLECTION_TYPES)
-            # Probe relational-ness on a record that can actually carry a
-            # definition: on an empty recordset ``_get_properties_definition``
-            # returns None, so the getter yields False (never a recordset) and
-            # the branch would be dead — m2o/m2m 'in' conditions then fell
-            # through to the scalar comparison and filtered_domain diverged
-            # from search().  For a non-empty record the getter returns a
-            # recordset for relational properties even when the value is unset.
-            # ``records[:1]`` is empty for empty ``records``; the fallthrough
-            # then filters nothing anyway.
             and hasattr(getter(records[:1]), "_ids")
         ):
             domain = Domain("id", "in", value).optimize(records)
@@ -797,11 +784,7 @@ class Properties(Field):
         query: Query,
     ) -> SQL:
         check_property_field_value_name(property_name)
-        # Embed the property name as a SQL literal (not a bound parameter) so the
-        # expression matches between SELECT and GROUP BY: server-side binding
-        # gives each %s a distinct $N. The name is validated to [a-z0-9_]+, so
-        # literal embedding is safe.
-        return SQL("(%%s -> '%s')" % property_name, field_sql)  # pylint: disable=sql-injection
+        return SQL("(%%s -> '%s')" % property_name, field_sql)
 
     @override
     def condition_to_sql(
@@ -822,15 +805,10 @@ class Properties(Field):
         if operator in ("in", "not in"):
             assert isinstance(value, COLLECTION_TYPES)
             if len(value) == 1 and any(v is True for v in value):
-                # inverse the condition
                 check_null_op_false = "!=" if operator == "in" else "="
                 value = []
                 operator = "in" if operator == "not in" else "not in"
             elif any(v is False for v in value):
-                # identity check: ``False in value`` also matches a numeric 0
-                # (0 == False), which silently turned ``in [0]`` into an
-                # unset-value check and made search() diverge from record
-                # reads / filtered_domain (which preserve numeric 0)
                 check_null_op_false = "=" if operator == "in" else "!="
                 value = [v for v in value if v is not False]
             else:
@@ -847,31 +825,21 @@ class Properties(Field):
                     )
                 )
                 if check_null_op_false == "=":
-                    # check null value too
                     sqls.extend(
                         (
                             SQL("%s IS NULL", raw_sql_field),
                             SQL("NOT (%s ? %s)", raw_sql_field, property_name),
                         )
                     )
-            # left can be an array or a single value!
-            # Even if we use the '=' operator, we must check the list subset.
-            # There is an unsupported edge-case where left is a list and we
-            # have multiple values.
             if len(value) == 1:
-                # check single value equality
                 sql_operator = SQL_OPERATORS["=" if operator == "in" else "!="]
                 sql_right = SQL("%s", json.dumps(value[0]))
                 sqls.append(SQL("%s%s%s", sql_left, sql_operator, sql_right))
             if value:
                 sql_not = SQL("NOT ") if operator == "not in" else SQL.EMPTY
-                # hackish operator to search values
                 if len(value) > 1:
-                    # left <@ value_list -- single left value in value_list
-                    # (here we suppose left is a single value)
                     sql_operator = SQL(" <@ ")
                 else:
-                    # left @> value -- value_list in left
                     sql_operator = SQL(" @> ")
                 sql_right = SQL("%s", json.dumps(value))
                 sqls.append(
@@ -889,7 +857,7 @@ class Properties(Field):
             combine_sql = SQL(" OR ") if operator == "in" else SQL(" AND ")
             return SQL("(%s)", combine_sql.join(sqls))
 
-        unaccent = lambda x: x  # noqa: E731
+        unaccent = lambda x: x
         if operator.endswith("like"):
             if operator.endswith("ilike"):
                 unaccent = model.env.registry.unaccent
@@ -904,9 +872,7 @@ class Properties(Field):
             raise ValueError(f"Invalid operator {operator} for Properties") from None
 
         if isinstance(value, str):
-            sql_left = SQL(
-                "(%s ->> %s)", raw_sql_field, property_name
-            )  # JSONified value
+            sql_left = SQL("(%s ->> %s)", raw_sql_field, property_name)
             sql_right = SQL("%s", value)
             sql = SQL(
                 "%s%s%s",
@@ -954,7 +920,6 @@ class Property(abc.Mapping):
         self._values = values
         self.record = record
         self.field = field
-        # lazy ``{name: definition}`` index, built once by ``_definitions``
         self._definitions_by_name: dict[str, typing.Any] | None = None
 
     def _definitions(self) -> dict[str, typing.Any]:
@@ -976,8 +941,6 @@ class Property(abc.Mapping):
         return index
 
     def __iter__(self) -> typing.Iterator[str]:
-        # Without a record, __getitem__ returns False for every key (never
-        # raising), so the legacy behaviour yields *all* keys.
         if not self.record:
             yield from self._values
             return
@@ -987,10 +950,6 @@ class Property(abc.Mapping):
                 yield key
 
     def __len__(self) -> int:
-        # Count what __iter__ yields (stored keys that still exist in the
-        # definition), not the raw stored keys: a Mapping must satisfy
-        # ``len(m) == len(list(m))`` or keys()/items()/dict(m) disagree once a
-        # property has been removed from the container.
         return sum(1 for _ in self)
 
     def __eq__(self, other: object) -> bool:
@@ -1005,8 +964,6 @@ class Property(abc.Mapping):
             raise KeyError(property_name)
 
         if prop.get("type") in RELATIONAL_PROPERTY_TYPES and prop.get("comodel"):
-            # many2one and many2many resolve identically: browse the stored ids
-            # (a scalar id or a list of ids both yield a recordset).
             return self.record.env[prop.get("comodel")].browse(prop.get("value"))
 
         if prop.get("type") == "selection" and prop.get("value"):
@@ -1029,19 +986,12 @@ class Property(abc.Mapping):
                 tag[1] for tag in prop.get("tags") if tag[0] in prop["value"]
             )
 
-        # Mirror the write-side collapse in ``_list_to_dict``: falsy scalars
-        # normalise to False, EXCEPT numeric 0 / 0.0 which are real stored
-        # values.  Collapsing them to False made record-level reads (and thus
-        # ``filtered_domain``) diverge from SQL comparisons such as ``>= 0``.
         value = prop.get("value")
         if prop.get("type") not in ("integer", "float") or value != 0:
             value = value or False
         return value
 
     def __hash__(self) -> int:
-        # Normalise list values (many2many/tags property values are lists of
-        # ids) to tuples: a frozendict containing a list is itself unhashable,
-        # so hashing such a Property would otherwise raise TypeError.
         return hash(
             frozendict(
                 {
@@ -1060,7 +1010,7 @@ class PropertiesDefinition(Field):
 
     type = "properties_definition"
     _column_type = ("jsonb", "jsonb")
-    copy = True  # containers may act like templates, keep definitions to ease usage
+    copy = True
     readonly = False
     prefetch = True
 
@@ -1079,7 +1029,6 @@ class PropertiesDefinition(Field):
         "fold_by_default",
         "currency_field",
     )
-    # those keys will be removed if the types does not match
     PROPERTY_PARAMETERS_MAP = {
         "comodel": RELATIONAL_PROPERTY_TYPES,
         "currency_field": {"monetary"},
@@ -1121,13 +1070,10 @@ class PropertiesDefinition(Field):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> list[dict[str, typing.Any]] | None:
-        # any format -> cache format (list of dicts or None)
         if not value:
             return None
 
         if isinstance(value, list):
-            # avoid accidental side effects from shared mutable data, and make
-            # the value strict with respect to JSON (tuple -> list, etc)
             value = json.dumps(value)
 
         if isinstance(value, str):
@@ -1147,36 +1093,25 @@ class PropertiesDefinition(Field):
     def convert_to_record(
         self, value: typing.Any, record: ModelLike
     ) -> list[dict[str, typing.Any]]:
-        # cache format -> record format (list of dicts)
         if not value:
             return []
 
-        # return a copy of the definition in cache where all property
-        # definitions have been cleaned up
         result = []
 
         for property_definition in value:
             if not all(property_definition.get(key) for key in self.REQUIRED_KEYS):
-                # some required keys are missing, ignore this property definition
                 continue
 
-            # don't modify the value in cache
             property_definition = fast_clone(property_definition)
 
             type_ = property_definition.get("type")
 
             if type_ in RELATIONAL_PROPERTY_TYPES:
-                # check if the model still exists in the environment, the module of the
-                # model might have been uninstalled so the model might not exist anymore
                 property_model = property_definition.get("comodel")
                 if property_model not in record.env:
                     property_definition["comodel"] = False
                     property_definition.pop("domain", None)
                 elif property_domain := property_definition.get("domain"):
-                    # Re-validate the domain: fields may have been removed (e.g.
-                    # module uninstalled). ast.literal_eval is safe from code
-                    # execution but accepts arbitrarily-nested literals, so bound
-                    # the length to prevent a DoS via a huge nested-list string.
                     if len(property_domain) > 8192:
                         del property_definition["domain"]
                     else:
@@ -1184,11 +1119,10 @@ class PropertiesDefinition(Field):
                             dom = Domain(ast.literal_eval(property_domain))
                             model = record.env[property_model]
                             dom.validate(model)
-                        except (ValueError, SyntaxError, MemoryError):
+                        except ValueError, SyntaxError, MemoryError:
                             del property_definition["domain"]
 
             elif type_ in ("selection", "tags"):
-                # always set at least an empty array if there's no option
                 property_definition[type_] = property_definition.get(type_) or []
 
             result.append(property_definition)
@@ -1199,7 +1133,6 @@ class PropertiesDefinition(Field):
     def convert_to_read(
         self, value: typing.Any, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
-        # record format -> read format (list of dicts with display names)
         if not value:
             return value
 

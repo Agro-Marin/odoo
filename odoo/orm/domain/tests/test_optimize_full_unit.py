@@ -21,8 +21,6 @@ import unittest
 
 from odoo.exceptions import UserError
 
-# Importing registers all optimization passes onto ``_OPTIMIZATIONS_FOR``
-# (the stubbed ``odoo.orm.domain.__init__`` never runs — see conftest).
 from odoo.orm.domain import optimizations
 from odoo.orm.domain.ast import Domain, DomainCondition
 from odoo.tools import OrderedSet
@@ -59,6 +57,7 @@ class _StubEnv:
 class _StubModel:
     _name = "m"
     _ids = ()
+    _auto = True
 
     def __init__(self):
         self._fields = {
@@ -87,28 +86,23 @@ class TestM2oBypassComodelIdLookup(unittest.TestCase):
             condition, _StubModel()
         )
 
-    # X deliberately contains False so the -{False} / |{False} adjustments show
     IN_SET = OrderedSet([1, 2, False])
     OUT_SET = OrderedSet([1, 2])
     SUB = Domain("a", "=", 7)
 
     def test_any_id_in(self):
-        # a ANY (id IN X)  =>  a IN (X - {False})
         result = self._rewrite("any!", "in", self.IN_SET)
         self.assertEqual(list(result), [("rel", "in", [1, 2])])
 
     def test_any_id_not_in(self):
-        # a ANY (id NOT IN X)  =>  a NOT IN (X | {False})
         result = self._rewrite("any!", "not in", self.OUT_SET)
         self.assertEqual(list(result), [("rel", "not in", [1, 2, False])])
 
     def test_any_id_any(self):
-        # a ANY (id ANY X)  =>  a ANY X
         result = self._rewrite("any!", "any!", self.SUB)
         self.assertEqual(list(result), [("rel", "any!", [("a", "=", 7)])])
 
     def test_any_id_not_any(self):
-        # a ANY (id NOT ANY X)  =>  a != False AND a NOT ANY X
         result = self._rewrite("any!", "not any!", self.SUB)
         self.assertEqual(
             list(result),
@@ -116,32 +110,25 @@ class TestM2oBypassComodelIdLookup(unittest.TestCase):
         )
 
     def test_not_any_id_in(self):
-        # a NOT ANY (id IN X)  =>  a NOT IN (X - {False})
         result = self._rewrite("not any!", "in", self.IN_SET)
         self.assertEqual(list(result), [("rel", "not in", [1, 2])])
 
     def test_not_any_id_not_in(self):
-        # a NOT ANY (id NOT IN X)  =>  a IN (X | {False})
         result = self._rewrite("not any!", "not in", self.OUT_SET)
         self.assertEqual(list(result), [("rel", "in", [1, 2, False])])
 
     def test_not_any_id_any(self):
-        # a NOT ANY (id ANY X)  =>  a NOT ANY X
         result = self._rewrite("not any!", "any!", self.SUB)
         self.assertEqual(list(result), [("rel", "not any!", [("a", "=", 7)])])
 
     def test_not_any_id_not_any(self):
-        # a NOT ANY (id NOT ANY X)  =>  a = False OR a ANY X
         result = self._rewrite("not any!", "not any!", self.SUB)
         self.assertEqual(
             list(result),
             ["|", ("rel", "=", False), ("rel", "any!", [("a", "=", 7)])],
         )
 
-    # gates: shapes the pass must leave untouched
-
     def test_non_bang_any_is_untouched(self):
-        # permissions not bypassed ('any'): the fold would skip record rules
         condition = DomainCondition(
             "rel", "any", DomainCondition("id", "in", self.IN_SET)
         )
@@ -233,7 +220,6 @@ class TestInRequiredRemainingGates(unittest.TestCase):
         return model
 
     def test_no_false_in_value_returns_same_node(self):
-        # fast path: nothing to strip, no field/registry lookup at all
         field = _StubField("rel", "many2one", relational=True, comodel="m")
         field.required = True
         condition = DomainCondition("rel", "in", OrderedSet([1, 2]))
@@ -241,7 +227,6 @@ class TestInRequiredRemainingGates(unittest.TestCase):
         self.assertIs(result, condition)
 
     def test_id_field_strips_without_required_flag(self):
-        # 'id' is NOT NULL by nature: the strip applies even with required=False
         field = _StubField("id")
         condition = DomainCondition("id", "in", OrderedSet([False, 5]))
         result = optimizations._optimize_in_required(condition, self._model(field))
@@ -250,8 +235,6 @@ class TestInRequiredRemainingGates(unittest.TestCase):
         self.assertIs(result._predicate_fallback, condition)
 
     def test_falsy_value_field_is_untouched(self):
-        # a required char column aliases '' with NULL: False in the set still
-        # matches empty strings, so stripping it would change the result
         field = _StubField("code", "char")
         field.required = True
         field.falsy_value = ""
@@ -260,8 +243,6 @@ class TestInRequiredRemainingGates(unittest.TestCase):
         self.assertIs(result, condition)
 
     def test_field_without_not_null_constraint_is_untouched(self):
-        # required in Python but not NOT NULL in the DB (e.g. freshly added
-        # column): the SQL may still hold NULLs, keep the False check
         field = _StubField("rel", "many2one", relational=True, comodel="m")
         field.required = True
         model = self._model(field)
@@ -314,7 +295,6 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), [("a", "=", 1)])
 
     def test_negative_operator_retries_with_positive_and_negates(self):
-        # 'not in' unimplemented -> retry 'in', wrap the result in a negation
         calls = []
         model = self._model({"in": [("a", "=", 1)]}, calls)
         result = DomainCondition(
@@ -324,8 +304,6 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), [("a", "!=", 1)])
 
     def test_in_falls_back_to_or_of_equalities(self):
-        # neither 'in' nor 'not in' implemented -> one '=' call per element,
-        # OR-ed together (the documented "fields implementing only '='" rung)
         calls = []
         model = self._model({"=": lambda v: [("a", "=", v)]}, calls)
         result = DomainCondition(
@@ -344,8 +322,6 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         self.assertEqual(list(result), ["&", ("a", "!=", 1), ("a", "!=", 2)])
 
     def test_any_bang_falls_back_to_any_with_sudo_and_warns(self):
-        # 'any!' raising NotImplementedError -> retried as 'any' on model.sudo()
-        # (not strictly equivalent: the search then runs sudo), with a warning
         calls = []
         sub_domain = Domain("a", "=", 3)
         handlers = {
@@ -368,20 +344,15 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         )
 
     def test_original_exception_wins_over_later_fallback_failures(self):
-        # determine_domain('in') raises: the '=' rung is still attempted, but
-        # when it fails too, the FIRST exception is re-raised (not the later one)
         calls = []
         model = self._model({"in": NotImplementedError("boom-in")}, calls)
         with self.assertRaisesRegex(NotImplementedError, "boom-in"):
             DomainCondition("f", "in", OrderedSet([1]))._optimize_field_search_method(
                 model
             )
-        # inverse retry is skipped once an exception is recorded; '=' still ran
         self.assertEqual(calls, ["in", "="])
 
     def test_nothing_implemented_raises_user_error(self):
-        # the ladder bottom: no rung applies for 'like' -> UserError built from
-        # the field / model descriptions
 
         class _EnvWithIrModel(_StubEnv):
             def __getitem__(self, name):
@@ -400,5 +371,4 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         model.env = _EnvWithIrModel(model)
         with self.assertRaisesRegex(UserError, "Unsupported operator"):
             DomainCondition("f", "like", "x")._optimize_field_search_method(model)
-        # 'like' then its inverse 'not like'; no set-expansion rung for 'like'
         self.assertEqual(calls, ["like", "not like"])

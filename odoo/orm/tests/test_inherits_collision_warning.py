@@ -54,12 +54,8 @@ class CollChild(models.Model):
         "hcoll.parent_b": "parent_b_id",
     }
 
-    parent_a_id = fields.Many2one(
-        "hcoll.parent_a", required=True, ondelete="cascade"
-    )
-    parent_b_id = fields.Many2one(
-        "hcoll.parent_b", required=True, ondelete="cascade"
-    )
+    parent_a_id = fields.Many2one("hcoll.parent_a", required=True, ondelete="cascade")
+    parent_b_id = fields.Many2one("hcoll.parent_b", required=True, ondelete="cascade")
 
 
 def test_two_inherits_parents_warn_only_on_genuine_collision(caplog):
@@ -69,18 +65,12 @@ def test_two_inherits_parents_warn_only_on_genuine_collision(caplog):
             parent_a = env["hcoll.parent_a"]
             parent_b = env["hcoll.parent_b"]
 
-            # Precondition making the "no magic warnings" assertion meaningful:
-            # the magic fields exist on both parents AND on the child itself,
-            # which is exactly the shape that used to produce 6 spurious
-            # warnings per model with 2+ _inherits parents.
             for name in MAGIC_FIELDS:
                 assert name in parent_a._fields
                 assert name in parent_b._fields
                 assert name in child._fields
 
-            # The genuine collision is still inherited (last parent wins).
             assert child._fields["shared"].related == "parent_b_id.shared"
-            # Non-colliding parent fields are inherited as usual.
             assert child._fields["power"].related == "parent_a_id.power"
             assert child._fields["wings"].related == "parent_b_id.wings"
 
@@ -90,12 +80,10 @@ def test_two_inherits_parents_warn_only_on_genuine_collision(caplog):
         if "inherits field" in record.getMessage()
     ]
 
-    # zero warnings for the magic fields...
     for name in MAGIC_FIELDS:
         offenders = [msg for msg in collision_msgs if f"{name!r}" in msg]
         assert not offenders, f"spurious magic-field warning(s): {offenders}"
 
-    # ...but exactly one for the genuine duplicated parent field
     shared_msgs = [msg for msg in collision_msgs if "'shared'" in msg]
     assert len(shared_msgs) == 1, collision_msgs
     assert "'hcoll.parent_a'" in shared_msgs[0]

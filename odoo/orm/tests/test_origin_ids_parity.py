@@ -17,7 +17,7 @@ propagate identically from both.
 """
 
 import pytest
-from odoo_rust import origin_ids as origin_ids_rust  # type: ignore[import-untyped]
+from odoo_rust import origin_ids as origin_ids_rust
 
 from odoo.orm.helpers import _origin_ids, _origin_ids_python
 from odoo.orm.primitives import NewId
@@ -48,15 +48,15 @@ CASES = [
     (None,),
     (NewId(),),
     (NewId(5),),
-    (NewId(0),),  # falsy origin -> dropped
-    (NewId(-3),),  # truthy negative origin -> kept
+    (NewId(0),),
+    (NewId(-3),),
     (1, NewId(2), 0, NewId(), 3),
-    (NewId(1), NewId(1)),  # duplicates are NOT deduplicated
+    (NewId(1), NewId(1)),
     (_NoOrigin(),),
     (1, _NoOrigin(), NewId(4)),
-    (True, False),  # bool is an int subclass
-    ("a", ""),  # str ids: "a" truthy, "" falsy with no origin
-    (2**63, 2**70),  # beyond i64 — must not overflow the Rust path
+    (True, False),
+    ("a", ""),
+    (2**63, 2**70),
 ]
 
 

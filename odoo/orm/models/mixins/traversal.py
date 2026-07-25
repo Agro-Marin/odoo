@@ -23,7 +23,12 @@ from ..._recordset import is_recordset
 from ..._typing import DomainType
 from ...domain import Domain
 from ...parsing import regex_order
-from ._cache_scan import can_scan_identity, can_scan_sorted, can_scan_truthy
+from ._cache_scan import (
+    caches_lang_dicts,
+    can_scan_identity,
+    can_scan_sorted,
+    can_scan_truthy,
+)
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -46,8 +51,6 @@ class ReversibleComparator:
     def __lt__(self, other: ReversibleComparator) -> bool:
         item = self.__item
         item_cmp = other.__item
-        # Check None before equality — equality on nested comparators
-        # can crash if one item is None and the other is a comparator.
         if item is None:
             return False if item_cmp is None else self.__none_first
         if item_cmp is None:
@@ -109,24 +112,19 @@ class TraversalMixin(_ModelStubs):
             records.mapped("partner_id.bank_ids")
         """
         if not func:
-            return self  # support for an empty path of fields
+            return self
 
         if isinstance(func, str):
-            # special case: sequence of field names
             *rel_field_names, field_name = func.split(".")
             records = self
             for rel_field_name in rel_field_names:
                 records = records[rel_field_name]
             if len(records) > PREFETCH_MAX:
-                # fetch the field for the whole set when it exceeds the prefetch
                 records.fetch([field_name])
             field = records._fields[field_name]
             getter = field.__get__
             if field.relational:
-                # union of records
                 return getter(records)
-            # Non-relational fast path: batch preconditions once, then loop
-            # with direct cache access.  Falls back to __get__ on cache miss.
             if not records:
                 return []
             field.ensure_access(records[:1])
@@ -137,17 +135,12 @@ class TraversalMixin(_ModelStubs):
             _get = field_cache.get
             result = []
             _append = result.append
-            # Identity-convert: skip convert_to_record for scalar types where
-            # it is a no-op.  Iterate records (not raw _ids) to preserve the
-            # prefetch group so __get__ batch-fetches on a cache miss.
             if can_scan_identity(field):
                 _none_val: typing.Any = field.convert_to_record(None, records[:1])
                 result, miss_indices = _batch_cache_get(
                     field_cache, records._ids, PENDING, _none_val
                 )
                 if miss_indices:
-                    # Singletons only for missed indices; list() preserves
-                    # _prefetch_ids (shared from __iter__).
                     rec_list = list(records)
                     for idx in miss_indices:
                         result[idx] = getter(rec_list[idx])
@@ -168,8 +161,6 @@ class TraversalMixin(_ModelStubs):
                 return vals[0].union(*vals[1:])
             return vals
         else:
-            # we want to follow-up the comodel from the function
-            # so we pass an empty recordset
             vals = func(self)
             return vals if is_recordset(vals) else []
 
@@ -189,12 +180,10 @@ class TraversalMixin(_ModelStubs):
             records.filtered("partner_id.is_company")
         """
         if not func:
-            # align with mapped()
             return self
         if not self:
             return self
         if callable(func):
-            # normal function
             pass
         elif isinstance(func, str):
             if "." in func:
@@ -204,19 +193,9 @@ class TraversalMixin(_ModelStubs):
                     if any(rec.mapped(func))
                 )
             if func == "id":
-                # 'id' is never stored in the field cache (Id.__get__ reads
-                # record._ids directly), so the cache-scan below would miss every
-                # record. Keep truthy ids directly; falsy ids are unsaved (NewId)
-                # or 0, matching `if record.id`.
                 return self.browse([id_ for id_ in self._ids if id_])
-            # Fast path: batch ACL + recompute, then C-level cache scan.
-            # Falls back to __get__ for missed indices (list(self) preserves
-            # prefetch groups).
             field = self._fields[func]
             if not can_scan_truthy(field):
-                # Raw cache truthiness would lie here (a new record's many2one
-                # caches a falsy NewId; per-term-translated fields cache
-                # ``{lang: value}`` dicts); resolve per record via __get__.
                 _field_get = field.__get__
                 return self.browse(rec._ids[0] for rec in self if _field_get(rec))
             field.ensure_access(self[0:1])
@@ -231,7 +210,6 @@ class TraversalMixin(_ModelStubs):
                 for idx in miss_indices:
                     if _field_get(rec_list[idx]):
                         passing_ids.append(rec_list[idx]._ids[0])
-                # Restore original order: miss IDs were appended at the end.
                 all_passing = set(passing_ids)
                 passing_ids = [id_ for id_ in self._ids if id_ in all_passing]
             return self.browse(passing_ids)
@@ -271,8 +249,6 @@ class TraversalMixin(_ModelStubs):
         if isinstance(key, str):
             field = self._fields[key]
             if not field.relational:
-                # Scalar fast path: batch ACL + recompute, then group by
-                # convert_to_record(cache_value), falling back to __get__ on miss.
                 field.ensure_access(self[:1])
                 field.ensure_computed(self)
                 field_cache = field._get_cache(self.env)
@@ -281,7 +257,6 @@ class TraversalMixin(_ModelStubs):
                 _get = field_cache.get
                 _field_get = field.__get__
                 collator = defaultdict(list)
-                # Identity-convert: skip convert_to_record where it is a no-op.
                 if can_scan_identity(field):
                     _none_val: typing.Any = field.convert_to_record(None, self[:1])
                     ids = self._ids
@@ -289,7 +264,6 @@ class TraversalMixin(_ModelStubs):
                         field_cache, ids, PENDING, _none_val
                     )
                     if not miss_indices:
-                        # All cached: Rust groups ids by value in one C pass.
                         collator = _batch_group_ids(ids, results)
                     else:
                         miss_set = set(miss_indices)
@@ -379,10 +353,7 @@ class TraversalMixin(_ModelStubs):
             return self
         if isinstance(key, str):
             order = key
-            # Batch ensure_computed so both sort paths can read the cache
-            # directly instead of going through __get__ per record.
             self._sorted_ensure_computed(order)
-            # Try ID-based sort: avoids creating N singleton records
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
                 return self._spawn(self.env, ids, self._prefetch_ids)
@@ -430,8 +401,7 @@ class TraversalMixin(_ModelStubs):
         env = self.env
         n = len(ids)
 
-        # Parse all sort parts; bail if any is non-sortable
-        sort_specs = []  # list of (field_cache, desc, nulls_first)
+        sort_specs = []
         for part in parts:
             match = regex_order.match(part)
             if not match:
@@ -445,36 +415,35 @@ class TraversalMixin(_ModelStubs):
             desc = (match["direction"] or "").upper() == "DESC"
             nulls_raw = (match["nulls"] or "").upper()
             nulls_first = (nulls_raw == "NULLS FIRST") if nulls_raw else desc
-            sort_specs.append((field._get_cache(env), desc, nulls_first))
+            cache = None if field_name == "id" else field._get_cache(env)
+            sort_specs.append((cache, desc, nulls_first))
 
         if len(sort_specs) == 1:
-            # Single-field fast path: one fused Rust call reads the field cache
-            # and sorts, returning None on any cache miss (→ general sort path).
-            # This avoids materializing an intermediate Python values list.
             field_cache, desc, nulls_first = sort_specs[0]
             reverse_param = desc != reverse
-            # Always run the null-aware comparator: with no None/False present it
-            # yields an identical ordering, and Rust's per-element null check (two
-            # pointer compares) is far cheaper than an O(n) Python pre-scan.
+            if field_cache is None:
+                return tuple(sorted(ids, reverse=reverse_param))
             null_high = nulls_first == desc
-            return _sort_ids_by_cache(field_cache, ids, _PENDING, reverse_param, null_high)
+            return _sort_ids_by_cache(
+                field_cache, ids, _PENDING, reverse_param, null_high
+            )
 
-        # Multi-field path: only uniform direction (all ASC or all DESC).
-        # Mixed-direction sorts need per-field negation — fall back instead.
         all_desc = sort_specs[0][1]
         for _, desc, _ in sort_specs[1:]:
             if desc != all_desc:
                 return None
 
-        # Build composite tuple keys; tuple comparison gives multi-field order.
         reverse_param = all_desc != reverse
         has_nulls = False
         columns = []
-        null_specs = []  # per-field null handling
+        null_specs = []
         for field_cache, desc, nulls_first in sort_specs:
-            col = _batch_cache_values(field_cache, ids, _PENDING)
-            if col is None:
-                return None
+            if field_cache is None:
+                col = list(ids)
+            else:
+                col = _batch_cache_values(field_cache, ids, _PENDING)
+                if col is None:
+                    return None
             if not has_nulls:
                 for v in col:
                     if v is None or v is False:
@@ -486,13 +455,11 @@ class TraversalMixin(_ModelStubs):
 
         _key1 = itemgetter(1)
         if not has_nulls:
-            # No nulls in any field: raw tuple comparison
             keys = [tuple(columns[c][i] for c in range(len(columns))) for i in range(n)]
             id_key_pairs = list(zip(ids, keys, strict=True))
             id_key_pairs.sort(key=_key1, reverse=reverse_param)
             return tuple(pair[0] for pair in id_key_pairs)
 
-        # Null-safe: build (null_rank, value) per field per record
         num_cols = len(columns)
         keys = []
         for i in range(n):
@@ -556,9 +523,7 @@ class TraversalMixin(_ModelStubs):
                 )
             elif field.type == "boolean":
                 getter = field.expression_getter(field_expr)
-            elif not property_name:
-                # Scalar non-boolean: direct cache access bypasses __get__
-                # (ACL + recompute already handled by _sorted_ensure_computed)
+            elif not property_name and not caches_lang_dicts(field, _env):
                 _cache_get = field._get_cache(_env).get
                 _field_get = field.__get__
                 _S = SENTINEL
@@ -567,7 +532,10 @@ class TraversalMixin(_ModelStubs):
                 def getter(rec):
                     value = _cache_get(rec._ids[0], _S)
                     if value is _S or value is _P:
-                        value = _field_get(rec)
+                        record_value = _field_get(rec)
+                        value = field._get_cache(_env).get(rec._ids[0], _S)
+                        if value is _S:
+                            return record_value
                     return value if value is not False else None
 
             else:
@@ -594,8 +562,6 @@ class TraversalMixin(_ModelStubs):
         """Update the records in ``self`` with ``values``."""
         for name, value in values.items():
             self[name] = value
-
-    # Cycle detection
 
     def _has_cycle(self, field_name: str | None = None) -> bool:
         """Return whether the records in ``self`` form a loop along ``field_name``
@@ -626,12 +592,8 @@ class TraversalMixin(_ModelStubs):
         if not self.ids:
             return False
 
-        # must ignore 'active' flag, ir.rules, etc.
-        # direct recursive SQL query with cycle detection for performance
         self.flush_model([field_name])
         if field.type == "many2many":
-            # a many2many always has its relation table resolved after setup;
-            # the assertion only narrows ``str | None`` for the type checker
             assert (
                 field.relation is not None
                 and field.column1 is not None

@@ -73,7 +73,6 @@ class LifecycleMixin(_ModelStubs):
     def toggle_active(self) -> None:
         "Inverses the value of :attr:`active` on the records in ``self``."
         if not self._active_name:
-            # raise (not assert) so misconfiguration surfaces under python -O
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(self._active_name)
         active_recs.action_archive()
@@ -136,10 +135,6 @@ class LifecycleMixin(_ModelStubs):
         """
         self.ensure_one()
         return False
-
-    #
-    # Generic onchange method
-    #
 
     def _has_onchange(self, field: Field, other_fields: Collection[Field]) -> bool:
         """Return whether ``field`` should trigger an onchange event in the

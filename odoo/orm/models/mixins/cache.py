@@ -26,7 +26,6 @@ class RecordCache(Mapping):
     __slots__ = ["_record"]
 
     def __init__(self, record) -> None:
-        # raise (not assert) so the contract holds under python -O.
         if len(record) != 1:
             raise ValueError(f"Unexpected RecordCache({record})")
         self._record = record
@@ -34,8 +33,6 @@ class RecordCache(Mapping):
     def __contains__(self, name: object) -> bool:
         """Return whether `record` has a cached value for field ``name``."""
         record = self._record
-        # honour the Mapping contract: an unknown name is "not contained",
-        # not a KeyError (``name in record._cache`` must be a safe bool test).
         field = record._fields.get(name)
         return field is not None and record.id in field._get_cache(record.env)
 
@@ -56,7 +53,6 @@ class RecordCache(Mapping):
             if field.model_name != model_name:
                 continue
             if field in depends_context:
-                # context-dependent: cache is {context_key: {id: value}}
                 cache = cache.get(env.cache_key(field))
                 if cache and id_ in cache:
                     yield field.name
@@ -131,9 +127,7 @@ class CacheMixin(_ModelStubs):
         ids: Sequence[IdType] | None = None,
         flush: bool = True,
     ) -> None:
-        if (
-            ids is not None and not ids
-        ):  # Avoid invalidating field_inverses for no reason
+        if ids is not None and not ids:
             return
 
         fields: Collection[Field]
@@ -148,15 +142,35 @@ class CacheMixin(_ModelStubs):
                 ) from e
 
         env = self.env
+        if not flush:
+            self._check_no_pending_write(fields, ids)
+
         field_inverses = self.pool.field_inverses
         for field in fields:
             field._invalidate_cache(env, ids)
-            # Also flush+invalidate inverse fields (e.g. the O2M inverse of a
-            # M2O) to avoid stale reverse lookups.  With flush=False the caller
-            # explicitly opted out of flushing, so only invalidate the inverse
-            # caches.
             if inverses := field_inverses.get(field):
                 for invf in inverses:
                     if flush:
                         env[invf.model_name].flush_model([invf.name])
                     invf._invalidate_cache(env)
+
+    def _check_no_pending_write(
+        self, fields: Collection[Field], ids: Sequence[IdType] | None
+    ) -> None:
+        """Raise if any of ``fields`` has a pending write on ``ids``.
+
+        Guards the ``flush=False`` invalidation paths (see
+        :meth:`_invalidate_cache`).  The scan itself lives on
+        :meth:`OrmCore.find_pending_write` so this and the legacy
+        ``env.cache.invalidate`` entry point cannot drift apart.
+        """
+        found = self.env._core.find_pending_write(fields, ids)
+        if found is None:
+            return
+        field, overlap = found
+        raise ValueError(
+            f"Refusing to invalidate {field} on records {overlap[:10]} with "
+            f"flush=False: they hold a pending write that would be silently "
+            f"lost.  Flush first (drop flush=False), restrict the records, "
+            f"or discard the write explicitly."
+        )

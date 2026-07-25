@@ -21,6 +21,7 @@ from odoo.libs.datetime import utc
 from odoo.tools import SQL, OrderedSet, partition, str2bool
 from odoo.tools.date_utils import parse_iso_date, resolve_date
 
+from .._recordset import is_recordset
 from ..primitives import COLLECTION_TYPES
 from .ast import (
     _FALSE_DOMAIN,
@@ -48,9 +49,6 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
 
 _logger = logging.getLogger("odoo.domains")
-
-
-# Optimizations: registration decorators
 
 
 def operator_optimization(
@@ -93,11 +91,6 @@ def nary_optimization(optimization: typing.Any) -> typing.Any:
     ``(optimize AND) if cond == cls.ZERO.value else (optimize OR)``. Children
     arrive optimized and sorted by (field, operator type, operator).
     """
-    # ``_match_operators`` is the operator gate read by
-    # ``DomainNary._optimize_step`` to skip a merge whose operators are absent
-    # from a node's children (running it would scan the children and change
-    # nothing).  ``None`` = always applicable (e.g. the dedup pass);
-    # ``nary_condition_optimization`` sets the concrete operator set.
     if not hasattr(optimization, "_match_operators"):
         optimization._match_operators = None
     _MERGE_OPTIMIZATIONS.append(optimization)
@@ -118,13 +111,10 @@ def nary_condition_optimization(
         def optimizer(
             cls: type[DomainNary], domains: list[Domain], model: BaseModel
         ) -> list[Domain]:
-            # group adjacent conditions sharing field and operators
             result = []
             merge_conditions: list[DomainCondition] = []
 
             def flush() -> None:
-                # emit the pending group: merge it when it has >=2 conditions,
-                # otherwise pass it through unchanged. No-op on an empty group.
                 if len(merge_conditions) >= 2:
                     result.extend(optimization(cls, merge_conditions, model))
                 else:
@@ -140,7 +130,6 @@ def nary_condition_optimization(
                         ):
                             merge_conditions.append(domain)
                             continue
-                        # field changed (or first condition), save the previous group
                         flush()
                         merge_conditions = [domain]
                         continue
@@ -151,24 +140,12 @@ def nary_condition_optimization(
             flush()
             return result
 
-        # Gate this merge to its operators, then register it.  ``_optimize_step``
-        # skips it when no child condition uses one of these operators — the loop
-        # above would otherwise scan every child and pass them all through
-        # unchanged (a no-op), so skipping is result-preserving.
         optimizer._match_operators = frozenset(operators)
         nary_optimization(optimizer)
 
-        # Return the *undecorated* function (not ``optimizer``): ``nary_optimization``
-        # already registered ``optimizer`` for its side effect, and returning the raw
-        # function lets stacked ``@nary_condition_optimization`` decorators (e.g. on
-        # ``_optimize_merge_any`` for both "any" and "any!") each wrap the original
-        # rather than wrapping each other's grouping wrapper.
         return optimization
 
     return register
-
-
-# Optimizations: conditions
 
 
 @operator_optimization(["=?"])
@@ -210,9 +187,7 @@ def _operator_equal_as_in(condition, _):
     value = condition.value
     operator = "in" if condition.operator == "=" else "not in"
     if isinstance(value, COLLECTION_TYPES):
-        # Equality against a collection is common in views; debug-level since
-        # it's noisy and already handled by converting to 'in'/'not in'.
-        if not value:  # views use ('user_ids', '!=', []) to mean the field is set
+        if not value:
             _logger.debug(
                 "The domain condition %r should compare with False.", condition
             )
@@ -224,7 +199,6 @@ def _operator_equal_as_in(condition, _):
             )
             value = OrderedSet(value)
     elif isinstance(value, SQL):
-        # transform '=' SQL("x") into 'in' SQL("(x)")
         value = SQL("(%s)", value)
     else:
         value = OrderedSet((value,))
@@ -236,7 +210,6 @@ def _optimize_in_set(condition, _model):
     """Make sure the value is an OrderedSet or use 'any' operator"""
     value = condition.value
     if isinstance(value, OrderedSet) and value:
-        # common case: skip creating a new Domain instance
         return condition
     if isinstance(value, ANY_TYPES):
         operator = "any" if condition.operator == "in" else "not any"
@@ -244,8 +217,6 @@ def _optimize_in_set(condition, _model):
     if not value:
         return _FALSE_DOMAIN if condition.operator == "in" else _TRUE_DOMAIN
     if not isinstance(value, COLLECTION_TYPES):
-        # Scalar value with 'in'/'not in' operator.  Common for group_ids,
-        # user_ids fields — too noisy for a warning.  Silently wrap in list.
         _logger.debug("The domain condition %r should have a list value.", condition)
         value = [value]
     return DomainCondition(condition.field_expr, condition.operator, OrderedSet(value))
@@ -253,34 +224,53 @@ def _optimize_in_set(condition, _model):
 
 @operator_optimization(["in", "not in"])
 def _optimize_in_set_falsy_value(condition, model):
-    """Canonicalize a field's falsy value to ``False`` in in/not-in sets.
+    """Canonicalize every "no value" spelling to ``False`` in in/not-in sets.
 
-    SQL aliases a field's ``falsy_value`` (``""`` for char/text/html, ``0`` for
-    integer, ``0.0`` for float/monetary) with NULL/False, but Python set algebra
-    does not (``"" != False``). The n-ary set-merge (``_merge_set_conditions``)
-    relies on set equality, so without this normalization
-    ``a != "" | a != False`` would wrongly collapse to TRUE (and
-    ``a = "" & a != False`` to a non-empty set). Mapping every element equal to
-    ``falsy_value`` to ``False`` is SQL-identical (see ``condition_to_sql``) and
-    makes the merge sound and the optimized form canonical.
+    Two distinct aliases of NULL must collapse onto the single canonical
+    ``False``, or the SQL and Python evaluators disagree and the set algebra
+    below becomes unsound:
+
+    ``None``
+        The JSON/RPC spelling of a null comparand.
+        :meth:`DomainCondition.checked` normalizes a *scalar* ``None`` to
+        ``False``, but never looked inside a collection, so ``('a', 'in',
+        [None])`` reached the evaluators unnormalized — and they disagreed:
+        ``Field._condition_to_sql`` counts it as a null marker (``v is not
+        False and v is not None``) and emits ``IS NULL``, while
+        ``Field.filter_function`` tested only ``False`` / ``falsy_value``.
+        ``search()`` therefore returned the NULL rows and
+        ``filtered_domain()`` returned nothing for the same domain. Unlike
+        ``falsy_value`` this holds for EVERY field type, so it is applied
+        before (and independently of) the ``falsy_value`` check.
+
+    a field's ``falsy_value``
+        (``""`` for char/text/html, ``0`` for integer, ``0.0`` for
+        float/monetary) SQL aliases it with NULL/False, but Python set algebra
+        does not (``"" != False``). The n-ary set-merge
+        (``_merge_set_conditions``) relies on set equality, so without this
+        normalization ``a != "" | a != False`` would wrongly collapse to TRUE
+        (and ``a = "" & a != False`` to a non-empty set).
+
+    Canonicalizing here — rather than teaching each evaluator about ``None`` —
+    keeps one spelling of null flowing downstream, so the set merges, the
+    ``_optimize_in_required`` strip (which early-exits on ``False not in
+    value``) and the query cache all see the same node.
     """
     value = condition.value
     if not isinstance(value, OrderedSet):
-        # _optimize_in_set (also BASIC) has not built the set yet; retry later.
         return condition
     falsy = condition._field(model).falsy_value
-    if falsy is None or falsy is False:
-        # No falsy aliasing (most fields), or the falsy value is already False
-        # (boolean) — nothing to canonicalize.
-        return condition
-    # Use ``is not False and == falsy`` so a genuine falsy element is caught
-    # without tripping on Python's ``0 == False`` / ``hash(0) == hash(False)``.
-    if not any(v is not False and v == falsy for v in value):
+    has_falsy_alias = falsy is not None and falsy is not False
+
+    def is_null_alias(v):
+        return v is None or (has_falsy_alias and v is not False and v == falsy)
+
+    if not any(is_null_alias(v) for v in value):
         return condition
     return DomainCondition(
         condition.field_expr,
         condition.operator,
-        OrderedSet(False if (v is not False and v == falsy) else v for v in value),
+        OrderedSet(False if is_null_alias(v) else v for v in value),
     )
 
 
@@ -308,10 +298,6 @@ def _optimize_in_required(condition, model):
     same-field set-merge builds a fresh node — both lose the fallback.
     """
     value = condition.value
-    # Stripping False only changes anything when a False is actually present;
-    # check that first so the common case skips the field/registry lookups
-    # entirely. (Also avoids the previous len()-equality proxy for set
-    # equality, which was only correct because BASIC already deduplicated.)
     if False not in value:
         return condition
     field = condition._field(model)
@@ -319,10 +305,6 @@ def _optimize_in_required(condition, model):
         field.falsy_value is None
         and (field.required or field.name == "id")
         and field in model.env.registry.not_null_fields
-        # only optimize if there are no NewId's (NewId.__bool__ is False, so
-        # this also holds for origin-carrying NewIds; note all(()) is True —
-        # the unbound model of a plain search passes vacuously, which is fine
-        # for SQL over persisted rows)
         and all(model._ids)
     ):
         stripped = DomainCondition(
@@ -330,9 +312,6 @@ def _optimize_in_required(condition, model):
             condition.operator,
             OrderedSet(v for v in value if v is not False),
         )
-        # keep the pre-strip form reachable for predicate evaluation over new
-        # records (see docstring); bypasses Domain immutability like the other
-        # per-node caches (_field_instance, _hash)
         object.__setattr__(stripped, "_predicate_fallback", condition)
         return stripped
     return condition
@@ -351,16 +330,12 @@ def _optimize_any_domain(condition, model):
     domain = Domain(value)
     field = condition._field(model)
     if field.name == "id":
-        # id ANY domain  <=>  domain
-        # id NOT ANY domain  <=>  ~domain
         return domain if condition.operator in ("any", "any!") else ~domain
     if value is domain:
-        # avoid recreating the same condition
         return condition
     return DomainCondition(condition.field_expr, condition.operator, domain)
 
 
-# register and bind multiple levels later
 def _optimize_any_domain_at_level(level: OptimizationLevel, condition, model):
     domain = condition.value
     if not isinstance(domain, Domain):
@@ -373,16 +348,13 @@ def _optimize_any_domain_at_level(level: OptimizationLevel, condition, model):
     except KeyError:
         condition._raise("Cannot determine the comodel relation")
     domain = domain._optimize(comodel, level)
-    # a false sub-domain collapses to a constant; a true one is kept as is
     if domain.is_false():
         return _FALSE_DOMAIN if condition.operator in ("any", "any!") else _TRUE_DOMAIN
     if domain is condition.value:
-        # avoid recreating the same condition
         return condition
     return DomainCondition(condition.field_expr, condition.operator, domain)
 
 
-# Register for all optimization levels
 for _level in OptimizationLevel:
     if _level > OptimizationLevel.NONE:
         operator_optimization(("any", "not any", "any!", "not any!"), _level)(
@@ -396,12 +368,15 @@ def _optimize_like_str(condition, model):
     """Validate value for pattern matching, must be a str"""
     value = condition.value
     if not value:
-        # =like matches only empty string (inverse the condition)
         result = (condition.operator in NEGATIVE_CONDITION_OPERATORS) == (
             "=" in condition.operator
         )
-        # relational and non-relation fields behave differently
         if condition._field(model).relational or "=" in condition.operator:
+            return DomainCondition(condition.field_expr, "!=" if result else "=", False)
+        return Domain(result)
+    if isinstance(value, str) and not value.strip("%"):
+        result = condition.operator not in NEGATIVE_CONDITION_OPERATORS
+        if condition._field(model).relational:
             return DomainCondition(condition.field_expr, "!=" if result else "=", False)
         return Domain(result)
     if isinstance(value, str):
@@ -430,26 +405,22 @@ def _optimize_relational_name_search(condition, model):
     value = condition.value
     positive_operator = NEGATIVE_CONDITION_OPERATORS.get(operator, operator)
     any_operator = "any" if positive_operator == operator else "not any"
-    # Handle like operator
     if operator.endswith("like"):
         return DomainCondition(
             condition.field_expr,
             any_operator,
             DomainCondition("display_name", positive_operator, value),
         )
-    # Handle inequality as not supported
-    if operator[0] in ("<", ">") and isinstance(value, str):
+    if operator[0] in ("<", ">") and (
+        isinstance(value, (str, bool, *COLLECTION_TYPES)) or is_recordset(value)
+    ):
         condition._raise(
-            "Inequality not supported for relational field using a string",
+            "Inequality on a relational field is only supported against a "
+            "single record id",
             error=TypeError,
         )
-    # Handle equality with str values
     if positive_operator != "in" or not isinstance(value, COLLECTION_TYPES):
         return condition
-    # Cheap scan before allocating: the common case (`field_id in {ids}`) has no
-    # string values, and `partition` would copy the whole collection into
-    # `other_values` only to discard it.  `value` is a concrete collection here
-    # (checked above), so re-iterating it is safe.
     if not any(isinstance(v, str) for v in value):
         return condition
     str_values, other_values = partition(lambda v: isinstance(v, str), value)
@@ -466,9 +437,110 @@ def _optimize_relational_name_search(condition, model):
     return domain
 
 
+_NOT_A_NUMBER = object()
+"""Marker for a comparand that is not a number at all (see _coerce_numeric)."""
+
+
+def _coerce_numeric(value: typing.Any, field_type: str) -> typing.Any:
+    """Return a string *value* as an exact number, else :data:`_NOT_A_NUMBER`.
+
+    Non-string values pass through untouched: ``bool`` means "unset"/"set" in a
+    domain (never ``0``/``1``), and every other type is either already exact or
+    the field's own conversion's business.  A fractional literal on an
+    ``integer`` field stays exact (``'2.5'`` -> ``2.5``): the comparison is well
+    defined (``2 < 2.5``, ``2 != 2.5``) and ``int()`` would both raise and, when
+    it did not, move the boundary.
+    """
+    if type(value) is not str:
+        return value
+    convert = int if field_type == "integer" else float
+    try:
+        return convert(value)
+    except ValueError:
+        pass
+    if convert is int:
+        try:
+            return float(value)
+        except ValueError:
+            pass
+    return _NOT_A_NUMBER
+
+
+@field_type_optimization(["integer", "float", "monetary"])
+def _optimize_numeric_comparand(condition, model):
+    """Coerce a string comparand on a numeric field to its numeric value.
+
+    Canonicalizing here — in the optimizer, once — is what keeps the domain's
+    two evaluators in agreement.  ``Field.condition_to_sql`` used to coerce on
+    its own (through ``convert_to_column`` / ``convert_to_cache``) while
+    ``Field.filter_function`` compared the raw value, so the perfectly ordinary
+    web-client / ``ir.filters`` shape ``('color', '=', '3')`` matched under
+    ``search()`` and matched nothing under ``filtered_domain()``, and
+    ``('color', '>', '3')`` raised ``TypeError`` in the Python evaluator only.
+
+    This mirrors what ``_optimize_type_date`` / ``_optimize_type_datetime`` /
+    ``_optimize_boolean_in`` already do for their field types.  ``False`` /
+    ``None`` are left alone, since they mean "unset" and every operator branch
+    handles them specially.
+
+    A string is coerced with the field's own numeric type first
+    (``int`` for ``integer``), then with ``float``: a fractional literal such as
+    ``'2.5'`` used to reach ``int()`` inside ``convert_to_column`` and raise a
+    bare ``ValueError`` -- a 500 on any user-supplied domain -- while the Python
+    evaluator quietly matched nothing.  Both evaluators now compare the same
+    ``2.5`` exactly (see ``Field._comparand_to_column``).
+
+    A string that is not a number at all cannot be compared: for equality it
+    simply matches nothing (``in`` → FALSE, ``not in`` → TRUE, which is also
+    what the Python evaluator did on its own), while for an ordering comparison
+    there is no meaningful answer, so it is rejected with a clear error in
+    *both* evaluators instead of a bare ``int()`` ``ValueError`` in SQL only.
+    """
+    operator = condition.operator
+    value = condition.value
+    if operator not in ("in", "not in", ">", "<", ">=", "<=") or (
+        "." in condition.field_expr
+    ):
+        return condition
+
+    field = condition._field(model)
+    if field.falsy_value is None:
+        return condition
+
+    is_collection = isinstance(value, COLLECTION_TYPES)
+    if is_collection:
+        if not any(type(v) is str for v in value):
+            return condition
+    elif type(value) is not str:
+        return condition
+
+    field_type = field.type
+    if is_collection:
+        coerced = [_coerce_numeric(v, field_type) for v in value]
+        if _NOT_A_NUMBER in coerced:
+            coerced = [v for v in coerced if v is not _NOT_A_NUMBER]
+        elif coerced == list(value):
+            return condition
+        return DomainCondition(condition.field_expr, operator, type(value)(coerced))
+    coerced = _coerce_numeric(value, field_type)
+    if coerced is _NOT_A_NUMBER:
+        if operator in ("in", "not in"):
+            return Domain(operator == "not in")
+        condition._raise(
+            "Cannot compare the numeric field %r with a non-numeric value",
+            condition.field_expr,
+        )
+    if coerced is value:
+        return condition
+    return DomainCondition(condition.field_expr, operator, coerced)
+
+
 @field_type_optimization(["boolean"])
 def _optimize_boolean_in(condition, model):
-    """b in boolean_values"""
+    """Coerce a boolean field's in/not-in set to bools (strings via ``str2bool``).
+
+    ``b in [False]``  =>  ``b not in [True]``
+    """
     value = condition.value
     operator = condition.operator
     if operator not in ("in", "not in"):
@@ -485,20 +557,14 @@ def _optimize_boolean_in(condition, model):
         )
     if not all(isinstance(v, bool) for v in value):
         if any(isinstance(v, str) for v in value):
-            # string-to-bool coercion is frequent during data import; debug-level
             _logger.debug("Comparing boolean with a string in %s", condition)
         value = {
             str2bool(v.lower(), False) if isinstance(v, str) else bool(v) for v in value
         }
     if len(value) == 1 and not any(value):
-        # normalize to [True] when possible: eases search-method implementations
         operator = INVERSE_OPERATOR[operator]
         value = [True]
     if operator == condition.operator and value is condition.value:
-        # nothing changed: keep the node (avoids allocating an identical
-        # condition on every BASIC fixpoint pass, cf.
-        # _optimize_relational_name_search); both rewrites above rebind
-        # value/operator, so identity is an exact change detector
         return condition
     return DomainCondition(condition.field_expr, operator, value)
 
@@ -510,8 +576,6 @@ def _optimize_boolean_in_all(condition, model):
         False,
         True,
     }:
-        # the tautology collapses to a boolean, dropping the field (e.g. active);
-        # FULL-only so it is not stripped from sub-domains
         return Domain(condition.operator == "in")
     return condition
 
@@ -521,7 +585,6 @@ def _value_to_date(
     env: object,
     iso_only: bool = False,
 ) -> date | str | OrderedSet | SQL | typing.Literal[False] | None:
-    # check datetime first, because it's a subclass of date
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date) or value is False:
@@ -531,7 +594,6 @@ def _value_to_date(
             try:
                 value = parse_iso_date(value)
             except ValueError:
-                # check format
                 resolve_date(value, env)
                 return value
         else:
@@ -576,8 +638,6 @@ def _optimize_inequality_against_null(condition, model):
     value = condition.value
     if value is not False and value is not None:
         return condition
-    # A property expression ("field.prop") reads a JSON sub-value, not the
-    # column, so the field's falsy_value does not describe it — leave it alone.
     if "." in condition.field_expr:
         return condition
     if condition._field(model).falsy_value is not None:
@@ -596,7 +656,6 @@ def _optimize_type_date(condition, model):
         return condition
     value = _value_to_date(condition.value, model.env, iso_only=True)
     if value is False and operator[0] in ("<", ">"):
-        # comparison to False results in an empty domain
         return _FALSE_DOMAIN
     return DomainCondition(condition.field_expr, operator, value)
 
@@ -609,9 +668,6 @@ def _optimize_type_date_relative(condition, model):
         operator not in ("in", "not in", ">", "<", "<=", ">=")
         or "." in condition.field_expr
         or not isinstance(value, (str, OrderedSet))
-        # nothing to resolve when the set holds no relative-date strings:
-        # skip the rebuild and keep the node (avoids allocating an identical
-        # condition on every DYNAMIC pass, cf. _optimize_relational_name_search)
         or (
             isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value)
         )
@@ -633,7 +689,6 @@ def _value_to_datetime(
     """
     if isinstance(value, datetime):
         if value.tzinfo:
-            # Convert timezone-aware datetimes to naive UTC for storage
             value = value.astimezone(UTC).replace(tzinfo=None)
         return value, False
     if value is False:
@@ -643,7 +698,6 @@ def _value_to_datetime(
             try:
                 value = parse_iso_date(value)
             except ValueError:
-                # check formatting
                 _dt, is_date = _value_to_datetime(resolve_date(value, env), env)
                 return value, is_date
         else:
@@ -651,22 +705,15 @@ def _value_to_datetime(
         return _value_to_datetime(value, env)
     if isinstance(value, date):
         if value.year in (1, 9999):
-            # avoid overflow errors, treat as UTC timezone
             tz = None
         elif (tz := env.tz) == utc:
             tz = None
-        # else: keep tz = env.tz (from the walrus). datetime.combine below attaches
-        # it directly; the old pytz localize()/.tzinfo round-trip here was a no-op
-        # under zoneinfo (replace(tzinfo=z).tzinfo is z).
         value = datetime.combine(value, time.min, tz)
         if tz is not None:
             value = value.astimezone(UTC).replace(tzinfo=None)
         return value, True
     if isinstance(value, COLLECTION_TYPES):
         if not value:
-            # guard the empty case: ``zip(*())`` unpacking into 2 names would
-            # raise ValueError. Direct callers must be safe even though
-            # _optimize_in_set short-circuits empty in/not in upstream.
             return OrderedSet(), True
         value, is_date = zip(
             *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
@@ -692,20 +739,13 @@ def _optimize_type_datetime(condition, model):
         return condition
     value = condition.value
     if isinstance(value, COLLECTION_TYPES):
-        # Convert element by element, keeping WHICH converted values came from
-        # dates: the equality rewrite below must match those at whole-day
-        # granularity ('dt = date' means "any moment of that day"), while
-        # plain datetimes match at whole-second granularity.  The aggregate
-        # flag returned by _value_to_datetime on a collection cannot express a
-        # mixed [date, datetime] set.
         pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
         value = OrderedSet(v for v, _is_date in pairs)
         dates = {v for v, is_date in pairs if is_date}
-        is_date = False  # inequality below only handles scalar values
+        is_date = False
     else:
         value, is_date = _value_to_datetime(value, model.env, iso_only=True)
 
-    # Handle inequality
     if operator[0] in ("<", ">"):
         if value is False:
             return _FALSE_DOMAIN
@@ -719,22 +759,15 @@ def _optimize_type_datetime(condition, model):
             try:
                 value += delta
             except OverflowError:
-                # higher than max, not possible
                 return _FALSE_DOMAIN
             operator = ">="
         elif operator == "<=":
             try:
                 value += delta
             except OverflowError:
-                # lower than max, just check if field is set
                 return DomainCondition(field_expr, "!=", False)
             operator = "<"
 
-    # Handle equality: compare to the whole second, or to the whole day for
-    # values given as dates.  This mirrors the inequality granularity above so
-    # the rewrites partition the axis exactly: for a date d, '=' -> [d, d+1d)
-    # while '<' -> < d and '>' -> >= d+1d (and analogously per second for
-    # datetimes) — every instant matches exactly one of <, =, >.
     if (
         operator in ("in", "not in")
         and isinstance(value, COLLECTION_TYPES)
@@ -747,7 +780,6 @@ def _optimize_type_datetime(condition, model):
             try:
                 end = start + delta
             except OverflowError:
-                # end of range above datetime.max: unbounded upwards
                 return DomainCondition(field_expr, ">=", start)
             return DomainCondition(field_expr, ">=", start) & DomainCondition(
                 field_expr, "<", end
@@ -767,14 +799,8 @@ def _optimize_type_datetime(condition, model):
 
     if operator == condition.operator and (
         value is condition.value
-        # collections are rebuilt element-wise above, so identity never holds
-        # for them; fall back to the value equality DomainCondition.__eq__ uses
-        # (same class + ==) to detect the no-op conversion
         or (value.__class__ is condition.value.__class__ and value == condition.value)
     ):
-        # nothing changed: keep the node (avoids allocating an identical
-        # condition on every BASIC fixpoint pass, cf.
-        # _optimize_relational_name_search)
         return condition
     return DomainCondition(field_expr, operator, value)
 
@@ -787,9 +813,6 @@ def _optimize_type_datetime_relative(condition, model):
         operator not in ("in", "not in", ">", "<", "<=", ">=")
         or "." in condition.field_expr
         or not isinstance(value, (str, OrderedSet))
-        # nothing to resolve when the set holds no relative-date strings:
-        # skip the rebuild and keep the node (avoids allocating an identical
-        # condition on every DYNAMIC pass, cf. _optimize_relational_name_search)
         or (
             isinstance(value, OrderedSet) and not any(isinstance(v, str) for v in value)
         )
@@ -797,13 +820,6 @@ def _optimize_type_datetime_relative(condition, model):
         return condition
     env = model.env
 
-    # Resolve each relative string ("today", "=1d", "-1w", ...) to its date or
-    # datetime OBJECT, preserving the date-vs-datetime distinction.  The BASIC
-    # datetime pass re-runs on the fresh node and applies whole-day granularity
-    # to a date and one-second granularity to a datetime.  Collapsing to a
-    # datetime here (the previous behaviour) discarded that distinction, so
-    # ``dt <= 'today'`` matched only the first second of the day instead of the
-    # whole day — unlike ``dt <= date.today()``.
     def _resolve(v):
         return resolve_date(v, env) if isinstance(v, str) else v
 
@@ -840,7 +856,6 @@ def _optimize_properties_date_datetime(condition, model):
         value, _ = _value_to_datetime(condition.value, model.env)
     else:
         return condition
-    # serialize the value as a string to compare against the jsonb-stored value
     if isinstance(value, COLLECTION_TYPES):
         value = OrderedSet(
             str(item) if isinstance(item, (date, datetime)) else item for item in value
@@ -864,7 +879,6 @@ def _optimize_type_binary_attachment(condition, model):
                 "Binary field stored in attachment, accepts only existence check; skipping domain"
             )
         except ValueError:
-            # log with stacktrace
             _logger.exception("Invalid operator for a binary field")
         return _TRUE_DOMAIN
     if operator.endswith("like"):
@@ -893,15 +907,7 @@ def _operator_hierarchy(condition, model):
     if value is False:
         return _FALSE_DOMAIN
     if value is True:
-        # bool ⊂ int: without this guard True falls into the scalar-int wrap
-        # below, passes the int partition, and reaches SQL as
-        # ``parent_id IN (true)`` — a psycopg UndefinedFunction surfacing as an
-        # opaque RPC 500.  Unlike False ("not set" → no seed record, above),
-        # True names no record at all, so it is a caller error: raise the
-        # file's standard clean ValueError instead.
         condition._raise("True is not a valid hierarchy value")
-    # field: keys the result domain; parent: relation field name; comodel:
-    # searches ids from the value; comodel_sudo: resolves the hierarchy
     field = condition._field(model)
     if field.type == "many2one":
         comodel = model.env[field.comodel_name].with_context(active_test=False)
@@ -920,17 +926,10 @@ def _operator_hierarchy(condition, model):
             parent = condition.field_expr
         if field.type == "many2one":
             field = model._fields["id"]
-    # Get the initial ids and bind them to comodel_sudo before resolving the hierarchy
     if isinstance(value, (int, str)):
         value = [value]
     elif not isinstance(value, COLLECTION_TYPES):
         condition._raise(f"Value of type {type(value)} is not supported")
-    # Same bool ⊂ int trap for collection elements: [True]/[False] pass the int
-    # partition below and reach SQL as ``IN (true)``.  Mirror the scalar
-    # handling above — False means "not set" and seeds no record, so it is
-    # dropped (an all-False collection then collapses to FALSE naturally via
-    # the empty-seed check below, matching the scalar False → FALSE rewrite);
-    # True stays a caller error and raises.
     if any(isinstance(v, bool) for v in value):
         if any(v is True for v in value):
             condition._raise("True is not a valid hierarchy value")
@@ -938,11 +937,9 @@ def _operator_hierarchy(condition, model):
     coids, other_values = partition(lambda v: isinstance(v, int), value)
     search_domain = _FALSE_DOMAIN
     if field.type == "many2many":
-        # always search for many2many
         search_domain |= DomainCondition("id", "in", coids)
         coids = []
     if other_values:
-        # search for strings
         search_domain |= Domain.OR(
             Domain("display_name", "ilike", v) for v in other_values
         )
@@ -950,7 +947,6 @@ def _operator_hierarchy(condition, model):
     if not coids:
         return _FALSE_DOMAIN
     result = hierarchy(comodel_sudo.browse(coids), parent)
-    # wrap the result (a domain or an id set) into the final condition
     if isinstance(result, Domain):
         if field.name == "id":
             return result
@@ -969,8 +965,6 @@ def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | Order
             DomainCondition("parent_path", "=like", path + "%") for path in paths
         )
     else:
-        # walk children with sudo(); forbidden records are filtered by the
-        # rest of the domain
         child_ids: OrderedSet[int] = OrderedSet()
         while comodel:
             child_ids.update(comodel._ids)
@@ -993,8 +987,6 @@ def _operator_parent_of_domain(comodel: BaseModel, parent: str) -> OrderedSet:
             int(label) for path in paths for label in path.split("/")[:-1]
         )
     else:
-        # walk parents with sudo() to avoid access errors; forbidden records
-        # are filtered by the rest of the domain
         parent_ids = OrderedSet()
         try:
             comodel.mapped(parent)
@@ -1025,15 +1017,6 @@ def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
         and subdomain.field_expr == "id"
         and (suboperator := subdomain.operator) in ("in", "not in", "any!", "not any!")
     ):
-        # permissions are bypassed, so transform:
-        #  a ANY (id IN X)  =>  a IN (X - {False})
-        #  a ANY (id NOT IN X)  =>  a NOT IN (X | {False})
-        #  a ANY (id ANY X)  =>  a ANY X
-        #  a ANY (id NOT ANY X)  =>  a != False AND a NOT ANY X
-        #  a NOT ANY (id IN X)  =>  a NOT IN (X - {False})
-        #  a NOT ANY (id NOT IN X)  =>  a IN (X | {False})
-        #  a NOT ANY (id ANY X)  =>  a NOT ANY X
-        #  a NOT ANY (id NOT ANY X)  =>  a = False OR a ANY X
         val = subdomain.value
         match suboperator:
             case "in":
@@ -1051,9 +1034,6 @@ def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
         return domain
 
     return condition
-
-
-# Optimizations: nary
 
 
 def _merge_set_conditions(
@@ -1077,7 +1057,6 @@ def _merge_set_conditions(
     """
     assert all(isinstance(cond.value, OrderedSet) for cond in conditions)
 
-    # build the sets for 'in' and 'not in' conditions
     in_sets = [c.value for c in conditions if c.operator == "in"]
     not_in_sets = [c.value for c in conditions if c.operator == "not in"]
 
@@ -1085,7 +1064,6 @@ def _merge_set_conditions(
         values = OrderedSet(sorted(values, key=_nary_value_tiebreak))
         return [DomainCondition(conditions[0].field_expr, operator, values)]
 
-    # combine the sets
     if cls.OPERATOR == "&":
         if in_sets:
             return merged("in", intersection(in_sets) - union(not_in_sets))
@@ -1107,12 +1085,55 @@ def union(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:
     return OrderedSet(elem for s in sets for elem in s)
 
 
+def _canonicalize_numeric_sets(
+    conditions: list[DomainCondition], field_type: str
+) -> list[DomainCondition]:
+    """Coerce string elements of ``in``/``not in`` value sets to numbers.
+
+    Merging combines the sets by element *identity*, so a string element never
+    meets its numeric twin: ``{216, 217} & {'217'}`` is empty and
+    ``('id', 'in', ids) & ('id', 'in', ['217'])`` collapsed the whole domain to
+    FALSE in SQL -- while each condition *alone* selects record 217 in both
+    evaluators (``condition_to_sql`` converts the comparand, and so does
+    ``Id.filter_function``).
+
+    ``_optimize_numeric_comparand`` cannot do this for ``id``: every prefetch
+    optimizes ``('id', 'in', ids)`` over a machine-built int collection, and
+    scanning it there measured +46% on ``optimize_full``.  Here the scan is free
+    where it mattered -- a merge needs *two* conditions on the same field, which
+    the prefetch domain never has.
+
+    An element that is not a number at all is dropped: no numeric column value
+    can equal it, so it constrains nothing in either direction (``in`` narrows,
+    ``not in`` excludes nothing).
+    """
+    result = []
+    for condition in conditions:
+        values = condition.value
+        if not any(v.__class__ is str for v in values):
+            result.append(condition)
+            continue
+        coerced = OrderedSet(
+            v
+            for v in (_coerce_numeric(v, field_type) for v in values)
+            if v is not _NOT_A_NUMBER
+        )
+        result.append(
+            DomainCondition(condition.field_expr, condition.operator, coerced)
+        )
+    return result
+
+
 @nary_condition_optimization(operators=("in", "not in"))
 def _optimize_merge_set_conditions_mono_value(cls: type[DomainNary], conditions, model):
     """Merge 'in'/'not in' conditions; skip x2many (different semantics)."""
     field = conditions[0]._field(model)
     if field.type in ("many2many", "one2many", "properties"):
         return conditions
+    if field.type in ("integer", "float", "monetary") and (
+        field.name != "id" or model._auto
+    ):
+        conditions = _canonicalize_numeric_sets(conditions, field.type)
     return _merge_set_conditions(cls, conditions)
 
 
@@ -1198,7 +1219,6 @@ def _optimize_same_conditions(cls, conditions, model):
     (``DomainCondition.__hash__`` is total, falling back to a value-independent
     hash for unhashable SQL/Query values).
     """
-    # check if we need to create a new list (this is usually not the case)
     seen: set = set()
     for condition in conditions:
         if condition in seen:
@@ -1213,11 +1233,9 @@ def _optimize_same_conditions(cls, conditions, model):
 
 __all__ = [
     "field_type_optimization",
-    # Helper functions
     "intersection",
     "nary_condition_optimization",
     "nary_optimization",
-    # Decorators
     "operator_optimization",
     "union",
 ]

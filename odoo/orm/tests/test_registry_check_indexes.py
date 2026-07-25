@@ -55,8 +55,6 @@ class _IdxCursor:
     def __init__(self, existing_rows):
         self._rows = existing_rows
         self.executed = []
-        # index_exists() checks rowcount after its SELECT; 0 = "no index",
-        # which is correct right after the drop that precedes a recreate.
         self.rowcount = 0
 
     def execute(self, query, params=None, **kwargs):
@@ -83,7 +81,7 @@ def test_btree_to_btree_not_null_marks_stale():
     executed = "\n".join(cr.executed)
     assert "DROP INDEX" in executed
     assert "CREATE INDEX" in executed
-    assert "IS NOT NULL" in executed  # recreated as a partial index
+    assert "IS NOT NULL" in executed
 
 
 def test_btree_not_null_to_btree_marks_stale():
@@ -101,9 +99,7 @@ def test_btree_not_null_to_btree_marks_stale():
 
 
 def test_company_dependent_btree_not_null_expects_predicate():
-    reg = _make_registry(
-        _Field("state", "btree_not_null", company_dependent=True)
-    )
+    reg = _make_registry(_Field("state", "btree_not_null", company_dependent=True))
     cr = _IdxCursor([(_IDX, "fake_model", "btree", False)])
 
     reg.check_indexes(cr, ["fake.model"])
@@ -120,7 +116,7 @@ def test_matching_partial_index_not_rebuilt():
 
     reg.check_indexes(cr, ["fake.model"])
 
-    assert len(cr.executed) == 1  # the introspection query only
+    assert len(cr.executed) == 1
 
 
 def test_matching_plain_index_not_rebuilt():

@@ -57,9 +57,7 @@ STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
     the rewritten form
 """
 
-CONDITION_OPERATORS: set[str] = set(
-    STANDARD_CONDITION_OPERATORS
-)  # modifiable (for optimizations only)
+CONDITION_OPERATORS: set[str] = set(STANDARD_CONDITION_OPERATORS)
 """All available condition operators.
 
 Non-standard operators are reduced to standard ones by the optimization
@@ -89,11 +87,6 @@ NEGATIVE_CONDITION_OPERATORS: Final[dict[str, str]] = {
 }
 """Negative-semantic operators mapped to their positive operator."""
 
-# negations for operators (used in DomainNot), derived from
-# NEGATIVE_CONDITION_OPERATORS so the two cannot drift: every negative→positive
-# pair plus its reverse. The legacy "<>" alias is skipped when building the
-# reverse so "=" canonicalises to "!=" (not "<>"); "<>"→"=" is kept from the
-# forward map. See test_domain_constants for the locked-in expected mapping.
 INVERSE_OPERATOR: Final[dict[str, str]] = {
     **NEGATIVE_CONDITION_OPERATORS,
     **{

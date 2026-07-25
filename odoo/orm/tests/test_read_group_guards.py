@@ -36,10 +36,6 @@ class ReadGroupThing(models.Model):
     adate = fields.Date()
 
     def _read_group_format_result(self, rows_dict, lazy_groupby):
-        # The real formatter resolves the user locale via res.lang, which the
-        # DB-free tier does not provide; the tests here target the fill_temporal
-        # handling that runs BEFORE formatting, so only mimic the final
-        # __domain normalization.
         for row in rows_dict:
             row["__domain"] = list(row["__domain"])
 
@@ -47,10 +43,10 @@ class ReadGroupThing(models.Model):
 @pytest.mark.parametrize(
     "having_domain",
     [
-        ["|", ("__count", ">", 1)],  # binary operator, one operand
-        ["&"],  # binary operator, no operand
-        ["!"],  # unary operator, no operand
-        ["&", "|", ("__count", ">", 1)],  # nested underflow
+        ["|", ("__count", ">", 1)],
+        ["&"],
+        ["!"],
+        ["&", "|", ("__count", ">", 1)],
     ],
 )
 def test_read_group_having_underflow_raises_valueerror(having_domain):
@@ -62,13 +58,14 @@ def test_read_group_having_underflow_raises_valueerror(having_domain):
 def test_read_group_having_valid_forms_still_build():
     stub = _HavingStub()
     assert stub._read_group_having([("__count", ">", 1)], None).code == "COUNT(*) > %s"
-    # implicit AND between leftover operands (usual domain semantics)
     assert (
         stub._read_group_having([("__count", ">", 1), ("__count", "<", 5)], None).code
         == "(COUNT(*) > %s AND COUNT(*) < %s)"
     )
     assert (
-        stub._read_group_having(["|", ("__count", ">", 1), ("__count", "<", 5)], None).code
+        stub._read_group_having(
+            ["|", ("__count", ">", 1), ("__count", "<", 5)], None
+        ).code
         == "(COUNT(*) > %s OR COUNT(*) < %s)"
     )
 
@@ -92,6 +89,5 @@ def test_read_group_fill_temporal_unknown_keys_ignored():
         )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            # no data: the empty-query shortcut still runs the fill branch
             rows = model.read_group([], ["__count"], ["adate:month"])
         assert rows == []

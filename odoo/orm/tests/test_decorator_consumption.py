@@ -51,8 +51,6 @@ class DecOrder(models.Model):
             if record.amount > record.amount_limit:
                 raise ValidationError(self.env._("amount must not exceed amount_limit"))
 
-    # callable @api.depends spec: resolved via Field.get_depends at registry
-    # build, then consumed by the trigger machinery like a literal spec
     @api.depends(lambda model: ("amount", "amount_limit"))
     def _compute_total(self):
         for record in self:
@@ -66,7 +64,6 @@ class DecSudoProbe(models.Model):
 
     name = fields.Char()
 
-    # class-level scratch list the constraints report into; reset per test
     observed_su = []
 
     @api.constrains("name")
@@ -97,8 +94,6 @@ class TestConstrainsCallableConsumption:
         with model_test_env(DecOrder) as env:
             methods = env["deccons.order"]._constraint_methods
             by_fields = {func._constrains: func for func in methods}
-            # the callable spec was called with the model and its return value
-            # became the wrapped method's literal _constrains tuple
             assert ("amount", "amount_limit") in by_fields
             wrapped = by_fields[("amount", "amount_limit")]
             assert wrapped._constrains_sudo is True
@@ -128,11 +123,11 @@ class TestDependsCallableConsumption:
     def test_modifying_resolved_dependency_triggers_recompute(self):
         with model_test_env(DecOrder) as env:
             record = env["deccons.order"].create({"name": "x", "amount": 5})
-            assert record.total == 105  # computed on create
+            assert record.total == 105
             record.amount = 7
-            assert record.total == 107  # recomputed via the resolved trigger
+            assert record.total == 107
             record.amount_limit = 10
-            assert record.total == 17  # second resolved dependency triggers too
+            assert record.total == 17
 
 
 class TestConstraintSudoSemantics:
@@ -158,9 +153,6 @@ class TestConstraintSudoSemantics:
             record_as_user = user_env["deccons.probe"].browse(record.id)
 
             observed = self._validate_and_collect(record_as_user)
-            # sudo default: the constraint runs on records.sudo() (env.su True)
-            # even though the triggering environment is not superuser;
-            # sudo=False: the constraint sees the user environment unchanged
             assert observed == {"default": True, "user": False}
 
 
@@ -177,5 +169,4 @@ class TestConstrainsUnknownFieldWarning:
         assert len(messages) == 1, caplog.records
         assert "'no_such_field'" in messages[0]
         assert "is not a field name" in messages[0]
-        # the method is still registered (with the unknown name kept as-is)
         assert any(func._constrains == ("name", "no_such_field") for func in methods)

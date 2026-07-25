@@ -55,10 +55,6 @@ from odoo.orm.runtime.registry import (
     _RegistryCaches,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
     """Build a minimal Registry instance without touching a database."""
@@ -105,11 +101,6 @@ def _db_caches(value, **overrides):
     return caches
 
 
-# ---------------------------------------------------------------------------
-# check_signaling — registry sequence
-# ---------------------------------------------------------------------------
-
-
 def test_reload_when_db_registry_sequence_ahead(monkeypatch):
     """db > local: the reload path runs (drain + Registry.new)."""
     reg = _make_registry("_sig_ahead_db", 5, 3)
@@ -130,8 +121,6 @@ def test_reload_when_db_registry_sequence_ahead(monkeypatch):
 
     assert result is rebuilt
     assert calls == [("drain", "_sig_ahead_db"), ("new", "_sig_ahead_db")]
-    # drain_db only recycles idle pooled connections; the cursor used for the
-    # check is checked out and must have its stale plans discarded explicitly.
     assert cur.plans_discarded == 1
 
 
@@ -146,10 +135,10 @@ def test_no_reload_when_db_registry_sequence_behind(monkeypatch):
     result = reg.check_signaling(cur)
 
     assert result is reg
-    assert reg.registry_sequence == 7  # kept, not regressed
+    assert reg.registry_sequence == 7
     assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 5)
-    assert reg._caches.lrus["default"]["k"] == "v"  # nothing cleared
-    assert cur.plans_discarded == 0  # no schema change: plans are fine
+    assert reg._caches.lrus["default"]["k"] == "v"
+    assert cur.plans_discarded == 0
 
 
 def test_adopt_registry_published_by_other_thread(monkeypatch):
@@ -166,8 +155,6 @@ def test_adopt_registry_published_by_other_thread(monkeypatch):
         result = stale.check_signaling(cur)
 
         assert result is published
-        # the adopt branch drains nothing on this thread, so the checked-out
-        # cursor's stale plans must still be discarded here.
         assert cur.plans_discarded == 1
     finally:
         Registry.registries.pop(name, None)
@@ -177,7 +164,7 @@ def test_no_adopt_when_published_registry_too_old(monkeypatch):
     """A published registry older than the db read still forces a rebuild."""
     name = "_sig_noadopt_db"
     stale = _make_registry(name, 5, 3)
-    published = _make_registry(name, 5, 3)  # not >= db value (6)
+    published = _make_registry(name, 5, 3)
     Registry.registries[name] = published
     rebuilt = _make_registry(name, 6, 4)
     calls = []
@@ -200,11 +187,6 @@ def test_no_adopt_when_published_registry_too_old(monkeypatch):
         Registry.registries.pop(name, None)
 
 
-# ---------------------------------------------------------------------------
-# check_signaling — cache sequences
-# ---------------------------------------------------------------------------
-
-
 def test_cache_cleared_when_db_cache_sequence_ahead():
     """db > local for one cache: its group is cleared, sequence advanced."""
     reg = _make_registry("_sig_cache_db", 5, 3)
@@ -216,10 +198,8 @@ def test_cache_cleared_when_db_cache_sequence_ahead():
 
     assert result is reg
     assert reg.cache_sequences["assets"] == 4
-    # the "assets" group = ("assets", "templates.cached_values")
     assert "a" not in reg._caches.lrus["assets"]
     assert "t" not in reg._caches.lrus["templates.cached_values"]
-    # untouched group keeps its entries and sequence
     assert reg._caches.lrus["default"]["d"] == 1
     assert reg.cache_sequences["default"] == 3
 
@@ -281,13 +261,8 @@ def test_cache_check_is_noop_on_freshly_rebuilt_registry(monkeypatch):
     result = reg.check_signaling(_SeqCursor(6, _db_caches(4)))
 
     assert result is rebuilt
-    assert rebuilt._caches.lrus["assets"]["fresh"] == 1  # not cleared
+    assert rebuilt._caches.lrus["assets"]["fresh"] == 1
     assert rebuilt.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 4)
-
-
-# ---------------------------------------------------------------------------
-# check_signaling — dead-DB cleanup (own vs caller-provided cursor)
-# ---------------------------------------------------------------------------
 
 
 class _DyingCursor:
@@ -318,7 +293,7 @@ def test_dead_db_mid_query_on_own_cursor_deletes_registry(monkeypatch):
     )
     try:
         with pytest.raises(psycopg.OperationalError):
-            reg.check_signaling()  # cr=None: self-opened cursor
+            reg.check_signaling()
         assert deleted == [name]
     finally:
         Registry.registries.pop(name, None)
@@ -363,11 +338,6 @@ def test_dead_caller_cursor_keeps_registry(monkeypatch):
         Registry.registries.pop(name, None)
 
 
-# ---------------------------------------------------------------------------
-# get_sequences — strict row shape
-# ---------------------------------------------------------------------------
-
-
 def test_get_sequences_rejects_row_length_drift():
     """A row not matching ``_CACHES_BY_KEY`` raises instead of dropping keys.
 
@@ -386,11 +356,6 @@ def test_get_sequences_rejects_row_length_drift():
     reg = _make_registry("_seq_strict_db", 1, 1)
     with pytest.raises(ValueError):
         reg.get_sequences(_ShortRowCursor())
-
-
-# ---------------------------------------------------------------------------
-# setup_signaling — fresh-DB cross-process race
-# ---------------------------------------------------------------------------
 
 
 class _SetupCursor:
@@ -438,7 +403,6 @@ def test_setup_signaling_creates_tables_if_not_exists(monkeypatch):
     assert len(creates) == len(_SIGNALING_TABLES)
     assert all(q.startswith("CREATE TABLE IF NOT EXISTS") for q in creates)
     assert len(inserts) == len(_SIGNALING_TABLES)
-    # baseline sequences captured from the same transaction's read-back
     assert reg.registry_sequence == 1
     assert reg.cache_sequences == dict.fromkeys(_CACHES_BY_KEY, 1)
 
@@ -471,11 +435,6 @@ def test_setup_signaling_seeds_only_missing_tables(monkeypatch):
     assert missing in creates[0] and missing in inserts[0]
 
 
-# ---------------------------------------------------------------------------
-# clear_cache validation
-# ---------------------------------------------------------------------------
-
-
 def test_clear_cache_unknown_name_raises_listing_valid_names():
     reg = _make_registry("_cc_db", 1, 1)
     reg._caches.lrus["assets"]["a"] = 1
@@ -487,7 +446,6 @@ def test_clear_cache_unknown_name_raises_listing_valid_names():
     assert "bogus" in message
     for known in _CACHES_BY_KEY:
         assert known in message
-    # validation is up-front: the valid name before the bad one cleared nothing
     assert reg._caches.lrus["assets"]["a"] == 1
     assert not reg.cache_invalidated
 
@@ -508,11 +466,6 @@ def test_clear_cache_known_name_still_works():
     assert reg.cache_invalidated == {"assets"}
 
 
-# ---------------------------------------------------------------------------
-# Registry.new failure cleanup
-# ---------------------------------------------------------------------------
-
-
 def test_new_failure_cleanup_survives_nested_delete(monkeypatch):
     """The original exception propagates even if the LRU key is already gone.
 
@@ -527,7 +480,6 @@ def test_new_failure_cleanup_survives_nested_delete(monkeypatch):
         self.db_name = db_name
 
     def fake_setup_signaling(self):
-        # nested Registry.new already deleted the key before re-raising
         Registry.registries.pop(self.db_name, None)
         raise RuntimeError("boom")
 
@@ -539,11 +491,6 @@ def test_new_failure_cleanup_survives_nested_delete(monkeypatch):
     finally:
         Registry.registries.pop(name, None)
     assert name not in Registry.registries
-
-
-# ---------------------------------------------------------------------------
-# Registry.__new__ fast path
-# ---------------------------------------------------------------------------
 
 
 class _ExplodingLock:

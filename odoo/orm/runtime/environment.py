@@ -9,7 +9,6 @@ from collections.abc import Collection, Iterator, Mapping, MutableMapping
 from contextlib import contextmanager
 from weakref import ref as weakref_ref
 
-# Rust-accelerated rows→dicts conversion (see cursor.py for details).
 from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import ProgrammingError
 
@@ -68,18 +67,10 @@ class Environment(Mapping[str, "BaseModel"]):
     transaction: Transaction
 
     def __new__(cls, cr: BaseCursor, uid: int, context: dict, su: bool = False):
-        # raise (not assert) so the contract holds under python -O
         if not isinstance(cr, BaseCursor):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
             )
-        # The uid contract is deliberately loose: int (a real user), None
-        # (anonymous dispatch builds an environment before authentication
-        # resolves a user — LOAD-BEARING), or an opaque placeholder object
-        # (ir.http's RequestUID during route matching, replaced by a real uid
-        # before any user-dependent work). Only bool is rejected: it is an int
-        # subclass whose True == 1 == SUPERUSER_ID, so it would silently
-        # elevate to superuser below.
         if isinstance(uid, bool):
             raise TypeError(
                 f"Environment(uid=...) expected int, None or a request "
@@ -88,13 +79,10 @@ class Environment(Mapping[str, "BaseModel"]):
         if uid == SUPERUSER_ID:
             su = True
 
-        # determine transaction object
         transaction = cr.transaction
         if transaction is None:
             transaction = cr.transaction = Transaction(Registry(cr.dbname))
 
-        # if env already exists, return it
-        # Fast path: check last returned env (covers repeated with_user/sudo calls)
         _last_ref = transaction._last_env
         _last = _last_ref() if _last_ref is not None else None
         if (
@@ -115,7 +103,6 @@ class Environment(Mapping[str, "BaseModel"]):
                 transaction._last_env = weakref_ref(env)
                 return env
 
-        # otherwise create environment, and add it in the set
         self = object.__new__(cls)
         self.cr, self.uid, self.su = cr, uid, su
         self.context = (
@@ -125,20 +112,16 @@ class Environment(Mapping[str, "BaseModel"]):
 
         transaction.envs.add(self)
         transaction._last_env = weakref_ref(self)
-        # the default transaction's environment is the first one with a valid uid
         if transaction.default_env is None and uid and isinstance(uid, int):
             transaction.default_env = self
         return self
 
     def __setattr__(self, name: str, value: typing.Any) -> None:
-        # once initialized, attributes are read-only
         if name in vars(self):
             raise AttributeError(
                 f"Attribute {name!r} is read-only, call `env()` instead"
             )
         return super().__setattr__(name, value)
-
-    # Mapping methods
 
     def __contains__(self, model_name) -> bool:
         """Test whether the given model exists."""
@@ -146,9 +129,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
     def __getitem__(self, model_name: str) -> BaseModel:
         """Return an empty recordset from the given model."""
-        # HOT path: inline mirror of `BaseModel._spawn` (keep slot assignments
-        # in sync).  object.__new__ + slot assignment skips __init__ dispatch
-        # (~50-80ns/call); equivalent to registry[model_name](self, (), ()).
         rs = object.__new__(self.registry[model_name])
         rs.env = self
         rs._ids = ()
@@ -182,7 +162,7 @@ class Environment(Mapping[str, "BaseModel"]):
         """Return an environment based on ``self`` with modified parameters.
 
         :param cr: optional database cursor to change the current cursor
-        :type cursor: :class:`~odoo.db.Cursor`
+        :type cr: :class:`~odoo.db.Cursor`
         :param user: optional user/user id to change the current user
         :type user: int or :class:`res.users record<~odoo.addons.base.models.res_users.ResUsers>`
         :param dict context: optional context dictionary to change the current context
@@ -190,7 +170,7 @@ class Environment(Mapping[str, "BaseModel"]):
         :returns: environment with specified args (new or existing one)
         """
         cr = self.cr if cr is None else cr
-        uid = self.uid if user is None else int(user)  # type: ignore[arg-type]
+        uid = self.uid if user is None else int(user)
         if context is None:
             context = (
                 clean_context(self.context) if su and not self.su else self.context
@@ -222,14 +202,6 @@ class Environment(Mapping[str, "BaseModel"]):
 
         if res_model and res_id:
             record = self[res_model].browse(res_id)
-            # Per-transaction cache to skip repeated exists() queries for the
-            # same (model, id). Cleared by invalidate_all/invalidate_field_data.
-            #
-            # Positive results only: a "missing" result is deliberately NOT
-            # cached, because the record may be created later in the same
-            # transaction (e.g. dangling ir.model.data row recreated during a
-            # data load). Caching the miss would make ref() keep reporting it
-            # absent; exists() is a single cheap query to re-check.
             ref_cache = self.transaction._ref_cache
             cache_key = (res_model, res_id)
             if ref_cache.get(cache_key) or record.exists():
@@ -323,7 +295,7 @@ class Environment(Mapping[str, "BaseModel"]):
 
         :raise AccessError: invalid or unauthorized `allowed_company_ids` context key content.
         :return: current company (default=`self.user.company_id`), with the current environment
-        :rtype: :class:`res.company record<~odoo.addons.base.models.res_company.Company>`
+        :rtype: :class:`res.company record<~odoo.addons.base.models.res_company.ResCompany>`
 
         .. warning::
 
@@ -355,7 +327,7 @@ class Environment(Mapping[str, "BaseModel"]):
 
         :raise AccessError: invalid or unauthorized `allowed_company_ids` context key content.
         :return: current companies (default=`self.user.company_ids`), with the current environment
-        :rtype: :class:`res.company recordset<~odoo.addons.base.models.res_company.Company>`
+        :rtype: :class:`res.company recordset<~odoo.addons.base.models.res_company.ResCompany>`
 
         .. warning::
 
@@ -369,23 +341,11 @@ class Environment(Mapping[str, "BaseModel"]):
         """
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids:
-            # Only non-su access needs the user's companies (for the membership
-            # check); computing them eagerly would waste the lookup in sudo mode.
             if not self.su and set(company_ids) - set(self.user._get_company_ids()):
                 raise AccessError(
                     self._("Access to unauthorized or invalid companies.")
                 )
             return self["res.company"].browse(company_ids)
-        # By setting the default companies to all user companies instead of the main one
-        # we save a lot of potential trouble in all "out of context" calls, such as
-        # /mail/redirect or /web/image, etc. And it is not unsafe because the user does
-        # have access to these other companies. The risk of exposing foreign records
-        # (wrt to the context) is low because all normal RPCs will have a proper
-        # allowed_company_ids.
-        # Examples:
-        #   - when printing a report for several records from several companies
-        #   - when accessing to a record from the notification email template
-        #   - when loading an binary image on a template
         return self["res.company"].browse(self.user._get_company_ids())
 
     @functools.cached_property
@@ -404,10 +364,7 @@ class Environment(Mapping[str, "BaseModel"]):
         """Return the current language code."""
         lang = self.context.get("lang")
         if lang and lang != "en_US" and not self["res.lang"]._get_data(code=lang):
-            # cannot translate here because we do not have a valid language
-            raise UserError(  # pylint: disable=missing-gettext,E8507
-                f"Invalid language code: {lang}"
-            )
+            raise UserError(f"Invalid language code: {lang}")
         return lang or None
 
     @functools.cached_property
@@ -422,13 +379,11 @@ class Environment(Mapping[str, "BaseModel"]):
     def _(self, source: str | LazyGettext, *args, **kwargs) -> str:
         """Translate the term using current environment's language.
 
-        Usage:
+        Usage::
 
-        ```
-        self.env._("hello world")  # dynamically get module name
-        self.env._("hello %s", "test")
-        self.env._(LAZY_TRANSLATION)
-        ```
+            self.env._("hello world")  # dynamically get module name
+            self.env._("hello %s", "test")
+            self.env._(LAZY_TRANSLATION)
 
         :param source: String to translate or lazy translation
         :param ...: args or kwargs for templating
@@ -436,22 +391,16 @@ class Environment(Mapping[str, "BaseModel"]):
         """
         lang = self.lang or "en_US"
         if isinstance(source, str):
-            # raise (not assert) so the contract holds under python -O.  Without
-            # this guard, mixing args and kwargs would silently drop kwargs from
-            # ``format_args`` (because ``args or kwargs`` returns args when args
-            # is truthy), losing user-visible substitutions in translations.
             if args and kwargs:
                 raise TypeError("Use args or kwargs, not both")
             format_args = args or kwargs
         elif isinstance(source, LazyGettext):
-            # translate a lazy text evaluation
             if args or kwargs:
                 raise TypeError("All args should come from the lazy text")
             return source._translate(lang)
         else:
             raise TypeError(f"Cannot translate {source!r}")
         if lang == "en_US":
-            # we ignore the module as en_US is not translated
             return get_translation("base", "en_US", source, format_args)
         try:
             module = get_translated_module(2)
@@ -562,8 +511,6 @@ class Environment(Mapping[str, "BaseModel"]):
         - ``what`` a collection of fields and ``records`` a recordset, or
         - ``what`` a collection of pairs ``(fields, records)``.
         """
-        # Fast path: nothing to protect — skip push/pop overhead entirely.
-        # Common for simple writes (no inverse, no editable computed fields).
         if not what:
             yield
             return
@@ -571,8 +518,6 @@ class Environment(Mapping[str, "BaseModel"]):
         try:
             core.push_protection()
             if records is not None:
-                # Fast path: single (fields, records) pair — the common case
-                # from write(). Avoids creating defaultdict + intermediate lists.
                 ids = frozenset(records._ids)
                 for field in what:
                     core.protect(field, ids)
@@ -642,7 +587,6 @@ class Environment(Mapping[str, "BaseModel"]):
                 try:
                     hash(val)
                 except TypeError:
-                    # from None: no need to chain the TypeError raised above
                     raise TypeError(
                         "Can only create cache keys from hashable values, "
                         f"got non-hashable value {val!r} at context key {key!r} "
@@ -670,7 +614,6 @@ class Environment(Mapping[str, "BaseModel"]):
         if not fields_to_flush:
             return
 
-        # Fast path: single model (very common — most queries touch one table)
         first = fields_to_flush[0]
         if len(fields_to_flush) == 1:
             self[first.model_name].flush_model([first.name])
@@ -680,7 +623,6 @@ class Environment(Mapping[str, "BaseModel"]):
             self[first_model].flush_model([f.name for f in fields_to_flush])
             return
 
-        # Multi-model: group by model
         fnames_to_flush = defaultdict[str, OrderedSet[str]](OrderedSet)
         for field in fields_to_flush:
             fnames_to_flush[field.model_name].add(field.name)
@@ -692,26 +634,13 @@ class Environment(Mapping[str, "BaseModel"]):
         tuples (or an empty list if no result to fetch).  The method
         automatically flushes all the fields in the metadata of the query.
         """
-        # raise (not assert) so the contract holds under python -O — passing a
-        # plain string would otherwise reach ``flush_query`` which iterates
-        # ``query.to_flush`` and crashes with an opaque AttributeError.
         if not isinstance(query, SQL):
             raise TypeError(f"execute_query expected SQL, got {type(query).__name__}")
         self.flush_query(query)
         self.cr.execute(query)
-        # In pipeline mode, cursor.description is not available until after
-        # fetchall() syncs the pipeline.  Always attempt fetchall(); for
-        # non-returning statements (INSERT/UPDATE without RETURNING) psycopg
-        # raises ProgrammingError which we catch and return [].
         try:
             return self.cr.fetchall()
         except ProgrammingError as exc:
-            # A statement that returns no result set (INSERT/UPDATE without
-            # RETURNING) raises a *client-side* ProgrammingError with no
-            # SQLSTATE.  A genuine server error (UndefinedColumn, SyntaxError,
-            # InsufficientPrivilege, ...) — which in pipeline mode is only
-            # surfaced here at fetch time — carries a SQLSTATE; re-raise those
-            # instead of masking a real failure as an empty result.
             if exc.sqlstate is not None:
                 raise
             return []
@@ -725,8 +654,6 @@ class Environment(Mapping[str, "BaseModel"]):
             return []
         description = self.cr.description
         if description is None:
-            # raise (not assert) — under python -O the assert is stripped and
-            # the next line crashes with TypeError on iter(None).
             raise RuntimeError(
                 "No cr.description, the executed query does not return a table."
             )

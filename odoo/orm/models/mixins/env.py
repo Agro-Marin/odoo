@@ -33,8 +33,6 @@ class EnvironmentMixin(_ModelStubs):
         :raise ValueError: ``len(self) != 1``
         """
         try:
-            # Unpacking to check for a single value is faster than len() when
-            # true, and this check is called very often.
             (_id,) = self._ids
             return self
         except ValueError:
@@ -71,8 +69,6 @@ class EnvironmentMixin(_ModelStubs):
             The returned recordset has the same prefetch object as ``self``.
 
         """
-        # raise (not assert): under python -O the classic ``record.sudo(user_id)``
-        # mistake would set ``env.su = <int>`` (truthy -> permanent superuser).
         if not isinstance(flag, bool):
             raise TypeError(
                 f"sudo() expects a bool, got {type(flag).__name__}; did you mean"
@@ -106,21 +102,16 @@ class EnvironmentMixin(_ModelStubs):
             an AccessError if not done in a sudoed environment.
         """
         if not company:
-            # With company = None/False/0/[]/empty recordset: keep current environment
             return self
 
         company_id = int(company)
         if not company_id:
-            # int(company) == 0 happens for an unsaved company (NewId): letting
-            # it through would inject company id 0 into allowed_company_ids.
             raise ValueError(
                 f"with_company() requires a saved (real-id) company, got {company!r}"
             )
         allowed_company_ids = self.env.context.get("allowed_company_ids") or []
         if allowed_company_ids and company_id == allowed_company_ids[0]:
             return self
-        # Copy the allowed_company_ids list
-        # to avoid modifying the context of the current environment.
         allowed_company_ids = list(allowed_company_ids)
         if company_id in allowed_company_ids:
             allowed_company_ids.remove(company_id)
@@ -135,7 +126,7 @@ class EnvironmentMixin(_ModelStubs):
         """Return a new version of this recordset attached to an extended
         context.
 
-        The extended context is either the provided ``context`` in which
+        The extended context is either the provided ``ctx`` in which
         ``overrides`` are merged or the *current* context in which
         ``overrides`` are merged e.g.::
 
@@ -145,10 +136,10 @@ class EnvironmentMixin(_ModelStubs):
             r2 = records.with_context(key2=True)
             # -> r2.env.context is {'key1': True, 'key2': True}
 
-        .. note:
+        .. note::
 
             The returned recordset has the same prefetch object as ``self``.
-        """  # noqa: RST210
+        """
         context = dict(ctx if ctx is not None else self.env.context, **overrides)
         if "force_company" in context:
             warnings.warn(
@@ -167,8 +158,6 @@ class EnvironmentMixin(_ModelStubs):
             "allowed_company_ids" not in context
             and "allowed_company_ids" in self.env.context
         ):
-            # Force 'allowed_company_ids' to be kept when context is overridden
-            # without 'allowed_company_ids'
             context["allowed_company_ids"] = self.env.context["allowed_company_ids"]
         return self.with_env(self.env(context=context))
 
@@ -198,20 +187,16 @@ class EnvironmentMixin(_ModelStubs):
                 f"Invalid field {e.args[0]!r} on model {self._name!r}"
             ) from e
 
-        # convert monetary fields after other columns for correct value rounding
         for field, value in sorted(
             field_values, key=lambda item: item[0].write_sequence
         ):
             value = field.convert_to_cache(value, self, validate)
             field._update_cache(self, value)
 
-            # set inverse fields on new records in the comodel
             if field.relational:
                 inv_recs = self[field.name].filtered(lambda r: not r.id)
                 if not inv_recs:
                     continue
-                # we need to adapt the value of the inverse fields to integrate self into it:
-                # x2many fields should add self, while many2one fields should replace with self
                 for invf in self.pool.field_inverses[field]:
                     invf._update_inverse(inv_recs, self)
 
@@ -226,8 +211,6 @@ class EnvironmentMixin(_ModelStubs):
                 if not isinstance(value, NewId):
                     result[name] = value
         return result
-
-    # New records: not yet in the database, used to perform onchanges.
 
     @api.model
     @api.private
@@ -252,9 +235,6 @@ class EnvironmentMixin(_ModelStubs):
             values = {}
         if origin is not None:
             origin = origin.id
-        # Falsy refs (e.g. the literal 0 from Command.create) carry no identity
-        # and would collide under NewId equality; normalize to None so such
-        # records stay distinct.
         if not ref:
             ref = None
         record = self.browse((NewId(origin, ref),))
@@ -266,7 +246,7 @@ class EnvironmentMixin(_ModelStubs):
     def _origin(self) -> Self:
         """Return the actual records corresponding to ``self``."""
         if all(self._ids):
-            return self  # already real records
+            return self
         ids = tuple(_origin_ids(self._ids))
         prefetch_ids = _origin_ids(self._prefetch_ids)
         return self._spawn(self.env, ids, prefetch_ids)

@@ -136,7 +136,6 @@ class TestRunRecomputeLoop(unittest.TestCase):
             if field is f_a:
                 self.cache.set_value(f_a, 1, 100)
                 self.engine.mark_done(f_a, [1])
-                # Computing A triggers B
                 self.engine.schedule(f_b, [1])
             elif field is f_b:
                 self.cache.set_value(f_b, 1, 110)
@@ -153,7 +152,6 @@ class TestRunRecomputeLoop(unittest.TestCase):
         uow = UnitOfWork(self.cache, self.engine, max_iterations=3)
 
         def recompute(field):
-            # Always re-schedule — never converges
             self.engine.mark_done(field, [1])
             self.engine.schedule(field, [1])
 
@@ -164,7 +162,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
     def test_only_real_ids_count(self) -> None:
         """Fields with only falsy (new record) IDs don't count as pending."""
         f = _field("m", "total")
-        self.engine.schedule(f, [0])  # falsy ID = new record
+        self.engine.schedule(f, [0])
         result = self.uow.run_recompute_loop(lambda field: None)
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 0)
@@ -194,7 +192,6 @@ class TestRunFlushLoop(unittest.TestCase):
 
         def flush(models):
             flushed_models.extend(models)
-            # Simulate flush: clear dirty
             self.cache.pop_dirty(f)
 
         result = self.uow.run_flush_loop(
@@ -213,19 +210,16 @@ class TestRunFlushLoop(unittest.TestCase):
         flush_count = [0]
 
         def recompute(field):
-            # compute tax when scheduled
             self.cache.set_value(field, 1, 10)
             self.engine.mark_done(field, [1])
             self.cache.mark_dirty(field, [1])
 
         def flush(models):
             flush_count[0] += 1
-            # First flush: clear amount dirty, schedule tax recompute
             if flush_count[0] == 1:
                 self.cache.pop_dirty(f_amount)
                 self.engine.schedule(f_tax, [1])
             else:
-                # Second flush: clear tax dirty
                 self.cache.pop_dirty(f_tax)
 
         result = self.uow.run_flush_loop(
@@ -244,7 +238,6 @@ class TestRunFlushLoop(unittest.TestCase):
         self.engine.schedule(f, [1])
 
         def recompute(field):
-            # computes without dirtying anything
             self.cache.set_value(field, 1, 10)
             self.engine.mark_done(field, [1])
 
@@ -275,7 +268,7 @@ class TestRunFlushLoop(unittest.TestCase):
             calls[0] += 1
             if calls[0] == 1:
                 self.cache.pop_dirty(f1)
-                self.cache.mark_dirty(f2, [1])  # re-dirty -> second pass
+                self.cache.mark_dirty(f2, [1])
             else:
                 self.cache.pop_dirty(f2)
 
@@ -296,13 +289,10 @@ class TestRunFlushLoop(unittest.TestCase):
         stalled_fields=[...]) pair.
         """
         f = _field("m", "a")
-        self.cache.mark_dirty(f, [1, 2])  # dirty count stays 2 across iter 0->1
+        self.cache.mark_dirty(f, [1, 2])
         calls = [0]
 
         def flush(models):
-            # iter 0 flush: leave dirty unchanged -> iter 1 sees no progress
-            #   (curr_dirty_count >= prev) and records a stall.
-            # iter 1 flush: clear dirty -> iter 2 converges via empty break.
             if calls[0] == 1:
                 self.cache.pop_dirty(f)
             calls[0] += 1
@@ -322,7 +312,6 @@ class TestRunFlushLoop(unittest.TestCase):
         flush_called = [False]
 
         def recompute(field):
-            # Never converges: re-schedule after marking done
             self.engine.mark_done(field, [1])
             self.engine.schedule(field, [1])
 
@@ -368,11 +357,10 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
                 cache.set_value(f_dirty, state["flush"] + 1, 10)
                 cache.mark_dirty(f_dirty, [state["flush"] + 1])
             else:
-                engine.schedule(f_computed, [1, 2, 3])  # modified() side effect
+                engine.schedule(f_computed, [1, 2, 3])
 
         result = uow.run_flush_loop(recompute_fn, flush_fn)
         self.assertFalse(result.converged)
-        # the pending-but-not-yet-dirty computed field is reported as stalled
         self.assertIn("m.b", result.stalled_fields)
 
     def test_recompute_convergence_on_last_iteration_clears_stalled(self) -> None:
@@ -386,7 +374,7 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
 
         def recompute_fn(_field):
             state["n"] += 1
-            if state["n"] >= 3:  # stall on 0,1; resolve on the last iteration
+            if state["n"] >= 3:
                 engine.mark_done(f, [1])
 
         result = uow.run_recompute_loop(recompute_fn)

@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
 
     from ..runtime import Environment, Registry
 
-    BaseModel = typing.Any  # forward reference
+    BaseModel = typing.Any
 
     ConstraintMessageType = str | Callable[[Environment, Diagnostic | None], str]
     IndexDefinitionType = str | Callable[[Registry], str]
@@ -41,12 +41,9 @@ class TableObject:
     _module: str = ""
 
     def __init__(self) -> None:
-        # name is unique within the model; full_name is the database identifier
         self.name = ""
 
     def __set_name__(self, owner: type, name: str) -> None:
-        # SQL objects must be private members: not meant to be accessed from a
-        # model, and kept out of the way when listing fields.
         if not name.startswith("_"):
             raise TypeError(
                 f"Name {name!r} of SQL object on {owner.__name__!r} must start with '_'"
@@ -57,8 +54,7 @@ class TableObject:
                 "(use a single leading underscore, not two)"
             )
         self.name = name[1:]
-        if getattr(owner, "pool", None) is None:  # models.is_model_definition(owner)
-            # only for fields on definition classes, not registry classes
+        if getattr(owner, "pool", None) is None:
             self._module = owner._module
             owner._table_object_definitions.append(self)
 
@@ -128,7 +124,6 @@ class Constraint(TableObject):
             return
 
         if current_definition:
-            # constraint exists but its definition may have changed
             sql.drop_constraint(cr, model._table, conname)
 
         model.pool.post_constraint(
@@ -147,7 +142,9 @@ class Index(TableObject):
     unique: bool = False
 
     def __init__(self, definition: IndexDefinitionType):
-        """SQL index. ``definition`` is the SQL used to create it. Examples::
+        """SQL index.
+
+        ``definition`` is the SQL used to create it. Examples::
 
             (group_id, active) WHERE active IS TRUE
             USING btree (group_id, user_id)
@@ -172,22 +169,16 @@ class Index(TableObject):
     def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
         conname = self.full_name(model)
-        # Evaluate the definition once: a callable definition must not be invoked
-        # twice (the comment and the index clause would diverge if it is impure).
         definition_clause = self._definition_clause(model.pool)
         definition = self._format_definition(definition_clause)
         db_definition, db_comment = sql.index_definition(cr, conname)
         if db_comment == definition or (not db_comment and db_definition):
-            # keep when the definition matches the comment in the database, or when
-            # an index has no comment (used by support to tweak indexes manually)
             return
 
         if db_definition:
-            # index exists but its definition may have changed
             sql.drop_index(cr, conname, model._table)
 
         if not definition_clause:
-            # Don't create index with an empty definition
             return
         model.pool.post_constraint(
             cr,

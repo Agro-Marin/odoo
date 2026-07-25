@@ -84,11 +84,9 @@ class _Relational(Field["BaseModel"]):
 
     relational: typing.Literal[True] = True
     comodel_name: str
-    domain: DomainType = []  # domain for searching values
-    context: ContextType = {}  # context for searching values
-    bypass_search_access: bool = (
-        False  # whether access rights are bypassed on the comodel
-    )
+    domain: DomainType = []
+    context: ContextType = {}
+    bypass_search_access: bool = False
     check_company: bool = False
 
     @typing.overload
@@ -102,28 +100,18 @@ class _Relational(Field["BaseModel"]):
     def __get__(
         self, records: typing.Any, owner: typing.Any = None
     ) -> BaseModel | typing.Self:
-        # base case: do the regular access
         if records is None or len(records._ids) <= 1:
             return super().__get__(records, owner)
 
-        # Inlined ACL short-circuit (matches _make_scalar_get): skip
-        # _check_field_access for an ungrouped field or superuser, the common case.
         env = records.env
         if not (not self.groups or env.su or records._has_field_access(self, "read")):
             records._check_field_access(self, "read")
 
-        # multi-record case
         if self.is_stored_computed and env._core.has_pending_field(self):
-            # pending-guard: skip recompute on the common no-pending path
             self.recompute(records)
 
-        # get the cache
         field_cache = self._get_cache(env)
 
-        # Retrieve values from cache and fetch missing ones. Reading each with a
-        # plain subscript keeps the no-miss case cheap (a genuine miss raises
-        # KeyError, handled below). PENDING can only sit in cache for a stored
-        # computed field, so the guard short-circuits away for a plain many2one.
         check_pending = self.is_stored_computed
         vals = []
         _append = vals.append
@@ -136,11 +124,6 @@ class _Relational(Field["BaseModel"]):
                 if not (check_pending and value is PENDING):
                     _append(value)
                     continue
-                # A stored computed field can leave PENDING in cache when its
-                # compute skipped this record. Mirror base Field.__get__: evict
-                # the sentinel so the fetch below sees a genuine miss (never
-                # leaking PENDING into the recordset), and fall back to the falsy
-                # default while the field is being computed.
                 field_cache.pop(record_id, None)
                 record = records.browse(record_id)
                 if env.is_protected(self, record):
@@ -148,16 +131,10 @@ class _Relational(Field["BaseModel"]):
                     self._update_cache(record, value)
                     _append(value)
                     continue
-            # cache miss (or a PENDING value still awaiting recompute): fetch it
             if self.store and record_id and len(vals) < len(records) - PREFETCH_MAX:
-                # a lot of missing records, just fetch that field
                 remaining = records[len(vals) :]
                 remaining.fetch([self.name])
-                # re-resolve: fetch() flushes/recomputes, which can call
-                # env.invalidate_all() and detach the per-field dict captured
-                # above (mirrors base Field.__get__ after _fetch_field).
                 field_cache = self._get_cache(env)
-                # fetch does not raise MissingError, check value
                 if record_id not in field_cache:
                     raise MissingError(
                         "\n".join(
@@ -177,10 +154,7 @@ class _Relational(Field["BaseModel"]):
                 remaining._ids = (record_id,)
                 remaining._prefetch_ids = records._prefetch_ids
                 super().__get__(remaining, owner)
-                # re-resolve: the singleton fetch above can likewise flush and
-                # detach the captured dict.
                 field_cache = self._get_cache(env)
-            # we have the record now
             _append(field_cache[record_id])
 
         return self.convert_to_record_multi(vals, records)
@@ -209,10 +183,8 @@ class _Relational(Field["BaseModel"]):
         """Return a domain from the domain attribute."""
         domain = self.domain
         if callable(domain):
-            # the callable can return either a list, Domain or a string
             domain = domain(model)
         if not domain or isinstance(domain, str):
-            # no domain, or a str domain (client-side only) -> match all
             return Domain.TRUE
         return Domain(domain)
 
@@ -220,13 +192,11 @@ class _Relational(Field["BaseModel"]):
     def _related_domain(self) -> DomainType | None:
         def validated(domain):
             if isinstance(domain, str) and not self.inherited:
-                # string domains are expressions that are not valid for self's model
                 return None
             return domain
 
         if callable(self.domain):
-            # will be called with another model than self's
-            return lambda recs: validated(self.domain(recs.env[self.model_name]))  # pylint: disable=not-callable
+            return lambda recs: validated(self.domain(recs.env[self.model_name]))
         else:
             return validated(self.domain)
 
@@ -242,8 +212,6 @@ class _Relational(Field["BaseModel"]):
             if self.company_dependent:
                 cids = "[allowed_company_ids[0]]"
             elif self.model_name == "res.company":
-                # when using check_company=True on a field on 'res.company', the
-                # company_id comes from the id of the current record
                 cids = "[id]"
             elif "company_id" in env[self.model_name]:
                 cids = "[company_id]"
@@ -296,11 +264,9 @@ class _Relational(Field["BaseModel"]):
         getter = self.expression_getter(field_expr)
 
         if (self.bypass_search_access or operator == "any!") and not records.env.su:
-            # bypass access: search corecords with sudo plus a context key that
-            # un-sudoes the env before evaluating sub-domains.
             expr_getter = getter
             sudo_env = records.sudo().with_context(filter_function_reset_sudo=True).env
-            getter = lambda rec: expr_getter(rec.with_env(sudo_env))  # noqa: E731
+            getter = lambda rec: expr_getter(rec.with_env(sudo_env))
 
         corecords = getter(records)
         if operator in ("any", "any!"):
@@ -314,7 +280,6 @@ class _Relational(Field["BaseModel"]):
             value = set(value)
             if False in value:
                 if not corecords:
-                    # shortcut, we know none of records has a corecord
                     return lambda _: True
                 if len(value) > 1:
                     value.discard(False)
@@ -331,9 +296,6 @@ class _Relational(Field["BaseModel"]):
             return lambda _: False
 
         ids = set(corecords._ids)
-        # ``getter(rec)._ids`` reads the whole related set's ids in one shot;
-        # iterating ``getter(rec)`` would allocate a singleton recordset per
-        # corecord (M×K objects) only to re-read the same ids.
         return lambda rec: not ids.isdisjoint(getter(rec)._ids)
 
 
@@ -341,10 +303,6 @@ class _RelationalMulti(_Relational):
     r"Abstract class for relational fields \*2many."
 
     write_sequence = 20
-
-    # important: the cache holds the ids of all records in the relation,
-    # including inactive ones; convert_to_record() filters them out depending
-    # on the context.
 
     @override
     def _update_inverse(self, records: BaseModel, value: BaseModel) -> None:
@@ -366,9 +324,6 @@ class _RelationalMulti(_Relational):
         self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
         field_patches = records.env._core.get_patches(self)
-        # Take the per-record path only when some of *records* actually carry a
-        # deferred patch; a patch for an unrelated record must not force every
-        # bulk x2many cache write for this field onto the slow path.
         if field_patches and not field_patches.keys().isdisjoint(records._ids):
             for record in records:
                 ids = field_patches.pop(record.id, ())
@@ -384,35 +339,26 @@ class _RelationalMulti(_Relational):
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
     ) -> tuple[int | NewId, ...]:
-        # cache format: tuple(ids)
         if is_recordset(value):
             if validate and value._name != self.comodel_name:
                 raise ValueError(f"Wrong value for {self}: {value}")
             ids = value._ids
             if record and not record.id:
-                # x2many field value of new record is new records
                 ids = tuple(it and NewId(it) for it in ids)
             return ids
 
         elif isinstance(value, (list, tuple)):
-            # value is a list/tuple of commands, dicts or record ids
             comodel = record.env[self.comodel_name]
-            # if record is new, the field's value is new records
             if record and not record.id:
 
                 def browse(it):
                     return comodel.browse((it and NewId(it),))
             else:
                 browse = comodel.browse
-            # take the current value of a real record (or new record with
-            # origin). Read with active_test=False so archived lines survive:
-            # the cache must include inactive ids (see class docstring);
-            # convert_to_record filters them on read.
             if record._origin:
                 ids = OrderedSet(record.with_context(active_test=False)[self.name]._ids)
             else:
                 ids = OrderedSet()
-            # modify ids with the commands
             for command in value:
                 if isinstance(command, (tuple, list)):
                     match command[0]:
@@ -437,7 +383,6 @@ class _RelationalMulti(_Relational):
                     ids.add(comodel.new(command).id)
                 else:
                     ids.add(browse(command).id)
-            # return result as a tuple
             return tuple(ids)
 
         elif not value:
@@ -456,7 +401,7 @@ class _RelationalMulti(_Relational):
         ``convert_to_record*`` entry points cannot drift.
         """
         Comodel = env.registry[self.comodel_name]
-        corecords = object.__new__(Comodel)  # bypass type.__call__ dispatch
+        corecords = object.__new__(Comodel)
         corecords.env = env
         corecords._ids = ids
         corecords._prefetch_ids = prefetch_ids
@@ -477,7 +422,6 @@ class _RelationalMulti(_Relational):
     def convert_to_record_multi(
         self, values: list[tuple[int | NewId, ...]], records: BaseModel
     ) -> BaseModel:
-        # flatten the per-record id tuples into one de-duplicated recordset
         ids = tuple(unique(id_ for ids in values for id_ in ids))
         return self._make_corecords(records.env, ids, PrefetchX2many(records, self))
 
@@ -492,7 +436,6 @@ class _RelationalMulti(_Relational):
         self, value: typing.Any, record: ModelLike
     ) -> list[CommandValue] | typing.Literal[False]:
         if isinstance(value, tuple):
-            # a tuple of ids, this is the cache format
             value = record.env[self.comodel_name].browse(value)
 
         if is_recordset(value) and value._name == self.comodel_name:
@@ -500,19 +443,13 @@ class _RelationalMulti(_Relational):
             def get_origin(val):
                 return val._origin if hasattr(val, "_origin") else val
 
-            # make result with new and existing records
             inv_names = {field.name for field in record.pool.field_inverses[self]}
             result = [Command.set([])]
-            # loop var is ``rec``: the ``record`` param is still the env/pool holder
             for rec in value:
                 origin = rec._origin
                 if not origin:
                     values = rec._convert_to_write(
                         {
-                            # snapshot field names: reading ``rec[name]`` /
-                            # ``origin[name]`` below can fetch+prefetch and insert
-                            # new field keys into the live cache dict that
-                            # ``rec._cache`` iterates ("dictionary changed size").
                             name: rec[name]
                             for name in tuple(rec._cache)
                             if name not in inv_names
@@ -524,9 +461,6 @@ class _RelationalMulti(_Relational):
                     if rec != origin:
                         values = rec._convert_to_write(
                             {
-                                # snapshot field names (see note above): the
-                                # ``origin[name]`` read fetches the origin and
-                                # mutates the cache dict being iterated.
                                 name: val
                                 for name in tuple(rec._cache)
                                 if name not in inv_names
@@ -580,7 +514,6 @@ class _RelationalMulti(_Relational):
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
-        # discard recomputation of self on records
         records.env.remove_to_compute(self, records)
         self.write_batch([(records, value)])
 
@@ -589,8 +522,6 @@ class _RelationalMulti(_Relational):
         records_commands_list: Sequence[tuple[BaseModel, typing.Any]],
         create: bool = False,
     ) -> None:
-        # Normalise into a fresh list of (records, [Command, ...]); never mutate
-        # the caller's argument in place (it is typed read-only and may be reused).
         normalized: list[tuple[BaseModel, list]] = []
         for recs, value in records_commands_list:
             if isinstance(value, tuple):
@@ -614,13 +545,6 @@ class _RelationalMulti(_Relational):
 
         record_ids = {rid for recs, cs in normalized for rid in recs._ids}
         if all(record_ids):
-            # For a REAL record backed by a STORED field an empty command list
-            # is a guaranteed no-op (the DB is the source of truth): drop it to
-            # skip the old-relation read write_real would perform. But a
-            # NON-STORED field's value lives only in cache, so — exactly like a
-            # new record — an empty assignment must still reach write_real to
-            # seed the cache entry, otherwise a compute assigning [] on a saved
-            # record would "fail to assign".
             if self.store:
                 normalized = [(recs, cmds) for recs, cmds in normalized if cmds]
             if normalized:
@@ -645,9 +569,7 @@ class _RelationalMulti(_Relational):
         raise NotImplementedError
 
     def _check_sudo_commands(self, comodel: BaseModel) -> BaseModel:
-        # if the model doesn't accept sudo commands
         if not comodel._allow_sudo_commands:
-            # Then, disable sudo and reset the transaction origin user
             return comodel.sudo(False).with_user(
                 comodel.env.transaction.default_env.uid
             )
@@ -668,7 +590,6 @@ class _RelationalMulti(_Relational):
         if not self.store:
             raise ValueError(f"Cannot convert {self} to SQL because it is not stored")
 
-        # update the operator to 'any'
         if operator in ("in", "not in"):
             operator = "any" if operator == "in" else "not any"
         assert operator in (
@@ -679,14 +600,10 @@ class _RelationalMulti(_Relational):
         ), f"Relational field {self} expects 'any' operator"
         exists = operator in ("any", "any!")
 
-        # check the value and execute the query
         if isinstance(value, COLLECTION_TYPES):
             value = OrderedSet(value)
             comodel = comodel.sudo().with_context(active_test=False)
             if False in value:
-                #  [not]in (False, 1) => split conditions
-                #  We want records that have a record such as condition or
-                #  that don't have any records.
                 if len(value) > 1:
                     in_operator = "in" if exists else "not in"
                     return SQL(
@@ -708,14 +625,11 @@ class _RelationalMulti(_Relational):
                             query,
                         ),
                     )
-                #  in (False) => not any (Domain.TRUE)
-                #  not in (False) => any (Domain.TRUE)
                 value = comodel._search(Domain.TRUE)
                 exists = not exists
             else:
                 value = comodel.browse(value)._as_query(ordered=False)
         elif isinstance(value, SQL):
-            # wrap SQL into a simple query
             comodel = comodel.sudo()
             value = Domain("id", "any", value)
         coquery = self._get_query_for_condition_value(model, comodel, operator, value)
@@ -741,11 +655,8 @@ class _RelationalMulti(_Relational):
             assert isinstance(query, Query)
             return query
         if isinstance(value, Query):
-            # add the field_domain to the query
             domain = field_domain.optimize_full(comodel)
             if not domain.is_true():
-                # mutates the Query in place: the caller passes a fresh Query
-                # from _search(). A shared Query would need cloning first.
                 value.add_where(domain._to_sql(comodel, value.table, value))
             return value
         raise NotImplementedError(f"Cannot build query for {value}")

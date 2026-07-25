@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Iterator, Mapping
 
-# Sentinel for missing values — distinct from any real cached value (incl. None).
 _MISSING = object()
 
 
@@ -36,16 +35,10 @@ class FieldCache:
             ``OrderedSet`` for deterministic flush order); defaults to ``set``.
         """
         self._data: defaultdict[Any, dict[Any, Any]] = defaultdict(dict)
-        # Invariant: ``_dirty`` never holds an empty set. ``mark_dirty`` skips
-        # empty ids and the pop/invalidate paths remove drained entries, so
-        # ``iter_dirty_fields``/``dirty_models`` never report a field with
-        # nothing to flush.
         self._dirty: defaultdict[Any, set] = defaultdict(dirty_factory or set)
         self._patches: defaultdict[Any, defaultdict[Any, list]] = defaultdict(
             lambda: defaultdict(list)
         )
-
-    # Data access
 
     def get_field_data(self, field: Any) -> dict[Any, Any]:
         """Return the cache dict for *field*, creating it if needed.
@@ -67,9 +60,6 @@ class FieldCache:
 
         Raises ``KeyError`` if *default* is not provided and the value is missing.
         """
-        # Read via .get() rather than indexing the defaultdict: ``self._data[
-        # field]`` would vivify an empty {} for a never-cached field on every
-        # miss, leaking entries that later inflate iter_field_items/invalidate.
         field_cache = self._data.get(field)
         if field_cache is not None:
             try:
@@ -85,8 +75,6 @@ class FieldCache:
         field_cache = self._data.get(field)
         return field_cache is not None and record_id in field_cache
 
-    # Dirty tracking
-
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*.
 
@@ -100,7 +88,7 @@ class FieldCache:
             ids = list(ids)
             if not ids:
                 return
-            existing = self._dirty[field]  # vivify via the configured factory
+            existing = self._dirty[field]
         existing.update(ids)
 
     def get_dirty(self, field: Any) -> set | None:
@@ -120,8 +108,6 @@ class FieldCache:
         result: dict[Any, set] = {}
         for field in list(self._dirty):
             if field.model_name == model_name:
-                # _dirty never holds an empty set (see invariant), so popped
-                # ids are always non-empty.
                 result[field] = self._dirty.pop(field)
         return result
 
@@ -141,8 +127,6 @@ class FieldCache:
         """Return the total number of dirty (field, record_id) entries."""
         return sum(len(ids) for ids in self._dirty.values())
 
-    # Patches (deferred x2many additions)
-
     def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
         """Record a deferred x2many addition."""
         self._patches[field][record_id].append(new_id)
@@ -150,20 +134,6 @@ class FieldCache:
     def get_patches(self, field: Any) -> dict[Any, list] | None:
         """Return the patches dict for *field*, or ``None``."""
         return self._patches.get(field)
-
-    # Invalidation
-    #
-    # The cache-shape decode is owned HERE, in one place. A field's raw cache
-    # has one of two shapes: flat ``{id: value}`` (most fields), or
-    # context-dependent ``{cache_key_tuple: {id: value}}`` (``translate=True``,
-    # ``company_dependent``, anything in ``field_depends_context``). During
-    # module setup a context-dependent field can transiently also hold *stale
-    # flat entries* (``{id: value}`` written before ``field_depends_context``
-    # was populated). The single discriminator for that mixed state is the
-    # KEY: cache keys are always tuples and record ids never are. Inspecting
-    # values instead (``isinstance(value, dict)``) would mistake dict-valued
-    # flat entries (Json, Properties) for per-context sub-dicts and corrupt
-    # them by popping record ids inside cached values.
 
     def invalidate(
         self,
@@ -173,21 +143,10 @@ class FieldCache:
         context_dependent: bool,
     ) -> None:
         """Invalidate cached values for *field* (all if *ids* is ``None``)."""
-        # Canonical invalidation entry point: the caller supplies the cache
-        # shape via context_dependent (Field._is_context_dependent), so no O(n)
-        # shape probing is needed — a flat single-id invalidation is a single
-        # pop. See the shape note above for the mixed-state decode.
-        #
-        # Context-dependent sub-dicts are cleared/trimmed in place and kept even
-        # when emptied: Field._get_cache memoizes each per-context sub-dict's
-        # identity in env._field_cache_memo, so dropping an emptied sub-dict
-        # from the outer dict would orphan those memos (writes through a
-        # memoized sub-dict would no longer be visible here).
         field_cache = self._data.get(field)
         if not field_cache:
             return
         if not context_dependent:
-            # Flat shape: whole-dict clear or direct O(len(ids)) pops.
             if ids is None:
                 field_cache.clear()
             else:
@@ -197,15 +156,12 @@ class FieldCache:
         if ids is None:
             for key in list(field_cache):
                 if isinstance(key, tuple):
-                    field_cache[key].clear()  # in place — preserve identity
+                    field_cache[key].clear()
                 else:
-                    del field_cache[key]  # stale flat entry
+                    del field_cache[key]
             return
-        # Stale flat entries are keyed directly by record id: pop them.
         for id_ in ids:
             field_cache.pop(id_, None)
-        # Scrub ids inside each per-context sub-dict (kept even if emptied,
-        # see the note above).
         for key, sub_cache in field_cache.items():
             if isinstance(key, tuple):
                 for id_ in ids:
@@ -268,13 +224,6 @@ class FieldCache:
         if not self._dirty:
             self._data.clear()
             return
-        # Restrict each dirty field's sub-dict to its dirty IDs only.
-        # Context-dependent fields (translate=True, company_dependent) keep
-        # nested ``{cache_key: {id: value}}`` dicts; others keep flat
-        # ``{id: value}``. Detect the shape by ``isinstance(k, tuple)``:
-        # cache_keys are always tuples, record ids never are. Inspecting the
-        # value instead would mis-classify dict-valued fields (Json, Properties)
-        # and silently evict their dirty entries.
         for field in list(self._data):
             dirty_ids = self._dirty.get(field)
             if not dirty_ids:
@@ -283,14 +232,12 @@ class FieldCache:
             field_cache = self._data[field]
             for k, v in list(field_cache.items()):
                 if isinstance(k, tuple):
-                    # context-dep shape: {cache_key: {id: value}}
                     for sub_id in list(v):
                         if sub_id not in dirty_ids:
                             del v[sub_id]
                     if not v:
                         del field_cache[k]
                 elif k not in dirty_ids:
-                    # flat shape: {id: value}
                     del field_cache[k]
             if not field_cache:
                 del self._data[field]
@@ -300,8 +247,6 @@ class FieldCache:
         self._data.clear()
         self._dirty.clear()
         self._patches.clear()
-
-    # Iteration & introspection
 
     def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
         """Iterate over (field, field_cache_dict) pairs."""

@@ -26,7 +26,6 @@ from .metaclass import MetaModel
 from .mixins import (
     AccessMixin,
     CacheMixin,
-    # Core operations
     CopyMixin,
     CreateMixin,
     EnvironmentMixin,
@@ -35,12 +34,10 @@ from .mixins import (
     LifecycleMixin,
     LoadMixin,
     ReadGroupMixin,
-    # Data access
     ReadMixin,
     RecomputeMixin,
     SchemaMixin,
     SearchMixin,
-    # Features
     TranslationMixin,
     TraversalMixin,
     UnlinkMixin,
@@ -133,7 +130,7 @@ class BaseModel(
     .. tip:: To create a model without any table, inherit
             from :class:`~odoo.models.AbstractModel`.
     """
-    _register: bool = False  #: registry visibility
+    _register: bool = False
     _abstract: bool = True
     """ Whether the model is *abstract*.
 
@@ -145,10 +142,10 @@ class BaseModel(
     .. seealso:: :class:`TransientModel`
     """
 
-    _name: str = None  #: the model name (in dot-notation, module namespace)
-    _description: str | None = None  #: the model's informal name
-    _module: str | None = None  #: the model's module (in the Odoo sense)
-    _custom: bool = False  #: should be True for custom models only
+    _name: str = None
+    _description: str | None = None
+    _module: str | None = None
+    _custom: bool = False
 
     _inherit: str | list[str] | tuple[str, ...] = ()
     """Python-inherited models:
@@ -160,9 +157,6 @@ class BaseModel(
         * If :attr:`._name` is set, name(s) of parent models to inherit from
         * If :attr:`._name` is unset, name of a single model to extend in-place
     """
-    # dict, not frozendict: the class-level default is a frozendict, but model
-    # definitions provide plain dict literals and registration
-    # (_init_model_class_attributes) also assigns a plain merged dict.
     _inherits: dict[str, str] = frozendict()
     """dictionary {'parent_model': 'm2o_field'} mapping the _name of the parent business
     objects to the names of the corresponding foreign key fields to use::
@@ -182,11 +176,9 @@ class BaseModel(
       :attr:`~odoo.models.Model._inherits`-ed models, the inherited field will
       correspond to the last one (in the inherits list order).
     """
-    _table: str = ""  #: SQL table name used by model if :attr:`_auto`
-    _table_query: SQL | str | None = (
-        None  #: SQL expression of the table's content (optional)
-    )
-    _table_objects: dict[str, TableObject] = frozendict()  #: SQL/Table objects
+    _table: str = ""
+    _table_query: SQL | str | None = None
+    _table_objects: dict[str, TableObject] = frozendict()
     _inherit_children: OrderedSet[str]
 
     _rec_name: str | None = None
@@ -195,9 +187,9 @@ class BaseModel(
     Set during model setup in ``registration.py``. The default stays ``name``
     (not ``''``): ``_compute_display_name`` relies on the implicit fallback.
     """
-    _rec_names_search: list[str] | None = None  #: fields to consider in ``name_search``
-    _order: str = "id"  #: default order field for searching results
-    _parent_name: str = "parent_id"  #: the many2one field used as parent field
+    _rec_names_search: list[str] | None = None
+    _order: str = "id"
+    _parent_name: str = "parent_id"
     _parent_store: bool = False
     """set to True to compute parent_path field.
 
@@ -210,7 +202,7 @@ class BaseModel(
     """field to use for active records, automatically set to either ``"active"``
     or ``"x_active"``.
     """
-    _fold_name: str = "fold"  #: field to determine folded groups in kanban views
+    _fold_name: str = "fold"
 
     _translate: bool = True
     """Whether to export translations for this model.
@@ -268,10 +260,6 @@ class BaseModel(
         if not self._depends:
             return table_sql
 
-        # add self._depends (and its transitive closure) as metadata to table_sql.
-        # Seed ``seen`` with self so a self-referential _depends doesn't re-walk
-        # self, and dedupe fields (an OrderedSet) so a field reachable through
-        # two parents isn't emitted as duplicate ``to_flush`` metadata.
         fields_to_flush: OrderedSet[Field] = OrderedSet()
         seen: set[str] = {self._name}
         models = [self]
@@ -299,8 +287,6 @@ class BaseModel(
             return callable(func) and hasattr(func, "_constrains")
 
         def wrap(func, names):
-            # wrap func into a proxy function with explicit '_constrains',
-            # preserving the original sudo preference
             sudo_flag = getattr(func, "_constrains_sudo", True)
 
             @api.constrains(*names, sudo=sudo_flag)
@@ -358,7 +344,6 @@ class BaseModel(
         def is_onchange(func):
             return callable(func) and hasattr(func, "_onchange")
 
-        # collect onchange methods on the model's class
         cls = self.env.registry[self._name]
 
         def build():
@@ -377,7 +362,6 @@ class BaseModel(
                         missing,
                     )
 
-            # add onchange methods to implement "change_default" on fields
             def onchange_default(field, self):
                 value = field.convert_to_write(self[field.name], self)
                 condition = f"{field.name}={value}"
@@ -390,9 +374,6 @@ class BaseModel(
                 if field.change_default:
                     methods[name].append(functools.partial(onchange_default, field))
 
-            # return a plain dict: this is memoized per-class, so a later
-            # ``self._onchange_methods[unknown]`` must not vivify (and grow) the
-            # shared defaultdict.
             return dict(methods)
 
         return own_class_memo(cls, "_onchange_methods__", build)
@@ -414,9 +395,6 @@ class BaseModel(
         if prof.debug:
             _count = 0
 
-        # By default, constraints run as sudo (like stored computed fields —
-        # see Field.compute_value()).  Individual constraints may opt out with
-        # @api.constrains(..., sudo=False) for user-aware validation.
         records_sudo = self.sudo()
         records_user = self
         field_names = set(field_names)
@@ -441,17 +419,12 @@ class BaseModel(
 
     @api.model
     def _rec_name_fallback(self) -> str:
-        # if self._rec_name is set, it belongs to self._fields
         return self._rec_name or "id"
 
-    #
-    # display_name, name_create
-    #
-
     @api.depends(
-        lambda self: (self._rec_name,)
-        if self._rec_name and self._rec_name != "id"
-        else ()
+        lambda self: (
+            (self._rec_name,) if self._rec_name and self._rec_name != "id" else ()
+        )
     )
     def _compute_display_name(self) -> None:
         """Compute the value of the `display_name` field.
@@ -489,9 +462,6 @@ class BaseModel(
         record = self.create({self._rec_name: name})
         return record.id, record.display_name
 
-    # -------------------------------------------------------------------------
-    # Property definition
-    # -------------------------------------------------------------------------
     @api.model
     def get_property_definition(self, full_name: str) -> dict:
         """Return the definition of the given property.
@@ -505,10 +475,6 @@ class BaseModel(
         if not field:
             raise ValueError(f"Invalid field {field_name!r} on model {self._name!r}")
         if field.type != "properties":
-            # Guard before dereferencing definition_record/_field below: a
-            # non-properties field would raise an opaque AttributeError (a Fault
-            # 500 over RPC, since this is a public @api.model method) instead of
-            # a clear validation error.
             raise ValueError(
                 f"Field {field_name!r} on model {self._name!r} is not a "
                 f"properties field"
@@ -550,7 +516,6 @@ class BaseModel(
         determine(field.compute, self)
 
         if field.store and any(self._ids):
-            # check constraints of the fields that have been computed
             fnames = [f.name for f in self.pool.field_computed[field]]
             self.filtered("id")._validate_fields(fnames)
 
@@ -591,10 +556,6 @@ class BaseModel(
         """Allow to patch `convert_to_column` of the properties definition."""
         return value
 
-    #
-    # Deprecated properties for backward compatibility
-    #
-
     @property
     @api.deprecated("Deprecated since 19.0, use self.env.cr directly")
     def _cr(self) -> typing.Any:
@@ -604,8 +565,6 @@ class BaseModel(
 collections.abc.Set.register(BaseModel)
 collections.abc.Sequence.register(BaseModel)
 
-# Inject BaseModel into the Layer-1 inversion seam so fields/ and domain/ can
-# recognise recordsets without importing Layer 2 (see odoo/orm/_recordset.py).
 set_base_model(BaseModel)
 
 
@@ -623,8 +582,6 @@ class Model(AbstractModel):
     which the class' module is installed).
     """
 
-    _auto: bool = True  # automatically create database backend
-    _register: bool = (
-        False  # not visible in ORM registry, meant to be python-inherited only
-    )
-    _abstract: typing.Literal[False] = False  # not abstract
+    _auto: bool = True
+    _register: bool = False
+    _abstract: typing.Literal[False] = False

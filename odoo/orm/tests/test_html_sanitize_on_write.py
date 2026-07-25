@@ -34,9 +34,7 @@ def test_write_sanitizes_even_when_cache_holds_unsanitized_value():
         r1 = model.create({"body": "<p>ok</p>"})
         r2 = model.create({"body": "<p>ok</p>"})
         field = model._fields["body"]
-        # simulate a raw / stale DB value reaching the cache unsanitized
         field._get_cache(env)[r1.id] = _POISON
-        # the first record's cache must not be a trusted witness for the batch
         (r1 + r2).write({"body": _POISON})
         assert "<script>" not in (r1.body or "")
         assert "<script>" not in (r2.body or "")

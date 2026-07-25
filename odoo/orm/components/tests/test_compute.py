@@ -39,12 +39,10 @@ class TestComputeScheduling(unittest.TestCase):
     def test_mark_done_removes_empty_field(self) -> None:
         self.engine.schedule("total", [1])
         self.engine.mark_done("total", [1])
-        # field entry should be deleted
         self.assertFalse(self.engine.has_pending())
         self.assertNotIn("total", self.engine._pending)
 
     def test_mark_done_nonexistent(self) -> None:
-        # should not raise
         self.engine.mark_done("total", [1, 2])
 
     def test_pending_fields(self) -> None:
@@ -58,7 +56,6 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertEqual(len(ids), 0)
 
     def test_pending_real_fields(self) -> None:
-        # Use 0 as a "falsy" NewId stand-in
         self.engine.schedule("total", [0])
         self.engine.schedule("tax", [1])
         real = self.engine.pending_real_fields()
@@ -67,7 +64,6 @@ class TestComputeScheduling(unittest.TestCase):
     def test_pending_real_fields_mixed(self) -> None:
         self.engine.schedule("total", [0, 1])
         real = self.engine.pending_real_fields()
-        # has at least one real (1), so included
         self.assertEqual(real, ["total"])
 
     def test_schedule_empty_creates_no_phantom(self) -> None:
@@ -80,7 +76,6 @@ class TestComputeScheduling(unittest.TestCase):
         self.engine.schedule("total", [])
         self.assertFalse(self.engine.has_pending())
         self.assertFalse(self.engine.has_pending_field("total"))
-        # an empty generator (all-NewId filtered out) is the real-world trigger
         self.engine.schedule("tax", (i for i in [] if i))
         self.assertNotIn("tax", self.engine._pending)
         self.assertEqual(self.engine.pending_real_fields(), [])
@@ -108,7 +103,6 @@ class TestComputeScheduling(unittest.TestCase):
         """
         self.engine.schedule("total", [1])
         self.engine.mark_done("total", [1])
-        # mark_done deletes the entry when empty
         self.assertFalse(self.engine.has_pending_field("total"))
 
     def test_discard_field(self) -> None:
@@ -119,7 +113,6 @@ class TestComputeScheduling(unittest.TestCase):
         self.assertTrue(self.engine.has_pending_field("tax"))
 
     def test_discard_field_missing(self) -> None:
-        # should not raise for a field that was never scheduled
         self.engine.discard_field("nonexistent")
 
     def test_clear(self) -> None:
@@ -148,15 +141,11 @@ class TestComputeProtection(unittest.TestCase):
     def test_nested_protection(self) -> None:
         self.engine.push_protection()
         self.engine.protect("total", frozenset([1]))
-        # push another scope
         self.engine.push_protection()
         self.engine.protect("total", frozenset([2]))
-        # both should be protected (search top to bottom)
         self.assertTrue(self.engine.is_protected("total", 1))
         self.assertTrue(self.engine.is_protected("total", 2))
-        # pop inner scope
         self.engine.pop_protection()
-        # id 2 no longer protected, id 1 still is
         self.assertTrue(self.engine.is_protected("total", 1))
         self.assertFalse(self.engine.is_protected("total", 2))
 

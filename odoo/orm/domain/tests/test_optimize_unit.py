@@ -19,9 +19,6 @@ from unittest.mock import patch
 
 from odoo.libs.datetime import utc
 
-# Importing registers all optimization passes onto ``_OPTIMIZATIONS_FOR``.
-# Required because the stubbed ``odoo.orm.domain.__init__`` never runs (it is the
-# real package's ``__init__`` that normally pulls ``optimizations`` in).
 from odoo.orm.domain import optimizations
 from odoo.orm.domain.ast import (
     MAX_DOMAIN_NESTING,
@@ -32,7 +29,7 @@ from odoo.orm.domain.ast import (
 from odoo.orm.primitives import NewId
 from odoo.tools import OrderedSet
 
-_UNSET = object()  # sentinel: "falsy_value not passed" vs. explicit None
+_UNSET = object()
 
 
 class _StubField:
@@ -41,8 +38,6 @@ class _StubField:
     Carries only the attributes the optimizer reads when resolving a leaf.
     """
 
-    # Falsy value SQL-aliases with NULL/False per field type, matching the real
-    # Field subclasses (textual="", numeric=0/0.0, boolean=False, else None).
     _FALSY_BY_TYPE = {
         "char": "",
         "text": "",
@@ -72,13 +67,9 @@ class _StubField:
         self.required = False
         self.inherited = False
         self.company_dependent = False
-        # Real fields carry ``falsy_value`` (class default ``None``); the
-        # optimizer reads it to canonicalize falsy elements in in/not-in sets.
         self.falsy_value = (
             self._FALSY_BY_TYPE.get(ftype) if falsy_value is _UNSET else falsy_value
         )
-        # A field's search method (truthy → the FULL optimizer routes leaves on
-        # this field through ``determine_domain`` instead of a raw column).
         self.search = search
 
 
@@ -87,7 +78,7 @@ class _StubEnv:
     ``env.tz`` (date -> naive-UTC datetime conversion) and ``env[comodel]``
     (descending into ``any`` sub-domains)."""
 
-    tz = utc  # == the optimizer's ``utc``: dates convert to naive midnight
+    tz = utc
 
     def __init__(self, model):
         self._model = model
@@ -100,6 +91,7 @@ class _StubModel:
     """Ten-line stand-in for a recordset: just ``_name`` and ``_fields``."""
 
     _name = "m"
+    _auto = True
 
     def __init__(self):
         self._fields = {
@@ -187,16 +179,12 @@ class TestSetMerging(unittest.TestCase):
         )
 
     def test_contradiction_collapses_to_false(self):
-        # a == 1 AND a == 2 is unsatisfiable; (0, '=', 1) is the FALSE leaf.
         self.assertEqual(
             _opt(Domain("a", "=", 1) & Domain("a", "=", 2)),
             [(0, "=", 1)],
         )
 
     def test_distinct_field_inequalities_not_merged(self):
-        # Range merging is not a BASIC pass: two ``<`` on one field are kept.
-        # They ARE canonically ordered by value, though, so the optimized form
-        # (and its SQL/query-cache key) is independent of the caller's leaf order.
         canonical = ["&", ("a", "<", 3), ("a", "<", 5)]
         self.assertEqual(_opt(Domain("a", "<", 5) & Domain("a", "<", 3)), canonical)
         self.assertEqual(_opt(Domain("a", "<", 3) & Domain("a", "<", 5)), canonical)
@@ -211,7 +199,6 @@ class TestFalsyValueSetMerging(unittest.TestCase):
     """
 
     def test_eq_empty_string_canonicalizes_to_false(self):
-        # ``name = ""`` and ``name = False`` are the same SQL predicate.
         self.assertEqual(_opt(Domain("name", "=", "")), [("name", "in", [False])])
         self.assertEqual(_opt(Domain("name", "=", False)), [("name", "in", [False])])
 
@@ -222,15 +209,12 @@ class TestFalsyValueSetMerging(unittest.TestCase):
         )
 
     def test_or_of_neq_empty_and_neq_false_is_not_tautology(self):
-        # BUG GUARD: both mean "non-empty", so the union is "not in [False]",
-        # NOT the TRUE domain that plain set algebra ("" != False) produced.
         self.assertEqual(
             _opt(Domain("name", "!=", "") | Domain("name", "!=", False)),
             [("name", "not in", [False])],
         )
 
     def test_and_of_eq_empty_and_neq_false_is_false(self):
-        # "is falsy" AND "is not falsy" is a contradiction → FALSE leaf.
         self.assertEqual(
             _opt(Domain("name", "=", "") & Domain("name", "!=", False)),
             [(0, "=", 1)],
@@ -265,7 +249,7 @@ class TestNaryFlattening(unittest.TestCase):
     """Nested same-operator n-ary nodes flatten into one node."""
 
     def test_nested_and_flattens(self):
-        d = (Domain("a", "=", 1) & Domain("b", "=", 2)) & Domain("c", "=", 3)  # type: ignore[operator]
+        d = (Domain("a", "=", 1) & Domain("b", "=", 2)) & Domain("c", "=", 3)
         self.assertEqual(
             _opt(d),
             ["&", "&", ("a", "in", [1]), ("b", "in", [2]), ("c", "in", [3])],
@@ -283,36 +267,29 @@ class TestOptimizerInvariants(unittest.TestCase):
     """Cross-cutting guarantees the rest of the ORM relies on."""
 
     def test_optimize_does_not_mutate_original(self):
-        # Reusing an UN-optimised domain across models must stay safe, so
-        # optimize() returns a new tree and leaves the input at level NONE.
         original = Domain("a", "=", 1)
-        original.optimize(_StubModel())  # type: ignore[arg-type]
+        original.optimize(_StubModel())
         self.assertEqual(list(original), [("a", "=", 1)])
         self.assertIs(original._opt_level, OptimizationLevel.NONE)
 
     def test_optimize_state_is_written_atomically(self):
-        # The (level, model_name) pair lives in ONE slot so a threaded reader
-        # never observes a torn ``(FULL, None)`` node -- which would read as
-        # "model-independent" and skip a different model's BASIC value coercion,
-        # emitting wrong SQL. A pass-through leaf caches its level in place (a
-        # tested contract); this pins that the stamp is a single tuple.
         original = Domain("name", "like", "x")
         self.assertEqual(original._opt, (OptimizationLevel.NONE, None))
-        out = original.optimize(_StubModel())  # type: ignore[arg-type]
+        out = original.optimize(_StubModel())
         self.assertIs(out, original)
         self.assertEqual(out._opt, (OptimizationLevel.BASIC, "m"))
 
     def test_optimize_is_idempotent(self):
         model = _StubModel()
-        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)  # type: ignore[arg-type, union-attr]
-        twice = once.optimize(model)  # type: ignore[arg-type]
+        once = (Domain("a", "in", [1, 2]) | Domain("a", "in", [2, 3])).optimize(model)
+        twice = once.optimize(model)
         self.assertEqual(once, twice)
         self.assertIs(once._opt_level, twice._opt_level)
 
     def test_boolean_singletons_optimize_to_themselves(self):
         model = _StubModel()
-        self.assertIs(Domain.TRUE.optimize(model), Domain.TRUE)  # type: ignore[arg-type]
-        self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)  # type: ignore[arg-type]
+        self.assertIs(Domain.TRUE.optimize(model), Domain.TRUE)
+        self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)
 
 
 class TestOptimizeModelScoping(unittest.TestCase):
@@ -345,44 +322,33 @@ class TestOptimizeModelScoping(unittest.TestCase):
     def test_reuse_across_models_recoerces_value(self):
         int_model = self._Model("int_model", {"a": "integer"})
         bool_model = self._Model("bool_model", {"a": "boolean"})
-        # optimise against a model where `a` is integer (value stays an int)
-        opt = Domain("a", "=", 5).optimize(int_model)  # type: ignore[arg-type]
+        opt = Domain("a", "=", 5).optimize(int_model)
         self.assertEqual(list(opt), [("a", "in", [5])])
-        # reuse the SAME canonical, level-stamped node against a model where
-        # `a` is boolean: it must re-coerce (5 -> True), not return the stale int.
-        reused = list(opt.optimize(bool_model))  # type: ignore[arg-type]
-        self.assertEqual(reused, list(Domain("a", "=", 5).optimize(bool_model)))  # type: ignore[arg-type]
+        reused = list(opt.optimize(bool_model))
+        self.assertEqual(reused, list(Domain("a", "=", 5).optimize(bool_model)))
         self.assertEqual(reused, [("a", "in", [True])])
 
     def test_same_model_reuse_stays_idempotent(self):
         int_model = self._Model("int_model", {"a": "integer"})
-        opt = Domain("a", "=", 5).optimize(int_model)  # type: ignore[arg-type]
-        again = opt.optimize(int_model)  # type: ignore[arg-type]
+        opt = Domain("a", "=", 5).optimize(int_model)
+        again = opt.optimize(int_model)
         self.assertEqual(list(again), list(opt))
         self.assertIs(again._opt_level, opt._opt_level)
         self.assertEqual(opt._opt_model_name, "int_model")
 
     def test_reuse_across_models_leaves_shared_node_unmutated(self):
-        # The cross-model ``_opt`` race: optimizing a node canonical for one
-        # model against another must NOT reset/restamp the shared node in place.
-        # Otherwise a concurrent optimizer for the first model observes the torn
-        # cache and skips a level ("Trying to skip optimization level") or skips
-        # type coercion (wrong SQL).  The second model's optimize works on a
-        # private copy; the shared node keeps its original stamp.
         int_model = self._Model("int_model", {"a": "integer"})
         bool_model = self._Model("bool_model", {"a": "boolean"})
-        node = Domain("a", "=", 5).optimize(int_model)  # type: ignore[arg-type]
+        node = Domain("a", "=", 5).optimize(int_model)
         stamp_before = node._opt
         self.assertEqual(node._opt_model_name, "int_model")
 
-        reused = node.optimize(bool_model)  # type: ignore[arg-type]  # different model
-        self.assertEqual(list(reused), [("a", "in", [True])])  # coerced for bool
+        reused = node.optimize(bool_model)
+        self.assertEqual(list(reused), [("a", "in", [True])])
         self.assertIsNot(reused, node)
-        # The shared node's stamp is untouched by the other-model optimize.
         self.assertEqual(node._opt, stamp_before)
         self.assertEqual(node._opt_model_name, "int_model")
-        # ...and it still cache-hits for its own model (returns itself, no work).
-        self.assertIs(node.optimize(int_model), node)  # type: ignore[arg-type]
+        self.assertIs(node.optimize(int_model), node)
 
 
 class TestBooleanSearchableTautology(unittest.TestCase):
@@ -397,7 +363,7 @@ class TestBooleanSearchableTautology(unittest.TestCase):
             calls.append((operator, sorted(value)))
             return [("a", "in", [1])]
 
-        field.determine_domain = determine_domain  # type: ignore[attr-defined]
+        field.determine_domain = determine_domain
         model._fields["flag"] = field
         return model
 
@@ -405,15 +371,13 @@ class TestBooleanSearchableTautology(unittest.TestCase):
         calls: list = []
         model = self._model_with_searchable_bool(calls)
         result = Domain("flag", "in", [True, False]).optimize_full(model)
-        # The tautology collapses to TRUE; the search method must not run.
         self.assertEqual(calls, [])
-        self.assertEqual(list(result), [(1, "=", 1)])  # TRUE domain, legacy form
+        self.assertEqual(list(result), [(1, "=", 1)])
 
     def test_single_value_still_uses_search(self):
         calls: list = []
         model = self._model_with_searchable_bool(calls)
         result = Domain("flag", "in", [True]).optimize_full(model)
-        # A genuine single-valued query still delegates to the search method.
         self.assertEqual(calls, [("in", [True])])
         self.assertEqual(list(result), [("a", "in", [1])])
 
@@ -461,7 +425,6 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         )
 
     def test_neq_date_is_whole_day_complement(self):
-        # complement of [d, d+1day), plus the NULL branch from negation
         self.assertEqual(
             _opt(Domain("dt", "!=", date(2024, 1, 1))),
             [
@@ -474,8 +437,6 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         )
 
     def test_in_mixed_date_and_datetime_granularities(self):
-        # one whole-day window for the date, one whole-second window for the
-        # datetime, in a single 'in' collection
         self.assertEqual(
             _opt(Domain("dt", "in", [date(2024, 1, 1), datetime(2024, 3, 4, 5, 6, 7)])),
             [
@@ -490,20 +451,15 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         )
 
     def test_eq_max_date_has_no_upper_bound(self):
-        # date.max + 1 day overflows datetime: the window degrades to a
-        # one-sided range instead of raising OverflowError
         self.assertEqual(
             _opt(Domain("dt", "=", date(9999, 12, 31))),
             [("dt", ">=", datetime(9999, 12, 31))],
         )
 
     def test_eq_today_resolves_to_whole_day(self):
-        # 'today' stays a string at BASIC (transaction-independent), resolves
-        # to a *date* at DYNAMIC (its date-ness is deliberately preserved), and
-        # the re-run BASIC pass must then apply whole-day granularity
         with patch.object(optimizations, "resolve_date", return_value=date(2024, 1, 5)):
             self.assertEqual(
-                list(Domain("dt", "=", "today").optimize_full(_StubModel())),  # type: ignore[arg-type]
+                list(Domain("dt", "=", "today").optimize_full(_StubModel())),
                 [
                     "&",
                     ("dt", "<", datetime(2024, 1, 6)),
@@ -512,8 +468,6 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
             )
 
     def test_eq_lt_gt_date_partition_the_axis(self):
-        # '=' d -> [d, d+1d) must complement '<' d -> < d and '>' d -> >= d+1d:
-        # every instant satisfies exactly one of the three
         d = date(2024, 1, 1)
         self.assertEqual(
             _opt(Domain("dt", "<", d)), [("dt", "<", datetime(2024, 1, 1))]
@@ -547,8 +501,6 @@ class TestRelativePassSkipsWithoutStrings(unittest.TestCase):
                 condition, _StubModel()
             )
         self.assertIsNot(result, condition)
-        # the string resolves to its *date* object (date-ness preserved for the
-        # BASIC re-run); non-string elements pass through untouched
         self.assertEqual(
             list(result.value), [date(2024, 1, 5), datetime(2024, 3, 4, 5, 6, 7)]
         )
@@ -564,12 +516,10 @@ class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
     def _nested_any(depth, op):
         subdomain = [("a", "=", 1)]
         for _ in range(depth):
-            subdomain = [("rel", op, subdomain)]  # type: ignore[list-item]
+            subdomain = [("rel", op, subdomain)]
         return subdomain
 
     def _assert_rejected_at_parse(self, op):
-        # top level lowercase (no DeprecationWarning); the *inner* raw levels
-        # carry the operator under test and are only seen by the guard's scan
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
             Domain("rel", "any", self._nested_any(MAX_DOMAIN_NESTING + 10, op))
 
@@ -591,23 +541,18 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
     ``validate`` and from ``filtered_domain`` via ``_as_predicate``)."""
 
     def test_validate_surfaces_value_error(self):
-        # operator-built (&/|) domains never pass through the parse-time
-        # nesting guard, so a deep alternating chain reaches _optimize intact
         domain = Domain("a", "=", 1)
         for _ in range(2000):
-            domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)  # type: ignore[assignment]
+            domain = (domain & Domain("a", "=", 2)) | Domain("a", "=", 3)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain.validate(_StubModel())  # type: ignore[arg-type]
+            domain.validate(_StubModel())
 
     def test_as_predicate_surfaces_value_error(self):
-        # Domain-valued 'any' conditions skip the raw-list nesting guard in
-        # ``checked()``, so a deep chain is constructible and only recurses
-        # when optimized — here from the _as_predicate entry point
         domain = Domain("a", "=", 1)
         for _ in range(5000):
             domain = Domain("rel", "any", domain)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
-            domain._as_predicate(_StubModel())  # type: ignore[type-var]
+            domain._as_predicate(_StubModel())
 
 
 class TestMergedSetCanonicalOrder(unittest.TestCase):
@@ -641,18 +586,15 @@ class TestMergedSetCanonicalOrder(unittest.TestCase):
         )
 
     def test_unmerged_set_keeps_caller_order(self):
-        # a single (unmerged) set is semantically order-free; leave it alone
         self.assertEqual(_opt(Domain("a", "in", [3, 1])), [("a", "in", [3, 1])])
 
     def test_confluence_across_sibling_subtrees(self):
-        # permutations of the same leaves must optimize to ``==`` Domains with
-        # identically-ordered nested sibling subtrees (same SQL text)
         model = _StubModel()
 
         def sub(values):
             domain = Domain("ok", "=", True)
             for v in values:
-                domain |= Domain("a", "in", [v])  # type: ignore[assignment]
+                domain |= Domain("a", "in", [v])
             return domain
 
         other = Domain("b", "in", [7]) | Domain("name", "like", "z")
@@ -682,7 +624,7 @@ class _HierarchyStubModel(_StubModel):
         return self
 
     def search(self, domain, order=None):
-        return self  # .ids == [] — only reached with an empty seed
+        return self
 
 
 class TestHierarchyBooleanValues(unittest.TestCase):
@@ -702,7 +644,6 @@ class TestHierarchyBooleanValues(unittest.TestCase):
                 )
 
     def test_scalar_false_collapses_to_false_domain(self):
-        # pre-existing behaviour, locked in: False means "not set" → no seed
         for op in ("child_of", "parent_of"):
             result = optimizations._operator_hierarchy(
                 DomainCondition("id", op, False), _HierarchyStubModel()
@@ -716,7 +657,6 @@ class TestHierarchyBooleanValues(unittest.TestCase):
             )
 
     def test_collection_false_is_dropped(self):
-        # [False] strips to an empty seed → FALSE, mirroring the scalar case
         result = optimizations._operator_hierarchy(
             DomainCondition("id", "child_of", [False]), _HierarchyStubModel()
         )
@@ -733,10 +673,10 @@ class TestInRequiredPredicateSafety(unittest.TestCase):
     def _model(self, ids):
         model = _StubModel()
         field = _StubField("rel", "many2one", relational=True, comodel="m")
-        field.required = True  # falsy_value is None for many2one
+        field.required = True
         model._fields["rel"] = field
-        model._ids = ids  # type: ignore[attr-defined]
-        model.env.registry = types.SimpleNamespace(not_null_fields={field})  # type: ignore[attr-defined]
+        model._ids = ids
+        model.env.registry = types.SimpleNamespace(not_null_fields={field})
         return model
 
     def test_persisted_binding_strips_and_keeps_fallback(self):
@@ -747,15 +687,12 @@ class TestInRequiredPredicateSafety(unittest.TestCase):
         self.assertIs(result._predicate_fallback, condition)
 
     def test_unbound_model_strips_vacuously(self):
-        # all(()) is True: the unbound model of a plain search — fine for SQL
-        # over persisted rows, hence the fallback still attached for predicates
         condition = DomainCondition("rel", "in", OrderedSet([False, 5]))
         result = optimizations._optimize_in_required(condition, self._model(()))
         self.assertEqual(list(result.value), [5])
         self.assertIs(result._predicate_fallback, condition)
 
     def test_newid_binding_disables_the_strip(self):
-        # NewId is always falsy (origin-carrying or not): the binding-time gate
         condition = DomainCondition("rel", "in", OrderedSet([False, 5]))
         for new_id in (NewId(), NewId(origin=7)):
             result = optimizations._optimize_in_required(

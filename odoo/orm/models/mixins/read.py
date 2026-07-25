@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from typing import Self
 
 from odoo_rust import (
-    batch_cache_fill as _batch_cache_fill_rust,  # type: ignore[import-untyped]
+    batch_cache_fill as _batch_cache_fill_rust,
 )
 
 from odoo.exceptions import MissingError
@@ -96,8 +96,6 @@ class ReadMixin(_ModelStubs):
         if not fields:
             fields = list(self.fields_get(attributes=()))
         else:
-            # Sanitize field names: the web client may send non-string values
-            # (e.g. integer field IDs) which are invalid for the ORM.
             _model_fields = self._fields
             bad = [
                 f for f in fields if not isinstance(f, str) or f not in _model_fields
@@ -108,7 +106,6 @@ class ReadMixin(_ModelStubs):
                     f for f in fields if isinstance(f, str) and f in _model_fields
                 ]
             if not self and not self.env.su:
-                # check field access, otherwise done during fetch()
                 self._determine_fields_to_fetch(fields)
         self._origin.fetch(fields)
         prof.mark("fetch")
@@ -147,37 +144,23 @@ class ReadMixin(_ModelStubs):
         _SENTINEL = SENTINEL
         _PENDING = PENDING
 
-        # Classify fields: scalar stored fields that can use the fast path
-        # (inline dict.get + identity conversion) vs everything else that
-        # needs singleton records for convert_to_record / __get__.
         scalar_fnames = []
         record_fnames = []
         for name in fnames:
             field = _fields[name]
-            # Enforce field-group ACL here, before any value is read from the
-            # cache.  The fast paths below bypass ``Field.__get__`` (which
-            # normally gates access), so without this a group-restricted field
-            # leaks whenever its value is cache-warm — including on all-NewId
-            # recordsets, where ``fetch()`` returns early and never checks.
             field.ensure_access(self)
             if can_scan_read(field):
                 scalar_fnames.append(name)
             else:
                 record_fnames.append(name)
 
-        # Phase 1: scalar stored fields — inline cache dict.get, skip
-        # read_cache/convert_to_record/convert_to_read (chain reduces to
-        # ``none_val if value is None else cache_value``).
         results = [{"id": id_} for id_ in ids]
         for name in scalar_fnames:
             field = _fields[name]
             field.ensure_computed(self)
             field_cache = field._get_cache(env)
-            # None replacement: False / 0 / 0.0 depending on type.
             none_val: typing.Any = field.convert_to_record(None, None)
             if type(field_cache) is dict:
-                # Rust path: fill cached values in one C-level pass, return only
-                # miss indices.  Needs a plain dict (not a translated LangProxy).
                 miss_indices = _batch_cache_fill_rust(
                     field_cache, ids, results, name, _PENDING, none_val
                 )
@@ -198,8 +181,6 @@ class ReadMixin(_ModelStubs):
                         continue
                     cache_value = field_cache.get(id_, _SENTINEL)
                     if cache_value is _SENTINEL or cache_value is _PENDING:
-                        # Cache miss: record missing, a NewId, or simply a cold
-                        # recordset. Fall back to __get__ via singleton.
                         try:
                             record = self._read_format_miss_record(id_)
                             vals[name] = field.convert_to_read(
@@ -215,10 +196,6 @@ class ReadMixin(_ModelStubs):
         if not record_fnames:
             return [vals for vals in results if vals]
 
-        # Phase 2: fields needing singleton records (relational, translate,
-        # html, binary, json, properties, non-stored computed).
-        # strict=True: results has one entry per record, so any length
-        # mismatch indicates an upstream bug in fetch().
         data = list(zip(self, results, strict=True))
 
         for name in record_fnames:
@@ -228,9 +205,6 @@ class ReadMixin(_ModelStubs):
                 records = []
                 valid_data = []
                 for record, vals in data:
-                    # Skip records cleared by an earlier field's MissingError,
-                    # else a successful properties read would repopulate the
-                    # empty dict and leak a partial record through the filter.
                     if not vals:
                         continue
                     try:
@@ -250,7 +224,6 @@ class ReadMixin(_ModelStubs):
                 continue
 
             if field.store:
-                # Stored field: bypass __get__, use ensure_computed/read_cache.
                 field.ensure_computed(self)
                 _read_cache = field.read_cache
                 convert_to_record = field.convert_to_record
@@ -276,8 +249,6 @@ class ReadMixin(_ModelStubs):
                     except MissingError:
                         vals.clear()
                     except KeyError:
-                        # Translation miss in translated Char/Text: fall back to
-                        # the standard __get__ path, which handles it.
                         try:
                             vals[name] = convert_to_read(
                                 record[name], record, use_display_name
@@ -285,8 +256,6 @@ class ReadMixin(_ModelStubs):
                         except MissingError:
                             vals.clear()
             else:
-                # Non-stored fields (computed, related, etc.) are not populated
-                # by fetch(); they need Field.__get__ to trigger computation.
                 convert = field.convert_to_read
                 for record, vals in data:
                     if not vals:
@@ -335,14 +304,11 @@ class ReadMixin(_ModelStubs):
 
     def _fetch_field(self, field: Field) -> None:
         """Fetch ``field`` for ``self`` from the database into cache."""
-        # determine which fields can be prefetched
         if self.env.context.get("prefetch_fields", True) and field.prefetch:
             fnames = [
                 name
                 for name, f in self._fields.items()
-                # select fields with the same prefetch group
                 if f.prefetch == field.prefetch
-                # discard fields with groups that the user may not access
                 if self._has_field_access(f, "read")
             ]
             if field.name not in fnames:
@@ -374,24 +340,18 @@ class ReadMixin(_ModelStubs):
             field_names, ignore_when_in_cache=True
         )
 
-        # first determine a query that satisfies the domain and access rules
         if any(field.column_type for field in fields_to_fetch):
             query = self._search([("id", "in", self.ids)], active_test=False)
         else:
             try:
                 self.check_access("read")
             except MissingError:
-                # Method fetch() should never raise a MissingError, but method
-                # check_access() can, because it must read fields on self.
-                # So we restrict 'self' to existing records (to avoid an extra
-                # exists() at the end of the method).
                 self = self.exists()
                 self.check_access("read")
             if not fields_to_fetch:
                 return
             query = self._as_query(ordered=False)
 
-        # fetch the fields
         fetched = self._fetch_query(query, fields_to_fetch)
 
         if prof.debug:
@@ -404,7 +364,6 @@ class ReadMixin(_ModelStubs):
                 len(fields_to_fetch),
             )
 
-        # possibly raise exception for the records that could not be read
         if fetched != self:
             forbidden = (self - fetched).exists()
             if forbidden:
@@ -438,13 +397,9 @@ class ReadMixin(_ModelStubs):
 
         fields_to_fetch: list[Field] = []
         fields_todo: deque[Field] = deque()
-        fields_done = {self._fields["id"]}  # trick: ignore 'id'
+        fields_done = {self._fields["id"]}
         for field_name in field_names:
             if not isinstance(field_name, str) or field_name not in self._fields:
-                # Raise (not skip): only ``read()`` is lenient about unknown
-                # fields, and it sanitizes its own input beforehand. Silently
-                # dropping here turned ``fetch(["typo"])`` / ``search_fetch`` into
-                # no-ops that mask caller bugs.
                 raise ValueError(
                     f"Invalid field {field_name!r} on model {self._name!r}"
                 )
@@ -458,12 +413,10 @@ class ReadMixin(_ModelStubs):
                 continue
             fields_done.add(field)
             if ignore_when_in_cache and not any(field._cache_missing_ids(self)):
-                # field is already in cache: don't fetch it
                 continue
             if field.store:
                 fields_to_fetch.append(field)
             else:
-                # optimization: fetch field dependencies
                 for dotname in self.pool.field_depends[field]:
                     dep_field = self._fields[dotname.split(".", 1)[0]]
                     if (not dep_field.store) or (
@@ -483,58 +436,43 @@ class ReadMixin(_ModelStubs):
         """
         prof = _OrmProfile(_orm_read)
 
-        # determine columns fields and those with their own read() method
         column_fields: OrderedSet[Field] = OrderedSet()
         other_fields: OrderedSet[Field] = OrderedSet()
         for field in fields:
             if field.name == "id":
                 continue
-            # raise (not assert): holds under python -O; a non-stored field
-            # would otherwise fail later at SQL generation with an opaque error.
             if not field.store:
                 raise RuntimeError(f"_fetch_query expects stored fields, got {field}")
             (column_fields if field.column_type else other_fields).add(field)
 
         context = self.env.context
 
-        # Backend dispatch: in-memory backend or PostgreSQL (None = SQL).
         if (backend := self.env.backend) is not None:
             return backend.fetch(self, query, column_fields, other_fields)
 
         if column_fields:
-            # the query may involve several tables: we need fully-qualified names
             sql_terms = [SQL.identifier(self._table, "id")]
             for field in column_fields:
                 sql = self._field_to_sql(self._table, field.name, query)
                 if field.type == "binary" and (
                     context.get("bin_size") or context.get("bin_size_" + field.name)
                 ):
-                    # pg_size_pretty has (bigint) and (numeric) overloads; cast
-                    # to disambiguate
                     sql = SQL("pg_size_pretty(length(%s)::bigint)", sql)
                 elif not field.translate:
-                    # An untranslated field need not flush its own pending write
-                    # before being fetched: _insert_cache won't clobber the dirty
-                    # cache value. (Translated fields stay in to_flush because
-                    # their SQL reads/merges the stored jsonb column.)
                     to_flush = (f for f in sql.to_flush if f != field)
                     sql = SQL(sql.code, *sql.params, to_flush=to_flush)
                 sql_terms.append(sql)
 
-            # select the given columns from the rows in the query
             rows = self.env.execute_query(query.select(*sql_terms))
             prof.mark("sql")
 
             if not rows:
                 return self.browse()
 
-            # Transpose rows into per-column tuples; first column is the ids.
             column_values = zip(*rows, strict=False)
             ids = next(column_values)
             fetched = self.browse(ids)
 
-            # Insert without overwriting: a pending update's value is assumed
-            # cached, so we need not flush when fetched values don't clobber it.
             for field, values in zip(column_fields, column_values, strict=True):
                 field._insert_cache(fetched, values)
             prof.mark("cache")
@@ -543,7 +481,6 @@ class ReadMixin(_ModelStubs):
             prof.mark("sql")
             prof.mark("cache")
 
-        # process non-column fields
         if fetched:
             for field in other_fields:
                 field.read(fetched)

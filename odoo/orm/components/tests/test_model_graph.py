@@ -13,10 +13,6 @@ from odoo.orm.components.model_graph import (
     _concat_paths,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers — mock field factories
-# ---------------------------------------------------------------------------
-
 
 class MockField:
     """Hashable mock field object for testing ModelGraph."""
@@ -66,11 +62,6 @@ def _field(name, model="m", type_="char", relational=False, **kw):
     return MockField(name, model, type_, relational, **kw)
 
 
-# ---------------------------------------------------------------------------
-# TriggerTree tests
-# ---------------------------------------------------------------------------
-
-
 class TestTriggerTree(unittest.TestCase):
     """Test TriggerTree data structure operations."""
 
@@ -118,8 +109,6 @@ class TestTriggerTree(unittest.TestCase):
         self.assertIn("TriggerTree", r)
         self.assertIn("f1", r)
 
-    # -- merge --
-
     def test_merge_empty(self) -> None:
         result = TriggerTree.merge([])
         self.assertFalse(result)
@@ -136,16 +125,14 @@ class TestTriggerTree(unittest.TestCase):
         """
         tree = TriggerTree(["A", "B"])
         self.assertIsInstance(tree.root, tuple)
-        # merge fast path aliases the cached node; mutation must be impossible
         self.assertIs(TriggerTree.merge([tree]), tree)
         with self.assertRaises(AttributeError):
-            tree.root.append("C")  # type: ignore[attr-defined]
+            tree.root.append("C")
 
     def test_merge_roots(self) -> None:
         t1 = TriggerTree(["A", "B"])
         t2 = TriggerTree(["B", "C"])
         result = TriggerTree.merge([t1, t2])
-        # A, B, C — B deduplicated
         self.assertEqual(list(result.root), ["A", "B", "C"])
 
     def test_merge_subtrees(self) -> None:
@@ -174,11 +161,6 @@ class TestTriggerTree(unittest.TestCase):
         result = TriggerTree.merge([t1], select=lambda f: False)
         self.assertNotIn(edge, result)
         self.assertFalse(result)
-
-
-# ---------------------------------------------------------------------------
-# ModelGraph construction tests
-# ---------------------------------------------------------------------------
 
 
 class TestModelGraphConstruction(unittest.TestCase):
@@ -228,11 +210,6 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertEqual(g.field_computed[f1], [f1, f2])
 
     def test_reset_field_metadata_clears_in_place(self) -> None:
-        # reset_field_metadata clears the collections IN PLACE (preserving
-        # object identity) rather than rebinding fresh objects, so live
-        # references survive the rebuild — notably
-        # Environment._field_depends_context, which caches
-        # model_graph._depends_context on the hot Field._get_cache path.
         g = ModelGraph()
         f = _field("price")
         g._depends[f] = ("dep",)
@@ -244,13 +221,10 @@ class TestModelGraphConstruction(unittest.TestCase):
 
         g.reset_field_metadata()
 
-        # emptied
         self.assertEqual(len(g._depends), 0)
         self.assertEqual(len(g._depends_context), 0)
         self.assertEqual(len(g._inverses), 0)
         self.assertEqual(len(g._computed), 0)
-        # same objects (cleared in place, not rebound) — this is what keeps a
-        # cached env._field_depends_context reference valid across the reset.
         self.assertIs(g._depends, depends)
         self.assertIs(g._depends_context, depends_ctx)
         self.assertIs(g._inverses, inverses)
@@ -267,7 +241,7 @@ class TestModelGraphConstruction(unittest.TestCase):
         f = _field("price")
         t = _field("total")
         g.add_trigger(f, (), [t])
-        g.get_field_trigger_tree(f)  # populate cache
+        g.get_field_trigger_tree(f)
         self.assertTrue(g.has_triggers(f))
         self.assertTrue(g._trigger_trees)
 
@@ -283,13 +257,11 @@ class TestModelGraphConstruction(unittest.TestCase):
         t1 = _field("total")
         g.add_trigger(f1, (), [t1])
 
-        # Reset and rebuild with different data
         g.reset_triggers()
         f2 = _field("name")
         t2 = _field("display_name")
         g.add_trigger(f2, (), [t2])
 
-        # Old data gone, new data present
         self.assertFalse(g.has_triggers(f1))
         self.assertTrue(g.has_triggers(f2))
         deps = list(g.get_dependent_fields(f2))
@@ -307,7 +279,7 @@ class TestModelGraphConstruction(unittest.TestCase):
         g = ModelGraph()
         f_old, t_old = _field("price"), _field("total")
         g.add_trigger(f_old, (), [t_old])
-        g.get_field_trigger_tree(f_old)  # populate derived caches
+        g.get_field_trigger_tree(f_old)
         self.assertTrue(g._trigger_trees)
 
         f_new, t_new = _field("name"), _field("display_name")
@@ -315,11 +287,9 @@ class TestModelGraphConstruction(unittest.TestCase):
         staged[f_new][()].append(t_new)
 
         g.set_triggers(staged)
-        # The exact prebuilt object is published, and derived caches are dropped.
         self.assertIs(g._triggers, staged)
         self.assertFalse(g._trigger_trees)
         self.assertFalse(g._modifying_relations)
-        # The new map is fully queryable; the old one is gone.
         self.assertFalse(g.has_triggers(f_old))
         self.assertTrue(g.has_triggers(f_new))
         self.assertIn(t_new, list(g.get_dependent_fields(f_new)))
@@ -343,14 +313,10 @@ class TestModelGraphConstruction(unittest.TestCase):
             "partner_total", model="partner", is_stored_computed=True
         )
 
-        # Simulate resolved dependencies:
-        # total depends on price (direct) and qty (direct)
         g.add_trigger(price, (), [total])
         g.add_trigger(qty, (), [total])
-        # partner_total depends on price via partner_id
         g.add_trigger(price, (partner_id,), [partner_total])
 
-        # Verify trigger tree structure
         tree = g.get_trigger_tree([price])
         self.assertIn(total, tree.root)
         self.assertIn(partner_id, tree)
@@ -368,16 +334,9 @@ class TestModelGraphConstruction(unittest.TestCase):
         g.add_trigger(f, (), [_field("total")])
 
         g.reset_triggers()
-        # Triggers cleared
         self.assertFalse(g.has_triggers(f))
-        # Other metadata preserved
         self.assertEqual(g._depends[f], ("dep",))
         self.assertEqual(g._inverses[f], ("inv",))
-
-
-# ---------------------------------------------------------------------------
-# ModelGraph query tests
-# ---------------------------------------------------------------------------
 
 
 class TestModelGraphQueries(unittest.TestCase):
@@ -402,9 +361,7 @@ class TestModelGraphQueries(unittest.TestCase):
             is_stored_computed=True,
         )
 
-        # price triggers total (direct — empty path)
         self.g.add_trigger(self.price, (), [self.total])
-        # price also triggers partner_total (via partner_id path)
         self.g.add_trigger(self.price, (self.partner_id,), [self.partner_total])
 
     def test_get_trigger_tree_direct(self) -> None:
@@ -432,7 +389,6 @@ class TestModelGraphQueries(unittest.TestCase):
             select=lambda f: f is self.total,
         )
         self.assertIn(self.total, tree.root)
-        # partner_total filtered out → subtree should be empty/missing
         if self.partner_id in tree:
             subtree = tree[self.partner_id]
             self.assertNotIn(self.partner_total, subtree.root)
@@ -447,10 +403,8 @@ class TestModelGraphQueries(unittest.TestCase):
         self.assertEqual(deps, [])
 
     def test_clear_caches(self) -> None:
-        # Populate the cache
         self.g.get_field_trigger_tree(self.price)
         self.assertTrue(self.g._trigger_trees)
-        # Clear
         self.g.clear_caches()
         self.assertFalse(self.g._trigger_trees)
 
@@ -474,7 +428,6 @@ class TestIsModifyingRelations(unittest.TestCase):
         scalar = _field("name")
         dep = _field("display_name", is_stored_computed=True)
         g.add_trigger(scalar, (), [dep])
-        # scalar with no relational deps → False
         self.assertFalse(g.is_modifying_relations(scalar))
 
     def test_scalar_with_relational_dependent(self) -> None:
@@ -482,7 +435,6 @@ class TestIsModifyingRelations(unittest.TestCase):
         scalar = _field("code")
         dep = _field("ref_id", relational=True)
         g.add_trigger(scalar, (), [dep])
-        # dep is relational → True
         self.assertTrue(g.is_modifying_relations(scalar))
 
     def test_field_with_inverses(self) -> None:
@@ -510,11 +462,6 @@ class TestIsModifyingRelations(unittest.TestCase):
         self.assertIn(m2o, g._modifying_relations)
 
 
-# ---------------------------------------------------------------------------
-# Transitive trigger closure tests
-# ---------------------------------------------------------------------------
-
-
 class TestTransitiveTriggers(unittest.TestCase):
     """Test that trigger trees compute the transitive closure correctly."""
 
@@ -540,7 +487,6 @@ class TestTransitiveTriggers(unittest.TestCase):
         g.add_trigger(a, (), [b])
         g.add_trigger(b, (), [a])
 
-        # Should not hang
         tree = g.get_field_trigger_tree(a)
         self.assertTrue(tree)
 
@@ -576,15 +522,8 @@ class TestTransitiveTriggers(unittest.TestCase):
             g.add_trigger(fields[i], (), [fields[i + 1]])
 
         tree = g.get_field_trigger_tree(fields[0])
-        # all targets land on the root (empty path), once each, in chain order.
-        # root is a tuple: nodes are shared registry-wide and must be immutable.
         self.assertEqual(tree.root, tuple(fields[1:]))
         self.assertEqual(len(tree.root), len(set(tree.root)))
-
-
-# ---------------------------------------------------------------------------
-# Trigger-tree memoization tests (diamond DAGs)
-# ---------------------------------------------------------------------------
 
 
 def _naive_trigger_tree(graph: ModelGraph, field) -> TriggerTree:
@@ -716,7 +655,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
         g.add_trigger(f, (), [a, b])
         g.add_trigger(a, (p,), [t])
         g.add_trigger(b, (p,), [t])
-        # t cycles back to f (and has an acyclic side branch)
         g.add_trigger(t, (q,), [f])
         g.add_trigger(f, (q,), [t])
         self.assert_matches_naive(g, f)
@@ -747,7 +685,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
         g.add_trigger(f, (), [a, b])
         g.add_trigger(a, (parent_id,), [t1])
         g.add_trigger(b, (parent_id,), [t1])
-        # (parent_id,) + (child_ids,) cancels back to the root path
         g.add_trigger(t1, (child_ids,), [t2])
 
         tree = g.get_field_trigger_tree(f)
@@ -783,11 +720,6 @@ class TestTriggerTreeMemoization(unittest.TestCase):
             with self.subTest(labelled=labelled):
                 graph, root = _build_diamond(12, labelled=labelled)
                 self.assert_matches_naive(graph, root)
-
-
-# ---------------------------------------------------------------------------
-# Path concatenation tests
-# ---------------------------------------------------------------------------
 
 
 class TestConcatPaths(unittest.TestCase):
@@ -866,11 +798,6 @@ class TestConcatPaths(unittest.TestCase):
         self.assertEqual(result, (m2o, o2m))
 
 
-# ---------------------------------------------------------------------------
-# discard_fields tests
-# ---------------------------------------------------------------------------
-
-
 class TestDiscardFields(unittest.TestCase):
     """Test removing fields from the graph."""
 
@@ -883,8 +810,6 @@ class TestDiscardFields(unittest.TestCase):
         self.assertFalse(g.has_triggers(f))
 
     def test_discard_from_triggers_as_target(self) -> None:
-        # A discarded field must also be scrubbed where it is a trigger *target*
-        # of another dep, else get_trigger_tree would schedule a deleted field.
         g = ModelGraph()
         dep = _field("price")
         gone = _field("total")
@@ -896,7 +821,6 @@ class TestDiscardFields(unittest.TestCase):
         self.assertNotIn(gone, tree.root)
 
     def test_discard_target_removes_emptied_dep(self) -> None:
-        # If a dep's only targets are all discarded, the dep drops out entirely.
         g = ModelGraph()
         dep = _field("price")
         gone = _field("total")
@@ -925,22 +849,16 @@ class TestDiscardFields(unittest.TestCase):
         inv = _field("order_ids")
         g._inverses[f] = (inv,)
         g.discard_fields([inv])
-        # f still exists but inv is filtered out of its tuple
-        self.assertNotIn(f, g.field_inverses)  # empty tuple → removed
+        self.assertNotIn(f, g.field_inverses)
 
     def test_discard_clears_caches(self) -> None:
         g = ModelGraph()
         f = _field("price")
         t = _field("total")
         g.add_trigger(f, (), [t])
-        g.get_field_trigger_tree(f)  # populate cache
+        g.get_field_trigger_tree(f)
         g.discard_fields([f])
         self.assertFalse(g._trigger_trees)
-
-
-# ---------------------------------------------------------------------------
-# _Collector tests
-# ---------------------------------------------------------------------------
 
 
 class TestCollector(unittest.TestCase):
@@ -979,15 +897,15 @@ class TestCollector(unittest.TestCase):
         c["b"] = ("x", "z")
         c["x"] = ("w",)
         c.discard_keys_and_values({"x"})
-        self.assertNotIn("x", c)  # key removed
-        self.assertEqual(c["a"], ("y",))  # value filtered
+        self.assertNotIn("x", c)
+        self.assertEqual(c["a"], ("y",))
         self.assertEqual(c["b"], ("z",))
 
     def test_discard_removes_empty_after_filter(self) -> None:
         c = _Collector()
         c["a"] = ("x",)
         c.discard_keys_and_values({"x"})
-        self.assertNotIn("a", c)  # became empty → removed
+        self.assertNotIn("a", c)
 
     def test_pop_works(self) -> None:
         c = _Collector()
@@ -1013,11 +931,6 @@ class TestCollector(unittest.TestCase):
         c["a"] = ("x",)
         c["b"] = ("y",)
         self.assertEqual(set(c), {"a", "b"})
-
-
-# ---------------------------------------------------------------------------
-# Data ownership tests
-# ---------------------------------------------------------------------------
 
 
 class TestDataOwnership(unittest.TestCase):
@@ -1064,11 +977,6 @@ class TestDataOwnership(unittest.TestCase):
         self.assertEqual(g.field_depends_context[f], ())
 
 
-# ---------------------------------------------------------------------------
-# Topological recompute order tests
-# ---------------------------------------------------------------------------
-
-
 class TestRecomputeOrder(unittest.TestCase):
     """Test _compute_recompute_order() topological sorting via Kahn's algorithm."""
 
@@ -1105,7 +1013,6 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertLess(order[a], order[c])
         self.assertLess(order[b], order[d])
         self.assertLess(order[c], order[d])
-        # B and C should be at the same priority level
         self.assertEqual(order[b], order[c])
 
     def test_cycle_gets_max_priority(self) -> None:
@@ -1117,7 +1024,6 @@ class TestRecomputeOrder(unittest.TestCase):
         g.add_trigger(b, (), [a])
 
         order = g.recompute_order
-        # Both should be present and get the same (max) priority
         self.assertIn(a, order)
         self.assertIn(b, order)
         self.assertEqual(order[a], order[b])
@@ -1141,14 +1047,12 @@ class TestRecomputeOrder(unittest.TestCase):
     def test_non_computed_fields_excluded(self) -> None:
         """Fields without compute are not in the recompute order."""
         g = ModelGraph()
-        regular = _field("regular", store=True)  # no compute
+        regular = _field("regular", store=True)
         target = self._stored_computed("target")
         g.add_trigger(regular, (), [target])
 
         order = g.recompute_order
-        # regular is not computed, should not be in order
         self.assertNotIn(regular, order)
-        # target IS stored-computed, should be present
         self.assertIn(target, order)
 
     def test_caching(self) -> None:
@@ -1173,7 +1077,6 @@ class TestRecomputeOrder(unittest.TestCase):
         g.clear_caches()
         order2 = g.recompute_order
         self.assertIsNot(order1, order2)
-        # But values should be equal
         self.assertEqual(order1, order2)
 
     def test_mixed_cycle_and_chain(self) -> None:
@@ -1184,12 +1087,11 @@ class TestRecomputeOrder(unittest.TestCase):
         c = self._stored_computed("c")
         g.add_trigger(a, (), [b])
         g.add_trigger(b, (), [c])
-        g.add_trigger(c, (), [b])  # cycle
+        g.add_trigger(c, (), [b])
 
         order = g.recompute_order
         self.assertLess(order[a], order[b])
         self.assertLess(order[a], order[c])
-        # B and C are in a cycle → same (max) priority
         self.assertEqual(order[b], order[c])
 
     def test_plain_column_feeding_computed_chain(self) -> None:
@@ -1202,14 +1104,14 @@ class TestRecomputeOrder(unittest.TestCase):
         and the computed chain must still sort dependency-before-dependent.
         """
         g = ModelGraph()
-        column = _field("amount", store=True)  # plain column, no compute
+        column = _field("amount", store=True)
         total = self._stored_computed("total")
         grand_total = self._stored_computed("grand_total")
-        g.add_trigger(column, (), [total])  # non-computed dep → computed target
-        g.add_trigger(total, (), [grand_total])  # computed dep → computed target
+        g.add_trigger(column, (), [total])
+        g.add_trigger(total, (), [grand_total])
 
         order = g.recompute_order
-        self.assertNotIn(column, order)  # never ordered: not stored-computed
+        self.assertNotIn(column, order)
         self.assertIn(total, order)
         self.assertIn(grand_total, order)
         self.assertLess(order[total], order[grand_total])
@@ -1219,11 +1121,11 @@ class TestRecomputeOrder(unittest.TestCase):
         of how many non-stored / non-computed fields trigger or are triggered.
         """
         g = ModelGraph()
-        col = _field("col", store=True)  # plain column
-        non_stored = _field("ns", store=False, compute="_c")  # computed, not stored
+        col = _field("col", store=True)
+        non_stored = _field("ns", store=False, compute="_c")
         sc = self._stored_computed("sc")
         g.add_trigger(col, (), [sc, non_stored])
-        g.add_trigger(non_stored, (), [sc])  # non-stored dep feeding stored-computed
+        g.add_trigger(non_stored, (), [sc])
 
         order = g.recompute_order
         self.assertEqual(set(order), {sc})
@@ -1252,7 +1154,7 @@ class TestModelGraphFreeze(unittest.TestCase):
         g.add_trigger(price, (), [total])
         g.add_trigger(qty, (), [total])
         g.add_trigger(price, (partner_id,), [partner_total])
-        g.add_trigger(total, (), [partner_total])  # stored→stored, for ordering
+        g.add_trigger(total, (), [partner_total])
         g._inverses[partner_id] = (partner_id,)
         return g
 
@@ -1264,7 +1166,6 @@ class TestModelGraphFreeze(unittest.TestCase):
 
         g.freeze()
 
-        # Every field with triggers has a cached tree and modifying-relations.
         for field in g._triggers:
             self.assertIn(field, g._trigger_trees)
             self.assertIn(field, g._modifying_relations)
@@ -1277,10 +1178,8 @@ class TestModelGraphFreeze(unittest.TestCase):
 
         trees_keys = set(g._trigger_trees)
         modrel_keys = set(g._modifying_relations)
-        order_obj = g._recompute_order  # identity must not change (no recompute)
+        order_obj = g._recompute_order
 
-        # Exercise every public query path, including non-trigger fields and an
-        # arbitrary multi-field set (the get_trigger_tree merge path).
         non_trigger = _field("unrelated")
         for field in list(g._triggers) + [non_trigger]:
             g.get_field_trigger_tree(field)
@@ -1321,8 +1220,7 @@ class TestModelGraphFreeze(unittest.TestCase):
         """Freezing must not change any answer versus lazy computation."""
         eager = self._build_graph()
         eager.freeze()
-        lazy = self._build_graph()  # identical graph, never frozen
-        # Build matching field handles by name for comparison.
+        lazy = self._build_graph()
         for f_eager in eager._triggers:
             f_lazy = next(f for f in lazy._triggers if f.name == f_eager.name)
             self.assertEqual(
