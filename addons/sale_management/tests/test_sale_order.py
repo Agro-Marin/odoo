@@ -376,7 +376,7 @@ class TestSaleOrder(SaleManagementCommon):
         partner_NL = self.partner.copy({'lang': 'nl_NL', 'name': "Pieter-Jan Hollandman"})
         names_EN = ["Product 1", "Section 1", "Note 1", "Optional products", "Optional product"]
         names_NL = ["Artikel 1", "Sectie 1", "Nota 1", "Optionele producten", "Optioneel product"]
-        trans_dict = dict(zip(names_EN, names_NL))
+        trans_dict = dict(zip(names_EN, names_NL, strict=True))
         for record in chain(
             self.quotation_template_no_discount.sale_order_template_line_ids,
             self.quotation_template_no_discount.sale_order_template_line_ids.product_id,
