@@ -23,9 +23,6 @@ from pathlib import Path
 
 _logger = logging.getLogger("odoo.orm.nplusone")
 
-# Module-level fast flag: one LOAD_GLOBAL + branch per CRUD call when off.
-# Read from the environment at import (see module docstring): consumers freeze
-# this value with ``from ... import _n1_enabled``, so it must be correct now.
 _n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
     "1",
     "true",
@@ -35,12 +32,6 @@ _n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
 if _n1_enabled:
     _logger.info("N+1 CRUD detection enabled (ODOO_NPLUSONE=1)")
 
-# Frames under these prefixes are framework-internal and skipped when finding
-# the external caller: odoo/orm/ and odoo/api/.
-# ``os.sep``, not a hardcoded "/": ``str(Path(...))`` renders the native
-# separator, so on Windows these prefixes read "...\orm" + "/" -- a string no
-# ``co_filename`` can ever start with, silently disabling the frame skipping and
-# blaming ORM internals for every detected call site.
 _ODOO_DIR = Path(__file__).resolve().parent.parent
 _ORM_PREFIX: str = str(_ODOO_DIR / "orm") + os.sep
 
@@ -61,7 +52,6 @@ class _NplusOneEntry:
         self.vals_fingerprints: set[frozenset[str]] = set()
 
 
-# Key: (operation, model_name, filename, lineno)
 type _Key = tuple[str, str, str, int]
 
 
@@ -70,7 +60,7 @@ class NplusOneTracker:
 
     __slots__ = ("_data",)
 
-    THRESHOLD = 3  # minimum calls from same site to trigger a warning
+    THRESHOLD = 3
 
     def __init__(self) -> None:
         self._data: dict[_Key, _NplusOneEntry] = {}
@@ -83,16 +73,7 @@ class NplusOneTracker:
         field_fingerprint: frozenset[str],
     ) -> None:
         """Record a CRUD call from the create/write/unlink ORM mixins."""
-        # Walk the stack to find the first frame that is the *real* external
-        # caller. Skip two kinds of frames:
-        #   1. ORM/api internals (by file prefix), and
-        #   2. the create/write/unlink super()-delegation chain -- frames whose
-        #      function name is the tracked operation. Most models override
-        #      create/write/unlink and end in ``super().create(...)``; without
-        #      this the walk would stop at that override line and blame the model
-        #      plumbing instead of the loop that issued the repeated single-record
-        #      calls.
-        frame = sys._getframe(2)  # skip record() + the CRUD method itself
+        frame = sys._getframe(2)
         while frame is not None:
             code = frame.f_code
             if (

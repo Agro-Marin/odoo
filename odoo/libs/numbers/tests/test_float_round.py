@@ -16,8 +16,6 @@ from odoo.libs.numbers.float_utils import float_repr, float_round
 
 class TestFloatRound(unittest.TestCase):
     def test_normalization_underflow_returns_zero(self):
-        # a subnormal value divided by a large rounding factor underflows to 0
-        # during normalization; must return 0.0, not raise from math.log2(0).
         self.assertEqual(float_round(1e-320, precision_rounding=1e20), 0.0)
 
     def test_zero_input(self):
@@ -28,14 +26,11 @@ class TestFloatRound(unittest.TestCase):
         self.assertEqual(float_round(2.675, precision_digits=2), 2.68)
 
     def test_returns_float_not_int(self):
-        # the documented return type is float even on the HALF-EVEN tie branch
-        # with precision_digits=0 (where the rounding factor is an int).
         for method in ("HALF-UP", "HALF-EVEN", "HALF-DOWN", "UP", "DOWN"):
             r = float_round(2.5, precision_digits=0, rounding_method=method)
             self.assertIsInstance(r, float, method)
 
     def test_large_magnitude_down_does_not_inflate(self):
-        # DOWN must never push an exact integer multiple away from zero.
         self.assertEqual(
             float_round(12000000000000.0, precision_digits=2, rounding_method="DOWN"),
             12000000000000.0,
@@ -46,7 +41,6 @@ class TestFloatRound(unittest.TestCase):
         )
 
     def test_large_magnitude_up_does_not_overshoot(self):
-        # UP on an exact integer must return it unchanged, not overshoot.
         self.assertEqual(
             float_round(2.0**52, precision_digits=0, rounding_method="UP"), 2.0**52
         )
@@ -56,10 +50,9 @@ class TestFloatRound(unittest.TestCase):
         )
 
     def test_large_magnitude_half_even_tie_is_even(self):
-        # an exact representable tie at large magnitude must still go to even.
         self.assertEqual(
             float_round(2**50 + 0.5, precision_digits=0, rounding_method="HALF-EVEN"),
-            float(2**50),  # 2**50 is even
+            float(2**50),
         )
 
     def test_half_even_ties(self):
@@ -85,7 +78,6 @@ class TestFloatRound(unittest.TestCase):
         )
 
     def test_matches_decimal_over_money_range(self):
-        # exhaustive cross-check against Decimal for the range that matters.
         dmeth = {
             "HALF-UP": ROUND_HALF_UP,
             "HALF-EVEN": ROUND_HALF_EVEN,
@@ -140,8 +132,6 @@ class TestFloatRound(unittest.TestCase):
                         )
 
     def test_idempotent_on_its_own_grid(self):
-        # rounding an already-rounded value must be a no-op, otherwise repeated
-        # normalization would let a value drift across a grid boundary
         for digits in range(16):
             for n in range(500):
                 once = float_round(n * 10**-digits, precision_digits=digits)

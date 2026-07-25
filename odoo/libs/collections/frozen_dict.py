@@ -63,7 +63,7 @@ class frozendict[K, T](dict[K, T]):
         msg = "'update' not supported on frozendict"
         raise NotImplementedError(msg)
 
-    def __ior__(self, other: Any) -> None:  # type: ignore[misc,override]
+    def __ior__(self, other: Any) -> None:
         """Reject in-place merge (``|=``), as the dictionary is immutable.
 
         Without this override ``dict.__ior__`` would mutate the frozendict in
@@ -98,10 +98,10 @@ class frozendict[K, T](dict[K, T]):
         """
         return (_rebuild_frozendict, (type(self), dict(self)))
 
-    def __hash__(self) -> int:  # type: ignore[override]
+    def __hash__(self) -> int:
         """Return a cached hash computed from the key/value pairs."""
         try:
-            return self._hash  # type: ignore[has-type]
+            return self._hash
         except AttributeError:
             h = hash(frozenset((key, freehash(val)) for key, val in self.items()))
             object.__setattr__(self, "_hash", h)

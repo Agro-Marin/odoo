@@ -16,9 +16,6 @@ if TYPE_CHECKING:
     from odoo.db import Cursor
     from odoo.fields import Field
 else:
-    # Runtime-importing these would cycle (odoo.fields and odoo.db both import
-    # odoo.tools), so fall back to Any; type checkers see the real classes via
-    # the branch above.
     Field = typing.Any
     Cursor = typing.Any
 
@@ -48,16 +45,10 @@ __all__ = [
 
 _schema = logging.getLogger("odoo.schema")
 
-# ``\Z`` (not ``$``): ``$`` also matches just before a trailing newline, so
-# ``"col\n"`` would validate as an identifier and reach SQL unquoted.
 IDENT_RE = re.compile(r"^[a-z0-9_][a-z0-9_$\-]*\Z", re.IGNORECASE)
 
-# printf-directive tokenizer for SQL.inlined(): matches each ``%`` directive
-# left-to-right, so a ``%%`` escape is consumed before its trailing character
-# can be mistaken for a directive (``%%s`` is the literal text ``%s``).
 _PRINTF_DIRECTIVE_RE = re.compile(r"%(.)", re.DOTALL)
 
-# Pre-compiled regexes for trigram pattern escaping (ilike operations)
 _WILDCARD_ESCAPE_RE = re.compile(r"(_|%|\\)")
 _TRIGRAM_PATTERN_RE = re.compile(
     r"""
@@ -123,7 +114,6 @@ class SQL:
     __params: tuple
     __to_flush: tuple[Field, ...]
 
-    # pylint: disable=keyword-arg-before-vararg
     def __init__(
         self,
         code: str | SQL = "",
@@ -141,7 +131,6 @@ class SQL:
             self.__to_flush = code.__to_flush
             return
 
-        # validate the format of code and parameters
         if args and kwargs:
             msg = "SQL() takes either positional arguments, or named arguments"
             raise TypeError(msg)
@@ -149,7 +138,7 @@ class SQL:
         if kwargs:
             code, args = named_to_positional_printf(code, kwargs)
         elif not args:
-            code % ()  # check that code does not contain %s
+            code % ()
             self.__code = code
             self.__params = ()
             if to_flush is None:
@@ -169,23 +158,9 @@ class SQL:
                 params_list.extend(arg.__params)
                 to_flush_list.extend(arg.__to_flush)
             elif isinstance(arg, tuple):
-                # Expand a tuple to (%s, %s, ...) for VALUES rows and other
-                # multi-value positions. Use a list for a single array param.
-                # An empty tuple must render as (NULL) rather than the invalid
-                # `()` (a PostgreSQL syntax error); `x IN (NULL)` matches nothing.
-                #
-                # TRAP: `(NULL)` is correct for `IN` but WRONG for `NOT IN` --
-                # `x NOT IN (NULL)` matches *nothing* when an empty exclusion set
-                # should match every row. Since this branch can't see the
-                # operator, membership tests should use SQL.in_() / SQL.not_in()
-                # (= ANY / <> ALL on a list), which handle the empty set
-                # correctly. Bare `IN %s`/`NOT IN %s` with a tuple is discouraged.
                 if arg:
                     element_codes = []
                     for element in arg:
-                        # Splice a nested SQL element into the code instead of
-                        # leaking the SQL object into params, where psycopg
-                        # cannot adapt it (fails at execute, far from here).
                         if isinstance(element, SQL):
                             element_codes.append(element.__code)
                             params_list.extend(element.__params)
@@ -286,8 +261,6 @@ class SQL:
             )
 
         code = _PRINTF_DIRECTIVE_RE.sub(substitute, self.__code)
-        # The constructor re-validates the code (`code % ()`), so a leftover
-        # placeholder fails loudly here rather than at execution.
         return SQL(code, to_flush=self.__to_flush)
 
     def __repr__(self) -> str:
@@ -330,13 +303,11 @@ class SQL:
             return items[0]
         if not self.__params:
             return SQL(self.__code.join("%s" for _ in items), *items)
-        # general case: alternate items with self
         result = [self] * (len(items) * 2 - 1)
         for index, arg in enumerate(items):
             result[index * 2] = arg
         return SQL("%s" * len(result), *result)
 
-    # Empty singleton, assigned after the class definition
     EMPTY: SQL
 
     @classmethod
@@ -406,7 +377,6 @@ class SQL:
         return cls("%s <> ALL(%s)", lhs, values)
 
 
-# Shared empty-SQL singleton, avoids repeated allocations
 SQL.EMPTY = SQL()
 
 
@@ -462,34 +432,27 @@ def table_kind(cr: Cursor, tablename: str) -> TableKind | None:
         return None
 
     kind, persistence = cr.fetchone()
-    # special case: permanent, temporary, and unlogged tables differ by their
-    # relpersistence, they're all "ordinary" (relkind = r)
     if kind == "r":
         return TableKind.Temporary if persistence == "t" else TableKind.Regular
 
     try:
         return TableKind(kind)
     except ValueError:
-        # NB: or raise? unclear if it makes sense to allow table_kind to
-        #     "work" with something like an index or sequence
         return TableKind.Other
 
 
-# prescribed column order by type: columns aligned on 4 bytes, columns aligned
-# on 1 byte, columns aligned on 8 bytes(values have been chosen to minimize
-# padding in rows; unknown column types are put last)
 SQL_ORDER_BY_TYPE = defaultdict(
     lambda: 16,
     {
-        "int4": 1,  # 4 bytes aligned on 4 bytes
-        "varchar": 2,  # variable aligned on 4 bytes
-        "date": 3,  # 4 bytes aligned on 4 bytes
-        "jsonb": 4,  # jsonb
-        "text": 5,  # variable aligned on 4 bytes
-        "numeric": 6,  # variable aligned on 4 bytes
-        "bool": 7,  # 1 byte aligned on 1 byte
-        "timestamp": 8,  # 8 bytes aligned on 8 bytes
-        "float8": 9,  # 8 bytes aligned on 8 bytes
+        "int4": 1,
+        "varchar": 2,
+        "date": 3,
+        "jsonb": 4,
+        "text": 5,
+        "numeric": 6,
+        "bool": 7,
+        "timestamp": 8,
+        "float8": 9,
     },
 )
 
@@ -501,7 +464,7 @@ def create_model_table(
     colspecs = [
         SQL("id SERIAL NOT NULL"),
         *(
-            SQL("%s %s", SQL.identifier(colname), SQL(coltype))  # pylint: disable=sql-injection
+            SQL("%s %s", SQL.identifier(colname), SQL(coltype))
             for colname, coltype, _ in columns
         ),
         SQL("PRIMARY KEY(id)"),
@@ -599,7 +562,7 @@ def create_column(
         "ALTER TABLE %s ADD COLUMN %s %s %s",
         SQL.identifier(tablename),
         SQL.identifier(columnname),
-        SQL(columntype),  # pylint: disable=sql-injection
+        SQL(columntype),
         SQL("DEFAULT false" if columntype.upper() == "BOOLEAN" else ""),
     )
     if comment:
@@ -625,7 +588,7 @@ def convert_column(
     cr: Cursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     """Convert the column to the given type."""
-    using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))  # pylint: disable=sql-injection
+    using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))
     _convert_column(cr, tablename, columnname, columntype, using)
 
 
@@ -673,18 +636,12 @@ def _convert_column(
 def drop_depending_views(cr: Cursor, table: str, column: str) -> None:
     """Drop views depending on a field so the ORM can resize it in-place."""
     for v, k in get_depending_views(cr, table, column):
-        # ``v`` is a relname straight from pg_catalog (trusted), but may be a
-        # non-identifier name (spaces, dots, embedded quotes) on customer/
-        # third-party views — which SQL.identifier would reject with ValueError,
-        # aborting the column resize.  Quote it the way PostgreSQL does
-        # (double every internal quote); safe to splice since the source is the
-        # catalog, not user input.
         quoted = '"%s"' % v.replace('"', '""')
         cr.execute(
             SQL(
                 "DROP %s IF EXISTS %s CASCADE",
                 SQL("MATERIALIZED VIEW" if k == "m" else "VIEW"),
-                SQL(quoted),  # pylint: disable=sql-injection
+                SQL(quoted),
             )
         )
         _schema.debug("Drop view %r", v)
@@ -705,7 +662,6 @@ def get_depending_views(cr: Cursor, table: str, column: str) -> list[tuple[str, 
     reserved word, a space) turned a column-type migration into a hard failure
     inside :func:`_convert_column`'s fallback path.
     """
-    # http://stackoverflow.com/a/11773226/75349
     cr.execute(
         SQL(
             """
@@ -853,7 +809,7 @@ def add_foreign_key(
             SQL.identifier(columnname1),
             SQL.identifier(tablename2),
             SQL.identifier(columnname2),
-            SQL(ondelete),  # pylint: disable=sql-injection
+            SQL(ondelete),
         )
     )
     _schema.debug(
@@ -923,13 +879,6 @@ def get_foreign_keys(
     columnname2: str,
     ondelete: str,
 ) -> list[str]:
-    # Match the graceful default of its sibling ``fix_foreign_key``: an unknown
-    # ``ondelete`` maps to PostgreSQL's default action ``'a'`` (NO ACTION)
-    # rather than raising ``KeyError``.  The two functions took the same argument
-    # and disagreed on how to handle an out-of-range value; PostgreSQL stores
-    # ``'a'`` for an unspecified ``ON DELETE``, so an unknown request can only
-    # match a constraint that was itself created with NO ACTION -- which is the
-    # correct, non-crashing answer.
     deltype = _CONFDELTYPES.get(ondelete.upper(), "a")
     return [
         row[0]
@@ -1055,22 +1004,13 @@ def create_index(
         raise ValueError("Missing expressions")
     if index_exists(cr, indexname):
         return
-    # ``expressions`` and ``where`` are raw SQL fragments, not %-format templates,
-    # so a literal ``%`` in them must be escaped before it reaches ``SQL()`` --
-    # exactly what :func:`add_index` already does for its ``str`` definition.
-    # Without this, the perfectly ordinary partial index
-    # ``where="name LIKE 'a%'"`` died with ``TypeError: not enough arguments for
-    # format string`` inside ``SQL.__init__``'s ``code % ()`` arity check, i.e.
-    # the index was never created and module installation blew up.  psycopg
-    # collapses ``%%`` back to ``%`` even when the parameter tuple is empty, so
-    # the emitted DDL is unchanged for fragments that contain no ``%``.
     definition = SQL(
         "USING %s (%s)%s",
-        SQL(method),  # pylint: disable=sql-injection
+        SQL(method),
         SQL(", ").join(
             SQL(expression.replace("%", "%%")) for expression in expressions
-        ),  # pylint: disable=sql-injection
-        (SQL(" WHERE %s", SQL(where.replace("%", "%%"))) if where else SQL()),  # pylint: disable=sql-injection
+        ),
+        (SQL(" WHERE %s", SQL(where.replace("%", "%%"))) if where else SQL()),
     )
     add_index(cr, indexname, tablename, definition, unique=unique, comment=comment)
 
@@ -1086,9 +1026,9 @@ def add_index(
 ) -> None:
     """Create an index."""
     if isinstance(definition, str):
-        definition = SQL(definition.replace("%", "%%"))  # pylint: disable=sql-injection
+        definition = SQL(definition.replace("%", "%%"))
     else:
-        definition = SQL(definition)  # pylint: disable=sql-injection
+        definition = SQL(definition)
     query = SQL(
         "CREATE %sINDEX %s ON %s %s",
         SQL("UNIQUE ") if unique else SQL(),
@@ -1182,18 +1122,12 @@ def value_to_translated_trigram_pattern(value: str) -> str:
     :return: a pattern to match the indexed text
     """
     if len(value) < 3:
-        # matching less than 3 characters will not take advantage of the index
         return "%"
 
-    # apply JSON escaping to value; the argument ensure_ascii=False prevents
-    # json.dumps from escaping unicode to ascii, which is consistent with the
-    # index function jsonb_path_query_array("column_name", '$.*')::text
     json_escaped = json_dumps(value, ensure_ascii=False)[1:-1]
 
-    # apply PG wildcard escaping to JSON-escaped text
     wildcard_escaped = _WILDCARD_ESCAPE_RE.sub(r"\\\1", json_escaped)
 
-    # add wildcards around it to get the pattern
     return f"%{wildcard_escaped}%"
 
 
@@ -1207,20 +1141,14 @@ def pattern_to_translated_trigram_pattern(pattern: str) -> str:
     :param str pattern: value provided in domain
     :return: a pattern to match the indexed text
     """
-    # find the parts around (non-escaped) wildcard characters (_, %)
     sub_patterns = _TRIGRAM_PATTERN_RE.findall(pattern)
 
-    # unescape PG wildcards from each sub pattern (\% becomes %)
     sub_texts = [_PG_UNESCAPE_RE.sub(r"\1", t) for t in sub_patterns]
 
-    # apply JSON escaping to sub texts having at least 3 characters (" becomes \");
-    # the argument ensure_ascii=False prevents from escaping unicode to ascii
     json_escaped = [
         json_dumps(t, ensure_ascii=False)[1:-1] for t in sub_texts if len(t) >= 3
     ]
 
-    # apply PG wildcard escaping to JSON-escaped texts (% becomes \%)
     wildcard_escaped = [_WILDCARD_ESCAPE_RE.sub(r"\\\1", t) for t in json_escaped]
 
-    # replace the original wildcard characters by %
     return f"%{'%'.join(wildcard_escaped)}%" if wildcard_escaped else "%"

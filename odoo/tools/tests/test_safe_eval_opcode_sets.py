@@ -119,7 +119,9 @@ class TestEvaluatorsStillWork(unittest.TestCase):
     """End-to-end smoke tests over the three entry points, per allowlist."""
 
     def test_const_eval(self):
-        self.assertEqual(const_eval("[1, 2, (3, 4), {'foo': 'bar'}]"), [1, 2, (3, 4), {"foo": "bar"}])
+        self.assertEqual(
+            const_eval("[1, 2, (3, 4), {'foo': 'bar'}]"), [1, 2, (3, 4), {"foo": "bar"}]
+        )
         with self.assertRaises(ValueError):
             const_eval("[1,2]*2")
 
@@ -130,9 +132,7 @@ class TestEvaluatorsStillWork(unittest.TestCase):
 
     def test_safe_eval(self):
         self.assertEqual(safe_eval("a + b", {"a": 1, "b": 2}), 3)
-        self.assertEqual(
-            safe_eval("[x * 2 for x in items]", {"items": [1, 2]}), [2, 4]
-        )
+        self.assertEqual(safe_eval("[x * 2 for x in items]", {"items": [1, 2]}), [2, 4])
         with self.assertRaises(NameError):
             safe_eval("obj.__class__", {"obj": object()})
 

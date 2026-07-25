@@ -34,7 +34,6 @@ class TestCreateIndexPercentEscaping(unittest.TestCase):
     def _create(self, **kwargs):
         cr = _RecordingCursor()
         create_index(cr, "idx", "tbl", **kwargs)
-        # statements[0] is the index_exists probe; the CREATE INDEX is the last.
         return cr.statements[-1]
 
     def test_percent_in_where_clause(self):

@@ -65,11 +65,6 @@ def split_every[T](
         >>> list(split_every(3, range(10), list))
         [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
     """
-    # Plain function delegating to a generator, so the warning fires when
-    # split_every() is *called*.  Emitted from a generator body it only fired on
-    # the first next(), pointing stacklevel=2 at whatever happened to iterate
-    # rather than at the deprecated call site -- and never at all for a result
-    # that was built but never consumed.
     warnings.warn(
         "split_every() is deprecated, use itertools.batched(iterable, n) instead. "
         "Note the swapped argument order.",

@@ -26,10 +26,6 @@ DEFAULT_SERVER_DATETIME_FORMAT = (
 
 DATE_LENGTH = len(datetime.date.today().strftime(DEFAULT_SERVER_DATE_FORMAT))
 
-# Divisors for formatLang's rounding_unit parameter.  A module constant, not
-# a per-call literal: ``formatLang`` is on the QWeb monetary hot path (every
-# rendered amount), and rebuilding this five-entry dict on each call
-# allocated a dict plus five int objects for a pure lookup.
 ROUNDING_UNIT_MAPPING = {
     "decimals": 1,
     "thousands": 10**3,
@@ -38,44 +34,29 @@ ROUNDING_UNIT_MAPPING = {
     "units": 1,
 }
 
-# strftime only supports the directives available on the platform's libc;
-# map to the C89-standard directives, which are available everywhere, for
-# cross-platform behavior.
 DATETIME_FORMATS_MAP = {
-    "%C": "",  # century
-    "%D": "%m/%d/%Y",  # modified %y->%Y
+    "%C": "",
+    "%D": "%m/%d/%Y",
     "%e": "%d",
-    "%E": "",  # special modifier
+    "%E": "",
     "%F": "%Y-%m-%d",
-    "%g": "%Y",  # modified %y->%Y
+    "%g": "%Y",
     "%G": "%Y",
     "%h": "%b",
     "%k": "%H",
     "%l": "%I",
     "%n": "\n",
-    "%O": "",  # special modifier
+    "%O": "",
     "%P": "%p",
     "%R": "%H:%M",
     "%r": "%I:%M:%S %p",
-    "%s": "",  # num of seconds since epoch
+    "%s": "",
     "%T": "%H:%M:%S",
-    "%t": " ",  # tab
+    "%t": " ",
     "%u": " %w",
     "%V": "%W",
-    "%y": "%Y",  # Even if %y works, it's ambiguous, so we should use %Y
+    "%y": "%Y",
     "%+": "%Y-%m-%d %H:%M:%S",
-    # %Z is a special case that causes 2 problems at least:
-    #  - the timezone names we use (in res_user.context_tz) come
-    #    from IANA/zoneinfo, but not all these names are recognized by
-    #    strptime(), so we cannot convert in both directions
-    #    when such a timezone is selected and %Z is in the format
-    #  - %Z is replaced by an empty string in strftime() when
-    #    there is not tzinfo in a datetime value (e.g when the user
-    #    did not pick a context_tz). The resulting string does not
-    #    parse back if the format requires %Z.
-    # As a consequence, we strip it completely from format strings.
-    # The user can always have a look at the context_tz in
-    # preferences to check the timezone.
     "%z": "",
     "%Z": "",
 }
@@ -113,7 +94,6 @@ def formatLang(
 
     :returns: The formatted value.
     """
-    # Empty string is a valid "no value" input; pass it through unformatted.
     if value == "":
         return ""
 
@@ -130,14 +110,8 @@ def formatLang(
     rounded_value = float_round(
         value, precision_digits=digits, rounding_method=rounding_method
     )
-    # Deferred import: odoo.tools must stay importable before the addons
-    # (locale_utils type-checks the same import).
     from odoo.addons.base.models.res_lang import format_number
 
-    # get_lang() already returns the full LangData; hand it straight to the
-    # pure formatter instead of round-tripping through browse().format(),
-    # which would re-fetch the same LangData (two extra cache hops per
-    # formatted number on the QWeb monetary hot path).
     formatted_value = format_number(
         f"%.{digits}f", rounded_value, get_lang(env), grouping=grouping
     )
@@ -175,13 +149,11 @@ def format_date(
         if len(value) < DATE_LENGTH:
             return ""
         if len(value) > DATE_LENGTH:
-            # a datetime, convert to correct timezone
             value = Datetime.from_string(value)
             value = Datetime.context_timestamp(env["res.lang"], value)
         else:
             value = Datetime.from_string(value)
     elif isinstance(value, datetime.datetime) and not value.tzinfo:
-        # a datetime, convert to correct timezone
         value = Datetime.context_timestamp(env["res.lang"], value)
 
     lang = get_lang(env, lang_code)
@@ -189,7 +161,7 @@ def format_date(
     if not date_format:
         date_format = posix_to_ldml(lang.date_format, locale=locale)
 
-    assert isinstance(value, datetime.date)  # datetime is a subclass of date
+    assert isinstance(value, datetime.date)
     return babel.dates.format_date(value, format=date_format, locale=locale)
 
 
@@ -221,7 +193,7 @@ def format_datetime(
 ) -> str:
     """Format the datetime in a given format.
 
-    :param env:
+    :param env: supplies the fallback timezone (``env.user.tz``) and language
     :param str|datetime value: naive datetime to format either in string or in datetime
     :param str tz: name of the timezone in which the given datetime should be localized
     :param str dt_format: one of "full", "long", "medium", or "short", or a custom date/time pattern compatible with `babel` lib
@@ -247,20 +219,12 @@ def format_datetime(
 
     lang = get_lang(env, lang_code)
 
-    locale = babel_locale_parse(
-        lang.code or lang_code
-    )  # lang can be inactive, so `lang`is empty
+    locale = babel_locale_parse(lang.code or lang_code)
     if not dt_format or dt_format == "medium":
         date_format = posix_to_ldml(lang.date_format, locale=locale)
         time_format = posix_to_ldml(lang.time_format, locale=locale)
         dt_format = f"{date_format} {time_format}"
 
-    # Babel formats a datetime in a given language without changing locale
-    # (month 1 = January in English, janvier in French). Default is 'medium',
-    # not 'short':
-    #     medium:  Jan 5, 2016, 10:20:31 PM |   5 janv. 2016 22:20:31
-    #     short:   1/5/16, 10:20 PM         |   5/01/16 22:20
-    # Formats reference: http://babel.pocoo.org/en/latest/dates.html#date-fields
     return babel.dates.format_datetime(localized_datetime, dt_format, locale=locale)
 
 
@@ -273,7 +237,7 @@ def format_time(
 ) -> str:
     """Format the given time (hour, minute, second) per the user's preferences (language, format, ...).
 
-    :param env:
+    :param env: supplies the fallback timezone (``env.user.tz``) and language
     :param value: the time to format; a naive ``datetime.time`` is used as-is (may
         be timezoned to display tzinfo in formats that show it, e.g. 'full'), a
         ``datetime.datetime`` or string is localized to ``tz`` first
@@ -298,11 +262,6 @@ def format_time(
         try:
             context_tz = get_timezone(tz_name)
             localized_dt = utc_datetime.astimezone(context_tz)
-            # Freeze the UTC offset as a fixed timezone so that timetz()
-            # produces a deterministic offset independent of today's DST state.
-            # ZoneInfo on a bare time uses today's date to resolve DST, which
-            # gives wrong offsets when the original date and today differ in
-            # DST status (e.g. formatting a January time in March).
             fixed_offset = datetime.timezone(localized_dt.utcoffset())
             localized_time = localized_dt.replace(tzinfo=fixed_offset).timetz()
         except Exception:
@@ -344,28 +303,22 @@ def format_decimalized_number(number: float, decimal: int = 1) -> str:
     ::
 
         >>> format_decimalized_number(123_456.789)
-        123.5k
+        '123.5k'
         >>> format_decimalized_number(123_000.789)
-        123k
+        '123k'
         >>> format_decimalized_number(-123_456.789)
-        -123.5k
+        '-123.5k'
         >>> format_decimalized_number(0.789)
-        0.8
+        '0.8'
         >>> format_decimalized_number(999_999.9)
-        1M
+        '1M'
     """
-    # Round *before* accepting a unit, not after.  Selecting the unit from the
-    # unrounded value let a number that rounds up across the 1000 boundary keep
-    # the smaller unit: 999_999.9 scaled to 999.9999, which rounds to 1000.0 and
-    # was emitted as "1000k" instead of "1M" (likewise "1000" for 999.99 and
-    # "1000M" for 999_999_999).
     units = ("", "k", "M", "G", "T")
     for unit in units[:-1]:
         rounded = round(number, decimal)
         if abs(rounded) < 1000.0:
             return f"{rounded:g}{unit}"
         number /= 1000.0
-    # Cap at "Tera" — most people don't know what a "Yotta" is.
     return f"{round(number, decimal):g}{units[-1]}"
 
 
@@ -374,8 +327,8 @@ def format_decimalized_amount(amount: float, currency: typing.Any = None) -> str
 
     ::
 
-        >>> format_decimalized_amount(123_456.789, env.ref("base.USD"))
-        $123.5k
+        >>> format_decimalized_amount(123_456.789, env.ref("base.USD"))  # doctest: +SKIP
+        '$123.5k'
     """
     formated_amount = format_decimalized_number(amount)
 
@@ -397,13 +350,8 @@ def format_amount(
 ) -> str:
     fmt = f"%.{currency.decimal_places}f"
     lang = get_lang(env, lang_code)
-    # Deferred import: odoo.tools must stay importable before the addons
-    # (locale_utils type-checks the same import).
     from odoo.addons.base.models.res_lang import format_number
 
-    # get_lang() already returns the full LangData; hand it straight to the
-    # pure formatter instead of round-tripping through browse().format(),
-    # which would re-fetch the same LangData (see formatLang).
     formatted_amount = (
         format_number(fmt, currency.round(amount), lang, grouping=True)
         .replace(r" ", "\N{NO-BREAK SPACE}")
@@ -411,9 +359,6 @@ def format_amount(
     )
 
     if not trailing_zeroes and currency.decimal_places:
-        # Strip trailing zeroes from the *fractional* part only: anchor on the
-        # decimal point so integer-part zeroes (e.g. "1,200" for a 0-decimal
-        # currency, which never reaches here) are never removed.
         decimal_point = re.escape(lang.decimal_point)
         formatted_amount = re.sub(rf"({decimal_point}\d*?)0+$", r"\1", formatted_amount)
         formatted_amount = re.sub(rf"{decimal_point}$", "", formatted_amount)

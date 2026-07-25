@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """
 Miscellaneous tools used by Odoo.
 
@@ -101,76 +100,68 @@ from difflib import HtmlDiff
 
 from odoo.libs import xml as xml_lib
 
-# Collections — canonical: odoo.libs.collections
 from odoo.libs.collections import (
-    Collector,  # Collect items into groups
-    ConstantMapping,  # Mapping returning constant value
-    DotDict,  # Dict with attribute access
-    LastOrderedSet,  # Set ordered by last insertion (re-adding moves to end)
-    OrderedSet,  # Set that preserves insertion order
-    ReadonlyDict,  # Immutable dict (not even updatable via update())
-    ReversedIterable,  # Reversed iterable type
-    StackMap,  # Dict with stack-like shadowing
-    freehash,  # Hash for unhashable objects
-    frozendict,  # Immutable dictionary
-    submap,  # Extract subset of dict keys
+    Collector,
+    ConstantMapping,
+    DotDict,
+    LastOrderedSet,
+    OrderedSet,
+    ReadonlyDict,
+    ReversedIterable,
+    StackMap,
+    freehash,
+    frozendict,
+    submap,
 )
 
-# Iteration utilities — canonical: odoo.libs.iteration
 from odoo.libs.iteration import (
-    PENDING,  # Stored computed field awaiting recomputation
-    SENTINEL,  # Default sentinel instance
-    Sentinel,  # Sentinel class for unique markers
-    groupby,  # Group items by key (better than itertools.groupby)
-    merge_sequences,  # Merge sequences preserving order
-    partition,  # Split iterable by predicate
-    split_every,  # Split into chunks of size n
-    topological_sort,  # Sort with dependencies
-    unique,  # Yield unique items preserving order
+    PENDING,
+    SENTINEL,
+    Sentinel,
+    groupby,
+    merge_sequences,
+    partition,
+    split_every,
+    topological_sort,
+    unique,
 )
 
-# Locale mapping — canonical: odoo.libs.locale
 from odoo.libs.locale import (
-    POSIX_TO_LDML,  # Mapping of POSIX to LDML format codes
-    posix_to_ldml,  # Convert POSIX format to LDML
+    POSIX_TO_LDML,
+    posix_to_ldml,
 )
 
-# Logging utilities — canonical: odoo.libs.logging
 from odoo.libs.logging import (
-    lower_logging,  # Context manager to lower log level
-    mute_logger,  # Context manager to suppress logging
-    unquote,  # String with unquoted repr()
+    lower_logging,
+    mute_logger,
+    unquote,
 )
 
-# Text processing — canonical: odoo.libs.text
 from odoo.libs.text import (
-    ADDRESS_REGEX,  # Regex for address parsing
-    get_flag,  # Get emoji flag for country code
-    human_size,  # Format bytes as "1.2 MB"
-    mod10r,  # Modulo 10 recursive check digit
-    remove_accents,  # Remove diacritics from string
-    str2bool,  # Convert string to boolean
-    street_split,  # Split address into components
+    ADDRESS_REGEX,
+    get_flag,
+    human_size,
+    mod10r,
+    remove_accents,
+    str2bool,
+    street_split,
 )
 
-# General utilities — canonical: odoo.libs.utils
 from odoo.libs.utils import (
-    discardattr,  # Delete attr if exists (no error)
-    format_frame,  # Format stack frame for logging
-    has_list_types,  # Check if has list-like types
-    is_list_of,  # Check if list of specific type
-    named_to_positional_printf,  # Convert named to positional printf
-    replace_exceptions,  # Context manager to replace exceptions
+    discardattr,
+    format_frame,
+    has_list_types,
+    is_list_of,
+    named_to_positional_printf,
+    replace_exceptions,
 )
 
-# File operations — canonical: odoo.tools.files
 from .files import (
-    file_open,  # Open file from addon
-    file_open_temporary_directory,  # Temp dir context manager
-    file_path,  # Get absolute path to addon file
+    file_open,
+    file_open_temporary_directory,
+    file_path,
 )
 
-# Date/number formatting (Odoo-specific, uses environment) — canonical: odoo.tools.formatting
 from .formatting import (
     DATE_LENGTH,
     DATETIME_FORMATS_MAP,
@@ -178,44 +169,41 @@ from .formatting import (
     DEFAULT_SERVER_DATETIME_FORMAT,
     DEFAULT_SERVER_TIME_FORMAT,
     NON_BREAKING_SPACE,
-    _format_time_ago,  # Format relative time ("2 hours ago")
-    format_amount,  # Format amount with currency
-    format_date,  # Format date with language settings
-    format_datetime,  # Format datetime
-    format_decimalized_amount,  # Format amount with currency + metric unit (e.g. "$123.5k")
-    format_decimalized_number,  # Format number with metric unit (e.g. "123.5k")
-    format_duration,  # Format duration (hours:minutes)
-    format_time,  # Format time
-    formatLang,  # Format number with language settings
-    parse_date,  # Parse date string
+    _format_time_ago,
+    format_amount,
+    format_date,
+    format_datetime,
+    format_decimalized_amount,
+    format_decimalized_number,
+    format_duration,
+    format_time,
+    formatLang,
+    parse_date,
 )
 
-# Locale & language utilities — canonical: odoo.tools.locale_utils
 from .locale_utils import (
-    babel_locale_parse,  # Parse Babel locale
-    get_iso_codes,  # Get ISO language codes
-    get_lang,  # Get language record from context
-    scan_languages,  # Scan available languages
+    babel_locale_parse,
+    get_iso_codes,
+    get_lang,
+    scan_languages,
 )
 
-# Security utilities — canonical: odoo.tools.security
 from .security import (
-    consteq,  # Constant-time string comparison
-    hash_sign,  # Hash and sign data
-    hmac,  # HMAC signing
-    limited_field_access_token,  # Generate field access token
-    verify_hash_signed,  # Verify hash signature
-    verify_limited_field_access_token,  # Verify field access token
+    consteq,
+    hash_sign,
+    hmac,
+    limited_field_access_token,
+    verify_hash_signed,
+    verify_limited_field_access_token,
 )
 
-# Subprocess & system utilities — canonical: odoo.tools.subprocess
 from .subprocess import (
-    dumpstacks,  # Dump all thread stacks (debugging)
-    exec_pg_environ,  # Get environ dict for pg tools
-    find_in_path,  # Find executable in PATH
-    find_pg_tool,  # Find PostgreSQL tool (pg_dump, etc.)
-    real_time,  # High-precision timestamp
-    stripped_sys_argv,  # sys.argv without Odoo-specific args
+    dumpstacks,
+    exec_pg_environ,
+    find_in_path,
+    find_pg_tool,
+    real_time,
+    stripped_sys_argv,
 )
 
 if typing.TYPE_CHECKING:
@@ -270,20 +258,8 @@ __all__ = [
     "verify_hash_signed",
 ]
 
-# List of etree._Element subclasses that we choose to ignore when parsing XML.
-# We include the *Base ones just in case, currently they seem to be subclasses of the _* ones.
-#
-# Re-exported, not redefined: ``odoo.libs.xml`` already publishes this exact
-# tuple (``libs/xml/template_inheritance.py``), and the byte-identical copy that
-# lived here was a second source of truth for "which lxml node types does Odoo
-# skip" -- the kind of duplicate that stays correct right up until one side
-# gains a node type and the other does not, at which point the two disagree
-# silently in whichever caller happened to import the stale one.
 SKIPPED_ELEMENT_TYPES = xml_lib.SKIPPED_ELEMENT_TYPES
 
-# The hardened lxml default parsers (XXE + decompression-bomb guards) are
-# installed by importing ``odoo.libs.xml``; ``default_parser`` is re-exported
-# for the historical import path.  See ``odoo/libs/xml/parsers.py``.
 default_parser = xml_lib.default_parser
 
 
@@ -374,7 +350,7 @@ class Callbacks:
         return len(self._funcs)
 
 
-from odoo.libs.text.html import html_escape  # noqa: E402
+from odoo.libs.text.html import html_escape
 
 
 def get_diff(
@@ -458,7 +434,7 @@ def get_diff(
         data_to[0].splitlines(),
         data_from[1],
         data_to[1],
-        context=True,  # Show only diff lines, not all the code
+        context=True,
         numlines=3,
     )
     return handle_style(diff, custom_style, dark_color_scheme)

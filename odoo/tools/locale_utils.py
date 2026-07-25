@@ -17,11 +17,6 @@ if typing.TYPE_CHECKING:
 
     from odoo.addons.base.models.res_lang import LangData
 else:
-    # ``Environment`` lives in odoo.orm.runtime, which imports from
-    # odoo.tools; ``LangData`` lives in base which loads much later.
-    # Runtime-importing either here would cycle or fail, so fall back to
-    # ``Any`` for introspection.  Type checkers still see the real classes
-    # via the branch above.
     Environment = typing.Any
     LangData = typing.Any
 
@@ -42,7 +37,6 @@ def scan_languages() -> list[tuple[str, str]]:
     :returns: a list of (lang_code, lang_name) pairs
     """
     try:
-        # read (code, name) from languages in base/data/res.lang.csv
         with file_open("base/data/res.lang.csv") as csvfile:
             reader = csv.reader(csvfile, delimiter=",", quotechar='"')
             fields = next(reader)
@@ -83,7 +77,7 @@ def babel_locale_parse(lang_code: str | None) -> babel.Locale:
     if lang_code:
         try:
             return babel.Locale.parse(lang_code)
-        except Exception:  # noqa: S110  # fall back to the default locale on parse failure
+        except Exception:
             pass
     try:
         return babel.Locale.default()

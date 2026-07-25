@@ -10,8 +10,6 @@ from lxml import etree
 
 from odoo.libs.xml.utils import remove_control_characters
 
-# (label, char) pairs that XML forbids and lxml rejects with
-# "PCDATA invalid Char value ..."
 FORBIDDEN = [
     ("NUL", "\x00"),
     ("ETX", "\x03"),
@@ -22,7 +20,6 @@ FORBIDDEN = [
     ("U+FFFF", "￿"),
 ]
 
-# legal XML characters that must survive
 PRESERVED = ["\t", "\n", "\r", " ", "\x7f", "é", "→", "😀", "�"]
 
 
@@ -35,7 +32,7 @@ def test_forbidden_char_is_removed(label, char):
 def test_output_parses_as_xml(label, char):
     payload = f"<a>x{char}y</a>".encode()
     with pytest.raises(etree.XMLSyntaxError):
-        etree.fromstring(payload)  # sanity: lxml really does reject it
+        etree.fromstring(payload)
     assert etree.fromstring(remove_control_characters(payload)).text == "xy"
 
 
@@ -46,7 +43,6 @@ def test_legal_char_is_preserved(char):
 
 
 def test_encoded_surrogate_is_removed():
-    # WTF-8 / CESU-8 encoded lone surrogate (U+D800), which valid UTF-8 forbids
     assert remove_control_characters(b"x\xed\xa0\x80y") == b"xy"
 
 

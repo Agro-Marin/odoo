@@ -14,13 +14,6 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
 
-# Backstop against the exponential blow-up of intersecting (and hence inverting,
-# which expands ``~(A | B | ...)`` to ``~A & ~B & ...`` via De Morgan) large
-# disjunctive normal forms: a Union of N intersections of m leaves inverts to
-# m**N terms.  A real ``res.groups`` expression is far smaller; a value this
-# large means a pathological input, so raise a clear error instead of hanging a
-# worker.  Mirrors the ``MAX_OPTIMIZE_ITERATIONS`` backstop in the domain
-# optimizer.
 MAX_INTERSECTION_TERMS = 100_000
 
 
@@ -86,25 +79,20 @@ class SetDefinitions:
             self.__leaves[leaf_id] = leaf
             self.__leaves[ref] = leaf
 
-        # compute transitive closure of subsets and supersets
         subsets = {leaf.id: leaf.subsets for leaf in self.__leaves.values()}
         supersets = {leaf.id: leaf.supersets for leaf in self.__leaves.values()}
         for leaf_id, info in definitions.items():
             for direct_greater_id in info.get("supersets", ()):
-                # transitive closure: smaller_ids <= leaf_id <= direct_greater_id <= greater_ids
                 smaller_ids = subsets[leaf_id]
                 greater_ids = supersets[direct_greater_id]
                 for smaller_id in smaller_ids:
                     supersets[smaller_id].update(greater_ids)
-                # distinct name: this used to rebind the enclosing loop variable
                 for greater_id in greater_ids:
                     subsets[greater_id].update(smaller_ids)
 
-        # compute transitive closure of disjoint relation
         disjoints = {leaf.id: leaf.disjoints for leaf in self.__leaves.values()}
         for leaf_id, info in definitions.items():
             for distinct_id in info.get("disjoints", set()):
-                # all subsets[leaf_id] are disjoint from all subsets[distinct_id]
                 left_ids = subsets[leaf_id]
                 right_ids = subsets[distinct_id]
                 for left_id in left_ids:
@@ -130,6 +118,8 @@ class SetDefinitions:
             a union of the positive items, each intersected with every
             negative group.
             (e.g. ``base.group_user,base.group_portal,!base.group_system``)
+        :param raise_if_not_found: raise ``KeyError`` on an unknown reference;
+            when ``False`` it becomes a leaf with an ``UnknownId`` instead
         """
         positives: list[Leaf] = []
         negatives: list[Leaf] = []
@@ -159,7 +149,6 @@ class SetDefinitions:
 
     def from_key(self, key: str) -> SetExpression:
         """Return the set expression corresponding to the given key."""
-        # union_tuple = tuple(tuple(tuple(leaf_id, negative), ...), ...)
         union_tuple = ast.literal_eval(key)
         return Union(
             [
@@ -195,7 +184,8 @@ class SetDefinitions:
         """Return the supersets matching the provided list of ids.
 
         Following the example defined in this class's constructor::
-        The supersets of "Q" (id 3) are "R" and "C" with ids [4, 6]
+
+            The supersets of "Q" (id 3) are "R" and "C" with ids [4, 6]
         """
         return sorted(
             {
@@ -211,7 +201,8 @@ class SetDefinitions:
         """Return the subsets matching the provided list of ids.
 
         Following the example defined in this class's constructor::
-        The subsets of "Q" (id 3) are "Z" and "N" with ids [1, 2]
+
+            The subsets of "Q" (id 3) are "Z" and "N" with ids [1, 2]
         """
         return sorted(
             {
@@ -227,7 +218,8 @@ class SetDefinitions:
         r"""Return the disjoint sets matching the provided list of ids.
 
         Following the example defined in this class's constructor::
-        The disjoint sets of "Q" (id 3) are "R\\Q" and "I" with ids [7, 5]
+
+            The disjoint sets of "Q" (id 3) are "R\Q" and "I" with ids [7, 5]
         """
         return sorted(
             {
@@ -379,12 +371,9 @@ class Union(SetExpression):
 
         if not isinstance(rfactor, Union):
             raise TypeError(f"Expected Union, got {type(rfactor).__name__}")
-        # set membership: Inter is hashable, and the list scan made this
-        # O(len(rself) * len(rfactor))
         rfactor_inters = frozenset(rfactor.__inters)
         inters = [inter for inter in rself.__inters if inter not in rfactor_inters]
         if len(rself.__inters) - len(inters) != len(rfactor.__inters):
-            # not possible to invert the intersection
             return None
 
         rself_value = Union(inters)
@@ -402,9 +391,6 @@ class Union(SetExpression):
             return EMPTY_UNION
         if self == other:
             return self
-        # The product below has len(self) * len(other) terms; guard before
-        # materializing it so a runaway inversion fails fast (and bounds the
-        # repeated ``&`` in ``__invert__``) instead of exhausting time/memory.
         if len(self.__inters) * len(other.__inters) > MAX_INTERSECTION_TERMS:
             raise SetExpressionError(
                 f"set expression intersection too large "
@@ -439,10 +425,6 @@ class Union(SetExpression):
         if self.is_universal():
             return EMPTY_UNION
 
-        # De Morgan expands ``~(A1 & ...) & ~(B1 & ...) & ...`` to a product of
-        # the per-intersection leaf counts.  Estimate that product upfront
-        # (O(number of intersections)) and refuse a pathological blow-up before
-        # building millions of terms, instead of discovering it mid-expansion.
         estimate = 1
         for inter in self.__inters:
             estimate *= max(1, len(inter.leaves))
@@ -452,14 +434,10 @@ class Union(SetExpression):
                     f"{MAX_INTERSECTION_TERMS} terms; the input is pathological"
                 )
 
-        # apply De Morgan's laws
         inverses_of_inters = [
-            # ~(A & B) = ~A | ~B
-            Union(Inter([~leaf]) for leaf in inter.leaves)
-            for inter in self.__inters
+            Union(Inter([~leaf]) for leaf in inter.leaves) for inter in self.__inters
         ]
         result = inverses_of_inters[0]
-        # ~(A | B) = ~A & ~B
         for inverse in inverses_of_inters[1:]:
             result = result & inverse
 
@@ -467,12 +445,7 @@ class Union(SetExpression):
 
     def matches(self, user_group_ids: Iterable[int]) -> bool:
         """Return whether the given group ids match ``self``."""
-        # Materialize first: the emptiness contract below tests truthiness, and a
-        # non-empty *iterator* (e.g. ``iter([])``) is always truthy, so an empty
-        # generator would wrongly pass the guard and match the universal set.
         user_group_ids = set(user_group_ids)
-        # empty ids match nothing, even the universal set / a negation (checked
-        # before is_universal on purpose -- see SetExpression.matches note)
         if self.is_empty() or not user_group_ids:
             return False
         if self.is_universal():
@@ -565,14 +538,11 @@ class Inter:
         result = list(leaves)
         for leaf_to_add in leaves_to_add:
             if leaf_to_add.is_universal():
-                continue  # universe is the identity of intersection
-            # Disjoint with any existing leaf => the whole intersection is empty.
+                continue
             if any(leaf.isdisjoint(leaf_to_add) for leaf in result):
                 return [EMPTY_LEAF]
-            # Already implied by a narrower existing leaf => adds nothing.
             if any(leaf <= leaf_to_add for leaf in result):
                 continue
-            # Otherwise keep it, dropping any existing leaves it subsumes.
             result = [leaf for leaf in result if not leaf_to_add <= leaf]
             result.append(leaf_to_add)
         return result
@@ -595,16 +565,13 @@ class Inter:
         Return ``None`` when that union cannot be represented as an
         intersection.
         """
-        # the following covers cases like (A & B) | A -> A
         if self.is_universal() or other <= self:
             return self
         if self <= other:
             return other
 
-        # combine complementary parts: (A & ~B) | (A & B) -> A
         if len(self.leaves) == len(other.leaves):
             opposite_index = None
-            # we use the property that __leaves are ordered
             for index, self_leaf, other_leaf in zip(
                 range(len(self.leaves)), self.leaves, other.leaves, strict=False
             ):
@@ -612,7 +579,7 @@ class Inter:
                     return None
                 if self_leaf.negative != other_leaf.negative:
                     if opposite_index is not None:
-                        return None  # we already have two opposite leaves
+                        return None
                     opposite_index = index
             if opposite_index is not None:
                 leaves = list(self.leaves)
@@ -684,9 +651,9 @@ class Leaf:
         self.negative = bool(negative)
         self.key: tuple[LeafIdType, bool] = (leaf_id, self.negative)
 
-        self.subsets: set[LeafIdType] = {leaf_id}  # all the leaf ids that are <= self
-        self.supersets: set[LeafIdType] = {leaf_id}  # all the leaf ids that are >= self
-        self.disjoints: set[LeafIdType] = set()  # all the leaf ids disjoint from self
+        self.subsets: set[LeafIdType] = {leaf_id}
+        self.supersets: set[LeafIdType] = {leaf_id}
+        self.disjoints: set[LeafIdType] = set()
         self.inverse: Leaf | None = None
 
     def __invert__(self) -> Leaf:
@@ -773,7 +740,6 @@ class UnknownId(str):
 
 type LeafIdType = int | Literal["*"] | UnknownId
 
-# constants
 UNIVERSAL_LEAF = Leaf("*")
 EMPTY_LEAF = ~UNIVERSAL_LEAF
 

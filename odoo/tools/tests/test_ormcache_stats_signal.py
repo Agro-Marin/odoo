@@ -40,7 +40,7 @@ class TestLogOrmcacheStatsSignalGating(unittest.TestCase):
         self.assertEqual(cache_mod._logger_state, "wait")
 
     def test_dump_still_runs_after_a_bare_call(self):
-        cache_mod.log_ormcache_stats()  # previously poisoned the state
+        cache_mod.log_ormcache_stats()
         cache_mod.log_ormcache_stats(signal.SIGUSR1, None)
         self._drain()
         self.assertEqual(

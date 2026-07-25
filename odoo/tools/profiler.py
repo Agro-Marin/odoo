@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Non-patched time functions, so profiling is unaffected by freezegun.
 real_datetime_now = datetime.now
 real_time = time.time.__call__
 real_cpu_time = time.thread_time.__call__
@@ -99,11 +98,9 @@ class Collector:
     the default entry-creation behavior.
     """
 
-    name = None  # symbolic name of the collector
-    _store = (
-        None  # storage discriminator; the "others" collector sets it (see line ~760)
-    )
-    _registry = {}  # map collector names to their class
+    name = None
+    _store = None
+    _registry = {}
 
     @classmethod
     def __init_subclass__(cls):
@@ -119,11 +116,6 @@ class Collector:
     def __init__(self) -> None:
         self._processed: bool = False
         self._entries: list[dict[str, Any]] | None = []
-        # Declared here, not created on first ``entries`` access: ``summary()``
-        # reads it whenever ``_processed`` is set, and a collector that is
-        # inspected out of the usual order would have raised AttributeError from
-        # a debugging aid.  The two fields are one state machine -- keep them
-        # defined together so it is readable as one.
         self.processed_entries: list[dict[str, Any]] = []
         self.profiler: Profiler | None = None
 
@@ -158,11 +150,6 @@ class Collector:
             self.profiler.entry_count_limit
             and self.profiler.counter >= self.profiler.entry_count_limit
         ):
-            # Only the profiled thread may finalize: ending from a sampler
-            # thread would record that thread's cpu time as ``cpu_duration``
-            # and mutate ``query_hooks`` the profiled thread may be iterating.
-            # Other threads simply stop contributing entries; the owner ends
-            # the profiler in ``__exit__``.
             if threading.current_thread() is self.profiler.init_thread:
                 self.profiler.end()
             return
@@ -188,15 +175,12 @@ class Collector:
         if not self._processed:
             self.post_process()
             self.processed_entries = self._entries
-            self._entries = None  # avoid modification after processing
+            self._entries = None
             self._processed = True
         return self.processed_entries
 
     def summary(self) -> str:
         """Return a brief text summary of this collector's data."""
-        # After ``entries`` runs post-processing it nulls ``_entries`` and moves
-        # the data to ``processed_entries``; read the live source so a call after
-        # processing (e.g. Profiler(log=True).end()) does not crash on len(None).
         entries = self.processed_entries if self._processed else self._entries
         return f"{'=' * 10} {self.name} {'=' * 10} \n Entries: {len(entries)}"
 
@@ -236,8 +220,6 @@ class SQLCollector(Collector):
         )
 
     def summary(self) -> str:
-        # Same guard as the base class: after ``entries`` post-processing,
-        # ``_entries`` is None and the data lives in ``processed_entries``.
         entries = self.processed_entries if self._processed else self._entries
         total_time = sum(entry["time"] for entry in entries) or 1
         sql_entries = ""
@@ -280,16 +262,15 @@ class _BasePeriodicCollector(Collector):
     def run(self) -> None:
         """Sampling loop run in the background thread."""
         self.active = True
-        # ``_last_time`` (not ``last_time``): ``add()`` reads ``self._last_time``.
         self._last_time = real_time()
-        while self.active:  # maybe add a check on parent_thread state?
+        while self.active:
             self.progress()
             self._stop_event.wait(self.frame_interval)
 
     def stop(self) -> None:
         self.active = False
         self._stop_event.set()
-        self._entries.append({"stack": [], "start": real_time()})  # final end frame
+        self._entries.append({"stack": [], "start": real_time()})
         if self.__thread.is_alive() and self.__thread is not threading.current_thread():
             self.__thread.join()
         self.profiler.init_thread.profile_hooks.remove(self.progress)
@@ -303,9 +284,6 @@ class PeriodicCollector(_BasePeriodicCollector):
         if self.last_frame:
             duration = real_time() - self._last_time
             if duration > self.frame_interval * 10:
-                # Slept >10 intervals, typically a C call that didn't release
-                # the GIL: the call falls between two frames and is wrongly
-                # attributed to the last one. Flag it explicitly.
                 self._entries[-1]["stack"].append(
                     (
                         "profiling",
@@ -314,14 +292,11 @@ class PeriodicCollector(_BasePeriodicCollector):
                         "",
                     )
                 )
-                # Skip duplicate detection on the next frame only: the frame
-                # after a freeze must be recorded even if identical.
                 self.last_frame = None
         self._last_time = real_time()
 
         frame = frame or get_current_frame(self.profiler.init_thread)
         if frame == self.last_frame:
-            # Don't save an identical consecutive frame.
             return
         self.last_frame = frame
         super().add(entry=entry, frame=frame)
@@ -338,12 +313,6 @@ class MemoryCollector(_BasePeriodicCollector):
     _lock_acquired = False
 
     def start(self):
-        # tracemalloc is process-global singleton state, so at most one memory
-        # collector may run at a time. A nested/concurrent memory profile would
-        # otherwise deadlock or have its tracing torn down by the other
-        # profiler's stop(). Degrade (log and collect nothing) rather than
-        # raise: a profiler is a debugging aid, and failing the whole request
-        # because someone else is profiling is worse than not sampling memory.
         self._lock_acquired = _lock.acquire(timeout=5)
         if not self._lock_acquired:
             _logger.warning(
@@ -351,8 +320,6 @@ class MemoryCollector(_BasePeriodicCollector):
                 "already active in this process"
             )
             return
-        # Release on any start() failure so the lock is never leaked -- a leak
-        # here would deadlock every future memory profile in the process.
         try:
             tracemalloc.start()
             super().start()
@@ -371,14 +338,8 @@ class MemoryCollector(_BasePeriodicCollector):
         )
 
     def stop(self):
-        # Nothing to unwind if start() never took the lock (contention above).
         if not self._lock_acquired:
             return
-        # Release in a ``finally``: stop() runs both on the normal path and from
-        # __enter__'s start-failure rollback, and must never strand the lock.
-        # Tracing is stopped before the release (both inside the try) because
-        # tracemalloc is process-global: releasing first would let a new
-        # collector start() and then have its tracing killed by this stop().
         try:
             super().stop()
             tracemalloc.stop()
@@ -420,7 +381,7 @@ class SyncCollector(Collector):
         assert not self._processed, (
             "You cannot start SyncCollector after accessing entries."
         )
-        sys.settrace(self.hook)  # todo test setprofile, but maybe not multithread safe
+        sys.settrace(self.hook)
 
     def stop(self):
         sys.settrace(None)
@@ -430,20 +391,14 @@ class SyncCollector(Collector):
             return None
         entry = {"event": event, "frame": _format_frame(_frame)}
         if event == "call" and _frame.f_back:
-            # Parent frame gives the line number of the call.
             entry["parent_frame"] = _format_frame(_frame.f_back)
         self.progress(entry, frame=_frame)
         return self.hook
 
     def _get_stack_trace(self, frame=None):
-        # Full stack traces are slow and unneeded here: SyncCollector saves only
-        # the top frame and event per call, rebuilding the full stack at the end.
         return None
 
     def post_process(self):
-        # Rebuild full stack traces from the evented traces. Speedscope would
-        # re-event these anyway, but reconstructing here is simpler to integrate
-        # with the speedscope logic, especially when mixed with SQLCollector.
         stack = []
         for entry in self._entries:
             frame = entry.pop("frame")
@@ -462,9 +417,7 @@ class QwebTracker:
     """Tracks QWeb directive rendering for the QwebCollector."""
 
     def __init__(self, view_id: int, arch: Any, cr: Any) -> None:
-        current_thread = (
-            threading.current_thread()
-        )  # don't store current_thread on self
+        current_thread = threading.current_thread()
         self.execution_context_enabled: bool | None = getattr(
             current_thread, "profiler_params", {}
         ).get("execution_context_qweb")
@@ -615,7 +568,6 @@ class QwebCollector(Collector):
                 archs[kwargs["view_id"]] = kwargs["arch"]
                 continue
 
-            # update the active directive with the elapsed time and queries
             if stack:
                 top = stack[-1]
                 top["delay"] += event_time - last_event_time
@@ -693,6 +645,7 @@ class Profiler:
         :param disable_gc: disable gc during profiling (avoids gc pauses, notably
             during SQL execution).
         :param params: parameters usable by collectors (e.g. frame interval).
+        :param log: log the profile summary at INFO level when profiling ends.
         """
         self.start_time: float = 0
         self.duration: float = 0
@@ -705,30 +658,23 @@ class Profiler:
         self.init_thread: threading.Thread | None = None
         self.disable_gc: bool = disable_gc
         self.filecache: dict[str, list[str] | None] = {}
-        self.params: dict[str, Any] = (
-            params or {}
-        )  # custom parameters usable by collectors
+        self.params: dict[str, Any] = params or {}
         self.profile_id: int | None = None
         self.log: bool = log
         self.sub_profilers: list[Profiler] = []
-        self.entry_count_limit: int = int(
-            self.params.get("entry_count_limit", 0)
-        )  # the limit could be set using a smarter way
+        self.entry_count_limit: int = int(self.params.get("entry_count_limit", 0))
         self.done: bool = False
         self._end_lock: threading.Lock = threading.Lock()
         self.exit_stack: ExitStack = ExitStack()
         self.counter: int = 0
 
         if db is ...:
-            # determine database from current thread
             db = getattr(threading.current_thread(), "dbname", None)
             if not db:
-                # only raise if path is not given and db is not explicitely disabled
                 msg = "Database name cannot be defined automaticaly. \n Please provide a valid/falsy dbname or path parameter"
                 raise ValueError(msg)
         self.db: str | None = db
 
-        # collectors
         if collectors is None:
             collectors = ["sql", "traces_async"]
         self.collectors: list[Collector] = []
@@ -748,10 +694,6 @@ class Profiler:
             self.init_frame = get_current_frame(self.init_thread)
             self.init_stack_trace = _get_stack_trace(self.init_frame)
         except KeyError:
-            # when using thread pools the thread won't exist in the current_frames
-            # this case is managed by http.py but will still fail when adding a profiler
-            # inside a piece of code that may be called by a longpolling route.
-            # in this case, avoid crashing the caller and disable all collectors
             self.init_frame = self.init_stack_trace = self.collectors = []
             self.db = self.params = None
             message = "Cannot start profiler, thread not found. Is the thread part of a thread pool?"
@@ -771,10 +713,6 @@ class Profiler:
             self.exit_stack.enter_context(disabling_gc())
         self.start_time = real_time()
         self.start_cpu_time = real_cpu_time()
-        # Start collectors with rollback: if one fails (e.g. a bad
-        # ``*_interval`` param raising in a periodic collector's start), stop
-        # the already-started ones so their query/qweb hooks don't stay
-        # registered on this thread and keep firing into a dead profiler.
         started = []
         try:
             for collector in self.collectors:
@@ -808,10 +746,9 @@ class Profiler:
             self._add_file_lines(self.init_stack_trace)
 
             if self.db:
-                # pylint: disable=import-outside-toplevel
                 from odoo.db import (
                     db_connect,
-                )  # only import from odoo if/when needed.
+                )
 
                 with db_connect(self.db).cursor() as cr:
                     values = {
@@ -855,9 +792,6 @@ class Profiler:
             _logger.exception("Could not save profile in database")
         finally:
             self.exit_stack.close()
-            # Only delete the thread attribute if it is still ours: a nested
-            # profiler with its own params overwrites and deletes the shared
-            # attribute, and a blind ``del`` here would then raise.
             if (
                 self.params
                 and getattr(self.init_thread, "profiler_params", None) is self.params
@@ -876,7 +810,6 @@ class Profiler:
             filename, lineno, name, line = frame
             if line != "":
                 continue
-            # retrieve file lines from the filecache
             if not lineno:
                 continue
             try:
@@ -888,10 +821,9 @@ class Profiler:
                 except (
                     ValueError,
                     FileNotFoundError,
-                ):  # mainly for <decorator> "filename"
+                ):
                     filelines = None
                 self.filecache[filename] = filelines
-            # fill in the line
             if filelines is not None and 0 < lineno <= len(filelines):
                 line = filelines[lineno - 1]
                 stack[index] = (filename, lineno, name, line)

@@ -19,7 +19,6 @@ class TestDisablingGc(unittest.TestCase):
         self.addCleanup(gc.enable if was_enabled else gc.disable)
 
     def test_reenables_after_exception(self):
-        # Regression: before the try/finally, an exception left GC disabled.
         with self.assertRaises(RuntimeError):
             with disabling_gc() as active:
                 self.assertTrue(active)

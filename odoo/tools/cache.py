@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
     from odoo.libs.lru import LRU
     from odoo.models import BaseModel
 
-unsafe_eval = eval  # noqa: S307  # eval used intentionally to compile cache-key getters
+unsafe_eval = eval
 
 _logger = logging.getLogger(__name__)
 _logger_lock = threading.RLock()
@@ -79,26 +79,6 @@ def prune_counters(db_name: str) -> None:
         del _COUNTERS[cache_key]
 
 
-# Per-transaction hit/miss statistics toggle.
-#
-# Raw hit/miss/error counters, cache sizes and generation time are always
-# collected -- a couple of integer increments per call. The per-transaction
-# stats (the "TX Hit Ratio" and "TX Call" columns dumped by log_ormcache_stats
-# on SIGUSR1) are OFF by default: on the hottest cache path they hash every
-# cache-key element into a per-cursor set, roughly doubling the cost of a hit
-# (~225 vs ~215 ns/op measured) and growing an unbounded _ormcache_lookups set
-# per transaction. Enable only when you need the per-transaction dedup ratio,
-# via the environment before start-up::
-#
-#     ODOO_ORMCACHE_TX_STATS=1
-#
-# or at runtime before sending SIGUSR1::
-#
-#     import odoo.tools.cache as c
-#     c._TX_STATS_ENABLED = True
-#
-# The lookup closure reads this flag on every call, so a runtime flip takes
-# effect immediately (no restart, no re-decoration).
 _TX_STATS_ENABLED: bool = os.environ.get(
     "ODOO_ORMCACHE_TX_STATS", ""
 ).strip().lower() in ("1", "true", "yes", "on")
@@ -125,7 +105,10 @@ def _render_signature(method: Callable) -> tuple[str, dict[str, Any]]:
     params = list(signature(method).parameters.values())
     prev_kind = None
     for index, param in enumerate(params):
-        if prev_kind == Parameter.POSITIONAL_ONLY and param.kind != Parameter.POSITIONAL_ONLY:
+        if (
+            prev_kind == Parameter.POSITIONAL_ONLY
+            and param.kind != Parameter.POSITIONAL_ONLY
+        ):
             rendered.append("/")
         if param.kind == Parameter.KEYWORD_ONLY and prev_kind not in (
             Parameter.VAR_POSITIONAL,
@@ -194,8 +177,6 @@ class ormcache:
         self.determine_key()
         assert self.key is not None, "ormcache.key not initialized"
 
-        # Close over constants to eliminate attribute lookups from the hot
-        # path.  These are fixed for the lifetime of the decorated method.
         _key = self.key
         _method = method
         _cache_name = self.cache_name
@@ -213,8 +194,6 @@ class ormcache:
             counter.cache_name = _cache_name
 
             if not _TX_STATS_ENABLED:
-                # Fast path: always-on raw counters only. The per-transaction
-                # dedup stats (tx_hit/tx_miss) are skipped -- see _TX_STATS_ENABLED.
                 try:
                     r = d[key]
                     counter.hit += 1
@@ -226,9 +205,6 @@ class ormcache:
                     counter.err += 1
                     return _method(*args, **kwargs)
             else:
-                # Full path: additionally collect per-transaction dedup stats.
-                # get() + conditional set is faster than setdefault() when the
-                # key usually exists (>99%).
                 cr_cache = model.env.cr.cache
                 tx_lookups = cr_cache.get("_ormcache_lookups")
                 if tx_lookups is None:
@@ -237,11 +213,6 @@ class ormcache:
 
                 tx_first = False
                 try:
-                    # store hashes, not the key itself, so we don't keep hard
-                    # references that prevent cached objects from being collected.
-                    # An unhashable key element raises TypeError here and routes to
-                    # the uncached fallback below (like the d[key] miss), instead of
-                    # crashing the call before the try/except can catch it.
                     tx_key = tuple(map(hash, key))
                     tx_first = tx_key not in tx_lookups
                     if tx_first:
@@ -256,16 +227,9 @@ class ormcache:
                 except TypeError:
                     _warn("cache lookup error on %r", key, exc_info=True)
                     counter.err += 1
-                    # the error is the event to count; ``tx_first`` is still
-                    # False here because the raising line runs before it is set.
                     counter.tx_err += 1
                     return _method(*args, **kwargs)
 
-            # Snapshot the clear-generation before computing: if the cache is
-            # cleared (invalidated) while ``_method`` runs, storing the value
-            # would re-cache pre-invalidation data that survives until the next
-            # unrelated clear. Skip the store in that case; the value returned
-            # to this caller is still correct, it is just not cached.
             generation = d.generation
             start = _monotonic()
             value = _method(*args, **kwargs)
@@ -274,12 +238,12 @@ class ormcache:
                 d[key] = value
             return value
 
-        lookup.__cache__ = self  # type: ignore[attr-defined]
+        lookup.__cache__ = self
         return lookup
 
     def add_value(self, *args: Any, cache_value: Any = None, **kwargs: Any) -> None:
         model: BaseModel = args[0]
-        d: LRU = model.pool.ormcache_lrus[self.cache_name]  # type: ignore[attr-defined]
+        d: LRU = model.pool.ormcache_lrus[self.cache_name]
         key = self.key(*args, **kwargs)
         d[key] = cache_value
 
@@ -287,19 +251,13 @@ class ormcache:
         """Determine the function that computes a cache key from arguments."""
         assert self.method is not None
         if self.skiparg is not None:
-            # backward-compatible function that uses self.skiparg
             self.key = lambda *args, **kwargs: (
                 args[0]._name,
                 self.method,
                 *args[self.skiparg :],
             )
             return
-        # build a string that represents function code and evaluate it
         args, arg_globals = _render_signature(self.method)
-        # The model instance is the method's first parameter, conventionally
-        # ``self`` but not guaranteed (e.g. ``def _get(records, ...)``). Derive
-        # its real name from the signature rather than hardcoding ``self``,
-        # which would make the key lambda raise NameError on every lookup.
         first_param = next(iter(signature(self.method).parameters), "self")
         values = [f"{first_param}._name", "method", *self.args]
         code = f"lambda {args}: ({''.join(a for arg in values for a in (arg, ','))})"
@@ -340,27 +298,13 @@ def log_ormcache_stats(
     sig: int | None = None,
     frame: Any = None,
 ) -> None:
-    # collect and log data in a separate thread to avoid blocking the main thread
-    # and avoid using logging module directly in the signal handler
-    # https://docs.python.org/3/library/logging.html#thread-safety
-    #
-    # Validate the signal BEFORE touching the state machine.  The dispatch at the
-    # bottom only starts a thread for SIGUSR1/SIGUSR2, so claiming the state for
-    # any other ``sig`` (notably the ``sig=None`` default a direct call uses)
-    # moved it to "run" with nothing running to ever move it back -- and since
-    # every later call sees ``!= "wait"`` and returns after setting "abort", the
-    # stats dump was permanently dead for the life of the process.
-    # ``None`` is the manual entry point (e.g. a direct call from the odoo
-    # shell); treat it like SIGUSR1 so such a call actually logs rather than
-    # silently doing nothing.
     show_size = sig == signal.SIGUSR2
     if sig not in (None, signal.SIGUSR1, signal.SIGUSR2):
         return
 
-    global _logger_state  # noqa: PLW0603
+    global _logger_state
     with _logger_lock:
         if _logger_state != "wait":
-            # send the signal again to stop the logging thread
             _logger_state = "abort"
             return
         _logger_state = "run"
@@ -384,14 +328,11 @@ def log_ormcache_stats(
         from odoo.modules.registry import Registry
 
         try:
-            # {dbname: {method: StatsLine}}
             cache_stats: defaultdict[str, dict[Callable, StatsLine]] = defaultdict(dict)
-            # {dbname: (cache_name, entries, count, total_size)}
             cache_usage: defaultdict[str, list[tuple[str, int, int, int]]] = (
                 defaultdict(list)
             )
 
-            # browse the values in cache
             registries = Registry.registries.snapshot
             class_slots = {}
             for i, (dbname, registry) in enumerate(registries.items(), start=1):
@@ -426,14 +367,13 @@ def log_ormcache_stats(
                         (cache_name, len(cache), cache.count, cache_total_size)
                     )
 
-            # add counters that have no values in cache
             for (
                 (
                     dbname,
                     method,
                 ),
                 counter,
-            ) in _COUNTERS.copy().items():  # copy to avoid concurrent modification
+            ) in _COUNTERS.copy().items():
                 if not check_continue_logging():
                     return
                 db_cache_stats = cache_stats[dbname]
@@ -441,12 +381,8 @@ def log_ormcache_stats(
                 if stats is None:
                     db_cache_stats[method] = StatsLine(method, counter)
 
-            # Output the stats
             log_msgs = ["Caches stats:"]
             if not _TX_STATS_ENABLED:
-                # The TX columns below stay at 0 / 100% unless per-transaction
-                # stats collection is enabled (ODOO_ORMCACHE_TX_STATS=1); say so
-                # rather than let the reader mistake it for a perfect ratio.
                 log_msgs.append(
                     "(TX Hit Ratio / TX Call disabled — set ODOO_ORMCACHE_TX_STATS=1"
                     " to collect per-transaction stats)"
@@ -484,7 +420,6 @@ def log_ormcache_stats(
                 )
                 log_msgs.append("Details:")
 
-                # sort by -sz_entries_sum and method_name
                 db_cache_stat = sorted(
                     db_cache_stats.items(),
                     key=lambda k: (-k[1].sz_entries_sum, k[0].__name__),
@@ -518,7 +453,7 @@ def log_ormcache_stats(
         except Exception:
             _logger.exception("error while logging ormcache statistics")
         finally:
-            global _logger_state  # noqa: PLW0603
+            global _logger_state
             with _logger_lock:
                 _logger_state = "wait"
 
@@ -530,7 +465,6 @@ def log_ormcache_stats(
             else "odoo.signal.log_ormcache_stats"
         ),
     ).start()
-
 
 
 def get_cache_size(
@@ -545,10 +479,9 @@ def get_cache_size(
     from odoo.models import BaseModel
 
     if seen_ids is None:
-        # count internal constants as 0 bytes
         seen_ids = set(map(id, (None, False, True)))
     if class_slots is None:
-        class_slots = {}  # {class: combined_slots}
+        class_slots = {}
     total_size = 0
     objects = [obj]
 
@@ -566,12 +499,6 @@ def get_cache_size(
 
         if hasattr(cur_obj, "__slots__"):
             cur_obj_cls = type(cur_obj)
-            # Key on the class itself, not id(cls): the memo outlives individual
-            # objects (log_ormcache_stats threads one dict through every entry of
-            # every cache), and a class freed mid-walk could have its id reused by
-            # a different class, handing back the wrong slot names.  Classes are
-            # hashable, and holding a reference is exactly what makes the key
-            # meaningful.
             attributes = class_slots.get(cur_obj_cls)
             if attributes is None:
                 class_slots[cur_obj_cls] = attributes = tuple(

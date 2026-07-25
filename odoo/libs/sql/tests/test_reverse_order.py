@@ -17,14 +17,12 @@ class TestReverseOrder(unittest.TestCase):
         self.assertEqual(reverse_order("name desc nulls first"), "name asc nulls last")
 
     def test_preserves_quoted_identifier_case(self):
-        # quoting and case must survive (was lowercased to '"name"' before).
         self.assertEqual(reverse_order('"Name" desc'), '"Name" asc')
 
     def test_qualified_column(self):
         self.assertEqual(reverse_order("res_partner.name asc"), "res_partner.name desc")
 
     def test_trailing_comma_is_skipped(self):
-        # was an IndexError on the empty segment.
         self.assertEqual(reverse_order("a asc,"), "a desc")
         self.assertEqual(reverse_order("a, b desc"), "a desc, b asc")
 
@@ -39,8 +37,6 @@ class TestReverseOrder(unittest.TestCase):
 
 
 def _normalize(order: str) -> str:
-    # reverse_order lowercases the ASC/DESC/NULLS keywords and normalizes spacing
-    # while keeping the expression; normalize the expected side the same way.
     out = []
     for item in order.split(","):
         tokens = item.split()

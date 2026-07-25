@@ -10,9 +10,8 @@ import io
 from random import randrange
 from typing import Self
 
-# We can preload Ico too because it is considered safe
 from PIL import (
-    IcoImagePlugin,  # noqa: F401
+    IcoImagePlugin,
     Image,
     ImageOps,
 )
@@ -20,13 +19,6 @@ from PIL.Image import Image as PILImage
 from PIL.Image import Palette, Resampling
 
 
-# Typed image errors.  Each subclasses ``ValueError`` so every existing
-# ``except ValueError`` (in-tree and third-party) keeps catching them unchanged,
-# while callers that need to tell decode-failure from oversize-image from
-# not-a-webp can branch on the *type* instead of substring-matching the English
-# message.  The Odoo wrappers (``odoo.tools.image``) used to do exactly that
-# substring match to pick which translated ``UserError`` to raise, so a reworded
-# message here silently misrouted them; the type makes that coupling explicit.
 class ImageError(ValueError):
     """Base class for image-processing errors."""
 
@@ -43,8 +35,6 @@ class NotWebpError(ImageError):
     """The source is not a WebP file."""
 
 
-# Maps only the 6 first bits of the base64 data, accurate enough
-# for our purpose and faster than decoding the full blob first
 FILETYPE_BASE64_MAGICWORD = {
     b"/": "jpg",
     b"R": "gif",
@@ -53,18 +43,11 @@ FILETYPE_BASE64_MAGICWORD = {
     b"U": "webp",
 }
 
-# EXIF orientation tag (kept for backward compatibility)
 EXIF_TAG_ORIENTATION = 0x112
 
-# Arbitrary limit to fit most resolutions, including Samsung Galaxy A22 photo,
-# 8K with a ratio up to 16:10, and almost all variants of 4320p
 IMAGE_MAX_RESOLUTION = 50e6
 
 
-# Preload PIL with the minimal subset of image formats we need.
-# preinit() registers only the common plugins; forcing _initialized to 2 makes
-# Pillow believe the full init() already ran, so a later unknown-format open()
-# won't trigger a lazy scan-and-import of *every* installed plugin.
 Image.preinit()
 Image._initialized = 2
 
@@ -154,22 +137,11 @@ class ImageProcess:
         """
         self.source = source or False
         self.operationsCount = 0
-        # Always defined.  It used to be set only on the PIL branch, so for an
-        # empty, SVG or WEBP source the attribute simply did not exist and any
-        # read of it raised AttributeError -- on a *public* attribute of a public
-        # class, whose value is genuinely "unknown" in exactly those cases.  The
-        # methods below only reach it behind a ``self.image`` check, so nothing
-        # in-tree trips it today; that is precisely why it is worth pinning
-        # before something does.
         self.original_format = ""
 
         if not source or source[:1] == b"<":
-            # don't process empty source or SVG
             self.image = False
         elif source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
-            # don't process WEBP, but still enforce the resolution cap so a
-            # crafted header cannot smuggle an oversized image past the guard
-            # (PIL never sees it, so the decode-time check below is skipped).
             self.image = False
             if verify_resolution:
                 size = get_webp_size(source)
@@ -184,21 +156,12 @@ class ImageProcess:
                 msg = "This file could not be decoded as an image file."
                 raise ImageDecodeError(msg) from None
 
-            # Reject oversized images *before* any full-raster decode. The
-            # dimensions are known from the header at open() time; the
-            # image_fix_orientation() call below runs exif_transpose(), which
-            # forces .load() and would decode the whole decompression bomb
-            # first. A transpose only swaps width/height, so w*h — hence this
-            # check — is invariant under it.
             w, h = self.image.size
             if verify_resolution and w * h > IMAGE_MAX_RESOLUTION:
                 raise ImageTooLargeError(
                     f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                 )
 
-            # Original format has to be saved before fixing the orientation or
-            # doing any other operations because the information will be lost on
-            # the resulting image.
             self.original_format = (self.image.format or "").upper()
 
             self.image = image_fix_orientation(self.image)
@@ -248,7 +211,6 @@ class ImageProcess:
             opt["optimize"] = True
             if quality:
                 if output_image.mode != "P":
-                    # Floyd Steinberg dithering by default
                     output_image = output_image.convert("RGBA").convert(
                         "P", palette=Palette.WEB, colors=256
                     )
@@ -270,8 +232,6 @@ class ImageProcess:
             and self.original_format == output_format
             and not self.operationsCount
         ):
-            # Format has not changed and image content is unchanged but the
-            # reached binary is bigger: rather use the original.
             return self.source
         return output_bytes
 
@@ -348,25 +308,18 @@ class ImageProcess:
         """
         if self.image and self.original_format != "GIF" and max_width and max_height:
             w, h = self.image.size
-            # We want to keep as much of the image as possible -> at least one
-            # of the 2 crop dimensions always has to be the same value as the
-            # original image.
-            # The target size will be reached with the final resize.
             if w / max_width > h / max_height:
                 new_w, new_h = w, (max_height * w) // max_width
             else:
                 new_w, new_h = (max_width * h) // max_height, h
 
-            # No cropping above image size.
             if new_w > w:
                 new_w, new_h = w, (new_h * w) // new_w
             if new_h > h:
                 new_w, new_h = (new_w * h) // new_h, h
 
-            # Dimensions should be at least 1.
             new_w, new_h = max(new_w, 1), max(new_h, 1)
 
-            # Correctly place the center of the crop.
             x_offset = int((w - new_w) * center_x)
             h_offset = int((h - new_h) * center_y)
 
@@ -410,8 +363,6 @@ class ImageProcess:
         if self.image:
             img_width, img_height = self.image.size
             if 2 * padding >= min(img_width, img_height):
-                # PIL raises a bare "height and width must be > 0" from inside
-                # resize(); say what the caller actually got wrong.
                 raise ValueError(
                     f"padding {padding} is too large for a "
                     f"{img_width}x{img_height} image"
@@ -445,8 +396,6 @@ def image_process(
         and not output_format
         and not padding
     ):
-        # for performance: don't do anything if the image is falsy or if
-        # no operations have been requested
         return source
 
     image = ImageProcess(source, verify_resolution)
@@ -471,11 +420,6 @@ def image_process(
     if colorize:
         image.colorize(colorize if isinstance(colorize, tuple) else None)
     return image.image_quality(quality=quality, output_format=output_format)
-
-
-# ----------------------------------------
-# Misc image tools
-# ---------------------------------------
 
 
 def average_dominant_color(
@@ -511,15 +455,6 @@ def average_dominant_color(
         1. list of remaining colors, used to evaluate subsequent dominant colors
     :raises ValueError: if ``colors`` is empty, or if every entry has a zero count
     """
-    # State the two degenerate inputs instead of letting them fall through.
-    # ``max(())`` raised "max() iterable argument is empty" and an all-zero
-    # count set raised a bare ZeroDivisionError from the averaging below --
-    # neither names this function or its argument.  The shape is a natural trap
-    # because the second return value feeds straight back in as the first
-    # argument (``primary, remaining = ...; average_dominant_color(remaining)``),
-    # and ``remaining`` empties out; the in-tree caller in
-    # ``base_document_layout`` does guard both, so this is API hygiene rather
-    # than a live crash.
     if not colors:
         msg = "colors must be a non-empty list of (count, (r, g, b, a)) tuples"
         raise ValueError(msg)
@@ -611,26 +546,17 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
         or the header is truncated before the dimensions
     :raise NotWebpError: if source is not a webp file
     """
-    # Need at least through the VP8 sub-type byte at offset 15 to classify.
     if len(source) < 16 or not (source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8"):
         msg = "This file is not a webp file."
         raise NotWebpError(msg)
 
-    # Each branch reads a fixed window past offset 15; a source truncated before
-    # the end of that window used to raise ValueError ("not enough values to
-    # unpack") or IndexError from the slice/index, crashing callers that only
-    # guard for None -- notably ``is_image_size_above`` on a user-uploaded image.
-    # Treat a too-short header as "size unknown" (None), matching the
-    # unsupported-variant return below.
     vp8_type = source[15]
-    if vp8_type == 0x20 and len(source) >= 30:  # 0x20 = ' '
-        # Sizes on big-endian 16 bits at offset 26.
+    if vp8_type == 0x20 and len(source) >= 30:
         width_low, width_high, height_low, height_high = source[26:30]
         width = (width_high << 8) + width_low
         height = (height_high << 8) + height_low
         return (width, height)
-    elif vp8_type == 0x58 and len(source) >= 30:  # 0x58 = 'X'
-        # Sizes (minus one) on big-endian 24 bits at offset 24.
+    elif vp8_type == 0x58 and len(source) >= 30:
         (
             width_low,
             width_medium,
@@ -642,11 +568,7 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
         width = 1 + (width_high << 16) + (width_medium << 8) + width_low
         height = 1 + (height_high << 16) + (height_medium << 8) + height_low
         return (width, height)
-    elif vp8_type == 0x4C and len(source) >= 25 and source[20] == 0x2F:  # 0x4C = 'L'
-        # Sizes (minus one) on big-endian-ish 14 bits at offset 21.
-        # E.g. [@20] 2F ab cd ef gh
-        # - width = 1 + (c&0x3)d ab: ignore the two high bits of the second byte
-        # - height= 1 + hef(c&0xC>>2): used them as the first two bits of the height
+    elif vp8_type == 0x4C and len(source) >= 25 and source[20] == 0x2F:
         ab, cd, ef, gh = source[21:25]
         width = 1 + ((cd & 0x3F) << 8) + ab
         height = 1 + ((gh & 0xF) << 10) + (ef << 2) + (cd >> 6)
@@ -661,7 +583,6 @@ def is_image_size_above(
     if not base64_source_1 or not base64_source_2:
         return False
     if base64_source_1[:1] in (b"P", "P") or base64_source_2[:1] in (b"P", "P"):
-        # False for SVG
         return False
 
     class _SimpleSize:
@@ -678,7 +599,6 @@ def is_image_size_above(
             if size:
                 return _SimpleSize(size[0], size[1])
             else:
-                # False for unknown WEBP format
                 return False
         else:
             return image_fix_orientation(binary_to_image(source))
@@ -711,7 +631,6 @@ def image_guess_size_from_field_name(field_name: str) -> tuple[int, int]:
         return 0, 0
 
     if suffix < 16:
-        # If the suffix is less than 16, it's probably not the size
         return (0, 0)
 
     return (suffix, suffix)

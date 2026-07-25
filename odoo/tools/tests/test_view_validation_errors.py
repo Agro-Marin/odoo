@@ -30,14 +30,11 @@ class TestDomainErrorNormalization(unittest.TestCase):
                 self.assertEqual(str(ctx.exception), "Wrong domain formatting.")
 
     def test_valid_domain_still_parses(self):
-        self.assertEqual(
-            get_domain_value_names("[('a', '=', 1)]"), ({"a"}, set())
-        )
+        self.assertEqual(get_domain_value_names("[('a', '=', 1)]"), ({"a"}, set()))
 
 
 class TestExpressionNodeHandling(unittest.TestCase):
     def test_dict_spread_extracts_source_not_crash(self):
-        # ``{**a}`` carries a None key; the spread source must still be extracted.
         self.assertEqual(get_expression_field_names("{**a}"), {"a"})
 
     def test_unsupported_node_message_hides_the_ast(self):
@@ -51,7 +48,6 @@ class TestExpressionNodeHandling(unittest.TestCase):
                     get_expression_field_names(expr)
                 msg = str(ctx.exception)
                 self.assertEqual(msg, f"Unsupported expression: {node}.")
-                # never leak an AST repr
                 self.assertNotIn("(", msg.rstrip("."))
 
 

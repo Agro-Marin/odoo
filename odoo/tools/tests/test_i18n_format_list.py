@@ -16,7 +16,9 @@ from odoo.tools.i18n import format_list
 
 class TestFormatList(unittest.TestCase):
     def test_english_standard(self):
-        self.assertEqual(format_list(None, ["a", "b", "c"], lang_code="en_US"), "a, b, and c")
+        self.assertEqual(
+            format_list(None, ["a", "b", "c"], lang_code="en_US"), "a, b, and c"
+        )
 
     def test_two_items(self):
         self.assertEqual(format_list(None, ["a", "b"], lang_code="en_US"), "a and b")
@@ -58,7 +60,9 @@ class TestFormatList(unittest.TestCase):
     def test_unit_styles_are_accepted(self):
         for style in ("unit", "unit-short", "unit-narrow"):
             with self.subTest(style=style):
-                out = format_list(None, ["3 ft", "7 in"], style=style, lang_code="en_US")
+                out = format_list(
+                    None, ["3 ft", "7 in"], style=style, lang_code="en_US"
+                )
                 self.assertIn("3 ft", out)
                 self.assertIn("7 in", out)
 

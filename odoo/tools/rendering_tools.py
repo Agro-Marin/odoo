@@ -8,7 +8,6 @@ from markupsafe import Markup
 
 from odoo.tools import safe_eval
 
-# DOTALL: a {{ ... }} placeholder may span multiple lines
 INLINE_TEMPLATE_REGEX = re.compile(r"\{\{(.+?)(\|\|\|\s*(.*?))?\}\}", re.DOTALL)
 
 
@@ -41,7 +40,6 @@ def parse_inline_template(text: str) -> list[tuple[str, str, str]]:
         groups.append((literal, expression.strip(), default or ""))
         current_literal_index = match.end()
 
-    # string past last regex match
     literal = text[current_literal_index:]
     if literal:
         groups.append((literal, "", ""))

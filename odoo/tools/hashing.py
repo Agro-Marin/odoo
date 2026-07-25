@@ -43,7 +43,7 @@ from typing import Any
 
 try:
     from blake3 import blake3 as _blake3
-except ImportError:  # pragma: no cover - exercised via _blake3 patching
+except ImportError:
     _blake3 = None
 
 __all__ = [
@@ -61,32 +61,13 @@ __all__ = [
 
 HAS_BLAKE3 = _blake3 is not None
 
-# Tag identifying the content-digest algorithm in persisted values (store keys,
-# stamped checksums).  Readers compare it to decide whether a stored digest is
-# comparable to a freshly computed one; they must never assume today's value.
 ALGO_TAG = "b3" if HAS_BLAKE3 else "s1"
 
-# Hex length of a digest produced *right now*, for validation. Deliberately NOT
-# what persisted columns are sized from — see CONTENT_DIGEST_MAX_LEN.
 CONTENT_DIGEST_LEN = 64 if HAS_BLAKE3 else 40
 
-# Widest content digest the persistence layer must accommodate, across every
-# vintage that can coexist in one deployment. A different question from
-# CONTENT_DIGEST_LEN, and the reason this is a separate constant: an algorithm
-# switch is deliberately *additive* (legacy keys keep resolving forever, see
-# ir.attachment._file_store_path), so the column has to fit every digest ever
-# written — not the one being written today. Sizing it from CONTENT_DIGEST_LEN
-# would silently narrow the column to 40 on a node without the blake3 wheel,
-# where rows already hold 64-char digests.
 CONTENT_DIGEST_MAX_LEN = 64
 
 if CONTENT_DIGEST_LEN > CONTENT_DIGEST_MAX_LEN:
-    # Introducing a longer digest without widening ir_attachment.checksum
-    # surfaces as an opaque StringDataRightTruncation on the first upload, deep
-    # inside the ORM, with nothing pointing at the cause. Fail at import
-    # instead, where it is legible and unmissable. (An explicit raise rather
-    # than assert: `python -O` strips asserts, and this invariant guards
-    # persisted data.)
     raise RuntimeError(
         f"content digest is {CONTENT_DIGEST_LEN} hex chars but the schema "
         f"holds at most {CONTENT_DIGEST_MAX_LEN}: widen "
@@ -94,12 +75,8 @@ if CONTENT_DIGEST_LEN > CONTENT_DIGEST_MAX_LEN:
         "switching to a longer algorithm"
     )
 
-# Below this, BLAKE3's multithreading costs more in thread hand-off than it
-# saves, and spreading a small hash over every core would oversubscribe a
-# multi-worker deployment.  Only genuinely large payloads go wide.
 _MT_MIN_BYTES = 1 << 20
 
-# Chunk size for the fallback file-hashing path (BLAKE3 mmaps instead).
 _FILE_CHUNK = 1 << 20
 
 

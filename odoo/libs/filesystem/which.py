@@ -69,12 +69,9 @@ windows = sys.platform.startswith("win")
 defpath = environ.get("PATH", defpath).split(pathsep)
 
 if windows:
-    defpath.insert(0, ".")  # can insert without checking, when duplicates are removed
-    # given the quite usual mess in PATH on Windows, let's rather remove duplicates
+    defpath.insert(0, ".")
     seen = set()
-    defpath = [
-        d for d in defpath if d.lower() not in seen and not seen.add(d.lower())
-    ]
+    defpath = [d for d in defpath if d.lower() not in seen and not seen.add(d.lower())]
     del seen
 
     defpathext = [""] + environ.get(
@@ -178,9 +175,6 @@ def which_files(
         pathext = pathext.split(pathsep)
 
     if "" not in pathext:
-        # always check the command without extension; build a new list rather
-        # than ``insert`` into a caller-passed list (or the ``defpathext``
-        # default), which would mutate it in place across calls.
         pathext = ["", *pathext]
 
     for directory in path:

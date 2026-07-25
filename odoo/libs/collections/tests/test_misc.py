@@ -7,8 +7,6 @@ from odoo.libs.collections.misc import Collector, StackMap
 
 class TestCollector(unittest.TestCase):
     def test_discard_accepts_generator(self):
-        # ``excludes`` is scanned twice; a generator would be exhausted after the
-        # first pass and silently remove nothing on the second.
         c = Collector()
         c["a"] = (1, 2)
         c["b"] = (3,)
@@ -17,7 +15,6 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(c["b"], ())
 
     def test_discard_removes_keys_and_values(self):
-        # excludes are dropped both as keys and as values wherever they occur.
         c = Collector()
         c["a"] = (1, 2)
         c["k"] = (2, 3)

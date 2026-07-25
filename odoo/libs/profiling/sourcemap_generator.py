@@ -31,11 +31,6 @@ class SourceMapGenerator:
 
     def __init__(self, source_root: str | None = None) -> None:
         """Initialize an empty map, optionally rooted at ``source_root``."""
-        # `file` is public by design: the bundle URL this map describes is only known
-        # AFTER the bundle attachment is created (the bundle embeds the map
-        # URL and the map embeds the bundle URL), so callers assign
-        # ``generator.file = attachment.url`` between adding sources and
-        # calling :meth:`get_content`.
         self.file: str | None = None
         self._source_root: str | None = source_root
         self._sources: dict[str, int] = {}
@@ -63,7 +58,6 @@ class SourceMapGenerator:
             source_delta = source_idx - previous_source
             previous_source = source_idx
 
-            # Lines are stored 0-based in source map spec v3
             line_delta = original_line - 1 - previous_original_line
             previous_original_line = original_line - 1
 
@@ -126,16 +120,11 @@ class SourceMapGenerator:
 
         append = self._mappings.append
         if start_offset > 0:
-            # Map the header region to line 1 of the source
             append(_Mapping(last_index + 1, 1, source_name))
 
         for i in range(1, source_line_count + 1):
             append(_Mapping(last_index + i + start_offset, i, source_name))
 
-
-# ---------------------------------------------------------------------------
-# Base64 VLQ encoding (source map wire format)
-# ---------------------------------------------------------------------------
 
 B64CHARS: Final = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 SHIFTSIZE: Final[int] = 5

@@ -23,7 +23,6 @@ class TestTemplateStringExtraction(unittest.TestCase):
         self.assertEqual([(r[1], r[2]) for r in results], [("_t", "hello")])
 
     def test_escaped_quote_does_not_drop_term(self):
-        # the ``\'`` must not be treated as the string's closing quote
         results = _extract(r"""const a = `${ _t('don\'t drop me') }`;""")
         self.assertEqual([r[2] for r in results], ["don't drop me"])
 
@@ -32,7 +31,6 @@ class TestTemplateStringExtraction(unittest.TestCase):
         self.assertEqual([r[2] for r in results], ['a"b'])
 
     def test_escaped_backslash_before_quote_still_closes(self):
-        # ``\\`` is an escaped backslash, so the following quote DOES close
         results = _extract(r"""const a = `${ _t("path\\") }`;""")
         self.assertEqual([r[2] for r in results], ["path\\"])
 

@@ -54,7 +54,6 @@ class TestStillConvertsRealContent(unittest.TestCase):
         )
 
     def test_body_id_miss_returns_empty(self):
-        # a caller that scoped to a body_id must not get the whole document back
         self.assertEqual(html2plaintext("<p>secret</p>", body_id="absent"), "")
 
     def test_body_id_hit(self):

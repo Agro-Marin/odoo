@@ -1,15 +1,3 @@
-# The following code was copied from the original author's repository
-# at https://github.com/mpcabd/python-arabic-reshaper/tree/v3.0.0/arabic_reshaper
-# Version: 3.0.0
-# This work is licensed under the MIT License.
-# To view a copy of this license, visit https://opensource.org/licenses/MIT
-# Written by Abdullah Diab (mpcabd)
-# Email: mpcabd@gmail.com
-# Website: http://mpcabd.xyz
-#
-# This code was simplified by removing configuration (keeping only the default
-# configuration) then constant-folding all the configuration items by hand.
-
 """Reshape Arabic text into its correct contextual presentation forms."""
 
 import re
@@ -102,7 +90,7 @@ def reshape(text: str) -> str:
             pass
         elif letter not in LETTERS_ARABIC:
             output.append((letter, NOT_SUPPORTED))
-        elif not output:  # first letter
+        elif not output:
             output.append((letter, ISOLATED))
         else:
             previous_letter = output[-1]
@@ -123,24 +111,16 @@ def reshape(text: str) -> str:
             elif previous_letter[FORM] == ISOLATED:
                 output[-1] = (previous_letter[LETTER], INITIAL)
                 output.append((letter, FINAL))
-            # Otherwise, we will change the previous letter to connect
-            # to the current letter
             else:
                 output[-1] = (previous_letter[LETTER], MEDIAL)
                 output.append((letter, FINAL))
 
-        # Remove ZWJ if it's the second to last item as it won't be useful
         if len(output) > 1 and output[-2][LETTER] == ZWJ:
             output.pop(len(output) - 2)
 
     if output and output[-1][LETTER] == ZWJ:
         output.pop()
 
-    # Find ligatures on a string rebuilt from ``output`` so match spans line up
-    # with ``output`` indices exactly.  ``output`` already excludes harakat
-    # (never appended) and ZWJ (popped above); running the regex on the original
-    # ``text`` instead desyncs the indices whenever a ZWJ (or harakat) sits
-    # before a ligature and raises IndexError (e.g. reshape("لا‍لا")).
     text = "".join(o[LETTER] for o in output)
 
     for match in LIGATURES_RE.finditer(text):
@@ -149,15 +129,6 @@ def reshape(text: str) -> str:
         a, b = match.span()
         a_form = output[a][FORM]
         b_form = output[b - 1][FORM]
-
-        # +-----------+----------+---------+---------+----------+
-        # | a   \   b | ISOLATED | INITIAL | MEDIAL  | FINAL    |
-        # +-----------+----------+---------+---------+----------+
-        # | ISOLATED  | ISOLATED | INITIAL | INITIAL | ISOLATED |
-        # | INITIAL   | ISOLATED | INITIAL | INITIAL | ISOLATED |
-        # | MEDIAL    | FINAL    | MEDIAL  | MEDIAL  | FINAL    |
-        # | FINAL     | FINAL    | MEDIAL  | MEDIAL  | FINAL    |
-        # +-----------+----------+---------+---------+----------+
 
         if a_form in (ISOLATED, INITIAL):
             if b_form in (ISOLATED, FINAL):

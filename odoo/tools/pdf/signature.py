@@ -16,7 +16,6 @@ try:
     )
     from cryptography.x509 import Certificate, load_pem_x509_certificate
 except ImportError:
-    # cryptography 41.0.7 and above is supported
     hashes = None
     PrivateKeyTypes = None
     Encoding = None
@@ -55,8 +54,8 @@ _logger = logging.getLogger(__name__)
 class _SignatureAlgorithm(NamedTuple):
     """CMS algorithm identifiers (asn1crypto names) and signer for one key type."""
 
-    digest: str  # DigestAlgorithmId name, also a valid hashlib algorithm
-    signature: str  # SignedDigestAlgorithmId name
+    digest: str
+    signature: str
     sign: Callable[[bytes], bytes]
 
 
@@ -69,11 +68,6 @@ class PdfSigner:
     for the structure of the signature in a PDF.
     """
 
-    # Bytes reserved in /Contents for the CMS signature blob. The /ByteRange
-    # gap is computed from this exact size, so the placeholder, the gap-end
-    # arithmetic and the final hex padding must all use this single constant --
-    # and the CMS must be asserted to fit it (see _perform_signature), otherwise
-    # an oversized signature silently overruns the range it is supposed to sit in.
     _CONTENTS_PLACEHOLDER_BYTES = 8192
 
     def __init__(
@@ -160,26 +154,12 @@ class PdfSigner:
         else:
             form = self.writer._root_object["/AcroForm"].get_object()
 
-            # SigFlags(3) = SignatureExists = true && AppendOnly = true.
-            # The document contains signed signature and must be modified in incremental mode (see https://github.com/pdf-association/pdf-issues/issues/457)
             form.update({NameObject("/SigFlags"): NumberObject(3)})
 
-        # Assigning the newly created field to a page
         page = self.writer.pages[0]
 
-        # Setting up the signature field properties
         signature_field = DictionaryObject()
 
-        # Metadata of the signature field
-        # /FT = Field Type, here set to /Sig the signature type
-        # /T = name of the field
-        # /Type = type of object, in this case annotation (/Annot)
-        # /Subtype = type of annotation
-        # /F = annotation flags, represented as a 32 bit unsigned integer. 132 corresponds to the Print and Locked flags
-        #   Print : corresponds to printing the signature when the page is printed
-        #   Locked : prevents the annotation properties from being modified or the annotation from being deleted by the user
-        #   (see section 8.4.2 of the Adobe PDF Reference (v1.7) https://ia601001.us.archive.org/1/items/pdf1.7/pdf_reference_1-7.pdf),
-        # /P = page reference, reference to the page where the signature field is located
         signature_field.update(
             {
                 NameObject("/FT"): NameObject("/Sig"),
@@ -191,17 +171,11 @@ class PdfSigner:
             }
         )
 
-        # Creating the appearance (visible elements of the signature)
         if visible_signature:
-            origin = (
-                page.mediabox.upper_right
-            )  # retrieves the top-right coordinates of the page
-            rect_size = (200, 20)  # dimensions of the box (width, height)
+            origin = page.mediabox.upper_right
+            rect_size = (200, 20)
             padding = 5
 
-            # Box that will contain the signature, defined as [x1, y1, x2, y2]
-            # where (x1, y1) is the bottom left coordinates of the box,
-            # and (x2, y2) the top-right coordinates.
             rect = [
                 origin[0] - rect_size[0] - padding,
                 origin[1] - rect_size[1] - padding,
@@ -209,14 +183,6 @@ class PdfSigner:
                 origin[1] - padding,
             ]
 
-            # Here is defined the StreamObject that contains the information about the visible
-            # parts of the signature
-            #
-            # Dictionary contents:
-            # /BBox = coordinates of the 'visible' box, relative to the /Rect definition of the signature field
-            # /Resources = resources needed to properly render the signature,
-            #   /Font = dictionary containing the information about the font used by the signature
-            #       /F1 = font resource, used to define a font that will be usable in the signature
             stream = StreamObject()
             stream.update(
                 {
@@ -254,21 +220,6 @@ class PdfSigner:
                 else create_string_object(content)
             )
 
-            # Setting the parameters used to display the text object of the signature
-            # More details on this subject can be found in the sections 4.3 and 5.3
-            # of the Adobe PDF Reference (v1.7) https://ia601001.us.archive.org/1/items/pdf1.7/pdf_reference_1-7.pdf
-            #
-            # Parameters:
-            # q = saves the current graphics state on the graphics state stack
-            # 0.5 0 0 0.5 0 0 cm = modification of the current transformation matrix. Here used to scale down the text size by 0.5 in x and y
-            # BT = begin text object
-            # /F1 = reference to the font resource named F1
-            # 12 Tf = set the font size to 12
-            # 0 TL = defines text leading, the space between lines, here set to 0
-            # 0 10 Td = moves the text to the start of the next line, expressed in text space units. Here (x, y) = (0, 10)
-            # (text_content) Tj = renders a text string
-            # ET = end text object
-            # Q = Restore the graphics state by removing the most recently saved state from the stack and making it the current state
             stream._data = f"q 0.5 0 0 0.5 0 0 cm BT /F1 12 Tf 0 TL 0 10 Td ({content}) Tj ET Q".encode()
             signature_appearence = DictionaryObject()
             signature_appearence.update({NameObject("/N"): stream})
@@ -284,20 +235,6 @@ class PdfSigner:
             {NameObject("/Rect"): self._create_number_array_object(rect)}
         )
 
-        # Setting up the actual signature contents with placeholders for /Contents and /ByteRange
-        #
-        # Dictionary contents:
-        # /Contents = content of the signature field. The content is a byte string of an object that follows
-        # the Cryptographic Message Syntax (CMS). The object is converted in hexadecimal and stored as bytes.
-        # The /Contents are pre-filled with placeholder values of an arbitrary size (i.e. 8KB) to ensure that
-        # the signature will fit in the "<>" bounds of the field
-        # /ByteRange = an array represented as [offset, length, offset, length, ...] which defines the bytes that
-        # are used when computing the digest of the document. Similarly to the /Contents, the /ByteRange is set to
-        # a placeholder as we aren't yet able to compute the range at this point.
-        # /Type = the type of form field. Here /Sig, the signature field
-        # /Filter
-        # /SubFilter
-        # /M = the timestamp of the signature. Indicates when the document was signed.
         signature_field_value = DictionaryObject()
         signature_field_value.update(
             {
@@ -310,9 +247,6 @@ class PdfSigner:
                 NameObject("/Type"): NameObject("/Sig"),
                 NameObject("/Filter"): NameObject("/Adobe.PPKLite"),
                 NameObject("/SubFilter"): NameObject("/adbe.pkcs7.detached"),
-                # Use the same effective signing time as the CMS signing_time
-                # attribute (see _get_cms_object) so the visible /M date and the
-                # cryptographically-signed time cannot disagree.
                 NameObject("/M"): create_string_object(
                     (self.signing_time or datetime.datetime.now(datetime.UTC)).strftime(
                         "D:%Y%m%d%H%M%S"
@@ -321,15 +255,11 @@ class PdfSigner:
             }
         )
 
-        # Here we add the reference to be written in a specific order. This is needed
-        # by Adobe Acrobat to consider the signature valid.
         signature_field_ref = self.writer._add_object(signature_field)
         signature_field_value_ref = self.writer._add_object(signature_field_value)
 
-        # /V = the actual value of the signature field. Used to store the dictionary of the field
         signature_field.update({NameObject("/V"): signature_field_value_ref})
 
-        # Definition of the fields array linked to the form (/AcroForm)
         if "/Fields" not in self.writer._root_object:
             fields = ArrayObject()
         else:
@@ -337,7 +267,6 @@ class PdfSigner:
         fields.append(signature_field_ref)
         form.update({NameObject("/Fields"): fields})
 
-        # The signature field reference is added to the annotations array
         if "/Annots" not in page:
             page[NameObject("/Annots")] = ArrayObject()
         page[NameObject("/Annots")].append(signature_field_ref)
@@ -368,8 +297,6 @@ class PdfSigner:
                 lambda data: private_key.sign(data, ec.ECDSA(hashes.SHA256())),
             )
         if isinstance(private_key, ed25519.Ed25519PrivateKey):
-            # RFC 8419: pure Ed25519 (no prehash), with SHA-512 as the
-            # message-digest algorithm for the signed attributes.
             return _SignatureAlgorithm("sha512", "ed25519", private_key.sign)
         return None
 
@@ -508,7 +435,6 @@ class PdfSigner:
 
         pdf_data = self._get_document_data()
 
-        # Computation of the location of the last inserted contents for the signature field
         signature_field_pos = pdf_data.rfind(b"/FT /Sig")
         if signature_field_pos == -1:
             _logger.warning(
@@ -522,13 +448,8 @@ class PdfSigner:
             )
             return False
 
-        # Computing the start and end position of the /Contents <signature> field
-        # to exclude the content of <> (aka the actual signature) from the byte range
         placeholder_start = contents_field_pos + 9
         placeholder_end = placeholder_start + self._CONTENTS_PLACEHOLDER_BYTES * 2 + 2
-        # The window must be exactly the serialized zero placeholder; anything
-        # else means the computed offsets drifted and the /Contents substitution
-        # below would corrupt the document.
         placeholder = b"<" + b"0" * (self._CONTENTS_PLACEHOLDER_BYTES * 2) + b">"
         if pdf_data[placeholder_start:placeholder_end] != placeholder:
             _logger.warning(
@@ -537,13 +458,8 @@ class PdfSigner:
             )
             return False
 
-        # Replacing the placeholder byte range with the actual range
-        # that will be used to compute the document digest
         placeholder_byte_range = sig_field_value.get("/ByteRange")
 
-        # Here the byte range represents an array [index, length, index, length, ...]
-        # where 'index' represents the index of a byte, and length the number of bytes to take
-        # This array indicates the bytes that are used when computing the digest of the document
         byte_range = [
             0,
             placeholder_start,
@@ -569,11 +485,6 @@ class PdfSigner:
 
         signature_der = cms_content_info.dump()
         if len(signature_der) > self._CONTENTS_PLACEHOLDER_BYTES:
-            # The CMS blob does not fit the reserved /Contents gap. ljust() only
-            # pads, so continuing would push the signature past the range the
-            # /ByteRange brackets and emit a silently-corrupt signature. Fail
-            # loudly instead (triggered e.g. by a signing certificate whose DER
-            # exceeds ~8 KB).
             raise ValueError(
                 f"PDF signature ({len(signature_der)} bytes) exceeds the reserved "
                 f"{self._CONTENTS_PLACEHOLDER_BYTES} bytes; the certificate is too large to embed."
@@ -608,8 +519,6 @@ class PdfSigner:
         :return: the corrected byte range.
         :rtype: list[int]
         """
-        # Computing the difference of length of the strings of the old and new byte ranges.
-        # Used to determine if a re-computation of the range is needed or not
         current_len = len(str(old_range))
         corrected_len = len(str(new_range))
         diff = corrected_len - current_len

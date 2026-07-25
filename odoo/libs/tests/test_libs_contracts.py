@@ -39,8 +39,6 @@ class TestGuessMimetypeDefault:
     """``default`` used to be accepted and dropped on the floor."""
 
     def test_default_returned_for_unidentifiable_content(self):
-        # 0x00-only content: neither libmagic nor the signature guesser can
-        # name it, so the caller's declared fallback must win.
         assert guess_mimetype(b"\0" * 32, default="image/png") == "image/png"
 
     def test_default_does_not_override_a_real_identification(self):
@@ -82,11 +80,9 @@ class TestLowerLoggingReentrancy:
     def test_nested_reuse_does_not_recurse_on_emit(self):
         root = logging.getLogger()
         original = root.handlers[:]
-        # max_level=WARNING, so an ERROR record is above it and gets lowered
         ll = lower_logging(logging.WARNING, logging.INFO)
         try:
             with ll, ll:
-                # forwarding to [self] would blow the stack
                 logging.getLogger("odoo.test.reentrant").error("boom")
             assert ll.had_error_log
         finally:
@@ -132,7 +128,6 @@ class TestLastOrderedSet:
 
 class TestHexToRgb:
     def test_missing_hash_is_parsed_not_misread(self):
-        # used to silently return (240, 0, 0) by slicing from index 1
         assert hex_to_rgb("FF0000") == (255, 0, 0)
 
     @pytest.mark.parametrize(
@@ -186,14 +181,13 @@ class TestGetWebpSizeRobustness:
     @pytest.mark.parametrize(
         "buf",
         [
-            b"RIFF\x00\x00\x00\x00WEBPVP8 ",  # VP8 header only (16 bytes)
-            b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 12,  # VP8 short of offset 30
-            b"RIFF\x00\x00\x00\x00WEBPVP8X" + b"\x00" * 10,  # VP8X truncated
-            b"RIFF\x00\x00\x00\x00WEBPVP8L\x00\x00\x00\x00\x2f\x00\x00",  # VP8L trunc
+            b"RIFF\x00\x00\x00\x00WEBPVP8 ",
+            b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 12,
+            b"RIFF\x00\x00\x00\x00WEBPVP8X" + b"\x00" * 10,
+            b"RIFF\x00\x00\x00\x00WEBPVP8L\x00\x00\x00\x00\x2f\x00\x00",
         ],
     )
     def test_truncated_returns_none(self, buf):
-        # used to raise ValueError("not enough values to unpack") / IndexError
         assert get_webp_size(buf) is None
 
     @pytest.mark.parametrize("buf", [b"\x89PNG\r\n\x1a\n", b"RIFF\x00\x00\x00\x00WE"])
@@ -264,11 +258,8 @@ class TestFloatSplitSign:
     def test_int_form_loses_subunit_sign_but_keeps_it_from_minus_one(self):
         from odoo.libs.numbers.float_utils import float_split
 
-        # documented limitation: int('-0') == 0
         assert float_split(-0.05, 2) == (0, 5)
-        # sign rides on units once |value| >= 1
         assert float_split(-2.675, 2) == (-2, 68)
-        # exact zero unaffected
         assert float_split(-0.001, 2) == (0, 0)
 
 
@@ -280,22 +271,20 @@ class TestImageProcessWebpResolution:
 
     @staticmethod
     def _webp_vp8x(width: int, height: int) -> bytes:
-        # Minimal VP8X (extended) header declaring width x height.
         def u24(n: int) -> bytes:
             return (n).to_bytes(4, "little")[:3]
 
         body = (
             b"VP8X"
             + (10).to_bytes(4, "little")
-            + b"\x00"  # flags
-            + b"\x00\x00\x00"  # reserved
+            + b"\x00"
+            + b"\x00\x00\x00"
             + u24(width - 1)
             + u24(height - 1)
         )
         return b"RIFF" + (len(body) + 4).to_bytes(4, "little") + b"WEBP" + body
 
     def test_oversized_webp_is_rejected(self):
-        # side just over sqrt(IMAGE_MAX_RESOLUTION) -> area exceeds the cap
         side = int(IMAGE_MAX_RESOLUTION**0.5) + 100
         src = self._webp_vp8x(side, side)
         assert get_webp_size(src) == (side, side)
@@ -304,7 +293,6 @@ class TestImageProcessWebpResolution:
 
     def test_reasonable_webp_still_accepted(self):
         src = self._webp_vp8x(64, 64)
-        # WEBP is intentionally left unprocessed (image is False), no raise
         assert ImageProcess(src, verify_resolution=True).image is False
 
     def test_oversized_webp_accepted_when_not_verifying(self):
@@ -322,13 +310,9 @@ class TestLruCountSetterConcurrencyGuard:
         lru = LRU(10, [(i, i) for i in range(10)])
         lru.count = 3
         assert len(lru) == 3
-        # the survivors are the most-recently-inserted keys
         assert set(lru) == {7, 8, 9}
 
     def test_setter_survives_ordering_mutation_during_iteration(self):
-        # Simulate the hazard directly: an _ordering whose iterator raises
-        # RuntimeError once (as a concurrent __getitem__ would trigger) must
-        # not propagate out of the setter.
         lru = LRU(10, [(i, i) for i in range(10)])
 
         real_ordering = lru._ordering
@@ -342,7 +326,7 @@ class TestLruCountSetterConcurrencyGuard:
                 return super().__iter__()
 
         lru._ordering = FlakyOrdering(real_ordering)
-        lru.count = 3  # must not raise
+        lru.count = 3
         assert len(lru) == 3
 
 
@@ -359,7 +343,9 @@ class TestHtmlSanitizeRecovery:
         assert "Unknown error when sanitizing" not in out
 
     def test_surrounding_content_is_preserved(self):
-        out = str(html_sanitize("<p>keep this line</p><select><style>x</style></select>"))
+        out = str(
+            html_sanitize("<p>keep this line</p><select><style>x</style></select>")
+        )
         assert "keep this line" in out
         assert "Unknown error when sanitizing" not in out
 
@@ -388,7 +374,6 @@ class TestTimezoneContract:
             timezone(name)
 
     def test_bad_name_is_catchable_as_keyerror(self):
-        # ZoneInfoNotFoundError subclasses KeyError; the old contract held.
         with pytest.raises(KeyError):
             timezone("")
 
@@ -410,7 +395,10 @@ class TestFormataddrHeaderInjection:
         assert formataddr(("\r\n\t", "user@example.com")) == "user@example.com"
 
     def test_ordinary_name_unchanged(self):
-        assert formataddr(("John Doe", "john@example.com")) == '"John Doe" <john@example.com>'
+        assert (
+            formataddr(("John Doe", "john@example.com"))
+            == '"John Doe" <john@example.com>'
+        )
 
 
 class TestReverseOrderCommas:
@@ -472,7 +460,7 @@ class TestOrderedSetIntersectionAliasing:
         assert result == s
         assert result is not s
         result.add(4)
-        assert 4 not in s  # mutating the result must not touch the original
+        assert 4 not in s
 
     def test_with_args_still_works(self):
         s = OrderedSet([1, 2, 3])

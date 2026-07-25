@@ -20,19 +20,9 @@ __all__ = [
 
 
 def round(f: float) -> float:
-    # P3's builtin round differs from P2 in the following manner:
-    # * it rounds half to even rather than up (away from 0)
-    # * round(-0.) loses the sign (it returns -0 rather than 0)
-    # * round(x) returns an int rather than a float
-    #
-    # this compatibility shim implements Python 2's round in terms of
-    # Python 3's so that important rounding error under P3 can be
-    # trivially fixed, assuming the P2 behaviour to be debugged and
-    # correct.
     roundf = builtins.round(f)
     if builtins.round(f + 1) - roundf != 1:
         return f + math.copysign(0.5, f)
-    # copysign ensures round(-0.) -> -0 *and* result is a float
     return math.copysign(roundf, f)
 
 
@@ -50,8 +40,6 @@ def _float_check_precision(
             raise ValueError(
                 f"precision_digits must be a non-negative integer, got {precision_digits}"
             )
-        # float(): 10**0 is the *int* 1, and this is annotated (and consumed) as
-        # a float -- an int leaked into float_round's arithmetic at 0 digits.
         precision_rounding = float(10**-precision_digits)
     else:
         msg = "exactly one of precision_digits and precision_rounding must be specified"
@@ -79,10 +67,11 @@ def float_round(
         non-zero value at the desired precision (for example, 0.01 for a
         2-digit precision).
     :param rounding_method: the rounding method used:
+
         - 'HALF-UP' will round to the closest number with ties going away from zero.
         - 'HALF-DOWN' will round to the closest number with ties going towards zero.
         - 'HALF-EVEN' will round to the closest number with ties going to the closest
-           even number.
+          even number.
         - 'UP' will always round away from 0.
         - 'DOWN' will always round towards 0.
     :return: rounded float
@@ -93,12 +82,6 @@ def float_round(
     if rounding_factor == 0 or value == 0:
         return 0.0
 
-    # NORMALIZE - ROUND - DENORMALIZE
-    # In order to easily support rounding to arbitrary 'steps' (e.g. coin values),
-    # we normalize the value before rounding it as an integer, and de-normalize
-    # after rounding: e.g. float_round(1.3, precision_rounding=.5) == 1.5
-    #
-    # Inlined normalize/denormalize — avoids closures for clarity and C-extension compat.
     inverted = rounding_factor < 1
     if inverted:
         rounding_factor = float_invert(rounding_factor)
@@ -106,73 +89,36 @@ def float_round(
     else:
         normalized_value = value / rounding_factor
 
-    if normalized_value == 0.0:  # noqa: RUF069  # exact zero = normalization underflow
-        # Underflow during normalization (e.g. a subnormal value divided by a
-        # large rounding factor); the rounded result is 0.  Guard before the
-        # log2() below, which would raise on 0.
+    if normalized_value == 0.0:
         return 0.0
 
-    # Due to IEEE-754 float/double representation limits, the approximation of the
-    # real value may be slightly below the tie limit, resulting in an error of
-    # 1 unit in the last place (ulp) after rounding.
-    # For example 2.675 == 2.6749999999999998.
-    # To correct this, we add a very small epsilon value, scaled to the
-    # order of magnitude of the value, to tip the tie-break in the right
-    # direction.
-    # Credit: discussion with Odoo community members on bug 882036
     epsilon_magnitude = math.log2(abs(normalized_value))
-    # `2**(epsilon_magnitude - 52)` would be the minimal size, but we increase it to be
-    # more tolerant of inaccuracies accumulated after multiple floating point operations
     epsilon = 2 ** (epsilon_magnitude - 50)
-    # For the "nearest" (HALF-*) methods, `epsilon` is nudged toward the .5 tie
-    # boundary only to rescue a value pushed just under a genuine tie by IEEE-754
-    # representation error. Being magnitude-relative (~4 ulp of normalized_value),
-    # it grows past .5 once normalized_value is large (its ulp approaches and
-    # exceeds 1), and then spuriously flips a clean value to the next integer:
-    # e.g. float_round(1e13, precision_rounding=0.01) gave 10000000000000.01. Cap it
-    # below the boundary (keeping ~2 ulp of clearance, `0.5 - epsilon / 2`, which
-    # stays >= a few ulp where the ulp is fine and reaches 0 once normalized_value
-    # has no representable fractional part) so the nudge can only ever rescue values
-    # already within representation error of a tie, never cross a boundary. The
-    # truncating UP/DOWN methods must also keep `epsilon` strictly below 1 so the
-    # nudge stays a proximity-to-integer test and can never push an exact integer
-    # multiple across a boundary: uncapped, `float_round(1.2e13, 0.01, 'DOWN')`
-    # returned 1.2e13 + 0.01 and `float_round(2**52, 0, 'UP')` overshot by 3.
-    # At normal magnitudes epsilon << 0.5, so both caps are no-ops there; they
-    # only bind once the ulp approaches 1 and sub-integer precision is already
-    # lost, where any choice is within a ulp of the input.
     half_epsilon = max(0.0, min(epsilon, 0.5 - epsilon / 2))
     trunc_epsilon = min(epsilon, 0.5)
 
-    # if/elif — match/case replaced for broader C-extension compatibility
-    if rounding_method == "HALF-UP":  # 0.5 rounds away from 0
+    if rounding_method == "HALF-UP":
         result = round(normalized_value + math.copysign(half_epsilon, normalized_value))
-    elif rounding_method == "HALF-EVEN":  # 0.5 rounds towards closest even number
+    elif rounding_method == "HALF-EVEN":
         integral = math.floor(normalized_value)
         remainder = abs(normalized_value - integral)
-        # `remainder == 0.5` catches an exact, representable tie directly: once
-        # the value is large enough that half_epsilon caps to ~0, the tolerance
-        # test alone would miss it and fall through to round()'s half-up.  0.5 is
-        # exactly representable, so the equality is intentional here.
-        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069
-        # if is_half & integral is odd, add odd bit to make it even
+        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon
         result = integral + (integral & 1) if is_half else round(normalized_value)
-    elif rounding_method == "HALF-DOWN":  # 0.5 rounds towards 0
+    elif rounding_method == "HALF-DOWN":
         integral = math.floor(abs(normalized_value))
         remainder = abs(normalized_value) - integral
-        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon  # noqa: RUF069
+        is_half = remainder == 0.5 or abs(0.5 - remainder) < half_epsilon
         if is_half:
-            # exact tie: round towards zero, i.e. keep the integral part
             result = math.copysign(integral, normalized_value)
         else:
             result = round(
                 normalized_value - math.copysign(half_epsilon, normalized_value)
             )
-    elif rounding_method == "UP":  # round to number furthest from zero
+    elif rounding_method == "UP":
         result = math.trunc(
             normalized_value + math.copysign(1 - trunc_epsilon, normalized_value)
         )
-    elif rounding_method == "DOWN":  # round to number closest to zero
+    elif rounding_method == "DOWN":
         result = math.trunc(
             normalized_value + math.copysign(trunc_epsilon, normalized_value)
         )
@@ -180,10 +126,6 @@ def float_round(
         msg = f"unknown rounding method: {rounding_method}"
         raise ValueError(msg)
 
-    # Denormalize: reverse the normalization.  ``float(...)`` pins the documented
-    # ``-> float`` return type: with precision_digits=0 the rounding factor is an
-    # int, and an int ``result`` (e.g. the HALF-EVEN tie branch) would otherwise
-    # make ``result * rounding_factor`` an int.
     if inverted:
         return float(result / rounding_factor)
     return float(result * rounding_factor)
@@ -220,8 +162,7 @@ def float_is_zero(
     epsilon = _float_check_precision(
         precision_digits=precision_digits, precision_rounding=precision_rounding
     )
-    # exact-zero fast path short-circuits before the precision-based check
-    return value == 0.0 or abs(float_round(value, precision_rounding=epsilon)) < epsilon  # noqa: RUF069
+    return value == 0.0 or abs(float_round(value, precision_rounding=epsilon)) < epsilon
 
 
 def float_compare(
@@ -260,8 +201,6 @@ def float_compare(
     rounding_factor = _float_check_precision(
         precision_digits=precision_digits, precision_rounding=precision_rounding
     )
-    # equal numbers round equally, so we can skip that step
-    # doing this after _float_check_precision to validate parameters first
     if value1 == value2:
         return 0
     value1 = float_round(value1, precision_rounding=rounding_factor)
@@ -283,9 +222,6 @@ def float_repr(value: float, precision_digits: int) -> str:
     :param precision_digits: number of fractional digits to include in the output
     :return: the string representation of the value
     """
-    # Can't use str() here because it seems to have an intrinsic
-    # rounding to 12 significant digits, which causes a loss of
-    # precision. e.g. str(123456789.1234) == str(123456789.123)!!
     if float_is_zero(value, precision_digits=precision_digits):
         value = 0.0
     return f"{value:.{precision_digits}f}"
@@ -384,13 +320,6 @@ def json_float_round(
         rounding_method=rounding_method,
     )
     rounded_repr = float_repr(rounded_value, precision_digits=precision_digits)
-    # As of Python 3.1, rounded_repr should be the shortest representation for our
-    # rounded float, so we create a new float whose repr is expected
-    # to be the same value, or a value that is semantically identical
-    # and will be used in the json serialization.
-    # e.g. if rounded_repr is '3.1750', the new float repr could be 3.175
-    # but not 3.174999999999322452.
-    # Cfr. bpo-1580: https://bugs.python.org/issue1580
     return float(rounded_repr)
 
 
@@ -436,17 +365,9 @@ def float_invert(value: float) -> float:
     :raises ZeroDivisionError: if ``value`` is zero.
     """
     if not value:
-        # the generic branch below computed 0.0 / 0.0 ** 2 and surfaced a
-        # confusing "float division by zero" from the middle of a string dance
         raise ZeroDivisionError("cannot invert 0")
     result = _INVERTDICT.get(value)
     if result is None:
         coefficient, exponent = f"{value:.15e}".split("e")
-        # invert exponent by changing sign, and coefficient by dividing by its square
         result = float(f"{coefficient}e{-int(exponent)}") / float(coefficient) ** 2
     return result
-
-
-# The extended float-range sweep that used to sit here behind
-# ``if __name__ == "__main__"`` now lives in
-# ``odoo/libs/numbers/tests/test_float_round.py``, where it actually runs.

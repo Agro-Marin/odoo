@@ -27,7 +27,6 @@ class TestSqlMembership(unittest.TestCase):
         self.assertEqual(sql.params, ())
 
     def test_not_in_empty_renders_true(self):
-        # The headline fix: an empty exclusion set matches every row.
         sql = SQL.not_in(self.col, [])
         self.assertEqual(sql.code, "TRUE")
         self.assertEqual(sql.params, ())
@@ -43,13 +42,11 @@ class TestSqlMembership(unittest.TestCase):
         self.assertEqual(sql.params, ([1, 2],))
 
     def test_accepts_any_iterable_not_just_list(self):
-        # A set/generator/tuple must all work and bind as one array param.
         self.assertEqual(SQL.in_(self.col, (1, 2)).params, ([1, 2],))
         self.assertEqual(SQL.in_(self.col, {1}).params, ([1],))
         self.assertEqual(SQL.in_(self.col, (i for i in [3, 4])).params, ([3, 4],))
 
     def test_composes_with_a_general_sql_lhs(self):
-        # lhs can be any SQL expression, not just a column identifier.
         sql = SQL.not_in(SQL("lower(%s)", SQL.identifier("name")), ["a"])
         self.assertEqual(sql.code, 'lower("name") <> ALL(%s)')
         self.assertEqual(sql.params, (["a"],))

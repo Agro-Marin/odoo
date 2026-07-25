@@ -30,4 +30,4 @@ class PatchedXlsxWorkbook(xlsxwriter.Workbook):
 
 
 def patch_module() -> None:
-    xlsxwriter.Workbook = PatchedXlsxWorkbook  # type: ignore[misc]
+    xlsxwriter.Workbook = PatchedXlsxWorkbook

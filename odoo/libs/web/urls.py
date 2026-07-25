@@ -6,8 +6,6 @@ import urllib.parse
 __all__ = ["urljoin"]
 
 
-# Bound on repeated percent-decoding; a path needing more passes than this is
-# pathological and refused outright.
 _MAX_UNQUOTE_PASSES = 4
 
 
@@ -114,7 +112,6 @@ def urljoin(base: str, extra: str) -> str:
     e_scheme, e_netloc, e_path, e_query, e_fragment = urllib.parse.urlsplit(extra)
 
     if e_scheme or e_netloc:
-        # allow absolute extra URL if it matches base
         if (
             (e_scheme != b_scheme)
             or (e_netloc != b_netloc)
@@ -126,14 +123,11 @@ def urljoin(base: str, extra: str) -> str:
         e_path = e_path.removeprefix(path)
 
     if e_path:
-        # prevent urljoin("/", "\\example.com/") to resolve as absolute to "//example.com/" in a browser redirect
-        # https://github.com/mozilla-firefox/firefox/blob/5e81b64f4ed88b610eb332e103744d68ee8b6c0d/netwerk/base/nsStandardURL.cpp#L2386-L2388
         e_path = e_path.lstrip(
             "/\\\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f "
         )
         path = f"{path}/{e_path}"
 
-    # normalize: foo//bar -> foo/bar
     path = re.sub(r"/+", "/", path)
 
     if _contains_dot_segments(path):

@@ -35,8 +35,6 @@ class TestPosixToLdml:
         assert posix_to_ldml("%m/%d/%Y", en_us) == "MM/dd/yyyy"
 
     def test_no_pad_flag_does_not_leak_into_next_directive(self, en_us):
-        # The '-' (no-pad) flag must be consumed, not leaked onto the following
-        # directive; a prior bug turned "%-x%d" into a corrupted pattern.
         assert posix_to_ldml("%-d %B", en_us) == "d MMMM"
         assert posix_to_ldml("%-x%d", en_us) == "M/d/yydd"
 

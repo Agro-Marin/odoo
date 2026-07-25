@@ -15,7 +15,6 @@ class TestWindowsReserved(unittest.TestCase):
             self.assertTrue(WINDOWS_RESERVED.match(name), name)
 
     def test_non_reserved_do_not_match(self):
-        # ":CON" was a false positive; COM0/LPT0 are not reserved devices.
         for name in (":CON", "CONFIG", "COM0", "LPT0", "README"):
             self.assertFalse(WINDOWS_RESERVED.match(name), name)
 

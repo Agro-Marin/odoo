@@ -44,9 +44,6 @@ class TestMergeSequencesConflicts(unittest.TestCase):
         self.assertEqual(merge_sequences(*args), merge_sequences(*args))
 
     def test_conflict_never_raises(self):
-        # Selection._setup merges selection_add through here while building the
-        # registry; a module reordering existing values must not take the
-        # server down.
         merge_sequences(["a", "b", "c"], ["c", "b", "a"])
 
     def test_all_elements_survive(self):
@@ -67,8 +64,6 @@ class TestTopologicalSortStrictness(unittest.TestCase):
         )
 
     def test_self_edge_is_not_a_cycle(self):
-        # a manifest without "depends" defaults to ["base"], so base depends on
-        # itself (ir_asset._topological_sort relies on this)
         self.assertEqual(topological_sort({"base": ["base"]}), ["base"])
 
     def test_dependency_absent_from_elems_is_never_emitted(self):

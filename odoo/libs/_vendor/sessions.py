@@ -109,6 +109,17 @@ class SessionStore:
     def save(self, session):
         """Save a session."""
 
+    def keep_alive(self, session):
+        """Extend a stored session's lifetime without rewriting its contents.
+
+        Odoo addition (not upstream werkzeug). ``Session.touch()`` means "keep
+        this session alive", not "its data changed"; a store that can renew
+        cheaply -- :class:`FilesystemSessionStore` only bumps the file's mtime --
+        overrides this. The generic fallback is a full :meth:`save`, which is
+        always correct, so every store keeps working.
+        """
+        self.save(session)
+
     def delete(self, session):
         """Delete a session."""
 
@@ -120,7 +131,6 @@ class SessionStore:
         return self.session_class({}, sid, True)
 
 
-#: used for temporary files by the filesystem session store
 _fs_transaction_suffix = ".__wz_sess"
 
 
@@ -165,9 +175,6 @@ class FilesystemSessionStore(SessionStore):
         fn = self.get_session_filename(session.sid)
         fd, tmp = tempfile.mkstemp(suffix=_fs_transaction_suffix, dir=self.path)
         try:
-            # fchmod before close so the file never exists on disk with the
-            # default mkstemp umask; fsync before replace so a host crash
-            # can't leave a zero-length file after the metadata rename.
             os.fchmod(fd, self.mode)
             with os.fdopen(fd, "wb") as f:
                 f.write(_json_dumps(dict(session)))
@@ -175,13 +182,9 @@ class FilesystemSessionStore(SessionStore):
                 os.fsync(f.fileno())
             pathlib.Path(tmp).replace(fn)
         except OSError:
-            # Log instead of swallowing silently: on NFS, a failed rename
-            # used to leave the client with a cookie pointing to a session
-            # that never landed on disk, and no ops-visible signal.
             _logger.warning(
                 "Failed to persist session %r to %r", session.sid, fn, exc_info=True
             )
-            # Best-effort cleanup of the orphan tmp file.
             try:
                 pathlib.Path(tmp).unlink()
             except OSError:
@@ -202,9 +205,6 @@ class FilesystemSessionStore(SessionStore):
             with fn.open("rb") as f:
                 data = _json_loads(f.read())
             if not isinstance(data, dict):
-                # A non-object payload ("null", a list...) would crash
-                # ``session_class`` below on every request with that cookie;
-                # treat it as corrupt.
                 raise TypeError(f"session payload is {type(data).__name__}, not dict")
         except OSError:
             _logger.debug(
@@ -215,12 +215,6 @@ class FilesystemSessionStore(SessionStore):
                 return self.new()
             data = {}
         except Exception:
-            # Corrupt session file. Discard it and treat it like a missing one:
-            # the previous sid-preserving empty fallback never rewrote the file
-            # (an all-defaults session is "not modified"), so every later
-            # request re-parsed the same corrupt bytes forever.  ``save`` is
-            # atomic (mkstemp + fsync + rename), so this is real corruption,
-            # not a torn concurrent write.
             _logger.warning(
                 "Corrupt session file %r; discarding it.", str(fn), exc_info=True
             )
@@ -232,9 +226,3 @@ class FilesystemSessionStore(SessionStore):
                 return self.new()
             data = {}
         return self.session_class(data, sid, False)
-
-    # NOTE: the upstream ``list()`` (glob by filename_template in self.path) and
-    # ``SessionStore.save_if_modified()`` were removed: odoo.http's subclass
-    # scatters files into <path>/<sid[:2]>/ subdirectories and uses a Session
-    # class without ``should_save``, so both were silently broken for every
-    # store in this codebase.

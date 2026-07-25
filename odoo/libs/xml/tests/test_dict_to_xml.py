@@ -1,12 +1,18 @@
+"""Rendering contract for ``odoo.libs.xml.dict_to_xml``.
+
+Was an ``account`` ``TransactionCase``, but nothing here touches a cursor --
+these are pure dict-in / lxml-out assertions, so they belong in the DB-free
+tier next to the function.
+"""
+
+import unittest
+
 from lxml import etree
 
-from odoo.tests import TransactionCase, tagged
-
-from odoo.addons.account.tools import dict_to_xml
+from odoo.libs.xml.dict_to_xml import dict_to_xml
 
 
-@tagged("post_install", "-at_install")
-class TestDictToXml(TransactionCase):
+class TestDictToXml(unittest.TestCase):
     def assertXmlEqual(self, element1, element2):
         self.assertEqual(etree.tostring(element1), etree.tostring(element2))
 

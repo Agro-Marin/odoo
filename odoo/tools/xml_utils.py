@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """Utilities for generating, parsing and checking XML/XSD files on top of the lxml.etree module."""
 
 import base64
@@ -14,12 +13,14 @@ from odoo.exceptions import UserError
 from odoo.libs.xml import (
     create_xml_node,
     create_xml_node_chain,
+    dict_to_xml,
     remove_control_characters,
 )
 from odoo.tools.files import file_open
 
 __all__ = [
     "cleanup_xml_node",
+    "dict_to_xml",
     "load_xsd_files_from_url",
     "validate_xml_from_attachment",
 ]
@@ -64,11 +65,6 @@ def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) 
     if not isinstance(xmls, list):
         xmls = [xmls]
 
-    # The XSD attachment is a scratch record created solely to drive this
-    # validation, so it must go even when validation fails.  Without the
-    # ``finally`` the very common case -- ``validate_xml_from_attachment``
-    # raising ``UserError`` on an invalid document -- left the attachment (and
-    # its filestore blob) behind on every failed validation.
     try:
         for xml in xmls:
             validate_xml_from_attachment(env, xml, xsd_attachment.name)
@@ -96,26 +92,14 @@ def _check_with_xsd(
         enable 'SiiTypes_v10.xsd' to be resolved to 'l10n_cl_edi.SiiTypes_v10.xsd'.
     """
     if not isinstance(tree_or_str, etree._Element):
-        # Parse the (untrusted) XML-under-validation with entity resolution and
-        # network access disabled — an XXE guard, matching cleanup_xml_node.
         tree_or_str = etree.fromstring(
             tree_or_str,
             parser=etree.XMLParser(resolve_entities=False, no_network=True),
         )
-    # Harden the schema parser like the document parser above: XSDs may come
-    # from attachments, so entity resolution and network access stay disabled
-    # (the custom resolver below still serves imports from ir.attachment).
     parser = etree.XMLParser(resolve_entities=False, no_network=True)
     if env:
         parser.resolvers.add(odoo_resolver(env, prefix))
         if isinstance(stream, str) and stream.endswith(".xsd"):
-            # ``limit=1`` like every other XSD-attachment lookup in this module
-            # (``load_xsd_files_from_url`` uses it in both branches).  Nothing
-            # makes the name unique -- ``load_xsd_files_from_url`` updates the
-            # first match rather than deduplicating, and an operator can create
-            # a second attachment by hand -- so an unbounded search returned a
-            # multi-record set and ``attachment.raw`` raised "Expected singleton"
-            # out of what is otherwise a well-behaved validation helper.
             attachment = env["ir.attachment"].search([("name", "=", stream)], limit=1)
             if not attachment:
                 raise FileNotFoundError
@@ -150,34 +134,28 @@ def cleanup_xml_node(
     xml_node = xml_node_or_string
 
     if isinstance(xml_node, str):
-        xml_node = xml_node.encode()  # misnomer: fromstring actually reads bytes
+        xml_node = xml_node.encode()
     if isinstance(xml_node, bytes):
         parser = etree.XMLParser(recover=True, resolve_entities=False)
         xml_node = etree.fromstring(remove_control_characters(xml_node), parser=parser)
 
-    # Depth-first: an inner node may become a leaf itself once its children are removed
     def leaf_iter(parent_node, node, level):
         for child_node in node:
             leaf_iter(node, child_node, level if level < 0 else level + 1)
 
-        # Indentation
         if level >= 0:
             indent = "\n" + indent_space * level
             if not node.tail or not node.tail.strip():
                 node.tail = "\n" if parent_node is None else indent
             if len(node) > 0:
                 if not node.text or not node.text.strip():
-                    # First child's indentation is parent's text
                     node.text = indent + indent_space
                 last_child = node[-1]
                 if last_child.tail == indent + indent_space:
-                    # Last child's tail is parent's closing tag indentation
                     last_child.tail = indent
 
-        # Removal condition: node is leaf (not root nor inner node)
         if parent_node is not None and len(node) == 0:
             if remove_blank_text and node.text is not None and not node.text.strip():
-                # node.text is None iff node.tag is self-closing (text='' creates closing tag)
                 node.text = ""
             if remove_blank_nodes and not (node.text or ""):
                 parent_node.remove(node)
@@ -224,8 +202,6 @@ def load_xsd_files_from_url(
         response = requests.get(url, timeout=request_max_timeout)
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
-        # Catch the whole requests hierarchy (HTTP errors, connection errors,
-        # timeouts, invalid URLs, ...) to honor the "False on error" contract.
         _logger.warning("Request error: %s with the given URL: %s", error, url)
         return False
 
@@ -368,6 +344,4 @@ def find_xml_value(
     if not result:
         return None
     first = result[0]
-    # ``@attr`` / ``text()`` selectors return a str subclass (_ElementUnicodeResult)
-    # with no ``.text``; return it as-is. Element results expose their own text.
     return first if isinstance(first, str) else first.text

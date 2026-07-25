@@ -56,8 +56,6 @@ def _compile_xpath(expr: str) -> etree.ETXPath:
     return etree.ETXPath(expr)
 
 
-# etree._Element subclasses ignored when parsing XML. The *Base classes are the
-# public base types of the corresponding _* ones and are listed for completeness.
 SKIPPED_ELEMENT_TYPES = (
     etree._Comment,
     etree._ProcessingInstruction,
@@ -66,7 +64,6 @@ SKIPPED_ELEMENT_TYPES = (
     etree._Entity,
 )
 
-# attribute names that contain Python expressions
 PYTHON_ATTRIBUTES = {
     "readonly",
     "required",
@@ -157,8 +154,6 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
     if spec.tag == "xpath":
         expr = spec.get("expr")
         if not expr:
-            # ``ETXPath(None)`` raises TypeError, which escapes the
-            # ValueError -> ValidationError wrapper in ir.ui.view as a 500.
             raise ValueError("Invalid xpath specification: missing 'expr' attribute")
         try:
             xPath = _compile_xpath(expr)
@@ -169,9 +164,6 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
         nodes = xPath(arch)
         return nodes[0] if nodes else None
     elif spec.tag == "field":
-        # Only compare the field name: a field can be only once in a given view
-        # at a given level (and for multilevel expressions, we should use xpath
-        # inheritance spec anyway).
         for node in arch.iter("field"):
             if node.get("name") == spec.get("name"):
                 return node
@@ -201,7 +193,9 @@ def apply_inheritance_specs(
 
     :param Element source: a parent architecture to modify
     :param Element specs_tree: a modifying architecture in an inheriting view
-    :param bool inherit_branding:
+    :param bool inherit_branding: keep the website editor's branding bookkeeping
+        when replacing nodes (mark copies ``data-oe-no-branding`` and emit a
+        node-removal processing instruction)
     :param pre_locate: function that is executed before locating a node.
                         This function receives an arch as argument.
                         This is required by studio to properly handle group_ids.
@@ -209,10 +203,6 @@ def apply_inheritance_specs(
     :rtype: Element
     :raise: ValueError for invalid specs or if nodes cannot be located
     """
-    # Queue of specification nodes (i.e. nodes describing where and
-    # changes to apply to some parent architecture).  ``list(...)`` copies:
-    # the queue is consumed with ``pop(0)``, which emptied a caller-supplied
-    # list as a side effect.
     specs = list(specs_tree) if isinstance(specs_tree, list) else [specs_tree]
     pre_locate = pre_locate or (lambda _: True)
 
@@ -249,10 +239,6 @@ def apply_inheritance_specs(
                     for loc in spec.xpath(".//*[text()='$0']"):
                         loc.text = ""
                         copied_node = copy.deepcopy(node)
-                        # TODO: Remove 'inherit_branding' logic if possible;
-                        # currently needed to track node removal for branding
-                        # distribution. Avoid marking root nodes to prevent
-                        # sibling branding issues.
                         if inherit_branding:
                             copied_node.set("data-oe-no-branding", "1")
                         loc.append(copied_node)
@@ -265,7 +251,6 @@ def apply_inheritance_specs(
                                 break
                             comment = content
                         source = copy.deepcopy(spec_content)
-                        # only keep the t-name of a template root node
                         t_name = node.get("t-name")
                         if t_name:
                             source.set("t-name", t_name)
@@ -275,19 +260,6 @@ def apply_inheritance_specs(
                             comment.tail = text
                             source.insert(0, comment)
                     else:
-                        # TODO ideally the notion of 'inherit_branding' should
-                        # not exist in this function. Given the current state of
-                        # the code, it is however necessary to know where nodes
-                        # were removed when distributing branding. As a stable
-                        # fix, this solution was chosen: the location is marked
-                        # with a "ProcessingInstruction" which will not impact
-                        # the "Element" structure of the resulting tree.
-                        # Exception: if we happen to replace a node that already
-                        # has xpath branding (root level nodes), do not mark the
-                        # location of the removal as it will mess up the branding
-                        # of siblings elements coming from other views, after the
-                        # branding is distributed (and those processing instructions
-                        # removed).
                         if inherit_branding and not node.get("data-oe-xpath"):
                             node.addprevious(
                                 etree.ProcessingInstruction(
@@ -302,20 +274,13 @@ def apply_inheritance_specs(
                             node.addprevious(child)
                         node.getparent().remove(node)
                 elif mode == "inner":
-                    # use a sentinel to keep the existing children nodes, so
-                    # that one can move existing children nodes inside the new
-                    # content of the node (with position="move")
                     sentinel = E.sentinel()
                     if len(node) > 0:
                         node[0].addprevious(sentinel)
                     else:
                         node.append(sentinel)
-                    # fill the node with the spec *before* the sentinel
-                    # remove node.text before that operation, otherwise it will
-                    # be merged with the new content's text
                     node.text = None
                     add_stripped_items_before(sentinel, copy.deepcopy(spec), extract)
-                    # now remove the old content and the sentinel
                     for child in reversed(node):
                         node.remove(child)
                         if child == sentinel:
@@ -324,10 +289,6 @@ def apply_inheritance_specs(
                     raise ValueError(f'Invalid mode attribute: "{mode}"')
             elif pos == "attributes":
                 for child in spec.iter("attribute"):
-                    # The element should only have attributes:
-                    # - name (mandatory),
-                    # - add, remove, separator
-                    # - any attribute that starts with data-oe-*
                     unknown = [
                         key
                         for key in child.attrib
@@ -355,11 +316,6 @@ def apply_inheritance_specs(
                         if attribute in PYTHON_ATTRIBUTES or attribute.startswith(
                             "decoration-"
                         ):
-                            # attribute containing a python expression
-                            # ``separator`` is None when the spec omits it; coerce
-                            # to "" so the check below raises the crafted
-                            # ValueError (caught by the ValidationError wrapper)
-                            # instead of an AttributeError escaping as a 500.
                             separator = (separator or "").strip()
                             if separator not in ("and", "or"):
                                 raise ValueError(
@@ -367,19 +323,6 @@ def apply_inheritance_specs(
                                     "valid values are 'and' and 'or'"
                                 )
                             if remove:
-                                # ``re.escape``: ``remove`` is a *literal* python
-                                # expression taken verbatim from the inheriting
-                                # view, not a pattern. Interpolated raw it was
-                                # compiled as regex source, so an expression
-                                # holding metacharacters silently changed meaning
-                                # -- ``remove="a|b"`` matched the bare "a" of an
-                                # unrelated ``invisible="a or b"`` and dropped the
-                                # whole attribute, ``remove="a.b"`` matched
-                                # "axb", and an unbalanced paren
-                                # (``remove="(x)"`` truncated to ``"("``) raised
-                                # re.PatternError as a 500. The literal
-                                # ``str.find`` fallback just below always treated
-                                # it as text; this makes both agree.
                                 if re.fullmatch(rf"\(*{re.escape(remove)}\)*", value):
                                     value = ""
                                 else:
@@ -405,7 +348,7 @@ def apply_inheritance_specs(
                             if separator is None:
                                 separator = ","
                             elif separator == " ":
-                                separator = None  # squash spaces
+                                separator = None
                             values = (s.strip() for s in value.split(separator))
                             to_add = filter(
                                 None, (s.strip() for s in add.split(separator))
@@ -425,18 +368,14 @@ def apply_inheritance_specs(
                     elif attribute in node.attrib:
                         del node.attrib[attribute]
             elif pos == "inside":
-                # add a sentinel element at the end, insert content of spec
-                # before the sentinel, then remove the sentinel element
                 sentinel = E.sentinel()
                 node.append(sentinel)
                 add_stripped_items_before(sentinel, spec, extract)
                 remove_element(sentinel)
             elif pos == "after":
-                # add a sentinel element right after node, insert content of
-                # spec before the sentinel, then remove the sentinel element
                 sentinel = E.sentinel()
                 node.addnext(sentinel)
-                if node.tail is not None:  # for lxml >= 5.1
+                if node.tail is not None:
                     sentinel.tail = node.tail
                     node.tail = None
                 add_stripped_items_before(sentinel, spec, extract)

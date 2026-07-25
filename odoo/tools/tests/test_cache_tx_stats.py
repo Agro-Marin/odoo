@@ -28,13 +28,6 @@ class _Pool:
     db_name = "testdb"
 
     def __init__(self):
-        # ``ormcache_lrus`` is the only thing the ormcache closure asks of a
-        # pool, so a plain attribute is enough.  It used to need
-        # ``self.__dict__["_Registry__caches"] = ...`` because writing that
-        # name in a class body would mangle it to ``_Pool__caches`` -- a fake
-        # forced to smuggle in an attribute belonging to a class it does not
-        # subclass.  Real caches are LRU stores (the lookup reads their
-        # ``.generation``), so mirror that here rather than using a plain dict.
         self.ormcache_lrus = defaultdict(lambda: LRU(1000))
 
 
@@ -74,14 +67,13 @@ class TestOrmcacheTxStats(unittest.TestCase):
         cache_mod._TX_STATS_ENABLED = False
         calls = []
         model = _Model(calls)
-        self.assertEqual(model.double(5), 10)  # cold: miss, method runs
-        self.assertEqual(model.double(5), 10)  # warm: hit, method does not run
+        self.assertEqual(model.double(5), 10)
+        self.assertEqual(model.double(5), 10)
         self.assertEqual(calls, [5])
 
         counter = self._counter()
         self.assertEqual((counter.hit, counter.miss), (1, 1))
-        self.assertEqual(counter.cache_name, "default")  # always set
-        # per-transaction stats are NOT collected on the fast path
+        self.assertEqual(counter.cache_name, "default")
         self.assertEqual((counter.tx_hit, counter.tx_miss, counter.tx_err), (0, 0, 0))
         self.assertNotIn("_ormcache_lookups", model.env.cr.cache)
 
@@ -90,7 +82,6 @@ class TestOrmcacheTxStats(unittest.TestCase):
         calls = []
         model = _Model(calls)
 
-        # transaction 1: cold cache -> a tx miss, and the dedup set is created.
         self.assertEqual(model.double(7), 14)
         self.assertIn("_ormcache_lookups", model.env.cr.cache)
         counter = self._counter()
@@ -98,7 +89,6 @@ class TestOrmcacheTxStats(unittest.TestCase):
         self.assertEqual((counter.miss, counter.tx_miss), (1, 1))
         self.assertEqual(counter.cache_name, "default")
 
-        # transaction 2: warm cache, fresh dedup set -> a tx hit.
         model.env.cr.cache.clear()
         self.assertEqual(model.double(7), 14)
         self.assertEqual((counter.hit, counter.tx_hit), (1, 1))

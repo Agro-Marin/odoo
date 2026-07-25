@@ -7,19 +7,12 @@ from odoo.libs.utils import named_to_positional_printf, replace_exceptions
 
 class TestNamedToPositionalPrintf(unittest.TestCase):
     def test_flag_width_precision_are_consumed_not_preserved(self):
-        # Every conversion flattens to a bare "%s", flags/width/precision and
-        # all.  The sole consumer is ``SQL()`` (odoo/tools/sql.py), and psycopg
-        # accepts *only* '%s'/'%b'/'%t' as placeholders -- emitting "%05d" here
-        # makes the query die with "only '%s', '%b', '%t' are allowed as
-        # placeholders, got '%0'".  Formatting is the database's job, not this
-        # helper's; what matters is that the argument reaches the tuple.
         for spec, value in (("%(x)05d", 7), ("%(x).2f", 3.14159), ("%(x)-4s", "hi")):
             fmt, args = named_to_positional_printf(spec, {"x": value})
             self.assertEqual(fmt, "%s", spec)
             self.assertEqual(args, (value,), spec)
 
     def test_escaped_percent_passes_through(self):
-        # '%%' is a literal percent and must not be read as a named spec.
         fmt, args = named_to_positional_printf("%%(lit)s %(n)s", {"n": "W"})
         self.assertEqual(args, ("W",))
         self.assertEqual(fmt % args, "%(lit)s W")
@@ -45,7 +38,6 @@ class TestReplaceExceptions(unittest.TestCase):
                     raise KeyError(i)
             except RuntimeError as exc:
                 raised.append(exc)
-        # a fresh copy each time, so the shared instance is never mutated
         self.assertIsNot(raised[0], shared)
         self.assertIsNot(raised[1], shared)
         self.assertIsNot(raised[0], raised[1])

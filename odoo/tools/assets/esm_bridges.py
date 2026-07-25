@@ -94,33 +94,15 @@ class BridgeShimManager:
         :return: ``{specifier: attachment_url}`` for the import map
         :rtype: dict[str, str]
         """
-        # Each shim is a tiny ES module that reads the target module from
-        # ``odoo.loader.modules`` and re-exports its names.  Attachment URLs
-        # (``/web/assets/esm/bridges/<content_hash>.js``) replaced the
-        # earlier ``data:text/javascript,...`` import-map entries because:
-        # the import map shrinks ~50x (~60-byte URL vs 10-50 KB URI per
-        # specifier, hundreds per bundle); identical shims dedupe to one
-        # row across bundles (content-addressed); real URLs get browser
-        # cache headers; and DevTools shows actual sources instead of
-        # opaque ``data:`` blobs (which also triggered "import map rule
-        # was removed" warnings on duplicates).
-        # Batches search + create into one query each (POS + test bundles
-        # can carry ~500 bridges).  Idempotent by content hash — rerunning
-        # on unchanged source produces unchanged URLs.
         if not shims_by_spec:
             return {}
-        # Build (url, content) map AND (spec, url) result in one pass.
         url_by_spec: dict[str, str] = {}
         content_by_url: dict[str, str] = {}
         for spec, content in shims_by_spec.items():
-            # 128 truncated bits: a collision would silently serve the
-            # wrong module, so don't flirt with the 64-bit birthday bound.
             content_hash = cache_hash(content.encode("utf-8"))[:32]
             url = f"/web/assets/esm/bridges/{content_hash}.js"
             url_by_spec[spec] = url
-            content_by_url[url] = content  # identical content dedupes here
-        # Single search for all candidate URLs — O(1) query instead of
-        # O(N).  Urls already in the DB don't need re-creation.
+            content_by_url[url] = content
         Attachment = self.env["ir.attachment"].sudo()
         existing_urls = set(
             Attachment.search(
@@ -130,8 +112,6 @@ class BridgeShimManager:
                 ]
             ).mapped("url")
         )
-        # Batch-create only the missing ones.  ``create`` on a list of
-        # dicts is a single INSERT in modern Odoo.
         to_create = [
             {
                 "name": url.rsplit("/", 1)[-1],
@@ -147,34 +127,9 @@ class BridgeShimManager:
             if url not in existing_urls
         ]
         if not to_create:
-            # Idempotent rerun — every shim is already persisted.
             return url_by_spec
 
-        # The dedicated read-write cursor below (``_persist_bridges_via_rw_
-        # cursor``) exists for ONE reason: to let bridge rows survive a
-        # rollback of the *HTTP request* transaction that is rendering.
-        # Outside a request — registry preload / asset pregeneration
-        # (``lifecycle._run_post_install_tests`` → ``_pregenerate_assets_
-        # bundles``), cron, CLI, or a non-HTTP test — there is no request to
-        # roll back and the CURRENT cursor is the durable one.  Opening a
-        # second *real* cursor there self-deadlocks: this same thread already
-        # holds ir_attachment row/predicate locks on the current cursor (the
-        # pregeneration transaction created bundle rows and did the URL
-        # lookup above), so the second cursor's INSERT waits on a lock only
-        # this now-suspended thread can release — a one-thread, two-cursor
-        # cycle Postgres cannot break.  Persist on the current cursor instead;
-        # it commits (preload/cron) or rolls back harmlessly (content-addressed
-        # + idempotent) with the test, and the assets ormcache stays coherent
-        # because there is no independent transaction to diverge from.
-        #
-        # NOTE: unlike ``_persist_esm_attachment_rows`` this guard does NOT
-        # also branch on ``_module.current_test``.  Under an HttpCase the
-        # loader-bridge rows must be visible to the browser's SEPARATE asset
-        # fetches (served on other TestCursors): the ``registry.cursor()``
-        # path publishes them, whereas persisting on the render's own cursor
-        # left the dynamic-child bridges unfetchable and broke tours. The
-        # request is truthy in an HttpCase, so it correctly takes the rw path.
-        from odoo.http import request  # lazy: avoid load-order cycle
+        from odoo.http import request
 
         if not request:
             self.env["ir.attachment"].sudo().create(to_create)
@@ -189,31 +144,6 @@ class BridgeShimManager:
             )
             return url_by_spec
 
-        # Persist bridge attachments through a dedicated read-write cursor
-        # that commits independently of the request transaction — ALWAYS,
-        # not only when the request cursor happens to be read-only.  Two
-        # invariants ride on this:
-        #
-        # 1. Cache coherence.  ``get_native_module_data`` is cached above
-        #    this call (``ir_qweb._get_native_module_data_cached``,
-        #    ``cache="assets"``).  ormcache writes its entry when the method
-        #    returns and never rolls back with the transaction.  If the rows
-        #    were created on the REQUEST cursor and that transaction later
-        #    aborted (serialization failure, any downstream error), the cache
-        #    would keep serving bridge URLs whose attachments do not exist —
-        #    a hard 404 with no rebuild path (the ESM serve route has no
-        #    on-the-fly regeneration; see ``ir.attachment.unlink``'s comment).
-        #    An out-of-band commit makes the cached URLs always resolve to
-        #    rows that survive a request rollback.
-        # 2. Read-only replicas.  ``?debug=assets`` and replica-routed renders
-        #    run on a ``readonly=True`` request cursor where a direct INSERT
-        #    raises ``ReadOnlySqlTransaction``; ``registry.cursor(readonly=
-        #    False)`` returns a primary cursor regardless — the same
-        #    escalation ``web/controllers/binary.py`` uses.
-        #
-        # The shims are content-addressed and idempotent, so committing them
-        # out-of-band is safe; a concurrent worker doing the same produces a
-        # harmless duplicate row (served via ``limit 1``, cleaned by the GC).
         if self._persist_bridges_via_rw_cursor(to_create):
             log_event(
                 _bridge_log,
@@ -226,16 +156,6 @@ class BridgeShimManager:
             )
             return url_by_spec
 
-        # Last resort — no writable cursor reachable at all (primary DB down
-        # or itself read-only).  Inline the not-yet-persisted shims as
-        # ``data:text/javascript`` import-map values so the page still
-        # renders; pre-existing attachments keep their canonical URL.  This
-        # result is functionally correct but larger, and — unlike the happy
-        # path — can be pinned in the assets ormcache until the next cache
-        # clear (which the periodic asset GC / bundle rebuild triggers via
-        # ``ir.attachment.unlink``).  Acceptable: this branch fires only while
-        # the primary is unwritable, when no canonical URL could be persisted
-        # anyway and the whole instance is degraded.
         missing_urls = {item["url"] for item in to_create}
         log_event(
             _bridge_log,
@@ -279,12 +199,6 @@ class BridgeShimManager:
                 rw_env = Environment(rw_cr, SUPERUSER_ID, {})
                 rw_env["ir.attachment"].create(to_create)
         except Exception:
-            # Explicit degradation, not error-hiding: the caller has a
-            # functional (if heavier) ``data:`` URI path for exactly this
-            # case, and the traceback is preserved for the operator. Under a
-            # test the escalation is structurally refused (readonly TestCursor),
-            # which is expected rather than a degradation, so log it quietly and
-            # without the (noise) traceback there.
             expected = _rw_escalation_expected()
             _logger.log(
                 logging.DEBUG if expected else logging.WARNING,
@@ -322,44 +236,23 @@ class BridgeShimManager:
         ``registerNativeModules({...})`` call — preserving singleton
         identity between the bundled and satellite paths.
         """
-        # Build a specifier→source map across this bundle's native
-        # modules so ``_extract_esm_exports`` can recursively expand
-        # ``export * from "@foo/bar"`` re-exports.  Without this the
-        # bridge for a re-export hub (e.g. ``@web/core/l10n/utils``,
-        # which does ``export * from "@web/core/l10n/utils/format_list"``)
-        # would expose zero names and consumers would see "does not
-        # provide an export named …" at module-load time.
         source_map: dict[str, str] = {
             a.module_path: a.raw_content for a in self.native_modules
         }
-        # Shared across the loop below so a barrel reached through several
-        # modules' ``export * from`` chains is parsed once, not once per
-        # importing module (P13).
         exports_cache: dict[str, set[str]] = {}
 
-        # Build ``{spec: shim_js}`` first, then persist as content-
-        # addressable attachments and return ``{spec: url}``.  Going
-        # through ``_persist_bridge_shims`` batches the DB work into
-        # one search + one create instead of N of each.
         shims_by_spec: dict[str, str] = {}
         for asset in self.native_modules:
             specifier = asset.module_path
             if not specifier.startswith("@"):
                 continue
             src = asset.raw_content
-            # has_default intentionally ignored: this shim always emits a
-            # default export (``_m?.default ?? _m``) regardless of it.
             names, _ = _extract_esm_exports(
                 src,
                 source_map=source_map,
                 importing_specifier=specifier,
                 _exports_cache=exports_cache,
             )
-            # ``kinds={"__default__"}`` marks this as a default import so the
-            # generator's star-fallback telemetry flag stays False; the default
-            # export itself is always emitted.  Most bare-specifier imports are
-            # ``import X from "@foo/bar"`` where X is either the module's
-            # real default or the namespace as a whole.
             shim, _star = _bridge_shim_source(
                 specifier, {"__default__"}, names, has_default=False
             )
@@ -409,21 +302,9 @@ class BridgeShimManager:
             if kind:
                 discovered.setdefault(specifier, set()).add(kind)
             else:
-                # Named import OR bindingless side-effect import: register
-                # the specifier with no kind. For a side-effect import the
-                # shim still reads the source file's export surface, and the
-                # side effect itself already ran in the parent bundle, so an
-                # import-map entry to a valid (even export-only) shim is all
-                # the child needs to resolve the specifier.
                 discovered.setdefault(specifier, set())
 
         for asset in modules:
-            # Primary path: the es-module-lexer worker (spec-compliant,
-            # also catches the mixed ``import X, { y } from "@a/b"`` shape
-            # the regex misses).  Only ``@addon`` specifiers travel via
-            # bridges — relative imports resolve inside the bundle, other
-            # bare specifiers only through ``ODOO_EXTERNAL_LIBS`` (checked
-            # against ``ext_lib_names`` for observability parity).
             lexed = lex_module(asset.raw_content)
             if lexed is not None:
                 for imp in lexed["imports"]:
@@ -436,12 +317,6 @@ class BridgeShimManager:
                     }.get(imp["kind"])
                     record(specifier, kind)
                 continue
-            # Regex fallback — single pass over each module's source:
-            # _IMPORT_ANY_RE matches the named / default / namespace /
-            # bindingless-side-effect import shapes in one finditer. The
-            # kind is read from whichever named group matched; ``spec``
-            # (binding+from) and ``side`` (side-effect) are mutually
-            # exclusive per match.
             for match in _IMPORT_ANY_RE.finditer(asset.raw_content):
                 specifier = match.group("spec") or match.group("side")
                 if match.group("default") is not None:
@@ -526,15 +401,6 @@ class BridgeShimManager:
         """
         if modules is None:
             modules = self.native_modules
-        # ── 1. Discovery ──
-        # Bridge shims are only useful for specifiers that travel via
-        # ``odoo.loader.modules``.  External libraries declared in
-        # ``ODOO_EXTERNAL_LIBS`` resolve through a canonical real URL in
-        # the initial import map — a ``data:`` bridge for them (a) conflicts
-        # with the browser's first-rule-wins policy and (b) targets
-        # ``odoo.loader.modules.get(spec)`` which is only populated when esbuild
-        # inlined the internal alias.  ``_discover_bridge_specifiers`` excludes
-        # them via ``ext_lib_names``.
         discovered, ext_seen = self._discover_bridge_specifiers(
             native_specifiers, set(ODOO_EXTERNAL_LIBS), modules=modules
         )
@@ -542,15 +408,8 @@ class BridgeShimManager:
             ODOO_EXTERNAL_LIBS, EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
         )
 
-        # ── 2. Emit shims ──
-        # Build ``{spec: shim_js}`` first, then persist as content-
-        # addressable attachments in one batched DB round-trip (see
-        # ``_persist_bridge_shims``).  Pre-refactor this generated a
-        # ``data:text/javascript,<urlencoded>`` URI per specifier,
-        # stuffing up to 50 KB of encoded JS per entry into the
-        # rendered import map.
         shims_by_spec: dict[str, str] = {}
-        star_fallback = 0  # specifiers that got only the ``export default _m`` shim
+        star_fallback = 0
         for specifier, kinds in sorted(discovered.items()):
             src_names, has_default = resolver.source_exports(specifier)
             shim, is_star_fallback = _bridge_shim_source(

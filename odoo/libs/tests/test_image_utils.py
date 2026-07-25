@@ -10,7 +10,6 @@ import unittest
 from odoo.libs.image.utils import ImageProcess, average_dominant_color
 
 SVG = b"<svg xmlns='http://www.w3.org/2000/svg'><rect width='1' height='1'/></svg>"
-# minimal RIFF/WEBP header: enough for the WEBP branch, not a decodable image
 WEBP = b"RIFF" + b"\x00" * 4 + b"WEBPVP8 " + b"\x00" * 20
 
 
@@ -34,7 +33,6 @@ class TestOriginalFormatAlwaysDefined(unittest.TestCase):
         self.assertEqual(ImageProcess(WEBP).original_format, "")
 
     def test_svg_passthrough_still_works(self):
-        # the SVG short-circuit must keep returning the source untouched
         self.assertEqual(ImageProcess(SVG).image_quality(), SVG)
 
     def test_chaining_on_svg_is_a_noop(self):
@@ -60,7 +58,6 @@ class TestAverageDominantColorDegenerateInput(unittest.TestCase):
         self.assertIn("non-zero count", str(ctx.exception))
 
     def test_feedback_loop_shape(self):
-        # the documented usage pattern, driven until `remaining` runs out
         colors = [(10, (255, 0, 0, 255)), (5, (0, 0, 255, 255))]
         primary, remaining = average_dominant_color(colors)
         self.assertEqual(len(primary), 3)
@@ -78,7 +75,6 @@ class TestAverageDominantColorStillCorrect(unittest.TestCase):
         primary, remaining = average_dominant_color(
             [(100, (10, 10, 10, 255)), (1, (250, 250, 250, 255))]
         )
-        # the far-away colour is not folded into the dominant set
         self.assertEqual(remaining, [(1, (250, 250, 250, 255))])
         self.assertEqual(primary, (10, 10, 10))
 

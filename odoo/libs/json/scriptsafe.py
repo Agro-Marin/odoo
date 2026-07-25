@@ -17,14 +17,12 @@ from typing import Any
 
 import markupsafe
 
-# Character mappings for script-safe JSON encoding
-# These characters need special handling when JSON is embedded in HTML
 JSON_SCRIPTSAFE_MAPPER: dict[str, str] = {
     "&": r"\u0026",
     "<": r"\u003c",
     ">": r"\u003e",
-    "\u2028": r"\u2028",  # Line separator
-    "\u2029": r"\u2029",  # Paragraph separator
+    "\u2028": r"\u2028",
+    "\u2029": r"\u2029",
 }
 
 
@@ -96,5 +94,4 @@ class ScriptSafeJSON:
         return ScriptSafe(json_.dumps(*args, **kwargs))
 
 
-# Default instance for convenient access
 scriptsafe = ScriptSafeJSON()

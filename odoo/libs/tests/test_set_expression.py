@@ -8,7 +8,6 @@ from odoo.libs.set_expression import SetDefinitions
 
 
 def _defs():
-    # A subset of B; A disjoint from C; C subset of D; E disjoint from B.
     return SetDefinitions(
         {
             1: {"ref": "A", "supersets": [2], "disjoints": [3]},
@@ -24,7 +23,6 @@ class TestSetExpression(unittest.TestCase):
     def test_intersection_is_canonical(self):
         defs = _defs()
         a, b, c = defs.parse("A"), defs.parse("B"), defs.parse("C")
-        # A disjoint C => A & B & C is empty, regardless of grouping/order.
         self.assertEqual((b & c) & a, a & (b & c))
         self.assertTrue(((b & c) & a).is_empty())
         self.assertTrue((a & (b & c)).is_empty())
@@ -54,7 +52,6 @@ class TestSetExpression(unittest.TestCase):
                         self.assertFalse(expr.matches(set(combo)))
 
     def test_matches_empty_generator(self):
-        # an empty iterator must match nothing, including the universe.
         defs = _defs()
         self.assertFalse(defs.universe.matches(iter([])))
         self.assertFalse(defs.universe.matches(set()))

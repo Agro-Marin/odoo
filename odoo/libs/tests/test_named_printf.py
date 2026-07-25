@@ -15,9 +15,6 @@ class TestNamedToPositionalPrintf(unittest.TestCase):
         self.assertEqual(named_to_positional_printf("%(x)s", {"x": 1}), ("%s", (1,)))
 
     def test_conversions_carrying_a_spec_are_converted(self):
-        # these used to be left in the string while their argument still moved
-        # to the positional tuple, so the caller blew up on "format requires a
-        # mapping"
         self.assertEqual(
             named_to_positional_printf("%(amt).2f", {"amt": 1.5}), ("%s", (1.5,))
         )
@@ -57,8 +54,6 @@ class TestNamedToPositionalPrintf(unittest.TestCase):
             self.assertIn("unsupported named placeholder", str(ctx.exception))
 
     def test_missing_key_raises_keyerror(self):
-        # a failed mapping lookup, same as Python's own %-formatting; SQL's
-        # contract (TestSQL.test_sql_with_wrong_pattern) depends on this type
         with self.assertRaises(KeyError):
             named_to_positional_printf("%(missing)s", {})
 

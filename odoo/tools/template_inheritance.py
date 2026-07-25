@@ -13,7 +13,6 @@ from lxml import etree
 
 from odoo.exceptions import ValidationError
 
-# Import agnostic versions for wrapping
 from odoo.libs.xml.template_inheritance import (
     XPathExpressionError,
     _compile_xpath,
@@ -45,8 +44,6 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
     if spec.tag == "xpath":
         expr = spec.get("expr")
         if expr is None:
-            # A bare <xpath> without expr would reach _compile_xpath(None) and
-            # raise an uncaught TypeError; fail with a clear ValidationError.
             raise ValidationError(
                 _lt("Missing 'expr' attribute in xpath specification")
             )
@@ -58,7 +55,6 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
             ) from e
         nodes = xPath(arch)
         return nodes[0] if nodes else None
-    # For non-xpath specs, delegate to base implementation
     return _locate_node_base(arch, spec)
 
 
@@ -72,7 +68,8 @@ def apply_inheritance_specs(
 
     :param Element source: a parent architecture to modify
     :param Element specs_tree: a modifying architecture in an inheriting view
-    :param bool inherit_branding:
+    :param bool inherit_branding: keep the website editor's branding bookkeeping
+        when replacing nodes
     :param pre_locate: called before locating a node, with the arch as argument;
                         required by studio to properly handle group_ids
     :return: a modified source where the specs are applied
@@ -80,15 +77,9 @@ def apply_inheritance_specs(
     :raise: ValidationError for invalid xpath expressions
     :raise: ValueError for other invalid specs or if nodes cannot be located
     """
-    # Convert an invalid-xpath error to ValidationError; every other ValueError
-    # propagates unchanged.  This is now a type check (XPathExpressionError)
-    # rather than a substring match on the English message -- the message is
-    # dynamic (it interpolates the offending expression) and the old
-    # ``"Invalid Expression while parsing xpath" in str(e)`` silently stopped
-    # matching the day that wording drifted in odoo.libs.
     try:
         return _apply_inheritance_specs_base(
             source, specs_tree, inherit_branding, pre_locate
         )
     except XPathExpressionError as e:
-        raise ValidationError(str(e)) from e  # pylint: disable=E8502
+        raise ValidationError(str(e)) from e

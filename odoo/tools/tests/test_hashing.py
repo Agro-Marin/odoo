@@ -21,8 +21,6 @@ from unittest import mock
 
 from odoo.tools import hashing
 
-# Official BLAKE3 test vectors (github.com/BLAKE3-team/BLAKE3 test_vectors.json):
-# input byte i is i % 251, output truncated to the default 32-byte digest.
 _VECTORS = {
     0: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
     1: "2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213",
@@ -65,7 +63,6 @@ class TestBlake3Path(unittest.TestCase):
         is additive, and legacy rows keep their old digest.
         """
         self.assertLessEqual(hashing.CONTENT_DIGEST_LEN, hashing.CONTENT_DIGEST_MAX_LEN)
-        # both vintages that can coexist in one deployment
         for length in (40, 64):
             self.assertLessEqual(length, hashing.CONTENT_DIGEST_MAX_LEN)
 
@@ -83,8 +80,8 @@ class TestBlake3Path(unittest.TestCase):
     def test_multithreaded_matches_single(self):
         """Payloads over the threading threshold hash identically."""
         big = b"z" * (2 * hashing._MT_MIN_BYTES)
-        self.assertGreater(len(big), hashing._MT_MIN_BYTES)  # takes the mt branch
-        hasher = hashing.content_hasher()  # single-threaded
+        self.assertGreater(len(big), hashing._MT_MIN_BYTES)
+        hasher = hashing.content_hasher()
         hasher.update(big)
         self.assertEqual(hashing.content_hash(big), hasher.hexdigest())
 
@@ -126,7 +123,7 @@ class TestIncrementalEquivalence(unittest.TestCase):
     def _all_forms(self, data):
         one_shot = hashing.content_hash(data)
         hasher = hashing.content_hasher()
-        for i in range(0, len(data), 7):  # deliberately ragged chunks
+        for i in range(0, len(data), 7):
             hasher.update(data[i : i + 7])
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "payload"
@@ -144,7 +141,7 @@ class TestIncrementalEquivalence(unittest.TestCase):
 
     def test_equivalence(self):
         for label, data in (
-            ("empty", b""),  # mmap of a 0-byte file must not break
+            ("empty", b""),
             ("short", b"hello"),
             ("multichunk", bytes(range(256)) * 500),
         ):

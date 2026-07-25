@@ -48,7 +48,6 @@ class Intervals[T]:
         self._items: list[tuple[T, T, AbstractSet]] = []
         self._keep_distinct = keep_distinct
         if intervals:
-            # normalize the representation of intervals
             append = self._items.append
             starts: list[T] = []
             items: AbstractSet | None = None
@@ -116,7 +115,6 @@ class Intervals[T]:
         result = Intervals(keep_distinct=self._keep_distinct)
         append = result._items.append
 
-        # using 'self' and 'other' below forces normalization
         bounds1 = _boundaries(self, "start", "stop")
         bounds2 = _boundaries(
             Intervals(other, keep_distinct=self._keep_distinct),
@@ -124,9 +122,9 @@ class Intervals[T]:
             "switch",
         )
 
-        start = None  # set by start/stop
-        recs1 = None  # set by start
-        enabled = difference  # changed by switch
+        start = None
+        recs1 = None
+        enabled = difference
         if self._keep_distinct:
             bounds = sorted(itertools.chain(bounds1, bounds2), key=lambda i: i[0])
         else:
@@ -179,7 +177,6 @@ def invert_intervals[T](
             break
     if prev_stop < last_stop:
         items.append((prev_stop, last_stop))
-    # abuse Intervals to merge contiguous intervals
     return [
         (start, stop)
         for start, stop, _ in Intervals([(start, stop, set()) for start, stop in items])

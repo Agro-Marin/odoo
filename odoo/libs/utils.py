@@ -90,22 +90,6 @@ def format_frame(frame: types.FrameType) -> str:
     return f"{code.co_name} {code.co_filename}:{frame.f_lineno}"
 
 
-# printf conversion grammar: %(name)[flags][width][.precision]conv.
-# Matching only the bare "%(name)conv" form left anything carrying a flag, width
-# or precision -- "%(amt).2f", "%(n)-10s" -- untouched in the output while its
-# argument still moved to the positional tuple, so the caller's later
-# interpolation blew up with a bare "format requires a mapping".
-# "%%" is matched first so an escaped percent is never mistaken for a conversion.
-#
-# The [hlL] length modifier and the SPACE flag are deliberately not accepted,
-# even though C printf (and Python's %-operator) allow both.  They are what let
-# the pattern swallow ordinary prose: with them, "%(x) here" parses as
-# space-flag + length 'h' + conversion 'e', and "%(user) said" as space-flag +
-# conversion 's' -- both silently rewriting text that was never a placeholder,
-# into a query, since the only caller is SQL().  Excluding them costs nothing:
-# every conversion is flattened to "%s" below, so a length modifier or a
-# space-pad-positive-numbers flag carries no information that survives anyway.
-# Anything left holding "%(" after substitution is reported, not rewritten.
 _NAMED_PRINTF_RE = re.compile(
     r"%%|%\(([^)]*)\)[-+#0]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[diouxXeEfFgGcrsab]"
 )
@@ -136,11 +120,6 @@ def named_to_positional_printf(string: str, args: Mapping[str, Any]) -> _PrintfA
     def _replace(match: re.Match[str]) -> str:
         if match[0] == "%%":
             return "%%"
-        # A name with no value stays a KeyError -- it is a failed mapping lookup,
-        # which is what both Python's own %-formatting and ``SQL``'s documented
-        # contract raise (``TestSQL.test_sql_with_wrong_pattern`` asserts it).
-        # Converting it to ValueError silently broke every caller catching
-        # KeyError, and buys nothing the key name in the message does not.
         values.append(args[match[1]])
         return "%s"
 
@@ -205,10 +184,5 @@ class replace_exceptions(ContextDecorator):
         """Raise the replacement when one of the caught exceptions occurred."""
         if exc_type is not None and issubclass(exc_type, self.exceptions):
             if isinstance(self.by, type):
-                # A replacement class: instantiate it with *all* the original
-                # args (the old code forwarded only args[0], dropping the rest).
                 raise self.by(*exc_value.args) from exc_value
-            # A replacement *instance* (the decorator pattern): raise a copy so a
-            # shared/reused instance is not mutated (its ``__traceback__`` /
-            # ``__context__``) and cross-contaminated between successive calls.
             raise copy.copy(self.by) from exc_value

@@ -16,14 +16,10 @@ class TestSqlRenderPercentEscaping(unittest.TestCase):
         self.assertEqual(sql.render(), "x LIKE 'a%%'")
 
     def test_params_keep_percent_escaped(self):
-        # The bug: this used to render "x LIKE 'a%' AND y = 1", disagreeing
-        # with the parameter-less branch above.
         sql = SQL("x LIKE 'a%%' AND y = %s", 1)
         self.assertEqual(sql.render(), "x LIKE 'a%%' AND y = 1")
 
     def test_percent_inside_inlined_param_is_escaped(self):
-        # A '%' arriving through a *value* needs the same escaping as one
-        # written in the code, else the round-trip below breaks.
         sql = SQL("y LIKE %s", "50%")
         self.assertEqual(sql.render(), "y LIKE '50%%'")
 
@@ -38,7 +34,6 @@ class TestSqlRenderPercentEscaping(unittest.TestCase):
         ):
             with self.subTest(code=sql.code):
                 rendered = sql.render()
-                # Must not raise "not enough arguments for format string".
                 self.assertEqual(SQL(rendered).code, rendered)
 
     def test_render_without_percent_is_unchanged(self):

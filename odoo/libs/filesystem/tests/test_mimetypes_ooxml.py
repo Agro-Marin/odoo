@@ -26,7 +26,6 @@ def _ooxml(dirname: str) -> bytes:
 
 class TestCheckOoxml(unittest.TestCase):
     def test_pptx_detected(self):
-        # Regression: the discriminant directory in a real .pptx is "ppt/".
         self.assertEqual(_check_ooxml(_ooxml("ppt/")), PPTX)
 
     def test_docx_detected(self):

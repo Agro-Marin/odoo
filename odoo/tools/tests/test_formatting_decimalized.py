@@ -18,10 +18,9 @@ class TestFormatDecimalizedNumber(unittest.TestCase):
         self.assertEqual(fdn(0.789), "0.8")
 
     def test_rounding_up_promotes_the_unit(self):
-        # Each of these used to render one unit too small.
-        self.assertEqual(fdn(999.99), "1k")  # was "1000"
-        self.assertEqual(fdn(999_999.9), "1M")  # was "1000k"
-        self.assertEqual(fdn(999_999_999.0), "1G")  # was "1000M"
+        self.assertEqual(fdn(999.99), "1k")
+        self.assertEqual(fdn(999_999.9), "1M")
+        self.assertEqual(fdn(999_999_999.0), "1G")
 
     def test_values_just_below_the_boundary_keep_their_unit(self):
         self.assertEqual(fdn(999.94), "999.9")
@@ -37,7 +36,6 @@ class TestFormatDecimalizedNumber(unittest.TestCase):
 
     def test_tera_is_the_cap(self):
         self.assertEqual(fdn(1e12), "1T")
-        # Beyond Tera we deliberately keep counting in T rather than growing units.
         self.assertEqual(fdn(1e15), "1000T")
 
     def test_decimal_argument_is_honoured(self):

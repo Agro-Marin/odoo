@@ -12,14 +12,13 @@ class TestLRU(unittest.TestCase):
             cache[i] = i
         cache.count = 3
         self.assertEqual(len(cache), 3)
-        # the three most-recently inserted keys survive
         self.assertEqual(sorted(cache.keys()), [7, 8, 9])
 
     def test_shrink_respects_recent_access(self):
         cache = LRU(5)
         for i in range(5):
             cache[i] = i
-        _ = cache[0]  # touch key 0 -> now most recently used
+        _ = cache[0]
         cache.count = 2
         self.assertEqual(len(cache), 2)
         self.assertIn(0, cache)
@@ -43,8 +42,6 @@ class TestLRURepr(unittest.TestCase):
         self.assertEqual(repr(lru), "LRU(count=4, size=0, gen=1)")
 
     def test_repr_does_not_leak_contents(self):
-        # entries are ormcache values: keys hold recordsets/contexts and values
-        # are large, so they must not be rendered into logs or a debugger pane
         lru = LRU(4, [("secret-key", "secret-value")])
         self.assertNotIn("secret", repr(lru))
 

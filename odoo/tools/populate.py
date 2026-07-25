@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Min/Max value for a date/datetime field
 MIN_DATETIME = datetime((datetime.now() - relativedelta(years=4)).year, 1, 1)
 MAX_DATETIME = datetime.now()
 
@@ -60,7 +59,6 @@ def get_field_variation_date(
 
     if not field.company_dependent:
         return redistribute(SQL.identifier(field.name))
-    # company_dependent -> jsonb
     return SQL(
         "(SELECT jsonb_object_agg(key, %(expr)s) FROM jsonb_each_text(%(field)s))",
         expr=redistribute(SQL("value::%s", cast_type)),
@@ -74,7 +72,6 @@ def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> 
         return SQL.identifier(field.name)
     if not isinstance(postfix, SQL):
         postfix = SQL.identifier(postfix)
-    # if the field is translatable, it's a JSONB column, we vary all values for each key
     if field.translate:
         return SQL(
             """(
@@ -85,7 +82,6 @@ def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> 
             postfix=postfix,
         )
     else:
-        # skip postfix for '' (pointless) and '/' (default/draft name on many models)
         return SQL(
             """
             CASE
@@ -132,9 +128,6 @@ class PopulateContext:
             try:
                 yield
             finally:
-                # Recreate indexes even if the body raised. On an aborted
-                # transaction the DROP was already undone (DDL is transactional)
-                # so recreation is redundant and would itself fail -- guard it.
                 _logger.info("Adding indexes back on table %s...", model._table)
                 for index in indexes:
                     with suppress(Exception):
@@ -151,10 +144,6 @@ class PopulateContext:
         try:
             model.env.cr.execute("SET session_replication_role TO replica")
         except InsufficientPrivilege:
-            # Only the SET can raise this -- NOT the body. The old code wrapped
-            # the yield too, so a body-raised InsufficientPrivilege reached this
-            # handler and yielded a second time -> "generator didn't stop after
-            # throw()".
             _logger.warning(
                 "Cannot ignore Fkey constraints during insertion due to "
                 "insufficient privileges for current pg_role. Retrying without "
@@ -168,9 +157,6 @@ class PopulateContext:
         try:
             yield
         finally:
-            # Restore FK checking even if the body raised, so a caught-and-
-            # continued caller can never keep inserting with checks off. Guarded:
-            # on an aborted transaction the rollback already discarded the SET.
             with suppress(Exception):
                 model.env.cr.execute("RESET session_replication_role")
 
@@ -206,7 +192,6 @@ def field_needs_variation(model: Model, field: Field) -> bool:
         )
         return model_.env.execute_query(query)[0][0]
 
-    # Many2one fields are not considered, as a name_search would resolve it to the _rec_names_search of the related model
     in_names_search = model._rec_names_search and field.name in model._rec_names_search
     in_name = model._rec_name and field.name == model._rec_name
     if (in_name or in_names_search) and field.type != "many2one":
@@ -231,7 +216,6 @@ def get_field_variation(
         case "date" | "datetime":
             return get_field_variation_date(model, field, factor, series_alias)
         case "html":
-            # For the sake of simplicity we don't vary html fields
             return SQL.identifier(field.name)
         case _:
             _logger.warning(
@@ -240,7 +224,6 @@ def get_field_variation(
                 field,
                 field.type,
             )
-            # fallback on a raw copy
             return SQL.identifier(field.name)
 
 
@@ -281,7 +264,7 @@ def populate_field(
 
     def copy_id():
         last_id = fetch_last_id(model)
-        populated[model] = last_id  # this adds the model in the populated dict
+        populated[model] = last_id
         return SQL(
             "id + %(last_id)s * %(series_alias)s",
             last_id=last_id,
@@ -289,10 +272,8 @@ def populate_field(
         )
 
     def copy_many2one(field_):
-        # if the comodel was previously populated, remap the many2one to the new copies
         if (comodel := model.env[field_.comodel_name]) in populated:
             comodel_max_id = populated[comodel]
-            # we use MOD() instead of %, because % cannot be correctly escaped, it's a limitation of the SQL wrapper
             return SQL(
                 "%(table_alias)s.%(field_name)s + %(comodel_max_id)s * (MOD(%(series_alias)s - 1, %(factor)s) + 1)",
                 table_alias=SQL.identifier(table_alias),
@@ -307,22 +288,14 @@ def populate_field(
         return copy_id()
     match field.type:
         case "one2many":
-            # nothing to copy: its value is implicitly read from the inverse Many2one
             return copy_noop()
         case "many2many":
-            # nothing to do: the m2m is copied when copying the relation table
             return copy_noop()
         case "many2one":
             return copy_many2one(field)
         case "many2one_reference":
-            # TODO: in the case of a reference field, there is no comodel,
-            #  but it's specified as the value of the field specified by model_field.
-            #  Not really sure how to handle this, as it involves reading the content pointed by model_field
-            #  to check on-the-fly if it's populated or not python-side, so for now we raw-copy it.
-            #  If we need to read on-the-fly, the populated structure needs to be in DB (via a new Model?)
             return copy(field)
         case "binary":
-            # copy only binary fields that are inlined in the table
             return copy(field) if not field.attachment else copy_noop()
         case _:
             return copy(field)
@@ -355,7 +328,6 @@ def populate_model(
     update_fields = []
     table_alias = "t"
     series_alias = "s"
-    # process all stored fields (that have a respective column); an 'id' field is processed first
     for _, field in sorted(model._fields.items(), key=lambda pair: pair[0] != "id"):
         if has_column(field):
             if field_needs_variation(model, field) and field.type in (
@@ -368,7 +340,6 @@ def populate_model(
             ):
                 dest_fields.append(SQL.identifier(field.name))
                 src_fields.append(src)
-    # Update char/text fields for existing rows, to allow re-entrance
     if update_fields:
         _logger.warning(
             "Renaming existing %s records to keep varied fields unique (%s): "
@@ -402,11 +373,7 @@ def populate_model(
         series_alias=SQL.identifier(series_alias),
     )
     model.env.cr.execute(query)
-    # normally copying the 'id' will set the model entry in the populated dict,
-    # but for the case of a table with no 'id' (ex: Many2many), we add manually,
-    # by reading the key and having the defaultdict do the insertion, with a default value of 0
     if populated[model]:
-        # in case we populated a model with an 'id', we update the sequence
         update_sequence(model)
 
 
@@ -415,25 +382,21 @@ class Many2oneFieldWrapper(Many2one):
 
     def __init__(self, model: Any, field_name: str, comodel_name: str) -> None:
         super().__init__(comodel_name)
-        self._setup_attrs__(model, field_name)  # setup most of the default attrs
+        self._setup_attrs__(model, field_name)
 
 
 class Many2manyModelWrapper:
     """Fake model wrapper for implicit M2M relation tables."""
 
     def __init__(self, env: Environment, field: Field) -> None:
-        self._name = (
-            field.relation
-        )  # a m2m doesn't have a _name, so we use the tablename
+        self._name = field.relation
         self._table = field.relation
         self._inherits = {}
         self.env = env
         self._rec_name = None
         self._rec_names_search = []
-        # if the field is inherited, the column attributes are defined on the base_field
         column1 = field.column1 or field.base_field.column1
         column2 = field.column2 or field.base_field.column2
-        # column1 refers to the model, while column2 refers to the comodel
         self._fields = {
             column1: Many2oneFieldWrapper(self, column1, field.model_name),
             column2: Many2oneFieldWrapper(self, column2, field.comodel_name),
@@ -457,11 +420,9 @@ def infer_many2many_model(
     A custom model is returned as-is; an implicit ORM-generated relation table
     is returned wrapped as a duck-typed fake model for the population algorithm.
     """
-    # check if the relation is an existing model
     for model_name, model_class in env.registry.items():
         if model_class._table == field.relation:
             return env[model_name]
-    # the relation is a relational table, return a wrapped version
     return Many2manyModelWrapper(env, field)
 
 
@@ -482,25 +443,18 @@ def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
     def process(model_):
         if model_ in populated:
             return
-        if not has_records(
-            model_
-        ):  # if there are no records, there is nothing to populate
+        if not has_records(model_):
             populated[model_] = 0
             return
 
-        # if the model has _inherits, the delegated models need to have been populated before the current one
         for model_name in model_._inherits:
             delegated = model_.env[model_name]
-            # A dependency pulled in this way inherits the factor of the model
-            # that depends on it (see module docstring); without this,
-            # populate_model would KeyError on the delegated model.
             model_factors.setdefault(delegated, model_factors[model_])
             process(delegated)
 
         with ctx.ignore_fkey_constraints(model_), ctx.ignore_indexes(model_):
             populate_model(model_, populated, model_factors, separator_code)
 
-        # models on the other end of X2many relation should also be populated (ex: to avoid SO with no SOL)
         for field in model_._fields.values():
             if field.store and field.copy:
                 match field.type:

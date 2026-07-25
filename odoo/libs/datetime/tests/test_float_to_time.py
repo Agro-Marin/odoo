@@ -12,8 +12,6 @@ class TestFloatToTime(unittest.TestCase):
         self.assertEqual(float_to_time(12.25), time(12, 15))
 
     def test_minute_carry_does_not_crash(self):
-        # 60 * 0.9999 rounds to 60 minutes; must carry to the next hour, not
-        # raise ValueError from time(h, 60).
         self.assertEqual(float_to_time(8.9999), time(9, 0))
 
     def test_carry_past_end_of_day(self):
@@ -42,7 +40,6 @@ class TestOutOfDomain(unittest.TestCase):
         self.assertIn("[0.0, 24.0]", str(ctx.exception))
 
     def test_small_negative(self):
-        # this one used to leak a *minute* error rather than an hour one
         with self.assertRaises(ValueError):
             float_to_time(-0.5)
 

@@ -70,7 +70,6 @@ class TestFormataddr:
         assert formataddr(("Jóhn Doe", "j@x.com")) == '"Jóhn Doe" <j@x.com>'
 
     def test_ascii_charset_base64_encodes_non_ascii_name(self):
-        # non-ASCII name under an ascii charset must be RFC-2047 b-encoded
         assert formataddr(("Jóhn", "j@x.com"), charset="ascii").startswith("=?utf-8?b?")
 
     @pytest.mark.parametrize(

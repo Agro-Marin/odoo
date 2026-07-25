@@ -33,8 +33,6 @@ class TestSetDigestStability(unittest.TestCase):
         )
 
     def test_insertion_order_does_not_change_digest(self):
-        # Two sets with the same members but built in different orders must hash
-        # identically (the property PYTHONHASHSEED randomization used to break).
         s1 = set()
         for e in ("alpha", "beta", "gamma", "delta", "epsilon"):
             s1.add(e)

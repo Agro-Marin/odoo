@@ -38,21 +38,8 @@ _lexer_log = get_asset_logger("lexer")
 
 _WORKER_SCRIPT = Path(__file__).parent / "js" / "esm_lexer_worker.mjs"
 
-# Per-request budget.  Lexing is sub-millisecond; the timeout only exists
-# so a wedged worker degrades to the regex path instead of pinning a
-# server worker.  Generous because the FIRST request also pays node
-# startup + WASM init.  This is a HARD wall-clock bound on the whole
-# request/response (see ``_write_all`` / ``_read_line``): neither the
-# stdin write nor the stdout read can exceed it, even against a worker
-# that stopped reading (full pipe) or emitted a partial line then wedged.
 _REQUEST_TIMEOUT_S = 10.0
 
-# After this many CONSECUTIVE failed requests the worker is disabled for
-# the process (regex fallback everywhere).  Without this a worker that is
-# present but broken (e.g. an incompatible node build that never answers)
-# would cost up to ``_REQUEST_TIMEOUT_S`` PER MODULE — minutes across a
-# large bundle.  A single wedged module now costs at most this many
-# timeouts once, then the whole process degrades to the fast regex path.
 _MAX_CONSECUTIVE_FAILURES = 2
 
 
@@ -79,7 +66,7 @@ class _LexerWorker:
         self._counter = 0
         self._disabled = False
         self._consec_failures = 0
-        self._inbuf = b""  # bytes read past the last response newline
+        self._inbuf = b""
         self._lock = threading.Lock()
 
     def _spawn(self) -> subprocess.Popen | None:
@@ -93,13 +80,7 @@ class _LexerWorker:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                # Binary + unbuffered: we frame line-delimited JSON
-                # ourselves over the raw fds so the I/O can be made
-                # non-blocking and deadline-bounded (a text-mode
-                # ``readline`` on a partial line blocks unbounded).
                 bufsize=0,
-                # node resolves ``es-module-lexer`` against the Odoo
-                # root's node_modules (same install that provides esbuild).
                 cwd=odoo_root,
             )
         except OSError:
@@ -112,10 +93,6 @@ class _LexerWorker:
 
     def close(self) -> None:
         """Shut down the worker from outside a request."""
-        # Takes ``_lock`` so ``_proc``/``_inbuf`` are never mutated under a
-        # concurrent :meth:`request` (which holds the lock for its whole lifecycle
-        # and uses the unlocked :meth:`_kill` on its own failure path — calling
-        # ``close`` there would self-deadlock).
         with self._lock:
             self._kill()
 
@@ -125,12 +102,6 @@ class _LexerWorker:
         if proc is not None:
             with contextlib.suppress(OSError):
                 proc.kill()
-            # Reap it: an unwaited-for killed child lingers as a zombie, which
-            # still shows up in `psutil.Process().children()` — so the test
-            # suite's leftover-child audit kept reporting it as a leak even
-            # once it was dead. SIGKILL is not catchable, so this cannot block
-            # for long; the timeout only guards a pathological uninterruptible
-            # state.
             with contextlib.suppress(subprocess.TimeoutExpired, OSError):
                 proc.wait(timeout=5)
 
@@ -155,7 +126,7 @@ class _LexerWorker:
                 written = os.write(fd, view)
             except BlockingIOError:
                 continue
-            except OSError as exc:  # BrokenPipeError et al. — worker gone
+            except OSError as exc:
                 raise EOFError("lexer worker closed stdin") from exc
             view = view[written:]
 
@@ -194,9 +165,6 @@ class _LexerWorker:
         if self._disabled or os.name != "posix":
             return None
         with self._lock:
-            # One respawn per request: a worker killed mid-request (OOM,
-            # operator) recovers transparently.  A spawn failure (no node /
-            # OSError) disables immediately — the environment cannot run it.
             for _attempt in range(2):
                 proc = self._proc
                 if proc is None or proc.poll() is not None:
@@ -239,12 +207,8 @@ class _LexerWorker:
                     if disabled:
                         return None
                     continue
-                # Success resets the consecutive-failure streak.
                 self._consec_failures = 0
                 if not response.get("ok"):
-                    # The SOURCE doesn't lex (syntax error) — a per-module
-                    # condition, not a worker failure.  Fall back for this
-                    # module only; the worker stays up.
                     log_event(
                         _lexer_log,
                         logging.DEBUG,
@@ -262,18 +226,12 @@ _cleanup_registered = False
 
 def _register_worker_cleanup() -> None:
     """Register :func:`close_lexer_worker` for interpreter exit and server stop."""
-    global _cleanup_registered  # noqa: PLW0603  # one-shot lazy registration
+    global _cleanup_registered
     if _cleanup_registered:
         return
     _cleanup_registered = True
-    # Mirrors ``sass_embedded.get_sass_compiler``: ``atexit`` covers plain
-    # interpreter exit; ``CommonServer.on_stop`` hooks run before the server's
-    # lingering-child check, so the worker is stopped by its owner during a
-    # graceful stop instead of tripping the "process may hang" warning.
     atexit.register(close_lexer_worker)
     try:
-        # Lazy import: this tool sits below ``odoo.service``, and the hook is
-        # only needed when a server is running.
         from odoo.service.server import CommonServer
 
         CommonServer.on_stop(close_lexer_worker)

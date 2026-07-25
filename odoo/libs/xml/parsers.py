@@ -34,12 +34,8 @@ from lxml import etree, objectify
 
 __all__ = ["default_parser"]
 
-# Applies to every ``etree.fromstring`` / ``etree.parse`` that does not pass an
-# explicit parser.
 etree.set_default_parser(etree.XMLParser(resolve_entities=False, decompress=False))
 
-# The objectify default parser additionally strips ignorable whitespace and
-# returns objectify elements.  Same hardening.
 default_parser = etree.XMLParser(
     resolve_entities=False, remove_blank_text=True, decompress=False
 )

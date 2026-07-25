@@ -1,4 +1,3 @@
-# ignore import not at top of the file
 import ast
 import logging
 import os
@@ -8,9 +7,6 @@ orig_literal_eval = ast.literal_eval
 
 
 def literal_eval(expr: str | bytes | ast.AST) -> object:
-    # limit the size of the expression to avoid segmentation faults
-    # the default limit is set to 100KiB
-    # can be overridden by setting the ODOO_LIMIT_LITEVAL_BUFFER environment variable
 
     buffer_size = 102400
     buffer_size_env = os.getenv("ODOO_LIMIT_LITEVAL_BUFFER")
@@ -31,4 +27,4 @@ def literal_eval(expr: str | bytes | ast.AST) -> object:
 
 
 def patch_module() -> None:
-    ast.literal_eval = literal_eval  # type: ignore[assignment]
+    ast.literal_eval = literal_eval

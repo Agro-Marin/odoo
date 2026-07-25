@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-# Copyright (c) 2005-2010 ActiveState Software Inc.
-# Copyright (c) 2013 Eddy Petrișor
 
 """Utilities for determining application-specific dirs.
 
 See <http://github.com/ActiveState/appdirs> for details and usage.
 """
-
-# Dev Notes:
-# - MSDN on where to store app data files:
-#   http://support.microsoft.com/default.aspx?scid=kb;en-us;310294#XSLTH3194121123120121120120
-# - Mac OS X: http://developer.apple.com/documentation/MacOSX/Conceptual/BPFileSystem/index.html
-# - XDG spec for Un*x: http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
 __all__ = [
     "AppDirs",
@@ -140,8 +132,6 @@ def site_data_dir(
         if appname:
             path = str(Path(path, appname))
     else:
-        # XDG default for $XDG_DATA_DIRS
-        # only first, if multipath is False
         path = os.getenv(
             "XDG_DATA_DIRS", os.pathsep.join(["/usr/local/share", "/usr/share"])
         )
@@ -256,8 +246,6 @@ def site_config_dir(
         if appname and version:
             path = str(Path(path, version))
     else:
-        # XDG default for $XDG_CONFIG_DIRS
-        # only first, if multipath is False
         path = os.getenv("XDG_CONFIG_DIRS", "/etc/xdg")
         pathlist = [
             str(Path(x.rstrip(os.sep)).expanduser()) for x in path.split(os.pathsep)
@@ -461,9 +449,6 @@ class AppDirs:
         return user_log_dir(self.appname, self.appauthor, version=self.version)
 
 
-# ---- internal support stuff
-
-
 def _get_win_folder_from_registry(csidl_name: str) -> str:
     """Read the shell folder for ``csidl_name`` from the Windows registry.
 
@@ -490,14 +475,9 @@ def _get_win_folder_with_pywin32(csidl_name: str) -> str:
     from win32com.shell import shell, shellcon
 
     folder = shell.SHGetFolderPath(0, getattr(shellcon, csidl_name), 0, 0)
-    # Try to make this a unicode path because SHGetFolderPath does
-    # not return unicode strings when there is unicode data in the
-    # path.
     try:
         folder = str(folder)
 
-        # Downgrade to short path name if have highbit chars. See
-        # <http://bugs.activestate.com/show_bug.cgi?id=85099>.
         has_high_char = False
         for c in folder:
             if ord(c) > 255:
@@ -527,8 +507,6 @@ def _get_win_folder_with_ctypes(csidl_name: str) -> str:
     buf = ctypes.create_unicode_buffer(1024)
     ctypes.windll.shell32.SHGetFolderPathW(None, csidl_const, None, 0, buf)
 
-    # Downgrade to short path name if have highbit chars. See
-    # <http://bugs.activestate.com/show_bug.cgi?id=85099>.
     has_high_char = False
     for c in buf:
         if ord(c) > 255:
@@ -544,19 +522,17 @@ def _get_win_folder_with_ctypes(csidl_name: str) -> str:
 
 if sys.platform == "win32":
     try:
-        import win32com.shell  # noqa: F401
+        import win32com.shell
 
         _get_win_folder = _get_win_folder_with_pywin32
     except ImportError:
         try:
-            import ctypes  # noqa: F401
+            import ctypes
 
             _get_win_folder = _get_win_folder_with_ctypes
         except ImportError:
             _get_win_folder = _get_win_folder_from_registry
 
-
-# ---- self test code
 
 if __name__ == "__main__":
     appname = "MyApp"

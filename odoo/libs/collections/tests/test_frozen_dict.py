@@ -59,8 +59,6 @@ class TestFrozendictCopyAndPickle(unittest.TestCase):
         self.assertEqual(dict(clone), {"a": 1})
 
     def test_deepcopy_recurses_into_mutable_values(self):
-        # frozendict is only shallowly immutable; a deep copy must not alias
-        # the nested mutable value.
         fd = frozendict({"a": [1, 2]})
         clone = copy.deepcopy(fd)
         self.assertEqual(clone["a"], [1, 2])
@@ -74,9 +72,7 @@ class TestFrozendictCopyAndPickle(unittest.TestCase):
 
     def test_pickle_roundtrip(self):
         fd = frozendict({"a": 1, "b": "two"})
-        # S301 is suppressed below: this round-trips a value the test just
-        # serialized itself, so there is no untrusted input anywhere near it.
-        restored = pickle.loads(pickle.dumps(fd))  # noqa: S301
+        restored = pickle.loads(pickle.dumps(fd))
         self.assertIsInstance(restored, frozendict)
         self.assertEqual(dict(restored), {"a": 1, "b": "two"})
 
@@ -88,11 +84,9 @@ class TestFrozendictCopyAndPickle(unittest.TestCase):
     def test_copy_preserves_hash(self):
         fd = frozendict({"a": 1, "b": 2})
         self.assertEqual(hash(copy.deepcopy(fd)), hash(fd))
-        self.assertEqual(hash(pickle.loads(pickle.dumps(fd))), hash(fd))  # noqa: S301
+        self.assertEqual(hash(pickle.loads(pickle.dumps(fd))), hash(fd))
 
     def test_nested_in_a_deepcopied_structure(self):
-        # The realistic shape: something copies a container that happens to
-        # hold a frozendict (e.g. an Environment context).
         payload = {"ctx": frozendict({"lang": "en_US"}), "other": [1]}
         clone = copy.deepcopy(payload)
         self.assertIsInstance(clone["ctx"], frozendict)

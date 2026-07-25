@@ -12,7 +12,7 @@ __all__ = [
     "to_prefetch_ids",
 ]
 
-from odoo_rust import (  # type: ignore[import-untyped]
+from odoo_rust import (
     batch_cache_fill,
     batch_cache_filter,
     batch_cache_get,
@@ -23,7 +23,4 @@ from odoo_rust import (  # type: ignore[import-untyped]
     to_prefetch_ids,
 )
 
-# scalar_cache_get always uses the Python implementation: the hit path (3 dict
-# subscripts) compiles to C-level PyDict_GetItem via BINARY_SUBSCR and beats the
-# PyO3 call-boundary overhead (~35ns); the batch ops amortize that over N items.
-from ._fallback import scalar_cache_get  # type: ignore[assignment]
+from ._fallback import scalar_cache_get

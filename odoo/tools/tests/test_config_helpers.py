@@ -7,8 +7,6 @@ from odoo.tools.config import _deduplicate_loggers
 
 class TestDeduplicateLoggers(unittest.TestCase):
     def test_skips_malformed_token_without_colon(self):
-        # a bare logger name (no ``:level``) must be skipped, not crash the whole
-        # config load/save with a ValueError from dict().
         self.assertEqual(list(_deduplicate_loggers(["werkzeug"])), [])
 
     def test_dedup_last_value_wins(self):
