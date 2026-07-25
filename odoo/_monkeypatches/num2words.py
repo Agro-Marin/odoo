@@ -90,9 +90,6 @@ class Num2Word_BG:
         if value is None:
             return ""
         if isinstance(value, float):
-            # ``_split_number``/``_show_digits_group`` operate on integer digit
-            # groups; a non-integer float would crash (``len(float)``). Bulgarian
-            # fractional rendering is not implemented (as for ``to_currency``).
             if value.is_integer():
                 value = int(value)
             else:
@@ -141,9 +138,9 @@ class Num2Word_BG:
         and_state: list[bool] | None = None,
     ) -> str:
         num = int(num)
-        e = num % 10  # ones
-        d = (num - e) % 100 // 10  # tens
-        s = (num - d * 10 - e) % 1000 // 100  # hundreds
+        e = num % 10
+        d = (num - e) % 100 // 10
+        s = (num - d * 10 - e) % 1000 // 100
         ret = [None] * 6
 
         if s:
@@ -189,9 +186,6 @@ class Num2Word_BG:
         return self._sep.join(self._discard_empties(ret))
 
     def _to_words(self, num: int | float = 0) -> str:
-        # Per-conversion state kept in a local holder (not on ``self``): the
-        # converter instance is shared across threads via CONVERTER_CLASSES, so
-        # instance state would race under the threaded server.
         and_state = [False]
         num_groups = self._split_number(abs(num) if num < 0 else num)
         sizeof_num_groups = len(num_groups)

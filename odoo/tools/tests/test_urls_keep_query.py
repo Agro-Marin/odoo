@@ -18,7 +18,6 @@ import types
 import unittest
 from unittest import mock
 
-# Stand in for ``odoo.http`` before importing the module under test.
 if "odoo.http" not in sys.modules:
     _http_stub = types.ModuleType("odoo.http")
     _http_stub.request = None
@@ -58,7 +57,9 @@ class TestKeepQuery(unittest.TestCase):
         self.assertNotIn("b=", self._keep({"a": "1", "b": "2"}, "a"))
 
     def test_glob_pattern(self):
-        out = self._keep({"shop_page": "2", "shop_sort": "name", "other": "x"}, "shop_*")
+        out = self._keep(
+            {"shop_page": "2", "shop_sort": "name", "other": "x"}, "shop_*"
+        )
         self.assertEqual(sorted(out.split("&")), ["shop_page=2", "shop_sort=name"])
 
     def test_glob_is_fnmatch_not_a_prefix(self):

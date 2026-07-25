@@ -13,10 +13,9 @@ from base64 import b64decode, b64encode
 
 __all__ = ["CryptContext", "pbkdf2_sha512_hash"]
 
-# Default PBKDF2 parameters matching passlib defaults
 _DEFAULT_ROUNDS = 600_000
-_SALT_SIZE = 16  # 16 bytes = 128 bits
-_HASH_SIZE = 64  # SHA-512 digest = 64 bytes
+_SALT_SIZE = 16
+_HASH_SIZE = 64
 _MCF_RE = re.compile(r"^\$pbkdf2-sha512\$(\d+)\$([^$]+)\$([^$]+)$")
 
 
@@ -35,7 +34,7 @@ def _ab64_decode(data: str) -> bytes:
     module writes.
     """
     b = data.replace(".", "+").encode("ascii")
-    b += b"=" * (-len(b) % 4)  # restore padding
+    b += b"=" * (-len(b) % 4)
     return b64decode(b)
 
 
@@ -69,7 +68,7 @@ def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
         return None
     try:
         return int(m.group(1)), _ab64_decode(m.group(2)), _ab64_decode(m.group(3))
-    except (binascii.Error, ValueError):
+    except binascii.Error, ValueError:
         return None
 
 
@@ -94,6 +93,18 @@ class CryptContext:
         _autoload: bool = True,
         **kwargs: object,
     ) -> None:
+        """Build a context over the given schemes.
+
+        :param schemes: accepted schemes, most preferred first; the head is the
+            primary scheme used by :meth:`hash`. Defaults to ``pbkdf2_sha512``.
+        :param deprecated: schemes whose hashes :meth:`verify_and_update` should
+            flag for rehashing. The sentinel ``"auto"`` deprecates every scheme
+            except the primary one.
+        :param _autoload: accepted for passlib API compatibility and ignored;
+            there are no backend handlers to load.
+        :param kwargs: passlib-style options. Only ``pbkdf2_sha512__rounds`` is
+            honoured; any other key is ignored.
+        """
         self._schemes = list(schemes) if schemes else ["pbkdf2_sha512"]
         self._deprecated = set(deprecated) if deprecated else set()
         self._rounds = kwargs.get("pbkdf2_sha512__rounds", _DEFAULT_ROUNDS)
@@ -110,15 +121,7 @@ class CryptContext:
             actual = _pbkdf2_sha512(password, salt, rounds)
             return hmac.compare_digest(actual, expected)
         if self.identify(hash_str) == "pbkdf2_sha512":
-            # MCF-shaped but unparseable (see :func:`_parse_hash`).  Fail closed
-            # instead of falling through to the plaintext comparison below: that
-            # branch exists for values that were never hashed (legacy plaintext
-            # passwords), and applying it to a *damaged hash* makes the stored
-            # hash string itself a working password.  ``identify`` is the exact
-            # discriminator -- it is the same "$pbkdf2-sha512$" prefix test that
-            # ``verify_and_update`` already uses to pick a scheme.
             return False
-        # plaintext fallback
         if "plaintext" in self._schemes:
             return hmac.compare_digest(
                 password.encode("utf-8"), hash_str.encode("utf-8")
@@ -139,16 +142,13 @@ class CryptContext:
         needs_update = False
         scheme = self.identify(hash_str)
 
-        # Check if scheme is deprecated
         if self._deprecated:
             if "auto" in self._deprecated:
-                # 'auto' means everything except the primary scheme is deprecated
                 if scheme != self._schemes[0]:
                     needs_update = True
             elif scheme in self._deprecated:
                 needs_update = True
 
-        # Check if rounds need updating (only for pbkdf2_sha512)
         if scheme == "pbkdf2_sha512" and not needs_update:
             parsed = _parse_hash(hash_str)
             if parsed and parsed[0] != self._rounds:

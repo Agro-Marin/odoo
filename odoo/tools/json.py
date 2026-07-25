@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 import dataclasses
 from datetime import date, datetime
 
@@ -70,17 +69,6 @@ def orjson_default(obj: object) -> object:
         return obj.decode()
     if isinstance(obj, fields.Domain):
         return list(obj)
-    # Support dataclasses (accounting reports return dataclass instances for
-    # line/column rows so the web client gets plain dicts). Keep the check
-    # narrow: a bare ``getattr(obj, 'as_dict', None)`` was too broad —
-    # ``unittest.mock`` auto-generates any attribute, so a MagicMock from a
-    # patched method makes ``getattr`` return a callable that orjson invokes
-    # and recurses into indefinitely (see
-    # ``test_http.test_webjson2_url_params_vs_body_params``:
-    # ``TypeError: default serializer exceeds recursion limit``).
-    # ``dataclasses.is_dataclass`` is False on MagicMock; the
-    # ``not isinstance(obj, type)`` guard excludes the dataclass class itself
-    # (vs an instance).
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return dataclasses.asdict(obj)
     return str(obj)

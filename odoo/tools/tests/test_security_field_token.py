@@ -38,7 +38,7 @@ class _FakeRecord:
     def ensure_one(self):
         return self
 
-    def __call__(self, su=False):  # record.env(su=True)
+    def __call__(self, su=False):
         return _FakeEnv()
 
     @property
@@ -60,7 +60,6 @@ class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
         self.assertTrue(self._verify(token))
 
     def test_non_ascii_token_returns_false(self):
-        # Was: TypeError out of hmac.compare_digest -> HTTP 500.
         self.assertIs(self._verify("é"), False)
         self.assertIs(self._verify("deadbeefo1f4é"), False)
 
@@ -71,11 +70,9 @@ class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
         self.assertIs(self._verify("deadbeef"), False)
 
     def test_out_of_range_timestamp_returns_false(self):
-        # int(..., 16) succeeds, datetime.fromtimestamp() cannot represent it.
         self.assertIs(self._verify("deadbeefo" + "f" * 32), False)
 
     def test_non_string_token_returns_false(self):
-        # A JSON body / websocket payload can carry null, an int, or a list.
         for token in (None, 123, [], {}, b"deadbeefo1f4"):
             with self.subTest(token=token):
                 self.assertIs(self._verify(token), False)
@@ -93,7 +90,6 @@ class TestVerifyLimitedFieldAccessToken(unittest.TestCase):
         )
 
     def test_expired_token_returns_false(self):
-        # hex timestamp in the past -> signature matches, expiry check fails.
         token = limited_field_access_token(
             self.record, "image_128", hex(1), scope="binary"
         )

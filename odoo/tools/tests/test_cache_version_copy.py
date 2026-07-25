@@ -47,7 +47,7 @@ class TestVersionedDoesNotMutateSource(unittest.TestCase):
             return dict(payload)
 
         v1 = method(None, {"x": 1, "y": 2})["__version"]
-        v2 = method(None, {"y": 2, "x": 1})["__version"]  # key order differs
+        v2 = method(None, {"y": 2, "x": 1})["__version"]
         self.assertEqual(v1, v2, "digest must be insertion-order invariant")
 
 

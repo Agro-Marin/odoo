@@ -24,7 +24,6 @@ if typing.TYPE_CHECKING:
     from odoo.api import Environment
     from odoo.orm._typing import BaseModel
 
-# Constant-time string comparison (prevents timing attacks)
 consteq = hmac_lib.compare_digest
 
 
@@ -50,11 +49,6 @@ def hmac(
 
     secret = env["ir.config_parameter"].get_param("database.secret")
     if not secret:
-        # ``get_param`` returns False when the parameter is absent; an empty
-        # string would key the HMAC with an empty secret. Fail closed with a
-        # clear configuration error rather than raising AttributeError on
-        # ``False.encode()`` mid-verification (this underlies token checks
-        # reached from unauthenticated routes).
         raise ValueError(
             "The 'database.secret' configuration parameter is missing or empty; "
             "cannot compute a secure HMAC."
@@ -197,7 +191,7 @@ def limited_field_access_token(
     record.ensure_one()
     if not timestamp:
         unique_str = repr((record._name, record.id, field_name))
-        two_weeks = 1209600  # 2 * 7 * 24 * 60 * 60
+        two_weeks = 1209600
         start_of_period = int(time.time()) // two_weeks * two_weeks
         adler32_max = 4294967295
         jitter = two_weeks * zlib.adler32(unique_str.encode()) // adler32_max
@@ -234,17 +228,12 @@ def verify_limited_field_access_token(
     malformed value is a verification failure returning ``False``, never an
     exception.  Same contract as :func:`verify_hash_signed`.
     """
-    # ``consteq`` is ``hmac.compare_digest``, which raises TypeError on a str
-    # holding non-ASCII characters; ``rsplit``/``int`` require a str at all.
-    # Reject both before they can reach those calls: an unauthenticated
-    # ``GET /web/content?...&access_token=%C3%A9`` used to return HTTP 500.
     if not isinstance(access_token, str) or not access_token.isascii():
         return False
     *_, timestamp = access_token.rsplit("o", 1)
     try:
         expiration = datetime.datetime.fromtimestamp(int(timestamp, 16))
     except ValueError, OverflowError, OSError:
-        # not hexadecimal, or outside the platform's representable date range
         return False
     return (
         consteq(

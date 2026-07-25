@@ -22,18 +22,18 @@ class TestUrljoinTraversalBlocked:
             "./x",
             "a/../../x",
             "a/./b/../c",
-            "%2e%2e/x",  # single-encoded
-            "%252e%252e/x",  # double-encoded (proxy decodes twice)
+            "%2e%2e/x",
+            "%252e%252e/x",
             "..%2f..%2fetc",
-            "..\\..\\x",  # backslash separators
+            "..\\..\\x",
             "a\\..\\..\\etc",
-            "..;/x",  # ';' path-parameter bypass (Tomcat/Spring)
+            "..;/x",
             "a/..;/x",
             "%2e%2e;/x",
-            "..%00/x",  # NUL-truncation bypass
+            "..%00/x",
             "..%00;junk/x",
-            "..%01/x",  # other control byte
-            "%252e%252e%3bx/y",  # double-encoded '..' + ';' param
+            "..%01/x",
+            "%252e%252e%3bx/y",
         ],
     )
     def test_blocked(self, extra):
@@ -47,10 +47,10 @@ class TestUrljoinNoFalsePositives:
         [
             ("c", "https://api.example.com/v1/c"),
             ("sub/path", "https://api.example.com/v1/sub/path"),
-            ("..foo/bar", "https://api.example.com/v1/..foo/bar"),  # literal '..foo'
-            ("....//x", "https://api.example.com/v1/..../x"),  # literal '....'
+            ("..foo/bar", "https://api.example.com/v1/..foo/bar"),
+            ("....//x", "https://api.example.com/v1/..../x"),
             (".hidden", "https://api.example.com/v1/.hidden"),
-            ("file;v=1", "https://api.example.com/v1/file;v=1"),  # real path-param
+            ("file;v=1", "https://api.example.com/v1/file;v=1"),
             (
                 "a;jsessionid=xyz/b",
                 "https://api.example.com/v1/a;jsessionid=xyz/b",
@@ -68,8 +68,8 @@ class TestUrljoinHostSchemeOverride:
         [
             "http://evil.com/",
             "https://evil.com/x",
-            "//evil.com/x",  # protocol-relative host override
-            "https://api.example.com/other",  # right host, wrong base path
+            "//evil.com/x",
+            "https://api.example.com/other",
             "https:evil",
             "javascript:alert(1)",
         ],
@@ -85,9 +85,6 @@ class TestUrljoinHostSchemeOverride:
         )
 
     def test_backslash_host_is_neutralized_to_subpath(self):
-        # ``\\evil.com/x`` is NOT a host override: urlsplit keeps it in the path,
-        # and the leading-backslash strip turns it into an ordinary sub-path
-        # under the trusted base (never ``//evil.com``).
         assert (
             urljoin(BASE, "\\\\evil.com/x") == "https://api.example.com/v1/evil.com/x"
         )
@@ -95,7 +92,6 @@ class TestUrljoinHostSchemeOverride:
 
 class TestUrljoinQueryFragment:
     def test_query_and_fragment_taken_from_extra_only(self):
-        # base query/fragment are dropped; extra's are kept
         assert urljoin("https://h/p/?base#bf", "sub?x=1#f2") == "https://h/p/sub?x=1#f2"
 
     def test_query_only_extra(self):
@@ -118,12 +114,12 @@ class TestSegmentCore:
         ("segment", "core"),
         [
             ("..", ".."),
-            ("..;foo", ".."),  # path-parameter stripped
-            ("..\x00x", ".."),  # NUL-truncated
-            ("..\x7f", ".."),  # DEL-truncated
-            ("..\x01y", ".."),  # control-truncated
-            ("v1.2;beta", "v1.2"),  # real param on a non-dot segment
-            ("..foo", "..foo"),  # not a traversal
+            ("..;foo", ".."),
+            ("..\x00x", ".."),
+            ("..\x7f", ".."),
+            ("..\x01y", ".."),
+            ("v1.2;beta", "v1.2"),
+            ("..foo", "..foo"),
             ("file", "file"),
         ],
     )

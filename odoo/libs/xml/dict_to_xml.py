@@ -1,37 +1,48 @@
+"""Render a Python dict as an XML tree.
+
+Used by the e-invoicing exporters (UBL/CII and the localizations built on them)
+to build a document from a nested dict rather than a template, so the node
+order can be pinned by a separate template dict.
+"""
+
 from lxml import etree
 
-from odoo.tools.xml_utils import remove_control_characters
+from .utils import remove_control_characters
 
 
 def dict_to_xml(
-    node, *, nsmap=None, template=None, render_empty_nodes=False, tag=None, path=None
-):
+    node: dict,
+    *,
+    nsmap: dict | None = None,
+    template: dict | None = None,
+    render_empty_nodes: bool = False,
+    tag: str | None = None,
+    path: str | None = None,
+) -> etree._Element | None:
     """Render a Python dict as an XML node.
 
-    The dict is expected to be of the form:
-    {
-        # Special keys:
-        '_tag': 'tag_name',  # '_tag' is rendered as the node's tag
-        '_text': 'content',  # '_text' is rendered as the node's text content
-        '_dummy': 'dummy_value',  # Keys starting with '_' are not rendered
+    The dict is expected to be of the form::
 
-        # Simple values are rendered as attributes
-        'attribute_name': 'attribute_value',
-
-        # Dicts are rendered as child nodes
-        'child_tag': {
-            '_text': 'content',
-            'attribute_name': 'attribute_value',
-        },
-
-        # Lists of dicts are also rendered as child nodes
-        'child_tag': [
-            {
-                '_text': 'content',
-                'attribute_name': 'attribute_value',
+        {
+            # Special keys:
+            "_tag": "tag_name",  # '_tag' is rendered as the node's tag
+            "_text": "content",  # '_text' is rendered as the node's text content
+            "_dummy": "dummy_value",  # Keys starting with '_' are not rendered
+            # Simple values are rendered as attributes
+            "attribute_name": "attribute_value",
+            # Dicts are rendered as child nodes
+            "child_tag": {
+                "_text": "content",
+                "attribute_name": "attribute_value",
             },
-        ],
-    }
+            # Lists of dicts are also rendered as child nodes
+            "child_tag": [
+                {
+                    "_text": "content",
+                    "attribute_name": "attribute_value",
+                },
+            ],
+        }
 
     :param node: The Python dict to render.
     :param nsmap: (optional) A dict of namespaces to be used for rendering the node.
@@ -42,11 +53,10 @@ def dict_to_xml(
     :return: The rendered XML node as an lxml.Element, or None if the node is empty and render_empty_nodes is False.
     :raise ValueError: if no tag can be determined, or if a non-empty child node is missing from the template.
     """
-
     if nsmap is None:
         nsmap = {}
 
-    def convert_tag_to_lxml_convention(tag):
+    def convert_tag_to_lxml_convention(tag: str) -> str:
         if ":" in tag:
             namespace, local_name = tag.split(":", 1)
             if namespace in nsmap:
@@ -54,7 +64,6 @@ def dict_to_xml(
         return tag
 
     if template is not None:
-        # Ensure order of keys
         node = dict.fromkeys(template) | node
 
     tag = node.get("_tag") or (template or {}).get("_tag", tag)
@@ -67,7 +76,6 @@ def dict_to_xml(
 
     element = etree.Element(convert_tag_to_lxml_convention(tag), nsmap=nsmap)
 
-    # Add attributes
     for attr_name, attr_value in node.items():
         if (
             not attr_name.startswith("_")
@@ -77,12 +85,10 @@ def dict_to_xml(
         ):
             element.set(convert_tag_to_lxml_convention(attr_name), str(attr_value))
 
-    # Add text content if present
     text = node.get("_text")
     if text is not None and text is not False:
         element.text = remove_control_characters(str(text).encode()).decode()
 
-    # Add child nodes
     for child_tag, child in node.items():
         if not child_tag.startswith("_") and isinstance(child, (dict, list)):
             child_template = (template or {}).get(child_tag)
@@ -90,7 +96,6 @@ def dict_to_xml(
             if isinstance(child, dict):
                 child = [child]
 
-            # child is a list (of dicts)
             for sub_child in child:
                 if sub_child is not None:
                     child_element = dict_to_xml(
@@ -105,7 +110,6 @@ def dict_to_xml(
                         element.append(child_element)
                         child_is_empty = False
 
-            # Check that all non-empty child nodes are defined in the template
             if (
                 template is not None
                 and child_tag not in template

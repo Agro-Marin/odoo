@@ -34,10 +34,6 @@ class Collector[K, T](dict[K, tuple[T, ...]]):
 
     def discard_keys_and_values(self, excludes: Iterable[K]) -> None:
         """Drop the given keys, and remove their values wherever they occur."""
-        # Materialize first: ``excludes`` is consumed twice below, so a generator
-        # would be exhausted by the key pass and silently purge no values at all.
-        # A set also turns the per-value membership test from O(len(excludes))
-        # into O(1) -- it runs once per value of every remaining key.
         excluded = frozenset(excludes)
         for key in excluded:
             self.pop(key, None)
@@ -83,9 +79,6 @@ class StackMap[K, T](MutableMapping[K, T]):
 
     def __len__(self) -> int:
         """Return the number of distinct keys across all mappings."""
-        # Count the de-duplicated set directly.  ``sum(1 for key in self)`` built
-        # exactly the same set via ``__iter__`` and then threw away its length to
-        # re-count it one element at a time through a Python-level generator.
         return len({key for mapping in self._maps for key in mapping})
 
     def __str__(self) -> str:

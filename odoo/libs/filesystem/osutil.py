@@ -70,21 +70,16 @@ def zip_dir(
     stream: IO[bytes],
     include_dir: bool = True,
     fnct_sort: Callable | None = None,
-) -> None:  # TODO add ignore list
+) -> None:
     """Write the files under ``path`` into ``stream`` as a ZIP archive.
 
+    :param include_dir: whether archive members are prefixed with ``path``'s own
+        directory name; when ``False`` they are relative to ``path`` itself
     :param fnct_sort: function passed to the ``key`` parameter of the built-in
         python ``sorted()`` to control the order of files inside the ZIP archive
     """
     path = str(Path(path))
-    # Resolve the archive root once so we can keep every written file scoped to
-    # it: a symlink under ``path`` pointing outside the tree must not leak files
-    # from elsewhere on disk into the archive (upstream odoo/odoo f2e121db77af).
     dir_root_path = os.path.realpath(path)
-    # Length of the parent-dir prefix to strip from each stored name. Use
-    # rpartition, not ``Path.parent``: the latter yields "." (len 1) for a bare
-    # relative name like "pkg", over-counting by one and chopping the first two
-    # chars off every archived member name.
     parent = path.rpartition(os.sep)[0] if include_dir else path
     len_prefix = len(parent)
     if len_prefix:
@@ -101,9 +96,11 @@ def zip_dir(
                 if ext not in [".pyc", ".pyo", ".swp", ".DS_Store"]:
                     fpath = str(Path(dirpath, fname))
                     real_fpath = os.path.realpath(fpath)
-                    if Path(real_fpath).is_file() and os.path.commonpath(
-                        [dir_root_path, real_fpath]
-                    ) == dir_root_path:
+                    if (
+                        Path(real_fpath).is_file()
+                        and os.path.commonpath([dir_root_path, real_fpath])
+                        == dir_root_path
+                    ):
                         zipf.write(real_fpath, fpath[len_prefix:])
 
 
@@ -130,6 +127,7 @@ else:
         process id to this process's parent. ``service_name`` is supplied by the
         caller (e.g. ``odoo.release``), keeping this module dependency-free.
         """
+
         @contextmanager
         def close_srv(srv: Any) -> Iterator[Any]:
             try:

@@ -7,8 +7,6 @@ from odoo.libs.barcode import check_barcode_encoding
 
 class TestCheckBarcodeEncoding(unittest.TestCase):
     def test_empty_value_does_not_raise(self):
-        # an empty EAN field reaches this from the report barcode widget; it must
-        # return False, not IndexError on barcode[0].
         self.assertFalse(check_barcode_encoding("", "ean13"))
         self.assertFalse(check_barcode_encoding("", "ean8"))
 

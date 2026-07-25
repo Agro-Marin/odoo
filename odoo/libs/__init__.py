@@ -23,7 +23,6 @@ Subpackages:
     - xml: XML utilities (remove_control_characters, create_xml_node, etc.)
 """
 
-# Collections
 from .collections import (
     OrderedSet,
     LastOrderedSet,
@@ -38,7 +37,6 @@ from .collections import (
     submap,
 )
 
-# Iteration
 from .iteration import (
     groupby,
     unique,
@@ -50,7 +48,6 @@ from .iteration import (
     split_every,
 )
 
-# Text
 from .text import (
     remove_accents,
     human_size,
@@ -61,7 +58,6 @@ from .text import (
     get_flag,
 )
 
-# Utils
 from .utils import (
     discardattr,
     is_list_of,
@@ -78,19 +74,16 @@ __all__ = [
     "ConstantMapping",
     "DotDict",
     "LastOrderedSet",
-    # Collections
     "OrderedSet",
     "ReadonlyDict",
     "ReversedIterable",
     "Sentinel",
     "StackMap",
-    # Utils
     "discardattr",
     "format_frame",
     "freehash",
     "frozendict",
     "get_flag",
-    # Iteration
     "groupby",
     "has_list_types",
     "human_size",
@@ -99,7 +92,6 @@ __all__ = [
     "mod10r",
     "named_to_positional_printf",
     "partition",
-    # Text
     "remove_accents",
     "replace_exceptions",
     "split_every",

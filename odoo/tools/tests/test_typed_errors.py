@@ -33,12 +33,11 @@ class TestImageErrorsAreTypedAndSubclassValueError(unittest.TestCase):
         with self.assertRaises(ImageDecodeError):
             binary_to_image(b"not an image")
         with self.assertRaises(ImageDecodeError):
-            base64_to_image(b"////")  # decodes to bytes, not an image
+            base64_to_image(b"////")
         with self.assertRaises(ImageDecodeError):
             LibImageProcess(b"not an image at all")
 
     def test_backward_compatible_except_valueerror(self):
-        # Existing callers that only know ``except ValueError`` still catch it.
         with self.assertRaises(ValueError):
             binary_to_image(b"nope")
 
@@ -47,9 +46,6 @@ class TestImageErrorsAreTypedAndSubclassValueError(unittest.TestCase):
             get_webp_size(b"this is clearly not a RIFF/WEBP header")
 
     def test_too_large_image_raises_typed_error(self):
-        # Fabricate a huge logical size without allocating pixels: a 1x1 PNG
-        # whose reported dimensions we can't easily fake here, so assert the type
-        # is wired by checking the class is raisable and typed instead.
         self.assertTrue(issubclass(ImageTooLargeError, ImageError))
 
 

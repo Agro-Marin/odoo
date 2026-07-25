@@ -13,13 +13,10 @@ class TestMuteLogger(unittest.TestCase):
         original_handlers = logger.handlers
         original_propagate = logger.propagate
         muter = mute_logger(name)
-        # reuse the same instance nested (as a recursive decorator would)
         with muter:
             with muter:
                 self.assertEqual(logger.handlers, [muter])
-            # still muted inside the outer block
             self.assertEqual(logger.handlers, [muter])
-        # fully restored after the outer block
         self.assertIs(logger.handlers, original_handlers)
         self.assertEqual(logger.propagate, original_propagate)
 
@@ -32,7 +29,7 @@ class TestLowerLogging(unittest.TestCase):
         sink.emit = records.append
         root = logging.getLogger()
         old_level = root.level
-        root.setLevel(logging.INFO)  # so the lowered record clears the threshold
+        root.setLevel(logging.INFO)
         root.addHandler(sink)
         try:
             with lower_logging(logging.WARNING, logging.INFO) as ll:
@@ -44,7 +41,6 @@ class TestLowerLogging(unittest.TestCase):
         finally:
             root.removeHandler(sink)
             root.setLevel(old_level)
-        # the LogRecord class hierarchy must be untouched (no __bases__ graft)
         self.assertEqual(logging.LogRecord.__bases__, base)
 
 

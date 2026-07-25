@@ -80,26 +80,14 @@ class EsmRegistry(NamedTuple):
     dynamic_children: Mapping
     import_map_includes: Mapping
     secondary_import_map_includes: Mapping
-    # Flat sets for O(1) membership checks — derived from the mappings.
     dynamic_bundle_names: frozenset
     import_map_included_bundles: frozenset
-    # Reverse of ``secondary_import_map_includes``: ``{child: (parent, ...)}``.
-    # A secondary/test bundle (``web.assets_tests``) needs its parents to
-    # compute the specifiers it must alias to an ``odoo.loader.modules`` shim
-    # rather than inline (the intersection of the parents' native specifiers).
-    # Built here so the ir_qweb bridge layer never inverts the mapping per render.
     secondary_parents: Mapping = MappingProxyType({})
-    # Flat set of every secondary child — O(1) "is this a secondary bundle?".
     secondary_bundle_names: frozenset = frozenset()
-    # Bundles compiled WITHOUT the page-context glue (no ``@odoo/owl``
-    # external import, no ``odoo.loader.registerNativeModules`` trailer):
-    # self-contained artifacts for non-page runtimes such as web workers,
-    # where neither an import map nor the ``odoo`` global exists.
     standalone_bundles: frozenset = frozenset()
 
 
 _lock = threading.Lock()
-# Single-slot cache holder (avoids ``global`` rebinding; see PLW0603).
 _cache: list = [None]
 
 
@@ -142,8 +130,6 @@ def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) ->
 
 def _build() -> EsmRegistry:
     """Aggregate every addon manifest's ``esm`` declaration and validate."""
-    # Late import: ``odoo.modules`` pulls server config machinery that
-    # ``odoo.libs`` modules must not require at import time.
     from odoo.modules import Manifest
 
     bundles: set = set()
@@ -305,9 +291,6 @@ def validate_esm_config(
                 f"includes of parent {parent!r}: {sorted(shared)}"
             )
 
-    # Flattened CHILD sets: a standalone bundle must not appear as anyone's
-    # dynamic child or (secondary) import-map include — those relationships
-    # assume a page with an import map and ``odoo.loader``.
     related_children = {
         child
         for mapping in (

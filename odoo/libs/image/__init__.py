@@ -8,18 +8,14 @@ usage with UserError, use odoo.tools.image instead.
 """
 
 from .utils import (
-    # Constants
     FILETYPE_BASE64_MAGICWORD,
     EXIF_TAG_ORIENTATION,
     IMAGE_MAX_RESOLUTION,
-    # Exceptions (all subclass ValueError)
     ImageError,
     ImageDecodeError,
     ImageTooLargeError,
     NotWebpError,
-    # Classes
     ImageProcess,
-    # Functions
     image_fix_orientation,
     image_apply_opt,
     image_to_base64,
@@ -35,10 +31,8 @@ from .utils import (
 
 __all__ = [
     "EXIF_TAG_ORIENTATION",
-    # Constants
     "FILETYPE_BASE64_MAGICWORD",
     "IMAGE_MAX_RESOLUTION",
-    # Exceptions and classes
     "ImageDecodeError",
     "ImageError",
     "ImageProcess",
@@ -50,7 +44,6 @@ __all__ = [
     "get_webp_size",
     "image_apply_opt",
     "image_data_uri",
-    # Functions
     "image_fix_orientation",
     "image_guess_size_from_field_name",
     "image_process",

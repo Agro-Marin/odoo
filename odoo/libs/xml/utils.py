@@ -8,24 +8,11 @@ from lxml import etree
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-# Complement of the XML 1.0 ``Char`` production, expressed directly over UTF-8
-# *bytes* (the input is bytes, and re-encoding it just to run a str pattern
-# would cost a decode/encode round trip per document).
-#
-# This used to be written as a unicode character class that was then
-# ``.encode()``d -- which does not survive the translation: the multi-byte
-# sequences of ``\u0020-\ud7ff`` etc. were re-read as individual byte ranges,
-# collapsing the whole class to roughly "\t\n\r plus \x20-\xf4". The result
-# happened to strip C0 controls (the common case) but let U+FFFE and U+FFFF
-# through -- and those are exactly what ``etree.fromstring`` rejects with
-# "PCDATA invalid Char value 65534", i.e. the error this function exists to
-# prevent. It also never stripped #x7F, contrary to the old docstring; #x7F is
-# a legal XML Char, so the code was right and the docstring wrong.
 _CONTROL_CHAR_RE = re.compile(
-    rb"[\x00-\x08\x0b\x0c\x0e-\x1f]"  # C0 controls except TAB, LF, CR
-    rb"|\xef\xbf[\xbe\xbf]"  # U+FFFE, U+FFFF
-    rb"|\xed[\xa0-\xbf][\x80-\xbf]"  # surrogates U+D800-U+DFFF (WTF-8 input)
-    rb"|[\xf5-\xff]"  # bytes that cannot start a valid UTF-8 sequence
+    rb"[\x00-\x08\x0b\x0c\x0e-\x1f]"
+    rb"|\xef\xbf[\xbe\xbf]"
+    rb"|\xed[\xa0-\xbf][\x80-\xbf]"
+    rb"|[\xf5-\xff]"
 )
 
 

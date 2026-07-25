@@ -112,23 +112,17 @@ def reverse_order(order: str) -> str:
         'coalesce(a, b) asc, name desc'
     """
     items = []
-    # top-level commas only: a naive split(",") breaks "coalesce(a, b) desc"
     for item in _split_order_items(order):
         tokens = item.split()
         if not tokens:
-            # tolerate "id," / "a,,b" rather than raising IndexError
             continue
 
-        # Trailing NULLS FIRST|LAST, if present, is the last two tokens.
         nulls = ""
         if len(tokens) >= 3 and tokens[-2].lower() == "nulls":
             nulls = " nulls first" if tokens[-1].lower() == "last" else " nulls last"
             tokens = tokens[:-2]
 
-        # SQL defaults to ASC, so a column with no direction keyword reverses
-        # to DESC.
         direction = "asc" if tokens[-1].lower() == "desc" else "desc"
-        # only strip a trailing direction keyword; keep the expression verbatim
         if tokens[-1].lower() in ("asc", "desc"):
             tokens = tokens[:-1]
         if not tokens:
@@ -154,14 +148,8 @@ def make_identifier(identifier: str) -> str:
         >>> len(make_identifier('a' * 100))
         63
     """
-    # PostgreSQL's NAMEDATALEN-1 limit counts BYTES, not characters, and
-    # silently truncates beyond it -- so measuring with len() let a non-ASCII
-    # identifier through at up to 4x the real budget, defeating the very
-    # collision avoidance this function exists for.
     encoded = identifier.encode()
     if len(encoded) > 63:
-        # 54 bytes + "_" + 8 hex digits = 63; cut on a character boundary so the
-        # prefix stays valid UTF-8 (may land under 54 bytes, which is fine).
         prefix = encoded[:54].decode(errors="ignore")
         return f"{prefix}_{crc32(encoded):08x}"
     return identifier

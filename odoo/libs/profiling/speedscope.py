@@ -10,11 +10,8 @@ shortener = reprlib.Repr()
 shortener.maxstring = 150
 shorten = shortener.repr
 
-# A frame tuple: (method_name, file_or_call_site, line_number_or_empty[, source_line])
 type _Frame = tuple[Any, ...]
-# A profile entry dict with keys like "stack", "start", "time", "query", etc.
 type _Entry = dict[str, Any]
-# A speedscope event dict with keys "type", "frame", "at"
 type _Event = dict[str, Any]
 
 
@@ -200,12 +197,13 @@ class Speedscope:
 
         :param stack: A list of hashable frame
         :param context: an iterable of (level, value) ordered by level
+        :param aggregate_sql: blank each frame's file component so frames
+            differing only by query text collapse into one
         :param stack_offset: offset level for stack
         """
         stack_ids = []
         context_iterator = iter(context or ())
         context_level, context_value = next(context_iterator, (None, None))
-        # consume iterator until we are over stack_offset
         while context_level is not None and context_level < stack_offset:
             context_level, context_value = next(context_iterator, (None, None))
         for level, frame in enumerate(stack, start=stack_offset + 1):
@@ -233,7 +231,6 @@ class Speedscope:
         **params: Any,
     ) -> list[_Event]:
         """Turn ``entries`` into a list of speedscope open/close events."""
-        # constant_time hides timing to focus on SQL determinism
         entry_end = previous_end = None
         if not entries:
             return []
@@ -241,7 +238,6 @@ class Speedscope:
         current_stack_ids = []
         frames_start = entries[0]["start"]
 
-        # add last closing entry if missing
         last_entry = entries[-1]
         if last_entry["stack"]:
             entries.append(
@@ -262,7 +258,6 @@ class Speedscope:
                     entry_start = entry["start"] - frames_start
 
                 if previous_end and previous_end > entry_start:
-                    # skip entry if entry starts after another entry end
                     continue
 
                 if previous_end:

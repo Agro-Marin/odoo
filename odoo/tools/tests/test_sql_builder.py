@@ -22,8 +22,6 @@ class TestSqlTupleExpansion(unittest.TestCase):
         self.assertEqual(tuple(sql.params), (1, 2, 3))
 
     def test_sql_element_in_tuple_is_spliced_not_leaked(self):
-        # a nested SQL object inside a tuple must splice into the code, not leak
-        # into params where psycopg cannot adapt it (fails at execute otherwise)
         sql = SQL("x IN %s", (SQL("SELECT 1"), 2))
         self.assertEqual(sql.code, "x IN (SELECT 1, %s)")
         self.assertEqual(tuple(sql.params), (2,))
@@ -45,8 +43,6 @@ class TestSqlTupleExpansion(unittest.TestCase):
 
 class TestSqlIdentifierValidation(unittest.TestCase):
     def test_identifier_rejects_trailing_newline(self):
-        # IDENT_RE is ``\Z``-anchored: ``$`` would also match before a trailing
-        # newline, letting ``"col\n"`` validate and reach SQL unquoted.
         with self.assertRaises(ValueError):
             SQL.identifier("col\n")
 
@@ -84,7 +80,7 @@ class TestSqlInlined(unittest.TestCase):
     """``SQL.inlined()`` embeds bound params as literals."""
 
     class _Cursor:
-        _cnx = None  # psycopg's Literal.as_string accepts a None context
+        _cnx = None
 
     def test_preserves_to_flush(self):
         field = object()
@@ -95,8 +91,6 @@ class TestSqlInlined(unittest.TestCase):
         self.assertEqual(tuple(inlined.to_flush), (field,))
 
     def test_percent_escape_survives(self):
-        # Pre-escaped ``%%`` is kept verbatim; a raw ``code % params`` would
-        # collapse the escape or crash on it.
         sql = SQL("x LIKE 'a%%' AND y = %s", 5)
         inlined = sql.inlined(self._Cursor())
         self.assertEqual(inlined.code, "x LIKE 'a%%' AND y = 5")
@@ -105,8 +99,6 @@ class TestSqlInlined(unittest.TestCase):
     def test_literal_containing_percent_is_reescaped(self):
         sql = SQL("y = %s", "50% 'off'")
         inlined = sql.inlined(self._Cursor())
-        # The quoted literal's own % is re-escaped so the result stays a valid
-        # printf-style code string (collapses to a single % at execution).
         self.assertEqual(inlined.code, "y = '50%% ''off'''")
         self.assertEqual(inlined.params, ())
 

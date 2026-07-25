@@ -20,7 +20,6 @@ class TestOrmcacheContext(unittest.TestCase):
             def method(self, a, context=None):
                 return a
 
-            # Regression: this used to raise AttributeError: no attribute 'keys'.
             wrapped = decorator(method)
 
         self.assertTrue(hasattr(wrapped, "__cache__"))
@@ -36,7 +35,6 @@ class TestOrmcacheContext(unittest.TestCase):
 
             decorator(method)
 
-        # The context lookup expression must reference the requested keys.
         self.assertTrue(any("lang" in str(arg) for arg in decorator.args))
 
 

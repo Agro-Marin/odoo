@@ -78,7 +78,6 @@ class TestIntervalsSemantics(unittest.TestCase):
         )
 
     def test_degenerate_intervals_dropped(self):
-        # zero-length intervals contribute no boundaries at all
         self.assertEqual(self._plain([(4, 4, {"a"}), (1, 2, {"b"})]), [(1, 2, ["b"])])
 
     def test_inverted_interval_dropped(self):
@@ -147,8 +146,6 @@ class TestPayloadParticipatesInOrdering(unittest.TestCase):
     """
 
     def test_cross_model_payload_is_rejected(self):
-        # Whichever comes first -- the sort or the union -- mixing models in one
-        # Intervals is not supported.
         with self.assertRaises(TypeError):
             Intervals(
                 [(0, 10, Recordset("a", [1])), (0, 5, Recordset("b", [2]))],
@@ -161,7 +158,6 @@ class TestPayloadParticipatesInOrdering(unittest.TestCase):
             left | right
 
     def test_single_model_tied_boundaries_are_fine(self):
-        # Within one model the payload comparison is meaningless but harmless.
         result = Intervals(
             [(0, 10, Recordset("a", [1])), (0, 5, Recordset("a", [2]))],
         )

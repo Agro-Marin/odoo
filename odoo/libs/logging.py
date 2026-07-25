@@ -66,11 +66,6 @@ class mute_logger(logging.Handler):
         """
         super().__init__()
         self.loggers: tuple[str, ...] = loggers
-        # Stack of saved states, one frame per active __enter__.  A single
-        # instance is reused as a decorator, so a recursive or nested call
-        # re-enters it; keeping only one ``old_params`` dict recorded the
-        # already-muted state as the "original" and left the logger muted
-        # forever on exit.  A stack restores each frame to what it saved.
         self._saved: list[dict[str, tuple[list[logging.Handler], bool]]] = []
 
     def __enter__(self) -> None:
@@ -133,13 +128,6 @@ class lower_logging(logging.Handler):
         :param to_level: Level to reduce high logs to (default: same as max_level)
         """
         super().__init__()
-        # A stack, for the same reason as `mute_logger`: one instance may be
-        # re-entered before its outer __exit__ runs. With a single slot the
-        # inner enter overwrote the saved state with the *already-installed*
-        # handler list (``[self]``), so the outer exit left the root logger
-        # permanently hijacked -- and `emit` forwarding to ``[self]`` would
-        # recurse. `old_handlers` reads the OUTERMOST frame, which is the only
-        # one that cannot contain `self`.
         self._saved: list[tuple[list[logging.Handler], bool]] = []
         self.had_error_log: bool = False
         self.max_level: int = max_level
@@ -154,8 +142,6 @@ class lower_logging(logging.Handler):
         """Install this handler on the root logger and start capturing."""
         logger = logging.getLogger()
         if not self._saved:
-            # only the outermost entry starts a fresh capture, so a nested block
-            # cannot erase an error already recorded by the enclosing one
             self.had_error_log = False
         self._saved.append((logger.handlers[:], logger.propagate))
         logger.propagate = False
@@ -182,11 +168,6 @@ class lower_logging(logging.Handler):
             record.levelname = f"_{record.levelname}"
             record.levelno = self.to_level
             self.had_error_log = True
-            # Tag the traceback header on this record only.  The old approach
-            # reassigned ``record.__class__`` to a subclass whose ``__bases__``
-            # were grafted process-globally to the first lowered record's class
-            # (never restored, racy, and clobbering records of any other class).
-            # Render the message now and rewrite it in place instead.
             record.msg = record.getMessage().replace(
                 "Traceback (most recent call last):",
                 "_Traceback_ (most recent call last):",
@@ -196,7 +177,4 @@ class lower_logging(logging.Handler):
         if logging.getLogger(record.name).isEnabledFor(record.levelno):
             for handler in self.old_handlers:
                 if record.levelno >= handler.level:
-                    # handle() (not emit()) so the handler's lock and filters
-                    # apply — prevents interleaved lines from the threaded
-                    # dev server logging concurrently during a test.
                     handler.handle(record)

@@ -39,7 +39,6 @@ __all__ = [
     "html_escape",
     "html_keep_url",
     "html_normalize",
-    # HTML utilities
     "html_sanitize",
     "html_to_inner_content",
     "human_size",

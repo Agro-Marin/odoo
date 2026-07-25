@@ -72,39 +72,25 @@ class Query:
     )
 
     def __init__(self, env: object, alias: str, table: SQL | None = None) -> None:
-        # model environment
         self._env = env
 
         self._tables: dict[str, SQL] = {
             alias: table if table is not None else SQL.identifier(alias),
         }
 
-        # joins {alias: (kind(SQL), table(SQL), condition(SQL))}
         self._joins: dict[str, tuple[SQL, SQL, SQL]] = {}
 
-        # holds the list of WHERE conditions (to be joined with 'AND')
         self._where_clauses: list[SQL] = []
 
-        # groupby, having, order, limit, offset
         self._groupby: SQL | None = None
         self._order_groupby: list[SQL] = []
-        # When True, _order_field_to_sql wraps ORDER BY columns in
-        # ANY_VALUE() (PG16+) instead of appending to _order_groupby.
-        # Set by _read_group_orderby to avoid adding functionally-dependent
-        # columns (e.g., partner.name when grouped by partner_id) to GROUP BY.
         self._any_value_orderby: bool = False
-        # When True, _order_field_to_sql may collect ORDER BY columns into
-        # _order_groupby (the GROUP BY fallback consumed by the read_group
-        # layer). Set by _read_group_orderby around its _order_to_sql call;
-        # plain (ungrouped) searches leave it False so ordered searches don't
-        # grow a list nobody consumes.
         self._collect_order_groupby: bool = False
         self._having: SQL | None = None
         self._order: SQL | None = None
         self._limit: int | None = None
         self._offset: int | None = None
 
-        # memoized result
         self._ids: tuple[int, ...] | None = None
 
     def _invalidate_ids(self) -> None:
@@ -151,9 +137,7 @@ class Query:
 
     def add_where(self, where_clause: str | SQL, where_params: tuple = ()) -> None:
         """Add a condition to the where clause."""
-        self._where_clauses.append(
-            SQL(where_clause, *where_params)  # pylint: disable=sql-injection
-        )
+        self._where_clauses.append(SQL(where_clause, *where_params))
         self._invalidate_ids()
 
     def join(
@@ -220,34 +204,13 @@ class Query:
         self.add_join("LEFT JOIN", rhs_alias, rhs_table, condition)
         return rhs_alias
 
-    # ------------------------------------------------------------------
-    # Shape attributes.
-    #
-    # ``groupby``/``having``/``limit``/``offset``/``order`` all change what the
-    # query returns, so every one of them invalidates the memoized ``_ids`` --
-    # exactly like ``add_table``/``add_join``/``add_where`` already did.  They
-    # used to be plain slots (only ``order`` had a property, and only to coerce
-    # a ``str``), which left the class with two classes of mutator: three that
-    # invalidated and four that silently did not.
-    #
-    # That asymmetry is reachable.  ``_as_query()`` materializes ``_ids`` via
-    # ``set_result_ids``, and ``BaseModel.try_lock_for_update`` then assigns
-    # ``query.limit`` to that already-memoized query.  It survives only because
-    # it happens to call ``select()``, which reads the live ``limit``; the memo
-    # consumers -- ``subselect()`` (which substitutes the raw id tuple for the
-    # sub-query), ``get_result_ids()``, ``__len__``, ``__iter__``, ``__bool__``
-    # -- would all have ignored the LIMIT and returned the unbounded set.
-    # ------------------------------------------------------------------
-
     @property
     def order(self) -> SQL | None:
         return self._order
 
     @order.setter
     def order(self, value: SQL | str | None):
-        self._order = (
-            SQL(value) if value is not None else None  # pylint: disable=sql-injection
-        )
+        self._order = SQL(value) if value is not None else None
         self._invalidate_ids()
 
     @property
@@ -337,25 +300,17 @@ class Query:
         when possible and wrap the query in parentheses.
         """
         if self.groupby or self.having:
-            # subselect() rebuilds only SELECT/FROM/WHERE and would silently
-            # drop GROUP BY/HAVING, returning ungrouped ids. Use select() (which
-            # keeps them) or count_matching() instead.
             raise ValueError(
                 "Query.subselect() does not support groupby/having; "
                 "use select() or count_matching()"
             )
 
         if self._ids is not None and not args:
-            # inject the known result instead of the subquery
             if not self._ids:
-                # in case we have nothing, we want to use a sub_query with no records
-                # because an empty tuple leads to a syntax error
-                # and a tuple containing just None creates issues for `NOT IN`
                 return SQL("(SELECT 1 WHERE FALSE)")
             return SQL("%s", self._ids)
 
         if self.limit or self.offset:
-            # in this case, the ORDER BY clause is necessary
             return SQL("(%s)", self.select(*args))
 
         sql_args = map(SQL, args) if args else [SQL.identifier(self.table, "id")]
@@ -387,13 +342,6 @@ class Query:
         if not ids:
             self.add_where("FALSE")
         elif ordered:
-            # This guarantees that self.select() returns the results in the
-            # expected order of ids:
-            #   SELECT "stuff".id
-            #   FROM "stuff"
-            #   JOIN (SELECT * FROM unnest(%s) WITH ORDINALITY) AS "stuff__ids"
-            #       ON ("stuff"."id" = "stuff__ids"."unnest")
-            #   ORDER BY "stuff__ids"."ordinality"
             alias = self.join(
                 self.table,
                 "id",
@@ -418,9 +366,6 @@ class Query:
     def __len__(self) -> int:
         if self._ids is None:
             if self.limit or self.offset or self.groupby or self.having:
-                # Wrap in a subquery so grouping/limits are counted as rows.
-                # A bare ``SELECT COUNT(*) ... GROUP BY`` would return one count
-                # per group and [0][0] would take only the first group's size.
                 sql = SQL("SELECT COUNT(*) FROM (%s) t", self.select(""))
             else:
                 sql = self.select("COUNT(*)")
@@ -436,7 +381,6 @@ class Query:
         optionally caps the count.
         """
         if self.groupby or self.having or limit:
-            # Need subquery wrapper for GROUP BY / HAVING / LIMIT
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:
                 parts.append(SQL(" WHERE %s", self.where_clause))

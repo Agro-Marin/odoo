@@ -43,7 +43,6 @@ class OrderedSet[T](MutableSet[T]):
 
     def difference_update(self, elems: Iterable[T]) -> None:
         """Remove all elements of ``elems`` from the set."""
-        # inline discard to avoid method dispatch per element
         _pop = self._map.pop
         for elem in elems:
             _pop(elem, None)
@@ -55,8 +54,6 @@ class OrderedSet[T](MutableSet[T]):
     def intersection(self, *others: Iterable[T]) -> OrderedSet[T]:
         """Return a new set with the elements common to this set and all ``others``."""
         if not others:
-            # reduce() would hand back ``self`` untouched; return a copy so the
-            # documented "new set" contract holds and the result is not aliased.
             return self.copy()
         return reduce(OrderedSet.__and__, others, self)
 
@@ -96,7 +93,5 @@ class LastOrderedSet[T](OrderedSet[T]):
         contradicted both ``add`` and ``|=`` (which routes through ``add``) on
         the very invariant this class exists for.
         """
-        # Delegate to ``add`` rather than reimplementing the move-to-end dance,
-        # so the invariant stays defined in exactly one place.
         for elem in elems:
             self.add(elem)

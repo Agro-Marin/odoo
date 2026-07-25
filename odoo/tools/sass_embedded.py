@@ -20,7 +20,7 @@ from subprocess import PIPE, Popen
 from typing import Self
 
 import odoo
-from odoo.tools.embedded_sass_pb2 import (
+from odoo.libs._vendor.embedded_sass_pb2 import (
     COMPRESSED,
     CSS,
     EXPANDED,
@@ -32,11 +32,6 @@ from odoo.tools.embedded_sass_pb2 import (
 
 _logger = logging.getLogger(__name__)
 
-# Wall-clock ceiling for a single compile. Generous (large bundles are slow),
-# but bounded: without it a wedged dart-sass would block the stdin/stdout I/O
-# forever WHILE HOLDING the client lock, freezing every SCSS compile in the
-# process. On timeout the subprocess is killed so the blocked I/O fails, the
-# client reaps it, and the caller falls back to the CLI compiler.
 _COMPILE_TIMEOUT_S = 120.0
 
 
@@ -71,11 +66,6 @@ class SassNotFoundError(SassProtocolError):
     """
 
 
-# ---------------------------------------------------------------------------
-# Varint helpers (protobuf wire format)
-# ---------------------------------------------------------------------------
-
-
 def _encode_varint(value: int) -> bytes:
     """Encode an unsigned integer as a protobuf varint."""
     parts = []
@@ -104,11 +94,6 @@ def _read_varint(stream: object) -> int | None:
             raise SassProtocolError(msg)
 
 
-# ---------------------------------------------------------------------------
-# Sass Importer interface
-# ---------------------------------------------------------------------------
-
-
 class SassImporter:
     """Base class for custom Sass importers."""
 
@@ -119,11 +104,6 @@ class SassImporter:
     def load(self, canonical_url: str) -> tuple[str, str] | None:
         """Return (contents, syntax) for a canonical URL, or None."""
         raise NotImplementedError
-
-
-# ---------------------------------------------------------------------------
-# Binary discovery
-# ---------------------------------------------------------------------------
 
 
 def _supports_embedded(sass_path: str) -> bool:
@@ -154,7 +134,7 @@ def _supports_embedded(sass_path: str) -> bool:
             stdout=PIPE,
             stderr=subprocess.STDOUT,
             timeout=10,
-            check=False,  # non-zero exit is a probe result, not an error
+            check=False,
         )
     except OSError, subprocess.SubprocessError:
         return False
@@ -184,23 +164,13 @@ def find_sass() -> str | None:
     system_sass = shutil.which("sass")
     if system_sass:
         candidates.append(system_sass)
-    # Sorted for determinism across the (possibly several) per-platform
-    # ``sass-embedded-<os>-<arch>`` packages npm may have unpacked.
     candidates += sorted(
         str(p) for p in node_modules.glob("sass-embedded-*/dart-sass/sass")
     )
     for candidate in candidates:
         if _supports_embedded(candidate):
             return candidate
-    # No embedded-capable binary: fall back to the pure-JS ``sass`` CLI (no
-    # ``--embedded``; the embedded layer degrades to the per-bundle CLI path),
-    # or, failing that, whatever system ``sass`` we found so SCSS still compiles.
     return shutil.which("sass", path=str(node_modules / ".bin")) or system_sass
-
-
-# ---------------------------------------------------------------------------
-# Embedded Sass Compiler
-# ---------------------------------------------------------------------------
 
 
 class SassEmbeddedCompiler:
@@ -233,9 +203,6 @@ class SassEmbeddedCompiler:
 
     def _start(self) -> None:
         """Spawn the ``sass --embedded`` subprocess."""
-        # Also restart when the process died since last use (e.g. killed by the
-        # compile watchdog, or crashed between compiles): a dead process must not
-        # be reused or every subsequent compile would fail on a broken pipe.
         if self._started and self._process is not None and self._process.poll() is None:
             return
         self._started = False
@@ -255,23 +222,18 @@ class SassEmbeddedCompiler:
                 [sass_path, "--embedded"],
                 stdin=PIPE,
                 stdout=PIPE,
-                # DEVNULL, not PIPE: nothing drains stderr during a compile,
-                # so a compiler flooding it past the ~64 KB pipe buffer would
-                # block while holding the client lock. The embedded protocol
-                # routes warnings/debug via stdout log events anyway.
                 stderr=subprocess.DEVNULL,
             )
         except OSError as e:
             raise SassProtocolError(f"Could not start sass --embedded: {e}") from e
 
-        # Verify the process started successfully
         if self._process.poll() is not None:
             proc = self._process
             self._process = None
             for pipe in (proc.stdin, proc.stdout):
                 with contextlib.suppress(OSError):
                     pipe.close()
-            proc.wait()  # reap the zombie
+            proc.wait()
             raise SassProtocolError(
                 f"sass --embedded exited immediately with code {proc.returncode}"
             )
@@ -295,14 +257,12 @@ class SassEmbeddedCompiler:
             msg = "Unexpected EOF from sass --embedded"
             raise SassProtocolError(msg)
 
-        # Read the full payload
         payload = self._process.stdout.read(length)
         if len(payload) != length:
             raise SassProtocolError(
                 f"Short read: expected {length} bytes, got {len(payload)}"
             )
 
-        # Parse compilation_id from the beginning of payload
         idx = 0
         compilation_id = 0
         shift = 0
@@ -368,9 +328,6 @@ class SassEmbeddedCompiler:
             self._compilation_id += 1
             compilation_id = self._compilation_id
 
-            # Watchdog: kill the subprocess if this compile blocks past the
-            # deadline (see _COMPILE_TIMEOUT_S), so a wedged dart-sass cannot
-            # hold self._lock — and thus every other SCSS compile — forever.
             watchdog = threading.Timer(
                 _COMPILE_TIMEOUT_S, _kill_wedged_sass, (self._process,)
             )
@@ -391,12 +348,6 @@ class SassEmbeddedCompiler:
             except SassCompileError:
                 raise
             except Exception:
-                # Process crashed or was killed by the watchdog mid-communication
-                # — close to reap the zombie process, then re-raise so the caller
-                # can react (the embedded → CLI fallback in
-                # ``SassStylesheetAsset.compile`` handles a transient
-                # embedded-protocol failure; a missing binary raises
-                # ``SassNotFoundError`` from ``_start`` and never reaches here).
                 self.close()
                 raise
             finally:
@@ -415,7 +366,6 @@ class SassEmbeddedCompiler:
         url: str,
     ) -> str:
         """Execute a single compilation request/response cycle."""
-        # Build the CompileRequest
         syntax_enum = {"scss": SCSS, "indented": INDENTED, "css": CSS}.get(syntax, SCSS)
         style_enum = COMPRESSED if style == "compressed" else EXPANDED
 
@@ -433,11 +383,10 @@ class SassEmbeddedCompiler:
         compile_req.source_map = source_map
         compile_req.quiet_deps = quiet_deps
 
-        # Build importer list: custom importers first, then load paths
         importer_id_map = {}
         for i, imp in enumerate(importers):
             importer_msg = compile_req.importers.add()
-            importer_id = i + 1  # IDs start at 1
+            importer_id = i + 1
             importer_msg.importer_id = importer_id
             importer_id_map[importer_id] = imp
 
@@ -445,11 +394,9 @@ class SassEmbeddedCompiler:
             importer_msg = compile_req.importers.add()
             importer_msg.path = path
 
-        # Serialize and send
         msg_bytes = request.SerializeToString()
         self._send_packet(compilation_id, msg_bytes)
 
-        # Process responses until we get a CompileResponse
         while True:
             recv_cid, recv_bytes = self._recv_packet()
             outbound = OutboundMessage()
@@ -457,9 +404,6 @@ class SassEmbeddedCompiler:
 
             msg_type = outbound.WhichOneof("message")
 
-            # Desync tripwire: under strict one-compile-at-a-time use every
-            # packet must carry the id we sent. ProtocolError packets are
-            # exempt — the spec allows them under a reserved wire id.
             if recv_cid != compilation_id and msg_type != "error":
                 raise SassProtocolError(
                     f"sass --embedded desynchronized: sent compilation id "
@@ -481,11 +425,9 @@ class SassEmbeddedCompiler:
 
             elif msg_type == "log_event":
                 event = outbound.log_event
-                if event.type == 2:  # DEBUG
+                if event.type == 2:
                     _logger.debug("Sass debug: %s", event.message)
                 else:
-                    # WARNING or DEPRECATION_WARNING — log at debug level
-                    # since we use quiet_deps to suppress most noise
                     _logger.debug("Sass warning: %s", event.formatted or event.message)
 
             elif msg_type == "canonicalize_request":
@@ -537,11 +479,6 @@ class SassEmbeddedCompiler:
                 _logger.debug("Ignoring unhandled message type: %s", msg_type)
 
 
-# ---------------------------------------------------------------------------
-# Odoo-specific importer
-# ---------------------------------------------------------------------------
-
-
 def _resolve_sass_path(base: str) -> list[str]:
     """Generate candidate paths for Sass partial resolution.
 
@@ -560,16 +497,13 @@ def _resolve_sass_path(base: str) -> list[str]:
     basename = base_path.name
     candidates = []
 
-    # If already has an extension, try as-is and with underscore prefix
     if base_path.suffix in (".scss", ".sass", ".css"):
         candidates.extend((base, str(dirname / f"_{basename}")))
         return candidates
 
-    # Try with extensions
     candidates.extend(base + ext for ext in (".scss", ".sass"))
     candidates.extend(str(dirname / f"_{basename}{ext}") for ext in (".scss", ".sass"))
 
-    # Try index files
     candidates.extend(str(base_path / f"index{ext}") for ext in (".scss", ".sass"))
     candidates.extend(str(base_path / f"_index{ext}") for ext in (".scss", ".sass"))
 
@@ -594,7 +528,6 @@ class OdooSassImporter(SassImporter):
         *parent_parts, filename = url.replace("\\", "/").split("/")
         parent_path_str = str(Path(*parent_parts)) if parent_parts else ""
 
-        # Try resolving via Odoo's file_path first, then bootstrap
         search_dirs = []
         if parent_path_str:
             with contextlib.suppress(FileNotFoundError):
@@ -625,10 +558,6 @@ class OdooSassImporter(SassImporter):
         return contents, syntax
 
 
-# ---------------------------------------------------------------------------
-# Singleton management
-# ---------------------------------------------------------------------------
-
 _sass_compiler: SassEmbeddedCompiler | None = None
 _sass_lock = threading.Lock()
 _on_stop_registered = False
@@ -636,19 +565,13 @@ _on_stop_registered = False
 
 def get_sass_compiler() -> SassEmbeddedCompiler:
     """Return the singleton SassEmbeddedCompiler, creating it lazily."""
-    global _sass_compiler, _on_stop_registered  # noqa: PLW0603  # lazy singleton init
+    global _sass_compiler, _on_stop_registered
     if _sass_compiler is None:
         with _sass_lock:
             if _sass_compiler is None:
                 _sass_compiler = SassEmbeddedCompiler()
                 atexit.register(close_sass_compiler)
                 if not _on_stop_registered:
-                    # Close the compiler subprocess during the server's
-                    # graceful stop. on_stop hooks run before the server's
-                    # lingering-child check, so this avoids the spurious
-                    # "process may hang" warning and does not rely on atexit
-                    # ordering. Lazy import: this tool sits below odoo.service,
-                    # and the hook is only needed when a server is running.
                     try:
                         from odoo.service.server import CommonServer
 
@@ -664,7 +587,7 @@ def get_sass_compiler() -> SassEmbeddedCompiler:
 
 def close_sass_compiler() -> None:
     """Shut down the singleton SassEmbeddedCompiler if running."""
-    global _sass_compiler  # noqa: PLW0603  # tear down the lazy singleton
+    global _sass_compiler
     with _sass_lock:
         if _sass_compiler is not None:
             _sass_compiler.close()

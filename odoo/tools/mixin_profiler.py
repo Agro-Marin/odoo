@@ -31,7 +31,6 @@ from contextlib import contextmanager
 
 _logger = logging.getLogger(__name__)
 
-# Thread-local storage for profiling data
 _profile_data = threading.local()
 
 
@@ -43,8 +42,8 @@ def _get_data():
                 "total_time": 0.0,
                 "total_queries": 0,
                 "total_query_time": 0.0,
-                "self_time": 0.0,  # Time excluding nested calls
-                "samples": [],  # First 100 samples per method (see cap below)
+                "self_time": 0.0,
+                "samples": [],
             }
         )
         _profile_data.call_stack = []
@@ -65,13 +64,10 @@ def _wrap_method(model_name, method_name, original_method):
         cr = self.env.cr
         thread = threading.current_thread()
 
-        # Track timing
         start_time = time.perf_counter()
         start_queries = cr.sql_log_count if hasattr(cr, "sql_log_count") else 0
         start_query_time = getattr(thread, "query_time", 0.0)
 
-        # Push child-time accumulator for self-time calculation.
-        # Each entry is the total elapsed time of profiled children.
         data.call_stack.append(0.0)
 
         try:
@@ -85,11 +81,9 @@ def _wrap_method(model_name, method_name, original_method):
 
             child_time = data.call_stack.pop()
 
-            # Report my elapsed to parent's child-time accumulator
             if data.call_stack:
                 data.call_stack[-1] += elapsed
 
-            # Update stats
             stats = data.methods[key]
             stats["calls"] += 1
             stats["total_time"] += elapsed
@@ -97,11 +91,10 @@ def _wrap_method(model_name, method_name, original_method):
             stats["total_query_time"] += query_time
             stats["self_time"] += elapsed - child_time
 
-            # Keep the first 100 samples per method for variance analysis
             if len(stats["samples"]) < 100:
                 stats["samples"].append(
                     {
-                        "time": elapsed * 1000,  # ms
+                        "time": elapsed * 1000,
                         "queries": queries,
                         "records": len(self) if hasattr(self, "__len__") else 1,
                     }
@@ -120,7 +113,6 @@ def profile_methods(model_name, method_names, registry=None):
     :param registry: registry to use (defaults to the current thread's registry)
     """
     if registry is None:
-        # Import here to avoid circular imports
         from odoo.modules.registry import Registry
 
         registry = Registry.registries.get(threading.current_thread().dbname)
@@ -141,15 +133,6 @@ def profile_methods(model_name, method_names, registry=None):
                 wrapped = _wrap_method(model_name, method_name, original)
                 wrapped._profiled = True
                 wrapped._original = original
-                # Registry model classes usually inherit their methods from the
-                # model *definition* classes in their MRO; setattr below shadows
-                # that resolution with an own-__dict__ attribute.  Remember
-                # whether the name already was an own attribute so
-                # unprofile_methods() can restore the exact previous state:
-                # putting the original function back as an own attribute would
-                # permanently shadow the definition class, breaking later
-                # patching of it (e.g. the supported
-                # ``patch.object(DefinitionClass, "create")`` test idiom).
                 wrapped._original_was_own_attr = method_name in model_class.__dict__
                 setattr(model_class, method_name, wrapped)
                 _logger.info("Profiling enabled for %s.%s", model_name, method_name)
@@ -206,16 +189,14 @@ def profile_module(env, module_name, method_names=None, extra_by_model=None):
             continue
         extra = list(extra_by_model.get(model_name, ()))
         if env[model_name]._abstract:
-            methods = extra  # only explicit methods on abstract mixins
+            methods = extra
         else:
             methods = method_names + extra
         if not methods:
             continue
         profile_methods(model_name, methods, registry=env.registry)
         profiled.append(model_name)
-    _logger.info(
-        "Profiling %d models of module %s", len(profiled), module_name
-    )
+    _logger.info("Profiling %d models of module %s", len(profiled), module_name)
     return profiled
 
 
@@ -234,21 +215,11 @@ def unprofile_methods(model_name, method_names, registry=None):
         return
 
     for method_name in method_names:
-        # Own-dict read, NOT getattr: a child registry class (e.g.
-        # ir.actions.server) can inherit its parent's wrapper through the MRO;
-        # acting on an inherited wrapper here would pin the *parent's* original
-        # method onto the child class — a shadow that never existed.  Inherited
-        # wrappers are undone when their owning model is unprofiled.
         method = model_class.__dict__.get(method_name)
         if method is not None and hasattr(method, "_original"):
             if getattr(method, "_original_was_own_attr", True):
                 setattr(model_class, method_name, method._original)
             else:
-                # The wrapper shadowed a method inherited through the MRO
-                # (normally from a model definition class): remove the shadow
-                # instead of pinning a copy of the original onto the registry
-                # class, so attribute resolution — and any later monkey-patch
-                # of the definition class — works again.
                 delattr(model_class, method_name)
 
 
@@ -284,12 +255,11 @@ def get_profile_report(sort_by="total_time", top_n=20):
     lines = []
     lines.extend(("\n" + "=" * 100, "MIXIN METHOD PROFILING REPORT", "=" * 100))
 
-    # Calculate derived metrics
     methods = []
     for key, stats in data.methods.items():
         if stats["calls"] == 0:
             continue
-        avg_time = stats["total_time"] / stats["calls"] * 1000  # ms
+        avg_time = stats["total_time"] / stats["calls"] * 1000
         avg_queries = stats["total_queries"] / stats["calls"]
         python_time = stats["total_time"] - stats["total_query_time"]
         python_pct = (
@@ -300,8 +270,8 @@ def get_profile_report(sort_by="total_time", top_n=20):
             {
                 "key": key,
                 "calls": stats["calls"],
-                "total_time": stats["total_time"] * 1000,  # ms
-                "self_time": stats["self_time"] * 1000,  # ms
+                "total_time": stats["total_time"] * 1000,
+                "self_time": stats["self_time"] * 1000,
                 "avg_time": avg_time,
                 "total_queries": stats["total_queries"],
                 "avg_queries": avg_queries,
@@ -310,7 +280,6 @@ def get_profile_report(sort_by="total_time", top_n=20):
             }
         )
 
-    # Sort
     sort_keys = {
         "total_time": lambda m: -m["total_time"],
         "self_time": lambda m: -m["self_time"],
@@ -320,31 +289,39 @@ def get_profile_report(sort_by="total_time", top_n=20):
     }
     methods.sort(key=sort_keys.get(sort_by, sort_keys["total_time"]))
 
-    # Header
-    lines.extend((f"\n{'Method':<50} {'Calls':>8} {'Total(ms)':>10} {'Avg(ms)':>10} {'Queries':>8} {'Python%':>8}", "-" * 100))
+    lines.extend(
+        (
+            f"\n{'Method':<50} {'Calls':>8} {'Total(ms)':>10} {'Avg(ms)':>10} {'Queries':>8} {'Python%':>8}",
+            "-" * 100,
+        )
+    )
 
-    # Top methods
-    lines.extend(f"{m['key']:<50} {m['calls']:>8} {m['total_time']:>10.2f} "
-            f"{m['avg_time']:>10.3f} {m['total_queries']:>8} {m['python_pct']:>7.1f}%" for m in methods[:top_n])
+    lines.extend(
+        f"{m['key']:<50} {m['calls']:>8} {m['total_time']:>10.2f} "
+        f"{m['avg_time']:>10.3f} {m['total_queries']:>8} {m['python_pct']:>7.1f}%"
+        for m in methods[:top_n]
+    )
 
-    # Optimization opportunities
     lines.extend(("\n" + "=" * 100, "OPTIMIZATION OPPORTUNITIES", "=" * 100))
 
-    # High Python percentage (mixin overhead candidates)
     high_python = [m for m in methods if m["python_pct"] > 70 and m["total_time"] > 10]
     if high_python:
         lines.append(
             "\n[HIGH PYTHON TIME] These methods spend >70% time in Python (mixin/ORM overhead):"
         )
-        lines.extend(f"  - {m['key']}: {m['python_pct']:.1f}% Python, {m['avg_time']:.3f}ms avg" for m in high_python[:5])
+        lines.extend(
+            f"  - {m['key']}: {m['python_pct']:.1f}% Python, {m['avg_time']:.3f}ms avg"
+            for m in high_python[:5]
+        )
 
-    # High query count per call (N+1 candidates)
     high_queries = [m for m in methods if m["avg_queries"] > 5]
     if high_queries:
         lines.append("\n[N+1 QUERY PATTERN] These methods execute >5 queries per call:")
-        lines.extend(f"  - {m['key']}: {m['avg_queries']:.1f} queries/call" for m in sorted(high_queries, key=lambda x: -x["avg_queries"])[:5])
+        lines.extend(
+            f"  - {m['key']}: {m['avg_queries']:.1f} queries/call"
+            for m in sorted(high_queries, key=lambda x: -x["avg_queries"])[:5]
+        )
 
-    # High variance (inconsistent performance)
     for m in methods:
         if len(m["samples"]) >= 10:
             times = [s["time"] for s in m["samples"]]
@@ -359,19 +336,24 @@ def get_profile_report(sort_by="total_time", top_n=20):
         lines.append(
             "\n[HIGH VARIANCE] These methods have inconsistent performance (CV > 50%):"
         )
-        lines.extend(f"  - {m['key']}: CV={m['cv']:.1f}% (caching opportunity?)" for m in sorted(high_variance, key=lambda x: -x.get("cv", 0))[:5])
+        lines.extend(
+            f"  - {m['key']}: CV={m['cv']:.1f}% (caching opportunity?)"
+            for m in sorted(high_variance, key=lambda x: -x.get("cv", 0))[:5]
+        )
 
-    # Frequently called (micro-optimization candidates)
     hot_methods = [m for m in methods if m["calls"] > 1000 and m["avg_time"] > 0.1]
     if hot_methods:
         lines.append(
             "\n[HOT METHODS] Called >1000 times with >0.1ms avg (micro-optimization targets):"
         )
         for m in sorted(hot_methods, key=lambda x: -x["calls"])[:5]:
-            potential_savings = (
-                m["calls"] * m["avg_time"] * 0.2
-            )  # 20% improvement estimate
-            lines.extend((f"  - {m['key']}: {m['calls']} calls, {m['avg_time']:.3f}ms avg", f"    → 20% speedup would save {potential_savings:.1f}ms total"))
+            potential_savings = m["calls"] * m["avg_time"] * 0.2
+            lines.extend(
+                (
+                    f"  - {m['key']}: {m['calls']} calls, {m['avg_time']:.3f}ms avg",
+                    f"    → 20% speedup would save {potential_savings:.1f}ms total",
+                )
+            )
 
     return "\n".join(lines)
 
@@ -386,16 +368,13 @@ def get_query_patterns():
         if not samples:
             continue
 
-        # Check for scaling issues
         records_queries = [
             (s["records"], s["queries"]) for s in samples if s["records"] > 0
         ]
         if len(records_queries) >= 5:
-            # Heuristic: does query count scale with record count (O(n))?
             n_values = [r for r, q in records_queries]
             q_values = [q for r, q in records_queries]
-            if max(n_values) > min(n_values) * 2:  # Enough variance in record counts
-                # Check if queries scale with records
+            if max(n_values) > min(n_values) * 2:
                 n_range = max(n_values) - min(n_values)
                 q_range = max(q_values) - min(q_values)
                 if n_range > 0 and q_range > n_range * 0.5:

@@ -11,7 +11,7 @@ unauthenticated login route.
 
 import unittest
 
-from odoo.tools.password import (
+from odoo.libs.password import (
     CryptContext,
     _ab64_decode,
     _ab64_encode,
@@ -19,12 +19,7 @@ from odoo.tools.password import (
     pbkdf2_sha512_hash,
 )
 
-# MCF-shaped but undecodable: a lone base64 character is never a valid group,
-# so ``b64decode`` raises rather than returning something.
 MALFORMED = "$pbkdf2-sha512$1$a$b"
-# Characters outside the base64 alphabet, also matched by ``[^$]+``.  b64decode
-# is lenient about those and silently discards them, so this one *parses* -- to
-# an empty salt and an empty checksum, which no 64-byte PBKDF2 output can equal.
 NON_BASE64 = "$pbkdf2-sha512$1$!!!!$!!!!"
 
 
@@ -91,7 +86,6 @@ class TestAdaptedBase64Padding(unittest.TestCase):
                 self.assertEqual(_ab64_decode(_ab64_encode(raw)), raw)
 
     def test_no_surplus_padding_on_aligned_input(self):
-        # 3 bytes -> 4 base64 chars, no '=' stripped, len % 4 == 0.
         encoded = _ab64_encode(b"abc")
         self.assertEqual(len(encoded) % 4, 0)
         self.assertEqual(_ab64_decode(encoded), b"abc")

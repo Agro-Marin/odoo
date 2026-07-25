@@ -77,25 +77,19 @@ class UserAgentParser:
             (b, re.compile(self._browser_version_re % a, re.IGNORECASE))
             for a, b in self.browsers
         )
-        # Parsing a UA string runs ~40 regex searches; a browser resends the
-        # SAME string on every request, so memoize by string.  The cache lives on
-        # the instance (``UserAgent._parser`` is a process-wide singleton, so this
-        # is effectively one bounded process cache); pure function of the input,
-        # hence safe.  Reachable e.g. from every ``request.httprequest.user_agent``
-        # access (auth_totp, web ir_http, bus websocket handshake, ...).
         self._parse_cached = functools.lru_cache(maxsize=2048)(self._parse)
 
     def __call__(self, user_agent):
         return self._parse_cached(user_agent)
 
     def _parse(self, user_agent):
-        for platform, regex in self.platforms:  # noqa: B007
+        for platform, regex in self.platforms:
             match = regex.search(user_agent)
             if match is not None:
                 break
         else:
             platform = None
-        for browser, regex in self.browsers:  # noqa: B007
+        for browser, regex in self.browsers:
             match = regex.search(user_agent)
             if match is not None:
                 version = match.group(1)

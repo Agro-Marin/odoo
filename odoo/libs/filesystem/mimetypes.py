@@ -11,8 +11,6 @@ import mimetypes
 import re
 import zipfile
 
-# Fresh decoder per call: an incremental decoder carries state between calls, so
-# a shared one would leak a truncated character's bytes into the next document.
 _utf8_incremental_decoder = codecs.getincrementaldecoder("utf-8")
 
 __all__ = [
@@ -31,10 +29,7 @@ MIMETYPE_HEAD_SIZE = 2048
 UNKNOWN_MIMETYPE = "application/octet-stream"
 """What both libmagic and our own guesser return when they cannot identify the content."""
 
-# We define our own guess_mimetype implementation and if magic is available we
-# use it instead.
 
-# discriminants for zip-based file formats
 _ooxml_dirs = {
     "word/": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "ppt/": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -45,13 +40,9 @@ _ooxml_dirs = {
 def _check_ooxml(data: bytes) -> str | bool:
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
         filenames = z.namelist()
-        # OOXML documents should have a [Content_Types].xml file for early
-        # check that we're interested in this thing at all
         if "[Content_Types].xml" not in filenames:
             return False
 
-        # then there is a directory whose name denotes the type of the file:
-        # word, pt (powerpoint) or xl (excel)
         for dirname, mime in _ooxml_dirs.items():
             if any(entry.startswith(dirname) for entry in filenames):
                 return mime
@@ -59,7 +50,6 @@ def _check_ooxml(data: bytes) -> str | bool:
         return False
 
 
-# checks that a string looks kinda sorta like a mimetype
 _mime_validator = re.compile(
     r"""
     [\w-]+ # type-name
@@ -73,29 +63,12 @@ _mime_validator = re.compile(
 
 
 def _check_open_container_format(data: bytes) -> str | bool:
-    # Open Document Format for Office Applications (OpenDocument) Version 1.2
-    #
-    # Part 3: Packages
-    # 3 Packages
-    # 3.3 MIME Media Type
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
-        # If a MIME media type for a document exists, then an OpenDocument
-        # package should contain a file with name "mimetype".
         if "mimetype" not in z.namelist():
             return False
 
-        # The content of this file shall be the ASCII encoded MIME media type
-        # associated with the document.  Read a bounded prefix rather than the
-        # whole member: a crafted "mimetype" entry can inflate to hundreds of MB
-        # (a 122 KB zip reached ~130 MB RSS).  Read 256 bytes: a valid type is
-        # shorter, and reading the 256th still trips the ``< 256`` length gate
-        # below, so an over-long member is rejected exactly as before.
         with z.open("mimetype") as mimetype_file:
             marcel = mimetype_file.read(256).decode("ascii")
-        # check that it's not too long (RFC6838 § 4.2 restricts type and
-        # subtype to 127 characters each + separator, strongly recommends
-        # limiting them to 64 but does not require it) and that it looks a lot
-        # like a valid mime type
         if len(marcel) < 256 and _mime_validator.match(marcel):
             return marcel
 
@@ -139,8 +112,6 @@ def _check_olecf(data: bytes) -> str | bool:
     offset = 0x200
     if data.startswith(b"\xec\xa5\xc1\x00", offset):
         return "application/msword"
-    # the _xls_pattern stuff doesn't seem to work correctly (the test file
-    # only has a bunch of \xf* at offset 0x200), that apparently works
     elif b"Microsoft Excel" in data:
         return "application/vnd.ms-excel"
     elif _ppt_pattern.match(data, offset):
@@ -162,15 +133,9 @@ def _check_webp(data: bytes) -> str | None:
     return None
 
 
-# for "master" formats with many subformats, discriminants is a list of
-# functions, tried in order and the first non-falsy value returned is the
-# selected mime type. If all functions return falsy values, the master
-# mimetype is returned.
 _Entry = collections.namedtuple("_Entry", ["mimetype", "signatures", "discriminants"])
 _mime_mappings = (
-    # pdf
     _Entry("application/pdf", [b"%PDF"], []),
-    # jpg, jpeg, png, gif, bmp, jfif
     _Entry(
         "image/jpeg",
         [
@@ -200,13 +165,11 @@ _mime_mappings = (
             _check_webp,
         ],
     ),
-    # OLECF files in general (Word, Excel, PPT, default to word because why not?)
     _Entry(
         "application/msword",
         [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", b"\x0d\x44\x4f\x43"],
         [_check_olecf],
     ),
-    # zip, but will include jar, odt, ods, odp, docx, xlsx, pptx, apk
     _Entry(
         "application/zip",
         [b"PK\x03\x04"],
@@ -223,8 +186,6 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
     :param bin_data: binary data to try and guess a mime type for
     :returns: matched mimetype, or ``default`` if none matched
     """
-    # by default, guess the type using the magic number of file hex signature (like magic, but more limited)
-    # see http://www.filesignatures.net/ for file signatures
     for entry in _mime_mappings:
         for signature in entry.signatures:
             if bin_data.startswith(signature):
@@ -234,23 +195,13 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
                         if guess:
                             return guess
                     except Exception:
-                        # log-and-next
                         _logger_guess_mimetype.warning(
                             "Sub-checker '%s' of type '%s' failed",
                             discriminant.__name__,
                             entry.mimetype,
                             exc_info=True,
                         )
-                # if no discriminant or no discriminant matches, return
-                # primary mime type
                 return entry.mimetype
-    # Decode incrementally rather than with a plain ``bytes.decode()``.  Cutting
-    # at a fixed 1024 bytes can land in the middle of a multi-byte character, and
-    # the resulting UnicodeDecodeError was caught and read as "not text" -- so a
-    # perfectly ordinary UTF-8 document was reported as application/octet-stream
-    # purely because of where byte 1024 fell.  An incremental decoder with
-    # ``final=False`` buffers the incomplete trailing sequence instead of
-    # failing, while still rejecting genuinely invalid UTF-8 in the body.
     try:
         head = _utf8_incremental_decoder().decode(bin_data[:1024], False)
     except ValueError:
@@ -261,11 +212,8 @@ def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> st
 
 
 try:
-    import magic  # imported after fallback definitions; see use in guess_mimetype
+    import magic
 except ImportError:
-    # python-magic / libmagic is an optional dependency: when it is missing,
-    # fall back to the signature-based guesser (_odoo_guess_mimetype) so that
-    # attachment handling keeps working instead of failing at import time.
     magic = None
 
 
@@ -289,21 +237,8 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE)
     else:
         mimetype = UNKNOWN_MIMETYPE
     if mimetype == UNKNOWN_MIMETYPE:
-        # libmagic is absent, or returned its "unknown" answer. Some libmagic
-        # builds/versions miss formats odoo cares about (notably small zip
-        # archives, which this detects via the OOXML/ODF sub-checkers below), so
-        # fall back to our own signature-based guesser, which keys off the
-        # leading magic bytes (PK\x03\x04 for zip, %PDF, \x89PNG, ...).
-        # ``default`` is threaded through so a caller that declared a fallback
-        # actually gets it -- it used to be accepted and silently dropped, so
-        # e.g. ``ir.binary`` image streams reported "application/octet-stream"
-        # instead of the "image/png" they asked for (and the download filename
-        # picked up a ".octet-stream" extension from it).
         mimetype = _odoo_guess_mimetype(bin_data, default)
     if mimetype in _olecf_mimetypes:
-        # Those are the generic file format that Microsoft Office
-        # was using before 2006, use our own check to further
-        # discriminate the mimetype.
         try:
             if msoffice_mimetype := _check_olecf(bin_data):
                 return msoffice_mimetype
@@ -314,10 +249,6 @@ def guess_mimetype(bin_data: bytes | bytearray, default: str = UNKNOWN_MIMETYPE)
                 exc_info=True,
             )
     if mimetype == "application/zip":
-        # magic doesn't properly detect some Microsoft Office
-        # documents created after 2025, use our own check to further
-        # discriminate the mimetype.
-        # /!\ Only work when bin_data holds the whole zipfile. /!\
         try:
             if msoffice_mimetype := _check_ooxml(bin_data):
                 return msoffice_mimetype
@@ -345,27 +276,19 @@ _extension_pattern = re.compile(r"\w+")
 
 def get_extension(filename: str) -> str:
     """Return the extension of the filename, or an empty string if it has none."""
-    # A file has no extension if it has no dot (ignoring the leading one
-    # of hidden files) or that what follow the last dot is not a single
-    # word, e.g. "Mr. Doe"
     _stem, dot, ext = filename.lstrip(".").rpartition(".")
     if not dot or not _extension_pattern.fullmatch(ext):
         return ""
 
-    # Assume all 4-chars extensions to be valid extensions even if it is
-    # not known from the mimetypes database. In /etc/mime.types, only 7%
-    # known extensions are longer.
     if len(ext) <= 4:
         return f".{ext}".lower()
 
-    # Use the mimetype database to determine the extension of the file.
     guessed_mimetype, guessed_ext = mimetypes.guess_type(filename)
     if guessed_ext:
         return guessed_ext
     if guessed_mimetype:
         return f".{ext}".lower()
 
-    # Unknown extension.
     return ""
 
 

@@ -15,7 +15,6 @@ from odoo.tools.translate import get_translated_module
 
 class TestGetTranslatedModuleFrameWalk(unittest.TestCase):
     def test_over_large_frame_count_falls_back_to_base(self):
-        # Far more frames than any real stack depth: must not raise.
         self.assertEqual(get_translated_module(9999), "base")
 
     def test_none_frame_falls_back_to_base(self):
@@ -33,7 +32,6 @@ class TestGetTranslatedModuleFrameWalk(unittest.TestCase):
         self.assertEqual(get_translated_module("some.other.package"), "base")
 
     def test_reasonable_int_does_not_raise(self):
-        # Whatever it resolves to, it must return a str and not raise.
         self.assertIsInstance(get_translated_module(1), str)
 
 

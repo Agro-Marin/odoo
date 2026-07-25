@@ -7,9 +7,6 @@ import re
 
 import babel
 
-# Regex for parsing XPG (POSIX) locale format
-# XPG syntax: language[_territory][.codeset][@modifier]
-# https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
 XPG_LOCALE_RE = re.compile(
     r"""^
     ([a-z]+)      # language
@@ -56,17 +53,14 @@ def py_to_js_locale(locale: str) -> str:
     return "-".join(subtags)
 
 
-# Mapping from POSIX strftime format codes to LDML (Unicode) date format patterns
-# Used by posix_to_ldml() to convert date format strings
 POSIX_TO_LDML = {
     "a": "E",
     "A": "EEEE",
     "b": "MMM",
     "B": "MMMM",
-    #'c': '',
     "d": "dd",
     "-d": "d",
-    "e": "d",  # day of month, space-padded in POSIX; LDML has no space-pad, use 'd'
+    "e": "d",
     "H": "HH",
     "I": "hh",
     "j": "DDD",
@@ -80,9 +74,6 @@ POSIX_TO_LDML = {
     "W": "w",
     "y": "yy",
     "Y": "yyyy",
-    # %z/%Z left unmapped on purpose: timezone conversion is unreliable here.
-    #'z': 'Z',
-    #'Z': 'z',
 }
 
 
@@ -107,7 +98,6 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
     quoted = []
 
     for c in fmt:
-        # LDML date format patterns uses letters, so letters must be quoted
         if not pc and c.isalpha():
             quoted.append(c if c != "'" else "''")
             continue
@@ -116,30 +106,21 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
             quoted = []
 
         if pc:
-            if c == "-":  # no-padding flag, applies to the next conversion
+            if c == "-":
                 minus = True
                 continue
-            # Consume the flag here, whichever branch handles the conversion.
-            # It used to be cleared only in the static-mapping branch, so
-            # "%-x" left it set and silently mis-converted the *next*
-            # conversion ("%-x%d" -> "M/d/yyd" instead of "M/d/yydd").
             directive = f"-{c}" if minus else c
             minus = False
             pc = False
-            if c == "%":  # escaped percent
+            if c == "%":
                 buf.append("%")
-            elif c == "x":  # date format, short seems to match
+            elif c == "x":
                 buf.append(locale.date_formats["short"].pattern)
-            elif c == "X":  # time format, seems to include seconds. short does not
+            elif c == "X":
                 buf.append(locale.time_formats["medium"].pattern)
             elif (ldml := POSIX_TO_LDML.get(directive)) is not None:
                 buf.append(ldml)
             else:
-                # ``fmt`` comes from user-editable res.lang date/time formats, so
-                # a bare KeyError('c') read as an internal crash during date
-                # rendering and gave the caller no way to tell which pattern was
-                # at fault, nor that the directive is unsupported rather than
-                # merely absent from some dict.
                 raise ValueError(
                     f"Unsupported strftime directive '%{directive}' in {fmt!r}"
                 )
@@ -148,12 +129,10 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
         else:
             buf.append(c)
 
-    # flush anything remaining in quoted buffer
     if quoted:
         buf.extend(("'", "".join(quoted), "'"))
 
     if pc:
-        # dangling "%" at end of pattern: strftime renders it literally
         buf.append("%")
 
     return "".join(buf)

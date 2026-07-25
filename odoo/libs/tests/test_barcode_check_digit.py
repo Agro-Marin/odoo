@@ -15,7 +15,6 @@ class TestRejectsNonDigits(unittest.TestCase):
     def test_letters(self):
         with self.assertRaises(ValueError) as ctx:
             get_barcode_check_digit("abcdefghijklm")
-        # the message must name the input, not one stray character
         self.assertIn("abcdefghijklm", str(ctx.exception))
 
     def test_mixed(self):
@@ -39,7 +38,6 @@ class TestRejectsNonDigits(unittest.TestCase):
             get_barcode_check_digit(" 1234567")
 
     def test_non_ascii_digits_rejected(self):
-        # fullwidth digits: int() would accept them, but they are not a GTIN
         with self.assertRaises(ValueError):
             get_barcode_check_digit("１２３４５６７８")
 
@@ -52,14 +50,12 @@ class TestCheckDigitStillCorrect(unittest.TestCase):
     """The GTIN algorithm itself must be untouched."""
 
     def test_known_ean13(self):
-        # 5449000096241 is a real GTIN; recomputing must reproduce its last digit
         self.assertEqual(get_barcode_check_digit("5449000096241"), 1)
 
     def test_known_ean8(self):
         self.assertEqual(get_barcode_check_digit("96385074"), 4)
 
     def test_length_independent(self):
-        # left-padding with zeros must not change the check digit
         self.assertEqual(
             get_barcode_check_digit("96385074"),
             get_barcode_check_digit("0" * 5 + "96385074"),

@@ -16,7 +16,6 @@ class TestFormataddr(unittest.TestCase):
         self.assertEqual(formataddr(("", "john@example.com")), "john@example.com")
 
     def test_strips_crlf_from_name(self):
-        # an injected CR/LF must not survive into the header (header splitting).
         out = formataddr(("Foo\r\nBcc: attacker@evil.com", "user@example.com"))
         self.assertNotIn("\r", out)
         self.assertNotIn("\n", out)

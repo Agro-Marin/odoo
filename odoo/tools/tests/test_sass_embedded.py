@@ -55,7 +55,9 @@ class TestSupportsEmbedded(unittest.TestCase):
         """
         with patch(
             "subprocess.run",
-            return_value=self._run(0, b"sass --embedded is unavailable in pure JS mode"),
+            return_value=self._run(
+                0, b"sass --embedded is unavailable in pure JS mode"
+            ),
         ):
             self.assertFalse(_supports_embedded("/usr/bin/sass"))
 
@@ -91,12 +93,8 @@ class TestFindSass(unittest.TestCase):
         with (
             patch("shutil.which") as which_mock,
             patch("pathlib.Path.glob", return_value=iter([])),
-            patch(
-                "odoo.tools.sass_embedded._supports_embedded", return_value=False
-            ),
+            patch("odoo.tools.sass_embedded._supports_embedded", return_value=False),
         ):
-            # First call: system `sass` lookup. Second call: node_modules/.bin
-            # CLI fallback lookup (scoped by the `path=` kwarg in find_sass).
             which_mock.side_effect = [
                 "/usr/bin/sass",
                 "/app/node_modules/.bin/sass",
@@ -109,9 +107,7 @@ class TestFindSass(unittest.TestCase):
         with (
             patch("shutil.which", return_value="/usr/bin/sass"),
             patch("pathlib.Path.glob", return_value=iter([])),
-            patch(
-                "odoo.tools.sass_embedded._supports_embedded", return_value=True
-            ),
+            patch("odoo.tools.sass_embedded._supports_embedded", return_value=True),
         ):
             result = find_sass()
         self.assertEqual(result, "/usr/bin/sass")

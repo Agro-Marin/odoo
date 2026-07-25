@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
     import babel
 
-# Use stdlib UTC for best compatibility
 utc = UTC
 
 WEEKDAY_NUMBER = dict(
@@ -75,31 +74,17 @@ def float_to_time(hours: float) -> time:
         >>> float_to_time(24.0)
         datetime.time(23, 59, 59, 999999)
     """
-    # Validate the domain explicitly.  The three out-of-domain cases used to be
-    # handled three different ways, none of them stated: a negative value fell
-    # through to ``time(-1, 0)`` and leaked "hour must be in 0..23, not -1"
-    # (or "minute must be in 0..59, not -30", depending on the fraction); NaN
-    # leaked "cannot convert float NaN to integer" from inside ``int()``; and
-    # anything above 24 was *silently clamped* to end-of-day by the carry guard
-    # below, so float_to_time(100.0) quietly returned 23:59:59.999999.  Silently
-    # accepting one kind of nonsense while crashing on another is the worst of
-    # both: callers hold user-editable hour fields (``resource.calendar
-    # .attendance.hour_from``, ``event.slot.start_hour``) and their ORM
-    # constraints are what should reject bad values -- this says so plainly
-    # instead of guessing.
-    if not 0.0 <= hours <= 24.0:  # NaN fails every comparison, so it lands here
+    if not 0.0 <= hours <= 24.0:
         msg = f"hours must be a number in [0.0, 24.0], got {hours!r}"
         raise ValueError(msg)
-    if hours == 24.0:  # noqa: RUF069  # exact sentinel: 24.0 maps to end-of-day
+    if hours == 24.0:
         return time.max
     fractional, integral = math.modf(hours)
     minutes = int(float_round(60 * fractional, precision_digits=0))
     if minutes == 60:
-        # rounding carried into the next hour (e.g. 8.9999 -> 60 min); carry it
-        # rather than crash on ``time(h, 60)``.
         integral += 1
         minutes = 0
-    if integral >= 24:  # carried past end-of-day (e.g. 23.9999)
+    if integral >= 24:
         return time.max
     return time(int(integral), minutes, 0)
 
@@ -332,11 +317,6 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
             f"Granularity must be year, quarter, month, week or day for value {value}"
         )
 
-    # Pass ``value.tzinfo`` so an aware input keeps its zone (wall-clock
-    # semantics): ``datetime.combine`` otherwise takes tzinfo from the naive
-    # ``time.min`` argument (None) and silently drops it.  Naive input is
-    # unaffected (tzinfo stays None).  ``value.tzinfo`` is read only when
-    # ``is_datetime`` (dates have no tzinfo).
     return datetime.combine(result, time.min, value.tzinfo) if is_datetime else result
 
 
@@ -378,7 +358,6 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
             f"Granularity must be year, quarter, month, week or day for value {value}"
         )
 
-    # See start_of: preserve an aware input's zone that combine() would drop.
     return datetime.combine(result, time.max, value.tzinfo) if is_datetime else result
 
 
@@ -429,14 +408,13 @@ def date_range[D: (date, datetime)](
         >>> list(date_range(date(2024, 1, 1), date(2024, 3, 1)))
         [datetime.date(2024, 1, 1), datetime.date(2024, 2, 1), datetime.date(2024, 3, 1)]
     """
-    post_process = lambda dt: dt  # noqa: E731
+    post_process = lambda dt: dt
     if isinstance(start, datetime) and isinstance(end, datetime):
         are_naive = start.tzinfo is None and end.tzinfo is None
         are_utc = start.tzinfo == utc and end.tzinfo == utc
 
         are_others = start.tzinfo and end.tzinfo and not are_utc
 
-        # Check timezone consistency using key attribute (works with both pytz and zoneinfo)
         if are_others:
             start_key = getattr(start.tzinfo, "key", None) or getattr(
                 start.tzinfo, "zone", None
@@ -454,7 +432,7 @@ def date_range[D: (date, datetime)](
 
         if not are_naive:
             tz = start.tzinfo
-            post_process = lambda dt, tz=tz: dt.replace(tzinfo=tz)  # noqa: E731
+            post_process = lambda dt, tz=tz: dt.replace(tzinfo=tz)
             start = start.replace(tzinfo=None)
             end = end.replace(tzinfo=None)
 

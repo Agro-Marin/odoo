@@ -16,11 +16,10 @@ _logger = logging.getLogger(__name__)
 _validators = collections.defaultdict(list)
 _relaxng_cache = {}
 
-# predefined symbols for evaluating attributes (invisible, readonly...)
 IGNORED_IN_EXPRESSION = {
     "True",
     "False",
-    "None",  # included for completeness alongside True and False
+    "None",
     "self",
     "uid",
     "context",
@@ -70,12 +69,15 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, ``uid``,
     builtins, ...) are excluded from the second set.
 
-    eg (string domain): '''[
-            ('id', 'in', [1, 2, 3]),
-            ('field_a', 'in', parent.truc),
-            ('field_b', 'in', context.get('b')),
-        ]'''
-        returns {'id', 'field_a', 'field_b'}, {'parent.truc'}
+    For example, the string domain::
+
+        [
+            ("id", "in", [1, 2, 3]),
+            ("field_a", "in", parent.truc),
+            ("field_b", "in", context.get("b")),
+        ]
+
+    returns ``{'id', 'field_a', 'field_b'}, {'parent.truc'}``.
 
     :param domain: list(tuple) or str
     :return: set(str), set(str)
@@ -87,26 +89,21 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
         if isinstance(domain, list):
             for leaf in domain:
                 if leaf in DOMAIN_OPERATORS or leaf in (True, False):
-                    # "&", "|", "!", True, False
                     continue
                 left, _operator, _right = leaf
                 if isinstance(left, str):
                     field_names.add(left)
                 elif left not in (1, 0):
-                    # deprecate: True leaf and False leaf
                     raise ValueError
 
         elif isinstance(domain, str):
 
             def extract_from_domain(ast_domain):
                 if isinstance(ast_domain, ast.IfExp):
-                    # [] if condition else []
                     extract_from_domain(ast_domain.body)
                     extract_from_domain(ast_domain.orelse)
                     return
                 if isinstance(ast_domain, ast.BoolOp):
-                    # condition and []
-                    # this formating don't check returned domain syntax
                     for value in ast_domain.values:
                         if isinstance(
                             value, (ast.List, ast.IfExp, ast.BoolOp, ast.BinOp)
@@ -118,8 +115,6 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
                             )
                     return
                 if isinstance(ast_domain, ast.BinOp):
-                    # [] + []
-                    # this formating don't check returned domain syntax
                     if isinstance(
                         ast_domain.left,
                         (ast.List, ast.IfExp, ast.BoolOp, ast.BinOp),
@@ -141,14 +136,9 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
                         )
                     return
                 if not isinstance(ast_domain, (ast.List, ast.Tuple)):
-                    # Not a list/tuple domain literal (e.g. a call, dict, number,
-                    # unary or subscript expression). Raise ValueError so the
-                    # outer handler normalizes it to "Wrong domain formatting."
-                    # rather than leaking an AttributeError on ``.elts``.
                     raise ValueError
                 for ast_item in ast_domain.elts:
                     if isinstance(ast_item, ast.Constant):
-                        # "&", "|", "!", True, False
                         if (
                             ast_item.value not in DOMAIN_OPERATORS
                             and ast_item.value not in (True, False)
@@ -167,10 +157,8 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
                             1,
                             0,
                         ):
-                            # deprecate: True leaf (1, '=', 1) and False leaf (0, '=', 1)
                             pass
                         elif isinstance(right, ast.Constant) and right.value == 1:
-                            # deprecate: True/False leaf (py expression, '=', 1)
                             contextual_values.update(
                                 _get_expression_contextual_values(left)
                             )
@@ -182,15 +170,11 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
             expr = domain.strip()
             item_ast = ast.parse(f"({expr})", mode="eval").body
             if isinstance(item_ast, ast.Name):
-                # domain="other_field_domain"
                 contextual_values.update(_get_expression_contextual_values(item_ast))
             else:
                 extract_from_domain(item_ast)
 
-    # TypeError/AttributeError cover malformed leaves and unhandled AST node
-    # types (e.g. "foo()", "{'a': 1}", [None]) so callers get the documented
-    # ValueError instead of a raw 500.
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         msg = "Wrong domain formatting."
         raise ValueError(msg) from None
 
@@ -200,16 +184,16 @@ def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
 def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
     """Return the contextual value names referenced in this AST node.
 
-    eg: ast from '''(
+    For example, the AST of::
+
+        (
             id in [1, 2, 3]
             and field_a in parent.truc
-            and field_b in context.get('b')
-            or (
-                True
-                and bool(context.get('c'))
-            )
+            and field_b in context.get("b")
+            or (True and bool(context.get("c")))
         )
-        returns {'id', 'field_a', 'parent.truc', 'field_b', 'context.get', 'bool'}
+
+    returns ``{'id', 'field_a', 'parent.truc', 'field_b', 'context.get', 'bool'}``.
 
     :param item_ast: ast
     :return: set(str)
@@ -230,7 +214,7 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
             path = sorted(values).pop()
             return {f"{path}.{item_ast.attr}"}
         return values
-    if isinstance(item_ast, ast.Index):  # deprecated python ast class for Subscript key
+    if isinstance(item_ast, ast.Index):
         return _get_expression_contextual_values(item_ast.value)
     if isinstance(item_ast, ast.Subscript):
         values = _get_expression_contextual_values(item_ast.value)
@@ -265,17 +249,12 @@ def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
     if isinstance(item_ast, ast.Dict):
         values = set()
         for item in item_ast.keys:
-            # ``**spread`` entries carry a ``None`` key; the spread source is in
-            # ``.values`` and is handled below, so skip the missing key.
             if item is not None:
                 values |= _get_expression_contextual_values(item)
         for item in item_ast.values:
             values |= _get_expression_contextual_values(item)
         return values
 
-    # Unsupported node kind (f-string, comprehension, lambda, ...). Name only
-    # the node type -- never ``repr(item_ast)``, which dumps the whole AST into
-    # a user-facing view-validation error.
     raise ValueError(f"Unsupported expression: {type(item_ast).__name__}.")
 
 
@@ -285,13 +264,16 @@ def get_expression_field_names(expression: str) -> set[str]:
     Contextual roots listed in ``IGNORED_IN_EXPRESSION`` (``context``, builtins,
     ...) are excluded.
 
-    eg: expression = '''(
+    For example, the expression::
+
+        (
             id in [1, 2, 3]
             and field_a in parent.truc.id
-            and field_b in context.get('b')
-            or (True and bool(context.get('c')))
-        )'''
-        returns {'id', 'field_a', 'field_b', 'parent.truc.id'}
+            and field_b in context.get("b")
+            or (True and bool(context.get("c")))
+        )
+
+    returns ``{'id', 'field_a', 'field_b', 'parent.truc.id'}``.
 
     :param expression: str
     :return: set(str)
@@ -369,16 +351,6 @@ def schema_valid(arch, **kwargs):
     return True
 
 
-# ---------------------------------------------------------------------------
-# Accessibility / markup checks (pure, DB-free)
-#
-# Each returns a list of human-readable warning messages for a single arch
-# node, so they can be unit-tested without an ir.ui.view record or an
-# environment. ir.ui.view wraps every call with _log_view_warning() to attach
-# the offending view's error context.
-# ---------------------------------------------------------------------------
-
-
 def att_names(name):
     """Yield an attribute name and its ``t-att-``/``t-attf-`` dynamic variants."""
     yield name
@@ -422,12 +394,9 @@ def check_fa_class_accessibility(node, description):
     }
     valid_t_attrs = {"t-value", "t-raw", "t-field", "t-esc", "t-out"}
 
-    ## Following or preceding text
     if (node.tail or "").strip() or (node.getparent().text or "").strip():
-        # text<i class="fa-..."/> or <i class="fa-..."/>text
         return []
 
-    ## Following or preceding text in span
     def has_text(elem):
         if elem is None:
             return False
@@ -443,14 +412,12 @@ def check_fa_class_accessibility(node, description):
     def has_title_or_aria_label(node):
         return any(node.get(attr) for attr in valid_aria_attrs)
 
-    ## Aria label can be on ancestors
     if any(map(has_title_or_aria_label, node.iterancestors())):
         return []
 
     if node.get("string"):
         return []
 
-    ## And we ignore all elements with describing in children
     def contains_description(node, depth=0):
         if depth > 2:
             _logger.warning("excessive depth in fa")
@@ -460,7 +427,7 @@ def check_fa_class_accessibility(node, description):
             return True
         if node.tag in ("label", "field"):
             return True
-        if node.text:  # not sure, does it match *[text()]
+        if node.text:
             return True
         return any(contains_description(child, depth + 1) for child in node)
 

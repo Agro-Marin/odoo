@@ -5,12 +5,6 @@ from typing import Any
 
 import orjson as _orjson
 
-# ``Callable`` is imported at runtime, not under TYPE_CHECKING: this module has no
-# ``from __future__ import annotations``, so under Python 3.14's deferred
-# annotations (PEP 649) the ``default: Callable | None`` parameter annotation is
-# only evaluated when something introspects the function -- and ``inspect.signature``
-# on a TYPE_CHECKING-only name raised ``NameError: Callable`` for every caller that
-# tried to introspect ``dumps``/``dumps_bytes``.
 
 __all__ = [
     "OPT_SORT_KEYS",
@@ -21,14 +15,6 @@ __all__ = [
 
 OPT_SORT_KEYS: int = _orjson.OPT_SORT_KEYS
 
-# Match stdlib json behavior: auto-convert non-string keys (int, etc.) to str.
-# Without this, orjson raises TypeError for dicts like {1: "value"} which are
-# common in Odoo (record IDs as keys, field metadata, etc.).
-# OPT_PASSTHROUGH_DATETIME: route datetime/date objects through the
-# ``default`` handler instead of orjson's native ISO serialization.
-# Odoo's JS client expects space-separated format ("2026-02-15 10:30:00"),
-# not ISO with T ("2026-02-15T10:30:00").  The orjson_default handler in
-# odoo.tools.json converts via fields.Datetime.to_string().
 _DEFAULT_OPT = _orjson.OPT_NON_STR_KEYS | _orjson.OPT_PASSTHROUGH_DATETIME
 
 

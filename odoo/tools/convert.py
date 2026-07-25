@@ -116,13 +116,9 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
                 raise
 
         def _process(s: str) -> str:
-            # Single left-to-right pass: ``%%`` (escape) is matched before the
-            # ``%(id)s`` form, so an escaped ``%%(id)s`` is left literal and its
-            # inner ref is not substituted. Positional replacement also handles
-            # refs that are adjacent (``%(a)d%(b)d``) or at the string start.
             def repl(m: re.Match) -> str:
                 if m.group(0) == "%%":
-                    return "%"  # unescape %% to % for backward compatibility
+                    return "%"
                 rec_id = m.group(1)
                 xid = self.make_xml_id(rec_id)
                 if (record_id := self.idref.get(xid)) is None:
@@ -190,7 +186,6 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
         model_str = node.get("model")
         model = env[model_str]
         method_name = node.get("name")
-        # determine arguments
         args = []
         kwargs = {}
 
@@ -202,18 +197,16 @@ def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
                 kwargs[child.get("name")] = _eval_xml(self, child, env)
             else:
                 args.append(_eval_xml(self, child, env))
-        # merge current context with context in kwargs
         if "context" in kwargs:
             model = model.with_context(**kwargs.pop("context"))
         method = getattr(model, method_name)
         is_model_method = getattr(method, "_api_model", False)
         if is_model_method:
-            pass  # already bound to an empty recordset
+            pass
         else:
             record_ids, *args = args
             model = model.browse(record_ids)
             method = getattr(model, method_name)
-        # invoke method
         result = method(*args, **kwargs)
         if isinstance(result, BaseModel):
             result = result.ids
@@ -285,7 +278,6 @@ form: module.record_id""" % (xml_id,)
             try:
                 records += records.browse(self.id_get(d_id))
             except ValueError:
-                # d_id cannot be found. doesn't matter in this case
                 _logger.warning(
                     "Skipping deletion for missing XML ID `%r`",
                     d_id,
@@ -305,8 +297,6 @@ form: module.record_id""" % (xml_id,)
         rec_id = rec.attrib["id"]
         self._test_xml_id(rec_id)
 
-        # The parent attribute was specified, if non-empty determine its ID, otherwise
-        # explicitly make a top-level menu
         values = {
             "parent_id": False,
             "active": nodeattr2bool(rec, "active", default=True),
@@ -387,11 +377,7 @@ form: module.record_id""" % (xml_id,)
         self._test_xml_id(rec_id)
         xid = self.make_xml_id(rec_id)
 
-        # in update mode, the record won't be updated if the data node explicitly
-        # opt-out using @noupdate="1". A second check will be performed in
-        # model._load_records() using the record's ir.model.data `noupdate` field.
         if self.noupdate and self.mode != "init":
-            # check if the xml record has no id, skip
             if not rec_id:
                 return None
 
@@ -403,24 +389,18 @@ form: module.record_id""" % (xml_id,)
                     if sub_record := env["ir.model.data"]._load_xmlid(sub_xid):
                         self.idref[sub_xid] = sub_record.id
 
-                # if the resource already exists, don't update it but store
-                # its database id (can be useful)
                 self.idref[xid] = record.id
                 return None
             elif not nodeattr2bool(rec, "forcecreate", True):
-                # if it doesn't exist and we shouldn't create it, skip it
                 return None
-            # else create it normally
 
         foreign_record_to_create = False
         if xid and xid.partition(".")[0] != self.module:
-            # updating a record created by another module
             record = self.env["ir.model.data"]._load_xmlid(xid)
             if not record and not (
                 foreign_record_to_create := nodeattr2bool(rec, "forcecreate")
-            ):  # Allow foreign records if explicitely stated
+            ):
                 if self.noupdate and not nodeattr2bool(rec, "forcecreate", True):
-                    # if it doesn't exist and we shouldn't create it, skip it
                     return None
                 raise ValueError("Cannot update missing record %r" % xid)
 
@@ -429,10 +409,9 @@ form: module.record_id""" % (xml_id,)
         res = {}
         sub_records = []
         for field in rec.iterchildren("field"):
-            # TODO: most of this code is duplicated above (in _eval_xml)...
             f_name = field.get("name")
             if "@" in f_name:
-                continue  # used for translations
+                continue
             f_model = field.get("model")
             if not f_model and f_name in model._fields:
                 f_model = model._fields[f_name].comodel_name
@@ -443,16 +422,11 @@ form: module.record_id""" % (xml_id,)
                 context = _get_eval_context(self, env, f_model)
                 q = safe_eval(f_search, context)
                 assert f_model, 'Define an attribute model="..." in your .XML file!'
-                # browse the objects searched
                 s = env[f_model].search(q)
-                # column definitions of the "local" object
                 _fields = env[rec_model]._fields
-                # if the current field is many2many
                 if (f_name in _fields) and _fields[f_name].type == "many2many":
                     f_val = [Command.set([x[f_use] for x in s])]
                 elif len(s):
-                    # otherwise (we are probably in a many2one field),
-                    # take the first element of the search
                     f_val = s[0][f_use]
             elif f_ref := field.get("ref"):
                 if (
@@ -492,8 +466,6 @@ form: module.record_id""" % (xml_id,)
                             for child in field.iterchildren("record")
                         )
                         if isinstance(f_val, str):
-                            # We do not want to write on the field since we will write
-                            # on the childrens' parents later
                             continue
                     elif field_type == "html":
                         if field.get("type") == "xml":
@@ -524,12 +496,10 @@ form: module.record_id""" % (xml_id,)
         return rec_model, record.id
 
     def _tag_template(self, el: etree._Element) -> tuple[str, int] | None:
-        # This helper transforms a <template> element into a <record> and forwards it
         tpl_id = el.get("id", el.get("t-name"))
         full_tpl_id = tpl_id
         if "." not in full_tpl_id:
             full_tpl_id = "%s.%s" % (self.module, tpl_id)
-        # set the full template name for qweb <module>.<id>
         if not el.get("inherit_id"):
             el.set("t-name", full_tpl_id)
             el.tag = "t"
@@ -568,10 +538,6 @@ form: module.record_id""" % (xml_id,)
         if "key" in el.attrib:
             record.append(Field(el.get("key"), name="key"))
 
-        # If the "active" value is set on the root node (instead of an inner
-        # <field>), it is treated as the value for the "active" field but only
-        # when *not updating*. This allows to update the record in a more recent
-        # version without changing its active state (compatibility).
         if el.get("active") in ("True", "False"):
             view_id = self.id_get(tpl_id, raise_if_not_found=False)
             if self.mode != "update" or not view_id:
@@ -589,7 +555,6 @@ form: module.record_id""" % (xml_id,)
                 )
             )
         if el.get("primary") == "True":
-            # Pseudo clone mode, we'll set the t-name to the full canonical xmlid
             el.append(
                 builder.E.xpath(
                     builder.E.attribute(full_tpl_id, name="t-name"),
@@ -598,8 +563,6 @@ form: module.record_id""" % (xml_id,)
                 )
             )
             record.append(Field("primary", name="mode"))
-        # inject complete <template> element (after changing node name) into
-        # the ``arch`` field
         record.append(Field(el, name="arch", type="xml"))
 
         return self._tag_record(record)
@@ -622,21 +585,13 @@ form: module.record_id""" % (xml_id,)
         name = el.get("name", asset_id)
         record.append(Field(name, name="name"))
 
-        # E.g. <bundle directive="prepend">web.assets_frontend</bundle>
-        # (directive is optional)
         bundle_el = el.find("bundle")
         record.append(Field(bundle_el.text, name="bundle"))
         if "directive" in bundle_el.attrib:
             record.append(Field(bundle_el.get("directive"), name="directive"))
 
-        # E.g. <path>website/static/src/snippets/s_share/000.scss</path>
         record.append(Field(el.find("path").text, name="path"))
 
-        # Same as <template> for ir.ui.view:
-        # If the "active" value is set on the root node (instead of an inner
-        # <field>), it is treated as the value for the "active" field but only
-        # when *not updating*. This allows to update the record in a more recent
-        # version without changing its active state (compatibility).
         if el.get("active") in ("True", "False"):
             record_id = self.id_get(asset_id, raise_if_not_found=False)
             if self.mode != "update" or not record_id:
@@ -664,11 +619,6 @@ form: module.record_id""" % (xml_id,)
         )
 
     def _tag_root(self, el: etree._Element) -> None:
-        # The env/noupdate/auto_sequence context comes from the container ``el``
-        # and is constant across its children, so push the frame once per
-        # container -- not once per child. Per-child pushes would reset the
-        # auto_sequence counter for every sibling, giving every top-level record
-        # sequence=10 instead of 10, 20, 30, ...
         self.envs.append(self.get_env(el))
         self._noupdate.append(nodeattr2bool(el, "noupdate", self.noupdate))
         self._sequences.append(0 if nodeattr2bool(el, "auto_sequence", False) else None)
@@ -691,9 +641,7 @@ form: module.record_id""" % (xml_id,)
                         err=err.args[0],
                     )
                     _logger.debug(msg, exc_info=True)
-                    raise ParseError(
-                        msg
-                    ) from None  # Restart with "--log-handler odoo.tools.convert:DEBUG" for complete traceback
+                    raise ParseError(msg) from None
                 except Exception as e:
                     raise ParseError(
                         "while parsing %s:%s, somewhere inside\n%s"
@@ -783,14 +731,14 @@ def convert_file(
         elif ext == ".xml":
             convert_xml_import(env, module, fp, idref, mode, noupdate)
         elif ext == ".js":
-            pass  # .js files are valid but ignored here.
+            pass
         else:
             msg = "Can't load unknown file type %s."
             raise ValueError(msg, filename)
 
 
 def convert_sql_import(env: Environment, fp: IO[bytes]) -> None:
-    env.cr.execute(fp.read())  # pylint: disable=sql-injection
+    env.cr.execute(fp.read())
 
 
 def convert_csv_import(
@@ -829,8 +777,6 @@ def convert_csv_import(
     if not fields:
         return
 
-    # clean the data from translations (treated during translation import), then
-    # filter out empty lines (any([]) == False) and lines containing only empty cells
     datas = [
         data_line for line in reader if any(data_line := remove_translations(line))
     ]
@@ -845,7 +791,6 @@ def convert_csv_import(
     }
     result = env[model].with_context(**context).load(fields, datas)
     if any(msg["type"] == "error" for msg in result["messages"]):
-        # Report failed import and abort module install
         warning_msg = "\n".join(msg["message"] for msg in result["messages"])
         raise ValueError(
             env._(

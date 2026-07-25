@@ -1,26 +1,3 @@
-/**
- * Persistent es-module-lexer worker for the assets pipeline.
- *
- * Protocol: line-delimited JSON over stdio, strict request/response
- * ping-pong (the Python side — ``odoo.tools.assets.esm_lexer`` — never
- * pipelines).  Request: ``{"id": n, "src": "<js source>"}``.  Response:
- *
- *     {"id": n, "ok": true,
- *      "names": [..named exports..], "hasDefault": bool,
- *      "starFrom": [..raw `export * from` specifiers..],
- *      "imports": [{"n": "<specifier>", "kind": "named|default|star|side"}]}
- *
- * or ``{"id": n, "ok": false, "error": "..."}`` when the source does not
- * lex (the Python side falls back to its regex extractor).
- *
- * Notes mirroring the Python regex path this replaces:
- *   - `export * as ns from "x"` contributes the single name ``ns`` (via
- *     the exports array); it is NOT a ``starFrom`` entry.
- *   - `export {x} from "y"` / `export * from "y"` statements are NOT
- *     import records — bridge discovery only follows `import` forms.
- *   - Dynamic ``import(...)`` is skipped (d >= 0), as is any statement
- *     with a computed/absent specifier.
- */
 import { createInterface } from "node:readline";
 import { init, parse } from "es-module-lexer";
 
@@ -28,13 +5,10 @@ await init;
 
 const rl = createInterface({ input: process.stdin, terminal: false });
 rl.on("line", (line) => {
-    /** @type {{id?: number, src?: string}} */
     let req;
     try {
         req = JSON.parse(line);
     } catch {
-        // Unparseable request: nothing to correlate a response to; the
-        // client's read will time out and it will fall back.
         return;
     }
     const out = { id: req.id };

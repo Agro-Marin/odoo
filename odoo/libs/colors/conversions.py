@@ -24,7 +24,6 @@ def get_saturation(rgb: Sequence[int]) -> float:
     c_max = max(rgb) / 255
     c_min = min(rgb) / 255
     d = c_max - c_min
-    # 0.0 (not 0) so the achromatic path matches the declared float return type
     return 0.0 if d == 0 else d / (1 - abs(c_max + c_min - 1))
 
 
@@ -76,16 +75,12 @@ def hex_to_rgb(hx: str) -> tuple[int, int, int]:
         ...
         ValueError: not a hexadecimal color: 'nope'
     """
-    # Slicing blindly from index 1 assumed a leading "#" and validated nothing:
-    # 'FF0000' silently read the digits one position off and returned
-    # (240, 0, 0), and a 3-digit shorthand crashed with a bare
-    # "invalid literal for int()".
     if not _HEX_COLOR_RE.match(hx):
         raise ValueError(f"not a hexadecimal color: {hx!r}")
     digits = hx.removeprefix("#")
-    if len(digits) <= 4:  # shorthand: each digit is doubled
+    if len(digits) <= 4:
         digits = "".join(d * 2 for d in digits)
-    return tuple(int(digits[i : i + 2], 16) for i in range(0, 6, 2))  # type: ignore[return-value]
+    return tuple(int(digits[i : i + 2], 16) for i in range(0, 6, 2))
 
 
 def rgb_to_hex(rgb: Sequence[int]) -> str:
@@ -121,10 +116,7 @@ def hsl_from_seed(seed: str) -> str:
         'hsl(58, 57%, 45%)'
     """
     hashed_seed = sha512(seed.encode()).hexdigest()
-    # full range of colors, in degree
     hue = int(hashed_seed[0:2], 16) * 360 / 255
-    # colorful result but not too flashy, in percent
     sat = int(hashed_seed[2:4], 16) * ((70 - 40) / 255) + 40
-    # not too bright and not too dark, in percent
     lig = 45
     return f"hsl({hue:.0f}, {sat:.0f}%, {lig:.0f}%)"

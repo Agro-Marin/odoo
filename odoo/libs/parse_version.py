@@ -30,11 +30,11 @@ def _parse_version_parts(s: str) -> Iterator[str]:
         if not part or part == ".":
             continue
         if part[:1] in "0123456789":
-            yield part.zfill(8)  # pad for numeric comparison
+            yield part.zfill(8)
         else:
             yield "*" + part
 
-    yield "*final"  # ensure that alpha/beta/candidate are before final
+    yield "*final"
 
 
 def parse_version(s: str) -> tuple[str, ...]:
@@ -70,17 +70,10 @@ def parse_version(s: str) -> tuple[str, ...]:
     parts: list[str] = []
     for part in _parse_version_parts((s or "0.1").lower()):
         if part.startswith("*"):
-            if part < "*final":  # remove '-' before a prerelease tag
+            if part < "*final":
                 while parts and parts[-1] == "*final-":
                     parts.pop()
-            # remove trailing zeros from each series of numeric parts
             while parts and parts[-1] == "00000000":
                 parts.pop()
         parts.append(part)
     return tuple(parts)
-
-
-# The ordering assertions that used to sit here behind
-# ``if __name__ == "__main__"`` now live in
-# ``odoo/libs/tests/test_parse_version.py``, where they actually run (and where
-# ``-O`` cannot strip them, as it would have done to those bare ``assert``s).

@@ -11,14 +11,10 @@ class TestTimezone(unittest.TestCase):
         self.assertIsInstance(timezone("Europe/Paris"), ZoneInfo)
 
     def test_unknown_name_raises_zoneinfo_not_found(self):
-        # documented contract (:raises ZoneInfoNotFoundError:); previously the
-        # specific error was downgraded to a plain KeyError.
         with self.assertRaises(ZoneInfoNotFoundError):
             timezone("Not/AZone")
 
     def test_legacy_turkey_alias_resolves(self):
-        # the legacy tzdata name is "Turkey" (not "Türkiye"); it must resolve on
-        # systems whose trimmed tzdata drops the backward-compat links.
         self.assertIsInstance(timezone("Turkey"), ZoneInfo)
 
 
@@ -34,8 +30,6 @@ class TestCountryTimezones(unittest.TestCase):
             country_timezones()["ZZ"] = ("Nowhere/Land",)
 
     def test_zone_lists_are_not_writable(self):
-        # it used to hand out the cache's own lists, so `.append` on a returned
-        # value corrupted the table for every later caller in the process.
         with self.assertRaises(AttributeError):
             country_timezones()["US"].append("Bogus/Zone")
 

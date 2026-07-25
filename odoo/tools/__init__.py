@@ -1,6 +1,3 @@
-# Odoo-dependent tools (remain in tools/)
-# Re-export additional utilities from libs/ not covered by misc.py
-# Note: misc.py already re-exports collections, iteration, text, utils from libs/
 from odoo.libs import constants
 from odoo.libs.func import (
     classproperty,

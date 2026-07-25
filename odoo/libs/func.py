@@ -83,10 +83,6 @@ def frame_codeinfo(
             fframe = fframe.f_back
             if fframe is None:
                 return "<unknown>", ""
-        # ``f_code.co_filename`` rather than ``inspect.getsourcefile``: the
-        # latter stats the filesystem on every call (and returns None for a
-        # file it cannot find), which is wasted work in the logging/warning
-        # paths this feeds.
         fname = fframe.f_code.co_filename or "<builtin>"
         lineno = fframe.f_lineno or ""
         return fname, lineno
@@ -135,7 +131,6 @@ class lazy:
 
     def __init__(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """Store the callable and its arguments for later evaluation."""
-        # bypass own __setattr__
         object.__setattr__(self, "_func", func)
         object.__setattr__(self, "_args", args)
         object.__setattr__(self, "_kwargs", kwargs)
@@ -144,10 +139,6 @@ class lazy:
     def _value(self) -> Any:
         if self._func is not None:
             value = self._func(*self._args, **self._kwargs)
-            # Publish the result before clearing ``_func``: ``_func is None`` is
-            # the "already evaluated" flag, so ``_cached_value`` must be set
-            # first or a concurrent reader (or a reader that raced in during
-            # evaluation) sees the flag flipped while the slot is still unset.
             object.__setattr__(self, "_cached_value", value)
             object.__setattr__(self, "_args", None)
             object.__setattr__(self, "_kwargs", None)
@@ -156,21 +147,12 @@ class lazy:
 
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the evaluated value."""
-        # Own slots are looked up via __getattribute__; reaching __getattr__ for
-        # one means it is genuinely unset (e.g. ``_cached_value`` before the
-        # first evaluation, or during unpickling before __init__ runs).  Raise
-        # immediately instead of delegating to ``self._value``, which would read
-        # the same unset slot and recurse forever (copy/pickle hit this).
         if name in lazy.__slots__:
             raise AttributeError(name)
         return getattr(self._value, name)
 
     def __reduce__(self) -> tuple[Any, tuple[Any]]:
         """Pickle/copy the evaluated value rather than the callable + args."""
-        # The callable and its arguments are frequently unpicklable, and routing
-        # pickle's protocol lookups through ``__getattr__`` would force-evaluate
-        # (or recurse).  Reconstruct a pre-evaluated ``lazy`` so the proxy type
-        # survives a round-trip.
         return (_reconstruct_lazy, (self._value,))
 
     def __setattr__(self, name: str, value: Any) -> None:

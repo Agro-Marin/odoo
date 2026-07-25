@@ -30,13 +30,11 @@ class _AddonsRoot:
         (self.addons / "mymod" / "static" / "ok.txt").write_text("ok")
         (self.addons / "mymod" / "static" / "pic.PNG").write_text("img")
         (self.outside / "secret.txt").write_text("secret")
-        # A symlink inside the addons tree pointing out of it.
         self.escape = self.addons / "mymod" / "escape"
         self.escape.symlink_to(self.outside, target_is_directory=True)
 
     def __enter__(self):
         self._saved_path = list(odoo.addons.__path__)
-        # Drop any stubbed module entry so the sys.modules shortcut is not taken.
         self._saved_mod = sys.modules.pop("odoo.addons.mymod", None)
         odoo.addons.__path__[:] = [str(self.addons)]
         _addons_dir_paths.cache_clear()

@@ -45,7 +45,6 @@ class TestRenderSignature(unittest.TestCase):
             pass
 
         rendered, globs = _render_signature(m)
-        # The identical object, not a re-parsed equal one.
         self.assertIs(globs["__ormcache_default_2"], SENTINEL)
         self.assertNotIn("opaque", rendered)
 
@@ -97,7 +96,6 @@ class TestOrmcacheDeterminesKey(unittest.TestCase):
         def m(self, a, flag=SENTINEL):
             pass
 
-        # Was: SyntaxError: invalid syntax
         key = self._key_of(m, _FakeModel(), 7)
         self.assertEqual(key, ("fake.model", m, 7))
 
@@ -123,9 +121,6 @@ class TestOrmcacheDeterminesKey(unittest.TestCase):
         )
 
     def test_first_parameter_need_not_be_named_self(self):
-        # determine_key used to hardcode ``self._name`` in the generated lambda
-        # body; a method whose first parameter has any other name then raised
-        # ``NameError`` on every cache lookup (a 100%-failure cache).
         def m(records, a):
             pass
 

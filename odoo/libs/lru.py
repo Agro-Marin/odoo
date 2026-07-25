@@ -24,30 +24,11 @@ class LRU[K, V](MutableMapping[K, V]):
         if count <= 0:
             raise ValueError(f"LRU count must be positive, got {count!r}")
         self._count = count
-        # Monotonic clear counter. Readers that compute a value outside the lock
-        # and then store it can snapshot this before computing and skip the
-        # store if it changed, so a clear() landing mid-compute is not undone by
-        # re-caching stale data. See odoo.tools.cache.ormcache.
         self._generation = 0
         self._lock = threading.RLock()
         self._values: dict[K, V] = {}
-        #
-        # The dict self._values contains the LRU items, while self._ordering
-        # only keeps track of their order, the most recently used ones being
-        # last. For performance reasons, we only use the lock when modifying
-        # the LRU, while reading it is lock-free (and thus faster).
-        #
-        # This strategy may result in inconsistencies between self._values and
-        # self._ordering. Indeed, concurrently accessed keys may be missing
-        # from self._ordering, but will eventually be added. This could result
-        # in keys being added back in self._ordering after their actual removal
-        # from the LRU. This results in the following invariant:
-        #
-        #     self._values <= self._ordering | "keys being accessed"
-        #
         self._ordering: dict[K, None] = {}
 
-        # Initialize
         for key, value in pairs:
             self[key] = value
 
@@ -62,20 +43,12 @@ class LRU[K, V](MutableMapping[K, V]):
             raise ValueError(f"LRU count must be positive, got {count!r}")
         with self._lock:
             self._count = count
-            # Evict directly rather than via MutableMapping.popitem(), which
-            # goes through __iter__ -> snapshot and so copied the whole mapping
-            # once *per evicted item* (O(n^2) to shrink).
             while len(self._values) > count:
                 try:
-                    # a concurrent lock-free __getitem__ can mutate _ordering
-                    # mid-iteration; retry rather than let the RuntimeError
-                    # escape the setter (same guard as __setitem__)
                     key = next(iter(self._ordering), None)
                 except RuntimeError:
                     continue
                 if key is None:
-                    # _ordering lags behind _values (see the class comment);
-                    # fall back to any key so shrinking always terminates
                     key = next(iter(self._values))
                 self._values.pop(key, None)
                 self._ordering.pop(key, None)
@@ -87,7 +60,6 @@ class LRU[K, V](MutableMapping[K, V]):
     def __getitem__(self, key: K) -> V:
         """Return the value for ``key`` and mark it as most recently used."""
         val = self._values[key]
-        # move key at the last position in self._ordering
         self._ordering[key] = self._ordering.pop(key, None)
         return val
 
@@ -99,21 +71,15 @@ class LRU[K, V](MutableMapping[K, V]):
             values[key] = val
             ordering[key] = ordering.pop(key, None)
             while True:
-                # if we have too many keys in ordering, filter them out
                 if len(ordering) > len(values):
-                    # (copy to avoid concurrent changes on ordering)
                     for k in ordering.copy():
                         if k not in values:
                             ordering.pop(k, None)
-                # check if we have too many keys
                 if len(values) <= self._count:
                     break
-                # if so, pop the least recently used
                 try:
-                    # have a default in case of concurrent accesses
                     key = next(iter(ordering), key)
                 except RuntimeError:
-                    # ordering modified during iteration, retry
                     continue
                 values.pop(key, None)
                 ordering.pop(key, None)
@@ -151,20 +117,15 @@ class LRU[K, V](MutableMapping[K, V]):
         """Return a copy of the LRU (ordered according to LRU first)."""
         with self._lock:
             values = self._values
-            # build result in expected order (copy self._ordering to avoid concurrent changes)
             result = {
                 key: val
                 for key in self._ordering.copy()
                 if (val := values.get(key, SENTINEL)) is not SENTINEL
             }
             if len(result) < len(values):
-                # keys in value were missing from self._ordering, add them
                 result.update(values)
         return result
 
-    # Overloads mirror ``MutableMapping.pop`` (typeshed): with an explicit
-    # ``default`` of any type T, the result is ``V | T`` and no KeyError is
-    # raised; without it, the result is ``V`` or KeyError.
     @typing.overload
     def pop(self, key: K, /) -> V: ...
     @typing.overload

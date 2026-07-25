@@ -6,35 +6,26 @@ from datetime import UTC, date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 
-# Re-export all agnostic utilities from libs/
 from odoo.libs.datetime import (
     WEEKDAY_NUMBER,
-    # Arithmetic
     add,
-    # Iteration
     date_range,
     end_of,
-    # Time conversion
     float_to_time,
     get_fiscal_year,
-    # Period calculations
     get_month,
     get_quarter,
     get_quarter_number,
     get_timedelta,
-    # Timezone handling
     localized,
-    # Parsing
     parse_iso_date,
     start_of,
     subtract,
     sum_intervals,
     time_to_float,
     to_timezone,
-    # Constants
     utc,
     weekend,
-    # Week utilities
     weeknumber,
     weekstart,
 )
@@ -52,7 +43,6 @@ def utcnow() -> datetime:
 if typing.TYPE_CHECKING:
     from odoo.orm.runtime import Environment
 
-# Internal constants used by resolve_date
 _TRUNCATE_TODAY = relativedelta(microsecond=0, second=0, minute=0, hour=0)
 _TRUNCATE_UNIT = {
     "day": _TRUNCATE_TODAY,
@@ -86,14 +76,12 @@ __all__ = [
     "get_timedelta",
     "localized",
     "parse_iso_date",
-    # Odoo-specific
     "resolve_date",
     "start_of",
     "subtract",
     "sum_intervals",
     "time_to_float",
     "to_timezone",
-    # Re-exported from libs
     "utc",
     "weekend",
     "weeknumber",
@@ -123,14 +111,13 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
       - "+monday" goes to next Monday (no change if we are on Monday)
       - "=week_start" sets to the first day of the current week, according to the locale
 
-    The DSL for relative dates is as follows:
-    ```
-    relative_date := ('today' | 'now')? offset*
-    offset := date_rel | time_rel | weekday
-    date_rel := (regex) [=+-]\d+[dwmy]
-    time_rel := (regex) [=+-]\d+[HMS]
-    weekday := [=+-] ('monday' | ... | 'sunday' | 'week_start')
-    ```
+    The DSL for relative dates is as follows::
+
+        relative_date := ('today' | 'now')? offset*
+        offset := date_rel | time_rel | weekday
+        date_rel := (regex) [=+-]\d+[dwmy]
+        time_rel := (regex) [=+-]\d+[HMS]
+        weekday := [=+-] ('monday' | ... | 'sunday' | 'week_start')
 
     An equivalent function in JavaScript is `parseSmartDateInput`.
 
@@ -145,7 +132,6 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
         msg = "Empty date value"
         raise ValueError(msg)
 
-    # Find the starting point
     from odoo.orm.fields import Date, Datetime
 
     dt: datetime | date = Datetime.now()
@@ -161,7 +147,6 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
         if operator not in ("+", "-", "=") or len(term) < 3:
             raise ValueError(f"Invalid term {term!r} in expression date: {value!r}")
 
-        # Weekday
         dayname = term[1:]
         if dayname in WEEKDAY_NUMBER or dayname == "week_start":
             week_start = (
@@ -181,33 +166,25 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
             dt += timedelta(weekday_offset)
             continue
 
-        # Operations on dates
         try:
             unit = _SHORT_DATE_UNIT[term[-1]]
             if operator in ("+", "-"):
-                number = int(term[:-1])  # positive or negative
+                number = int(term[:-1])
             else:
                 number = int(term[1:-1])
                 unit = unit.removesuffix("s")
                 if isinstance(dt, datetime):
                     dt += _TRUNCATE_UNIT[unit]
-                # note: '=Nw' is not supported
             dt += relativedelta(**{unit: number})
         except ValueError, TypeError, KeyError:
             raise ValueError(
                 f"Invalid term {term!r} in expression date: {value!r}"
             ) from None
 
-    # always return a naive date
     if isinstance(dt, datetime):
         if dt.tzinfo is not None:
             dt = dt.astimezone(UTC).replace(tzinfo=None)
         elif started_as_date:
-            # A 'today' date promoted to a datetime by a time term (e.g.
-            # "today =5H") carries the user's wall-clock time but no tzinfo;
-            # downstream (_value_to_datetime) would treat it as UTC. Localize
-            # it in the user's timezone, then normalize to naive UTC, matching
-            # the tz-aware 'now' path.
             dt = (
                 dt.replace(tzinfo=env["base"].env.tz)
                 .astimezone(UTC)

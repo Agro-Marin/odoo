@@ -42,11 +42,14 @@ class TestStrippedSysArgv(unittest.TestCase):
         )
 
     def test_attached_short_form(self):
-        self.assertEqual(strip(["odoo-bin", "-ubase", "-d", "db"]), ["odoo-bin", "-d", "db"])
+        self.assertEqual(
+            strip(["odoo-bin", "-ubase", "-d", "db"]), ["odoo-bin", "-d", "db"]
+        )
 
     def test_long_form_with_separate_value(self):
         self.assertEqual(
-            strip(["odoo-bin", "--update", "base", "-d", "db"]), ["odoo-bin", "-d", "db"]
+            strip(["odoo-bin", "--update", "base", "-d", "db"]),
+            ["odoo-bin", "-d", "db"],
         )
 
     def test_long_form_with_equals(self):
@@ -55,15 +58,20 @@ class TestStrippedSysArgv(unittest.TestCase):
         )
 
     def test_init_is_stripped(self):
-        self.assertEqual(strip(["odoo-bin", "-i", "sale", "-d", "db"]), ["odoo-bin", "-d", "db"])
+        self.assertEqual(
+            strip(["odoo-bin", "-i", "sale", "-d", "db"]), ["odoo-bin", "-d", "db"]
+        )
 
     def test_save_is_stripped(self):
         """A re-exec must not rewrite the config file again."""
-        self.assertEqual(strip(["odoo-bin", "-s", "-d", "db"]), ["odoo-bin", "-d", "db"])
+        self.assertEqual(
+            strip(["odoo-bin", "-s", "-d", "db"]), ["odoo-bin", "-d", "db"]
+        )
 
     def test_i18n_overwrite_is_stripped(self):
         self.assertEqual(
-            strip(["odoo-bin", "--i18n-overwrite", "-d", "db"]), ["odoo-bin", "-d", "db"]
+            strip(["odoo-bin", "--i18n-overwrite", "-d", "db"]),
+            ["odoo-bin", "-d", "db"],
         )
 
     def test_extra_option_can_be_stripped(self):
@@ -86,9 +94,7 @@ class TestStrippedSysArgv(unittest.TestCase):
     def test_a_database_named_like_a_module_is_not_confused(self):
         """The value-consuming rule keys off the PREVIOUS argv entry, so a
         value that merely looks like an option's value must be kept."""
-        self.assertEqual(
-            strip(["odoo-bin", "-d", "base"]), ["odoo-bin", "-d", "base"]
-        )
+        self.assertEqual(strip(["odoo-bin", "-d", "base"]), ["odoo-bin", "-d", "base"])
 
 
 class TestToolLookup(unittest.TestCase):

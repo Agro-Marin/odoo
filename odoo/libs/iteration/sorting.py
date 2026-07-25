@@ -37,16 +37,6 @@ def topological_sort[T](
         A self-edge (``{a: [a]}``) is degenerate rather than contradictory and
         is ignored either way.
     """
-    # The algorithm is inspired by [Tarjan 1976],
-    # http://en.wikipedia.org/wiki/Topological_sorting#Algorithms
-    #
-    # Iterative rather than recursive: a recursive DFS blew the interpreter
-    # stack on long dependency chains (RecursionError past ~1k links), and a
-    # dependency chain is attacker-/data-shaped, not bounded by the code.
-    #
-    # ``path`` tracks the nodes on the current DFS branch so a cycle is
-    # reported instead of silently yielding an order that violates the very
-    # contract this function exists to guarantee.
     result: list[T] = []
     visited: set[T] = set()
     path: set[T] = set()
@@ -61,20 +51,12 @@ def topological_sort[T](
             node, deps = stack[-1]
             for dep in deps:
                 if dep == node:
-                    # Degenerate self-edge, not an ordering conflict. Real data
-                    # relies on it: a manifest without "depends" defaults to
-                    # ["base"], so the base module depends on itself
-                    # (ir_asset._topological_sort).
                     continue
                 if dep in path:
                     if strict:
                         raise ValueError(
                             f"topological_sort: cyclic dependency involving {dep!r}"
                         )
-                    # Non-strict: drop the back-edge and carry on. ``dep`` is an
-                    # ancestor on the current branch, so it is already scheduled
-                    # to be emitted after ``node`` — exactly what the recursive
-                    # implementation did by short-circuiting on ``visited``.
                     continue
                 if dep in visited:
                     continue
@@ -82,10 +64,8 @@ def topological_sort[T](
                 if dep in elems:
                     path.add(dep)
                     stack.append((dep, iter(elems[dep])))
-                    break  # descend into dep, resume this iterator later
-                # a dependency absent from elems is never emitted
+                    break
             else:
-                # every dependency of node has been emitted
                 stack.pop()
                 path.discard(node)
                 result.append(node)
@@ -134,14 +114,13 @@ def merge_sequences[T](*iterables: Iterable[T]) -> list[T]:
     ``strict=False``; contrast :func:`topological_sort`, whose own callers pass
     real dependency graphs where a cycle is a genuine error.
     """
-    # dict is ordered
-    deps: defaultdict[T, list[T]] = defaultdict(list)  # {item: elems_before_item}
+    deps: defaultdict[T, list[T]] = defaultdict(list)
     for iterable in iterables:
         prev: T | Sentinel = SENTINEL
         for item in iterable:
             if prev is SENTINEL:
-                deps[item]  # just set the default
+                deps[item]
             else:
-                deps[item].append(prev)  # type: ignore[arg-type]
+                deps[item].append(prev)
             prev = item
     return topological_sort(deps, strict=False)

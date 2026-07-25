@@ -31,7 +31,6 @@ __all__ = [
     "SANITIZE_TAGS",
     "TEXT_URL_REGEX",
     "URL_REGEX",
-    # URL regex constants
     "URL_SKIP_PROTOCOL_REGEX",
     "VOID_ELEMENTS",
     "append_content_to_html",
@@ -53,7 +52,6 @@ __all__ = [
     "validate_url",
 ]
 
-# ── HTML spec constants ──────────────────────────────────────────────
 
 VOID_ELEMENTS = frozenset(
     [
@@ -98,15 +96,11 @@ def nl2br_enclose(string: str, enclosure_tag: str = "div") -> Markup:
     )
 
 
-# ----------------------------------------------------------
-# HTML Sanitizer
-# ----------------------------------------------------------
-
 safe_attrs = defs.safe_attrs | frozenset(
     [
         "style",
         "data-o-mail-quote",
-        "data-o-mail-quote-node",  # quote detection
+        "data-o-mail-quote-node",
         "data-oe-model",
         "data-oe-id",
         "data-oe-field",
@@ -128,7 +122,7 @@ safe_attrs = defs.safe_attrs | frozenset(
         "data-scale-x",
         "data-scale-y",
         "data-x",
-        "data-y",  # legacy editor
+        "data-y",
         "data-oe-role",
         "data-oe-aria-label",
         "data-publish",
@@ -156,20 +150,13 @@ safe_attrs = defs.safe_attrs | frozenset(
         "data-heading-link-id",
         "data-mimetype-before-conversion",
         "data-language-id",
-        "data-bs-toggle",  # support nav-tabs
+        "data-bs-toggle",
     ]
 )
 
-# ``xlink:href`` is in neither lxml's ``defs.safe_attrs`` nor the set above, yet
-# ``_Cleaner`` still lets it through — so registering it as a *link* attribute is
-# the only thing that subjects it to the URL-scheme check.  Without this line
-# ``<svg><a xlink:href="javascript:...">`` survives ``html_sanitize`` verbatim,
-# i.e. stored XSS in every sanitized HTML field.  Covered by
-# ``odoo/libs/text/tests/test_html_security.py``.
 defs.link_attrs |= {"xlink:href"}
 
 SANITIZE_TAGS = {
-    # allow new semantic HTML5 tags
     "allow_tags": defs.tags
     | frozenset(
         [
@@ -235,13 +222,11 @@ class _Cleaner(clean.Cleaner):
         "margin-bottom",
         "margin-right",
         "white-space",
-        # appearance
         "background-image",
         "background-position",
         "background-size",
         "background-repeat",
         "background-origin",
-        # box model
         "border",
         "border-color",
         "border-radius",
@@ -254,7 +239,6 @@ class _Cleaner(clean.Cleaner):
         "max-width",
         "min-width",
         "min-height",
-        # tables
         "border-collapse",
         "border-spacing",
         "caption-side",
@@ -262,8 +246,6 @@ class _Cleaner(clean.Cleaner):
         "table-layout",
     ]
 
-    # frozenset, not list: ``parse_style`` membership-tests every declaration of
-    # every element, which was a linear scan over ~70 entries per lookup.
     _style_whitelist = frozenset(_style_whitelist) | {
         f"border-{position}-{attribute}"
         for position in ["top", "bottom", "left", "right"]
@@ -283,12 +265,10 @@ class _Cleaner(clean.Cleaner):
     def __call__(self, doc: etree._Element) -> None:
         super().__call__(doc)
 
-        # if we keep attributes but still remove classes
         if not getattr(self, "safe_attrs_only", False) and self.strip_classes:
             for el in doc.iter(tag=etree.Element):
                 self.strip_class(el)
 
-        # if we keep style attribute, sanitize them
         if not self.style and self.sanitize_style:
             for el in doc.iter(tag=etree.Element):
                 self.parse_style(el)
@@ -380,7 +360,6 @@ def tag_quote(el: etree._Element) -> None:
     el_class = el.get("class", "") or ""
     el_id = el.get("id", "") or ""
 
-    # gmail or yahoo // # outlook, html // # msoffice
     if "gmail_extra" in el_class or "SkyDrivePlaceholder" in el_class:
         el.set("data-o-mail-quote", "1")
         if el.getparent() is not None:
@@ -389,19 +368,16 @@ def tag_quote(el: etree._Element) -> None:
     if (
         el.tag == "hr" and ("stopSpelling" in el_class or "stopSpelling" in el_id)
     ) or "yahoo_quoted" in el_class:
-        # Quote all elements after this one
         el.set("data-o-mail-quote", "1")
         for sibling in el.itersiblings(preceding=False):
             sibling.set("data-o-mail-quote", "1")
 
-    # odoo, gmail and outlook automatic signature wrapper
     is_signature_wrapper = (
         "odoo_signature_wrapper" in el_class
         or "gmail_signature" in el_class
         or el_id == "Signature"
     )
     is_outlook_auto_message = "appendonsend" in el_id
-    # gmail and outlook reply quote
     is_outlook_reply_quote = "divRplyFwdMsg" in el_id
     is_gmail_quote = "gmail_quote" in el_class
     is_quote_wrapper = is_signature_wrapper or is_gmail_quote or is_outlook_reply_quote
@@ -409,7 +385,6 @@ def tag_quote(el: etree._Element) -> None:
         el.set("data-o-mail-quote-container", "1")
         el.set("data-o-mail-quote", "1")
 
-    # outlook reply wrapper is preceded with <hr> and a div containing recipient info
     if is_outlook_reply_quote:
         hr = el.getprevious()
         reply_quote = el.getnext()
@@ -424,27 +399,22 @@ def tag_quote(el: etree._Element) -> None:
             el.set("data-o-mail-quote-container", "1")
             el.set("data-o-mail-quote", "1")
 
-    # html signature (-- <br />blah)
     if el.text and el.find("br") is not None and _SIGNATURE_BEGIN_RE.search(el.text):
         el.set("data-o-mail-quote", "1")
         if el.getparent() is not None:
             el.getparent().set("data-o-mail-quote-container", "1")
 
-    # text-based quotes (>, >>) and signatures (-- Signature)
     if not el.get("data-o-mail-quote"):
         _tag_matching_regex_in_text(
             _TEXT_COMPLETE_RE, el, "span", {"data-o-mail-quote": "1"}
         )
 
     if el.tag == "blockquote":
-        # remove single node
         el.set("data-o-mail-quote-node", "1")
         el.set("data-o-mail-quote", "1")
     if el.getparent() is not None and not el.getparent().get("data-o-mail-quote-node"):
         if el.getparent().get("data-o-mail-quote"):
             el.set("data-o-mail-quote", "1")
-        # only quoting the elements following the first quote in the container
-        # avoids issues with repeated calls to html_normalize
         elif el.getparent().get("data-o-mail-quote-container"):
             if (
                 first_sibling_quote := el.getparent().find("*[@data-o-mail-quote]")
@@ -487,15 +457,12 @@ def fromstring(
     doc = document_fromstring(html_, parser=parser, base_url=base_url, **kw)
     if is_full_html:
         return doc, False
-    # otherwise, lets parse it out...
     bodies = doc.findall("body")
     if not bodies:
         bodies = doc.findall(f"{{{XHTML_NAMESPACE}}}body")
     if bodies:
         body = bodies[0]
         if len(bodies) > 1:
-            # Somehow there are multiple bodies, which is bad, but just
-            # smash them into one body
             for other_body in bodies[1:]:
                 if other_body.text:
                     if len(body):
@@ -503,8 +470,6 @@ def fromstring(
                     else:
                         body.text = (body.text or "") + other_body.text
                 body.extend(other_body)
-                # We'll ignore tail
-                # I guess we are ignoring attributes too
                 other_body.drop_tree()
     else:
         body = None
@@ -512,44 +477,27 @@ def fromstring(
     if not heads:
         heads = doc.findall(f"{{{XHTML_NAMESPACE}}}head")
     if heads:
-        # Well, we have some sort of structure, so lets keep it all
         head = heads[0]
         if len(heads) > 1:
             for other_head in heads[1:]:
                 head.extend(other_head)
-                # We don't care about text or tail in a head
                 other_head.drop_tree()
         return doc, False
     if body is None:
         return doc, False
-    # lxml 6.0+ no longer wraps plain text in <p> tags, so we do it ourselves
-    # to maintain backward compatibility and proper HTML semantics
     if len(body) == 0 and body.text and body.text.strip():
-        # Plain text only - wrap in <p>
         p = etree.Element("p")
         p.text = body.text
         body.text = None
         body.append(p)
     elif body.text and body.text.strip() and _contains_block_level_tag(body):
-        # Leading text before the first block-level element. lxml 5 wrapped the
-        # leading text TOGETHER with the inline run that follows it (e.g. <br>)
-        # up to that block element into a single <p>; lxml 6 drops the wrap
-        # entirely. Replicate lxml 5 faithfully by moving those inline siblings
-        # into the paragraph too — otherwise a separator such as
-        # "text<br>-----<br><p>…</p>" leaves the <br> run stranded outside the
-        # paragraph ("<p>text</p><br>-----<br>…" instead of
-        # "<p>text<br>-----<br></p>…"), changing stored chatter/notification
-        # markup.
         p = etree.Element("p")
         p.text = body.text
         body.text = None
         while len(body) and body[0].tag not in defs.block_tags:
-            # append moves the node out of body (carrying its tail with it)
             p.append(body[0])
         body.insert(0, p)
     elif body.text and body.text.strip() and len(body) > 0:
-        # Text mixed with inline-only elements (e.g., "text<span>...</span>")
-        # lxml 5 auto-wrapped this in <p>, replicate that behavior
         p = etree.Element("p")
         p.text = body.text
         body.text = None
@@ -561,12 +509,7 @@ def fromstring(
         and (not body.text or not body.text.strip())
         and (not body[-1].tail or not body[-1].tail.strip())
     ):
-        # The body has just one element, so it was probably a single
-        # element passed in
         return body[0], True
-    # Now we have a body which represents a bunch of tags which have the
-    # content that was passed in.  We will create a fake container, which
-    # is the body tag, except <body> implies too much structure.
     if _contains_block_level_tag(body):
         body.tag = "div"
     else:
@@ -597,8 +540,6 @@ def html_normalize(
     if not src:
         return src
 
-    # html: remove the encoding attribute inside tags, keeping the tag and its
-    # other attributes.
     src = re.sub(
         r"(<[^>]*?)\s+encoding=(?:\"[^\"]*\"|'[^']*'|[^\s>]+)",
         r"\1",
@@ -607,19 +548,15 @@ def html_normalize(
 
     src = src.replace("--!>", "-->")
     src = re.sub(r"(<!-->|<!--->)", "<!-- -->", src)
-    # On the specific case of Outlook desktop it adds unnecessary '<o:.*></o:.*>' tags which are parsed
-    # in '<p></p>' which may alter the appearance (eg. spacing) of the mail body
     src = re.sub(r"</?o:.*?>", "", src)
 
     try:
         doc, single_body_element = fromstring(src)
     except etree.ParserError as e:
-        # HTML comment only string, whitespace only..
         if "empty" in str(e):
             return ""
         raise
 
-    # perform quote detection before cleaning and class removal
     for el in doc.iter(tag=etree.Element):
         tag_quote(el)
 
@@ -631,17 +568,8 @@ def html_normalize(
     src = html.tostring(doc, encoding="unicode", method=output_method)
 
     if not single_body_element and src.startswith("<div>") and src.endswith("</div>"):
-        # the <div></div> may come from 2 places
-        # 1. the src is parsed as multiple body elements
-        #    <div></div> wraps all elements.
-        # 2. the src is parsed as not only body elements
-        #    <html></html> wraps all elements.
-        #    then the Cleaner as the filter_callback which has 'html' in its
-        #    'remove_tags' will write <html></html> to <div></div> since it
-        #    cannot directly drop the parent-most tag
         src = src[5:-6]
 
-    # html considerations so real html content match database value
     return src.replace("\xa0", "&nbsp;")
 
 
@@ -665,26 +593,21 @@ def html_sanitize(
 
     def sanitize_handler(doc: etree._Element, prestrip: bool = False) -> etree._Element:
         if prestrip and sanitize_tags:
-            # Recovery path: lxml_html_clean's drop_tree() asserts on pathological
-            # kill-tag nesting (e.g. <style> inside <select>). Pre-removing the
-            # kill-tag subtrees ourselves avoids that code path while keeping the
-            # rest of the document; verified to yield identical output to the
-            # cleaner alone on well-formed input, so it cannot weaken sanitizing.
             etree.strip_elements(doc, *SANITIZE_TAGS["kill_tags"], with_tail=False)
         kwargs = {
             "page_structure": True,
-            "style": strip_style,  # True = remove style tags/attrs
-            "sanitize_style": sanitize_style,  # True = sanitize styling
-            "forms": sanitize_form,  # True = remove form tags
+            "style": strip_style,
+            "sanitize_style": sanitize_style,
+            "forms": sanitize_form,
             "remove_unknown_tags": False,
             "comments": False,
-            "conditional_comments": sanitize_conditional_comments,  # True = remove conditional comments
+            "conditional_comments": sanitize_conditional_comments,
             "processing_instructions": False,
         }
         if sanitize_tags:
             kwargs.update(SANITIZE_TAGS)
 
-        if sanitize_attributes:  # We keep all attributes in order to keep "style"
+        if sanitize_attributes:
             if strip_classes:
                 current_safe_attrs = safe_attrs - frozenset(["class"])
             else:
@@ -698,8 +621,8 @@ def html_sanitize(
         else:
             kwargs.update(
                 {
-                    "safe_attrs_only": False,  # keep oe-data attributes + style
-                    "strip_classes": strip_classes,  # remove classes, even when keeping other attributes
+                    "safe_attrs_only": False,
+                    "strip_classes": strip_classes,
                 }
             )
 
@@ -719,11 +642,6 @@ def html_sanitize(
     except Exception:
         if not silent:
             raise
-        # The cleaner crashed (e.g. AssertionError in lxml_html_clean's
-        # drop_tree on pathological kill-tag nesting). Rather than discard the
-        # whole field, retry with a manual kill-tag pre-strip that dodges the
-        # crash and preserves the surrounding content; only fall back to a
-        # placeholder if even that fails.
         sanitized = None
         if sanitize_tags:
             try:
@@ -743,21 +661,13 @@ def html_sanitize(
     return markupsafe.Markup(sanitized)
 
 
-# ----------------------------------------------------------
-# HTML/Text management
-# ----------------------------------------------------------
-
 URL_SKIP_PROTOCOL_REGEX = r"mailto:|tel:|sms:"
 URL_REGEX = rf"""(\bhref=['"](?!{URL_SKIP_PROTOCOL_REGEX})([^'"]+)['"])"""
 TEXT_URL_REGEX = r"https?://[\w@:%.+&~#=/-]+(?:\?\S+)?"
-# retrieve inner content of the link
 HTML_TAG_URL_REGEX = URL_REGEX + r"([^<>]*>([^<>]+)<\/)?"
-# ``[^>]*`` rather than ``.*?``: the latter never matched a tag whose
-# attributes span several lines, leaking raw markup into "plain text" output.
 HTML_TAGS_REGEX = re.compile(r"<[^>]*>")
 HTML_NEWLINES_REGEX = re.compile(r"<(div|p|br|tr)[^>]*>|\n")
 
-# Pre-compiled regexes for is_html_empty (avoids re module cache lookup per call)
 _ICON_RE = re.compile(
     r'<\s*(i|span)\b(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"])?)*\s*\bclass\s*=\s*["\'][^"\']*\b(fa|fab|fad|far|oi)\b'
 )
@@ -765,22 +675,17 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
-# Pre-compiled regexes for tag_quote
 _SIGNATURE_BEGIN_RE = re.compile(r"((?:(?:^|\n)[-]{2}[\s]?$))")
 _TEXT_COMPLETE_RE = re.compile(
     r"((?:\n[>]+[^\n\r]*)+|(?:(?:^|\n)[-]{2}[\s]?[\r\n]{1,2}[\s\S]+))"
 )
 
-# Pre-compiled regex for html_keep_url
 _LINK_TAGS_RE = re.compile(
     r"""(?<!["'])((ftp|http|https):\/\/(\w+:{0,1}\w*@)?([^\s<"']+)(:[0-9]+)?(\/|\/([^\s<"']))?)(?![^\s<"']*["']|[^\s<"']*</a>)"""
 )
 
-# A bare HTML tag name, e.g. ``div`` — used to validate plaintext2html's
-# ``container_tag`` so it cannot smuggle attributes or extra markup.
 _SIMPLE_TAG_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
 
-# Pre-compiled regex for plaintext2html paragraph splitting
 _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 
 
@@ -828,7 +733,6 @@ def html_keep_url(text: str | Markup) -> Markup:
     parts: list[Markup] = []
     for item in _LINK_TAGS_RE.finditer(text):
         parts.append(escape_silent(text[idx : item.start()]))
-        # slicing preserves Markup-ness, so an already-escaped url stays as-is
         url = text[item.start() : item.end()]
         parts.append(create_link(url, url))
         idx = item.end()
@@ -883,15 +787,12 @@ def html2plaintext(
 ) -> str:
     """Convert HTML content to plain text.
 
-    If @param body_id is provided then this is the tag where the
-    body (not necessarily <body>) starts.
-
+    :param body_id: id of the tag where the body (not necessarily ``<body>``)
+        starts; returns ``""`` if no such tag. ``<body>`` is used when omitted
+    :param encoding: codec used to decode ``html_content`` when it is bytes
     :param include_references: If False, numbered references and
         URLs for links and images will not be included.
     """
-    ## (c) Fry-IT, www.fry-it.com, 2007
-    ## <peter@fry-it.com>
-    ## download here: http://www.peterbe.com/plog/html2plaintext
     if not (html_content and html_content.strip()):
         return ""
 
@@ -904,24 +805,10 @@ def html2plaintext(
 
     tree = etree.fromstring(html_content, parser=etree.HTMLParser())
     if tree is None:
-        # The HTML parser yields None for input that carries no element at all
-        # -- a lone comment ("<!-- x -->"), a bare doctype, a stray processing
-        # instruction.  Every line below dereferences ``tree``, so this used to
-        # surface as "AttributeError: 'NoneType' object has no attribute
-        # 'xpath'" from deep inside the mail pipeline, on content an inbound
-        # message can trivially carry.  There is no text in such a document, so
-        # the answer is the empty string, exactly as for empty input above.
         return ""
 
     if body_id is not None:
-        # Bind ``body_id`` as an XPath variable rather than interpolating it: an
-        # f-string both opens an XPath-injection surface and silently produces a
-        # wrong query for an unquoted value (``@id=content`` is a node-test, not
-        # a string match).
         source = tree.xpath("//*[@id=$body_id]", body_id=body_id)
-        # A caller that scoped to a specific ``body_id`` wants only that node.
-        # Returning the whole document on a miss silently leaks content the
-        # caller meant to exclude, so return empty text instead.
         if not len(source):
             return ""
     else:
@@ -935,9 +822,6 @@ def html2plaintext(
         for link in tree.findall(".//a"):
             if url := link.get("href"):
                 link.tag = "span"
-                # ``link.text`` is None for a link wrapping only markup (e.g.
-                # ``<a href="…"><img/></a>``); interpolating it emitted a
-                # literal "None" into the plaintext.
                 label = link.text or ""
                 link.text = (
                     f"{label} [{next(linkrefs)}]" if label else f"[{next(linkrefs)}]"
@@ -948,19 +832,15 @@ def html2plaintext(
             if src := img.get("src"):
                 img.tag = "span"
                 if src.startswith("data:"):
-                    img_name = None  # base64 image
+                    img_name = None
                 else:
                     img_name = re.search(r"[^/]+(?=\.[a-zA-Z]+(?:\?|$))", src)
                 img.text = f"{img_name[0] if img_name else 'Image'} [{next(linkrefs)}]"
                 url_index.append(src)
 
     html_str = etree.tostring(tree, encoding="unicode")
-    # \r char is converted into &#13;, must remove it
     html_str = html_str.replace("&#13;", "")
 
-    # Match the attributed forms too: a literal ``"<b>"`` replace left
-    # ``<b class="x">bold</b>`` with a single trailing ``*`` -- the closing
-    # marker without its opening pair.
     for tag, marker in (
         ("strong", "*"),
         ("b", "*"),
@@ -973,26 +853,14 @@ def html2plaintext(
     html_str = re.sub(r"<tr\b[^>]*>", "\n", html_str)
     html_str = re.sub(r"</p\s*>", "\n", html_str)
     html_str = re.sub(r"<br\s*/?>", "\n", html_str)
-    # ``[^>]*`` also spans tags broken across lines, which ``<.*?>`` missed
     html_str = re.sub(r"<[^>]*>", " ", html_str)
-    # Deliberately a single pairwise pass, NOT ``re.sub(r" {2,}", " ")``.
-    # Stripping every tag above leaves one space per tag, so a cell boundary
-    # becomes a *run* of spaces; halving it preserves the visual column gap that
-    # separates table cells, while collapsing the run to one space welds them
-    # into a single word.  Pinned by ``TestIrMailServer.test_content_mail_body``.
     html_str = html_str.replace(" " * 2, " ")
     html_str = html_str.replace("&gt;", ">")
     html_str = html_str.replace("&lt;", "<")
     html_str = html_str.replace("&amp;", "&")
     html_str = html_str.replace("&nbsp;", "\N{NO-BREAK SPACE}")
 
-    # strip all lines
     html_str = "\n".join([x.strip() for x in html_str.splitlines()])
-    # Same reasoning as the space collapse above: pairwise, not ``\n{2,}``.
-    # Block tags each contribute a newline, so a paragraph break arrives as 3-4
-    # of them; halving leaves the blank line that separates paragraphs, whereas
-    # collapsing the whole run to one newline destroys the paragraph structure.
-    # Pinned by ``TestMailTools.test_html2plaintext``.
     html_str = html_str.replace("\n" * 2, "\n")
 
     if url_index:
@@ -1021,22 +889,12 @@ def plaintext2html(
         as paragraph breaks and enclosing content in ``<p>``
     """
     assert isinstance(text, str)
-    # Everything below stays Markup end to end.  Mixing plain ``str`` and
-    # ``Markup`` under ``+`` silently re-escapes: ``str + Markup`` dispatches to
-    # ``Markup.__radd__``, which escapes the left operand.  That turned the
-    # ``<p>`` wrappers built here into literal ``&lt;p&gt;`` text and escaped the
-    # already-escaped body a second time, so any input containing a url was
-    # rendered as visible markup with a corrupted ``href`` (``&amp;`` -> ``&amp;amp;``,
-    # which a browser resolves to a literal ``amp;`` in the query string).
     text = html_escape(text)
 
-    # 1. replace \n and \r (re.sub returns a plain str, so restore Markup)
     text = Markup(re.sub(r"(\r\n|\r|\n)", "<br/>", text))
 
-    # 2. clickable links -- Markup in, so html_keep_url does not escape again
     text = html_keep_url(text)
 
-    # 3-4: form paragraphs
     final = text
     if with_paragraph:
         idx = 0
@@ -1047,10 +905,7 @@ def plaintext2html(
         paragraphs.append(text[idx:])
         final = Markup("<p>") + Markup("</p><p>").join(paragraphs) + Markup("</p>")
 
-    # 5. container
     if container_tag:
-        # Reject anything that is not a bare tag name; a value like
-        # ``div onclick="…"`` would otherwise inject raw attributes/markup.
         if not _SIMPLE_TAG_RE.match(container_tag):
             e = f"Invalid container_tag: {container_tag!r}"
             raise ValueError(e)
@@ -1097,7 +952,6 @@ def append_content_to_html(
     else:
         content = re.sub(r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", content)
         content = f"\n{content}\n"
-    # Force all tags to lowercase
     html_body = re.sub(
         r"(</?)(\w+)([ >])", lambda m: f"{m[1]}{m[2].lower()}{m[3]}", html_body
     )
@@ -1128,9 +982,6 @@ def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) 
     )
     insert_index = body_match.end() if body_match else 0
 
-    # Join explicitly instead of ``+``: with a plain-str ``html_body`` and a
-    # ``Markup`` ``html_content``, ``str + Markup`` dispatches to
-    # ``Markup.__radd__`` and escapes the whole document body.
     return "".join(
         (
             str(html_body[:insert_index]),

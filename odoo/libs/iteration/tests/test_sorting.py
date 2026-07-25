@@ -29,8 +29,6 @@ class TestTopologicalSort(unittest.TestCase):
         self.assertEqual(topological_sort({"a": ["ghost"]}), ["a"])
 
     def test_self_edge_is_ignored(self):
-        # a manifest without "depends" defaults to ["base"], so base depends on
-        # itself; that is degenerate, not a cycle
         self.assertEqual(topological_sort({"base": ["base"]}), ["base"])
 
     def test_cycle_raises_by_default(self):
@@ -40,14 +38,11 @@ class TestTopologicalSort(unittest.TestCase):
             topological_sort({"a": ["b"], "b": ["c"], "c": ["a"]})
 
     def test_cycle_tolerated_when_not_strict(self):
-        # back-edge dropped, every element still emitted exactly once
         for elems in ({"a": ["b"], "b": ["a"]}, {"a": ["b"], "b": ["c"], "c": ["a"]}):
             result = topological_sort(elems, strict=False)
             self.assertCountEqual(result, elems)
 
     def test_deep_chain_does_not_exhaust_the_stack(self):
-        # the recursive implementation this replaced died with RecursionError
-        # well before this depth; a dependency chain is data-shaped, not bounded
         depth = 10_000
         elems = {i: [i + 1] for i in range(depth)}
         elems[depth] = []

@@ -7,8 +7,6 @@ __all__ = ["ADDRESS_REGEX", "street_split"]
 
 import re
 
-# Regex pattern for splitting street addresses into components
-# Matches: street_name [street_number] [- street_number2]
 ADDRESS_REGEX = re.compile(r"^(.*?)(\s[0-9][0-9\S]*)?(?: - (.+))?$", flags=re.DOTALL)
 
 
@@ -30,7 +28,5 @@ def street_split(street: str | None) -> dict[str, str]:
     return {
         "street_name": results[0].strip(),
         "street_number": results[1].strip(),
-        # stripped like its siblings: the ``(?: - (.+))`` group happily keeps
-        # trailing whitespace, so "Main 1 - Apt B  " stored a padded value
         "street_number2": results[2].strip(),
     }

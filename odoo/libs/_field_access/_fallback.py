@@ -13,8 +13,6 @@ from operator import itemgetter as _itemgetter
 
 _itemgetter_1 = _itemgetter(1)
 
-# pyo3's ``extract::<i64>()`` succeeds only for Python ints that fit in an i64
-# (bool is an int subclass, so it extracts as 0/1 -- deliberately mirrored).
 _I64_MIN = -(2**63)
 _I64_MAX = 2**63 - 1
 
@@ -61,9 +59,6 @@ def to_prefetch_ids(
         id_val = _as_i64(id_)
         if id_val is None or id_val <= 0:
             continue
-        # Cache membership is keyed by the original object, like the Rust
-        # PyDict_Contains; ``seen`` dedups on the i64 so 1 and True collapse
-        # exactly as they do there.
         if id_ not in field_cache and id_val not in seen:
             seen.add(id_val)
             result.append(id_)
@@ -126,7 +121,6 @@ def batch_cache_filter(
             _append_miss(i)
         elif value:
             _append_pass(id_)
-        # falsy: neither pass nor miss
 
     return passing_ids, miss_indices
 
@@ -173,8 +167,6 @@ def batch_cache_fill(
 
     Returns list[int] of miss indices needing Field.__get__ fallback.
     """
-    # Mirror the Rust length guard so both implementations reject a mismatch the
-    # same way (the differential suite asserts they agree).
     if len(results) != len(ids):
         raise ValueError(
             "batch_cache_fill: `results` must have the same length as `ids`"
@@ -220,7 +212,6 @@ def sort_ids_by_values(
         pairs = list(zip(ids, values, strict=False))
         pairs.sort(key=_itemgetter_1, reverse=reverse)
         return tuple(p[0] for p in pairs)
-    # null-aware path: wrap values in (rank, val) for sort stability
     _null_rank = 1 if null_high else 0
     _val_rank = 0 if null_high else 1
     _null_key = (_null_rank, "")
@@ -265,8 +256,6 @@ def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
     :param values: list of group keys, same length as ids
     :return: dict mapping each distinct value to a list of IDs with that value
     """
-    # Mirror the Rust length guard so both implementations reject a mismatch the
-    # same way (the differential suite asserts they agree).
     if len(values) != len(ids):
         raise ValueError("batch_group_ids: `values` must have the same length as `ids`")
     result: dict[object, list] = {}

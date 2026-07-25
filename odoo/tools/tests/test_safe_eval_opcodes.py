@@ -17,22 +17,13 @@ import unittest
 
 from odoo.tools.safe_eval import assert_valid_codeobj, compile_codeobj, safe_eval
 
-# Constructs that are ordinary Python and carry no sandbox-relevant capability.
-# Each maps to the opcode(s) that used to be missing from _SAFE_OPCODES.
 LEGITIMATE = {
-    # JUMP_BACKWARD_NO_INTERRUPT. try/except and try/finally each compiled fine
-    # on their own; only the combination emitted this opcode, so plain error
-    # handling was rejected on Python 3.14.
     "try_except_finally": (
         "try:\n    result = 1\nexcept Exception:\n    result = 0\nfinally:\n    result += 10",
         11,
     ),
-    # UNPACK_EX
     "starred_unpacking": ("a, *rest = [1, 2, 3]\nresult = rest", [2, 3]),
-    # DELETE_SUBSCR -- STORE_SUBSCR was already allowed, so item assignment
-    # worked while item deletion did not.
     "del_subscript": ("d = {'a': 1, 'b': 2}\ndel d['a']\nresult = d", {"b": 2}),
-    # MAKE_CELL / LOAD_CLOSURE / LOAD_DEREF / COPY_FREE_VARS
     "nested_closure": (
         "def outer(a):\n"
         "    def inner(b):\n"
@@ -41,17 +32,14 @@ LEGITIMATE = {
         "result = outer(1)(2)",
         3,
     ),
-    # SEND / END_SEND / CLEANUP_THROW / GET_YIELD_FROM_ITER
     "yield_from": (
         "def gen():\n    yield from [1, 2, 3]\nresult = list(gen())",
         [1, 2, 3],
     ),
-    # a lambda closing over a comprehension's loop variable
     "lambda_in_comprehension": (
         "result = [(lambda: x)() for x in [1, 2, 3]]",
         [1, 2, 3],
     ),
-    # STORE_DEREF, via ``nonlocal``
     "closure_mutation": (
         "def mk():\n"
         "    n = 0\n"
@@ -67,16 +55,12 @@ LEGITIMATE = {
     ),
 }
 
-# Every one of these must raise. They are the reason the allowlist exists.
 ESCAPES = [
     "result = (1).__class__",
     "result = ().__class__.__bases__[0].__subclasses__()",
     "result = __import__('os')",
     "result = open('/etc/passwd')",
     "class C:\n    pass\nresult = C",
-    # CPython synthesises an implicit ``__class__`` closure cell for any method
-    # mentioning ``__class__``/``super()``; this is the construct the
-    # co_freevars check in assert_no_dunder_name exists to catch.
     "class C:\n    def f(self):\n        return __class__\nresult = C",
     "g = (x for x in [1])\nresult = g.gi_frame",
     "f = lambda: 1\nresult = f.func_code",
@@ -113,10 +97,6 @@ class TestSandboxEscapesNeedingContext(unittest.TestCase):
             safe_eval("list(d.values())[0]", {"d": {"m": math}})
 
     def test_str_format_reflection_escape_blocked(self):
-        # str.format / str.format_map resolve their field accessors at runtime,
-        # so {0.__class__} / {0.__globals__[k]} never reach co_names and slip
-        # past the dunder scan. Templates whose fields navigate dunders must be
-        # rejected.
         def gadget():
             pass
 
@@ -124,7 +104,6 @@ class TestSandboxEscapesNeedingContext(unittest.TestCase):
             ('"{0.__class__.__mro__}".format(x)', {"x": 1}),
             ('"{0.__globals__}".format(f)', {"f": gadget}),
             ('"{x.__class__}".format_map({"x": 1})', {}),
-            # Adjacent literals fold to one constant and must still be caught.
             ('("{0.__cla" "ss__}").format(x)', {"x": 1}),
         ]
         for expr, ns in escapes:
@@ -132,8 +111,6 @@ class TestSandboxEscapesNeedingContext(unittest.TestCase):
                 safe_eval(expr, ns)
 
     def test_str_format_legitimate_uses_allowed(self):
-        # The fix must be surgical: ordinary str.format and model methods also
-        # named ``format`` (e.g. currency.format(amount)) must keep working.
         self.assertEqual(safe_eval('"{0.real}".format(x)', {"x": 5}), "5")
         self.assertEqual(
             safe_eval('"hello {}".format(n)', {"n": "world"}), "hello world"
@@ -145,11 +122,9 @@ class TestSandboxEscapesNeedingContext(unittest.TestCase):
                 return f"${amount}"
 
         self.assertEqual(safe_eval("c.format(v)", {"c": FakeCurrency(), "v": 9}), "$9")
-        # f-strings remain fully supported.
         self.assertEqual(safe_eval('f"{a}-{b}"', {"a": 1, "b": 2}), "1-2")
 
     def test_time_sleep_not_exposed(self):
-        # time.sleep would let a single expression block a worker thread (DoS).
         from odoo.tools.safe_eval import time as safe_time
 
         self.assertFalse(hasattr(safe_time, "sleep"))
@@ -177,14 +152,11 @@ class TestClosureCacheKey(unittest.TestCase):
             return next(c for c in fn.co_consts if hasattr(c, "co_code"))
 
         safe, unsafe = inner_code(self.SAFE), inner_code(self.UNSAFE)
-        # The premise: the two are indistinguishable on the old key.
         self.assertEqual(safe.co_code, unsafe.co_code)
         self.assertEqual(safe.co_names, unsafe.co_names)
         self.assertNotEqual(safe.co_freevars, unsafe.co_freevars)
 
     def test_safe_closure_does_not_clear_dunder_closure(self):
-        # Validate the benign one first so it populates the cache, then confirm
-        # the malicious twin is still rejected.
         safe_eval(self.SAFE, {}, mode="exec")
         with self.assertRaises(NameError):
             safe_eval(self.UNSAFE, {}, mode="exec")
@@ -199,7 +171,7 @@ class TestDunderNameCoverage(unittest.TestCase):
         )
         fn = next(c for c in code.co_consts if hasattr(c, "co_consts"))
         lam = next(c for c in fn.co_consts if hasattr(c, "co_code"))
-        self.assertEqual(lam.co_names, ())  # would pass a co_names-only check
+        self.assertEqual(lam.co_names, ())
         with self.assertRaises(NameError):
             assert_no_dunder_name(lam, "lambda")
         with self.assertRaises(NameError):

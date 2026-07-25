@@ -14,7 +14,6 @@ from odoo.libs.filesystem.mimetypes import UNKNOWN_MIMETYPE, _odoo_guess_mimetyp
 
 class TestMultibyteAtTheCut(unittest.TestCase):
     def test_char_straddling_the_boundary(self):
-        # the 3-byte euro sign occupies bytes 1022..1024
         data = ("a" * 1022 + "\N{EURO SIGN}" + "b" * 3000).encode()
         self.assertEqual(_odoo_guess_mimetype(data), "text/plain")
 

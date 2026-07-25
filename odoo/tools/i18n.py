@@ -1,5 +1,3 @@
-# ruff: noqa: F401
-
 from typing import TYPE_CHECKING, Literal
 
 from babel import lists
@@ -31,6 +29,7 @@ def format_list(
     Format the items in `lst` as a list in a locale-dependent manner with the chosen style.
 
     The available styles are defined by babel according to the Unicode TR35-49 spec:
+
     * standard:
       A typical 'and' list for arbitrary placeholders.
       e.g. "January, February, and March"
@@ -62,7 +61,6 @@ def format_list(
     :return: the formatted list.
     """
     locale = babel_locale_parse(lang_code or get_lang(env).code)
-    # Some styles could be unavailable for the chosen locale
     if style not in locale.list_patterns:
         style = "standard"
     try:

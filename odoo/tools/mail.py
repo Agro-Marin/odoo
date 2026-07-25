@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """
 Odoo mail utilities.
 
@@ -33,10 +32,8 @@ from odoo.libs.email import (
     url_domain_extract,
 )
 
-# Also import internal function for backward compatibility
 from odoo.libs.email.parsing import _normalize_email, getaddresses
 
-# Import all HTML utilities from libs/text/html for backward compatibility
 from odoo.libs.text.html import (
     HTML_NEWLINES_REGEX,
     HTML_TAG_URL_REGEX,
@@ -44,17 +41,14 @@ from odoo.libs.text.html import (
     SANITIZE_TAGS,
     TEXT_URL_REGEX,
     URL_REGEX,
-    # URL regex constants (used by sms, link_tracker modules)
     URL_SKIP_PROTOCOL_REGEX,
     append_content_to_html,
     create_link,
     fromstring,
-    # HTML/Text conversion
     html2plaintext,
     html_escape,
     html_keep_url,
     html_normalize,
-    # Sanitization
     html_sanitize,
     html_to_inner_content,
     is_html_empty,
@@ -84,11 +78,6 @@ __all__ = [
 ]
 
 
-# ----------------------------------------------------------
-# Emails
-# ----------------------------------------------------------
-
-
 def generate_tracking_message_id(res_id: int | str) -> str:
     """Return a string usable as the Message-ID RFC822 header field.
 
@@ -108,7 +97,6 @@ def generate_tracking_message_id(res_id: int | str) -> str:
     )
 
 
-# was mail_thread.decode_header()
 def decode_message_header(message: object, header: str, separator: str = " ") -> str:
     """Decode and join all values for the given message header."""
     return separator.join(h for h in message.get_all(header, []) if h)

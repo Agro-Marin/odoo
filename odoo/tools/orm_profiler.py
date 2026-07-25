@@ -31,9 +31,6 @@ import time
 
 _logger = logging.getLogger("odoo.orm.profile")
 
-# ---------------------------------------------------------------------------
-# Module-level fast flag - one LOAD_GLOBAL + branch per ORM call when off.
-# ---------------------------------------------------------------------------
 _orm_profiling_enabled: bool = os.environ.get("ODOO_ORM_PROFILE", "").lower() in (
     "1",
     "true",
@@ -42,11 +39,6 @@ _orm_profiling_enabled: bool = os.environ.get("ODOO_ORM_PROFILE", "").lower() in
 
 if _orm_profiling_enabled:
     _logger.info("ORM aggregate profiling enabled (ODOO_ORM_PROFILE=1)")
-
-
-# ---------------------------------------------------------------------------
-# Phase timer for the CRUD/read mixins
-# ---------------------------------------------------------------------------
 
 
 class _OrmProfile:
@@ -91,11 +83,6 @@ class _OrmProfile:
         return self._marks["end"] - self._marks["start"]
 
 
-# ---------------------------------------------------------------------------
-# Data structures
-# ---------------------------------------------------------------------------
-
-
 class _OpStats:
     """Accumulator for a single (operation, model_name) bucket."""
 
@@ -107,7 +94,6 @@ class _OpStats:
         self.time: float = 0.0
 
 
-# Key: (operation, model_name)
 type _Key = tuple[str, str]
 
 
@@ -122,8 +108,6 @@ class OrmProfiler:
     def __init__(self) -> None:
         self._data: dict[_Key, _OpStats] = {}
         self._total_time: float = 0.0
-
-    # -- recording ----------------------------------------------------------
 
     def _record(
         self,
@@ -171,21 +155,17 @@ class OrmProfiler:
     ) -> None:
         self._record("modified", model_name, record_count, elapsed)
 
-    # -- reporting ----------------------------------------------------------
-
     def report(self) -> None:
         """Emit a structured summary to the logger."""
         if not self._data or not _logger.isEnabledFor(logging.WARNING):
             return
 
-        # Sort by total time descending — biggest hotspots first
         sorted_entries = sorted(
             self._data.items(),
             key=lambda item: item[1].time,
             reverse=True,
         )
 
-        # Aggregate per-operation totals
         op_totals: dict[str, _OpStats] = {}
         for (operation, _model), stats in self._data.items():
             agg = op_totals.get(operation)
@@ -201,7 +181,6 @@ class OrmProfiler:
             f"{self._total_time * 1000:.1f} ms total):"
         ]
 
-        # Operation totals
         lines.append("  Operation totals:")
         for op, agg in sorted(op_totals.items(), key=lambda x: x[1].time, reverse=True):
             lines.append(
@@ -209,10 +188,6 @@ class OrmProfiler:
                 f"{agg.records:6d} records, {agg.time * 1000:8.1f} ms"
             )
 
-        # Top hotspots (cap at 20 to avoid log spam).  Say so when the list is
-        # cut: a silently truncated report reads as "these are all the model/op
-        # pairs that ran", which is exactly the wrong conclusion to draw from a
-        # profile.
         shown = sorted_entries[:20]
         if len(sorted_entries) > len(shown):
             lines.append(

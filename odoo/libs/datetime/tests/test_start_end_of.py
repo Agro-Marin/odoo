@@ -30,9 +30,7 @@ class TestStartEndOf(unittest.TestCase):
 
     def test_boundaries_are_correct(self):
         aware = datetime(2026, 5, 15, 14, 30, tzinfo=TZ)
-        self.assertEqual(
-            start_of(aware, "day"), datetime(2026, 5, 15, 0, 0, tzinfo=TZ)
-        )
+        self.assertEqual(start_of(aware, "day"), datetime(2026, 5, 15, 0, 0, tzinfo=TZ))
         self.assertEqual(
             end_of(aware, "day"),
             datetime(2026, 5, 15, 23, 59, 59, 999999, tzinfo=TZ),

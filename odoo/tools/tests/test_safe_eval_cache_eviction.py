@@ -27,7 +27,6 @@ class TestValidatedBytecodeCacheEviction(unittest.TestCase):
 
     def test_cache_stays_bounded_and_keeps_accepting(self):
         se._VALIDATED_CACHE_MAX = 16
-        # Validate many more distinct expressions than the cap.
         for i in range(200):
             se.expr_eval(f"{i} + {i}")
         self.assertLessEqual(
@@ -46,8 +45,6 @@ class TestValidatedBytecodeCacheEviction(unittest.TestCase):
         for i in range(50):
             se.expr_eval(f"{i} * 2")
         before = len(se._validated_bytecode_cache)
-        # Re-validating the most recent expression must be a cache hit: it does
-        # not grow the cache.
         se.expr_eval("49 * 2")
         self.assertEqual(len(se._validated_bytecode_cache), before)
 

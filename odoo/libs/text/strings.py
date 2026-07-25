@@ -13,8 +13,7 @@ from typing import Literal
 def remove_accents(input_str: str) -> str:
     """Strip combining marks from latin letters (é -> e).
 
-    Suboptimal but better than nothing: this obviously changes the meaning
-    of input_str and works only for some cases.
+    Lossy: stripping accents changes meaning in languages that distinguish them.
 
     The result is **not** guaranteed to be ASCII -- do not rely on it as an
     ASCII-folding step. Letters with no combining decomposition survive intact
@@ -75,7 +74,6 @@ def str2bool(s: str, default: bool | None = None) -> bool:
         >>> str2bool('maybe', default=False)
         False
     """
-    # allow this (for now?) because it's used for get_param
     if type(s) is bool:
         return s
 
@@ -124,7 +122,6 @@ def mod10r(number: str) -> str:
     return result + str((10 - report) % 10)
 
 
-# U+1F1E6 REGIONAL INDICATOR SYMBOL LETTER A
 _REGIONAL_INDICATOR_A = 0x1F1E6
 
 
@@ -144,10 +141,6 @@ def get_flag(country_code: str) -> str:
         >>> get_flag('MX')
         '🇲🇽'
     """
-    # Validate rather than emit garbage: regional indicators only map A-Z, so
-    # 'U1' silently produced an unassigned codepoint and 'USA' three
-    # indicators. Uppercasing is still required -- a lowercase letter would
-    # land past the max codepoint and crash chr().
     code = country_code.upper()
     if len(code) != 2 or not ("A" <= code[0] <= "Z" and "A" <= code[1] <= "Z"):
         msg = f"country_code must be two ASCII letters, got {country_code!r}"

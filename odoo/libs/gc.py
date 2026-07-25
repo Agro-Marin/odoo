@@ -43,15 +43,12 @@ def _to_ms(ns: int | float) -> float:
 
 def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
     """Record gc collection timings; called before and after each gc run, see gc_set_timing."""
-    # Avoid calling time's methods if the module has already been unloaded at
-    # interpreter shutdown (the imported global would be set to None).
     if _gc_time is None:
         return
-    global _gc_start  # noqa: PLW0603
+    global _gc_start
     gen = info["generation"]
     if event == "start":
         _gc_start = _gc_time()
-        # python 3.14; gen2 is only collected when calling gc.collect() manually
         if gen == 2 and _logger.isEnabledFor(logging.DEBUG):
             _logger.debug("info %s, starting collection of gen2", gc_info())
     else:
@@ -74,7 +71,7 @@ def gc_set_timing(*, enable: bool) -> None:
             return
         gc.callbacks.remove(_timing_gc_callback)
     elif enable:
-        global _gc_init_stats, _gc_timings  # noqa: PLW0603
+        global _gc_init_stats, _gc_timings
         _gc_init_stats = gc.get_stats()
         _gc_timings = [0, 0, 0]
         gc.callbacks.append(_timing_gc_callback)
@@ -89,13 +86,8 @@ def gc_info() -> dict[str, Any]:
         count = info["collections"] - info_init["collections"]
         times.append(
             {
-                # milliseconds throughout, and said so in the key: avg_time used
-                # to be raw nanoseconds sitting next to a millisecond "time" in
-                # the same dict, unlabelled -- a 10^6 discrepancy between
-                # siblings that nothing in the name gave away.
                 "avg_time_ms": _to_ms(time / count) if count > 0 else 0.0,
                 "time_ms": _to_ms(time),
-                # a 0..1 share, which "pct" claimed was a percentage
                 "share": round(time / cumulative_time, 3),
             }
         )

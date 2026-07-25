@@ -14,18 +14,12 @@ __all__ = [
 _barcode_init_lock: RLock = RLock()
 
 
-# Reportlab builds a T1 font cache on first barcode render; this initialization
-# is not thread-safe. The lock serializes it; ``lru_cache`` then serves every
-# later call without taking the lock. Note the cache alone would not be enough:
-# it does not hold the lock across a miss, so concurrent first callers can all
-# enter the body -- the lock (plus the ``_barcode_init`` guard) is what makes
-# the reportlab work happen once.
 _barcode_init: tuple[Any, str] | None = None
 
 
 @functools.lru_cache(1)
 def _init_barcode() -> tuple[Any, str]:
-    global _barcode_init  # noqa: PLW0603
+    global _barcode_init
     with _barcode_init_lock:
         if _barcode_init is not None:
             return _barcode_init
@@ -71,9 +65,6 @@ def get_barcode_font() -> str:
     return font
 
 
-# ASCII digits only: ``\d`` also matches Unicode decimal digits, so a barcode
-# written in fullwidth (U+FF10..U+FF19) or Arabic-Indic digits validated as a
-# legal EAN-8 and then round-tripped through int() without complaint.
 _ASCII_DIGITS_RE = re.compile(r"\A[0-9]+\Z")
 
 
@@ -89,25 +80,11 @@ def get_barcode_check_digit(numeric_barcode: str) -> int:
     :return: the number corresponding to the right check digit.
     :raises ValueError: if ``numeric_barcode`` is not all ASCII digits.
     """
-    # Reject non-digits up front, naming the offending value.  The bare int()
-    # below raised "invalid literal for int() with base 10: 'l'" -- a message
-    # that names a single character and neither the input nor the function that
-    # rejected it.  That surfaces on a live path: ``barcode.nomenclature``
-    # exposes ``sanitize_ean``/``sanitize_upc`` as ``@api.model`` methods, so any
-    # RPC caller can hand over a non-numeric prefix and get an opaque 500.
-    # ASCII-only, like ``check_barcode_encoding``: ``str.isdigit()`` accepts
-    # superscripts and other Unicode digits that int() then rejects anyway,
-    # and fullwidth digits that int() silently *accepts* -- neither is a GTIN.
     if not _ASCII_DIGITS_RE.match(numeric_barcode or ""):
         msg = f"barcode must be a non-empty string of ASCII digits, got {numeric_barcode!r}"
         raise ValueError(msg)
 
-    # Multiply value of each position by
-    # N1  N2  N3  N4  N5  N6  N7  N8  N9  N10 N11 N12 N13 N14 N15 N16 N17 N18
-    # x3  X1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  x1  x3  CHECKSUM
     oddsum = evensum = 0
-    # Drop the check digit (it gets recomputed) and reverse, so the odd/even
-    # grouping is anchored at the right and independent of the barcode length.
     code = numeric_barcode[-2::-1]
     for i, digit in enumerate(code):
         if i % 2 == 0:
@@ -140,14 +117,7 @@ def check_barcode_encoding(barcode: str, encoding: str) -> bool:
         return True
     barcode_size = _BARCODE_SIZES.get(encoding)
     if barcode_size is None:
-        # Unknown symbology: it cannot satisfy this encoding's check-digit rule.
         return False
-    # The length test comes FIRST: the ean13 leading-zero test used to be
-    # evaluated before it and indexed ``barcode[0]`` unconditionally, so an
-    # empty value raised IndexError instead of returning False -- reachable
-    # from ``ir.actions.report.barcode`` (and hence the /report/barcode route)
-    # with an EAN type and no value.  The same short-circuit guards the
-    # ``barcode[-1]`` indexing in the check-digit test below.
     return bool(
         len(barcode) == barcode_size
         and _ASCII_DIGITS_RE.match(barcode)

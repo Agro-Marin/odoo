@@ -27,7 +27,7 @@ class ProxyAttr:
 
             def getter(self: Any) -> Any:
                 value = getattr(self._wrapped__, name)
-                return cast(value) if value is not None else None  # type: ignore[operator]
+                return cast(value) if value is not None else None
 
         else:
 
@@ -58,7 +58,7 @@ class ProxyFunc:
 
                 def wrap_func(*args: Any, **kwargs: Any) -> Any:
                     result = func(*args, **kwargs)
-                    return cast(result) if result is not None else None  # type: ignore[operator]
+                    return cast(result) if result is not None else None
 
             elif cast is None:
 
@@ -78,7 +78,7 @@ class ProxyFunc:
 
                 def wrap_func(cls: type, *args: Any, **kwargs: Any) -> Any:
                     result = func(*args, **kwargs)
-                    return cast(result) if result is not None else None  # type: ignore[operator]
+                    return cast(result) if result is not None else None
 
             elif cast is None:
 
@@ -98,7 +98,7 @@ class ProxyFunc:
 
                 def wrap_func(self: Any, *args: Any, **kwargs: Any) -> Any:
                     result = func(self._wrapped__, *args, **kwargs)
-                    return cast(result) if result is not None else None  # type: ignore[operator]
+                    return cast(result) if result is not None else None
 
             elif cast is None:
 
@@ -133,13 +133,6 @@ class ProxyMeta(type):
             {func: ProxyFunc() for func in ("__repr__", "__str__") if func not in attrs}
         )
         proxy_class = super().__new__(cls, clsname, bases, attrs)
-        # Copy ONLY the wrapped class's docstring (and, via update_wrapper's
-        # unconditional ``__wrapped__`` assignment, keep ``inspect.signature``
-        # following through to it). The default ``assigned`` would also copy
-        # ``__name__``/``__qualname__``/``__module__``, shadowing the proxy's own
-        # identity — that made e.g. ``type(http.Response).__name__`` report
-        # ``'_Response'`` and mislabel the class in reprs and tracebacks.
-        # ``updated=[]`` prevents merging the wrapped ``__dict__``.
         functools.update_wrapper(
             proxy_class, proxy_class._wrapped__, assigned=("__doc__",), updated=[]
         )

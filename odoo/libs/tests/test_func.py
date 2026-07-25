@@ -10,14 +10,14 @@ from odoo.libs.func import lazy
 class TestLazy(unittest.TestCase):
     def test_copy_of_evaluated_lazy(self):
         obj = lazy(lambda: 41 + 1)
-        _ = obj + 0  # force evaluation
+        _ = obj + 0
         clone = copy.copy(obj)
         self.assertEqual(clone, 42)
         self.assertIsInstance(clone, lazy)
 
     def test_pickle_roundtrip_unevaluated(self):
         obj = lazy(lambda x: x + 1, 6)
-        restored = pickle.loads(pickle.dumps(obj))  # noqa: S301  # trusted test data
+        restored = pickle.loads(pickle.dumps(obj))
         self.assertEqual(restored, 7)
         self.assertIsInstance(restored, lazy)
 

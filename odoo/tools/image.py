@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 """
 Odoo image processing utilities.
 
@@ -13,12 +12,8 @@ from PIL import Image
 from odoo.exceptions import UserError
 from odoo.libs.colors import hex_to_rgb
 
-# Re-export everything from libs/image (agnostic versions).  The typed errors
-# (ImageDecodeError / ImageTooLargeError / NotWebpError) are caught by type in
-# the wrappers below, instead of matching the English message text.
 from odoo.libs.image import (
     EXIF_TAG_ORIENTATION,
-    # Constants
     FILETYPE_BASE64_MAGICWORD,
     IMAGE_MAX_RESOLUTION,
     ImageDecodeError,
@@ -27,13 +22,11 @@ from odoo.libs.image import (
     average_dominant_color,
     image_apply_opt,
     image_data_uri,
-    # Functions that don't need wrapping
     image_fix_orientation,
     image_guess_size_from_field_name,
     image_to_base64,
 )
 
-# Import the agnostic versions for wrapping
 from odoo.libs.image import (
     ImageProcess as _ImageProcessBase,
 )
@@ -83,7 +76,7 @@ class ImageProcess(_ImageProcessBase):
                 )
             ) from e
         except ValueError as e:
-            raise UserError(str(e)) from e  # pylint: disable=E8502
+            raise UserError(str(e)) from e
 
 
 def image_process(

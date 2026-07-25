@@ -21,11 +21,6 @@ from .config import config
 _logger = logging.getLogger(__name__)
 
 
-# ----------------------------------------------------------
-# Path utilities
-# ----------------------------------------------------------
-
-
 def find_in_path(name: str) -> str:
     """Find an executable, searching the system PATH and the configured `bin_path` option.
 
@@ -38,11 +33,6 @@ def find_in_path(name: str) -> str:
     if config.get("bin_path") and config["bin_path"] != "None":
         path.append(config["bin_path"])
     return which(name, path=os.pathsep.join(path))
-
-
-# ----------------------------------------------------------
-# PostgreSQL subprocess utilities
-# ----------------------------------------------------------
 
 
 def find_pg_tool(name: str) -> str:
@@ -99,11 +89,6 @@ def exec_pg_environ() -> dict[str, str]:
     return env
 
 
-# ----------------------------------------------------------
-# Command-line argument utilities
-# ----------------------------------------------------------
-
-
 def stripped_sys_argv(*strip_args: str) -> list[str]:
     """Return a copy of sys.argv, stripped of args unsuited to re-execution or subprocess
     spawning (-s/--save, -u/--update, -i/--init, --i18n-overwrite, plus any given here).
@@ -126,7 +111,6 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
     )
     unknown = [s for s in strip_args if not config.parser.has_option(s)]
     if unknown:
-        # not an assert: must also hold when running under `python -O`
         msg = f"Unknown option(s) to strip: {', '.join(unknown)}"
         raise ValueError(msg)
     takes_value = {s: config.parser.get_option(s).takes_value() for s in strip_args}
@@ -148,14 +132,9 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
     return [x for i, x in enumerate(args) if not strip(args, i)]
 
 
-# ----------------------------------------------------------
-# Debugging utilities
-# ----------------------------------------------------------
+import time
 
-# ensure we have an unpatched time for query times when using freezegun
-import time  # noqa: E402
-
-real_time = time.time.__call__  # type: ignore[operator]
+real_time = time.time.__call__
 
 
 def dumpstacks(
@@ -180,7 +159,6 @@ def dumpstacks(
             if line:
                 yield f"  {line.strip()}"
 
-    # code from http://stackoverflow.com/questions/132058/getting-stack-trace-from-a-running-python-application#answer-2569696
     threads_info = {
         th.ident: {
             "repr": repr(th),
@@ -202,7 +180,6 @@ def dumpstacks(
             if query_time is not None and perf_t0:
                 remaining_time = f"{real_time() - perf_t0 - query_time:.3f}"
                 query_time = f"{query_time:.3f}"
-            # qc:query_count qt:query_time pt:python_time (aka remaining time)
             repr_ = thread_info.get("repr", threadId)
             dbname = thread_info.get("dbname", "n/a")
             uid = thread_info.get("uid", "n/a")

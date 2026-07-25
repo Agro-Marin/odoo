@@ -4,22 +4,8 @@ from typing import TYPE_CHECKING
 
 from babel.messages.jslexer import Token, line_re, tokenize, unquote_string
 
-# Tuple specifying which of the translation function's arguments contains localizable strings.
-#   e.g. (1, 2)
-#   -> Indicates the first and second argument are translatable terms, like in `ngettext`
-#   e.g. ((1, 'c'), 2)
-#   -> Indicates the first argument is a context key and the second is the translatable term, like in `pgettext`
-#   e.g. None
-#   -> Indicates there is only one argument translatable, like in `gettext`
 type _SimpleKeyword = tuple[int | tuple[int, int] | tuple[int, str], ...] | None
-# A `_SimpleKeyword` or a `dict` mapping the expected number of function arguments against the `_SimpleKeyword`
 type _Keyword = dict[int | None, _SimpleKeyword] | _SimpleKeyword
-# The result of extracting terms, a 4-tuple containing:
-# (lineno: int, funcname: str, messages: str | tuple[str, ...], comments: list[str])
-#   - `lineno`: The line number of the extracted term(s)
-#   - `funcname`: The translation function name
-#   - `messages`: The extracted term(s). A single one or multiple in case of e.g. `ngettext`
-#   - `comments`: The extracted translator comments for the term(s)
 type _ExtractionResult = tuple[int, str, str | tuple[str, ...], list[str]]
 
 if TYPE_CHECKING:
@@ -28,12 +14,10 @@ if TYPE_CHECKING:
 
     from _typeshed import SupportsRead, SupportsReadline
 
-    # The file object to pass to the extraction function
     class _FileObj(SupportsRead[bytes], SupportsReadline[bytes], Protocol):
         def seek(self, offset: int, whence: int = ..., /) -> int: ...
         def tell(self) -> int: ...
 
-    # The possible options to pass to the extraction function
     class _JSOptions(TypedDict, total=False):
         encoding: str
         jsx: bool
@@ -58,9 +42,6 @@ def parse_template_string(
         if not inside_str and character in ('"', "'", "`"):
             inside_str = character
         elif inside_str == character and not escaped:
-            # a single backslash is a two-character string here (``"\\"``); the
-            # previous code compared against ``r"\\"`` (two chars), which never
-            # matched, so escaped quotes wrongly closed the tracked string
             inside_str = False
         if level or keyword:
             expression_contents += character
@@ -74,15 +55,11 @@ def parse_template_string(
                 if level == 0 and expression_contents:
                     expression_contents = expression_contents[0:-1]
                     fake_file_obj = io.BytesIO(expression_contents.encode())
-                    # sub-file linenos are 1-based; pass lineno-1 so a term on
-                    # the first line of the expression keeps the outer lineno
                     yield from extract_javascript(
                         fake_file_obj, keywords, comment_tags, options, lineno - 1
                     )
                     lineno += len(line_re.findall(expression_contents))
                     expression_contents = ""
-        # track backslash escaping so ``\"`` does not close the string but
-        # ``\\`` (escaped backslash) still does
         escaped = character == "\\" and not escaped
         prev_character = character
     if keyword:
@@ -110,17 +87,11 @@ def extract_javascript(
     encoding = options.get("encoding", "utf-8")
     dotted = any("." in kw for kw in keywords)
 
-    # Keep track of the last token we saw.
     last_token = None
-    # Keep the stack of all function calls and its related contextual variables, so we can handle nested gettext calls.
     function_stack = []
-    # Keep track of whether we're in a class or function definition.
     in_def = False
-    # Keep track of whether we're in a block of translator comments.
     in_translator_comments = False
-    # Keep track of the last encountered translator comments.
     translator_comments = []
-    # Keep track of the (split) strings encountered.
     message_buffer = []
 
     for token in tokenize(
@@ -131,30 +102,24 @@ def extract_javascript(
     ):
         token: Token = Token(token.type, token.value, token.lineno + lineno_offset)
         if token.type == "name" and token.value in ("class", "function"):
-            # We're entering a class or function definition.
             in_def = True
             continue
 
         elif in_def and token.type == "operator" and token.value in ("(", "{"):
-            # We're in a class or function definition and should not do anything.
             in_def = False
             continue
 
         elif (
             last_token and last_token.type == "name" and token.type == "template_string"
         ):
-            # Turn keyword`foo` expressions into keyword("foo") function calls.
             string_value = unquote_string(token.value)
             cur_translator_comments = translator_comments
             if (
                 function_stack
                 and function_stack[-1]["function_lineno"] == last_token.lineno
             ):
-                # If our current function call is on the same line as the previous one,
-                # copy their translator comments, since they also apply to us.
                 cur_translator_comments = function_stack[-1]["translator_comments"]
 
-            # We add all information needed later for the current function call.
             function_stack.append(
                 {
                     "function_lineno": last_token.lineno,
@@ -167,7 +132,6 @@ def extract_javascript(
             translator_comments = []
             message_buffer.clear()
 
-            # We act as if we are closing the function call now
             last_token = token
             token = Token("operator", ")", token.lineno)
 
@@ -194,17 +158,13 @@ def extract_javascript(
 
         elif token.type == "operator" and token.value == "(":
             if last_token and last_token.type == "name":
-                # We're entering a function call.
                 cur_translator_comments = translator_comments
                 if (
                     function_stack
                     and function_stack[-1]["function_lineno"] == last_token.lineno
                 ):
-                    # If our current function call is on the same line as the previous one,
-                    # copy their translator comments, since they also apply to us.
                     cur_translator_comments = function_stack[-1]["translator_comments"]
 
-                # We add all information needed later for the current function call.
                 function_stack.append(
                     {
                         "function_lineno": token.lineno,
@@ -218,25 +178,21 @@ def extract_javascript(
                 message_buffer.clear()
 
         elif token.type == "linecomment":
-            # Strip the comment character from the line.
             value = token.value[2:].strip()
             if (
                 in_translator_comments
                 and translator_comments[-1][0] == token.lineno - 1
             ):
-                # We're already in a translator comment. Continue appending.
                 translator_comments.append((token.lineno, value))
                 continue
 
             for comment_tag in comment_tags:
                 if value.startswith(comment_tag):
-                    # The comment starts with one of the translator comment keywords, so let's start capturing it.
                     in_translator_comments = True
                     translator_comments.append((token.lineno, value))
                     break
 
         elif token.type == "multilinecomment":
-            # Only one multi-line comment may precede a translation.
             translator_comments = []
             value = token.value[2:-2].strip()
             for comment_tag in comment_tags:
@@ -250,9 +206,7 @@ def extract_javascript(
                     break
 
         elif function_stack and function_stack[-1]["function_name"] in keywords:
-            # We're inside a translation function call.
             if token.type == "operator" and token.value == ")":
-                # The call has ended, so we yield the translatable term(s).
                 messages = function_stack[-1]["messages"]
                 lineno = (
                     function_stack[-1]["message_lineno"]
@@ -271,7 +225,6 @@ def extract_javascript(
                     cur_translator_comments
                     and cur_translator_comments[-1][0] < lineno - 1
                 ):
-                    # The translator comments are not immediately preceding the current term, so we skip them.
                     cur_translator_comments = []
 
                 yield (
@@ -284,7 +237,6 @@ def extract_javascript(
                 function_stack.pop()
 
             elif token.type in ("string", "template_string"):
-                # We've encountered a string inside a translation function call.
                 if last_token.type == "name":
                     message_buffer.clear()
                 else:
@@ -295,7 +247,6 @@ def extract_javascript(
                         message_buffer.append(string_value)
 
             elif token.type == "operator" and token.value == ",":
-                # We're at the end of a function call argument.
                 if message_buffer:
                     function_stack[-1]["messages"].append("".join(message_buffer))
                     message_buffer.clear()
@@ -306,7 +257,6 @@ def extract_javascript(
             function_stack.pop()
 
         if in_translator_comments and translator_comments[-1][0] < token.lineno:
-            # We have a newline between the comment lines, so they don't belong together anymore.
             in_translator_comments = False
 
         last_token = token

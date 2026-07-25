@@ -22,23 +22,17 @@ import odoo.exceptions
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
-unsafe_eval = eval  # noqa: S307  # eval is the intentional core of the safe_eval sandbox
+unsafe_eval = eval
 
 __all__ = ["const_eval", "expr_eval", "safe_eval"]
 
-# `time` is usually already present, but some code imports it, e.g.
-# datetime.datetime.now() on Windows/Python 2.5.2 (bug lp:703841).
 _ALLOWED_MODULES = ["_strptime", "math", "time"]
 
 
-# Mock __import__ as called by cpython's import emulator `PyImport_Import` inside
-# timemodule.c, _datetimemodule.c and others. It need not do anything: its only
-# job is to make the module available in `sys.modules`, which the imports of
-# _ALLOWED_MODULES below ensure.
 def _import(
     name: str,
-    globals: dict | None = None,  # noqa: A002  # mirrors builtin __import__ signature
-    locals: dict | None = None,  # noqa: A002  # mirrors builtin __import__ signature
+    globals: dict | None = None,
+    locals: dict | None = None,
     fromlist: list[str] | None = None,
     level: int = -1,
 ) -> None:
@@ -53,31 +47,23 @@ for module in _ALLOWED_MODULES:
 
 
 _UNSAFE_ATTRIBUTES = [
-    # Frames
     "f_builtins",
     "f_code",
     "f_globals",
     "f_locals",
-    "f_generator",  # Python 3.14 frame attribute
-    # Legacy Python 2 names: don't exist in Python 3, blocked for defence-in-depth
+    "f_generator",
     "func_code",
     "func_globals",
-    # Code object
     "co_code",
     "_co_code_adaptive",
-    # Method resolution order,
     "mro",
-    # Tracebacks
     "tb_frame",
-    # Generators
     "gi_code",
     "gi_frame",
     "gi_yieldfrom",
-    # Coroutines
     "cr_await",
     "cr_code",
     "cr_frame",
-    # Coroutine generators
     "ag_await",
     "ag_code",
     "ag_frame",
@@ -90,44 +76,23 @@ def to_opcodes(opnames: list[str], _opmap: dict[str, int] = opmap) -> Iterator[i
             yield _opmap[x]
 
 
-# Opcodes that must never be usable in safe_eval; subtracted from every
-# allowed-opcode set as defence-in-depth.
-#
-# All four opcode sets below are ``frozenset``: they are fixed for the life of
-# the process, and ``assert_valid_codeobj`` puts ``frozenset(allowed_codes)``
-# in its cache key on EVERY call.  Built from a mutable ``set`` that meant
-# re-hashing ~90 ints per validation (~0.60us of a ~0.88us cache hit, i.e. two
-# thirds of the fast path, on the domain/QWeb/server-action hot path);
-# ``frozenset(x)`` returns ``x`` itself when ``x`` is already a frozenset, and a
-# frozenset caches its hash after the first call, so both collapse to ~0.02us.
-# They are also genuinely immutable now, which is the right contract for a
-# sandbox allowlist.  ``odoo.addons.base.models.ir_qweb._SAFE_QWEB_OPCODES``
-# derives from ``_EXPR_OPCODES``/``_BLACKLIST`` and becomes a frozenset too.
 _BLACKLIST = frozenset(
     to_opcodes(
         [
-            # can't provide access to accessing arbitrary modules
             "IMPORT_STAR",
             "IMPORT_NAME",
             "IMPORT_FROM",
-            # setattr/delattr could replace or update core attributes on models
-            # & al, or set field values (rec.field = x). Note STORE_SUBSCR
-            # (item assignment, rec[k] = x) is intentionally NOT blocked: it is
-            # needed to build dict/list results in exec-mode expressions.
             "STORE_ATTR",
             "DELETE_ATTR",
-            # no reason to allow this
             "STORE_GLOBAL",
             "DELETE_GLOBAL",
         ]
     )
 )
-# opcodes necessary to build literal values
 _CONST_OPCODES = (
     frozenset(
         to_opcodes(
             [
-                # stack manipulations
                 "POP_TOP",
                 "ROT_TWO",
                 "ROT_THREE",
@@ -135,38 +100,30 @@ _CONST_OPCODES = (
                 "DUP_TOP",
                 "DUP_TOP_TWO",
                 "LOAD_CONST",
-                "RETURN_VALUE",  # return the result of the literal/expr evaluation
-                # literal collections
+                "RETURN_VALUE",
                 "BUILD_LIST",
                 "BUILD_MAP",
                 "BUILD_TUPLE",
                 "BUILD_SET",
-                # 3.6: literal map with constant keys https://bugs.python.org/issue27140
                 "BUILD_CONST_KEY_MAP",
                 "LIST_EXTEND",
                 "SET_UPDATE",
-                # 3.11 replace DUP_TOP, DUP_TOP_TWO, ROT_TWO, ROT_THREE, ROT_FOUR
                 "COPY",
                 "SWAP",
-                # Added in 3.11 https://docs.python.org/3/whatsnew/3.11.html#new-opcodes
                 "RESUME",
-                # 3.12 https://docs.python.org/3/whatsnew/3.12.html#cpython-bytecode-changes
                 "RETURN_CONST",
-                # 3.13
                 "TO_BOOL",
-                # 3.14 https://docs.python.org/3.14/whatsnew/3.14.html#cpython-bytecode-changes
-                "LOAD_SMALL_INT",  # replaces LOAD_CONST for small integers
-                "NOT_TAKEN",  # branch prediction hint (no-op)
+                "LOAD_SMALL_INT",
+                "NOT_TAKEN",
             ]
         )
     )
     - _BLACKLIST
 )
 
-# operations that are both binary and in-place (same order as the docs)
 _operations = [
     "POWER",
-    "MULTIPLY",  # 'MATRIX_MULTIPLY', # matrix operator (3.5+)
+    "MULTIPLY",
     "FLOOR_DIVIDE",
     "TRUE_DIVIDE",
     "MODULO",
@@ -178,7 +135,6 @@ _operations = [
     "XOR",
     "OR",
 ]
-# operations on literal values
 _EXPR_OPCODES = (
     _CONST_OPCODES.union(
         to_opcodes(
@@ -191,19 +147,15 @@ _EXPR_OPCODES = (
                 "BINARY_SUBSCR",
                 *("INPLACE_" + op for op in _operations),
                 "BUILD_SLICE",
-                # comprehensions
                 "LIST_APPEND",
                 "MAP_ADD",
                 "SET_ADD",
                 "COMPARE_OP",
-                # specialised comparisons
                 "IS_OP",
                 "CONTAINS_OP",
                 "DICT_MERGE",
                 "DICT_UPDATE",
-                # Used in any "generator literal"
-                "GEN_START",  # added in 3.10 but already removed from 3.11.
-                # Added in 3.11, replacing all BINARY_* and INPLACE_*
+                "GEN_START",
                 "BINARY_OP",
                 "BINARY_SLICE",
             ]
@@ -218,17 +170,15 @@ _SAFE_OPCODES = (
             [
                 "POP_BLOCK",
                 "POP_EXCEPT",
-                # note: removed in 3.8
                 "SETUP_LOOP",
                 "SETUP_EXCEPT",
                 "BREAK_LOOP",
                 "CONTINUE_LOOP",
-                "EXTENDED_ARG",  # P3.6 for long jump offsets.
+                "EXTENDED_ARG",
                 "MAKE_FUNCTION",
                 "CALL_FUNCTION",
                 "CALL_FUNCTION_KW",
                 "CALL_FUNCTION_EX",
-                # Added in P3.7 https://bugs.python.org/issue26110
                 "CALL_METHOD",
                 "LOAD_METHOD",
                 "GET_ITER",
@@ -243,7 +193,6 @@ _SAFE_OPCODES = (
                 "POP_JUMP_IF_TRUE",
                 "SETUP_FINALLY",
                 "END_FINALLY",
-                # Added in 3.8 https://bugs.python.org/issue17611
                 "BEGIN_FINALLY",
                 "CALL_FINALLY",
                 "POP_FINALLY",
@@ -256,42 +205,30 @@ _SAFE_OPCODES = (
                 "STORE_FAST",
                 "DELETE_FAST",
                 "UNPACK_SEQUENCE",
-                # Extended unpacking (``a, *rest = seq``).  Structural only, and
-                # the non-starred UNPACK_SEQUENCE above is already allowed.
                 "UNPACK_EX",
                 "STORE_SUBSCR",
-                # ``del obj[key]``.  STORE_SUBSCR (above) already permits
-                # mutating a subscriptable, so this grants no new reach; without
-                # it the two halves of item assignment were inconsistent.
                 "DELETE_SUBSCR",
                 "LOAD_GLOBAL",
                 "RERAISE",
                 "JUMP_IF_NOT_EXC_MATCH",
-                # Following opcodes were Added in 3.11
-                # replacement of opcodes CALL_FUNCTION, CALL_FUNCTION_KW, CALL_METHOD
                 "PUSH_NULL",
                 "PRECALL",
                 "CALL",
                 "KW_NAMES",
-                # replacement of POP_JUMP_IF_TRUE and POP_JUMP_IF_FALSE
                 "POP_JUMP_FORWARD_IF_FALSE",
                 "POP_JUMP_FORWARD_IF_TRUE",
                 "POP_JUMP_BACKWARD_IF_FALSE",
                 "POP_JUMP_BACKWARD_IF_TRUE",
-                # special case of the previous for IS NONE / IS NOT NONE
                 "POP_JUMP_FORWARD_IF_NONE",
                 "POP_JUMP_BACKWARD_IF_NONE",
                 "POP_JUMP_FORWARD_IF_NOT_NONE",
                 "POP_JUMP_BACKWARD_IF_NOT_NONE",
-                # replacement of JUMP_IF_NOT_EXC_MATCH
                 "CHECK_EXC_MATCH",
-                # new opcodes
                 "RETURN_GENERATOR",
                 "PUSH_EXC_INFO",
                 "NOP",
                 "FORMAT_VALUE",
                 "BUILD_STRING",
-                # 3.12 https://docs.python.org/3/whatsnew/3.12.html#cpython-bytecode-changes
                 "END_FOR",
                 "LOAD_FAST_AND_CLEAR",
                 "LOAD_FAST_CHECK",
@@ -299,7 +236,6 @@ _SAFE_OPCODES = (
                 "POP_JUMP_IF_NONE",
                 "CALL_INTRINSIC_1",
                 "STORE_SLICE",
-                # 3.13
                 "CALL_KW",
                 "LOAD_FAST_LOAD_FAST",
                 "STORE_FAST_STORE_FAST",
@@ -308,32 +244,15 @@ _SAFE_OPCODES = (
                 "FORMAT_SIMPLE",
                 "FORMAT_WITH_SPEC",
                 "SET_FUNCTION_ATTRIBUTE",
-                # 3.14
-                "LOAD_FAST_BORROW",  # optimized LOAD_FAST for borrowed references
-                "POP_ITER",  # replaces END_FOR for iterator cleanup
-                "LOAD_FAST_BORROW_LOAD_FAST_BORROW",  # compound load optimization
-                "LOAD_COMMON_CONSTANT",  # loads common constants (None, NotImplemented, etc.)
-                # Emitted by the compiler for the re-raise edge of a combined
-                # ``try/except/finally``.  Without it that construct -- plain
-                # error handling, the single most common thing a server action
-                # does -- was rejected outright as "forbidden opcode(s)", while
-                # try/except alone and try/finally alone both compiled fine.
-                # It is an ordinary backward jump that merely skips the periodic
-                # eval-breaker check; general loops still use JUMP_BACKWARD.
+                "LOAD_FAST_BORROW",
+                "POP_ITER",
+                "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
+                "LOAD_COMMON_CONSTANT",
                 "JUMP_BACKWARD_NO_INTERRUPT",
-                # ``yield from`` / generator delegation plumbing -- no new
-                # capability beyond the already-allowed generators.
                 "SEND",
                 "END_SEND",
                 "CLEANUP_THROW",
                 "GET_YIELD_FROM_ITER",
-                # Closure cells, for a nested function capturing a local of its
-                # enclosing function.  MAKE_FUNCTION and LOAD/STORE_FAST are
-                # already allowed, so functions and locals both already exist --
-                # these opcodes are only the storage mechanism that lets an inner
-                # function see an outer local, and add no new reachability.
-                # Dunder cell names are rejected by assert_no_dunder_name, which
-                # inspects co_freevars/co_cellvars for exactly this reason.
                 "MAKE_CELL",
                 "COPY_FREE_VARS",
                 "LOAD_CLOSURE",
@@ -349,10 +268,6 @@ _SAFE_OPCODES = (
 
 _logger = logging.getLogger(__name__)
 
-# Cache keyed by (co_code, co_names, allowed_codes_id): identical bytecode need
-# not be re-scanned for opcodes and names. Only populated for code objects with
-# no nested code object (lambda/comprehension), whose validation verdict the key
-# fully captures — see assert_valid_codeobj for why nested code is never cached.
 _validated_bytecode_cache: dict[tuple, bool] = {}
 _VALIDATED_CACHE_MAX = 8192
 
@@ -422,7 +337,6 @@ def assert_no_dunder_format_field(code_obj: CodeType, expr: str) -> None:
         try:
             fields = [field for _, field, _, _ in _formatter_parse(const) if field]
         except ValueError:
-            # Not a valid format string; str.format() would raise on it too.
             continue
         if any("__" in field for field in fields):
             raise NameError(
@@ -449,47 +363,9 @@ def assert_valid_codeobj(
     :raises ValueError: forbidden bytecode in ``code_obj``
     :raises NameError: a forbidden name (a dunder or unsafe attribute) is found
     """
-    # Code objects nested in co_consts (lambdas, comprehensions, generator
-    # expressions) carry their OWN bytecode and names, which (co_code, co_names)
-    # do not capture. Two expressions can share an identical *parent*
-    # (co_code, co_names) while differing only inside a nested lambda — e.g.
-    # ``[(lambda v: v.foo)(x) for x in xs]`` vs
-    # ``[(lambda v: v.__class__)(x) for x in xs]`` compile to the same parent
-    # code object. Caching on the parent key alone let the second expression
-    # reuse the first's "validated" verdict and skip the nested dunder/opcode
-    # checks entirely — a sandbox escape (reaching ``object`` via ``__class__``).
-    # The cache is therefore only sound for code objects with no nested code
-    # object: for those, (co_code, co_names) fully determines the validation
-    # outcome (every other const is an inert literal). Anything containing a
-    # nested code object is validated in full, every time.
     nested_code = [c for c in code_obj.co_consts if isinstance(c, CodeType)]
     cacheable = not nested_code
 
-    # Fast path: identical bytecode + names + allowed set already validated.
-    #
-    # The key is built only when it can actually be used.  It hashes co_code,
-    # co_names and the whole co_consts tuple; for an expression that CONTAINS a
-    # nested code object (any lambda -- never cacheable, see above) that work was
-    # pure waste on every single evaluation.
-    # Key on the allowlist's CONTENT (frozenset), not id(): a garbage-collected
-    # allowlist set's id can be reused by a *different* set, which would let the
-    # new allowlist silently inherit the old one's "validated" verdicts — a
-    # cache-poisoning seam in a sandbox primitive. frozenset() of ~50 opcode ints
-    # is negligible next to the dis.get_instructions() it guards.
-    # The key carries everything the validators actually inspect, because two
-    # distinct expressions that agree on the key share a "validated" verdict --
-    # cache poisoning of exactly the kind the nested-code rule above prevents.
-    #
-    # co_consts: two format-string expressions can share an identical
-    # (co_code, co_names) -- "{0.name}".format(x) vs "{0.__class__}".format(x)
-    # differ only in the string constant that assert_no_dunder_format_field
-    # validates below.
-    #
-    # co_freevars/co_cellvars: assert_no_dunder_name inspects them, and
-    # LOAD_DEREF addresses cells by INDEX, not by name -- ``lambda: a`` and
-    # ``lambda: __class__`` (both closing over an enclosing local) compile to
-    # byte-identical co_code with an empty co_names, differing only in
-    # co_freevars.
     cache_key = None
     if cacheable:
         cache_key = (
@@ -506,8 +382,6 @@ def assert_valid_codeobj(
     assert_no_dunder_name(code_obj, expr)
     assert_no_dunder_format_field(code_obj, expr)
 
-    # set operations are almost twice as fast as a manual iteration + condition
-    # when loading /web according to line_profiler
     code_codes = {i.opcode for i in dis.get_instructions(code_obj)}
     if not allowed_codes >= code_codes:
         raise ValueError(
@@ -518,24 +392,8 @@ def assert_valid_codeobj(
     for const in nested_code:
         assert_valid_codeobj(allowed_codes, const, "lambda")
 
-    # Only cache after full validation succeeds, and only for nested-code-free
-    # objects whose verdict the key actually captures (see above).
-    #
-    # Evict FIFO when full rather than freezing the cache.  The old ``< MAX``
-    # guard stopped inserting once full, so a process that ever validated more
-    # than _VALIDATED_CACHE_MAX distinct expressions (studio/website installs
-    # generate a long tail of one-off domains) re-ran the full
-    # ``dis.get_instructions`` scan on every subsequent call forever, silently
-    # losing the fast path this cache exists to provide.  dict preserves
-    # insertion order, so ``next(iter(...))`` is the oldest key.
     if cacheable:
         if len(_validated_bytecode_cache) >= _VALIDATED_CACHE_MAX:
-            # Evict the oldest entry (dict preserves insertion order). This runs
-            # lock-free on a module-global shared by every evaluating thread, so
-            # tolerate a concurrent evictor: a RuntimeError from a mid-iteration
-            # resize, or a key another thread already removed, must not raise a
-            # KeyError out of this validation primitive (its callers invoke it
-            # outside their try/except). Same guard as odoo.libs.lru.
             try:
                 oldest = next(iter(_validated_bytecode_cache), None)
             except RuntimeError:
@@ -551,7 +409,9 @@ def compile_codeobj(
     filename: str = "<unknown>",
     mode: typing.Literal["eval", "exec"] = "eval",
 ) -> CodeType:
-    """
+    """Compile ``expr`` into a code object.
+
+    :param str expr: the source to compile
     :param str filename: optional pseudo-filename for the compiled expression,
                          displayed for example in traceback frames
     :param str mode: 'eval' if single expression
@@ -562,7 +422,7 @@ def compile_codeobj(
     assert mode in ("eval", "exec")
     try:
         if mode == "eval":
-            expr = expr.strip()  # eval() does not like leading/trailing whitespace
+            expr = expr.strip()
         code_obj = compile(expr, filename or "", mode)
     except SyntaxError, TypeError, ValueError:
         raise
@@ -644,7 +504,7 @@ _BUILTINS = {
     "divmod": divmod,
     "isinstance": isinstance,
     "range": range,
-    "xrange": range,  # Python 2 compat shim — user expressions may use xrange
+    "xrange": range,
     "zip": zip,
     "Exception": Exception,
 }
@@ -654,7 +514,7 @@ _BUBBLEUP_EXCEPTIONS = (
     odoo.exceptions.UserError,
     odoo.exceptions.RedirectWarning,
     werkzeug.exceptions.HTTPException,
-    OperationalError,  # let auto-replay of serialized transactions work its magic
+    OperationalError,
     ZeroDivisionError,
 )
 
@@ -700,7 +560,6 @@ def safe_eval(
     c = compile_codeobj(expr, filename=filename, mode=mode)
     assert_valid_codeobj(_SAFE_OPCODES, c, expr)
     try:
-        # locals=None makes locals default to globals, like top-level code
         return unsafe_eval(c, globals_dict, None)
 
     except _BUBBLEUP_EXCEPTIONS:
@@ -760,7 +619,6 @@ Pre-wrapped modules are provided as attributes of `odoo.tools.safe_eval`.
         return
     seen.add(obj_id)
     if isinstance(value, dict):
-        # keys too: a module used as a dict key is reachable via list(d)
         for k, v in value.items():
             _check_module(k, seen)
             _check_module(v, seen)
@@ -787,7 +645,6 @@ class wrap_module:
                                     are used as an ``attributes`` in case the
                                     corresponding item is a submodule
         """
-        # builtin modules don't have a __file__ at all
         modfile = getattr(module, "__file__", "(built-in)")
         self._repr = f"<wrapped {module.__name__!r} ({modfile})>"
         for attrib in attributes:
@@ -800,8 +657,7 @@ class wrap_module:
         return self._repr
 
 
-# dateutil submodules are lazy so need to import them for them to "exist"
-import dateutil  # noqa: E402
+import dateutil
 
 mods = ["parser", "relativedelta", "rrule", "tz"]
 for mod in mods:
@@ -857,12 +713,9 @@ dateutil = wrap_module(
     },
 )
 json = wrap_module(__import__("json"), ["loads", "dumps"])
-# Deliberately omit ``sleep``: no template/action needs it, and exposing it lets
-# a single expression block a worker thread indefinitely (DoS).
 time = wrap_module(__import__("time"), ["time", "strptime", "strftime"])
-# Expose timezone utilities (pytz-compatible interface for server actions)
-from odoo.libs.datetime import tz as _tz_module  # noqa: E402
+from odoo.libs.datetime import tz as _tz_module
 
 pytz = wrap_module(_tz_module, ["utc", "timezone"])
-pytz.UTC = pytz.utc  # pytz.UTC is an alias for pytz.utc
+pytz.UTC = pytz.utc
 dateutil.tz.gettz = pytz.timezone

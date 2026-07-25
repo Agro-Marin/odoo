@@ -29,20 +29,15 @@ class TestAttributeRemoveIsLiteral:
         assert _apply("state == 'draft'", remove="state == 'draft'") == ""
 
     def test_alternation_is_not_a_regex_alternative(self):
-        # "a|b" is not a term of "a or b"; interpolated raw, `^\(*a|b\)*$`
-        # matched the bare "a" and wiped the whole attribute.
         assert _apply("a or b", remove="a|b", separator="or") == "a or b"
 
     def test_dot_is_not_a_wildcard(self):
         assert _apply("axb", remove="a.b") == "axb"
 
     def test_unbalanced_paren_does_not_raise(self):
-        # `^\(*(\)*$` is not a valid pattern: this used to be a re.PatternError
-        # escaping as a 500.
         assert _apply("foo", remove="(") == "foo"
 
     def test_term_removal_still_works(self):
-        # the surviving term keeps whatever parentheses it was written with
         assert _apply("(a) and (b)", remove="b") == "(a)"
         assert _apply("a and b", remove="b") == "a"
 
@@ -52,8 +47,6 @@ class TestAttributeRemoveIsLiteral:
 
 class TestLocateNode:
     def test_xpath_without_expr_raises_value_error(self):
-        # ETXPath(None) raises TypeError, which bypasses the
-        # ValueError -> ValidationError wrapper in ir.ui.view.
         arch = etree.fromstring("<form><field name='a'/></form>")
         spec = etree.fromstring('<xpath position="replace"><p/></xpath>')
         with pytest.raises(ValueError, match="missing 'expr'"):
@@ -71,6 +64,5 @@ class TestSpecQueue:
         )
         apply_inheritance_specs(arch, specs)
         assert len(specs) == 1
-        # and the spec still applies on a second run against a fresh source
         arch2 = etree.fromstring("<form><field name='a'/></form>")
         assert apply_inheritance_specs(arch2, specs)[0].get("x") == "1"
