@@ -128,6 +128,22 @@ class IrModuleCategory(models.Model):
         if self._has_cycle():
             raise ValidationError(_("Error ! You cannot create recursive categories."))
 
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        records = super().create(vals_list)
+        self.env.registry.clear_cache("groups")
+        return records
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        res = super().write(vals)
+        self.env.registry.clear_cache("groups")
+        return res
+
+    def unlink(self) -> bool:
+        res = super().unlink()
+        self.env.registry.clear_cache("groups")
+        return res
+
 
 class MyFilterMessages(Transform):
     """Remove ``system_message`` nodes, logging each at DEBUG.
