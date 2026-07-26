@@ -6,8 +6,6 @@ class ReportLayout(models.Model):
     _description = "Report Layout"
     _order = "sequence, id"
 
-    # RLAY-C1: explicit cascade — a layout without its template is useless, and the
-    # implicit `set null` default contradicts required=True (would orphan the row).
     view_id = fields.Many2one(
         "ir.ui.view", "Document Template", required=True, ondelete="cascade"
     )

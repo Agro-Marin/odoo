@@ -30,29 +30,23 @@ class TestReportUrlFetcher(TransactionCase):
     def setUp(self):
         super().setUp()
         self.report = self.env["ir.actions.report"]
-        # Outside an HTTP request _setup_session() is a no-op, so the fetcher is
-        # safe to build and inspect directly in a TransactionCase.
         self.fetcher = self.report._build_url_fetcher()
         self.addCleanup(self.fetcher.cleanup)
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_static_file_rejects_path_traversal(self):
         """A ``../``-escaping static path resolves to nothing (no escape)."""
-        # The is_relative_to() guard rejects any candidate resolving outside the
-        # addons root, so traversal yields None instead of leaking a file.
         url = "http://localhost/base/static/../../../../../../etc/passwd"
         path = "/base/static/../../../../../../etc/passwd"
         self.assertIsNone(self.fetcher._resolve_static_file(url, path))
 
     def test_static_file_ignores_non_static_path(self):
         """A path whose 2nd segment is not ``static`` is skipped early."""
-        # Guard at the top of _resolve_static_file: parts[1] must be "static".
         self.assertIsNone(
             self.fetcher._resolve_static_file(
                 "http://localhost/base/models/foo.py", "/base/models/foo.py"
             )
         )
-        # Fewer than 3 segments is also rejected.
         self.assertIsNone(
             self.fetcher._resolve_static_file("http://localhost/base", "/base")
         )
@@ -60,37 +54,31 @@ class TestReportUrlFetcher(TransactionCase):
     def test_parse_image_url_variants(self):
         """Table-drive _parse_image_url across its three resolution regexes."""
         cases = [
-            # model/id/field, no dimensions -> width/height default to 0
             (
                 "/web/image/res.partner/42/image_1920",
                 "",
                 ("res.partner", 42, "image_1920", 0, 0),
             ),
-            # model/id/field with WxH dimensions
             (
                 "/web/image/res.partner/42/image_128/64x96",
                 "",
                 ("res.partner", 42, "image_128", 64, 96),
             ),
-            # bare id -> defaults to ir.attachment / raw field
             (
                 "/web/image/7",
                 "",
                 ("ir.attachment", 7, "raw", 0, 0),
             ),
-            # bare id with a unique suffix and dimensions
             (
                 "/web/image/7-deadbeef/20x30",
                 "",
                 ("ir.attachment", 7, "raw", 20, 30),
             ),
-            # query-string fallback when the path matches no regex
             (
                 "/web/image",
                 "model=res.users&id=3&field=avatar_128&width=10&height=15",
                 ("res.users", 3, "avatar_128", 10, 15),
             ),
-            # query-string fallback with only an id -> model/field defaults
             (
                 "/web/image",
                 "id=9",
@@ -103,26 +91,23 @@ class TestReportUrlFetcher(TransactionCase):
 
     def test_parse_image_url_missing_id_raises(self):
         """The query-string fallback raises ValueError when no id is given."""
-        # No regex matches and the query lacks an id, so res_id is 0 and raises.
         with self.assertRaises(ValueError):
             self.fetcher._parse_image_url("/web/image", "model=res.partner")
 
     def test_blocked_fetch_ip_classification(self):
         """_is_blocked_fetch_ip flags private/reserved IP literals, not hosts."""
-        # SSRF pivot targets — must all be blocked.
         for host in (
-            "169.254.169.254",  # cloud metadata endpoint (link-local)
-            "127.0.0.2",  # loopback outside _LOOPBACK_HOSTS
+            "169.254.169.254",
+            "127.0.0.2",
             "10.1.2.3",
             "192.168.0.5",
-            "172.16.9.9",  # RFC 1918
-            "0.0.0.0",  # unspecified
-            "::1",  # IPv6 loopback
-            "fe80::1",  # IPv6 link-local
+            "172.16.9.9",
+            "0.0.0.0",
+            "::1",
+            "fe80::1",
         ):
             with self.subTest(host=host):
                 self.assertTrue(_is_blocked_fetch_ip(host))
-        # Public IPs and real hostnames must pass through (rendered as-is).
         for host in ("8.8.8.8", "93.184.216.34", "cdn.example.com", None, ""):
             with self.subTest(host=host):
                 self.assertFalse(_is_blocked_fetch_ip(host))
@@ -130,14 +115,11 @@ class TestReportUrlFetcher(TransactionCase):
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_fetch_refuses_private_ip(self):
         """fetch() refuses an absolute URL pointing at a private/reserved IP."""
-        # WeasyPrint treats a raising fetch() as a missing resource, so raising
-        # here degrades the report gracefully instead of performing the SSRF.
         with self.assertRaises(ValueError):
             self.fetcher.fetch("http://169.254.169.254/latest/meta-data/")
 
     def test_fetch_rejects_file_scheme(self):
         """file:// is not in allowed_protocols, so local-file reads are refused."""
-        # Guards against the wkhtmltopdf-style file:///etc/passwd disclosure.
         with self.assertRaises(ValueError):
             self.fetcher.fetch("file:///etc/passwd")
 
@@ -199,7 +181,6 @@ class TestReportAuditFixes(TransactionCase):
         NotImplemented (generic ORM fallback), not silently match nothing."""
         Report = self.env["ir.actions.report"]
         self.assertIs(Report._search_model_id("=", None), NotImplemented)
-        # Handled combos still produce a usable domain.
         partner_model = self.env["ir.model"]._get("res.partner")
         found = Report.search([("model_id", "=", partner_model.id)])
         self.assertIn(self.reports[0], found)
@@ -207,8 +188,6 @@ class TestReportAuditFixes(TransactionCase):
     def test_render_unknown_report_type_raises(self):
         """_render must raise a UserError naming the type, not return None."""
         report = self.reports[0]
-        # The selection constraint is ORM-level only; force a bogus type the
-        # way a corrupt row would present it.
         self.env.flush_all()
         self.env.cr.execute(
             "UPDATE ir_act_report_xml SET report_type = %s WHERE id = %s",
@@ -266,8 +245,6 @@ class TestReportAuditFixes(TransactionCase):
         with self.assertLogs(
             "odoo.addons.base.models.ir_actions_report", level="WARNING"
         ) as capture:
-            # I2of5 only accepts digits: the drawing call raises ValueError,
-            # which must degrade to a Code128 rendering of the same value.
             png = self.env["ir.actions.report"].barcode("I2of5", "not-numeric")
         self.assertTrue(png.startswith(b"\x89PNG"))
         self.assertTrue(
@@ -305,8 +282,6 @@ class TestReportAttachmentNameCache(TransactionCase):
         return {"stream": io.BytesIO(b"%PDF-audit"), "attachment": None, **extra}
 
     def test_cached_attachment_name_skips_safe_eval(self):
-        # Poison the expression: any safe_eval would raise, so getting a vals
-        # list back proves the cached name was used instead.
         self.report.attachment = "1/0"
         streams = {self.partner.id: self._stream_entry(attachment_name="cached.pdf")}
         vals_list = self.env[
@@ -317,7 +292,6 @@ class TestReportAttachmentNameCache(TransactionCase):
         self.assertEqual(vals_list[0]["res_id"], self.partner.id)
 
     def test_evaluated_empty_cache_skips_attachment(self):
-        # "" is the evaluated-and-empty sentinel: no attachment, no re-eval.
         self.report.attachment = "1/0"
         streams = {self.partner.id: self._stream_entry(attachment_name="")}
         vals_list = self.env[
@@ -326,8 +300,6 @@ class TestReportAttachmentNameCache(TransactionCase):
         self.assertEqual(vals_list, [])
 
     def test_missing_cache_falls_back_to_safe_eval(self):
-        # Entries built by an overridden prepare_streams lack the key: the
-        # documented None sentinel must trigger the safe_eval fallback.
         for entry in (self._stream_entry(), self._stream_entry(attachment_name=None)):
             with self.subTest(entry=entry):
                 vals_list = self.env[
@@ -553,8 +525,6 @@ class TestHtmlToImageTestMode(TransactionCase):
                 .with_context(force_report_rendering=True)
                 ._render_html_to_image(["<div>audit</div>"], 10, 10)
             )
-        # The per-body failure degrades to None, but the pipeline ran: the
-        # fetcher was built instead of the test-mode early return.
         self.assertEqual(result, [None])
         self.assertTrue(fetcher_mock.called)
 
@@ -663,9 +633,6 @@ class TestXmlidLookupCacheOrderingAfterWrite(TransactionCase):
         self.patch(self.env.registry, "clear_cache", _probe_db_on_clear_cache)
         imd.write({"res_id": group_b.id})
 
-        # write() calls clear_cache() more than once here (once for the bare
-        # xmlid cache, once for "groups" since ir.model.data.model is itself
-        # "res.groups") — every one of those calls must see the post-write row.
         self.assertTrue(observed_res_id)
         self.assertEqual(
             observed_res_id,

@@ -17,11 +17,6 @@ class IrLogging(models.Model):
     _order = "id DESC"
     _allow_sudo_commands = False
 
-    # _log_access fields are defined manually: ir_logging rows are written by raw
-    # SQL bypassing the ORM (--log-db may even target a remote DB), so the *_uid
-    # one2many fields are meaningless but kept for backward compatibility. Manual
-    # definition also avoids the ORM's ALTER TABLE on res_users, whose exclusive
-    # lock would deadlock an in-progress install writing its own ir_logging entry.
     create_uid = fields.Integer(string="Created by", readonly=True)
     create_date = fields.Datetime(string="Created on", readonly=True)
     write_uid = fields.Integer(string="Last Updated by", readonly=True)
@@ -36,9 +31,6 @@ class IrLogging(models.Model):
     message = fields.Text(required=True)
     path = fields.Char(required=True)
     func = fields.Char(string="Function", required=True)
-    # ILOG-M1: stored as Char (not Integer) on purpose -- client-side line refs
-    # can be non-numeric (e.g. minified bundle positions). The server writer in
-    # logutils passes an int ``lineno`` which PostgreSQL coerces to text.
     line = fields.Char(
         required=True,
         help="Source line. Text rather than integer because client/minified line references may be non-numeric.",
@@ -49,9 +41,6 @@ class IrLogging(models.Model):
         if sql.constraint_definition(
             self.env.cr, "ir_logging", "ir_logging_write_uid_fkey"
         ):
-            # Only drop when the constraint actually exists: DROP CONSTRAINT
-            # unconditionally takes an ACCESS EXCLUSIVE lock on the table,
-            # even when "IF EXISTS" is set and does not match.
             self.env.cr.execute(
                 "ALTER TABLE ir_logging DROP CONSTRAINT ir_logging_write_uid_fkey"
             )
@@ -87,5 +76,4 @@ class IrLogging(models.Model):
             [("create_date", "<", cutoff)], limit=GC_UNLINK_LIMIT
         )
         records.unlink()
-        # autovacuum contract: (records removed, whether more may remain)
         return len(records), len(records) == GC_UNLINK_LIMIT

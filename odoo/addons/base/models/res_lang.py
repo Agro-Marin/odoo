@@ -14,12 +14,6 @@ from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
 
-# ``locale.setlocale()`` mutates *process-global* state, which ``_create_lang``
-# sets to read the target locale's facets (``localeconv``, ``nl_langinfo``). On
-# the threaded server, two concurrent ``_create_lang`` calls could interleave
-# their set/read/reset sequences and read the wrong locale, so this lock
-# serializes the whole window. It cannot shield unrelated threads that read
-# locale state without taking it (a locale-free rewrite would be needed).
 _LOCALE_LOCK = threading.Lock()
 
 
@@ -77,9 +71,7 @@ class ResLang(models.Model):
     _allow_sudo_commands = False
 
     _disallowed_datetime_patterns = list(tools.misc.DATETIME_FORMATS_MAP)
-    _disallowed_datetime_patterns.remove(
-        "%y"
-    )  # this one is in fact allowed, just not good practice
+    _disallowed_datetime_patterns.remove("%y")
 
     def _get_date_format_selection(self) -> list[tuple[str, str]]:
         current_year = fields.Date.today().year
@@ -164,9 +156,10 @@ class ResLang(models.Model):
         for lang in self:
             if lang.flag_image:
                 lang.flag_image_url = f"/web/image/res.lang/{lang.id}/flag_image"
+            elif not lang.code:
+                lang.flag_image_url = False
             else:
                 country_code = lang.code.lower().rsplit("_")[-1]
-                # Numeric region codes (e.g. es_419) don't map to flag images
                 if country_code.isdigit() or "_" not in lang.code:
                     country_code = lang.code.lower().split("_")[0]
                 lang.flag_image_url = (
@@ -191,7 +184,6 @@ class ResLang(models.Model):
 
     @api.constrains("active")
     def _check_active(self) -> None:
-        # do not check during installation
         if self.env.registry.ready and not self.search_count([("active", "=", True)]):
             raise ValidationError(_("At least one language must be active."))
 
@@ -237,7 +229,6 @@ class ResLang(models.Model):
         return None
 
     def _register_hook(self) -> None:
-        # check that there is at least one active language
         if not self.search_count([]):
             _logger.error("No language is active.")
 
@@ -274,16 +265,11 @@ class ResLang(models.Model):
         def fix_datetime_format(format):
             """Map libc-specific strftime directives to the always-available
             C89 ones, for cross-platform format strings."""
-            # Some locales (e.g. cs_CZ) return a D_FMT/T_FMT with unsupported
-            # '%-' patterns.
             format = format.replace("%-", "%")
             for pattern, replacement in tools.misc.DATETIME_FORMATS_MAP.items():
                 format = format.replace(pattern, replacement)
             return str(format)
 
-        # Read locale info under _LOCALE_LOCK (see its comment): the whole
-        # set -> read -> reset window over process-global locale state must be
-        # serialized.
         with _LOCALE_LOCK:
             try:
                 fail = True
@@ -300,8 +286,6 @@ class ResLang(models.Model):
                     _logger.warning(msg, lang, lc)
 
                 conv = locale.localeconv()
-                # Normalize to the space-free Selection values: str([3, 0])
-                # gives "[3, 0]" but the Selection expects "[3,0]".
                 grouping = str(conv.get("grouping") or "[3,0]").replace(" ", "")
                 grouping_options = {v for v, _ in self._fields["grouping"].selection}
                 lang_info = {
@@ -321,33 +305,22 @@ class ResLang(models.Model):
                 }
             finally:
                 tools.translate.resetlocale()
-        # create() needs no locale: run it outside the lock to keep the
-        # global-mutation window short.
         return self.create(lang_info)
 
     @api.model
     def install_lang(self) -> bool:
         """Load the default language and set it as the default partner language."""
-        # Called from base/data/res_lang_data.xml. config['load_language'] (set
-        # via '_initialize_db' on the 'db' object) is a comma-separated list or
-        # None. Fragile — something better should be found.
         lang_code = (tools.config.get("load_language") or "en_US").split(",")[0]
         self._activate_lang(lang_code) or self._create_lang(lang_code)
         IrDefault = self.env["ir.default"]
         default_value = IrDefault._get("res.partner", "lang")
         if default_value is None:
             IrDefault.set("res.partner", "lang", lang_code)
-            # set language of main company, created directly by db bootstrap SQL
             partner = self.env.company.partner_id
             if not partner.lang:
                 partner.write({"lang": lang_code})
         return True
 
-    # ------------------------------------------------------------
-    # cached methods for **active** languages
-    # ------------------------------------------------------------
-    # Fields to cache for active languages. Must not depend on other models,
-    # context, or translations. Do not add ``dict`` method names (LangData compat).
     CACHED_FIELDS = OrderedSet(
         [
             "id",
@@ -422,12 +395,9 @@ class ResLang(models.Model):
             {data[field]: data for data in self._get_active_by("code").values()}
         )
 
-    # ------------------------------------------------------------
-
     def action_unarchive(self) -> bool:
         activated = self.filtered(lambda rec: not rec.active)
         res = super(ResLang, activated).action_unarchive()
-        # Automatically load translation
         if activated:
             active_lang = activated.mapped("code")
             mods = self.env["ir.module.module"].search([("state", "=", "installed")])
@@ -486,28 +456,22 @@ class ResLang(models.Model):
                         "Reactivating those contacts would leave them with an inactive language."
                     )
                 )
-            # delete linked ir.default specifying default partner's language
             self.env["ir.default"].discard_values("res.partner", "lang", lang_codes)
 
         res = super().write(vals)
 
         if vals.get("active"):
-            # If we activate a lang, set it's url_code to the shortest version
-            # if possible
             for long_lang in self.filtered(lambda lang: "_" in lang.url_code):
                 short_code = long_lang.code.split("_")[0]
-                short_lang = self.with_context(active_test=False).search(  # noqa: E8507 — bounded: installed language count is tiny
+                short_lang = self.with_context(active_test=False).search(
                     [
                         ("url_code", "=", short_code),
                     ],
                     limit=1,
-                )  # url_code is unique
+                )
                 if (
                     short_lang
                     and not short_lang.active
-                    # `code` should always be the long format containing `_` but
-                    # there is a plan to change this in the future for `es_419`.
-                    # This `and` is about not failing if it's the case one day.
                     and short_lang.code != short_code
                 ):
                     short_lang.url_code = short_lang.code
@@ -546,9 +510,6 @@ class ResLang(models.Model):
         for record, vals in zip(self, vals_list, strict=True):
             if "name" not in default:
                 vals["name"] = _("%s (copy)", record.name)
-            # RL-B3: 'code' is a locale identifier (frozen by write()) and
-            # 'url_code' is routing-facing and unique — both need an
-            # untranslated, URL-safe suffix, never the localized "(copy)".
             if "code" not in default:
                 vals["code"] = self._get_unique_copy_value("code", record.code)
             if "url_code" not in default:
@@ -626,7 +587,7 @@ def split(l: str, counts: list[int]) -> list[str]:
 
     """
     res = []
-    saved_count = len(l)  # count to use when encountering a zero
+    saved_count = len(l)
     for count in counts:
         if not l:
             break
@@ -687,7 +648,6 @@ def format_number(spec: str, value, lang_data: LangData, grouping: bool = False)
     formatted = spec % value
 
     decimal_point = lang_data.decimal_point
-    # floats and decimal ints need special action!
     if grouping:
         lang_grouping, thousands_sep = (
             lang_data.grouping,
@@ -697,10 +657,6 @@ def format_number(spec: str, value, lang_data: LangData, grouping: bool = False)
 
         if spec[-1] in "eEfFgG":
             parts = formatted.split(".")
-            # RL-L2: never group scientific-notation output (e.g. "1e+20") —
-            # parts[0] holds mantissa+exponent, so interspersing would inject
-            # the separator into the exponent ("1e,+20"). Group plain decimals
-            # only.
             if "e" not in formatted and "E" not in formatted:
                 parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[0]
 

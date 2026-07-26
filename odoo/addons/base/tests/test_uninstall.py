@@ -1,5 +1,3 @@
-# This assumes an existing but uninitialized database.
-
 import unittest
 from contextlib import contextmanager
 

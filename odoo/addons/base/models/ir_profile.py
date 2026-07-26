@@ -20,7 +20,7 @@ _logger = logging.getLogger(__name__)
 class IrProfile(models.Model):
     _name = "ir.profile"
     _description = "Profiling results"
-    _log_access = False  # avoid useless foreign key on res_user
+    _log_access = False
     _order = "session desc, id desc"
     _allow_sudo_commands = False
 
@@ -52,7 +52,6 @@ class IrProfile(models.Model):
 
     @api.autovacuum
     def _gc_profile(self) -> tuple[int, bool]:
-        # remove profiles older than 30 days
         domain = [
             (
                 "create_date",
@@ -62,30 +61,21 @@ class IrProfile(models.Model):
         ]
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
-        return len(records), len(records) == GC_UNLINK_LIMIT  # done, remaining
+        return len(records), len(records) == GC_UNLINK_LIMIT
 
     def _compute_has_memory(self) -> bool:
-        # IRPROF-M1: despite the ``_compute_`` prefix this is NOT an @api.depends
-        # compute -- it assigns no field and returns a bool. Called imperatively
-        # from the QWeb template web.config_speedscope_index; the name is kept
-        # for that cross-addon caller.
         return all(
             bool(profile.others and json.loads(profile.others).get("memory"))
             for profile in self
         )
 
     def _generate_memory_profile(self, params: dict[str, Any]) -> list[dict[str, Any]]:
-        # IRPROF-C2: enforce the ir.profile ACL (group_system) up front so a
-        # non-system request raises AccessError deterministically, closing the
-        # existence-oracle gap (valid id 500s vs invalid id 404s) at the controller.
         self.check_access("read")
         memory_graph = []
         memory_limit = params.get("memory_limit", 0)
         for profile in self:
             if profile.others:
                 memory = json.loads(profile.others).get("memory", "[]")
-                # IRPROF-M2: drop the trailing sentinel entry appended by the
-                # memory collector so only real tracebacks remain.
                 memory_tracebacks = json.loads(memory)[:-1]
                 memory_graph.extend(
                     {
@@ -106,8 +96,6 @@ class IrProfile(models.Model):
 
     @api.depends("init_stack_trace")
     def _compute_speedscope(self) -> None:
-        # When extending params, whitelist values against an enum so only valid
-        # user-provided input is accepted.
         params = self._parse_params(self.env.context)
         for execution in self:
             execution.speedscope = base64.b64encode(
@@ -125,10 +113,6 @@ class IrProfile(models.Model):
         }
 
     def _parse_params(self, params: dict[str, Any]) -> dict[str, Any]:
-        # Values reach us verbatim from the controller query string. Every
-        # str2bool gets an explicit default and the aggregation mode is
-        # whitelisted, so a malformed value degrades to the default instead of
-        # raising ValueError (HTTP 500 before any access check).
         aggregation_mode = params.get("profile_aggregation_mode")
         if aggregation_mode not in ("tabs", "temporal"):
             aggregation_mode = "tabs"
@@ -160,19 +144,12 @@ class IrProfile(models.Model):
 
     @staticmethod
     def _parse_memory_limit(value: Any) -> int:
-        # IRPROF-C1: ``memory_limit`` reaches us verbatim from the controller
-        # query string. Coerce defensively so a non-numeric value degrades to 0
-        # instead of raising ValueError and surfacing as HTTP 500.
         try:
             return int(value or 0)
         except TypeError, ValueError:
             return 0
 
     def _generate_speedscope(self, params: dict[str, Any]) -> bytes:
-        # IRPROF-C2: enforce the ir.profile ACL (group_system) up front so a
-        # non-system request raises AccessError deterministically rather than
-        # leaking profile-id existence via a status-code oracle (500 valid vs
-        # 404 invalid) at the controller boundary.
         self.check_access("read")
         init_stack_trace = self[0].init_stack_trace
         if not init_stack_trace:
@@ -233,9 +210,6 @@ class IrProfile(models.Model):
             sp.add_output(frames, display_name=f"Frames {suffix}", **params)
 
     def _compute_speedscope_url(self) -> None:
-        # IRPROF-P1: no @api.depends -- the URL derives solely from the record id.
-        # A spurious @api.depends("speedscope") would force the expensive
-        # _compute_speedscope on every list/form load. Mirrors _compute_config_url.
         for profile in self:
             profile.speedscope_url = f"/web/speedscope/{profile.id}"
 
@@ -262,9 +236,6 @@ class IrProfile(models.Model):
         :param collectors: optional list of collectors to use
         :param params: optional parameters set on the profiler object
         """
-        # Parameters come from RPC/route params (public user), so the resulting
-        # session variables (profile_collectors/profile_params) are client-defined
-        # and can activate any profiler -- handle with care.
         if not request:
             raise UserError(
                 self.env._("Profiling can only be toggled from an HTTP request.")

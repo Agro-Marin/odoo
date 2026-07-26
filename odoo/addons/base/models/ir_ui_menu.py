@@ -10,7 +10,6 @@ from odoo.exceptions import ValidationError
 from odoo.http import request
 
 MENU_ITEM_SEPARATOR = "/"
-# anchored at the end of the name: only a trailing "(N)" is a copy counter
 NUMBER_PARENS = re.compile(r"\((\d+)\)\s*$")
 
 
@@ -41,8 +40,6 @@ class IrUiMenu(models.Model):
     complete_name = fields.Char(
         string="Full Path", compute="_compute_complete_name", recursive=True
     )
-    # display_name embeds the parent's value, so an ancestor rename must cascade
-    # invalidation down; the ORM only cascades through recursive fields.
     display_name = fields.Char(recursive=True)
     web_icon = fields.Char(string="Web Icon File")
     action = fields.Reference(
@@ -83,7 +80,6 @@ class IrUiMenu(models.Model):
         if not path:
             return False
         path_info = path.split(",")
-        # An image web icon is "module,path"; anything else isn't a readable image.
         if len(path_info) != 2:
             return False
         icon_path = str(Path(path_info[0]) / path_info[1])
@@ -125,11 +121,9 @@ class IrUiMenu(models.Model):
                 )
             )
 
-        # filter out menus with groups the user does not have
         menus = (
             self.with_context({})
             .search_fetch(
-                # Don't use 'any' operator in the domain to avoid ir.rule
                 [
                     "|",
                     ("group_ids", "=", False),
@@ -141,7 +135,6 @@ class IrUiMenu(models.Model):
             .sudo()
         )
 
-        # take apart menus that have an action
         action_ids_by_model = defaultdict(list)
         for action in menus.mapped("action"):
             if action:
@@ -168,7 +161,6 @@ class IrUiMenu(models.Model):
                 )
             )
             if model_name == "ir.actions.server":
-                # Because it is computed, `search_fetch` doesn't fill the cache for it
                 records.mapped("model_name")
             return records
 
@@ -180,16 +172,13 @@ class IrUiMenu(models.Model):
         menu_ids = set(menus._ids)
         visible_ids = set()
         access = self.env["ir.model.access"]
-        # process action menus, check whether their action is allowed
         for menu in menus:
             action = menu.action
             if not action or action not in existing_actions:
                 continue
             model_fname = MODEL_BY_TYPE.get(action._name)
-            # action[model_fname] has been fetched in batch in `exists_actions`
             if model_fname and not access.check(action[model_fname], "read", False):
                 continue
-            # make menu visible, and its folder ancestors, too
             menu_id = menu.id
             while menu_id not in visible_ids and menu_id in menu_ids:
                 visible_ids.add(menu_id)
@@ -203,7 +192,6 @@ class IrUiMenu(models.Model):
         visible_ids = self._visible_menu_ids(self._get_session_debug())
         return self.filtered(lambda menu: menu.id in visible_ids)
 
-    # mirror _compute_complete_name's triggers (see _set_full_name)
     @api.depends("name", "parent_id.display_name")
     def _compute_display_name(self) -> None:
         self._set_full_name("display_name")
@@ -211,7 +199,6 @@ class IrUiMenu(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         if not vals_list:
-            # nothing to create: don't wipe the registry-wide caches
             return self.browse()
         self.env.registry.clear_cache()
         for values in vals_list:
@@ -223,7 +210,6 @@ class IrUiMenu(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if self and vals:
-            # only a real write invalidates the registry-wide caches
             self.env.registry.clear_cache()
         if "web_icon" in vals:
             vals["web_icon_data"] = self._compute_web_icon_data(vals.get("web_icon"))
@@ -240,20 +226,13 @@ class IrUiMenu(models.Model):
         The ``web_icon_data`` field is populated (in create/write) using
         :meth:`_read_image` for image web icons, and is ``False`` for built icons.
         """
-        # A 2-part value is an image icon "module,path"; a built icon has 3
-        # parts. A 2-part built icon (no bg) is indistinguishable here, but
-        # _read_image returns False and the JS rebuilds it from web_icon.
         if web_icon and len(web_icon.split(",")) == 2:
             return self._read_image(web_icon)
         return False
 
     def unlink(self) -> bool:
         if not self:
-            # nothing to unlink: don't wipe the registry-wide caches
             return True
-        # Detach children and promote them to top-level rather than cascade-delete.
-        # ondelete="set null" isn't an option: it's unsupported with _parent_store.
-        # TODO: ideally move them under a generic "Orphans" menu somewhere?
         direct_children = self.with_context(active_test=False).search(
             [("parent_id", "in", self.ids)]
         )
@@ -263,8 +242,6 @@ class IrUiMenu(models.Model):
         return super().unlink()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
-        # Suffix the copies' names with a "(N)" counter at insert time. Renaming
-        # after the copy fired one cache-wiping write() per copied menu.
         vals_list = super().copy_data(default=default)
         for vals in vals_list:
             if name := vals.get("name"):
@@ -321,18 +298,15 @@ class IrUiMenu(models.Model):
             ["name", "parent_id", "action", "web_icon"],
         )._filter_visible_menus()
 
-        children_dict = defaultdict(
-            list
-        )  # {parent_id: []} / parent_id == False for root menus
+        children_dict = defaultdict(list)
         for menu in visible_menus:
             children_dict[menu.parent_id.id].append(menu.id)
 
         app_info = {}
 
-        # recursively set app ids to related children
         def _set_app_id(menu_app_id, menu_id):
             if menu_id in app_info:
-                return  # cycle guard
+                return
             app_info[menu_id] = menu_app_id
             for child_id in children_dict[menu_id]:
                 _set_app_id(menu_app_id, child_id)
@@ -340,8 +314,6 @@ class IrUiMenu(models.Model):
         for root_menu_id in children_dict[False]:
             _set_app_id(root_menu_id, root_menu_id)
 
-        # Filter out menus not related to an app; happens when a parent menu is
-        # not visible for the user's groups.
         visible_menus = visible_menus.filtered(lambda menu: menu.id in app_info)
 
         xmlids = visible_menus._get_menuitems_xmlids()
@@ -393,8 +365,6 @@ class IrUiMenu(models.Model):
                 "xmlid": xmlids.get(menu_id, ""),
             }
 
-        # Batch-fetch action.path into a (model, id) -> path map so the per-menu
-        # loop reads from memory instead of re-browsing one action at a time.
         action_path_by_action = {}
         for model_name, action_ids in action_ids_by_type.items():
             actions = self.env[model_name].sudo().browse(action_ids)
@@ -402,7 +372,6 @@ class IrUiMenu(models.Model):
             for action in actions:
                 action_path_by_action[model_name, action.id] = action.path
 
-        # set children + model_path
         for menu_dict in menus_dict.values():
             if menu_dict["action_model"]:
                 menu_dict["action_path"] = action_path_by_action.get(

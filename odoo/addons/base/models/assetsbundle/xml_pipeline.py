@@ -9,8 +9,6 @@ from odoo.tools import OrderedSet
 from odoo.tools.json import scriptsafe as json
 
 if TYPE_CHECKING:
-    # ``bundle`` imports this module at runtime, so the reverse edge stays under
-    # TYPE_CHECKING to avoid an import cycle.
     from .bundle import AssetsBundle
     from .common import XMLBlock
 from .common import XMLAssetError
@@ -26,9 +24,6 @@ class XmlTemplatePipeline:
     (:meth:`generate_esm_template_bundle`).
     """
 
-    # OWL template-registration API destructured from ``@web/core/templates``.
-    # Three call sites consume this exact set (the IIFE wrapper and both header
-    # forms of ``generate_esm_template_bundle``); one source keeps them aligned.
     _TEMPLATE_MODULE = "@web/core/templates"
     _TEMPLATE_REGISTRARS = (
         "checkPrimaryTemplateParents, registerTemplate, registerTemplateExtension"
@@ -49,9 +44,6 @@ class XmlTemplatePipeline:
         blocks = []
         block = None
         for asset in bundle.templates:
-            # ``template_elements`` parses each asset once and caches it (see
-            # XMLAsset); a parse error surfaces as XMLAssetError here, caught by
-            # generate_xml_bundle.
             for template_tree in asset.template_elements:
                 template_name = template_tree.get("t-name")
                 inherit_from = template_tree.get("t-inherit")
@@ -59,8 +51,6 @@ class XmlTemplatePipeline:
                 if inherit_from:
                     inherit_mode = template_tree.get("t-inherit-mode", "primary")
                     if inherit_mode not in {"primary", "extension"}:
-                        # ``asset.name`` covers inline assets (url is None),
-                        # where ``url.split`` would crash.
                         addon = asset.url.split("/")[1] if asset.url else asset.name
                         raise asset._error(
                             bundle.env._(
@@ -98,21 +88,12 @@ class XmlTemplatePipeline:
             content.append(f"throw new Error({json.dumps(str(e))});")
 
         def get_template(element: etree._Element) -> str:
-            # Serialize a COPY: the elements come from the cached
-            # ``template_elements`` tree shared by every consumer, so stamping
-            # xml:space on the original would leak into later reads.
             element = deepcopy(element)
             element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
             string = etree.tostring(element, encoding="unicode")
             string = (
                 string.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
             )
-            # The rendered JS may be emitted as an INLINE
-            # ``<script type="module">``. The HTML parser ends a script element
-            # at the first ``</script`` (case-insensitive) regardless of JS
-            # string context, so a template with a ``<script>`` child would
-            # truncate the tag. ``<\/script`` is an identity escape inside a JS
-            # template literal, leaving the string unchanged.
             return re.sub(r"(?i)</script", r"<\\/script", string)
 
         names = OrderedSet()
@@ -126,10 +107,6 @@ class XmlTemplatePipeline:
                     name = element.get("t-name")
                     names.add(name)
                     template = get_template(element)
-                    # The URL is a JS string argument: json.dumps escapes it so
-                    # a backtick or ``${`` can't break out of the literal. The
-                    # template body stays a backtick literal (get_template
-                    # already escaped it).
                     content.append(
                         f"registerTemplate({json.dumps(name)}, {json.dumps(url)}, `{template}`);"
                     )

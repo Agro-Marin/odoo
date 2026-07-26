@@ -16,12 +16,8 @@ class TestMenu(TransactionCase):
         child21 = Menu.create({"name": "Test child 2-1", "parent_id": child2.id})
         all_ids = [root.id, child1.id, child2.id, child21.id]
 
-        # delete and check that direct children are promoted to top-level
-        # cfr. explanation in menu.unlink()
         root.unlink()
 
-        # search() over ir.ui.menu is unfiltered (no visibility filtering at the
-        # ORM layer), so a plain search returns archived/hidden menus too.
         remaining = Menu.search([("id", "in", all_ids)], order="id")
         self.assertEqual([child1.id, child2.id, child21.id], remaining.ids)
 
@@ -55,8 +51,6 @@ class TestMenuVisibility(TransactionCase):
         super().setUpClass()
         cls.Menu = cls.env["ir.ui.menu"]
         cls.Action = cls.env["ir.actions.act_window"]
-        # Employee with only base.group_user: cannot read group_system models
-        # such as ir.config_parameter.
         cls.employee = new_test_user(
             cls.env, login="menu_employee", groups="base.group_user"
         )
@@ -91,15 +85,11 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        # admin reads every model, so both action menus are visible
         admin_visible = self.Menu._visible_menu_ids()
         self.assertIn(menu_readable.id, admin_visible)
         self.assertIn(menu_restricted.id, admin_visible)
-        # the root is force-shown as an ancestor of a visible action menu
         self.assertIn(root.id, admin_visible)
 
-        # the employee can read res.partner but not ir.config_parameter, so only
-        # the readable action menu (and its ancestor) passes the gate
         emp_visible = self.Menu.with_user(self.employee)._visible_menu_ids()
         self.assertIn(menu_readable.id, emp_visible)
         self.assertNotIn(menu_restricted.id, emp_visible)
@@ -121,7 +111,6 @@ class TestMenuVisibility(TransactionCase):
         action.unlink()
         visible = self.Menu._visible_menu_ids()
         self.assertNotIn(menu.id, visible)
-        # the lone child being gone, the empty folder is not force-shown either
         self.assertNotIn(root.id, visible)
 
     def test_visible_menu_ids_group_gate(self):
@@ -129,7 +118,6 @@ class TestMenuVisibility(TransactionCase):
         a group-restricted ancestor is not force-shown to them."""
         group = self.env["res.groups"].create({"name": "Menu test group"})
         action = self._act_window("res.partner")
-        # parent folder gated on the group; child action menu ungated
         parent = self.Menu.create(
             {"name": "Gated parent", "group_ids": [Command.set(group.ids)]}
         )
@@ -141,13 +129,10 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        # employee lacks the group: the child action passes its own (empty)
-        # gate, but the gated parent must NOT be force-shown as an ancestor
         emp_visible = self.Menu.with_user(self.employee)._visible_menu_ids()
         self.assertIn(child.id, emp_visible)
         self.assertNotIn(parent.id, emp_visible)
 
-        # grant the group: the parent now passes the gate and is force-shown
         self.employee.write({"group_ids": [Command.link(group.id)]})
         emp_visible = self.Menu.with_user(self.employee)._visible_menu_ids()
         self.assertIn(child.id, emp_visible)
@@ -166,13 +151,10 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        # warm the cache for the employee: cannot read ir.config_parameter
         self.assertNotIn(
             menu.id, self.Menu.with_user(self.employee)._visible_menu_ids()
         )
 
-        # granting group_system changes the user's group set -> write() on the
-        # user clears the cache -> the new set reflects the added access
         self.employee.write(
             {"group_ids": [Command.link(self.env.ref("base.group_system").id)]}
         )
@@ -190,16 +172,12 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        # admin has group_no_one, but it is discarded when not in debug mode
         self.assertNotIn(debug_root.id, self.Menu._visible_menu_ids(False))
-        # in debug mode group_no_one is kept, so the gated menu is visible
         self.assertIn(debug_root.id, self.Menu._visible_menu_ids(True))
 
     def test_load_menus_root_keyed_on_debug(self):
         """load_menus_root keys on the debug flag (regression guard for IUM-L3):
         the cached root set reflects request.session.debug, not the first call."""
-        # ormcache key now includes the debug-resolving expression, so the
-        # cached value cannot go stale across debug toggles
         self.assertIn(
             "self._get_session_debug()", IrUiMenu.load_menus_root.__cache__.args
         )
@@ -212,23 +190,16 @@ class TestMenuVisibility(TransactionCase):
                 "action": f"{action._name},{action.id}",
             }
         )
-        # the new key element is _get_session_debug(): off-request it is False
         self.assertFalse(self.Menu._get_session_debug())
 
-        # off-request (request is None) -> not debug -> group_no_one discarded
         roots_no_debug = self.Menu.load_menus_root()
         self.assertNotIn(debug_root.id, roots_no_debug["all_menu_ids"])
 
-        # in debug mode a real request with session.debug="1" is on the stack,
-        # so _get_session_debug() returns "1": before the fix the (uid, lang)
-        # key returned the cached non-debug set; now the debug-keyed entry is a
-        # cache miss and recomputes with the gated root visible
         with self.debug_mode():
             self.assertEqual(self.Menu._get_session_debug(), "1")
             roots_debug = self.Menu.load_menus_root()
             self.assertIn(debug_root.id, roots_debug["all_menu_ids"])
 
-        # leaving debug mode restores the non-debug root set
         roots_again = self.Menu.load_menus_root()
         self.assertNotIn(debug_root.id, roots_again["all_menu_ids"])
 
@@ -258,7 +229,6 @@ class TestMenuMisc(TransactionCase):
         copy1 = menu.copy()
         self.assertEqual(copy1.name, "Budget (2025) Plan (1)")
 
-        # the trailing counter increments; the mid-name number still does not
         copy2 = copy1.copy()
         self.assertEqual(copy2.name, "Budget (2025) Plan (2)")
 
@@ -309,14 +279,11 @@ class TestMenuMisc(TransactionCase):
 
     def test_web_icon_data_built_icon(self):
         """A built icon (class,color[,bg]) yields no image data."""
-        # 3-part built icon: not routed to _read_image at all
         menu3 = self.Menu.create(
             {"name": "Built 3", "web_icon": "fa fa-cog,#000000,#ffffff"}
         )
         self.assertFalse(menu3.web_icon_data)
 
-        # 2-part built icon: routed to _read_image, which returns False for a
-        # non-existent file path (harmless conflation, see _compute_web_icon_data)
         menu2 = self.Menu.create({"name": "Built 2", "web_icon": "fa fa-cog,#000000"})
         self.assertFalse(menu2.web_icon_data)
 

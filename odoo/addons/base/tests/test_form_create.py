@@ -6,17 +6,11 @@ class TestFormCreate(TransactionCase):
     """Test that basic Odoo model records can be created from the interface."""
 
     def test_create_res_partner(self):
-        # YTI: Clean that brol
         if hasattr(self.env["res.partner"], "property_account_payable_id"):
-            # Both groups are needed to see the property account fields: account
-            # requires group_account_readonly, account_accountant switches it to
-            # group_account_user.
-            # https://github.com/odoo/enterprise/commit/68f6c1f9fd3ff6762c98e1a405ade035129efce0
             self.env.user.group_ids += self.env.ref("account.group_account_readonly")
             self.env.user.group_ids += self.env.ref("account.group_account_user")
         partner_form = Form(self.env["res.partner"])
         partner_form.name = "a partner"
-        # YTI: Clean that brol
         if hasattr(self.env["res.partner"], "property_account_payable_id"):
             property_account_payable_id = self.env["account.account"].create(
                 {
@@ -67,7 +61,6 @@ class TestFormCreate(TransactionCase):
 
     def test_create_res_lang(self):
         lang_form = Form(self.env["res.lang"])
-        # lang_form.url_code = 'LANG'  # invisible field, tested in http_routing
         lang_form.name = "a lang name"
         lang_form.code = "a lang code"
         lang_form.save()
@@ -95,15 +88,14 @@ class TestFormCreate(TransactionCase):
             }
         )
         partner_form = Form(self.env["res.partner"], view=view)
-        # readonly="1" AND readonly="0" simplifies to plain False
         self.assertEqual(partner_form._view["modifiers"]["name"]["readonly"], "False")
-        partner_form.name = "a partner"  # writable: not all occurrences readonly
+        partner_form.name = "a partner"
 
         self.assertFalse(partner_form._get_modifier("email", "invisible"))
-        partner_form.phone = "x"  # ancestor <group invisible="phone == 'x'">
+        partner_form.phone = "x"
         self.assertTrue(partner_form._get_modifier("email", "invisible"))
         partner_form.phone = "y"
-        partner_form.ref = "y"  # the field's own invisible modifier
+        partner_form.ref = "y"
         self.assertTrue(partner_form._get_modifier("email", "invisible"))
 
     def test_create_o2m_mode_form(self):

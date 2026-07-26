@@ -294,7 +294,6 @@ class TestEmbeddedFilters(FiltersCase):
             }
         )
 
-        # Matching embedded_action_id + embedded_parent_res_id returns the filter
         filters = (
             self.env["ir.filters"]
             .with_user(self.USER_ID)
@@ -318,7 +317,6 @@ class TestEmbeddedFilters(FiltersCase):
             ],
         )
 
-        # A different embedded_parent_res_id must not return the filter
         filters = (
             self.env["ir.filters"]
             .with_user(self.USER_ID)
@@ -330,7 +328,6 @@ class TestEmbeddedFilters(FiltersCase):
         )
         self.assertItemsEqual(noid(filters), [])
 
-        # A shared filter is fetchable by another user
         filters = (
             self.env["ir.filters"]
             .with_user(ADMIN_USER_ID)
@@ -354,7 +351,6 @@ class TestEmbeddedFilters(FiltersCase):
             ],
         )
 
-        # Without embedded args, no embedded filters are returned
         filters = (
             self.env["ir.filters"].with_user(self.USER_ID).get_filters("ir.filters")
         )
@@ -448,8 +444,6 @@ class TestConstrainsValidation(FiltersCase):
     """
 
     def test_raw_create_rejects_non_list_domain(self):
-        # IRF-L2: a malformed domain via plain ORM create (bypassing
-        # create_filter) is rejected by the @api.constrains backstop.
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create(
                 {
@@ -479,8 +473,6 @@ class TestConstrainsValidation(FiltersCase):
             ir_filter.write({"domain": "{'a': 1}"})
 
     def test_create_rejects_sort_with_non_string_elements(self):
-        # IRF-C1: the DB CHECK only enforces "jsonb array"; [1, 2] passes it but
-        # later blows up at ",".join(...), so the constraint must reject it.
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create(
                 {
@@ -519,7 +511,6 @@ class TestDynamicDomainValidation(FiltersCase):
     non-whitelisted names, so one bad blob cannot poison the shared dropdown.
     """
 
-    # Real payloads captured from "Save current search" in the web client.
     DYNAMIC_UID_DOMAIN = '[("create_uid", "=", uid)]'
     DYNAMIC_DATE_DOMAIN = (
         '[("activity_date", ">=", '
@@ -554,21 +545,16 @@ class TestDynamicDomainValidation(FiltersCase):
         self.assertEqual(ir_filter.domain, self.DYNAMIC_DATE_DOMAIN)
 
     def test_copy_dynamic_row_succeeds(self):
-        # The @api.constrains re-validates domain on copy; a (legacy) dynamic
-        # row must remain copyable.
         ir_filter = self._create_dynamic(self.DYNAMIC_UID_DOMAIN)
         copied = ir_filter.copy()
         self.assertEqual(copied.domain, self.DYNAMIC_UID_DOMAIN)
 
     def test_write_sort_on_dynamic_row_succeeds(self):
-        # Writing sort triggers the constraint, which re-validates all three
-        # fields together — the untouched dynamic domain must not raise.
         ir_filter = self._create_dynamic(self.DYNAMIC_DATE_DOMAIN)
         ir_filter.write({"sort": '["name desc"]'})
         self.assertEqual(ir_filter.sort, '["name desc"]')
 
     def test_write_unvalidated_fields_on_dynamic_row_succeeds(self):
-        # name/is_default are outside the constraint's trigger fields.
         ir_filter = self._create_dynamic(self.DYNAMIC_UID_DOMAIN)
         ir_filter.write({"name": "renamed", "is_default": True})
         self.assertEqual(ir_filter.name, "renamed")
@@ -591,7 +577,6 @@ class TestDynamicDomainValidation(FiltersCase):
             self.env["ir.filters"].create_filter(
                 {"name": "hostile", "model_id": "res.partner", "domain": hostile}
             )
-        # The @api.constrains backstop must reject it on raw create too.
         with self.assertRaises(ValidationError):
             self._create_dynamic(hostile)
 

@@ -6,9 +6,6 @@ from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
 
-# URL prefixes owned by the asset pipeline. Both spellings of "is this a
-# generated asset" — the Python ``startswith`` test and the ``=like`` domain —
-# are derived from these, so the two can no longer disagree about what counts.
 ASSETS_URL_PREFIX = "/web/assets/"
 ESM_BRIDGES_URL_PREFIX = "/web/assets/esm/bridges/"
 
@@ -16,18 +13,9 @@ ESM_BRIDGES_URL_PREFIX = "/web/assets/esm/bridges/"
 class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
-    # Grace window (days) before superseded ESM artifacts are vacuumed by
-    # _gc_esm_assets; operators override via ``web.esm.gc_grace_days``.
     _ESM_GC_GRACE_DAYS = 7
 
     def unlink(self) -> bool:
-        # Deleting an asset-bundle attachment must drop the "assets" ormcache
-        # too: it stores rendered nodes embedding the bundle URL, and a cached
-        # node outliving its attachment is a hard 404 (the ESM serve path has
-        # no on-the-fly rebuild, unlike the classic /web/assets controller).
-        # Build-time version rotation bypasses this via _unlink_attachments' raw
-        # SQL to avoid cross-worker thrash. Captured before super() empties the
-        # recordset; cache cleared after, once the rows are gone.
         clear_assets = any(
             url and url.startswith(ASSETS_URL_PREFIX) for url in self.mapped("url")
         )
@@ -95,8 +83,6 @@ class IrAttachment(models.Model):
             .sudo()
             .get_param_int("web.esm.gc_grace_days", self._ESM_GC_GRACE_DAYS)
         )
-        # Floor at one day: 0/negative makes cutoff >= now and sweeps every
-        # bridge (no newest-per-name protection) on every run.
         grace_days = max(1, grace_days)
         cutoff = fields.Datetime.now() - timedelta(days=grace_days)
 
@@ -112,23 +98,8 @@ class IrAttachment(models.Model):
         artifacts = candidates - bridges
         stale_artifacts = self.browse()
         if artifacts:
-            # The newest row per name is live. Compute it over ALL rows of
-            # that name (not just over-grace candidates), else a superseded row
-            # whose successor is younger than the cutoff poses as "newest"
-            # forever.
-            #
-            # "Newest" = freshest ``write_date`` (id tie-break), NOT max id:
-            # content-addressed saves REUSE a row when content reverts (rollback
-            # A → B → A), and the render path bumps the reused row's
-            # ``write_date`` on every uncached reuse
-            # (``IrQweb._persist_esm_attachment_rows``). Max-id liveness would
-            # keep B (the abandoned newer row) live and sweep A, the row every
-            # cached node URL points at (hard 404: no ESM rebuild).
             live_ids = set()
             _seen_names = set()
-            # Same population as `candidates` minus the grace/suffix filters,
-            # so a same-named row can't pose as "newest" and mark the real
-            # bundle stale.
             for att in self.sudo().search(
                 self._generated_asset_domain()
                 & Domain("name", "in", list(set(artifacts.mapped("name")))),
@@ -141,10 +112,6 @@ class IrAttachment(models.Model):
 
         to_gc = stale_artifacts | bridges
         if to_gc:
-            # unlink() drops the filestore entries and, since the URLs are
-            # under /web/assets/, clears the "assets" ormcache so the next
-            # render re-persists any bridge shim still in use (same content
-            # hash and URL — browser caches stay valid).
             to_gc.unlink()
             _logger.info(
                 "GC'd %d stale ESM artifact(s) and %d aged bridge shim(s) "
@@ -156,20 +123,8 @@ class IrAttachment(models.Model):
 
     @api.model
     def regenerate_assets_bundles(self) -> None:
-        # Explicit gate: unlink below would already deny non-system users via
-        # _check_access, but fail fast and clearly (shared with force_storage).
         self._check_admin_action()
-        # Deliberately the BROAD domain: regeneration drops every generated
-        # bundle artifact (classic .min.js/.min.css included) so the next
-        # render rebuilds them all from source.
         generated = self.search(self._generated_asset_domain())
-        # `unlink()` clears the "assets" ormcache itself for any row whose url is
-        # under /web/assets/, which this domain guarantees for every row it
-        # matches — so clearing again here was a second, redundant registry-wide
-        # invalidation on the one path where it could never be needed. It IS
-        # needed when the search came back empty and unlink() therefore never
-        # ran: a cache holding nodes for bundles that no longer have rows must
-        # still be dropped, which is exactly the regeneration being asked for.
         if generated:
             generated.unlink()
         else:

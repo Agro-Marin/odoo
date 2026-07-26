@@ -27,7 +27,7 @@ class TestMergePartner(TransactionCase):
         )
         self.bank3 = self.Bank.create(
             {"acc_number": "12345", "partner_id": self.partner3.id}
-        )  # Duplicate account number
+        )
 
         self.attachment1 = self.env["ir.attachment"].create(
             {
@@ -81,7 +81,6 @@ class TestMergePartner(TransactionCase):
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
         with self.assertRaises(UserError):
             wizard._merge([parent.id, child.id])
-        # Both survive unchanged; neither becomes its own parent.
         self.assertTrue(parent.exists() and child.exists())
         self.assertNotEqual(parent.parent_id, parent)
         self.assertNotEqual(child.parent_id, child)
@@ -245,7 +244,6 @@ class TestMergePartner(TransactionCase):
             }
         )
 
-        # internal user doesn't have the right to write on res.partner.bank
         with self.assertRaises(AccessError):
             self.bank1.with_user(user_peon).partner_id = self.partner2
 
@@ -339,16 +337,12 @@ class TestMergePartnerForeignKeyClash(TransactionCase):
         src_clash = Partner.create({"name": "fk src clash", "email": "fk@example.com"})
         src_keep = Partner.create({"name": "fk src keep", "email": "fk@example.com"})
 
-        # dst already owns "CLASH"; re-pointing the clashing source's identical
-        # number to dst collides on (sanitized_acc_number, partner_id). The other
-        # source's number is unique and must survive the re-point.
         Bank.create({"acc_number": "CLASH", "partner_id": dst.id})
         bank_clash = Bank.create({"acc_number": "CLASH", "partner_id": src_clash.id})
         bank_keep = Bank.create({"acc_number": "UNIQUE-B", "partner_id": src_keep.id})
 
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
         wizard._update_foreign_keys_generic("res.partner", src_clash + src_keep, dst)
-        # The helper works in raw SQL; drop stale ORM cache before re-reading.
         self.env.invalidate_all()
 
         self.assertTrue(
@@ -386,12 +380,9 @@ class TestMergePartnerCompanyDependent(TransactionCase):
         Partner = self.env["res.partner"]
         src = Partner.create({"name": "cd src", "email": "cd@example.com"})
         dst = Partner.create({"name": "cd dst", "email": "cd@example.com"})
-        # An unrelated partner whose per-company value must stay untouched.
         bystander = Partner.create({"name": "cd bystander"})
         bystander.with_company(company_a).barcode = "BYSTANDER-A"
 
-        # The source carries a per-company barcode; the destination has none in
-        # company_a, so the merge must surface the source's value on dst.
         src.with_company(company_a).barcode = "SRC-A"
         src.with_company(company_b).barcode = "SRC-B"
 

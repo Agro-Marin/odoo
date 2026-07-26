@@ -130,14 +130,12 @@ class TestHasGroup(TransactionCase):
             "The portal user should not belong to '%s'" % self.grp_internal_xml_id,
         )
 
-        portal_user.unlink()  # otherwise, badly modifying the implication would raise
+        portal_user.unlink()
 
         grp_test_internal1.implied_ids = self.grp_internal
         grp_test_internal2.implied_ids = self.grp_internal
 
-        with self.assertRaises(
-            ValidationError
-        ):  # current group implications forbid to create a portal user
+        with self.assertRaises(ValidationError):
             portal_user = self.env["res.users"].create(
                 {
                     "login": "portalFail",
@@ -179,7 +177,6 @@ class TestHasGroup(TransactionCase):
             portal_user.write({"group_ids": [Command.link(grp_fail.id)]})
 
     def test_two_user_types(self):
-        # Create a user with two groups of user types kind (Internal and Portal)
         grp_test = self.env["res.groups"]._load_records(
             [
                 {
@@ -200,7 +197,6 @@ class TestHasGroup(TransactionCase):
                 }
             )
 
-        # Add a user with portal to the group Internal
         test_user = self.env["res.users"].create(
             {
                 "login": "test_user_portal",
@@ -269,14 +265,12 @@ class TestHasGroup(TransactionCase):
 
     def test_demote_user(self):
         """Demoting a user to portal/public strips all previous rights."""
-        group_0 = self.env.ref(
-            self.group0
-        )  # the group to which test_user already belongs
+        group_0 = self.env.ref(self.group0)
         group_U = self.env["res.groups"].create(
             {"name": "U", "implied_ids": [Command.set([self.grp_internal.id])]}
         )
 
-        self.grp_internal.implied_ids = False  # only there to simplify the test
+        self.grp_internal.implied_ids = False
 
         self.assertEqual(self.test_user.group_ids, group_0)
         self.assertEqual(self.test_user.all_group_ids, group_0)
@@ -295,7 +289,6 @@ class TestHasGroup(TransactionCase):
         )
 
         with self.assertRaises(ValidationError):
-            # A group may be (transitively) implying group_user or a portal, then it would raise an exception
             self.test_user.write(
                 {
                     "group_ids": [
@@ -306,8 +299,6 @@ class TestHasGroup(TransactionCase):
                 }
             )
 
-        # Demote him. The JS framework sends 3/4 commands (as here), but a 5
-        # command must work too.
         self.test_user.write(
             {
                 "group_ids": [
@@ -318,8 +309,6 @@ class TestHasGroup(TransactionCase):
             }
         )
 
-        # A botched remove/imply could leave a portal user with too many rights,
-        # or transitively imply group_user/portal and raise.
         self.assertEqual(
             self.test_user.all_group_ids,
             (group_0 + self.grp_portal),
@@ -341,9 +330,6 @@ class TestHasGroup(TransactionCase):
         group_B = G.create({"name": "B"})
         group_BB = G.create({"name": "BB", "implied_ids": [Command.set([group_B.id])]})
 
-        # Normal user: added groups and their implied groups are added.
-        # Portal user: implied groups are added only if they don't grant
-        # group_user/group_public privileges.
         user_a = U.create(
             {
                 "name": "a",
@@ -367,7 +353,6 @@ class TestHasGroup(TransactionCase):
         self.assertEqual(user_b.all_group_ids, (group_AA + group_A + group_portal))
         self.assertEqual(user_b.group_ids, (group_AA + group_portal))
 
-        # user_b is not an internal user, but giving it a new group just added a new group
         (user_a + user_b).write({"group_ids": [Command.link(group_BB.id)]})
         self.assertEqual(
             user_a.all_group_ids,
@@ -380,8 +365,6 @@ class TestHasGroup(TransactionCase):
         self.assertEqual(user_a.group_ids, (group_AA + group_BB + group_user))
         self.assertEqual(user_b.group_ids, (group_AA + group_BB + group_portal))
 
-        # A group implying group_user: adding it to a normal user works, but to
-        # a portal user raises.
         group_C = G.create({"name": "C", "implied_ids": [Command.set([group_user.id])]})
 
         user_a.write({"group_ids": [Command.link(group_C.id)]})
@@ -425,8 +408,6 @@ class TestHasGroup(TransactionCase):
         )
 
         populate_cache()
-        # Verify call_cache_clearing_methods() invalidates the user._has_group()
-        # ormcache (res.groups.write calls it before super().write()).
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.assertFalse(
             self.registry.ormcache_lrus["default"],

@@ -46,11 +46,8 @@ class TestExpDropAllowlist(BaseCase):
             mock.patch.object(db_service, "list_dbs") as list_dbs_mock,
             mock.patch("odoo.db.db_connect") as db_connect_mock,
         ):
-            # closing(probe.cursor()) binds the cursor itself, not __enter__()'s
-            # return value -- closing() is a plain wrapper, not a context
-            # manager implemented by the cursor.
             probe_cr = db_connect_mock.return_value.cursor.return_value
-            probe_cr.fetchone.return_value = None  # DB genuinely absent -> False
+            probe_cr.fetchone.return_value = None
             result = db_service._drop_database("never_exposed_db")
         self.assertFalse(result)
         list_dbs_mock.assert_not_called()

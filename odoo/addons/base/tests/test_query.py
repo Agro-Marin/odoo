@@ -92,7 +92,6 @@ class QueryTestCase(BaseCase):
             "product_tmpl_id",
         )
         self.assertEqual(tmp, "product_product__product_tmpl_id")
-        # no hashing
         tmp_cat = query.join(
             tmp,
             "product_category_id",
@@ -103,7 +102,6 @@ class QueryTestCase(BaseCase):
         self.assertEqual(
             tmp_cat, "product_product__product_tmpl_id__product_category_id"
         )
-        # hashing to limit identifier length
         tmp_cat_cmp = query.join(
             tmp_cat, "company_id", "res_company", "id", "company_id"
         )
@@ -118,7 +116,6 @@ class QueryTestCase(BaseCase):
             tmp_cat_stm,
             "product_product__product_tmpl_id__product_category_id__953a466f",
         )
-        # extend hashed identifiers
         tmp_cat_cmp_par = query.join(
             tmp_cat_cmp, "partner_id", "res_partner", "id", "partner_id"
         )
@@ -210,7 +207,6 @@ class TestQuery(TransactionCase):
         model = self.env["res.partner.category"]
         model.create([{"name": f"CM Test {i}"} for i in range(5)])
         query = model._search([("name", "like", "CM Test")], limit=2, offset=1)
-        # len respects LIMIT/OFFSET; count_matching ignores them
         self.assertEqual(len(query), 2)
         self.assertEqual(query.count_matching(), 5)
 
@@ -224,7 +220,6 @@ class TestQuery(TransactionCase):
 
     def test_count_matching_with_joins(self):
         """count_matching() works with queries that have LEFT JOINs (from ORDER BY)."""
-        # ordering by a relational field adds a LEFT JOIN to the query
         query = self.env["res.partner"]._search(
             [("is_company", "=", True)], limit=5, order="parent_id"
         )

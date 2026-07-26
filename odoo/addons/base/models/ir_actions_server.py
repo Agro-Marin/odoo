@@ -22,7 +22,6 @@ from odoo.tools.misc import unquote
 from odoo.tools.safe_eval import safe_eval, test_python_expr
 
 _logger = logging.getLogger(__name__)
-# Use original module path to preserve logger name for tests/monitoring
 _server_action_logger = logging.getLogger(
     "odoo.addons.base.models.ir_actions.server_action_safe_eval"
 )
@@ -52,7 +51,6 @@ def _webhook_url_blocked_reason(url: str) -> str | None:
     try:
         candidates.append(ipaddress.ip_address(hostname.strip("[]")))
     except ValueError:
-        # A real hostname: resolve it and screen every returned address.
         try:
             candidates.extend(
                 ipaddress.ip_address(info[4][0])
@@ -61,7 +59,6 @@ def _webhook_url_blocked_reason(url: str) -> str | None:
                 )
             )
         except OSError, ValueError:
-            # Unresolvable host reaches nothing internal; let requests fail.
             return None
 
     for ip in candidates:
@@ -92,7 +89,6 @@ class LoggerProxy:
         raise AttributeError(msg)
 
 
-# Stateless singleton reused across every eval-context build.
 _LOGGER_PROXY = LoggerProxy()
 
 
@@ -105,6 +101,7 @@ class IrActionsServerHistory(models.Model):
     action_id = fields.Many2one("ir.actions.server", required=True, ondelete="cascade")
     code = fields.Text()
 
+    @api.depends("create_date", "create_uid")
     def _compute_display_name(self) -> None:
         self.display_name = False
         locale = get_lang(self.env).code
@@ -157,7 +154,6 @@ WEBHOOK_SAMPLE_VALUES = {
     None: "some_data",
 }
 
-# Server-action ``state`` values that create or update records.
 CRUD_STATES = ("object_write", "object_create", "object_copy")
 
 
@@ -232,7 +228,6 @@ class IrActionsServer(models.Model):
     allowed_states = fields.Json(
         string="Allowed states", compute="_compute_allowed_states"
     )
-    # Generic
     sequence = fields.Integer(
         default=5,
         help="When dealing with multiple actions, the execution order is "
@@ -254,14 +249,12 @@ class IrActionsServer(models.Model):
     )
     model_name = fields.Char(related="model_id.model", string="Model Name")
     warning = fields.Text(string="Warning", compute="_compute_warning", recursive=True)
-    # Inverse relation of ir.cron.ir_actions_server_id (has delegate=True, so either 0 or 1 cron, even if o2m field)
     ir_cron_ids = fields.One2many(
         "ir.cron",
         "ir_actions_server_id",
         "Scheduled Action",
         context={"active_test": False},
     )
-    # Python code
     code = fields.Text(
         string="Python Code",
         groups="base.group_system",
@@ -269,7 +262,6 @@ class IrActionsServer(models.Model):
         "available for use; help about python expression is given in the help tab.",
     )
     show_code_history = fields.Boolean(compute="_compute_show_code_history")
-    # Multi
     parent_id = fields.Many2one(
         "ir.actions.server",
         string="Parent Action",
@@ -284,7 +276,6 @@ class IrActionsServer(models.Model):
         string="Child Actions",
         help="Child server actions that will be executed. The global return value is the action returned by the last child that returns one; children that return nothing are skipped over.",
     )
-    # Create
     crud_model_id = fields.Many2one(
         "ir.model",
         string="Record to Create",
@@ -391,7 +382,6 @@ class IrActionsServer(models.Model):
         ],
         compute="_compute_value_field_to_show",
     )
-    # Webhook
     webhook_url = fields.Char(
         string="Webhook URL", help="URL to send the POST request to."
     )
@@ -418,7 +408,6 @@ class IrActionsServer(models.Model):
                 vals["group_ids"] = parent.group_ids.ids
         actions = super().create(vals_list)
 
-        # create first history entries
         history_vals = []
         for action, vals in zip(actions, vals_list, strict=True):
             if "code" in vals:
@@ -454,7 +443,6 @@ class IrActionsServer(models.Model):
             ["action_id", "code"],
         )
 
-        # Compare in Python instead of N search_count calls.
         action_codes = {a.id: a.code for a in code_actions}
         actions_with_diff = set()
         for hist in all_history:
@@ -485,7 +473,6 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         warnings = []
 
-        # Single pass over child_ids for model/group/warning checks
         children_wrong_model = self.env["ir.actions.server"]
         children_wrong_groups = self.env["ir.actions.server"]
         children_with_warnings = self.env["ir.actions.server"]
@@ -547,9 +534,6 @@ class IrActionsServer(models.Model):
             restricted_fields = []
             Model = self.env[self.model_id.model]
             for model_field in self.webhook_field_ids:
-                # Need the field object (not the ir.model.fields record) for
-                # ``.groups``. Use .get(): a stale webhook field (e.g. after a
-                # module uninstall) must not turn this compute into a KeyError.
                 field = Model._fields.get(model_field.name)
                 if field and field.groups:
                     restricted_fields.append(f"- {model_field.field_description}")
@@ -625,8 +609,6 @@ class IrActionsServer(models.Model):
 
     @api.depends_context("uid")
     def _compute_available_model_ids(self) -> None:
-        # Pickable models depend only on the user's access rights, not on any
-        # field of the record.
         allowed_models = self.env["ir.model"].search(
             [
                 (
@@ -647,7 +629,6 @@ class IrActionsServer(models.Model):
         writes. ``update_field_id`` is that last field (writes only).
         """
         for action in self:
-            # Reset unconditionally; branches below set the other crud fields.
             action.update_related_model_id = False
             if action.model_id and action.state in CRUD_STATES:
                 if action.state in ("object_create", "object_copy"):
@@ -735,7 +716,6 @@ class IrActionsServer(models.Model):
             if not is_last_field:
                 if not field.relational:
                     if raise_on_error:
-                        # sanity check: this should be the last field in the path
                         current_field = field.get_description(self.env)["string"]
                         searched_field = self._fields[
                             searched_field_name
@@ -768,7 +748,7 @@ class IrActionsServer(models.Model):
             }
             if action.model_id:
                 sample_record = (
-                    self.env[action.model_id.model]  # noqa: E8507 — inherent: each action targets a different model
+                    self.env[action.model_id.model]
                     .with_context(active_test=False)
                     .search([], limit=1)
                 )
@@ -932,8 +912,6 @@ class IrActionsServer(models.Model):
                 )
             )
         if blocked := _webhook_url_blocked_reason(url):
-            # SSRF guard: never let a server action POST to an internal/metadata
-            # address (e.g. 169.254.169.254, RFC1918, loopback).
             raise UserError(
                 _(
                     "The webhook action '%(name)s' targets a forbidden address "
@@ -948,8 +926,6 @@ class IrActionsServer(models.Model):
             "_action": f"{self.name}(#{self.id})",
         }
         if self.webhook_field_ids:
-            # requests' default JSON serializer fails on datetime/date/binary
-            # fields, so serialize with json_dumps + str() default instead.
             vals.update(
                 record.read(self.webhook_field_ids.mapped("name"), load=None)[0]
             )
@@ -967,8 +943,6 @@ class IrActionsServer(models.Model):
             import requests
 
             try:
-                # 'send and forget': short 1s timeout so a slow/broken webhook
-                # doesn't block the user, but real error codes still get logged.
                 response = requests.post(
                     url,
                     data=json_values,
@@ -1087,7 +1061,7 @@ class IrActionsServer(models.Model):
             eval_context = self._get_eval_context(action)
             records = eval_context.get("record") or eval_context["model"]
             records |= eval_context.get("records") or eval_context["model"]
-            action._can_execute_action_on_records(records)
+            action.sudo(self.env.su)._can_execute_action_on_records(records)
             res = action._run(records, eval_context)
         return res
 
@@ -1110,18 +1084,12 @@ class IrActionsServer(models.Model):
             active_id = self.env.context.get("active_id")
             if not active_id and self.env.context.get("onchange_self"):
                 active_id = self.env.context["onchange_self"]._origin.id
-                if (
-                    not active_id
-                ):  # onchange on new record — run once, no active_ids loop
+                if not active_id:
                     return runner(self, eval_context=eval_context) or False
             active_ids = self.env.context.get(
                 "active_ids", [active_id] if active_id else []
             )
             if not active_ids:
-                # No target record: a non-``_multi`` runner needs one, so the
-                # loop below is a no-op. Almost always a misconfiguration (e.g. a
-                # cron pointing at a non-``code`` action); warn instead of
-                # failing silently.
                 _logger.warning(
                     "Server action %r (type %r) was triggered with no target "
                     "record (no active_id/active_ids in context); its %s runner "
@@ -1135,10 +1103,6 @@ class IrActionsServer(models.Model):
                 run_self = self.with_context(
                     active_ids=[active_id], active_id=active_id
                 )
-                # Re-wrap the triggering user's env with this record's context.
-                # Do NOT use ``run_self.env``: it is ``sudo()``, and
-                # expressions/equations must run with the user's own ACLs, never
-                # elevated. (Guarded by test_b6_equation_evaluates_without_sudo_privilege.)
                 eval_context["env"] = eval_context["env"](context=run_self.env.context)
                 eval_context["records"] = eval_context["record"] = records.browse(
                     active_id
@@ -1155,41 +1119,54 @@ class IrActionsServer(models.Model):
         return res or False
 
     def _can_execute_action_on_records(self, records: Any) -> None:
-        self.ensure_one()
+        """Authorize the caller to run this action on ``records``.
 
-        # Authorization is EITHER by group OR by record-level ACL, not both:
-        # - ``group_ids`` set: group membership is the sole gate; the action runs
-        #   ``sudo()``, intentionally letting an authorized user act on records
-        #   they could not otherwise write. No ACL check in this branch, by design.
-        # - ``group_ids`` empty: the user must hold write access to the model and
-        #   the concrete records themselves.
-        action_groups = self.group_ids
+        Two distinct concerns are kept apart here. Reading the action's own
+        configuration needs elevated rights, because ``ir.actions.server`` is
+        group_system-only; deciding whether the caller may run it must use
+        ``self.env``, which carries the caller's rights. Conflating the two is
+        what previously made the model gate a no-op: under ``su``,
+        ``check_access`` returns immediately.
+
+        A caller that is legitimately elevated (``env.su``) still bypasses, as
+        a direct ORM write would. ``run()`` therefore restores the caller's
+        ``su`` on the recordset it gates with, rather than letting its own
+        ``sudo()`` -- which exists only to read configuration -- leak in.
+
+        The caller's group membership is read elevated as well: which groups a
+        user belongs to is a fact lookup rather than an access decision, and
+        portal or public users may not read ``res.groups``.
+        """
+        self.ensure_one()
+        config = self.sudo()
+
+        action_groups = config.group_ids
         if action_groups:
-            if not (action_groups & self.env.user.all_group_ids):
+            if not (action_groups & self.env.user.sudo().all_group_ids):
                 raise AccessError(
                     _("You don't have enough access rights to run this action.")
                 )
-        else:
-            model_name = self.model_id.model
-            try:
-                self.env[model_name].check_access("write")
-            except AccessError:
-                _logger.warning(
-                    "Forbidden server action %r executed while the user %s does not have access to %s.",
-                    self.name,
-                    self.env.user.login,
-                    model_name,
-                )
-                raise
+            return
 
-        if not self.group_ids and records.ids:
-            # check access on real records only; onchange automations run on new records
+        model_name = config.model_id.model
+        try:
+            self.env[model_name].check_access("write")
+        except AccessError:
+            _logger.warning(
+                "Forbidden server action %r executed while the user %s does not have access to %s.",
+                config.name,
+                self.env.user.login,
+                model_name,
+            )
+            raise
+
+        if records.ids:
             try:
                 records.check_access("write")
             except AccessError:
                 _logger.warning(
                     "Forbidden server action %r executed while the user %s does not have access to %s.",
-                    self.name,
+                    config.name,
                     self.env.user.login,
                     records,
                 )
@@ -1292,8 +1269,6 @@ class IrActionsServer(models.Model):
             elif action.evaluation_type == "sequence":
                 expr = action.sequence_id.next_by_id()
             elif action.update_field_id.ttype in ("one2many", "many2many"):
-                # Default to a no-op command list so a failed int() conversion
-                # or an unknown operation never passes raw text to .write().
                 expr = []
                 match action.update_m2m_operation:
                     case "add":
@@ -1308,14 +1283,12 @@ class IrActionsServer(models.Model):
                     case "clear":
                         expr = [Command.clear()]
                     case _:
-                        # Unknown/falsy operation: leave the field untouched.
                         pass
             elif action.update_field_id.ttype == "boolean":
                 expr = action.update_boolean_value == "true"
             elif action.update_field_id.ttype in ("many2one", "integer"):
                 ttype = action.update_field_id.ttype
                 if not action.value:
-                    # blank -> clear the relation (False) or set 0
                     expr = False if ttype == "many2one" else 0
                 else:
                     expr = action._to_number(int)

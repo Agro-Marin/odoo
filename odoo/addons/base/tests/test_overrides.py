@@ -4,13 +4,10 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("-at_install", "post_install")
 class TestOverrides(TransactionCase):
-    # Check core ORM methods work on empty recordsets and return the expected value.
-
     def test_creates(self):
         for model_env in self.env.values():
             if model_env._abstract:
                 continue
-            # with self.assertQueryCount(0):
             self.assertEqual(
                 model_env.create([]),
                 model_env.browse(),
@@ -22,14 +19,12 @@ class TestOverrides(TransactionCase):
             if model_env._abstract:
                 continue
             try:
-                # with self.assertQueryCount(0):
                 self.assertEqual(
                     model_env.browse().write({}),
                     True,
                     "Invalid write return value for model %s" % model_env._name,
                 )
             except UserError:
-                # skip models that should never be modified
                 continue
 
     def test_default_get(self):
@@ -37,21 +32,18 @@ class TestOverrides(TransactionCase):
             if model_env._transient:
                 continue
             try:
-                # with self.assertQueryCount(1):  # allow one query for the call to get_model_defaults.
                 self.assertEqual(
                     model_env.browse().default_get([]),
                     {},
                     "Invalid default_get return value for model %s" % model_env._name,
                 )
             except UserError:
-                # skip "You must be logged in a Belgian company to use this feature" errors
                 continue
 
     def test_unlink(self):
         for model_env in self.env.values():
             if model_env._abstract:
                 continue
-            # with self.assertQueryCount(0):
             self.assertEqual(
                 model_env.browse().unlink(),
                 True,

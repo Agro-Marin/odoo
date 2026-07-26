@@ -41,12 +41,9 @@ class IrConfig_Parameter(models.Model):
     def init(self, force: bool = False) -> None:
         """Initialize the parameters in _default_parameters, overriding
         existing ones when ``force`` is True."""
-        # avoid prefetching during module installation, as the res_users table
-        # may not have all prescribed columns
         self = self.with_context(prefetch_fields=False)
         for key, func in _default_parameters.items():
-            # force re-applies the default; otherwise seed only missing keys.
-            params = self.sudo().search([("key", "=", key)])  # noqa: E8507 — bounded: _default_parameters is a small fixed dict
+            params = self.sudo().search([("key", "=", key)])
             if force or not params:
                 params.set_param(key, func())
 
@@ -92,8 +89,6 @@ class IrConfig_Parameter(models.Model):
     @api.model
     @ormcache("key", cache="stable")
     def _get_param(self, key: str) -> str | None:
-        # we bypass the ORM because get_param() is used in some field's depends,
-        # and must therefore work even when the ORM is not ready to work
         self.flush_model(["key", "value"])
         self.env.cr.execute(
             "SELECT value FROM ir_config_parameter WHERE key = %s", [key]
@@ -123,16 +118,11 @@ class IrConfig_Parameter(models.Model):
         if value is False or value is None:
             return False
         try:
-            # ICP-C1: the search-then-create pair is not atomic; a concurrent
-            # transaction may commit the same key in between, tripping the unique
-            # constraint. The savepoint lets losing the race degrade into the
-            # update path below instead of aborting the whole transaction.
             with self.env.cr.savepoint():
                 self.create({"key": key, "value": value})
         except psycopg.errors.UniqueViolation:
             param = self.search([("key", "=", key)])
             if not param:
-                # the winning row was removed in the meantime; retry the create
                 self.create({"key": key, "value": value})
                 return False
             old = param.value

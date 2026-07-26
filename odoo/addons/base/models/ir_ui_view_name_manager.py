@@ -22,16 +22,12 @@ class NameManager:
         group_definitions: Any = None,
     ) -> None:
         self.model = model
-        self.env = model.env  # for dynamically-resolved translations
-        self.available_fields = collections.defaultdict(
-            dict
-        )  # {field_name: {'groups': groups, 'info': field_info}}
+        self.env = model.env
+        self.available_fields = collections.defaultdict(dict)
         self.available_actions = set()
         self.available_names = set()
-        self.used_fields = collections.defaultdict(
-            dict
-        )  # {field_name: {access_groups: (use, node)}}
-        self.used_names = {}  # {name: use}
+        self.used_fields = collections.defaultdict(dict)
+        self.used_names = {}
         self.must_exist_actions = {}
         self.must_exist_groups = {}
         self.parent = parent
@@ -39,23 +35,16 @@ class NameManager:
         if self.parent:
             self.parent.children.append(self)
 
-        # Factory for group expression objects. Injectable so the set algebra of
-        # get_missing_fields() can be unit-tested without a database (see
-        # test_name_manager.py); defaults to the registry-wide res.groups definitions.
         if group_definitions is None:
             group_definitions = self.model.env["res.groups"]._get_group_definitions()
         self.group_definitions = group_definitions
 
-        # group of users that have access to this model
         self.model_groups = (
             self.group_definitions.universe if model_groups is None else model_groups
         )
 
-        # maps field names to the group of users that have access to the field
         self.field_groups = {}
 
-        # group-inconsistency warning HTML built during postprocessing (see
-        # IrUiView._group_inconsistency_warning); empty otherwise.
         self.warning: Markup = Markup("")
 
     @functools.cached_property
@@ -75,10 +64,6 @@ class NameManager:
     ) -> None:
         """Record a field declared by a ``<field>`` element of the view."""
         self.available_fields[name].setdefault("info", {}).update(info)
-        # Invariant: node_info["model_groups"] already has the field's python
-        # `field.groups` AND-ed in by _postprocess_tag_field / _validate_tag_field
-        # (ir_ui_view.py). _get_field_groups relies on this cached value and never
-        # re-applies field.groups for fields seen as a <field> element.
         self.field_groups[name] = node_info["model_groups"]
         self.available_fields[name].setdefault("groups", []).append(
             node_info["view_groups"]
@@ -111,8 +96,6 @@ class NameManager:
         it via :meth:`_describe_use` in error messages.
         """
         access_groups = node_info["model_groups"] & node_info["view_groups"]
-        # Iterate the set sorted so used_fields insertion order (and everything
-        # derived from it) is stable across processes regardless of PYTHONHASHSEED.
         for name in sorted(names):
             if name == "id":
                 continue
@@ -120,14 +103,6 @@ class NameManager:
                 self.used_fields[name][access_groups] = (use, node)
             elif self.parent:
                 self.parent.must_have_fields(node, {name[7:]}, node_info, use)
-            # A `parent.`-prefixed reference in a ROOT view (no parent) is
-            # tolerated (IUVN-L1): it is not necessarily a typo. Dual-use forms
-            # legitimately reference the embedding parent (e.g.
-            # mail.activity.plan.template validated standalone yet embedded as a
-            # one2many in mail.activity.plan). Silently skip such references rather
-            # than raising "does not exist" — routing them to used_names (commit
-            # 07a900d51f8) broke installation of mail. Catching genuine typos needs
-            # embedded-context validation, not a blanket root-view error.
 
     def must_have_name(self, name: str, use: str) -> None:
         """Record a name that must be present in the view (e.g. a label ``for=`` target)."""
@@ -199,7 +174,6 @@ class NameManager:
                 view._raise_view_error(message)
 
         for name, node in self.must_exist_actions.items():
-            # logic mimics /web/action/load behaviour
             try:
                 action_id = int(name)
             except ValueError:
@@ -237,9 +211,6 @@ class NameManager:
                 view._log_view_warning(msg, node)
 
         for name, groups_uses in self.used_fields.items():
-            # Multiple uses under the same access_groups collapse to the last
-            # (use, node); error messages then cite the representative node of
-            # the first access_groups entry.
             use, node = next(iter(groups_uses.values()))
             if "." in name:
                 msg = _(
@@ -248,7 +219,6 @@ class NameManager:
                     use=self._describe_use(use),
                 )
                 view._raise_view_error(msg, node)
-            # plain .get: indexing the defaultdict would insert phantom entries
             info = self.available_fields.get(name, {}).get("info")
 
             if info is None:
@@ -258,9 +228,7 @@ class NameManager:
                         name,
                     )
                     continue
-            elif (
-                info.get("select") == "multi"
-            ):  # mainly for searchpanel, but can be a generic behaviour.
+            elif info.get("select") == "multi":
                 msg = _(
                     "Field \u201c%(name)s\u201d used in %(use)s is present in view but is in select multi.",
                     name=name,
@@ -372,14 +340,6 @@ class NameManager:
 
     def get_missing_fields(self) -> dict[str, tuple[Any, list[tuple]]]:
         """Return {field_name: (missing_groups | False, [(mandatory_groups, use, node)])}."""
-        # Worked example: model has read access for groups E and F, field_a has a
-        # (python) group G, in:
-        # <div groups="A,B">
-        #   <field name="field_a" invisible="field_b" groups="A,C"/>
-        #   <field name="field_a" groups="B"/>
-        #   <field name="field_c" required="field_a" groups="B1"/>
-        #   <field name="field_c" required="field_a" groups="B2"/>
-        # </div>
 
         missing_fields = {}
         for name, groups_uses in self.used_fields.items():
@@ -388,18 +348,15 @@ class NameManager:
 
             for used_groups, (use, node) in groups_uses.items():
                 available_info = self.available_fields.get(name, {})
-                # Access restricted to the administrator only; groups need no check.
                 if used_groups.is_empty():
                     if not available_info.get("groups", []):
                         used.append((used_groups, use, node))
                     continue
 
-                # No match possible using only access right and groups on the field.
                 if not (used_groups <= self._get_field_groups(name)):
                     errors.append((used_groups, use, node))
                     continue
 
-                # At least one field in view matches with the used combinations.
                 available_combined_groups = self.group_definitions.empty
                 nodes_groups = available_info.get("groups", [])
                 for groups in nodes_groups:

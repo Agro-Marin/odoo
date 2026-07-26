@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 _lt = LazyTranslate(__name__)
 
-# Messages are declared in extenso so they are properly exported in translation terms
 ACCESS_ERROR_HEADER = {
     "read": _lt(
         "You are not allowed to access '%(document_kind)s' (%(document_model)s) records."
@@ -49,7 +48,6 @@ ACCESS_ERROR_RESOLUTION = _lt(
 
 MODULE_UNINSTALL_FLAG = "_force_unlink"
 
-# base environment for doing a safe_eval
 SAFE_EVAL_BASE = {
     "datetime": datetime,
     "dateutil": dateutil,
@@ -69,9 +67,6 @@ def make_compute(text: str, deps: str | None) -> Callable[[models.BaseModel], An
     def compute(self: models.BaseModel) -> None:
         safe_eval(text, SAFE_EVAL_BASE | {"self": self}, mode="exec")
 
-    # Drop blank tokens so a stray/trailing comma ("a," or "a,,b" — plausible on
-    # a user-edited manual field) never yields an empty dependency name, which
-    # would later fail as ``model._fields['']`` during registry setup.
     dep_names = [name.strip() for name in deps.split(",")] if deps else []
     dep_names = [name for name in dep_names if name]
     return api.depends(*dep_names)(compute)
@@ -79,7 +74,6 @@ def make_compute(text: str, deps: str | None) -> Callable[[models.BaseModel], An
 
 def mark_modified(records: models.BaseModel, fnames: list[str]) -> None:
     """Mark the given fields as modified on records."""
-    # protect all modified fields, to avoid them being recomputed
     field_objs = [records._fields[fname] for fname in fnames]
     with records.env.protecting(field_objs, records):
         records.modified(fnames)
@@ -116,7 +110,7 @@ def reload_schema(
     :param init_models: model names whose DB schema must be updated; empty means
         "registry reload only".
     """
-    env.flush_all()  # _setup_models__ must read up-to-date rows from the db
+    env.flush_all()
     registry = env.registry
     registry._setup_models__(env.cr, setup_models)
     if init_models:
@@ -250,10 +244,6 @@ def _build_upsert_query(
     comma = SQL(", ").join
     col_ids = [SQL.identifier(fname) for fname in fnames]
 
-    # Unlike INSERT … VALUES (which resolves NULL types against the target
-    # column), MERGE … USING (VALUES …) treats the source as an independent
-    # sub-query: an all-NULL column defaults to text, causing type mismatches
-    # (text vs jsonb/int4). Cast every source column to its target type.
     def _pg_cast(fname: str) -> SQL:
         ct = fields[fname].column_type
         if ct and ct[0] not in ("varchar", "text"):
@@ -269,16 +259,6 @@ def _build_upsert_query(
     )
     assignments = comma(
         (
-            # ``translate is True`` (user translations): normally merge jsonb so
-            # other languages survive the upgrade. But a stable-keyed row (e.g. a
-            # selection label) can have its English source text changed by an
-            # upgrade while keeping the same key; when the incoming ``en_US``
-            # differs from the stored one, the other stored languages translate a
-            # source string that no longer exists, so take the new value wholesale
-            # (dropping them) and let the reloaded .po translations replace them,
-            # rather than merging and keeping the stale ones forever. Callable-
-            # translate and plain columns overwrite, as translated values are
-            # reloaded right after reflection.
             SQL(
                 """%s = CASE
                     WHEN t.%s ->> 'en_US' IS DISTINCT FROM s.%s%s ->> 'en_US'
@@ -300,9 +280,6 @@ def _build_upsert_query(
         )
         for fname, col_id, cast in zip(fnames, col_ids, casts, strict=True)
     )
-    # Include conflict columns in RETURNING so the caller can reconstruct the
-    # input order: unlike INSERT … ON CONFLICT (whose RETURNING follows VALUES
-    # order), MERGE emits rows in join order, which is non-deterministic.
     returning = comma(
         [SQL("NEW.id")] + [SQL("NEW.%s", SQL.identifier(c)) for c in conflict]
     )
@@ -349,19 +326,12 @@ def upsert_en(
 
     fields = model._fields
 
-    # Input order is reconstructed by mapping each conflict-key tuple to its
-    # returned id, which needs hashable scalar keys that compare equal between
-    # input and RETURNING output. A translated column round-trips as a jsonb
-    # ``dict`` (unhashable, unequal), breaking this — reject it explicitly.
     if bad := [c for c in conflict if fields[c].translate]:
         raise ValueError(
             f"upsert_en: conflict columns cannot be translated fields (got {bad}); "
             "the RETURNING/reorder logic assumes scalar, hashable keys."
         )
 
-    # Duplicate conflict keys within one batch make PostgreSQL MERGE raise
-    # (a CardinalityViolation when the target exists, a UniqueViolation when it
-    # doesn't), and would collapse two input rows onto one id.  Reject up front.
     conflict_indices = [fnames.index(c) for c in conflict]
     keys = [tuple(row[i] for i in conflict_indices) for row in rows]
     if len(set(keys)) != len(keys):
@@ -370,14 +340,10 @@ def upsert_en(
             "MERGE cannot resolve duplicate source keys."
         )
 
-    # for translated fields, we can actually erase the json value, as
-    # translations will be reloaded after this
     def identity(val: Any) -> Any:
         return val
 
     def jsonify(val: Any) -> Any:
-        # Jsonb (not Json) so MERGE's USING VALUES source table has jsonb type,
-        # matching the target column for the || operator.
         return Jsonb({"en_US": val}) if val is not None else val
 
     wrappers = [(jsonify if fields[fname].translate else identity) for fname in fnames]
@@ -386,15 +352,11 @@ def upsert_en(
         for row in rows
     ]
 
-    # psycopg3 limits query parameters to 65535.  Each row contributes exactly
-    # len(fnames) parameters (tuple expansion in the VALUES list), so keep
-    # rows_per_batch * len(fnames) well under the limit.
     comma = SQL(", ").join
     batch_size = 65000 // len(fnames) or 1
     key_to_id = {}
     for batch in batched(values, batch_size, strict=False):
         query = _build_upsert_query(model, fnames, conflict, comma(batch))
-        # Map conflict-key → id from the (unordered) result set.
         for result_row in model.env.execute_query(query):
             key_to_id[result_row[1:]] = result_row[0]
 

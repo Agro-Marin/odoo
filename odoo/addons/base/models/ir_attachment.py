@@ -86,9 +86,6 @@ def condition_values(
         subquery, so treat it as unrestricted (the safe over-approximation).
     """
     domain = domain.optimize(model)
-    # Keep only '='/'in' conditions on *field_name* (else TRUE), re-optimize.
-    # optimize() merges same-field conditions, so at most one remains; a field
-    # OR'd with another collapses to None (treated as unrestricted).
     field_only = domain.map_conditions(
         lambda cond: (
             cond
@@ -99,7 +96,6 @@ def condition_values(
     condition = next(iter(field_only.iter_conditions()), None)
     if condition is None:
         return None
-    # Normalize '=' to a list for uniform handling by callers
     if condition.operator == "=":
         return [condition.value]
     if isinstance(condition.value, COLLECTION_TYPES):
@@ -163,21 +159,13 @@ class IrAttachment(models.Model):
     public = fields.Boolean("Is public document")
     access_token = fields.Char("Access Token", groups="base.group_user")
 
-    # Direct db_datas create/write bypasses the content pipeline (no checksum/
-    # file_size/index, no storage dispatch); use 'raw'/'datas' for normal
-    # content. test_http static-serve relies on this raw-column escape hatch.
     db_datas = fields.Binary("Database Data", attachment=False)
     store_fname = fields.Char("Stored Filename", index=True)
     file_size = fields.Integer("File Size", readonly=True)
-    # Sized from the schema-wide invariant, not from today's algorithm: digests
-    # of different vintages coexist by design (BLAKE3 at 64, legacy sha1 at 40,
-    # which existing rows keep until they are rewritten). `hashing` raises at
-    # import if the two ever stop agreeing.
     checksum = fields.Char("Checksum", size=CONTENT_DIGEST_MAX_LEN, readonly=True)
     mimetype = fields.Char("Mime Type", readonly=True)
     index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
 
-    # the field 'datas' is computed and may use the other fields below
     raw = fields.Binary(
         string="File Content (raw)",
         compute="_compute_raw",
@@ -192,44 +180,20 @@ class IrAttachment(models.Model):
     _res_field_idx = models.Index("(res_model, res_field, res_id)")
     _checksum_idx = models.Index("(checksum) WHERE checksum IS NOT NULL")
 
-    # Max res_model values for which _search builds a per-model security domain
-    # (one comodel subquery each); above this, the fetch-and-filter fallback.
     _SEARCH_MODEL_DOMAIN_LIMIT = 5
 
-    # Lowest-id window _audit_url_attachments materializes/tracks per run; the
-    # logged total is unaffected. Bounds memory and the persisted url_audit_seen.
     _URL_AUDIT_WINDOW = 20
 
-    # Cap bytes scanned/stored by _index: a large text upload would otherwise
-    # spill unbounded index_content into the DB; full-text search needs a prefix.
     _INDEX_MAX_BYTES = 4 * 1024 * 1024
 
-    # Chunk size for streaming uploads: peak memory per upload is O(this),
-    # not O(file size).
     _STREAM_CHUNK_SIZE = 128 * 1024
 
-    # Chunk size for the dedup collision comparison (see _streams_equal).
     _COMPARE_BLOCK_SIZE = 65536
 
-    # Age (seconds) after which a leftover file in the filestore tmp/ dir is
-    # swept as orphaned. Uploads stage there before the atomic move; a worker
-    # killed mid-upload leaks a temp the content GC never sees. Must exceed the
-    # longest legitimate upload so an in-flight temp is never collected.
     _FILESTORE_TMP_MAX_AGE = 24 * 3600
 
-    # Cap checklist entries per filestore-GC run: the sweep holds a SHARE MODE
-    # lock on ir_attachment throughout (blocking every attachment write), and a
-    # bulk delete can leave hundreds of thousands of entries. The rest wait for
-    # the next nightly run. See FileStorage.autovacuum.
     _GC_MAX_ENTRIES = 100_000
 
-    # Min age (seconds) of a checklist marker before the filestore GC may sweep
-    # it (IRA-G1). Content is written and GC-marked BEFORE the row's INSERT is
-    # flushed, so until then the creating transaction holds no lock: a
-    # concurrent GC's SHARE lock is granted, its whitelist query can't see the
-    # uncommitted row, and it would delete content a committing store_fname will
-    # point at. The marker mtime is the grace clock (refreshed on every re-mark,
-    # dedup hits included); must exceed the longest content-writing transaction.
     _GC_CHECKLIST_GRACE = 24 * 3600
 
     def _check_res_field_access(self, res_model: str, res_field: str) -> None:
@@ -282,87 +246,40 @@ class IrAttachment(models.Model):
         :return: whether *vals* carried a content key (``raw`` or ``datas``)
         """
         has_content = "raw" in vals or "datas" in vals
-        # 'datas' is always popped to bypass `_inverse_datas`; 'raw' is the
-        # single channel from here on.
         datas = vals.pop("datas", None)
         if "raw" in vals:
             raw = vals["raw"] or b""
             vals["raw"] = raw.encode() if isinstance(raw, str) else raw
-        elif has_content:  # only 'datas' was provided
+        elif has_content:
             vals["raw"] = self._decode_datas(datas)
         for field in ("file_size", "checksum", "store_fname", "index_content"):
             vals.pop(field, None)
         return has_content
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
-
-    # Content-metadata derivation runs in TWO places BY DESIGN — do not unify:
-    # create() derives inline and pops 'raw' (write-as-we-go keeps a batch flat
-    # in memory); write() leaves 'raw' and lets _inverse_raw derive it. Both
-    # share _normalize_content_vals + _get_datas_related_values. Unifying them
-    # reintroduces the O(total bytes) buffering this split avoids.
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # Copy first: _normalize_content_vals mutates in place and the caller's
-        # dicts must not be touched (model_create_multi contract).
         vals_list = [dict(vals) for vals in vals_list]
 
-        # Fail-fast on the create ACL before the content pipeline: super().create()
-        # re-checks, but only after content hashing, _index and the filestore write
-        # have run for a user who cannot create. No-op under su. Check on an EMPTY
-        # recordset — create() may run on a populated one (copy()), where a
-        # non-empty check would evaluate record-level 'create' rules on existing
-        # rows (the pattern _check_access documents for create()).
         self.browse().check_access("create")
 
-        # Run the comodel/field access checks on cheap metadata BEFORE content
-        # post-processing, else an unauthorized create still pays for content
-        # hashing, _index and autoresize it will reject (as write() does).
-        model_and_ids = defaultdict(OrderedSet)  # {res_model: {res_id}}
+        model_and_ids = defaultdict(OrderedSet)
         for values in vals_list:
-            # a new res_field must pass the comodel field's ACL (IRA-L2)
             if res_field := values.get("res_field"):
                 self._check_res_field_access(values.get("res_model"), res_field)
-            # Group by model so the comodel access check issues one query per
-            # model, not per attachment.
             model_and_ids[values.get("res_model")].add(values.get("res_id"))
         if any(self._inaccessible_comodel_records(model_and_ids, "write")):
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
-        # Access granted: run the content pipeline. Resolve the write-side
-        # backend once for the whole batch.
         backend = self._storage_backend()
-        # {(checksum, mimetype): datas-related values}: a batch repeating a
-        # payload (mail templates, imports) otherwise re-runs _index, the hash
-        # pass and the filestore write per row. The memo dedups derivation and,
-        # since _get_datas_related_values persists content, writes each distinct
-        # payload once. Keyed on checksum, NOT id(raw): the 'datas' path decodes
-        # a distinct object per row, and pinning payloads to make id() sound
-        # would retain O(total bytes). Writing before super().create() is safe:
-        # content-addressed, so a rollback just leaves a GC-marked orphan.
         derived_values: dict[tuple[str, str], dict[str, Any]] = {}
         for values in vals_list:
-            # Shared raw/datas precedence + metadata stripping (IRA-A3).
             has_content = self._normalize_content_vals(values)
 
-            # _check_contents mutates and returns `values`; if an override forks
-            # a new dict, create() stays correct because _inverse_raw re-derives
-            # metadata post-create.
             values = self._check_contents(values)
             if has_content:
-                # pop() so _inverse_raw does not re-process content after create.
                 raw = values.pop("raw")
-                # Derive metadata even for explicitly empty content, so an
-                # emptied attachment is identical created or written (IRA-P0-7).
-                # Content-less vals were left untouched above (IRA-R1): defaulting
-                # raw to b"" would stamp the digest of b"" over a caller's db_datas.
                 memo_key = (self._content_checksum(raw), values["mimetype"])
                 if memo_key not in derived_values:
-                    # Persists the payload (once per memo_key) and returns the
-                    # store fragment; `raw` is rebound each iteration so the
-                    # payload is released instead of accumulating O(total bytes).
                     derived_values[memo_key] = self._get_datas_related_values(
                         raw, values["mimetype"], backend, checksum=memo_key[0]
                     )
@@ -373,8 +290,6 @@ class IrAttachment(models.Model):
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
-        # Fail-fast: super().write() re-checks, but checking here avoids content
-        # post-processing for a user who cannot write. Skipped under sudo.
         self.check_access("write")
         if "res_model" in vals or "res_id" in vals:
             model_and_ids = defaultdict(OrderedSet)
@@ -389,18 +304,12 @@ class IrAttachment(models.Model):
                 raise AccessError(
                     _("Sorry, you are not allowed to access this document.")
                 )
-        # a changed res_field must pass the comodel field's ACL (IRA-L2)
         if res_field := vals.get("res_field"):
             if "res_model" in vals:
                 self._check_res_field_access(vals["res_model"], res_field)
             else:
-                # One check per distinct comodel: the field ACL is deterministic
-                # per (res_model, res_field, operation, user).
                 for res_model in OrderedSet(record.res_model for record in self):
                     self._check_res_field_access(res_model, res_field)
-        # Normalize content keys like create() (shared helper): without it the
-        # two inverses run in vals key order and the last key silently wins —
-        # the opposite of create() — decoding the payload several times.
         has_content = self._normalize_content_vals(vals)
         if has_content or "mimetype" in vals:
             vals = self._check_contents(vals)
@@ -413,16 +322,7 @@ class IrAttachment(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if not default.keys() & {"datas", "db_datas", "raw"}:
-            # No content override: preserve the original. db-stored content is
-            # carried via `raw` (checksum recomputed); filestore-backed rows are
-            # relinked to their existing file in copy() without reading bytes
-            # (IRA-B4: reading them re-deduped to the same file, and a transient
-            # read failure silently produced an empty copy).
             for attachment, vals in zip(self, vals_list, strict=True):
-                # Carry content only when the original HAS content: checksum for
-                # pipeline content, db_datas for the escape hatch. A content-less
-                # row has neither — carrying raw=b"" would stamp the digest of
-                # b""/file_size=0 the original never had (IRA-C4).
                 if not attachment.store_fname and (
                     attachment.checksum or attachment.db_datas
                 ):
@@ -432,12 +332,6 @@ class IrAttachment(models.Model):
     def copy(self, default: ValuesType | None = None) -> Self:
         new_attachments = super().copy(default)
         if not (default or {}).keys() & {"datas", "db_datas", "raw"}:
-            # Relink filestore-backed copies to the original file (same checksum
-            # and store path, zero bytes read; see copy_data). create() stripped
-            # the metadata, so restore it via a direct super().write, bypassing
-            # subclass overrides like _set_attachment_data does. strict zip:
-            # copy_data may drop duplicate-id entries, where positional relinking
-            # is impossible — fail loudly rather than leave empty copies.
             for origin, copied in zip(self, new_attachments, strict=True):
                 if origin.store_fname:
                     super(IrAttachment, copied.sudo()).write(
@@ -452,35 +346,23 @@ class IrAttachment(models.Model):
         return new_attachments
 
     def unlink(self) -> bool:
-        # Delete in the database first, then the filesystem: avoids errors when
-        # concurrent transactions delete the same file and some get rolled back.
-        # (Asset-bundle ormcache invalidation lives in ir_attachment_assets.py.)
         to_delete = OrderedSet(
             attach.store_fname for attach in self if attach.store_fname
         )
         res = super().unlink()
-        # key-axis dispatch: content follows its store key, not the configured
-        # location. Batched: plain keys are GC-marked in one grouped pass.
         self._storage_delete_multi(to_delete)
         return res
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
+    @api.depends("res_model", "res_id")
     def _compute_res_name(self) -> None:
         to_compute = self.filtered(lambda a: a.res_model and a.res_id)
         (self - to_compute).res_name = False
         for res_model, attachments in to_compute.grouped("res_model").items():
             if res_model not in self.env:
-                # Model no longer exists (module uninstalled) — degrade gracefully
                 for attachment in attachments:
                     attachment.res_name = False
                 continue
             res_ids = attachments.mapped("res_id")
-            # Drop ids that no longer exist (dangling res_id → MissingError) or
-            # the user cannot read (restricted record → AccessError) reading
-            # display_name; both degrade to res_name = False.
             records = self.env[res_model].browse(res_ids).exists()
             records = records._filtered_access("read")
             name_map = {record.id: record.display_name for record in records}
@@ -501,32 +383,13 @@ class IrAttachment(models.Model):
     @api.depends("store_fname", "db_datas")
     def _compute_raw(self) -> None:
         for attach in self:
-            # `_stored_content` is the shared keyed-backend / inline-db_datas
-            # triage (see _read_prefix, which adds the addon-static url leg on
-            # top). None means "this row stores nothing", which for `raw` is the
-            # empty value the field already had.
             attach.raw = attach._stored_content()
-
-    # ------------------------------------------------------------
-    # INVERSE METHODS
-    # ------------------------------------------------------------
 
     def _inverse_raw(self) -> None:
         self._set_attachment_data(lambda a: a.raw or b"")
 
     def _inverse_datas(self) -> None:
-        # Unreachable in practice: create()/write() both route `datas` through
-        # `_normalize_content_vals`, which pops it in favour of `raw`, so every
-        # public write lands on `_inverse_raw` instead. It stays because the
-        # `inverse=` wiring is what makes `datas` writable at all — dropping it
-        # makes the field readonly and silently DISCARDS `write({'datas': ...})`.
-        # It decodes through `_decode_datas` like every other entry point, so a
-        # direct caller gets the same UserError rather than a bare ValueError.
         self._set_attachment_data(lambda attach: self._decode_datas(attach.datas))
-
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def _search(
@@ -563,10 +426,7 @@ class IrAttachment(models.Model):
                 bypass_access=bypass_access,
             )
 
-        # General access rules
-        # - public == True are always accessible
         sec_domain = Domain("public", "=", True)
-        # - res_id == False needs to be system user or creator
         res_ids = condition_values(self, "res_id", domain)
         if not res_ids or False in res_ids:
             if self.env.is_system():
@@ -576,9 +436,6 @@ class IrAttachment(models.Model):
                     "create_uid", "=", self.env.uid
                 )
 
-        # Search by res_model and res_id, filter using permissions from res_model
-        # - res_id != False needs then check access on the linked res_model record
-        # - res_field != False needs to check field access on the res_model
         res_model_names = condition_values(self, "res_model", domain)
         if 0 < len(res_model_names or ()) <= self._SEARCH_MODEL_DOMAIN_LIMIT:
             sec_domain |= self._search_models_security_domain(
@@ -592,24 +449,14 @@ class IrAttachment(models.Model):
                 active_test=active_test,
             )
 
-        # No small res_model restriction (e.g. `('id', 'in', ...)`): restrict
-        # with the domain and add all model-linked attachments. Batch the fetch
-        # instead of materializing every matching row's security fields at once,
-        # which was O(table) in memory for a non-system search (IRA-P1-3).
         domain &= sec_domain | Domain("res_model", "!=", False)
         domain = domain.optimize_full(self)
         ordered = bool(order)
         if limit is None:
-            # the unbounded fallback still filters inaccessible rows via
-            # _fetch_accessible_ids' per-batch _filtered_access (IRA-T1)
             result = self._fetch_accessible_ids(domain, order, None)
             return self.browse(result[offset:])._as_query(ordered)
         result = self._fetch_accessible_ids(domain, order, offset + limit)
         return self.browse(result[offset : offset + limit])._as_query(ordered)
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def _backend_for_key(self, fname: str) -> AttachmentStorage:
@@ -627,7 +474,6 @@ class IrAttachment(models.Model):
         sha1 without the extension); :meth:`_file_store_path` tags the store key
         with it, so digests of different vintages coexist in one filestore.
         """
-        # an empty file has a checksum too (for caching)
         return content_hash(bin_data or b"")
 
     @api.model
@@ -636,7 +482,6 @@ class IrAttachment(models.Model):
 
     @api.model
     def _file_delete(self, fname: str) -> None:
-        # add fname to the checklist; garbage-collected later
         self._file_delete_multi((fname,))
 
     @api.model
@@ -676,10 +521,7 @@ class IrAttachment(models.Model):
         collected.  Convergence is deliberately left to normal row churn rather
         than a filestore-wide rehash.
         """
-        # we use '/' in the db (even on windows)
         if ALGO_TAG == "s1":
-            # historical untagged layout: the sha1 fallback must keep writing
-            # (and finding) exactly the paths it always did
             return checksum[:2] + "/" + checksum
         return f"{ALGO_TAG}/{checksum[:2]}/{checksum}"
 
@@ -732,20 +574,12 @@ class IrAttachment(models.Model):
     def _file_write(self, bin_value: bytes, checksum: str) -> str:
         fname, full_path = self._get_path(bin_value, checksum)
         if Path(full_path).exists():
-            # Dedup hit: (re-)mark to refresh the marker mtime (the GC grace
-            # clock) for THIS transaction. The existing file may be an orphan
-            # whose marker predates the grace window; without the refresh the GC
-            # could sweep it before this transaction's INSERT flushes (IRA-G1).
-            # Returning here keeps the dedup hit free of any file I/O, which is
-            # why this writer checks the target itself instead of staging first
-            # and letting the commit find out (as the streaming one must).
             self._mark_for_gc(fname)
             return fname
         with self._staged_filestore_temp("write") as tmp_path:
             with tmp_path.open("wb") as fp:
                 fp.write(bin_value)
             tmp_path.replace(full_path)
-        # add fname to checklist, in case the transaction aborts
         self._mark_for_gc(fname)
         return fname
 
@@ -767,9 +601,6 @@ class IrAttachment(models.Model):
         chunk_size = chunk_size or self._STREAM_CHUNK_SIZE
         digest = content_hasher()
         size = 0
-        # Shared staging protocol (tmp/ + unique name + unconditional cleanup on
-        # any failure, which this path needs because _get_path below can raise a
-        # UserError on a digest collision).
         with self._staged_filestore_temp("stream") as tmp_path:
             with tmp_path.open("wb") as out:
                 while chunk := fileobj.read(chunk_size):
@@ -780,24 +611,16 @@ class IrAttachment(models.Model):
                     out.write(chunk)
             checksum = digest.hexdigest()
             if not size:
-                # empty content is never filestore-backed (stays inline)
                 tmp_path.unlink(missing_ok=True)
                 return "", 0, checksum
-            # Same path resolution (and same collision policy) as the buffered
-            # writer; source_path keeps the check file-vs-file, unbuffered.
             fname, full_path_str = self._get_path(
                 None, checksum, source_path=str(tmp_path)
             )
             full_path = Path(full_path_str)
-            # Unlike the buffered writer, this one only learns its target after
-            # hashing the whole stream, so the dedup test necessarily happens
-            # here rather than before staging.
             if full_path.is_file():
-                tmp_path.unlink(missing_ok=True)  # dedup hit: drop the temp
+                tmp_path.unlink(missing_ok=True)
             else:
-                # atomic within the filestore (same filesystem), like _file_write
                 tmp_path.replace(full_path)
-        # add fname to checklist, in case the transaction aborts
         self._mark_for_gc(fname)
         return fname, size, checksum
 
@@ -819,8 +642,6 @@ class IrAttachment(models.Model):
         """Force all attachments to be stored in the currently configured storage"""
         self._check_admin_action()
 
-        # Migrate only binary attachments, including those linked to binary
-        # fields (which are normally hidden by the _search override).
         self.with_context(skip_res_field_check=True).search(
             Domain.AND([self._get_storage_domain(), [("type", "=", "binary")]])
         )._migrate()
@@ -830,9 +651,6 @@ class IrAttachment(models.Model):
         path = self._sanitize_store_path(path)
         filestore = _resolve_filestore_root(self._filestore())
         full = (filestore / path).resolve()
-        # Ensure the resolved path stays within the filestore (defense-in-depth).
-        # is_relative_to() checks path components — startswith() would accept
-        # sibling dirs like /data/odoo-evil for /data/odoo.
         if not full.is_relative_to(filestore):
             raise ValueError(f"Attachment path {path!r} escapes the filestore")
         return str(full)
@@ -848,15 +666,12 @@ class IrAttachment(models.Model):
             ``max_width``/``max_height`` are 0 when autoresize is disabled
         """
         ICP = self.env["ir.config_parameter"].sudo().get_param
-        # strip(): whitespace in the param ("png, jpeg") must not silently
-        # disable the resize for the affected subtypes
         subtypes = [
             subtype.strip()
             for subtype in ICP(
                 "base.image_autoresize_extensions", "png,jpeg,bmp,tiff"
             ).split(",")
         ]
-        # Can be set to 0 to skip the resize
         max_resolution = ICP("base.image_autoresize_max_px", "1920x1920")
         if not str2bool(max_resolution, True):
             return subtypes, 0, 0, 0
@@ -904,16 +719,6 @@ class IrAttachment(models.Model):
         full_path = Path(self._full_path(fname))
         full_path.parent.mkdir(exist_ok=True, parents=True)
 
-        # on a dedup hit the stored file is read back to rule out a digest
-        # collision serving wrong bytes. Governed by _verify_content_collision
-        # (the read dominates large-file dedup).
-        #
-        # The gate is tested FIRST on purpose: both callers stat this path again
-        # right after, to decide between "dedup hit" and "write the temp". With
-        # the order reversed this method stat'd it too, on every single write,
-        # even though the default digest (BLAKE3) disables the check entirely
-        # and the answer was thrown away. Both operands are side-effect free, so
-        # only the syscall count changes.
         if self._verify_content_collision() and full_path.is_file():
             same = (
                 self._same_content_files(source_path, str(full_path))
@@ -947,21 +752,15 @@ class IrAttachment(models.Model):
         content again: the write is idempotent but a redundant call re-reads the
         whole stored file for the collision check (when it is enabled).
         """
-        # Callers that already hashed *data* pass the checksum to skip a second
-        # hash pass.
         if checksum is None:
             checksum = self._content_checksum(data)
         index_content = self._index(data, mimetype, checksum=checksum)
-        # Content-path callers pass the operation's single write-side backend;
-        # default-build one for external/override callers that omit it.
         if backend is None:
             backend = self._storage_backend()
         return {
             "file_size": len(data),
             "checksum": checksum,
             "index_content": index_content,
-            # content location is backend policy; backend.write persists the
-            # bytes and returns the fragment in the same step.
             **backend.write(data, checksum),
         }
 
@@ -1025,13 +824,11 @@ class IrAttachment(models.Model):
         old key becomes collectable, else the GC can reclaim content a committing
         ``store_fname`` still points at.
         """
-        # internal metadata: bypass the public write override, as copy() does
         super(IrAttachment, attach.sudo()).write(values)
         attach.flush_recordset(
             ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
         )
         if old_fname:
-            # key-axis dispatch: the old content may live in another backend.
             attach._storage_delete(old_fname)
 
     def _rewritable_rows(
@@ -1063,27 +860,14 @@ class IrAttachment(models.Model):
         backend = self._storage_backend()
         storage = self._storage().upper()
         _logger.info("Migrating %d attachments to %s", record_count, storage)
-        # Commit batch-by-batch on live runs: a filestore-wide force_storage
-        # otherwise holds one giant transaction (row locks, WAL bloat, restart
-        # on crash). Re-runs are idempotent (the domain skips migrated rows).
-        # Tests run in a savepoint, where commit is forbidden.
         can_commit = not (modules.module.current_test or config["test_enable"])
         for index, attach, raw in self._rewritable_rows(self, "migration"):
             if index % 100 == 0 or index == record_count:
                 _logger.info(
                     "Migrating attachment %d/%d to %s", index, record_count, storage
                 )
-            # A location migration doesn't change the bytes: reuse the derived
-            # checksum/file_size/index_content and move only the store fragment,
-            # skipping the re-hash and re-index (P1). Escape-hatch db_datas
-            # rows never had this metadata stamped, so fall back to full derivation.
-            # (This is exactly what a REHASH must not do — see
-            # _gc_rehash_legacy_keys, whose whole purpose is to change the digest.)
             reuse = bool(attach.checksum) and attach.file_size == len(raw)
             checksum = attach.checksum if reuse else self._content_checksum(raw)
-            # Both branches persist content into the target backend and return
-            # its store fragment, written before the flush inside the helper, so
-            # the row never references a not-yet-written file.
             self._rewrite_stored_content(
                 attach,
                 backend.write(raw, checksum)
@@ -1113,8 +897,6 @@ class IrAttachment(models.Model):
             if "raw" in values and values["raw"] is not None:
                 raw = values["raw"]
             elif values.get("datas"):
-                # Unreachable via create/write (they decode upstream), but direct
-                # callers of this hook get the same clean UserError.
                 raw = self._decode_datas(values["datas"])
             if raw:
                 mimetype = guess_mimetype(raw)
@@ -1169,14 +951,11 @@ class IrAttachment(models.Model):
         """
         self.ensure_one()
         if self.store_fname:
-            # key-axis dispatch: content follows its store key, not the
-            # configured location (plain keys → local filestore)
             data = self._backend_for_key(self.store_fname).read(self.store_fname, size)
             self._content_read_back_failed(
                 data, self.file_size, self.id, self.store_fname, "serving empty bytes"
             )
             return data
-        # see the bin_size note above: read the column, never its size
         attach = self.with_context(bin_size=False, bin_size_db_datas=False)
         if db_datas := attach.db_datas:
             return db_datas if size is None else db_datas[:size]
@@ -1258,7 +1037,6 @@ class IrAttachment(models.Model):
         :param int source_size: its total length, for the fast reject
         :param str filepath: path to the existing file (caller guarantees it exists)
         """
-        # Fast reject on size (stat() is cheaper than reading the whole file).
         if Path(filepath).stat().st_size != source_size:
             return False
         with Path(filepath).open("rb") as fd:
@@ -1290,26 +1068,14 @@ class IrAttachment(models.Model):
         return re.sub(r"[.:]", "", path).strip("/\\")
 
     def _set_attachment_data(self, asbytes: Callable[[Any], bytes]) -> None:
-        # Re-check serving permission on content changes too (IRA-P1-1): `write`
-        # only re-checks on url/type change, but swapping a served attachment's
-        # content changes what _serve_fallback hands out. Both content paths
-        # converge here (the inverse writes as sudo, bypassing `write`).
         self._check_serving_attachments()
         old_fnames = []
         wrote_content = False
         backend = self._storage_backend()
-        # Single-slot memo of the previous record's derived values: a
-        # multi-record `write({'raw': X})` hands every record the same cached
-        # bytes object, so re-hashing/re-indexing/re-writing it per row is waste
-        # (the memo also persists each distinct payload once). One slot, not a
-        # map keyed on id(bin_data): holding the single reference keeps the
-        # identity check sound, and the base64 path (a distinct object per
-        # record, never a hit) is not pinned into O(total bytes).
-        memo_key: tuple[bytes, str] | None = None  # (bin_data, mimetype)
+        memo_key: tuple[bytes, str] | None = None
         memo_vals: dict[str, Any] = {}
 
         for attach in self:
-            # compute the fields that depend on datas
             bin_data = asbytes(attach)
             if memo_key and memo_key[0] is bin_data and memo_key[1] == attach.mimetype:
                 vals = memo_vals
@@ -1319,26 +1085,17 @@ class IrAttachment(models.Model):
                 )
                 memo_key, memo_vals = (bin_data, attach.mimetype), vals
 
-            # take the current store key to possibly garbage-collect it
             if attach.store_fname:
                 old_fnames.append(attach.store_fname)
 
-            # write as superuser, as user probably does not have write access
             super(IrAttachment, attach.sudo()).write(vals)
 
             if bin_data:
-                # Content was already persisted by _get_datas_related_values.
-                # Writing as we go (releasing each bin_data) keeps peak memory
-                # flat; safe because the flush below precedes any old-key delete.
                 wrote_content = True
 
         if old_fnames or wrote_content:
-            # flush so rows reference the new content before any old key is
-            # marked for deletion (prevents GC'ing in-use content mid-transaction)
             self.flush_recordset(["checksum", "store_fname"])
         for fname in old_fnames:
-            # key-axis dispatch: old content may live in another backend, and
-            # under db location too (the old use_filestore gate leaked those).
             self._storage_delete(fname)
 
     @api.model
@@ -1416,8 +1173,6 @@ class IrAttachment(models.Model):
         )
 
     def _postprocess_contents(self, values: dict[str, Any]) -> dict[str, Any]:
-        # Reuse the mimetype _check_contents already resolved; sniff only when
-        # invoked standalone, skipping a redundant _mimetype_from_values pass.
         mimetype = values.get("mimetype") or self._mimetype_from_values(values)
         values["mimetype"] = mimetype
         maintype, _, subtype = mimetype.partition("/")
@@ -1438,19 +1193,12 @@ class IrAttachment(models.Model):
             if width <= max_width and height <= max_height:
                 return values
             img = img.resize(max_width, max_height)
-            # quality applies to JPEG only: do not affect PNGs color palette
             image_data = img.image_quality(quality=quality if subtype == "jpeg" else 0)
             if is_raw:
                 values["raw"] = image_data
             else:
                 values["datas"] = base64.b64encode(image_data)
         except (UserError, OSError, image.Image.DecompressionBombError) as e:
-            # Autoresize is best-effort and must never 500 an upload. Besides the
-            # UserError from ImageProcess.__init__, resize()/image_quality() leak
-            # PIL-native exceptions: OSError on a truncated image, and
-            # DecompressionBombError on an oversized one during the
-            # verify_resolution=False decode. Swallow all and keep the original
-            # bytes; the payload is never fully decoded, so memory stays bounded.
             _logger.info("Post processing ignored : %s", e)
         return values
 
@@ -1465,13 +1213,7 @@ class IrAttachment(models.Model):
         :param checksum: unused here; hook parameter for caching overrides
         :return: the index content, or ``None`` for non-text content
         """
-        # compute index_content only for text type
         if file_type and file_type.startswith("text/"):
-            # Decode as UTF-8, then keep runs of printable characters. Scanning
-            # the decoded TEXT (not raw bytes) keeps accented/non-Latin words
-            # whole: the old byte-class [\x20-\x7E] split every multi-byte char,
-            # shredding e.g. "configuración". Identical to the old output for
-            # pure-ASCII content.
             text = bin_data[: self._INDEX_MAX_BYTES].decode("utf-8", errors="ignore")
             words = re.findall(r"[^\x00-\x1f\x7f-\x9f]{4,}", text)
             return "\n".join(words)
@@ -1501,26 +1243,17 @@ class IrAttachment(models.Model):
     def _inaccessible_comodel_records(
         self, model_and_ids: dict[str, Collection[int]], operation: str
     ) -> Generator[tuple[str, int]]:
-        # check access rights on the records
         if self.env.su:
             return
         for res_model, res_ids in model_and_ids.items():
             res_ids = OrderedSet(filter(None, res_ids))
             if not res_model or not res_ids:
-                # nothing to check
                 continue
-            # forbid access to attachments linked to removed models as we do not
-            # know what permissions should be checked
             if res_model not in self.env:
                 for res_id in res_ids:
                     yield res_model, res_id
                 continue
             if res_model == "res.users" and self.env.uid in res_ids:
-                # A user cannot write on itself despite writable fields (e.g. its
-                # own image signature), so _filtered_access would drop the user's
-                # OWN record. Exclude just that record rather than the whole batch
-                # — a batch mixing self with another user's row otherwise wrongly
-                # denied the self record too (IRA review #4).
                 res_ids = OrderedSet(rid for rid in res_ids if rid != self.env.uid)
                 if not res_ids:
                     continue
@@ -1563,10 +1296,6 @@ class IrAttachment(models.Model):
                 self,
                 "res_id",
                 domain.map_conditions(
-                    # `codomain=codomain` binds this iteration's value. DEFENSIVE
-                    # only: map_conditions is eager today, so the late-binding
-                    # pitfall can't bite; the default arg keeps the closure correct
-                    # should it ever become lazy. See IRA-M1.
                     lambda cond, codomain=codomain: (
                         codomain & cond if cond.field_expr == "res_model" else cond
                     )
@@ -1612,13 +1341,11 @@ class IrAttachment(models.Model):
         keyset = None
         if not order:
             if bound is None:
-                # mirror the model default order (previous behavior)
                 order = "id desc"
 
                 def keyset(last: Self) -> Domain:
                     return Domain("id", "<", last.id)
             else:
-                # By default, order by model to batch access checks.
                 order = "res_model nulls first, id"
 
                 def keyset(last: Self) -> Domain:
@@ -1627,16 +1354,10 @@ class IrAttachment(models.Model):
                             Domain("res_model", "=", last.res_model)
                             & Domain("id", ">", last.id)
                         ) | Domain("res_model", ">", last.res_model)
-                    # NULLs sort first: rest of the null group, then the rest
                     return (
                         Domain("res_model", "=", False) & Domain("id", ">", last.id)
                     ) | Domain("res_model", "!=", False)
         else:
-            # A caller order may have no unique tiebreaker; OFFSET over a
-            # non-total order can skip/duplicate rows across batches (PostgreSQL
-            # may order ties differently per query). Append `id` for a total,
-            # stable sort. `keyset` stays None: an arbitrary sort has no seek
-            # predicate, so this path keeps OFFSET batching.
             order = f"{order}, id"
 
         result: list[int] = []
@@ -1657,12 +1378,8 @@ class IrAttachment(models.Model):
             )
             result.extend(records._filtered_access("read")._ids)
             if len(records) < PREFETCH_MAX:
-                # There are no more records
                 break
             if keyset is not None:
-                # sudo: _check_access invalidated the security fields of
-                # forbidden rows (cache-pollution guard), and the keyset
-                # anchor may be one of them
                 batch_domain = domain & keyset(records.sudo()[-1])
             else:
                 sub_offset += PREFETCH_MAX
@@ -1673,7 +1390,7 @@ class IrAttachment(models.Model):
 
     def generate_access_token(self) -> list[str]:
         tokens = []
-        new_tokens = {}  # {id: token} for the records that lack one
+        new_tokens = {}
         for attachment in self:
             if attachment.access_token:
                 tokens.append(attachment.access_token)
@@ -1681,10 +1398,6 @@ class IrAttachment(models.Model):
             token = self._generate_access_token()
             new_tokens[attachment.id] = token
             tokens.append(token)
-        # Write through super(): an access_token write can't change serving
-        # eligibility or content, so re-entering the public write() override is
-        # pure overhead. super().write still enforces the write and field-group
-        # ACLs. Tokens are unique, so the writes can't collapse into one UPDATE.
         for attachment in self.browse(new_tokens):
             super(IrAttachment, attachment).write(
                 {"access_token": new_tokens[attachment.id]}
@@ -1714,37 +1427,19 @@ class IrAttachment(models.Model):
             across companies, so the returned id may belong to another company.
             Reading it is still ACL-gated, so no content leaks (IRA-C2).
         """
-        # Phase 1: normalize content (raw|datas), apply the create() content
-        # pipeline, and key the dedup on the FINAL (post-pipeline) checksum.
-        # `_normalize_content_vals` is shared with create()/write() on purpose:
-        # the hand-rolled copy this replaced set `raw = b""` even for vals
-        # carrying NO content key, which stamped the digest of b"" over a
-        # caller's `db_datas` and erased it (the IRA-R1/IRA-C4 invariant).
         entries: list[tuple[dict, tuple[str, int, str] | None]] = []
         for values in values_list:
             if "mimetype" not in values:
                 raise UserError(_("Attachment is missing its mimetype."))
-            # copy: _normalize_content_vals mutates in place and the caller's
-            # dicts must not be touched
             vals = dict(values)
             has_content = self._normalize_content_vals(vals)
             vals = self._check_contents(vals)
-            # Content-less vals have nothing to deduplicate on: create() leaves
-            # them with `checksum = False`, so keying them on the digest of b""
-            # would collapse unrelated rows (a `db_datas` passthrough, a bare
-            # url row) onto a single id. They are always created.
             key = None
             if has_content:
                 raw = vals["raw"]
                 key = (self._content_checksum(raw), len(raw), vals["mimetype"])
             entries.append((vals, key))
 
-        # Phase 2: find one existing id per (checksum, file_size, mimetype).
-        # Aggregate instead of materializing every row sharing a checksum (which
-        # was O(rows-with-that-checksum) on a hot file). id:max reproduces the
-        # old "newest match" (default `id desc` + setdefault-first).
-        # skip_res_field_check: also match binary-field-backing attachments,
-        # which _search hides by default.
         all_checksums = list({key[0] for _vals, key in entries if key})
         existing_by_key: dict[tuple, int] = {}
         if all_checksums:
@@ -1759,12 +1454,8 @@ class IrAttachment(models.Model):
             ):
                 existing_by_key[checksum, file_size, mimetype] = att_id
 
-        # Phase 3: batch-create the misses (in-batch dupes → first occurrence),
-        # then resolve ids in input order. The pipeline ran in phase 1, so skip
-        # a second autoresize pass.
         to_create = []
         new_index_by_key: dict[tuple, int] = {}
-        # index into `created` for the entries that bypass dedup (key is None)
         own_indexes: list[int | None] = []
         for vals, key in entries:
             if key is None:
@@ -1803,35 +1494,29 @@ class IrAttachment(models.Model):
 
         :param file: the request file
         :param str mimetype: one of —
+
             * ``"TRUST"`` — use the request file's mimetype/extension unverified;
             * ``"GUESS"`` — detect from content, appending the extension unless
               the filename already has a valid one;
             * ``"{type}/{subtype}"`` — force this mimetype, appending its
               extension unless the filename already has a valid one.
         """
-        # dispatch the three mimetype modes: TRUST / GUESS / explicit (IRA-T2)
         if mimetype == "TRUST":
             mimetype = file.content_type
             filename = file.filename
         elif mimetype == "GUESS":
             head = file.read(MIMETYPE_HEAD_SIZE)
-            file.seek(-len(head), 1)  # rewind
+            file.seek(-len(head), 1)
             mimetype = guess_mimetype(head)
             filename = fix_filename_extension(file.filename, mimetype)
             if mimetype in ("application/zip", *_olecf_mimetypes):
-                # Re-guess from the (potentially corrected) filename to get a
-                # more specific type (e.g. .docx → openxmlformats).  Keep the
-                # content-detected mimetype as fallback for extensionless files.
                 mimetype = mimetypes.guess_type(filename)[0] or mimetype
         elif "/" in mimetype and all(mimetype.split("/", 1)):
-            # an explicit "{type}/{subtype}" with both halves non-empty
             filename = fix_filename_extension(file.filename, mimetype)
         else:
             raise ValueError(f"{mimetype=}")
 
         if self._should_stream_upload(mimetype):
-            # Stream straight to storage: werkzeug has already spooled the upload
-            # to a temp file, so file.read() would only copy disk -> RAM.
             return self._create_from_stream(
                 file, name=filename, mimetype=mimetype, **vals
             )
@@ -1839,7 +1524,7 @@ class IrAttachment(models.Model):
             {
                 "name": filename,
                 "type": "binary",
-                "raw": file.read(),  # image autoresize needs the full payload
+                "raw": file.read(),
                 "mimetype": mimetype,
                 **vals,
             }
@@ -1859,13 +1544,7 @@ class IrAttachment(models.Model):
         record = self.create(
             {"name": name, "type": "binary", "mimetype": mimetype, **vals}
         )
-        # Resolve the write-side backend once and stream the payload into it.
         store_values = self._storage_backend().write_stream(fileobj)
-        # index_content from the stored content. _index_read_size decides how
-        # much to read back for THIS mimetype: 0 skips it (common binary case,
-        # no wasted round-trip), a prefix for text, or the whole file for
-        # document-parsing backends. The checksum lets them share their index
-        # cache with the buffered path.
         read_size = self._index_read_size(record.mimetype)
         index_content = None
         if read_size != 0:
@@ -1875,7 +1554,6 @@ class IrAttachment(models.Model):
                 content = self._backend_for_key(store_values["store_fname"]).read(
                     store_values["store_fname"], read_size
                 )
-                # Don't stamp an index built from the wrong bytes.
                 if self._content_read_back_failed(
                     content,
                     store_values["file_size"],
@@ -1892,11 +1570,7 @@ class IrAttachment(models.Model):
                     content, record.mimetype, checksum=store_values.get("checksum")
                 )
         store_values["index_content"] = index_content
-        # Content metadata is internal: bypass the public write override, exactly
-        # as copy() does for relinked content.
         super(IrAttachment, record.sudo()).write(store_values)
-        # The content of a (possibly served) binary changed; re-check serving
-        # permission, which the super() write bypassed (IRA-P1-1).
         record._check_serving_attachments()
         return record
 
@@ -1912,8 +1586,6 @@ class IrAttachment(models.Model):
         )
 
         if self.store_fname:
-            # key-axis dispatch: content follows its store key, not the
-            # configured location (still streams from disk after a switch to db)
             return self._backend_for_key(self.store_fname).to_stream(self, stream)
 
         if self.db_datas:
@@ -1923,8 +1595,6 @@ class IrAttachment(models.Model):
             stream.size = len(stream.data)
 
         elif self.url:
-            # A URL targeting an addon file is a resource path — stream it right
-            # away (same resolution as _read_prefix).
             if static_path := self._static_file_path():
                 stream = Stream.from_path(static_path, public=True)
             else:
@@ -1951,10 +1621,6 @@ class IrAttachment(models.Model):
         self.ensure_one()
         return self.type == "binary"
 
-    # ------------------------------------------------------------
-    # GC METHODS
-    # ------------------------------------------------------------
-
     @api.autovacuum
     def _audit_url_attachments(self) -> None:
         """Defense-in-depth observation for ``ir.http._serve_fallback``.
@@ -1980,7 +1646,6 @@ class IrAttachment(models.Model):
                 ("public", "=", False),
             ]
         )
-        # Report the true total but only track the lowest-id window.
         total = self.sudo().search_count(domain)
         if not total:
             return
@@ -2026,8 +1691,6 @@ class IrAttachment(models.Model):
         :return: ``False`` if any backend skipped its run (e.g. lock unavailable,
             retried next autovacuum), else ``None``
         """
-        # snapshot the registry before any backend commits; the loop issues no
-        # DB statement, so each backend can make LOCK its transaction's first.
         skipped = False
         for backend_cls in tuple(STORAGE_BACKENDS.values()):
             if backend_cls(self.env).autovacuum() is False:
@@ -2072,7 +1735,6 @@ class IrAttachment(models.Model):
         :return: ``(re-keyed, remaining)`` — the autovacuum re-queue contract
         """
         if ALGO_TAG == "s1":
-            # the fallback digest IS the legacy layout — nothing to converge to
             return 0, 0
         if limit is None:
             limit = int(
@@ -2084,16 +1746,12 @@ class IrAttachment(models.Model):
         if limit <= 0:
             return 0, 0
         if self._storage() != "file":
-            # under db/keyed storage a rewrite would MOVE content between
-            # backends, which is force_storage's job, not a rehash's
             return 0, 0
 
         domain = Domain(
             [
                 ("store_fname", "!=", False),
-                # not already on the current digest...
                 ("store_fname", "not =like", f"{ALGO_TAG}/%"),
-                # ...and not another backend's schemed key (s3://...)
                 ("store_fname", "not like", "://"),
             ]
         )
@@ -2102,10 +1760,6 @@ class IrAttachment(models.Model):
         rekeyed = 0
         backend = self._storage_backend()
         for _index, attach, raw in self._rewritable_rows(legacy, "rehash"):
-            # Always re-hash: the point of this pass is to move the row onto the
-            # CURRENT digest, so _migrate's reuse-the-stored-checksum shortcut
-            # would defeat it (and store the content under a key that does not
-            # match its own digest).
             checksum = self._content_checksum(raw)
             self._rewrite_stored_content(
                 attach,
@@ -2114,7 +1768,6 @@ class IrAttachment(models.Model):
             )
             rekeyed += 1
         if not rekeyed:
-            # no progress: do not re-enqueue (see the docstring), retry next run
             return 0, 0
         remaining = model.search_count(domain)
         _logger.info(
@@ -2149,7 +1802,6 @@ class IrAttachment(models.Model):
                     entry.unlink(missing_ok=True)
                     removed += 1
             except OSError:
-                # a concurrent move/unlink on one entry must not abort the sweep
                 _logger.info("temp gc could not remove %s", entry, exc_info=True)
         if removed:
             _logger.info("filestore temp gc: removed %d stale temp file(s)", removed)
@@ -2185,11 +1837,8 @@ class IrAttachment(models.Model):
                             skipped += 1
                             continue
                     except OSError:
-                        # marker vanished mid-scan (concurrent GC) — skip it
                         skipped += 1
                         continue
-                # relative_to() keeps fname correct at any nesting depth
-                # (dirpath.name only works for a 2-level structure).
                 fname = str(marker.relative_to(checklist_root))
                 checklist[fname] = marker
                 if limit is not None and len(checklist) >= limit:
@@ -2208,38 +1857,28 @@ class IrAttachment(models.Model):
     def _gc_file_store_unsafe(
         self, checklist: dict[str, Path] | None = None, grace: float | None = None
     ) -> None:
-        # The caller may pass a checklist scanned before taking the lock; tests
-        # and direct callers omit it and scan here (IRA-P2-3).
         if checklist is None:
             checklist = self._gc_checklist()
         if grace is None:
             grace = self._GC_CHECKLIST_GRACE
 
-        # Clean up the checklist in chunks, GC'ing files per chunk.
         removed = 0
         for names in batched(checklist, self.env.cr.BATCH_SIZE, strict=False):
-            # determine which files to keep among the checklist
             self.env.cr.execute(
                 "SELECT store_fname FROM ir_attachment WHERE store_fname = ANY(%s)",
                 [list(names)],
             )
             whitelist = {row[0] for row in self.env.cr.fetchall()}
 
-            # remove garbage files, and clean up checklist
             for fname in names:
                 filepath = checklist[fname]
                 if fname not in whitelist:
-                    # Re-stat under the SHARE lock: a concurrent transaction may
-                    # have re-marked (refreshing the mtime) and rewritten the file
-                    # after _gc_checklist's pre-lock stat, its INSERT invisible to
-                    # the whitelist above. Skip if now within the grace window so
-                    # an in-flight write is never deleted (IRA-G1 residual race).
                     if grace:
                         try:
                             if filepath.stat().st_mtime > time.time() - grace:
                                 continue
                         except OSError:
-                            pass  # marker vanished — fall through to collect
+                            pass
                     full_path = self._full_path(fname)
                     try:
                         Path(full_path).unlink(missing_ok=True)
@@ -2251,8 +1890,6 @@ class IrAttachment(models.Model):
                             full_path,
                             exc_info=True,
                         )
-                        # Keep the checklist entry so the file is retried next
-                        # run instead of being permanently orphaned.
                         continue
                 with contextlib.suppress(OSError):
                     Path(filepath).unlink()
@@ -2276,7 +1913,6 @@ class IrAttachment(models.Model):
         checklist_dir = Path(self._full_path("checklist"))
         by_shard_dir: dict[Path, list[Path]] = defaultdict(list)
         for fname in fnames:
-            # fname is sanitized like _full_path does (path-traversal blocked)
             full_path = checklist_dir / self._sanitize_store_path(fname)
             by_shard_dir[full_path.parent].append(full_path)
         for shard_dir, paths in by_shard_dir.items():
@@ -2288,10 +1924,6 @@ class IrAttachment(models.Model):
                 with contextlib.suppress(OSError):
                     os.utime(full_path)
 
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
-
     def _can_return_content(
         self, field_name: str | None = None, access_token: str | None = None
     ) -> bool:
@@ -2300,13 +1932,11 @@ class IrAttachment(models.Model):
         if access_token:
             if not consteq(attachment_sudo.access_token or "", access_token):
                 msg = "Invalid access token"
-                raise AccessError(msg)  # pylint: disable=missing-gettext,E8507
+                raise AccessError(msg)
             return True
         if attachment_sudo.public:
             return True
         if self.env.user._is_portal():
-            # Check the read access on the record linked to the attachment
-            # eg: Allow to download an attachment on a task from /my/tasks/task_id
             self.check_access("read")
             return True
         return super()._can_return_content(field_name, access_token)
@@ -2315,6 +1945,7 @@ class IrAttachment(models.Model):
         """Check access for attachments.
 
         Rules:
+
         - `public` is always accessible for reading.
         - If we have `res_model and res_id`, the attachment is accessible if the
           referenced model is accessible. Also, when `res_field != False` and
@@ -2336,20 +1967,13 @@ class IrAttachment(models.Model):
             return None
 
         if operation in ("create", "unlink"):
-            # check write operation instead of unlinking and creating for
-            # related models and field access
             operation = "write"
 
-        # collect the records to check (by model)
-        model_ids = defaultdict(set)  # {model_name: set(ids)}
-        att_model_ids = []  # [(att_id, (res_model, res_id))]
-        # Memoize the field ACL per (res_model, res_field): _has_field_access is
-        # deterministic per comodel/field/operation/user, so a batch backing the
-        # same field evaluates it once.
+        model_ids = defaultdict(set)
+        att_model_ids = []
         field_access: dict[tuple[str, str], bool] = {}
-        # Sudo is required to access attachments across all companies.
         remaining = remaining.sudo()
-        remaining.fetch(SECURITY_FIELDS)  # fetch only these fields
+        remaining.fetch(SECURITY_FIELDS)
         for attachment in remaining:
             if attachment.public and operation == "read":
                 continue
@@ -2361,12 +1985,8 @@ class IrAttachment(models.Model):
                     continue
                 if res_field := attachment.res_field:
                     if res_model not in self.env:
-                        # model no longer exists (module uninstalled)
                         forbidden_ids.add(att_id)
                         continue
-                    # Evaluate the field ACL on the comodel that declares the
-                    # field: subclasses override _has_field_access (e.g. res.users
-                    # self-read). Checking on self would bypass that override.
                     if (cache_key := (res_model, res_field)) not in field_access:
                         comodel = self.env[res_model]
                         field = comodel._fields.get(res_field)
@@ -2388,7 +2008,7 @@ class IrAttachment(models.Model):
 
         if forbidden_ids:
             forbidden = self.browse(forbidden_ids)
-            forbidden.invalidate_recordset(SECURITY_FIELDS)  # avoid cache pollution
+            forbidden.invalidate_recordset(SECURITY_FIELDS)
             if error_func is None:
 
                 def error_func():
@@ -2409,8 +2029,6 @@ class IrAttachment(models.Model):
 
     @api.constrains("res_model", "res_id")
     def _check_circular_attachment(self) -> None:
-        # an attachment pointing at itself causes a recursion-depth crash when
-        # its chain is walked
         for record in self.sudo():
             if record.res_model == "ir.attachment" and record.id == record.res_id:
                 raise ValidationError(
@@ -2435,14 +2053,11 @@ class IrAttachment(models.Model):
         return values
 
     def _check_serving_attachments(self) -> None:
-        # Restrict writing on attachments that could be served by the
-        # ir.http's dispatch exception handling.
         if self.env.is_admin():
             return
         served = self.filtered(lambda a: a.type == "binary" and a.url)
         if not served:
             return
-        # group membership is per-user, hence invariant across the records
         has_group = self.env.user.has_group
         if not any(has_group(g) for g in self.get_serving_groups()):
             raise ValidationError(
@@ -2463,15 +2078,11 @@ class IrAttachment(models.Model):
 
         :param str mimetype: a lowercase mimetype (``maintype/subtype``)
         """
-        # Office OpenXML types carry "xml" but are zip containers, not markup —
-        # never neutralize (subtype matching excludes them; explicit guard).
         if mimetype.startswith("application/vnd.openxmlformats"):
             return False
         subtype = mimetype.partition("/")[2]
         return (
-            "html" in subtype  # text/html, application/xhtml+xml, html-* variants
-            or subtype in {"hta", "xml"}  # HTML App, text/xml, application/xml
-            or subtype.endswith("+xml")  # svg+xml, mathml+xml, atom+xml, ...
+            "html" in subtype or subtype in {"hta", "xml"} or subtype.endswith("+xml")
         )
 
     def _is_remote_source(self) -> bool:

@@ -57,7 +57,7 @@ class TestNeutralizeQueries(BaseCase):
             self._make_module("probe_empty", ""),
             self._make_module("probe_blank", "  \n\t\n"),
             self._make_module("probe_real", "UPDATE res_users SET active = active;\n"),
-            self._make_module("probe_none"),  # no neutralize.sql at all
+            self._make_module("probe_none"),
         ]
         queries = list(neutralize.get_neutralization_queries(modules))
         self.assertEqual(queries, ["UPDATE res_users SET active = active;"])

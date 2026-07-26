@@ -5,7 +5,6 @@ from odoo.addons.base.tests.test_views import ViewCase
 
 class FormatAddressCase(ViewCase):
     def assertAddressView(self, model):
-        # pe_partner_address_form
         address_arch = (
             """<form><div class="o_address_format"><field name="city"/></div></form>"""
         )
@@ -18,7 +17,6 @@ class FormatAddressCase(ViewCase):
             }
         )
 
-        # view can be created without address_view
         form_arch = """<form><field name="id"/><div class="o_address_format"><field name="street"/></div></form>"""
         view = self.View.create(
             {
@@ -28,12 +26,10 @@ class FormatAddressCase(ViewCase):
             }
         )
 
-        # default view, no address_view defined
         arch = self.env[model].get_view(view.id)["arch"]
         self.assertIn('"street"', arch)
         self.assertNotIn('"city"', arch)
 
-        # custom view, address_view defined
         self.env.company.country_id.address_view_id = address_view
         arch = self.env[model].get_view(view.id)["arch"]
         self.assertNotIn('"street"', arch)
@@ -41,7 +37,6 @@ class FormatAddressCase(ViewCase):
         self.assertRegex(
             arch, r'<form>.*<div class="o_address_format">.*</div>.*</form>'
         )
-        # no_address_format context
         arch = (
             self.env[model]
             .with_context(no_address_format=True)
@@ -84,14 +79,11 @@ class TestPartnerFormatAddress(FormatAddressCase):
             {
                 "name": "Reorder Land",
                 "code": "RL",
-                # No address_view_id: forces the address_format reorder branch.
-                # City line orders fields zip -> city -> state.
                 "address_format": "%(street)s\n%(zip)s %(city)s %(state_code)s\n",
             }
         )
         self.env.company.country_id = country
 
-        # DOM order (city, zip, state_id) differs from the format order.
         form_arch = (
             "<form>"
             '<div class="o_address_format">'
@@ -109,7 +101,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
             node.get("name")
             for node in tree.xpath("//div[hasclass('o_address_format')]//field[@name]")
         ]
-        # zip is first (it leads the city line), then city, then state_id.
         self.assertEqual(order.index("zip"), 0)
         self.assertLess(order.index("zip"), order.index("city"))
         self.assertLess(order.index("city"), order.index("state_id"))
@@ -118,11 +109,8 @@ class TestPartnerFormatAddress(FormatAddressCase):
         """When a non-res.partner model uses an address_view referencing fields
         absent on the model, the postprocess_and_fields ValueError is caught and
         the original arch is returned unchanged."""
-        # res.country.state has no o_address_format / partner address fields.
         model = "res.country.state"
 
-        # An address_view authored against res.partner referencing a field
-        # (city) that does not exist on res.country.state.
         address_view = self.View.create(
             {
                 "name": "addr",
@@ -139,7 +127,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
         )
         view = self.View.create({"name": "view", "model": model, "arch": form_arch})
 
-        # Must not raise; falls back to the original arch (no city injected).
         arch = self.env[model].get_view(view.id)["arch"]
         self.assertNotIn('"city"', arch)
 
@@ -174,14 +161,11 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertIn('"street"', arch)
         self.assertNotIn('"city"', arch)
 
-        # Same company, new country: the swapped-in layout must be served
-        # immediately (previously the stale plain arch survived in cache).
         self.env.company.country_id = country_custom
         arch = self.env["res.partner"].get_view(view.id)["arch"]
         self.assertNotIn('"street"', arch)
         self.assertIn('"city"', arch)
 
-        # And back again.
         self.env.company.country_id = country_plain
         arch = self.env["res.partner"].get_view(view.id)["arch"]
         self.assertIn('"street"', arch)
@@ -219,7 +203,6 @@ class TestPartnerFormatAddress(FormatAddressCase):
         ]
         self.assertEqual(order, ["zip", "city", "state_id"])
 
-        # Flip the format: city now leads. The next get_view must reflect it.
         country.address_format = "%(street)s\n%(city)s %(zip)s %(state_code)s\n"
         arch = self.env["res.partner"].get_view(view.id)["arch"]
         order = [
@@ -243,10 +226,8 @@ class TestPartnerFormatAddress(FormatAddressCase):
             }
         )
 
-        # Default display_name without context
         self.assertIn("John Doe", partner.display_name)
 
-        # display_name with show_address context
         display_name = partner.with_context(show_address=True).display_name
         self.assertIn("123 Main Street", display_name)
         self.assertIn("Paris", display_name)
@@ -263,10 +244,8 @@ class TestFormatVatLabel(ViewCase):
         base_key = self.env["ir.ui.view"]._get_view_cache_key("form")
         vat_key = mixin._get_view_cache_key("form")
 
-        # The override appends exactly the company country's vat_label.
         self.assertEqual(vat_key, base_key + (self.env.company.country_id.vat_label,))
 
-        # Different vat labels yield distinct keys -> no stale relabel served.
         country_b = self.env["res.country"].create(
             {"name": "VAT Key Land", "code": "X7", "vat_label": "KEYVAT"}
         )
@@ -277,7 +256,6 @@ class TestFormatVatLabel(ViewCase):
         key_b = mixin.with_company(company_b)._get_view_cache_key("form")
         self.assertNotEqual(key_a, key_b)
 
-        # Same vat label -> same key: N same-country companies share one arch.
         company_c = self.env["res.company"].create(
             {"name": "VAT Co C", "country_id": country_b.id}
         )
@@ -287,7 +265,6 @@ class TestFormatVatLabel(ViewCase):
     def test_vat_label_relabels_field_per_company_country(self):
         """The vat field/label string follows the rendering company's country
         vat_label (end-to-end through a real consumer, res.company)."""
-        # res.company mixes in format.vat.label.mixin.
         country_rfc = self.env["res.country"].create(
             {"name": "VAT RFC Land", "code": "VR", "vat_label": "RFC"}
         )
@@ -338,12 +315,10 @@ class TestFormatVatLabel(ViewCase):
         arch = Company.get_view(view.id)["arch"]
         self.assertIn('string="OLDVAT"', arch)
 
-        # Changing the label on the country is picked up on the next get_view.
         country.vat_label = "NEWVAT"
         arch = Company.get_view(view.id)["arch"]
         self.assertIn('string="NEWVAT"', arch)
 
-        # Changing the company's country is picked up as well.
         country_2 = self.env["res.country"].create(
             {"name": "VAT Fresh Land 2", "code": "X9", "vat_label": "OTHERVAT"}
         )

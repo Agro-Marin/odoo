@@ -7,23 +7,6 @@ from odoo.exceptions import ValidationError
 from odoo.tools import SQL
 from odoo.tools.view_validation import IGNORED_IN_EXPRESSION
 
-# Names a stored filter domain may reference beyond plain literals. The web
-# client deliberately saves favorite domains *unevaluated* so they stay dynamic
-# (e.g. "[('create_uid', '=', uid)]" or "context_today() - datetime.timedelta(...)")
-# and re-evaluates them client-side with py_js. The base set is
-# ``IGNORED_IN_EXPRESSION`` — the framework's canonical list of predefined
-# symbols for domain/attribute expressions (odoo/tools/view_validation.py),
-# which mirrors what the client evaluation context actually provides: the py_js
-# builtins (addons/web/static/src/core/py_js/py_builtin.js — ``time``,
-# ``datetime``, ``relativedelta``, ``context_today``, ``current_date``,
-# ``today``, ``now``, ``abs``, ``len``, ...) plus the user context
-# (addons/web/static/src/services/user.js — ``uid``, ``allowed_company_ids``;
-# ``current_company_id`` is derived from it, see
-# addons/web/static/src/model/relational_model/field_context.js). On top of
-# that, allow ``company_id`` and ``companies``: ``company_id`` is provided by
-# server-side domain eval contexts (``ir.rule._eval_context``) and used by
-# shipped view filters (e.g. base_automation); ``companies`` for symmetry with
-# multi-company eval contexts.
 _ALLOWED_DOMAIN_NAMES = frozenset(IGNORED_IN_EXPRESSION) | {
     "companies",
     "company_id",
@@ -71,9 +54,6 @@ class IrFilters(models.Model):
     _get_filters_index = models.Index(
         "(model_id, action_id, embedded_action_id, embedded_parent_res_id)",
     )
-    # embedded_parent_res_id is only set when embedded_action_id is set. Since the
-    # embedded model links to a single res_model, this ensures filter unicity per
-    # embedded_parent_res_model and embedded_parent_res_id.
     _check_res_id_only_when_embedded_action = models.Constraint(
         "CHECK(NOT (embedded_parent_res_id IS NOT NULL AND embedded_action_id IS NULL))",
         "Constraint to ensure that the embedded_parent_res_id is only defined when an embedded_action_id is defined.",
@@ -104,17 +84,12 @@ class IrFilters(models.Model):
         embedded_action_id = vals.get("embedded_action_id")
         if not embedded_action_id and "embedded_parent_res_id" in vals:
             del vals["embedded_parent_res_id"]
-        # _validate_serialized_fields raises ValidationError before the DB hit,
-        # preserving the contract the RPC tests assert; the @api.constrains
-        # backstop (IRF-L2) re-validates on the underlying create anyway.
         self._validate_serialized_fields(vals)
         return self.create(vals)
 
     @api.model
     def _list_all_models(self) -> list[tuple[str, str]]:
         lang = self.env.lang or "en_US"
-        # The ::text cast is required: psycopg3 cannot infer the parameter type
-        # for the jsonb->>'key' operator when the key is a bound parameter.
         self.env.cr.execute(
             SQL(
                 "SELECT model, COALESCE(name->>(%s::text), name->>'en_US') FROM ir_model ORDER BY 2",
@@ -125,8 +100,6 @@ class IrFilters(models.Model):
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
-        # A NULL Integer reads as 0, which would trigger
-        # check_res_id_only_when_embedded_action here.
         for vals in vals_list:
             if vals.get("embedded_parent_res_id") == 0:
                 del vals["embedded_parent_res_id"]
@@ -194,8 +167,6 @@ class IrFilters(models.Model):
             ``embedded_parent_res_id``.
         :rtype: list[dict]
         """
-        # available filters: private filters (user_ids=uids) and public filters (uids=NULL),
-        # and filters for the action (action_id=action_id) or global (action_id=NULL)
         user_context = self.env["res.users"].context_get()
         action_domain = self._get_action_domain(
             action_id, embedded_action_id, embedded_parent_res_id
@@ -271,9 +242,6 @@ class IrFilters(models.Model):
                             type=label,
                         )
                     )
-            # The DB CHECK on `sort` only enforces "jsonb array"; it accepts
-            # non-string elements (e.g. [1, 2]) that blow up later at
-            # ",".join(...). Enforce list-of-strings here (IRF-C1).
             if fname == "sort" and parsed is not None:
                 if not all(isinstance(item, str) for item in parsed):
                     raise ValidationError(

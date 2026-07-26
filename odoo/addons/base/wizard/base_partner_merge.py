@@ -46,7 +46,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 res["dst_partner_id"] = self._get_ordered_partner(active_ids)[-1].id
         return res
 
-    # Group by
     group_by_email = fields.Boolean("Email")
     group_by_name = fields.Boolean("Name")
     group_by_is_company = fields.Boolean("Is Company")
@@ -76,10 +75,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     exclude_contact = fields.Boolean("A user associated to the contact")
     exclude_journal_item = fields.Boolean("Journal Items associated to the contact")
     maximum_group = fields.Integer("Maximum of Group of Contacts")
-
-    # ----------------------------------------
-    # Update method. Core methods to merge steps
-    # ----------------------------------------
 
     def _get_fk_on(self, table: str) -> list[tuple[str, str]]:
         """Return the many2one relations pointing at the given table.
@@ -145,24 +140,21 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         relations = self._get_fk_on(self.env[model]._table)
 
-        # this guarantees cache consistency
         self.env.invalidate_all()
 
         for table, column in relations:
-            if "base_partner_merge_" in table:  # ignore two tables
+            if "base_partner_merge_" in table:
                 continue
 
             tbl = SQL.identifier(table)
             col = SQL.identifier(column)
 
-            # get list of columns of current table (except the current fk column)
             columns = [
                 col
                 for col in sql_tools.table_columns(self.env.cr, table)
                 if col != column
             ]
 
-            # do the update for the current table/column in SQL
             self.env.cr.execute(
                 SQL(
                     "SELECT FROM %s WHERE %s = ANY(%s) LIMIT 1",
@@ -172,15 +164,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 )
             )
             if self.env.cr.fetchone() is None:
-                continue  # no record
+                continue
 
             if len(columns) <= 1:
                 if not columns:
-                    # A junction table whose only column is the FK has no other
-                    # column to deduplicate against, so there is nothing the
-                    # NOT EXISTS guard below could compare; skip it (BPM-L05).
                     continue
-                # unique key treated
                 val = SQL.identifier(columns[0])
                 for record in src_records:
                     self.env.cr.execute(
@@ -210,7 +198,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                         )
                     )
             elif not self._has_check_or_unique_constraint(table, column):
-                # if there is no CHECK or UNIQUE constraint, we do it without a savepoint
                 self.env.cr.execute(
                     SQL(
                         "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
@@ -235,13 +222,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                             )
                         )
                 except psycopg.Error:
-                    # A unique/check constraint spanning this FK column was
-                    # violated by at least one repointed row. Retry source by
-                    # source so the non-clashing rows are still repointed and
-                    # only the offending row is dropped -- NOT a blanket delete
-                    # of every source row, which would also destroy the many
-                    # valid, non-clashing junction rows (BPM-L06, mirroring the
-                    # row-by-row reference-field recovery in BPM-L02 above).
                     for record in src_records:
                         try:
                             with mute_logger("odoo.db"), self.env.cr.savepoint():
@@ -256,8 +236,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                                     )
                                 )
                         except psycopg.Error:
-                            # keeping a row with a nonexistent partner_id is
-                            # useless, better delete just this offending row
                             self.env.cr.execute(
                                 SQL(
                                     "DELETE FROM %s WHERE %s = ANY(%s)",
@@ -311,8 +289,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     records.sudo().write({field_id: dst_record.id})
                     records.env.flush_all()
             except psycopg.Error:
-                # updating fails, most likely due to a violated unique constraint
-                # keeping record with nonexistent partner_id is useless, better delete it
                 records.sudo().unlink()
 
         additional_update_records = additional_update_records or []
@@ -339,17 +315,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 Model = self.env[record.model]
                 field = Model._fields[record.name]
             except KeyError:
-                # unknown model or field => skip
                 continue
 
             if Model._abstract or field.compute is not None:
                 continue
 
-            # Batch: search all src references at once instead of per-partner
             src_values = [f"{referenced_model},{src.id}" for src in src_records]
-            records_ref = Model.sudo().search(  # noqa: E8507 — inherent: each reference field targets a different model
-                [(record.name, "in", src_values)]
-            )
+            records_ref = Model.sudo().search([(record.name, "in", src_values)])
             if not records_ref:
                 continue
             new_value = f"{referenced_model},{dst_record.id}"
@@ -358,11 +330,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     records_ref.sudo().write({record.name: new_value})
                     records_ref.env.flush_all()
             except psycopg.Error:
-                # A unique/check constraint spanning this stored reference column
-                # was violated by at least one repointed row. Retry row by row so
-                # the non-clashing rows are still repointed and only the offending
-                # row is dropped -- NOT a blanket unlink of the whole batch, which
-                # would discard the many valid, non-clashing references (BPM-L02).
                 for rec in records_ref:
                     try:
                         with mute_logger("odoo.db"), self.env.cr.savepoint():
@@ -370,11 +337,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                             rec.env.flush_all()
                     except psycopg.Error:
                         rec.sudo().unlink()
-        # company_dependent fields referring the merged records
         for field in self.env.registry.many2one_company_dependents[dst_record._name]:
-            # The EXISTS filter restricts the rewrite to rows whose jsonb
-            # actually references a source id; without it every non-null row of
-            # the table is rewritten to byte-identical jsonb (BPM-P1).
             self.env.cr.execute(
                 SQL(
                     """
@@ -402,7 +365,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 )
             )
 
-        # merge the fallback values for company dependent many2one fields
         self.env.cr.execute(
             SQL(
                 """
@@ -428,16 +390,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         self.env.flush_all()
 
-        # company_dependent fields of merged records
         for fname, field in dst_record._fields.items():
             if not field.company_dependent:
                 continue
             self.env.execute_query(
                 SQL(
-                    # use the specific company dependent value of sources
-                    # to fill the non-specific value of destination. Source
-                    # values for rows with larger id have higher priority
-                    # when aggregated
                     """
                 WITH source AS (
                     SELECT %(field)s
@@ -515,9 +472,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             else:
                 return item
 
-        # get all fields that are not computed or x2many
         values = {}
-        values_by_company = defaultdict(dict)  # {company: vals}
+        values_by_company = defaultdict(dict)
         for column in model_fields:
             field = dst_partner._fields[column]
             if field.type not in ("many2many", "one2many") and field.compute is None:
@@ -530,21 +486,17 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                         else:
                             values[column] = write_serializer(item[column])
             elif field.company_dependent and column in summable_fields:
-                # sum the values of partners for each company; use sudo() to
-                # compute the sum on all companies, including forbidden ones
                 partners = (src_partners + dst_partner).sudo()
-                for company in self.env["res.company"].sudo().search([]):  # noqa: E8507 — bounded: company count is small and fixed
+                for company in self.env["res.company"].sudo().search([]):
                     values_by_company[company][column] = sum(
                         partners.with_company(company).mapped(column)
                     )
 
-        # remove fields that can not be updated (id and parent_id)
         values.pop("id", None)
         parent_id = values.pop("parent_id", None)
         dst_partner.write(values)
         for company, vals in values_by_company.items():
             dst_partner.with_company(company).sudo().write(vals)
-        # try to update the parent_id
         if parent_id and parent_id != dst_partner.id:
             try:
                 dst_partner.write({"parent_id": parent_id})
@@ -595,7 +547,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         :param dst_partner: destination res.partner record
         :param extra_checks: pass False to bypass extra sanity checks (e.g. email address)
         """
-        # super-admin can be used to bypass extra checks
         if self.env.is_admin():
             extra_checks = False
 
@@ -611,11 +562,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 )
             )
 
-        # check if the list of partners to merge contains a child/parent relation:
-        # collect the strict descendants of each partner, then see whether any
-        # partner in the set is a descendant of another one in the set.  (A
-        # single `child_of` over all ids minus the set is always empty, so it
-        # never catches merging a parent with its own child.)
         child_ids = Partner.browse()
         for partner in partner_ids:
             child_ids |= Partner.search([("id", "child_of", [partner.id])]) - partner
@@ -624,7 +570,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 self.env._("You cannot merge a contact with one of his parent.")
             )
 
-        # check if the list of partners to merge are linked to more than one user
         if len(partner_ids.with_context(active_test=False).user_ids) > 1:
             raise UserError(
                 self.env._(
@@ -639,7 +584,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 )
             )
 
-        # remove dst_partner from partners to merge
         if dst_partner and dst_partner in partner_ids:
             src_partners = partner_ids - dst_partner
         else:
@@ -648,12 +592,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             src_partners = ordered_partners[:-1]
         _logger.info("dst_partner: %s", dst_partner.id)
 
-        # Make the company of all related users consistent with destination partner company.
-        # res.partner requires a partner's company_id to match its users' company
-        # (see res.partner.write), so the linked user must be re-homed to the
-        # destination's company -- "preserving" a different default would make the
-        # destination partner + its user inconsistent and abort the merge (BPM-L03
-        # investigated: the overwrite is required, not a bug).
         if dst_partner.company_id:
             partner_ids.mapped("user_ids").sudo().write(
                 {
@@ -662,7 +600,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 }
             )
 
-        # Merge bank accounts before merging partners
         self._merge_bank_accounts(src_partners, dst_partner)
 
         self._update_foreign_keys(src_partners, dst_partner)
@@ -673,7 +610,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         self._log_merge_operation(src_partners, dst_partner)
 
-        # delete source partner, since they are merged
         src_partners.sudo().unlink()
 
     def _log_merge_operation(
@@ -686,11 +622,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             dst_partner.id,
         )
 
-    # ----------------------------------------
-    # Helpers
-    # ----------------------------------------
-
-    # Fields that are safe to use in grouping queries.
     _GROUPBY_ALLOWED_FIELDS = frozenset(
         {"email", "name", "vat", "is_company", "parent_id"}
     )
@@ -716,7 +647,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 sql_fields.append(col)
         group_fields = SQL(", ").join(sql_fields)
 
-        # WHERE clause: for groupable text columns, only keep 'not null' records
         filters = [
             SQL("%s IS NOT NULL", SQL.identifier(field))
             for field in fields
@@ -800,10 +730,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             model_mapping["account.move.line"] = "partner_id"
         return model_mapping
 
-    # ----------------------------------------
-    # Actions
-    # ----------------------------------------
-
     def action_skip(self) -> dict[str, Any]:
         """Skip the current wizard line and move to the next step."""
         if self.current_line_id:
@@ -816,10 +742,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         Each line is a subset of partners that can be merged together. When no
         line is left, the wizard switches to the finished state.
         """
-        self.env.invalidate_all()  # FIXME: is this still necessary?
+        self.env.invalidate_all()
         values = {}
         if self.line_ids:
-            # in this case, we try to find the next record.
             current_line = self.line_ids[0]
             current_partner_ids = literal_eval(current_line.aggr_ids)
             values.update(
@@ -859,10 +784,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.ensure_one()
         model_mapping = self._compute_models()
 
-        # group partner query
         self.env.cr.execute(query if isinstance(query, SQL) else SQL(query))
 
-        # Batch ACL check: one search for all candidate IDs instead of per-group
         groups = self.env.cr.fetchall()
         all_ids = [pid for _, aggr_ids in groups for pid in aggr_ids]
         accessible = self.env["res.partner"].search([("id", "in", all_ids)])
@@ -870,12 +793,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         counter = 0
         for min_id, aggr_ids in groups:
-            # Filter to only ACL-accessible partners
             partner_ids = [pid for pid in aggr_ids if pid in accessible_set]
             if len(partner_ids) < 2:
                 continue
 
-            # exclude partner according to options
             if model_mapping and self._partner_use_in(partner_ids, model_mapping):
                 continue
 
@@ -916,20 +837,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         automatically instead of stepping through them.
         """
         self.ensure_one()
-        self.action_start_manual_process()  # here we don't redirect to the next screen, since it is automatic process
-        self.env.invalidate_all()  # FIXME: is this still necessary?
+        self.action_start_manual_process()
+        self.env.invalidate_all()
 
         for line in self.line_ids:
             partner_ids = literal_eval(line.aggr_ids)
             self._merge(partner_ids)
             line.unlink()
-            # Commit per group so that a failure on a later group does not roll
-            # back the groups already merged: this is a deliberate resumable
-            # batch (each _merge is atomic to its commit). Deferred BPM-L04
-            # robustness improvement: wrap the loop body in try/except, roll
-            # back and log the failing group, continue with the rest, then set
-            # state='finished' and report the skipped groups -- not implemented
-            # here because skip-and-continue is a pending behavior-policy choice.
             self.env.cr.commit()
 
         self.write({"state": "finished"})
@@ -975,13 +889,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             partner_ids = literal_eval(line.aggr_ids)
             self._merge(partner_ids)
             line.unlink()
-            # Commit per group so that a failure on a later group does not roll
-            # back the groups already merged: this is a deliberate resumable
-            # batch (each _merge is atomic to its commit). Deferred BPM-L04
-            # robustness improvement: wrap the loop body in try/except, roll
-            # back and log the failing group, continue with the rest, then set
-            # state='finished' and report the skipped groups -- not implemented
-            # here because skip-and-continue is a pending behavior-policy choice.
             self.env.cr.commit()
 
         self.write({"state": "finished"})
@@ -1008,8 +915,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.ensure_one()
         self.parent_migration_process_cb()
 
-        # NOTE JEM : seems louche to create a new wizard instead of reuse the current one with updated options.
-        # since it is like this from the initial commit of this wizard, I don't change it. yet ...
         wizard = self.create(
             {
                 "group_by_vat": True,
@@ -1019,7 +924,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
         wizard.action_start_automatic_process()
 
-        # NOTE JEM : no idea if this query is useful
         self.env.cr.execute("""
             UPDATE
                 res_partner

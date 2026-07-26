@@ -145,8 +145,6 @@ class TestGetMissingFields:
         missing = manager.get_missing_fields()
         missing_groups, _reasons = missing["field_a"]
         assert missing_groups is not False
-        # whole manager group reported; the "manager minus system" subtraction
-        # happens later, in _add_missing_fields
         assert missing_groups == MANAGER
         assert not missing_groups.is_universal()
 

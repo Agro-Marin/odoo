@@ -19,7 +19,6 @@ class BaseModuleUpgrade(models.TransientModel):
 
     @api.model
     def get_module_list(self) -> Self:
-        # Public alias kept for RPC/external callers.
         return self._get_pending_modules()
 
     @api.model
@@ -56,9 +55,6 @@ class BaseModuleUpgrade(models.TransientModel):
 
     def upgrade_module_cancel(self) -> dict[str, str]:
         Module = self.env["ir.module.module"]
-        # Revert the schedule: modules flagged for upgrade/removal were
-        # installed beforehand, and modules flagged for install were
-        # uninstalled beforehand.
         to_revert_installed = Module.search(
             [("state", "in", ["to upgrade", "to remove"])]
         )
@@ -71,7 +67,6 @@ class BaseModuleUpgrade(models.TransientModel):
     def upgrade_module(self) -> dict[str, str]:
         Module = self.env["ir.module.module"]
 
-        # install/upgrade: double-check preconditions
         mods = Module.search([("state", "in", ["to upgrade", "to install"])])
         if mods:
             query = """ SELECT d.name
@@ -89,12 +84,7 @@ class BaseModuleUpgrade(models.TransientModel):
                     )
                 )
 
-        # terminate transaction before re-creating cursor below
         self.env.cr.commit()
-        # BMUPG-L2 (known hazard): unlike _button_immediate_function, this path
-        # takes no LOCK ir_module_module / SELECT ... FOR UPDATE guards, so
-        # concurrent schedule-applies (or an apply racing a triggered cron) go
-        # undetected here.
         odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
         self.env.cr.reset()
 

@@ -14,7 +14,6 @@ class TestIrActionsExists(TransactionCase):
     def test_exists_reflects_uncommitted_create(self):
         model = self.env["ir.actions.act_url"]
         action = model.create({"name": "audit-ira-l1", "url": "/audit/ira-l1"})
-        # exists() must see the just-created (uncommitted) record.
         self.assertEqual(action.exists(), action)
 
     def test_get_bindings_still_resolves(self):
@@ -35,12 +34,11 @@ class TestIrActionsBindingsCacheOnCreate(TransactionCase):
         self.env["ir.actions.act_window"].create(
             {"name": "audit-unbound-action", "res_model": "res.partner"}
         )
-        # Same cached object: the unbound create skipped the cache clear.
         self.assertIs(Actions._get_bindings("res.partner"), before)
 
     def test_bound_create_clears_bindings_cache(self):
         Actions = self.env["ir.actions.actions"]
-        Actions._get_bindings("res.partner")  # warm the cache
+        Actions._get_bindings("res.partner")
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "audit-bound-action",
@@ -61,15 +59,11 @@ class TestSafeEvalDict(TransactionCase):
 
     def test_safe_eval_dict_degrades(self):
         self.assertEqual(_safe_eval_dict("{'a': 1}", {}, {}), {"a": 1})
-        # A missing/falsy expression evaluates the "{}" fallback, not default.
         self.assertEqual(_safe_eval_dict(False, {}, {"d": 1}), {})
         sentinel = {"d": 1}
-        # An un-evaluable expression degrades to the default.
         self.assertIs(_safe_eval_dict("1/0", {}, sentinel), sentinel)
         self.assertIs(_safe_eval_dict("[(", {}, sentinel), sentinel)
-        # A non-dict result degrades to the default too.
         self.assertIs(_safe_eval_dict("[1, 2]", {}, sentinel), sentinel)
-        # The eval context is visible to the expression.
         self.assertEqual(_safe_eval_dict("{'u': uid}", {"uid": 7}, {}), {"u": 7})
 
 
@@ -109,9 +103,6 @@ class TestIrActionsUnlinkCascadesEmbedded(TransactionCase):
         )
 
     def test_unlink_blocked_by_seeded_embedded_action(self):
-        # A data-file-seeded embedded action (real external id) is not deletable,
-        # so the cascade's ondelete hook must block the action's deletion instead
-        # of leaving it dangling.
         embedded = self._create_embedded()
         self.env["ir.model.data"].create(
             {

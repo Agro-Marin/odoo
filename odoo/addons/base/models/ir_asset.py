@@ -23,8 +23,6 @@ BEFORE_DIRECTIVE = "before"
 REMOVE_DIRECTIVE = "remove"
 REPLACE_DIRECTIVE = "replace"
 INCLUDE_DIRECTIVE = "include"
-# Directives taking a 'target'. Keep in sync with the ``directive`` Selection
-# field and the dispatch in ``_process_path``.
 DIRECTIVES_WITH_TARGET = {AFTER_DIRECTIVE, BEFORE_DIRECTIVE, REPLACE_DIRECTIVE}
 
 
@@ -63,7 +61,7 @@ def fs2web(path: str) -> str:
     """Convert a filesystem path to a web path."""
     if os.sep == "/":
         return path
-    return "/".join(path.split(os.sep))  # noqa: PTH206
+    return "/".join(path.split(os.sep))
 
 
 def can_aggregate(url: str) -> bool:
@@ -91,7 +89,7 @@ def _glob_static_file(pattern: str) -> list[tuple[str, float]]:
     during hot-reload) are skipped.
     """
     result: list[tuple[str, float]] = []
-    for file in glob(pattern, recursive=True):  # noqa: PTH207
+    for file in glob(pattern, recursive=True):
         if file.rsplit(".", 1)[-1] not in ASSET_EXTENSIONS:
             continue
         try:
@@ -225,10 +223,6 @@ class IrAsset(models.Model):
         installed = self._get_installed_addons_list()
         addons = self._get_active_addons_list(**assets_params)
         asset_paths = AssetPaths()
-        # Sort the addons set before building the tuple so the
-        # ``_topological_sort`` @ormcache key is canonical across workers and
-        # restarts (hash-randomized set order would fragment the cache -- the
-        # result is order-independent regardless -- IRASSET-P1).
         addons = self._topological_sort(tuple(sorted(addons)))
         self._fill_asset_paths(
             bundle, asset_paths, [], addons, installed, **assets_params
@@ -257,13 +251,6 @@ class IrAsset(models.Model):
                 f"Circular assets bundle declaration: {' > '.join(seen + [bundle])}"
             )
 
-        # A sub-bundle can legitimately be included several times in one
-        # traversal (e.g. ``web._assets_primary_variables`` both directly and
-        # via ``web._assets_helpers``). The first walk fully determines its
-        # contribution; a re-walk would re-apply directives against the already
-        # mutated state (spurious warnings, or a hard ValueError for remove), so
-        # skip re-walks. The circularity check above stays first so real cycles
-        # keep raising instead of being masked as re-includes.
         if bundle in asset_paths.walked_bundles:
             _logger.debug(
                 "Bundle %r already walked in this traversal; skipping re-include.",
@@ -272,20 +259,16 @@ class IrAsset(models.Model):
             return
         asset_paths.walked_bundles.add(bundle)
 
-        # Prepend anchor: files prepended by this bundle are inserted here.
         bundle_start_index = len(asset_paths.list)
 
         assets = self._get_related_assets(
             [("bundle", "=", bundle)], **assets_params
         ).filtered("active")
-        # Partition the (already ``sequence, id``-ordered) recordset into the
-        # pre-manifest (sequence < 16) and post-manifest phases.
         early_assets, late_assets = [], []
         for asset in assets:
             bucket = early_assets if asset.sequence < DEFAULT_SEQUENCE else late_assets
             bucket.append(asset)
 
-        # 1. Process the first sequence of 'ir.asset' records
         for asset in early_assets:
             self._process_path(
                 bundle,
@@ -300,7 +283,6 @@ class IrAsset(models.Model):
                 **assets_params,
             )
 
-        # 2. Process all addons' manifests.
         for addon in addons:
             manifest = Manifest.for_addon(addon)
             if manifest is None:
@@ -320,7 +302,6 @@ class IrAsset(models.Model):
                     **assets_params,
                 )
 
-        # 3. Process the rest of 'ir.asset' records
         for asset in late_assets:
             self._process_path(
                 bundle,
@@ -365,19 +346,15 @@ class IrAsset(models.Model):
             )
             return
 
-        # ``_get_paths`` is the single resolution entry point (it handles
-        # external URLs and ``/web/content`` itself), so no ``can_aggregate``
-        # pre-check here.
         paths = self._get_paths(path_def, installed)
 
-        # Resolve the anchor for target directives (after/before/replace).
         target_path = target_index = None
         if directive in DIRECTIVES_WITH_TARGET:
             resolved = self._resolve_target(
                 directive, target, path_def, bundle, installed, asset_paths
             )
             if resolved is None:
-                return  # a no-op was logged; nothing to apply
+                return
             target_path, target_index = resolved
 
         if directive == APPEND_DIRECTIVE:
@@ -385,10 +362,6 @@ class IrAsset(models.Model):
         elif directive == PREPEND_DIRECTIVE:
             asset_paths.insert(paths, bundle, bundle_start_index)
         elif directive in (AFTER_DIRECTIVE, BEFORE_DIRECTIVE):
-            # ``insert`` skips already-present sources, so an after/before
-            # naming a present file is a silent no-op (only ``replace``
-            # repositions an existing source). Warn so the ineffective reorder
-            # is visible; exclude the anchor itself, legitimately present.
             stranded = [
                 path
                 for path, _full_path, _last_modified in paths
@@ -409,9 +382,6 @@ class IrAsset(models.Model):
             asset_paths.insert(paths, bundle, target_index + offset)
         elif directive == REMOVE_DIRECTIVE:
             if not paths:
-                # The path no longer resolves to anything on disk, so the
-                # remove is a no-op. Warn (rather than fail): a dead remove
-                # hides whether the bundle still needs the directive.
                 _logger.warning(
                     "REMOVE directive in bundle %r had no effect: path %r "
                     "resolved to nothing. Either the path is stale (file "
@@ -421,11 +391,6 @@ class IrAsset(models.Model):
                     path_def,
                 )
                 return
-            # A wildcarded remove is set subtraction against the addon's files
-            # on DISK, so disk matches absent from the bundle are expected (e.g.
-            # mail removes ``discuss/**/*`` from ``web.assets_backend`` before
-            # re-adding allowed subsets). Only a LITERAL path remove keeps the
-            # strict must-be-present contract.
             asset_paths.remove(paths, bundle, strict=not is_wildcard_glob(path_def))
         elif directive == REPLACE_DIRECTIVE:
             self._apply_replace(asset_paths, paths, target_path, bundle)
@@ -452,8 +417,6 @@ class IrAsset(models.Model):
             relative to an absent anchor is undefined, so it is a hard error.
         """
         if not target:
-            # Manifest tuple had an empty target (``("after", "")``): no index
-            # can be resolved, so the directive is a no-op. Warn with context.
             _logger.warning(
                 "Asset directive %r in bundle %r has no target — "
                 "directive skipped. Path was %r.",
@@ -464,8 +427,6 @@ class IrAsset(models.Model):
             return None
         target_paths = self._get_paths(target, installed)
         if not target_paths:
-            # The anchor file resolved to nothing (typically renamed/removed).
-            # Warn so the directive is not a silent no-op.
             _logger.warning(
                 "Asset directive %r in bundle %r references target %r "
                 "that resolved to nothing — directive skipped. Path was %r.",
@@ -497,7 +458,6 @@ class IrAsset(models.Model):
           matching it), the target must SURVIVE.
         """
         if not paths:
-            # Empty source: the documented "delete the target" idiom.
             _logger.debug(
                 "REPLACE source resolved to nothing in bundle %s, "
                 "target %s removed without replacement",
@@ -505,15 +465,10 @@ class IrAsset(models.Model):
                 target_path,
             )
         target_in_source = any(p[0] == target_path for p in paths)
-        # Sources in original order, excluding the target itself.
         sources = [p for p in paths if p[0] != target_path]
-        # Pull out already-present sources so ``insert`` re-adds them in source
-        # order rather than skipping them (they are in ``memo``).
         present = [p for p in sources if p[0] in asset_paths.memo]
         if present:
             asset_paths.remove(present, bundle)
-        # Re-derive the index AFTER the removals (they may have shifted earlier
-        # elements). The target is never in ``present``, so it still anchors.
         target_index = asset_paths.index(target_path, bundle)
         asset_paths.insert(sources, bundle, target_index)
         if not target_in_source:
@@ -525,8 +480,6 @@ class IrAsset(models.Model):
         Override to filter results (e.g. website-specific deduplication). The
         caller filters on ``active`` afterward.
         """
-        # active_test off so website's filter_duplicate can disable some assets;
-        # active filtering happens afterward.
         return (
             self.with_context(active_test=False)
             .sudo()
@@ -622,10 +575,6 @@ class IrAsset(models.Model):
         safe_path = False
         if addon_manifest:
             if addon not in installed:
-                # During module loading, tests may run before all modules are in
-                # _init_modules. Skip not-yet-loaded addons rather than crash;
-                # once loaded this is unreachable (uninstalled addons have no
-                # ir.asset records).
                 _logger.debug(
                     "Skipping asset %s: addon %s not loaded yet",
                     path_def,
@@ -634,15 +583,9 @@ class IrAsset(models.Model):
                 return []
             addons_path = addon_manifest.addons_path
             full_path = Path(addons_path, *path_parts).resolve()
-            # forbid escape from the current addon
-            # "/mymodule/../myothermodule" is forbidden
             static_dir = Path(addon_manifest.path, "static").resolve()
             if full_path.is_relative_to(static_dir):
                 paths_with_timestamps = _glob_static_file(str(full_path))
-                # ``absolute_path`` is canonicalized (globbed from a
-                # ``.resolve()``d ``full_path``), so strip the *resolved*
-                # addons_path; a raw ``addons_path`` with symlinks or ``..``
-                # would fail to strip and yield a malformed web path (IRASSET-M2).
                 prefix = str(Path(addons_path).resolve()) + os.sep
                 paths = [
                     ResolvedPath(
@@ -654,16 +597,11 @@ class IrAsset(models.Model):
                 ]
                 safe_path = True
 
-        if not paths and not can_aggregate(path_def):  # http:// or /web/content
+        if not paths and not can_aggregate(path_def):
             paths = [ResolvedPath(path_def, EXTERNAL_ASSET, -1)]
 
         if not paths and not is_wildcard_glob(path_def):
-            # an attachment url most likely
             if addon_manifest and not safe_path:
-                # ``path_def`` names an installed addon but resolves *outside*
-                # its ``static/`` dir (e.g. ``/mymod/../other``): blocked by the
-                # escape guard, degrading to an attachment URL -- almost always
-                # a mistake. Warn so the escape leaves a trace (IRASSET-C4).
                 _logger.warning(
                     "IrAsset: path %r resolves outside the static/ directory of "
                     "addon %r; treating it as an attachment URL. This is almost "
@@ -672,14 +610,6 @@ class IrAsset(models.Model):
                     addon,
                 )
             elif addon_manifest:
-                # A LITERAL path inside an installed addon's ``static/`` dir
-                # matching no bundleable file (a typo, or a non-ASSET_EXTENSIONS
-                # file the glob filters out): it degrades to an attachment URL
-                # with ``full_path=None`` (IRASSET-C5, mirroring C4). But an
-                # attachment row may legitimately shadow a disk-less path (e.g.
-                # web's asset_styles_company_report.scss slot, or customized
-                # SCSS surviving an upgrade), so only warn when nothing claims
-                # the URL.
                 if not (
                     self.env["ir.attachment"]
                     .sudo()
@@ -719,10 +649,6 @@ class IrAsset(models.Model):
                 directive, path_def = command
                 target = None
         except (ValueError, IndexError, TypeError, KeyError) as exc:
-            # Catch every way a malformed command fails to unpack (int ->
-            # TypeError, dict -> KeyError, wrong length -> ValueError) and
-            # re-raise naming the offending command in the *message* (not just
-            # __notes__, which str(exc) hides).
             raise ValueError(f"Malformed asset command: {command!r}") from exc
         return directive, target, path_def
 
@@ -739,8 +665,6 @@ class AssetPaths:
     def __init__(self) -> None:
         self.list: list[AssetEntry] = []
         self.memo: set[str] = set()
-        # Bundle names already walked in this traversal; lets ``_fill_asset_paths``
-        # skip duplicate sub-bundle includes.
         self.walked_bundles: set[str] = set()
 
     def index(self, path: str, bundle: str) -> int:

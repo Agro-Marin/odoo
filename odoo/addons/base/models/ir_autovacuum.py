@@ -56,14 +56,10 @@ class IrAutovacuum(models.AbstractModel):
             for model in self.env.values()
             for attr, func in inspect.getmembers(model.__class__, is_autovacuum)
         ]
-        # shuffle so one blocking method never consistently starves the rest
         random.shuffle(all_methods)
         queue = collections.deque(all_methods)
         vacuum_start = time.monotonic()
         deferred = []
-        # Commit per method for isolation but do NOT report progress counts --
-        # partial progress would let the scheduler retry, re-running all methods
-        # (odoo#265091).
         while queue:
             model, attr, func = queue.pop()
             _logger.debug("Calling %s.%s()", model, attr)
@@ -82,14 +78,8 @@ class IrAutovacuum(models.AbstractModel):
                     )
                     if func_remaining:
                         if time.monotonic() - vacuum_start >= MAX_VACUUM_RUNTIME:
-                            # Budget exhausted: stop RE-enqueueing only; first-pass
-                            # methods keep running, the remainder waits for next run.
                             deferred.append((model._name, attr, func_remaining))
                         else:
-                            # IAVAC-C2: appendleft + pop (right end) is intentional --
-                            # a perpetually-"remaining" method is re-enqueued LEFT and
-                            # thus processed LAST each cycle, deferring it behind fresh
-                            # work. Do NOT "fix" to append(); that starves the queue.
                             queue.appendleft((model, attr, func))
                 _logger.debug(
                     "%s.%s  took %.2fs",
@@ -116,8 +106,6 @@ class IrAutovacuum(models.AbstractModel):
     def _gc_orm_signaling(self) -> None:
         for signal in ["registry", *_CACHES_BY_KEY]:
             table = f"orm_signaling_{signal}"
-            # Keep the last 10 entries per signal plus everything from the last
-            # hour: small enough for performance, yet a useful recent history.
             self.env.cr.execute(
                 SQL(
                     "DELETE FROM %s WHERE id < (SELECT max(id)-9 FROM %s) AND date < NOW() - interval '1 hours'",

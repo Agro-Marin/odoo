@@ -28,18 +28,14 @@ class TestFloatPrecision(TransactionCase):
             )
 
         try_round(2.674, "2.67")
-        try_round(2.675, "2.68")  # in Python 2.7.2, round(2.675,2) gives 2.67
-        try_round(-2.675, "-2.68")  # in Python 2.7.2, round(2.675,2) gives 2.67
+        try_round(2.675, "2.68")
+        try_round(-2.675, "-2.68")
         try_round(0.001, "0.00")
         try_round(-0.001, "0.00")
-        try_round(
-            0.0049, "0.00"
-        )  # 0.0049 is closer to 0 than to 0.01, so should round down
-        try_round(0.005, "0.01")  # the rule is to round half away from zero
-        try_round(-0.005, "-0.01")  # the rule is to round half away from zero
-        try_round(
-            6.6 * 0.175, "1.16"
-        )  # 6.6 * 0.175 is rounded to 1.15 with epsilon = 53
+        try_round(0.0049, "0.00")
+        try_round(0.005, "0.01")
+        try_round(-0.005, "-0.01")
+        try_round(6.6 * 0.175, "1.16")
         try_round(-6.6 * 0.175, "-1.16")
         try_round(5.015, "5.02", method="HALF-EVEN")
         try_round(5.025, "5.02", method="HALF-EVEN")
@@ -59,10 +55,10 @@ class TestFloatPrecision(TransactionCase):
         try_zero(-0.001, True)
         try_zero(0.0046, True)
         try_zero(-0.0046, True)
-        try_zero(2.68 - 2.675, False)  # 2.68 - 2.675 = 0.005 -> rounds to 0.01
-        try_zero(2.68 - 2.676, True)  # 2.68 - 2.676 = 0.004 -> rounds to 0.0
-        try_zero(2.676 - 2.68, True)  # 2.676 - 2.68 = -0.004 -> rounds to -0.0
-        try_zero(2.675 - 2.68, False)  # 2.675 - 2.68 = -0.005 -> rounds to -0.01
+        try_zero(2.68 - 2.675, False)
+        try_zero(2.68 - 2.676, True)
+        try_zero(2.676 - 2.68, True)
+        try_zero(2.675 - 2.68, False)
 
         def try_compare(amount1, amount2, expected):
             self.assertEqual(
@@ -98,10 +94,10 @@ class TestFloatPrecision(TransactionCase):
                 "Rounding error: got %s, expected %s" % (result, expected),
             )
 
-        try_round(2.6735, "2.674")  # Tie rounds away from 0
-        try_round(-2.6735, "-2.674")  # Tie rounds away from 0
-        try_round(2.6745, "2.675")  # Tie rounds away from 0
-        try_round(-2.6745, "-2.675")  # Tie rounds away from 0
+        try_round(2.6735, "2.674")
+        try_round(-2.6735, "-2.674")
+        try_round(2.6745, "2.675")
+        try_round(-2.6745, "-2.675")
         try_round(2.6744, "2.674")
         try_round(-2.6744, "-2.674")
         try_round(0.0004, "0.000")
@@ -111,11 +107,10 @@ class TestFloatPrecision(TransactionCase):
         try_round(457.4554, "457.455")
         try_round(-457.4554, "-457.455")
 
-        # Rounding method HALF-DOWN.
-        try_round(2.6735, "2.673", method="HALF-DOWN")  # Tie rounds towards 0
-        try_round(-2.6735, "-2.673", method="HALF-DOWN")  # Tie rounds towards 0
-        try_round(2.6745, "2.674", method="HALF-DOWN")  # Tie rounds towards 0
-        try_round(-2.6745, "-2.674", method="HALF-DOWN")  # Tie rounds towards 0
+        try_round(2.6735, "2.673", method="HALF-DOWN")
+        try_round(-2.6735, "-2.673", method="HALF-DOWN")
+        try_round(2.6745, "2.674", method="HALF-DOWN")
+        try_round(-2.6745, "-2.674", method="HALF-DOWN")
         try_round(2.6744, "2.674", method="HALF-DOWN")
         try_round(-2.6744, "-2.674", method="HALF-DOWN")
         try_round(0.0004, "0.000", method="HALF-DOWN")
@@ -125,19 +120,10 @@ class TestFloatPrecision(TransactionCase):
         try_round(457.4554, "457.455", method="HALF-DOWN")
         try_round(-457.4554, "-457.455", method="HALF-DOWN")
 
-        # Rounding method HALF-EVEN.
-        try_round(
-            2.6735, "2.674", method="HALF-EVEN"
-        )  # Tie rounds to the closest even number (i.e. up here)
-        try_round(
-            -2.6735, "-2.674", method="HALF-EVEN"
-        )  # Tie rounds to the closest even number (i.e. up here)
-        try_round(
-            2.6745, "2.674", method="HALF-EVEN"
-        )  # Tie rounds to the closest even number (i.e. down here)
-        try_round(
-            -2.6745, "-2.674", method="HALF-EVEN"
-        )  # Tie rounds to the closest even number (i.e. down here)
+        try_round(2.6735, "2.674", method="HALF-EVEN")
+        try_round(-2.6735, "-2.674", method="HALF-EVEN")
+        try_round(2.6745, "2.674", method="HALF-EVEN")
+        try_round(-2.6745, "-2.674", method="HALF-EVEN")
         try_round(2.6744, "2.674", method="HALF-EVEN")
         try_round(-2.6744, "-2.674", method="HALF-EVEN")
         try_round(0.0004, "0.000", method="HALF-EVEN")
@@ -147,8 +133,6 @@ class TestFloatPrecision(TransactionCase):
         try_round(457.4554, "457.455", method="HALF-EVEN")
         try_round(-457.4554, "-457.455", method="HALF-EVEN")
 
-        # Rounding method UP. 8.175 normalizes to 8175.0000000001234 at precision 3;
-        # if mishandled, UP rounds to 8.176 instead of the correct 8.175.
         try_round(8.175, "8.175", method="UP")
         try_round(8.1751, "8.176", method="UP")
         try_round(-8.175, "-8.175", method="UP")
@@ -157,8 +141,6 @@ class TestFloatPrecision(TransactionCase):
         try_round(1.8, "2", 0, method="UP")
         try_round(-1.8, "-2", 0, method="UP")
 
-        # Rounding method DOWN. 2.425 normalizes to 2424.9999999999995 at precision 3;
-        # if mishandled, DOWN rounds to 2.424 instead of the correct 2.425.
         try_round(2.425, "2.425", method="DOWN")
         try_round(2.4249, "2.424", method="DOWN")
         try_round(-2.425, "-2.425", method="DOWN")
@@ -167,7 +149,6 @@ class TestFloatPrecision(TransactionCase):
         try_round(1.8, "1", 0, method="DOWN")
         try_round(-1.8, "-1", 0, method="DOWN")
 
-        # Extended float range test, inspired by Cloves Almeida's test on bug #882036.
         fractions = [
             0.0,
             0.015,
@@ -180,7 +161,6 @@ class TestFloatPrecision(TransactionCase):
         ]
         expecteds = [".00", ".02", ".01", ".68", ".67", ".46", ".456", ".4556"]
         precisions = [2, 2, 2, 2, 2, 2, 3, 4]
-        # max precision for double floats is 53 bits, i.e. 17 significant decimal digits
         for magnitude in range(7):
             for frac, exp, prec in zip(fractions, expecteds, precisions, strict=False):
                 for sign in [-1, 1]:
@@ -224,8 +204,7 @@ class TestFloatPrecision(TransactionCase):
         try_compare(657.4444, 657.445, -1)
         try_compare(-657.4444, -657.445, 1)
 
-        # Rounding to unusual rounding units (e.g. coin values)
-        def try_round(amount, expected, precision_rounding=None, method="HALF-UP"):  # pylint: disable=function-redefined
+        def try_round(amount, expected, precision_rounding=None, method="HALF-UP"):
             value = float_round(
                 amount,
                 precision_rounding=precision_rounding,
@@ -261,13 +240,7 @@ class TestFloatPrecision(TransactionCase):
                 "Roundtrip error: got %s back from db, expected %s" % (rate, expected),
             )
 
-        # res.currency.rate no more uses 6 digits of precision by default, it now uses whatever precision it gets
         try_roundtrip(10000.999999, 10000.999999, "2000-01-03")
-
-        # TODO re-enable those tests when tests are made on dedicated models
-        # (res.currency.rate don't accept negative value anymore)
-        # try_roundtrip(-2.6748955, -2.674896, '2000-01-02')
-        # try_roundtrip(-10000.999999, -10000.999999, '2000-01-04')
 
     def test_rounding_large_magnitude(self):
         """Large clean values must not gain spurious digits from the tie epsilon.
@@ -278,11 +251,8 @@ class TestFloatPrecision(TransactionCase):
         -> 10000000000000.01). HALF-* methods cap the epsilon below the .5 tie
         boundary while still rescuing genuine representation-error ties.
         """
-        # 0.145 is stored as 0.144999...; the rescue must still recognise it as a
-        # tie, after which each method applies its own tie rule.
         rescued_145 = {"HALF-UP": "0.15", "HALF-DOWN": "0.14", "HALF-EVEN": "0.14"}
         for method in ("HALF-UP", "HALF-DOWN", "HALF-EVEN"):
-            # clean values at large magnitude keep their exact value (no spurious step)
             for value in (5.6e12, 1e13, 1.23456789e14, 1e15):
                 self.assertEqual(
                     float_round(value, precision_rounding=0.01, rounding_method=method),
@@ -294,13 +264,11 @@ class TestFloatPrecision(TransactionCase):
                     value,
                     "spurious unit at 0-digit precision for %s (%s)" % (value, method),
                 )
-            # negatives are symmetric
             self.assertEqual(
                 float_round(-1e13, precision_rounding=0.01, rounding_method=method),
                 -1e13,
                 "spurious digit for negative large value (%s)" % method,
             )
-            # representation-error ties are still rescued at usable magnitudes
             self.assertEqual(
                 float_repr(
                     float_round(0.145, precision_digits=2, rounding_method=method),
@@ -311,7 +279,6 @@ class TestFloatPrecision(TransactionCase):
             )
         self.assertEqual(float_round(1.005, precision_digits=2), 1.01)
         self.assertEqual(float_round(2.675, precision_digits=2), 2.68)
-        # genuine large-magnitude ties must still round to the next step
         self.assertEqual(
             float_round(1e13 + 0.5, precision_rounding=1.0, rounding_method="HALF-UP"),
             1e13 + 1,
@@ -333,12 +300,8 @@ class TestFloatPrecision(TransactionCase):
             )
 
         try_split(2.674, ("2", "67"), float_split_str)
-        try_split(
-            2.675, ("2", "68"), float_split_str
-        )  # in Python 2.7.2, round(2.675,2) gives 2.67
-        try_split(
-            -2.675, ("-2", "68"), float_split_str
-        )  # in Python 2.7.2, round(2.675,2) gives 2.67
+        try_split(2.675, ("2", "68"), float_split_str)
+        try_split(-2.675, ("-2", "68"), float_split_str)
         try_split(0.001, ("0", "00"), float_split_str)
         try_split(-0.001, ("0", "00"), float_split_str)
         try_split(42, ("42", "00"), float_split_str)
@@ -346,12 +309,8 @@ class TestFloatPrecision(TransactionCase):
         try_split(13.0, ("13", ""), float_split_str, rounding=0)
 
         try_split(2.674, (2, 67), float_split)
-        try_split(
-            2.675, (2, 68), float_split
-        )  # in Python 2.7.2, round(2.675,2) gives 2.67
-        try_split(
-            -2.675, (-2, 68), float_split
-        )  # in Python 2.7.2, round(2.675,2) gives 2.67
+        try_split(2.675, (2, 68), float_split)
+        try_split(-2.675, (-2, 68), float_split)
         try_split(0.001, (0, 0), float_split)
         try_split(-0.001, (0, 0), float_split)
         try_split(42, (42, 0), float_split)

@@ -1,5 +1,3 @@
-# Copyright (c) 2015 ACSONE SA/NV (<http://acsone.eu>)
-
 from psycopg import IntegrityError
 
 from odoo.tools import mute_logger
@@ -43,7 +41,6 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         self.assertEqual(partner_bank, vals[0])
         self.assertEqual(partner_bank.sanitized_acc_number, sanitized_acc_number)
 
-        # search is case insensitive
         vals = partner_bank_model.search(
             [("acc_number", "=", sanitized_acc_number.lower())]
         )
@@ -51,7 +48,6 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         vals = partner_bank_model.search([("acc_number", "=", acc_number.lower())])
         self.assertEqual(1, len(vals))
 
-        # updating the sanitized value will also update the acc_number
         partner_bank.write({"sanitized_acc_number": "BE001251882303WRONG"})
         self.assertEqual(partner_bank.acc_number, partner_bank.sanitized_acc_number)
 
@@ -111,7 +107,6 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
             {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         partner_bank.unlink()
-        # The record still exists, only archived.
         self.assertTrue(partner_bank.exists())
         self.assertFalse(partner_bank.active)
 
@@ -124,9 +119,6 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         )
         partner_bank.unlink()
         self.assertFalse(partner_bank.active)
-        # Re-creating the same number for the same partner collides with the
-        # archived row; base raises the raw constraint violation (the friendly
-        # "unarchive it instead" guard lives in the account module).
         with self.assertRaises(IntegrityError), self.cr.savepoint():
             self.env["res.partner.bank"].create(
                 {"acc_number": "BE0012518823 03", "partner_id": partner.id}

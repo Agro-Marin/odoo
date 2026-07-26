@@ -19,7 +19,6 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
     def setUp(self):
         super().setUp()
 
-        # Data on which we will run the server action
         self.test_country = self.env["res.country"].create(
             {
                 "name": "TestingCountry",
@@ -41,7 +40,6 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
             "active_id": self.test_partner.id,
         }
 
-        # Model data
         Model = self.env["ir.model"]
         Fields = self.env["ir.model.fields"]
         self.comment_html = "<p>MyComment</p>"
@@ -81,7 +79,6 @@ class TestServerActionsBase(TransactionCaseWithUserDemo):
             [("model", "=", "res.partner.category"), ("name", "=", "name")]
         )
 
-        # server action exercised by the tests
         self.action = self.env["ir.actions.server"].create(
             {
                 "name": "TestAction",
@@ -143,11 +140,9 @@ ZeroDivisionError: division by zero"""
         )
         self.test_partner.write({"comment": False})
 
-        # Do: create contextual action
         self.action.create_action()
         self.assertEqual(self.action.binding_model_id.model, "res.partner")
 
-        # Do: remove contextual action
         self.action.unlink_action()
         self.assertFalse(self.action.binding_model_id)
 
@@ -174,7 +169,6 @@ ZeroDivisionError: division by zero"""
         )
 
     def test_20_crud_create(self):
-        # Do: create a new record in another model
         self.action.write(
             {
                 "state": "object_create",
@@ -188,13 +182,11 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: create record action correctly finished should return False",
         )
-        # Test: new partner created
         partner = self.test_partner.search([("name", "ilike", "TestingPartner2")])
         self.assertEqual(len(partner), 1, "ir_actions_server: TODO")
 
     def test_20_crud_create_link_many2one(self):
 
-        # Do: create a new record in the same model and link it with a many2one
         self.action.write(
             {
                 "state": "object_create",
@@ -208,17 +200,14 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: create record action correctly finished should return False",
         )
-        # Test: new partner created
         partner = self.test_partner.search([("name", "ilike", "TestNew")])
         self.assertEqual(len(partner), 1, "ir_actions_server: TODO")
-        # Test: new partner linked
         self.assertEqual(
             self.test_partner.parent_id, partner, "ir_actions_server: TODO"
         )
 
     def test_20_crud_create_link_one2many(self):
 
-        # Do: create a new record in the same model and link it with a one2many
         self.action.write(
             {
                 "state": "object_create",
@@ -232,15 +221,12 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: create record action correctly finished should return False",
         )
-        # Test: new partner created
         partner = self.test_partner.search([("name", "ilike", "TestNew")])
         self.assertEqual(len(partner), 1, "ir_actions_server: TODO")
         self.assertEqual(partner.name, "TestNew", "ir_actions_server: TODO")
-        # Test: new partner linked
         self.assertIn(partner, self.test_partner.child_ids, "ir_actions_server: TODO")
 
     def test_20_crud_create_link_many2many(self):
-        # Do: create a new record in another model
         self.action.write(
             {
                 "state": "object_create",
@@ -254,7 +240,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: create record action correctly finished should return False",
         )
-        # Test: new category created
         category = self.env["res.partner.category"].search(
             [("name", "ilike", "TestingPartner")]
         )
@@ -356,7 +341,6 @@ ZeroDivisionError: division by zero"""
         self.assertIn(dupe, self.test_partner.category_id)
 
     def test_30_crud_write(self):
-        # Do: update partner name
         self.action.write(
             {
                 "state": "object_write",
@@ -369,7 +353,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: create record action correctly finished should return False",
         )
-        # Test: partner updated
         partner = self.test_partner.search([("name", "ilike", "TestNew")])
         self.assertEqual(len(partner), 1, "ir_actions_server: TODO")
         self.assertEqual(partner.city, "OrigCity", "ir_actions_server: TODO")
@@ -384,7 +367,6 @@ ZeroDivisionError: division by zero"""
             }
         )
         self.assertEqual(self.action.html_value, Markup("<p>MyComment</p>"))
-        # Test run
         self.assertEqual(self.test_partner.comment, False)
         run_res = self.action.with_context(self.context).run()
         self.assertFalse(
@@ -394,7 +376,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(self.test_partner.comment, Markup("<p>MyComment</p>"))
 
     def test_object_write_equation(self):
-        # Do: update partners city
         self.action.write(
             {
                 "state": "object_write",
@@ -405,13 +386,10 @@ ZeroDivisionError: division by zero"""
         )
         partners = self.test_partner + self.test_partner.copy()
         self.action.with_context(self.context, active_ids=partners.ids).run()
-        # Test: partners updated
         self.assertEqual(partners[0].city, str(partners[0].id))
         self.assertEqual(partners[1].city, str(partners[1].id))
 
     def test_35_crud_write_selection(self):
-        # res.partner has no plain selection field, so use a dedicated res.country action
-        # Do: update country name_position field
         selection_value = self.res_country_name_position_field.selection_ids.filtered(
             lambda s: s.value == "after"
         )
@@ -425,7 +403,7 @@ ZeroDivisionError: division by zero"""
                 "selection_value": selection_value.id,
             }
         )
-        action._set_selection_value()  # manual onchange
+        action._set_selection_value()
         self.assertEqual(action.value, selection_value.value)
         context = {
             "active_model": "res.country",
@@ -436,14 +414,12 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: country updated
         self.assertEqual(self.test_country.name_position, "after")
 
     def test_36_crud_write_m2m_ops(self):
         """Test that m2m operations work as expected"""
         categ_1 = self.env["res.partner.category"].create({"name": "TestCateg1"})
         categ_2 = self.env["res.partner.category"].create({"name": "TestCateg2"})
-        # set partner category
         self.action.write(
             {
                 "state": "object_write",
@@ -457,14 +433,12 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertIn(
             categ_1,
             self.test_partner.category_id,
             "ir_actions_server: tag should have been set",
         )
 
-        # add partner category
         self.action.write(
             {
                 "state": "object_write",
@@ -478,7 +452,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertIn(
             categ_2,
             self.test_partner.category_id,
@@ -490,7 +463,6 @@ ZeroDivisionError: division by zero"""
             "ir_actions_server: old tag should still be there",
         )
 
-        # remove partner category
         self.action.write(
             {
                 "state": "object_write",
@@ -504,7 +476,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertNotIn(
             categ_1,
             self.test_partner.category_id,
@@ -516,7 +487,6 @@ ZeroDivisionError: division by zero"""
             "ir_actions_server: tag should still be there",
         )
 
-        # clear partner category
         self.action.write(
             {
                 "state": "object_write",
@@ -529,7 +499,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertFalse(
             self.test_partner.category_id,
             "ir_actions_server: tags should have been cleared",
@@ -537,7 +506,6 @@ ZeroDivisionError: division by zero"""
 
     def test_37_field_path_traversal(self):
         """Test the update_path field traversal - allowing records to be updated along relational links"""
-        # update the country's name via the partner
         self.action.write(
             {
                 "state": "object_write",
@@ -550,14 +518,12 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertEqual(
             self.test_partner.country_id.name,
             "TestUpdatedCountry",
             "ir_actions_server: country name should have been updated through relation",
         )
 
-        # update a readonly field
         self.action.write(
             {
                 "state": "object_write",
@@ -575,7 +541,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertEqual(
             self.test_partner.country_id.image_url,
             "/base/static/img/country_flags/be.png",
@@ -587,7 +552,6 @@ ZeroDivisionError: division by zero"""
             "ir_actions_server: country code is still TY",
         )
 
-        # input an invalid path
         with self.assertRaises(ValidationError):
             self.action.write(
                 {
@@ -600,7 +564,6 @@ ZeroDivisionError: division by zero"""
 
     def test_39_boolean_update(self):
         """Test that boolean fields can be updated"""
-        # update the country's name via the partner
         self.action.write(
             {
                 "state": "object_write",
@@ -613,7 +576,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertFalse(
             self.test_partner.active,
             "ir_actions_server: partner should have been deactivated",
@@ -630,7 +592,6 @@ ZeroDivisionError: division by zero"""
             run_res,
             "ir_actions_server: update record action correctly finished should return False",
         )
-        # Test: partner updated
         self.assertTrue(
             self.test_partner.active,
             "ir_actions_server: partner should have been reactivated",
@@ -638,7 +599,6 @@ ZeroDivisionError: division by zero"""
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
     def test_40_multi(self):
-        # Data: 2 server actions that will be nested
         action1 = self.action.create(
             {
                 "name": "Subaction1",
@@ -686,17 +646,12 @@ ZeroDivisionError: division by zero"""
             }
         )
 
-        # Do: run the action
         res = self.action.with_context(self.context).run()
 
-        # Test: new partner created
-        # currently res_partner overrides default['name'] whatever its value
         partner = self.test_partner.search([("name", "ilike", "RaoulettePoiluchette")])
         self.assertEqual(len(partner), 1)
-        # Test: action returned
         self.assertEqual(res.get("type"), "ir.actions.act_url")
 
-        # Test loops
         with self.assertRaises(ValidationError):
             self.action.write({"child_ids": [Command.set([self.action.id])]})
 
@@ -711,7 +666,6 @@ ZeroDivisionError: division by zero"""
             "active_id": self.test_country.id,
         }
 
-        # Do: update model and group
         self.action.write(
             {
                 "model_id": self.res_country_model.id,
@@ -721,7 +675,6 @@ ZeroDivisionError: division by zero"""
             }
         )
 
-        # Test: action is not returned
         bindings = Actions.get_bindings("res.country")
         self.assertFalse(bindings)
 
@@ -729,7 +682,6 @@ ZeroDivisionError: division by zero"""
             self.action.with_context(self.context).run()
         self.assertFalse(self.test_country.vat_label)
 
-        # add group to the user, and test again
         self.env.user.write({"group_ids": [Command.link(group0.id)]})
 
         bindings = Actions.get_bindings("res.country")
@@ -749,7 +701,6 @@ ZeroDivisionError: division by zero"""
         """check the actions sorted by sequence"""
         Actions = self.env["ir.actions.actions"]
 
-        # Do: update model
         self.action.write(
             {
                 "model_id": self.res_country_model.id,
@@ -758,7 +709,6 @@ ZeroDivisionError: division by zero"""
         )
         self.action2 = self.action.copy({"name": "TestAction2", "sequence": 1})
 
-        # Test: action returned by sequence
         bindings = Actions.get_bindings("res.country")
         self.assertEqual(
             [vals.get("name") for vals in bindings["action"]],
@@ -767,7 +717,6 @@ ZeroDivisionError: division by zero"""
         self.assertEqual([vals.get("sequence") for vals in bindings["action"]], [1, 5])
 
     def test_70_copy_action(self):
-        # first check that the base case (reset state) works normally
         r = self.env["ir.actions.todo"].create(
             {
                 "action_id": self.action.id,
@@ -779,7 +728,6 @@ ZeroDivisionError: division by zero"""
             r.copy().state, "open", "by default state should be reset by copy"
         )
 
-        # then check that on server action we've changed that
         self.assertEqual(
             self.action.copy().state,
             "code",
@@ -797,7 +745,6 @@ ZeroDivisionError: division by zero"""
         user_demo = self.user_demo
         self_demo = self.action.with_user(user_demo.id)
 
-        # can write on contact partner
         self.test_partner.type = "contact"
         self.test_partner.with_user(user_demo.id).check_access("write")
 
@@ -816,7 +763,6 @@ ZeroDivisionError: division by zero"""
                 "webhook_url": "http://example.com/webhook",
             }
         )
-        # mock requests.post: assert the payload, return 200 then 400
         num_requests = 0
 
         def _patched_post(*args, **kwargs):
@@ -847,17 +793,13 @@ ZeroDivisionError: division by zero"""
             patch.object(requests, "post", _patched_post),
             mute_logger("odoo.addons.base.models.ir_actions_server"),
         ):
-            # first run: 200
             self.action.with_context(self.context).run()
-            self.env.cr.postcommit.run()  # webhooks run in postcommit
-            # second run: 400, should *not* raise but
-            # should warn in logs (hence mute_logger)
+            self.env.cr.postcommit.run()
             self.action.with_context(self.context).run()
-            self.env.cr.postcommit.run()  # webhooks run in postcommit
+            self.env.cr.postcommit.run()
         self.assertEqual(num_requests, 2)
 
     def test_90_convert_to_float(self):
-        # make sure eval_value convert the value into float for float-type fields
         self.action.write(
             {
                 "state": "object_write",
@@ -881,7 +823,6 @@ ZeroDivisionError: division by zero"""
             self.action.update_related_model_id,
             "update_related_model_id should be set for a relational update_path",
         )
-        # Switch to object_create — update_related_model_id must be cleared
         self.action.write({"state": "object_create"})
         self.action.flush_recordset()
         self.assertFalse(
@@ -898,8 +839,6 @@ ZeroDivisionError: division by zero"""
             }
         )
         self.action.flush_recordset()
-        # update_field_id must be the second parent_id (last in the chain),
-        # not the first one.
         self.assertEqual(
             self.action.update_field_id.name,
             "parent_id",
@@ -928,7 +867,6 @@ ZeroDivisionError: division by zero"""
             with self.assertLogs(
                 "odoo.addons.base.models.ir_actions_server", level="WARNING"
             ) as log_catcher:
-                # Must not raise even though requests.post timed out.
                 self.env.cr.postcommit.run()
         self.assertTrue(
             any("timed out" in line for line in log_catcher.output),
@@ -952,7 +890,6 @@ ZeroDivisionError: division by zero"""
             with self.assertLogs(
                 "odoo.addons.base.models.ir_actions_server", level="WARNING"
             ) as log_catcher:
-                # Must not raise even though requests.post failed.
                 self.env.cr.postcommit.run()
         self.assertTrue(
             any("Webhook call failed" in line for line in log_catcher.output),
@@ -961,7 +898,6 @@ ZeroDivisionError: division by zero"""
 
     def test_95_code_sandbox_blocked(self):
         """The safe_eval sandbox must reject forbidden constructs in a code action."""
-        # `import os` is rejected by the _check_python_code constraint at write time.
         with self.assertRaises(ValidationError):
             self.action.write(
                 {
@@ -969,16 +905,12 @@ ZeroDivisionError: division by zero"""
                     "code": "import os\nos.system('echo pwned')",
                 }
             )
-        # `open(...)` is not whitelisted in the sandbox builtins: it raises at run time.
         self.action.write(
             {
                 "state": "code",
                 "code": "open('/etc/passwd').read()",
             }
         )
-        # `open` (not a sandbox builtin) raises NameError, which safe_eval
-        # re-wraps as ValueError. Pass a single class: assertRaises uses
-        # issubclass() and rejects a tuple.
         with self.assertRaises(ValueError):
             self.action.with_context(self.context).run()
 
@@ -992,9 +924,7 @@ ZeroDivisionError: division by zero"""
                 "value": "not-an-int",
             }
         )
-        # _eval_value must not raise on a non-numeric value for an m2m operation.
         self.assertEqual(self.action._eval_value()[self.action.id], [])
-        # Running the action is a no-op rather than a crash.
         run_res = self.action.with_context(self.context).run()
         self.assertFalse(run_res)
 
@@ -1008,12 +938,10 @@ ZeroDivisionError: division by zero"""
                 "value": "1",
             }
         )
-        # No matching match-case: expr stays the default empty command list.
         self.assertEqual(self.action._eval_value()[self.action.id], [])
 
     def test_98_object_write_no_path_errors(self):
         """object_write with neither onchange_self nor update_path raises."""
-        # Clear update_path afterwards to mimic an action with nothing to update.
         self.action.write(
             {
                 "state": "object_write",
@@ -1091,7 +1019,6 @@ ZeroDivisionError: division by zero"""
         )
         original_name = self.test_partner.name
         logger = "odoo.addons.base.models.ir_actions_server"
-        # Run with NO active_model/active_id/active_ids in context (cron-style).
         with self.assertLogs(logger, level="WARNING") as log_catcher:
             self.action.run()
         self.assertTrue(
@@ -1126,7 +1053,7 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "color",  # integer field on res.partner
+                "update_path": "color",
                 "evaluation_type": "value",
                 "value": "not_a_number",
             }
@@ -1139,7 +1066,7 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "partner_latitude",  # float field
+                "update_path": "partner_latitude",
                 "evaluation_type": "value",
                 "value": "not_a_number",
             }
@@ -1158,14 +1085,12 @@ ZeroDivisionError: division by zero"""
             }
         )
         self.assertEqual(self.action._eval_value()[self.action.id], 0)
-        # many2one blank -> False (clear the relation)
         self.action.write({"update_path": "parent_id", "value": ""})
         self.assertIs(self.action._eval_value()[self.action.id], False)
 
     def test_b3_relation_chain_degrades_without_raising_on_read(self):
         """_get_relation_chain must NOT raise on an invalid path by default, so that
         stored computes (crud_model_id, warning) can never explode on plain read."""
-        # .new() bypasses constraints, letting us hold an invalid path in-memory.
         action = self.env["ir.actions.server"].new(
             {
                 "model_id": self.res_partner_model.id,
@@ -1173,9 +1098,7 @@ ZeroDivisionError: division by zero"""
                 "update_path": "totally_not_a_field",
             }
         )
-        # Must degrade to an empty chain rather than raise.
         self.assertEqual(action._get_relation_chain("update_path"), ([], ""))
-        # And crud_model_id (a stored compute) must be readable without raising.
         self.assertFalse(action.update_field_id)
 
     def test_b4_empty_path_segment_raises_clear_error_on_save(self):
@@ -1207,11 +1130,9 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "color",  # integer field
+                "update_path": "color",
                 "evaluation_type": "equation",
                 "value": "1 if env.su else 0",
-                # group-gate so the demo user is authorized without needing a
-                # record-level ACL grant (see _can_execute_action_on_records)
                 "group_ids": [Command.set(self.env.ref("base.group_user").ids)],
             }
         )
@@ -1229,7 +1150,7 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "function",  # char field on res.partner
+                "update_path": "function",
                 "evaluation_type": "value",
                 "value": "Set By Action",
             }
@@ -1274,7 +1195,7 @@ ZeroDivisionError: division by zero"""
         self.action.write(
             {
                 "state": "object_write",
-                "update_path": "ref",  # a char field, as the sequence warning requires
+                "update_path": "ref",
                 "evaluation_type": "sequence",
                 "sequence_id": sequence.id,
             }
@@ -1320,8 +1241,6 @@ ZeroDivisionError: division by zero"""
                 "code": "x = 1",
             }
         )
-        # Start from a clean slate (create() already recorded one entry), then add
-        # more than the cap directly so the pruning has something to trim.
         History.search([("action_id", "=", action.id)]).unlink()
         cap = History._max_entries_per_action
         History.create(
@@ -1440,7 +1359,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
             {
                 "name": "HelpWindow",
                 "res_model": "res.partner",
-                # non-dict context: read() must fall back to {} and not raise
                 "context": "[1, 2, 3]",
                 "help": "<p>Custom help</p>",
             }
@@ -1455,7 +1373,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
             {
                 "name": "HelpWindow2",
                 "res_model": "res.partner",
-                # references an undefined name -> safe_eval raises -> fallback {}
                 "context": "{'k': undefined_name}",
                 "help": "<p>Custom help</p>",
             }
@@ -1489,7 +1406,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
                 "res_model": "res.partner",
             }
         )
-        # a freshly-created action has no external id; create one so the lookup resolves
         self.env["ir.model.data"].create(
             {
                 "module": "base",
@@ -1507,7 +1423,6 @@ class TestActionsReadAndXmlId(common.TransactionCase):
     def test_for_xml_id_non_action_raises(self):
         """_for_xml_id of a non-action xml_id raises ValidationError."""
         with self.assertRaises(ValidationError):
-            # base.model_res_partner is an ir.model record, not an action.
             self.env["ir.actions.actions"]._for_xml_id("base.model_res_partner")
 
     def test_get_action_dict_act_url_no_invalid_field_warning(self):
@@ -1522,9 +1437,7 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.assertNotIn("close", action._fields)
         with self.assertNoLogs("odoo.models", "WARNING"):
             result = action._get_action_dict()
-        # the virtual key was never produced by read(), so it stays absent
         self.assertNotIn("close", result)
-        # every returned key is a real, readable field
         self.assertTrue(set(result) <= action._get_readable_fields())
         self.assertTrue(set(result) <= set(action._fields))
 
@@ -1627,11 +1540,9 @@ class TestClientActionParams(common.TransactionCase):
         action = self.env["ir.actions.client"].create(
             {"name": "ClientAction3", "tag": "some_tag"}
         )
-        # write an un-evaluable value directly to the stored field
         action.params_store = "this is ( not valid python"
         action.invalidate_recordset(["params"])
         self.assertFalse(action.params)
-        # and it stays readable end-to-end (the path that used to crash)
         with self.assertNoLogs("odoo.models", "WARNING"):
             data = action._get_action_dict()
         self.assertIn("params", data)
@@ -1757,7 +1668,6 @@ class TestCommonCustomFields(common.TransactionCase):
     COMODEL = "res.users"
 
     def setUp(self):
-        # check that the registry is properly reset
         fnames = set(self.registry[self.MODEL]._fields)
 
         @self.addCleanup
@@ -1846,7 +1756,6 @@ class TestCustomFields(TestCommonCustomFields):
         field = self.create_field("x_foo")
         self.create_view("x_foo")
 
-        # try to delete the field, this should fail but not modify the registry
         with self.assertRaises(UserError):
             field.unlink()
         self.assertIn("x_foo", self.env[self.MODEL]._fields)
@@ -1857,7 +1766,6 @@ class TestCustomFields(TestCommonCustomFields):
         field = self.create_field("x_foo")
         self.create_view("x_foo")
 
-        # try to delete the field, this should fail but not modify the registry
         with self.assertRaises(UserError):
             field.name = "x_bar"
         self.assertIn("x_foo", self.env[self.MODEL]._fields)
@@ -1870,7 +1778,6 @@ class TestCustomFields(TestCommonCustomFields):
         with self.assertRaisesRegex(UserError, "This column contains module data"):
             field.unlink()
 
-        # but it works in the context of uninstalling a module
         field.with_context(_force_unlink=True).unlink()
 
     def test_unlink_with_inverse(self):
@@ -1899,17 +1806,14 @@ class TestCustomFields(TestCommonCustomFields):
             }
         )
 
-        # normal mode: you cannot break dependencies
         with self.assertRaises(UserError):
             m2o_field.unlink()
 
-        # uninstall mode: unlink dependant fields
         m2o_field.with_context(_force_unlink=True).unlink()
         self.assertFalse(o2m_field.exists())
 
     def test_unlink_with_dependant(self):
         """create a computed field, then delete its dependency"""
-        # Also applies to compute fields
         comodel = self.env["ir.model"].search([("model", "=", self.COMODEL)])
 
         field = self.create_field("x_my_char")
@@ -1924,11 +1828,9 @@ class TestCustomFields(TestCommonCustomFields):
             }
         )
 
-        # normal mode: you cannot break dependencies
         with self.assertRaises(UserError):
             field.unlink()
 
-        # uninstall mode: unlink dependant fields
         field.with_context(_force_unlink=True).unlink()
         self.assertFalse(dependant.exists())
 
@@ -1944,11 +1846,9 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertTrue(inherited_field)
         self.assertEqual(inherited_field.state, "base")
 
-        # one cannot delete the inherited field itself
         with self.assertRaises(UserError):
             inherited_field.unlink()
 
-        # but the inherited field is deleted when its parent field is
         field.unlink()
         self.assertFalse(field.exists())
         self.assertFalse(inherited_field.exists())
@@ -1972,24 +1872,17 @@ class TestCustomFields(TestCommonCustomFields):
 
     def test_related_field(self):
         """create a custom related field, and check filled values"""
-        # Equivalent to: x_oh_boy = fields.Char(related="country_id.code", store=True)
 
-        # pick N=100 records in comodel
         countries = self.env["res.country"].search([("code", "!=", False)], limit=100)
         self.assertEqual(
             len(countries), 100, "Not enough records in comodel 'res.country'"
         )
 
-        # create records in model, with N distinct values for the related field
         partners = self.env["res.partner"].create(
             [{"name": country.code, "country_id": country.id} for country in countries]
         )
         self.env.flush_all()
 
-        # create a non-computed field, and assert how many queries it takes.
-        # The baseline includes schema-time validation of res.partner's GIN
-        # indexes (complete_name trigram, barcode) triggered by the registry
-        # reload — paid only on reload, not per request.
         model_id = self.env["ir.model"]._get_id("res.partner")
         query_count = 57
         with self.assertQueryCount(query_count):
@@ -2004,7 +1897,6 @@ class TestCustomFields(TestCommonCustomFields):
                 }
             )
 
-        # same with a related field, it only takes 6 extra queries
         with self.assertQueryCount(query_count + 6):
             self.env.registry.clear_cache()
             self.env["ir.model.fields"].create(
@@ -2018,7 +1910,6 @@ class TestCustomFields(TestCommonCustomFields):
                 }
             )
 
-        # check the computed values
         for partner in partners:
             self.assertEqual(partner.x_oh_boy, partner.country_id.code)
 
@@ -2035,7 +1926,6 @@ class TestCustomFields(TestCommonCustomFields):
             }
         )
 
-        # change the relation
         with self.assertRaises(ValidationError):
             field.relation = "foo"
 
@@ -2060,7 +1950,6 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertEqual(x_sel.type, "selection")
         self.assertEqual(x_sel.selection, [("foo", "Foo"), ("bar", "Bar")])
 
-        # add selection value 'baz'
         field.selection_ids.create(
             {
                 "field_id": field.id,
@@ -2075,7 +1964,6 @@ class TestCustomFields(TestCommonCustomFields):
             x_sel.selection, [("foo", "Foo"), ("bar", "Bar"), ("baz", "Baz")]
         )
 
-        # assign values to records
         rec1 = Model.create({"name": "Rec1", "x_sel": "foo"})
         rec2 = Model.create({"name": "Rec2", "x_sel": "bar"})
         rec3 = Model.create({"name": "Rec3", "x_sel": "baz"})
@@ -2083,7 +1971,6 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertEqual(rec2.x_sel, "bar")
         self.assertEqual(rec3.x_sel, "baz")
 
-        # remove selection value 'foo'
         field.selection_ids[0].unlink()
         x_sel = Model._fields["x_sel"]
         self.assertEqual(x_sel.type, "selection")
@@ -2093,7 +1980,6 @@ class TestCustomFields(TestCommonCustomFields):
         self.assertEqual(rec2.x_sel, "bar")
         self.assertEqual(rec3.x_sel, "baz")
 
-        # update selection value 'bar'
         field.selection_ids[0].value = "quux"
         x_sel = Model._fields["x_sel"]
         self.assertEqual(x_sel.type, "selection")
@@ -2115,8 +2001,6 @@ class TestCustomFieldsPostInstall(TestCommonCustomFields):
         This is to forbid users to override class attributes.
         """
         field = self.create_field("x_foo")
-        # Drop the SQL constraint, to bypass it,
-        # as a user could do through a SQL shell or a `cr.execute` in a server action
         self.env.cr.execute(
             "ALTER TABLE ir_model_fields DROP CONSTRAINT ir_model_fields_name_manual_field"
         )
@@ -2124,7 +2008,6 @@ class TestCustomFieldsPostInstall(TestCommonCustomFields):
             "UPDATE ir_model_fields SET name = 'foo' WHERE id = %s", [field.id]
         )
         with self.assertLogs("odoo.registry") as log_catcher:
-            # Trick to reload the registry. The above rename done through SQL didn't reload the registry. This will.
             self.env.registry._setup_models__(self.cr, [self.MODEL])
             self.assertIn(
                 f"The field `{field.name}` is not defined in the `{field.model}` Python class",

@@ -47,11 +47,11 @@ class TestSQL(BaseCase):
         sql = SQL("'%%' || %s", "a")
         self.assertEqual(sql.code, "'%%' || %s")
         with self.assertRaises(TypeError):
-            SQL("'%'")  # not enough arguments
+            SQL("'%'")
         with self.assertRaises(ValueError):
-            SQL("'%' || %s", "a")  # unescaped percent
+            SQL("'%' || %s", "a")
         with self.assertRaises(TypeError):
-            SQL("'%%' || %s")  # not enough arguments
+            SQL("'%%' || %s")
 
         self.assertEqual(SQL("'foo%%'").code, "'foo%%'")
         self.assertEqual(SQL("'foo%%' || %s", "bar").code, "'foo%%' || %s")
@@ -124,9 +124,6 @@ class TestSQL(BaseCase):
         self.assertEqual(sql.code, '"foo"."bar"')
         self.assertEqual(sql.params, ())
 
-        # Invalid identifiers raise ValueError (not assert): this is an
-        # injection barrier and must hold under ``python -O``, which strips
-        # asserts.
         with self.assertRaises(ValueError):
             sql = SQL.identifier('foo"')
 
@@ -156,10 +153,6 @@ class TestSQL(BaseCase):
             "except ValueError:\n"
             "    print('SAFE')\n"
         )
-        # Propagate the parent's import paths so the child can ``import odoo``
-        # even when run from source (odoo-bin injects ``addons/odoo`` into
-        # sys.path at runtime); otherwise the subprocess ModuleNotFoundErrors and
-        # the security check never runs.
         env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
         out = subprocess.run(
             [sys.executable, "-O", "-c", snippet],
@@ -200,7 +193,6 @@ class TestSQL(BaseCase):
         self.assertEqual(sql.params, (1, 2))
         self.assertEqual(sql, SQL("SELECT id FROM table WHERE foo=%s AND bar=%s", 1, 2))
 
-        # the parameters are bound locally
         sql = SQL(
             "%s AND %s",
             SQL("foo=%(value)s", value=1),
@@ -246,11 +238,9 @@ class TestSqlTools(TransactionCase):
         definition = "CHECK (name !~ '%')"
         sql.add_constraint(self.env.cr, "res_bank", "test_constraint_dummy", definition)
 
-        # ensure the constraint with % works and it's in the DB
         with self.assertRaises(CheckViolation), mute_logger("odoo.db"):
             self.env["res.bank"].create({"name": r"10% bank"})
 
-        # ensure the definitions match
         db_definition = sql.constraint_definition(
             self.env.cr, "res_bank", "test_constraint_dummy"
         )
@@ -266,7 +256,6 @@ class TestSqlTools(TransactionCase):
             unique=False,
         )
 
-        # check the definition
         db_definition, db_comment = sql.index_definition(
             self.env.cr, "res_bank_test_name"
         )
@@ -285,9 +274,8 @@ class TestSqlTools(TransactionCase):
             comment=comment,
         )
 
-        # ensure the definitions match (definition is the comment if it is set)
         db_definition, db_comment = sql.index_definition(
             self.env.cr, "res_bank_test_percent_escape"
         )
-        self.assertIn("WHERE", db_definition)  # the definition is rewritten by postgres
+        self.assertIn("WHERE", db_definition)
         self.assertEqual(db_comment, comment)

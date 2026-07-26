@@ -16,16 +16,16 @@ IGNORE_MODEL_NAMES_DISPLAY_NAME = {
 }
 
 IGNORE_MODEL_NAMES_NEW_FORM = {
-    "account.report.line",  # only used as wizard, and display_name isn't computed in a wizard but Form adds display_name automatically
-    "chatbot.script.step",  # only used as wizard
-    "stock.warehouse",  # avoid warning "Creating a new warehouse will automatically activate the Storage Locations setting"
-    "website.visitor",  # Visitors can only be created through the frontend.
-    "marketing.activity",  # only used as wizard and always used from marketing.campaign
-    "crm.stage",  # Avoid warning "Changing the value of 'Is Won Stage' may induce ..."
+    "account.report.line",
+    "chatbot.script.step",
+    "stock.warehouse",
+    "website.visitor",
+    "marketing.activity",
+    "crm.stage",
 }
 
 IGNORE_COMPUTED_FIELDS = {
-    "account.payment.register.payment_token_id",  # must be computed within a specific environment
+    "account.payment.register.payment_token_id",
 }
 
 
@@ -45,8 +45,6 @@ class TestEveryModel(TransactionCase):
                 msg="`_compute_display_name` doesn't work with new record (first onchange call).",
                 model=model_name,
             ):
-                # The first onchange must handle display_name on every model,
-                # else clicking New fails.
                 fields_used = model._fields["display_name"].get_depends(model)[0]
                 fields_used = [f.split(".", 1)[0] for f in fields_used]
                 fields_spec = {key: {} for key in fields_used + ["display_name"]}
@@ -96,7 +94,6 @@ class TestEveryModel(TransactionCase):
                     continue
                 if not field.compute or self.registry.field_depends[field]:
                     continue
-                # ignore if the field does not appear in a form view
                 domain = [
                     ("model", "=", model._name),
                     ("type", "=", "form"),

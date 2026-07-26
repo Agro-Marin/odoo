@@ -31,7 +31,6 @@ class TestInit(BaseCase):
             **(env or {}),
             "PYTHONPATH": str(self.python_path),
         }
-        # disable warnings for frozen_modules when debugger is running
         return subprocess.run(
             [sys.executable, "-c", code],
             capture_output=capture_output,

@@ -95,11 +95,9 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertTrue(partners)
         ids = partners.ids
 
-        # modify those partners, and check that partners has not changed
         partners.write({"active": False})
         self.assertEqual(ids, partners.ids)
 
-        # redo the search, and check that the result is now empty
         partners2 = self.env["res.partner"].search(domain)
         self.assertFalse(partners2)
 
@@ -126,12 +124,10 @@ class TestAPI(SavepointCaseWithUserDemo):
     @mute_logger("odoo.models")
     def test_07_null(self):
         """Check behavior of null instances."""
-        # select a partner without a parent
         partner = self.env["res.partner"].search(
             [("parent_id", "=", False), ("id", "in", self.partners.ids)]
         )[0]
 
-        # check partner and related null instances
         self.assertTrue(partner)
         self.assertIsRecord(partner, "res.partner")
 
@@ -156,7 +152,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         )
         self.assertTrue(partners)
 
-        # call method write on partners itself, and check its effect
         partners.write({"active": False})
         for p in partners:
             self.assertFalse(p.active)
@@ -169,7 +164,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         )
         self.assertTrue(partners)
 
-        # call method write on partner records, and check its effects
         for p in partners:
             p.write({"active": False})
         for p in partners:
@@ -179,7 +173,6 @@ class TestAPI(SavepointCaseWithUserDemo):
     @mute_logger("odoo.addons.base.models.ir_model")
     def test_50_environment(self):
         """Test environment on records."""
-        # partners and reachable records are attached to self.env
         partners = self.env["res.partner"].search(
             [("name", "ilike", "j"), ("id", "in", self.partners.ids)]
         )
@@ -189,11 +182,9 @@ class TestAPI(SavepointCaseWithUserDemo):
         for p in partners:
             self.assertEqual(p.env, self.env)
 
-        # check that the current user can read and modify company data
         _ = partners[0].company_id.name
         partners[0].company_id.write({"name": "Fools"})
 
-        # create an environment with a demo user
         demo = self.env["res.users"].create(
             {
                 "name": "test_environment_demo",
@@ -204,14 +195,12 @@ class TestAPI(SavepointCaseWithUserDemo):
         demo_env = self.env(user=demo)
         self.assertNotEqual(demo_env, self.env)
 
-        # partners and related records are still attached to self.env
         self.assertEqual(partners.env, self.env)
         for x in (partners, partners[0], partners[0].company_id):
             self.assertEqual(x.env, self.env)
         for p in partners:
             self.assertEqual(p.env, self.env)
 
-        # create record instances attached to demo_env
         demo_partners = partners.with_user(demo)
         self.assertEqual(demo_partners.env, demo_env)
         for x in (demo_partners, demo_partners[0], demo_partners[0].company_id):
@@ -219,7 +208,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         for p in demo_partners:
             self.assertEqual(p.env, demo_env)
 
-        # demo user can read but not modify company data
         demo_partner = (
             self.env["res.partner"]
             .search([("name", "=", "Landon Roberts")])
@@ -233,10 +221,8 @@ class TestAPI(SavepointCaseWithUserDemo):
         with self.assertRaises(AccessError):
             demo_partner.company_id.write({"name": "Pricks"})
 
-        # remove demo user from all groups
         demo.write({"group_ids": [Command.clear()]})
 
-        # demo user can no longer access partner data
         with self.assertRaises(AccessError):
             _ = demo_partner.company_id.name
 
@@ -265,22 +251,18 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertTrue(children1)
         self.assertTrue(children2)
 
-        # take a child contact
         child = children1[0]
         self.assertEqual(child.parent_id, partner1)
         self.assertIn(child, partner1.child_ids)
         self.assertNotIn(child, partner2.child_ids)
 
-        # fetch data in the cache
         for p in partners:
             _ = p.name, p.company_id.name, p.user_id.name, p.contact_address
         self.env.cache.check(self.env)
 
-        # change its parent
         child.write({"parent_id": partner2.id})
         self.env.cache.check(self.env)
 
-        # check recordsets
         self.assertEqual(child.parent_id, partner2)
         self.assertNotIn(child, partner1.child_ids)
         self.assertIn(child, partner2.child_ids)
@@ -288,16 +270,13 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertEqual(set(partner2.child_ids), set(children2 + child))
         self.env.cache.check(self.env)
 
-        # delete it
         child.unlink()
         self.env.cache.check(self.env)
 
-        # check recordsets
         self.assertEqual(set(partner1.child_ids), set(children1) - {child})
         self.assertEqual(set(partner2.child_ids), set(children2))
         self.env.cache.check(self.env)
 
-        # convert from the cache format to the write format
         partner = partner1
         _ = partner.country_id, partner.child_ids
         data = partner._convert_to_write(partner._cache)
@@ -312,10 +291,8 @@ class TestAPI(SavepointCaseWithUserDemo):
         )
         self.assertTrue(len(partners) > 1)
 
-        # all the records in partners are ready for prefetching
         self.assertItemsEqual(partners.ids, partners._prefetch_ids)
 
-        # reading ONE partner should fetch them ALL
         for partner in partners:
             state = partner.state_id
             break
@@ -324,7 +301,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         ]
         self.assertItemsEqual(partner_ids_with_field, partners.ids)
 
-        # partners' states are ready for prefetching
         state_ids = {
             partner._cache["state_id"]
             for partner in partners
@@ -333,7 +309,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertTrue(len(state_ids) > 1)
         self.assertItemsEqual(state_ids, state._prefetch_ids)
 
-        # reading ONE partner country should fetch ALL partners' countries
         for partner in partners:
             if partner.state_id:
                 _ = partner.state_id.name
@@ -357,18 +332,15 @@ class TestAPI(SavepointCaseWithUserDemo):
         def diff_prefetch(a, b):
             self.assertNotEqual(set(a._prefetch_ids), set(b._prefetch_ids))
 
-        # the recordset operations below use different prefetch sets
         diff_prefetch(partners, partners.browse())
         diff_prefetch(partners, partners[:5])
 
-        # the recordset operations below share the prefetch set
         same_prefetch(partners, partners[0])
         same_prefetch(partners, partners.browse(partners.ids))
         same_prefetch(partners, partners.with_user(self.user_demo))
         same_prefetch(partners, partners.with_context(active_test=False))
         same_prefetch(partners, partners[:10].with_prefetch(partners._prefetch_ids))
 
-        # iteration and relational fields should use the same prefetch set
         self.assertEqual(type(partners).country_id.type, "many2one")
         self.assertEqual(type(partners).bank_ids.type, "one2many")
         self.assertEqual(type(partners).category_id.type, "many2many")
@@ -403,14 +375,12 @@ class TestAPI(SavepointCaseWithUserDemo):
         partner2 = Partner.create({"name": "Bar", "parent_id": partner1.id})
         self.assertEqual(partner1.child_ids, partner2)
 
-        # reading partner1 should not prefetch 'company_type' on partner2
         self.env.clear()
         partner1 = partner1.with_prefetch()
         partner1.read(["company_type"])
         self.assertIn("company_type", partner1._cache)
         self.assertNotIn("company_type", partner2._cache)
 
-        # reading partner1 should not prefetch 'company_type' on partner2
         self.env.clear()
         partner1 = partner1.with_prefetch()
         partner1.read(["child_ids", "company_type"])
@@ -421,7 +391,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         records = self.partners
         self.assertGreater(len(records), 1)
 
-        # check order
         self.assertEqual(list(reversed(records)), list(reversed(list(records))))
 
         first = next(iter(records))
@@ -429,7 +398,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertEqual(first, records[0])
         self.assertEqual(last, records[-1])
 
-        # check prefetching
         prefetch_ids = records.ids
         reversed_ids = [record.id for record in reversed(records)]
 
@@ -439,7 +407,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertEqual(list(reversed(first._prefetch_ids)), reversed_ids)
         self.assertEqual(list(reversed(last._prefetch_ids)), prefetch_ids)
 
-        # check prefetching across many2one field
         prefetch_ids = records.state_id.ids
         reversed_ids = list(
             unique(
@@ -453,7 +420,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertEqual(list(reversed(first.state_id._prefetch_ids)), reversed_ids)
         self.assertEqual(list(reversed(last.state_id._prefetch_ids)), prefetch_ids)
 
-        # check prefetching across x2many field
         prefetch_ids = records.child_ids.ids
         reversed_ids = list(
             unique(
@@ -470,7 +436,6 @@ class TestAPI(SavepointCaseWithUserDemo):
     @mute_logger("odoo.models")
     def test_70_one(self):
         """Check method one()."""
-        # check with many records
         ps = self.env["res.partner"].search(
             [("name", "ilike", "a"), ("id", "in", self.partners.ids)]
         )
@@ -556,7 +521,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertGreaterEqual(union, pa)
         self.assertGreaterEqual(union, pb)
 
-        # one cannot mix different models with set operations
         ps = pa
         ms = self.env["ir.ui.menu"].search([])
         self.assertNotEqual(ps._name, ms._name)
@@ -635,7 +599,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertGreaterEqual(union, pa)
         self.assertGreaterEqual(union, pb)
 
-        # one cannot mix different models with set operations
         ps = pa
         ms = lazy(lambda: self.env["ir.ui.menu"].search([]))
         self.assertNotEqual(ps._name, ms._name)
@@ -681,11 +644,9 @@ class TestAPI(SavepointCaseWithUserDemo):
         ps = self.partners
         customers = ps.browse([p.id for p in ps if p.employee])
 
-        # filter on a single field
         self.assertEqual(ps.filtered(lambda p: p.employee), customers)
         self.assertEqual(ps.filtered("employee"), customers)
 
-        # filter on a sequence of fields
         self.assertEqual(
             ps.filtered(lambda p: p.parent_id.employee),
             ps.filtered("parent_id.employee"),
@@ -699,12 +660,10 @@ class TestAPI(SavepointCaseWithUserDemo):
         for p in ps:
             parents |= p.parent_id
 
-        # map a single field
         self.assertEqual(ps.mapped(lambda p: p.parent_id), parents)
         self.assertEqual(ps.mapped("parent_id"), parents)
         self.assertEqual(ps.parent_id, parents)
 
-        # map a sequence of fields
         self.assertEqual(
             ps.mapped(lambda p: p.parent_id.name),
             [p.parent_id.name for p in ps],
@@ -712,7 +671,6 @@ class TestAPI(SavepointCaseWithUserDemo):
         self.assertEqual(ps.mapped("parent_id.name"), [p.name for p in parents])
         self.assertEqual(ps.parent_id.mapped("name"), [p.name for p in parents])
 
-        # map an empty sequence of fields
         self.assertEqual(ps.mapped(""), ps)
 
     @mute_logger("odoo.models")
@@ -720,16 +678,13 @@ class TestAPI(SavepointCaseWithUserDemo):
         """Check sorted on recordsets."""
         ps = self.env["res.partner"].search([("id", "in", self.partners.ids)])
 
-        # sort by model order
         qs = ps[: len(ps) // 2] + ps[len(ps) // 2 :]
         self.assertEqual(qs.sorted().ids, ps.ids)
 
-        # sort by name, with a function or a field name
         by_name_ids = [p.id for p in sorted(ps, key=lambda p: p.name)]
         self.assertEqual(ps.sorted(lambda p: p.name).ids, by_name_ids)
         self.assertEqual(ps.sorted("name").ids, by_name_ids)
 
-        # sort by inverse name, with a field name
         by_name_ids = [p.id for p in sorted(ps, key=lambda p: p.name, reverse=True)]
         self.assertEqual(ps.sorted("name", reverse=True).ids, by_name_ids)
 
@@ -755,17 +710,11 @@ class TestAPI(SavepointCaseWithUserDemo):
 
         with self.subTest("Should allow cross-group prefetching"):
             byfn = (p0 | p1 | p2).grouped("function")
-            # Flush before invalidating: since 2b88ae734aa, res.partner create()
-            # computes commercial_partner_id (in _children_sync) and marks it
-            # dirty, and invalidate_all(flush=False) keeps dirty entries in cache,
-            # so without a flush the cache would not be empty here.
             self.env.invalidate_all()
             self.assertFalse(
                 dict(self.env._core.iter_field_items()),
                 "ensure the cache is empty",
             )
             self.assertEqual(byfn["guest"].mapped("name"), ["bob", "rhod"])
-            # name should have been prefetched by previous statement (on guest
-            # group), so should be nothing here
             with self.assertQueries([]):
                 _ = byfn["host"].name

@@ -41,29 +41,15 @@ from .ir_cron import ODOO_NOTIFY_FUNCTION, BadVersionError, IrCron
 
 _logger = logging.getLogger(__name__)
 
-# LISTEN/NOTIFY channel; must match JOB_QUEUE_CHANNEL in odoo/service/_cron.py
-# (kept as a literal here for the same reason ir_cron hardcodes
-# "cron_trigger": base models do not import odoo.service).
 JOB_QUEUE_CHANNEL = "job_queue"
 
-# Context keys copied from the enqueuing environment into the job.  Everything
-# else is dropped: the context is attacker-reachable data once persisted, and
-# keys like ``default_*`` / ``active_test`` could change what the job writes.
 ALLOWED_CONTEXT_KEYS = ("lang", "tz", "allowed_company_ids")
 
-# A ``started`` job younger than this is never considered for reaping, closing
-# any doubt about claim-to-lock ordering races (the lock is in fact acquired
-# before the claim commits, so this is belt-and-braces).
 DEAD_JOB_GRACE_S = 60
 
-# Default retry backoff: 10s, 20s, 40s, ... capped at 1h.  A RetryableJobError
-# with an explicit ``seconds`` overrides it.
 RETRY_BACKOFF_BASE_S = 10
 RETRY_BACKOFF_MAX_S = 3600
 
-# Autovacuum retention: how long finished jobs are kept for audit before
-# garbage collection.  Failed jobs stay longer — they are the ones someone
-# may still need to inspect and requeue.
 DONE_RETENTION = timedelta(days=7)
 FAILED_RETENTION = timedelta(days=30)
 
@@ -250,13 +236,7 @@ class IrJob(models.Model):
         readonly=True,
     )
 
-    # Matches _claim_next exactly: the claim query filters state='pending'
-    # (plus a non-indexable eta test) and orders by (priority, create_date,
-    # id) with NO channel filter — a leading channel column would force a
-    # full sort of the pending set instead of an ordered index scan.
     _claim_idx = models.Index("(priority, create_date, id) WHERE state = 'pending'")
-    # Serves the per-channel capacity subquery in _claim_next, which counts
-    # started rows; those are invisible to the pending-only partial above.
     _capacity_idx = models.Index("(channel) WHERE state = 'started'")
     _identity_uniq = models.UniqueIndex(
         "(identity_key) WHERE state IN ('wait_deps', 'pending', 'started')"
@@ -273,10 +253,6 @@ class IrJob(models.Model):
         enqueue, NOTIFY, claim, execute — works on a deployment.
         """
         _logger.info("ir.job ping: %s", message or "pong")
-
-    # ------------------------------------------------------------------
-    # Enqueue side (runs in the caller's transaction)
-    # ------------------------------------------------------------------
 
     @api.model
     def _enqueue(
@@ -409,10 +385,6 @@ class IrJob(models.Model):
         )
         row = env.cr.fetchone()
         if row is None:
-            # identity_key dedup hit — return the live twin instead.  READ
-            # COMMITTED window: the twin may complete between our INSERT and
-            # this SELECT; ordering by id DESC returns the twin regardless of
-            # its state, which is the correct dedup answer either way.
             env.cr.execute(
                 SQL(
                     "SELECT id FROM ir_job WHERE identity_key = %s"
@@ -453,10 +425,6 @@ class IrJob(models.Model):
             )
         _logger.debug("job workers notified (%s)", db_name)
 
-    # ------------------------------------------------------------------
-    # Worker side (runs on a worker's own cursor; no request environment)
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _process_jobs(db_name: str) -> None:
         """Claim and execute every ready job of this database.
@@ -483,15 +451,7 @@ class IrJob(models.Model):
                         db_name,
                     )
                     return
-                # Rescue jobs of dead workers first: their corpses hold
-                # channel capacity, so reaping must precede claiming.
                 IrJob._reap_dead_jobs(pre_cr)
-                # Repair sweep for the dependency graph: releases wait_deps
-                # jobs whose dependencies all completed and cascade-cancels
-                # those with a failed/cancelled dependency.  The inline
-                # resolution in _run_claimed/_record_failure is the fast
-                # path; this sweep guarantees enqueue-time races only delay
-                # a job by one worker pass instead of stranding it.
                 IrJob._resolve_dependencies(pre_cr)
                 pre_cr.commit()
                 pre_cr.execute(
@@ -506,8 +466,6 @@ class IrJob(models.Model):
                 "Skipping database %s as its base version is not current.", db_name
             )
         except psycopg.errors.UndefinedTable:
-            # ir_job does not exist: pre-19.0-irjob database or not an Odoo
-            # database at all — nothing to process either way.
             _logger.debug("No ir_job table on database %s.", db_name)
         except db.PoolError:
             _logger.info("Skipping database %s: could not connect.", db_name)
@@ -526,18 +484,13 @@ class IrJob(models.Model):
             while True:
                 job = IrJob._claim_next(cr, worker_ident)
                 if job is None:
-                    cr.rollback()  # release the claim advisory xact-lock
+                    cr.rollback()
                     break
-                # Session-level liveness lock, taken BEFORE the claim commits:
-                # once 'started' is visible to reapers, the lock is already
-                # held, so there is no window in which a live job looks dead.
                 cr.execute(
                     SQL("SELECT pg_advisory_lock(%s)", _advisory_key_sql(job["id"]))
                 )
                 cr.commit()
                 try:
-                    # Dispatched through the registry class so per-database
-                    # overrides of _run_claimed apply.
                     registry[IrJob._name]._run_claimed(cr, job)
                     cr.commit()
                 except Exception as exc:
@@ -549,8 +502,6 @@ class IrJob(models.Model):
                             job["model_name"],
                             job["method_name"],
                         )
-                    # Registry dispatch: per-database overrides of the failure
-                    # recording (and its _notify_failed hook) apply.
                     registry[IrJob._name]._record_failure(cr, job, exc)
                     cr.commit()
                 finally:
@@ -645,10 +596,6 @@ class IrJob(models.Model):
                 job["id"],
             )
         )
-        # Release dependents in the SAME transaction: completion and the
-        # promotion of waiting jobs are atomic.  The worker's claim loop
-        # picks promoted jobs up immediately; the postcommit NOTIFY covers
-        # the manual-run path and other instances.
         released = IrJob._release_dependents(cr, job["id"])
         if released:
             db_name = cr.dbname
@@ -751,7 +698,7 @@ class IrJob(models.Model):
                 SQL("SELECT pg_try_advisory_lock(%s)", _advisory_key_sql(job_id))
             )
             if not cr.fetchone()[0]:
-                continue  # still alive and running
+                continue
             try:
                 if retry < max_retries:
                     cr.execute(
@@ -782,10 +729,6 @@ class IrJob(models.Model):
                 cr.execute(
                     SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id))
                 )
-
-    # ------------------------------------------------------------------
-    # Dependency graph resolution
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _release_dependents(cr, job_id: int) -> int:
@@ -907,12 +850,7 @@ class IrJob(models.Model):
         ]
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
-        # autovacuum contract: (records removed, whether more may remain)
         return len(records), len(records) == GC_UNLINK_LIMIT
-
-    # ------------------------------------------------------------------
-    # User-facing helpers
-    # ------------------------------------------------------------------
 
     @api.depends("name", "model_name", "method_name")
     def _compute_display_name(self) -> None:

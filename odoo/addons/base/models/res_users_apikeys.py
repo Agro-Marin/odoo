@@ -9,19 +9,16 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
+from odoo.libs.password import CryptContext
 from odoo.tools import SQL
-from odoo.tools.password import CryptContext
 
 from .res_users import check_identity
 
 _logger = logging.getLogger(__name__)
 
-# API keys support
-API_KEY_SIZE = 20  # in bytes
-INDEX_SIZE = 8  # in hex digits, so 4 bytes, or 20% of the key
+API_KEY_SIZE = 20
+INDEX_SIZE = 8
 KEY_CRYPT_CONTEXT = CryptContext(
-    # default 29000 rounds (25~50ms) is unnecessary here: keys are fully random,
-    # so dictionary attacks aren't a concern
     ["pbkdf2_sha512"],
     pbkdf2_sha512__rounds=6000,
 )
@@ -30,7 +27,7 @@ KEY_CRYPT_CONTEXT = CryptContext(
 class ResUsersApikeys(models.Model):
     _name = "res.users.apikeys"
     _description = "Users API Keys"
-    _auto = False  # so we can have a secret column
+    _auto = False
     _allow_sudo_commands = False
 
     name = fields.Char("Description", required=True, readonly=True)
@@ -47,8 +44,6 @@ class ResUsersApikeys(models.Model):
 
     def init(self) -> None:
         table = SQL.identifier(self._table)
-        # INDEX_SIZE is embedded directly because DDL structural positions
-        # (varchar length, CHECK constraints) cannot use server-side binding.
         self.env.cr.execute(
             SQL(
                 f"""
@@ -69,7 +64,6 @@ class ResUsersApikeys(models.Model):
 
         index_name = self._table + "_user_id_index_idx"
         if len(index_name) > 63:
-            # unique determinist index name
             index_name = (
                 self._table[:50]
                 + "_idx_"
@@ -113,15 +107,6 @@ class ResUsersApikeys(models.Model):
         )
 
     def unlink(self) -> bool:
-        # AK-P2 (audit 2026-07-06): revoking a key MUST drop the memoised
-        # credential check. `res.users._check_uid_passwd_cached` memoises
-        # *successful* authentications (including the API-key path); without this
-        # clear a revoked key keeps authenticating RPC until an unrelated
-        # invalidation. Clearing here rather than only in `_remove` also covers
-        # direct deletion via `res.users.api_key_ids` (a SELF_WRITEABLE_FIELDS
-        # one2many, so `Command.delete` bypasses `_remove`). Key creation needs
-        # no clear: a failed check raises and ormcache memoises values, not
-        # exceptions.
         res = super().unlink()
         self.env.registry.clear_cache()
         return res
@@ -135,12 +120,6 @@ class ResUsersApikeys(models.Model):
         :return: the owning user id, or None when no active, unexpired key matches.
         :rtype: int | None
         """
-        # AK-L1 (audit 2026-05-28, S3 latent, accepted): candidate rows are
-        # narrowed by `index = key[:INDEX_SIZE]`, the first 8 hex chars (32 bits)
-        # stored in cleartext for lookup speed. Deliberate trade-off: the full
-        # secret is only stored as a salted pbkdf2 hash, so DB read access still
-        # leaves the remaining 128 bits infeasible. verify() calls scale with
-        # prefix collisions, not the secret, so this is not a timing oracle.
         if not scope or not key:
             msg = "scope and key required"
             raise ValueError(msg)
@@ -220,15 +199,11 @@ class ResUsersApikeys(models.Model):
         :raises ValidationError: when a non-system user omits the date or exceeds
             the maximum duration allowed by their group privileges.
         """
-        # A system (or sudoed) user may create a persistent key or exceed the
-        # user's maximum duration.
         if self.env.is_system():
             return
         if not date:
             raise ValidationError(_("The API key must have an expiration date"))
         max_duration = self._get_max_duration()
-        # fields.Datetime.now() is freeze-time patchable (matching
-        # _compute_expiration_date), unlike datetime.now(UTC).
         if date > fields.Datetime.now() + datetime.timedelta(days=max_duration):
             raise ValidationError(
                 _("You cannot exceed %(duration)s days.", duration=max_duration)
@@ -265,13 +240,8 @@ class ResUsersApikeys(models.Model):
         :raises AccessError: when ``self.env.user`` may not hold API keys
             (see :meth:`_check_generate_access`).
         """
-        # AK-P1 (audit 2026-05-28): enforce the key-holding policy at the
-        # minting primitive, not only the make_key UI path, so any caller of
-        # _generate is self-guarded. Exceeding the user's max duration
-        # requires a sudoed env (env.is_system()).
         self._check_generate_access()
         self._check_expiration_date(expiration_date)
-        # no need to clear the LRU when *adding* a key, only when removing
         k = binascii.hexlify(os.urandom(API_KEY_SIZE)).decode()
         self.env.cr.execute(
             SQL(
@@ -316,9 +286,6 @@ class ResUsersApikeys(models.Model):
         )
         count = self.env.cr.rowcount
         if count:
-            # AK-P2: a key that authenticated while valid may still be memoised
-            # in res.users._check_uid_passwd_cached past its expiration date;
-            # this raw DELETE bypasses unlink(), so clear the cache here too.
             self.env.registry.clear_cache()
         _logger.info("GC %r delete %d entries", self._name, count)
 
@@ -328,7 +295,6 @@ class ResUsersApikeysDescription(models.TransientModel):
     _description = "API Key Description"
 
     def _selection_duration(self) -> list[tuple[str, str]]:
-        # duration value is a string representing the number of days.
         durations = [
             ("1", "1 Day"),
             ("7", "1 Week"),
@@ -340,11 +306,11 @@ class ResUsersApikeysDescription(models.TransientModel):
         persistent_duration = (
             "0",
             "Persistent Key",
-        )  # Magic value to detect an infinite duration
+        )
         custom_duration = (
             "-1",
             "Custom Date",
-        )  # Will force the user to enter a date manually
+        )
         if self.env.is_system():
             return durations + [persistent_duration, custom_duration]
         max_duration = self.env["res.users.apikeys"]._get_max_duration()
@@ -392,8 +358,6 @@ class ResUsersApikeysDescription(models.TransientModel):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         records = super().create(vals_list)
-        # Validate per record: reading `expiration_date` on the whole batch
-        # would raise an ensure_one ValueError for a multi-record create.
         apikeys = self.env["res.users.apikeys"]
         for record in records:
             apikeys._check_expiration_date(record.expiration_date)
@@ -401,7 +365,6 @@ class ResUsersApikeysDescription(models.TransientModel):
 
     @check_identity
     def make_key(self) -> dict[str, Any]:
-        # only create keys for users who can delete their keys
         self.check_access_make_key()
 
         description = self.sudo()
@@ -422,8 +385,6 @@ class ResUsersApikeysDescription(models.TransientModel):
         }
 
     def check_access_make_key(self) -> None:
-        # Delegate to the minting primitive's policy so both paths always
-        # agree on who may hold API keys.
         self.env["res.users.apikeys"]._check_generate_access()
 
 
@@ -431,6 +392,5 @@ class ResUsersApikeysShow(models.AbstractModel):
     _name = "res.users.apikeys.show"
     _description = "Show API Key"
 
-    # the field 'id' is necessary for the onchange that returns the value of 'key'
     id = fields.Id()
     key = fields.Char(readonly=True)

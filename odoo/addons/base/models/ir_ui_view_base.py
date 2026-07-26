@@ -8,8 +8,6 @@ from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.tools import _, config, frozendict
 
-# ir_ui_view is imported before ir_ui_view_base (see models/__init__.py) and
-# never imports back, so reusing its compiled XPath here is cycle-free.
 from .ir_ui_view import _xpath_descendant_field
 
 if TYPE_CHECKING:
@@ -21,7 +19,7 @@ _logger = logging.getLogger(__name__)
 class Base(models.AbstractModel):
     _inherit = "base"
 
-    _date_name = "date"  #: field to use for default calendar view
+    _date_name = "date"
 
     def _get_access_action(
         self, access_uid: int | None = None, force_website: bool = False
@@ -74,8 +72,6 @@ class Base(models.AbstractModel):
             ):
                 continue
             if field.type in ("one2many", "many2many", "text", "html"):
-                # x2many/text/html get a full-width oneline group; flush any
-                # pending left/right columns first.
                 if len(left_group) > 0:
                     main_group.append(left_group)
                     left_group = E.group()
@@ -235,7 +231,6 @@ class Base(models.AbstractModel):
                 )
             }
 
-        # Add related action information if asked
         if options.get("toolbar"):
             for view in result["views"].values():
                 view["toolbar"] = {}
@@ -285,16 +280,11 @@ class Base(models.AbstractModel):
         """
         IrUiView = self.env["ir.ui.view"].sudo()
 
-        # try to find a view_id if none provided
         if not view_id:
-            # <view_type>_view_ref in context can be used to override the default view
             view_ref_key = view_type + "_view_ref"
             view_ref = self.env.context.get(view_ref_key)
             if view_ref:
                 if "." in view_ref:
-                    # Use the ormcached xmlid resolver (not a raw ir_model_data
-                    # query) and warn instead of silently falling back when the
-                    # reference is dangling or points to another model.
                     ref_model, ref_res_id = self.env[
                         "ir.model.data"
                     ]._xmlid_to_res_model_res_id(view_ref, raise_if_not_found=False)
@@ -327,15 +317,12 @@ class Base(models.AbstractModel):
                     )
 
             if not view_id:
-                # otherwise try to find the lowest priority matching ir.ui.view
                 view_id = IrUiView.default_view(self._name, view_type)
 
         if view_id:
-            # read the view with inherited views applied
             view = IrUiView.browse(view_id)
             arch = view._get_combined_arch()
         else:
-            # fallback on default views methods if no ir.ui.view could be found
             view = IrUiView.browse()
             method = getattr(self, f"_get_default_{view_type}_view", None)
             if method is None:
@@ -380,9 +367,6 @@ class Base(models.AbstractModel):
             x2many fields
         :rtype: tuple
         """
-        # sorted: context insertion order must not leak into the cache key,
-        # otherwise the same *_view_ref combination spelled in a different
-        # order creates duplicate templates-cache entries
         return (
             view_id,
             view_type,
@@ -428,12 +412,8 @@ class Base(models.AbstractModel):
         view_models = self._get_view_fields(view_type or view.type, view_models)
         result = {
             "arch": arch,
-            # TODO: only `web_studio` seems to require this. I guess this is acceptable to keep it.
             "id": view.id,
-            # TODO: only `web_studio` seems to require this. But this one on the other hand should be eliminated:
-            # you just called `get_views` for that model, so obviously the web client already knows the model.
             "model": self._name,
-            # frozendict + tuple so the cached value cannot be mutated.
             "models": frozendict(
                 {model: tuple(fields) for model, fields in view_models.items()}
             ),
@@ -475,8 +455,6 @@ class Base(models.AbstractModel):
         node = etree.fromstring(result["arch"])
         node = self.env["ir.ui.view"]._postprocess_access_rights(node)
         node = self.env["ir.ui.view"]._postprocess_debug(node)
-        # No .replace("\t", "") here: the cached arch is already tab-stripped by
-        # postprocess_and_fields, and neither postprocess step reintroduces tabs.
         result["arch"] = etree.tostring(node, encoding="unicode")
 
         return result
@@ -501,7 +479,6 @@ class Base(models.AbstractModel):
                     if "write_date" in self.env[model]._fields:
                         model_fields.add("write_date")
             case "search":
-                # a set, like every other branch (.update()/.add() on sets)
                 view_models[self._name] = set(self._fields)
             case "graph":
                 view_models[self._name].update(
@@ -591,7 +568,7 @@ class Base(models.AbstractModel):
         """Return an action to open the given records: a list for several, a
         form otherwise. Keyword arguments override the defaults.
         """
-        match self.ids:  # `self.ids` will silently filter out new records (`NewId`s)
+        match self.ids:
             case []:
                 length_dependent = {"views": [(False, "form")]}
             case [res_id]:
@@ -628,7 +605,6 @@ class Base(models.AbstractModel):
                 names = f"{prefix}.{name}" if prefix else name
                 if not result.get(names):
                     result[names] = node.attrib.get("on_change")
-                # traverse the subviews included in relational fields
                 for child_view in _xpath_descendant_field(node):
                     process(child_view, None, names)
             else:

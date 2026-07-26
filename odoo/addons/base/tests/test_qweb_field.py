@@ -24,11 +24,9 @@ class TestQwebFieldTime(common.TransactionCase):
 
         self.assertEqual(self.value_to_html(15.1, {"format": "HH:mm:SS"}), "15:06:00")
 
-        # Only positive values can be used
         with self.assertRaises(ValueError):
             self.value_to_html(-6.5)
 
-        # Only values less than 24 can be used
         with self.assertRaises(ValueError):
             self.value_to_html(24)
 
@@ -117,7 +115,6 @@ class TestQwebFieldDuration(common.TransactionCase):
         )
 
     def test_duration_digital_round_clamped_to_hour(self):
-        # round='day' (86400s) exceeds an hour; digital output clamps it to 3600.
         self.assertEqual(
             self.value_to_html(1.5, {"unit": "hour", "round": "day", "digital": True}),
             "02",
@@ -130,6 +127,22 @@ class TestQwebFieldDuration(common.TransactionCase):
             "1 hr 30 min",
         )
 
+    def test_duration_negative_sign_is_glued_to_the_value(self):
+        self.assertEqual(
+            self.value_to_html(-1.5, {"unit": "hour"}), "-1 hour 30 minutes"
+        )
+        self.assertEqual(self.value_to_html(-90, {}), "-1 minute 30 seconds")
+        self.assertEqual(self.value_to_html(-3661, {}), "-1 hour 1 minute 1 second")
+
+    def test_duration_negative_digital_unchanged(self):
+        self.assertEqual(
+            self.value_to_html(-1.5, {"unit": "hour", "digital": True}), "-01:30:00"
+        )
+
+    def test_duration_rounding_to_zero_renders_empty_not_a_bare_sign(self):
+        self.assertEqual(self.value_to_html(-0.0001, {}), "")
+        self.assertEqual(self.value_to_html(0, {}), "")
+
 
 class TestQwebFieldRelative(common.TransactionCase):
     """QF-T5: ``relative`` widget. Regression for the t-out path, which reached
@@ -140,7 +153,6 @@ class TestQwebFieldRelative(common.TransactionCase):
         return self.env["ir.qweb.field.relative"].value_to_html(value, options or {})
 
     def test_relative_without_now_defaults_to_current_time(self):
-        # The bare-value (t-out widget) path supplies no ``now``; must not crash.
         result = self.value_to_html(fields.Datetime.from_string("2000-01-01 00:00:00"))
         self.assertIn("ago", result)
 
@@ -152,14 +164,10 @@ class TestQwebFieldRelative(common.TransactionCase):
         self.assertEqual(result, "1 day ago")
 
     def test_relative_on_date_value(self):
-        # A bare ``date`` (date field value) must be comparable with the
-        # datetime reference instead of raising TypeError.
         result = self.value_to_html(date(2000, 1, 1))
         self.assertIn("ago", result)
 
     def test_relative_record_to_html_date_field(self):
-        # Regression: ``record_to_html`` called ``field.now()`` which does not
-        # exist on ``fields.Date`` (AttributeError on any date field).
         rate = self.env["res.currency.rate"].create(
             {
                 "currency_id": self.env.ref("base.EUR").id,
@@ -207,9 +215,7 @@ class TestQwebFieldRecordContext(common.TransactionCase):
             result = converter.record_to_html(partner, "display_name", {})
         self.assertEqual(result, "Ctx Probe")
         self.assertTrue(seen_contexts, "the field compute did not run")
-        # curated presentation keys are propagated onto the record...
         self.assertEqual(seen_contexts[-1].get("tz"), "Pacific/Auckland")
-        # ...the render-internal state is not
         for context in seen_contexts:
             for key in self.QWEB_INTERNALS:
                 self.assertNotIn(key, context)
@@ -227,13 +233,10 @@ class TestQwebFieldRecordContext(common.TransactionCase):
 
 class TestQwebFieldSelectionRecord(common.TransactionCase):
     def test_selection_record_to_html_label(self):
-        # The selection label is resolved from the field's selection pairs
-        # (via ``_description_selection``), not the raw stored value.
         partner = self.env["res.partner"].create({"name": "Sel Probe"})
         result = self.env["ir.qweb.field.selection"].record_to_html(
             partner, "company_type", {}
         )
-        # equivalence with the full-description path it replaced
         field = partner._fields["company_type"]
         expected = dict(field.get_description(self.env)["selection"])["person"]
         self.assertEqual(result, expected)
@@ -361,10 +364,7 @@ class TestQwebFieldHtml(common.TransactionCase):
         self.assertEqual(self.value_to_html("<p>hi</p>"), "<p>hi</p>")
 
 
-# Payload reused across the escaping regression tests below.
 XSS_NAME = '<script>alert("xss")</script>'
-# After HTML-escaping, none of these substrings may appear verbatim; the
-# escaped form (&lt;script&gt; / &#34; or &quot;) must appear instead.
 XSS_RAW_FRAGMENTS = ("<script>", '"xss"')
 
 
@@ -394,7 +394,6 @@ class TestQwebFieldEscaping(common.TransactionCase):
         self._assert_escaped(result)
 
     def test_selection_escapes(self):
-        # Selection labels are developer-defined but must be escaped regardless.
         result = self.env["ir.qweb.field.selection"].value_to_html(
             "key", {"selection": {"key": XSS_NAME}}
         )
@@ -428,7 +427,6 @@ class TestQwebFieldEscaping(common.TransactionCase):
         self._assert_escaped(result)
 
     def test_monetary_escapes_currency_symbol(self):
-        # A hostile currency symbol must not break out of the markup template.
         currency = self.env["res.currency"].create(
             {
                 "name": "XSS",
@@ -444,18 +442,15 @@ class TestQwebFieldEscaping(common.TransactionCase):
         self.assertIn("&lt;script&gt;", rendered)
 
     def test_image_url_escapes(self):
-        # The URL is interpolated into an attribute via ``%`` and must not break out.
         result = self.env["ir.qweb.field.image_url"].value_to_html(
             'http://example.com/"><script>alert(1)</script>', {}
         )
         rendered = str(result)
         self.assertNotIn('"><script>', rendered)
         self.assertNotIn("<script>", rendered)
-        # Attribute-breakout quote is neutralised.
         self.assertIn("&#34;", rendered)
 
     def test_image_renders_escaped_data_uri(self):
-        # A valid 1x1 PNG; the data URI must land safely inside the src attribute.
         png_b64 = (
             b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4n"
             b"GP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
@@ -466,7 +461,6 @@ class TestQwebFieldEscaping(common.TransactionCase):
         self.assertTrue(rendered.endswith('">'))
 
     def test_barcode_escapes_value_in_alt(self):
-        # The barcode value flows into the ``alt`` attribute; lxml must escape it.
         hostile = 'a"<script>'
         result = self.env["ir.qweb.field.barcode"].value_to_html(
             hostile, {"symbology": "Code128"}
@@ -476,7 +470,6 @@ class TestQwebFieldEscaping(common.TransactionCase):
         self.assertNotIn("<script>", rendered)
 
     def test_barcode_non_ascii_escapes(self):
-        # Non-ascii values fall through to nl2br, which escapes.
         result = self.env["ir.qweb.field.barcode"].value_to_html(
             XSS_NAME + "\N{SNOWMAN}", {}
         )
@@ -518,7 +511,6 @@ class TestQwebFieldAttributes(common.TransactionCase):
         self.assertEqual(result["data-oe-expression"], "record.name")
 
     def test_attributes_readonly_flag(self):
-        # ``id`` is a readonly field, so the readonly marker must be present.
         result = self.env["ir.qweb.field"].attributes(
             self.partner,
             "id",

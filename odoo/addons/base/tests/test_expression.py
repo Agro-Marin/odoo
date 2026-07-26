@@ -23,13 +23,10 @@ class TransactionExpressionCase(TransactionCase):
             f"filtered_domain do not match SQL search for domain: {domain}",
         )
         if test_complement and domain:
-            # skip the trivial case where domain is TRUE
             domain = Domain(domain)
 
-            # a search and its complement must cover the universe
             complement_domain = ~domain
             if not init_domain.is_true():
-                # check the full complement, including inactive records
                 cpl = model.with_context(active_test=False).search(
                     complement_domain, order="id"
                 )
@@ -41,10 +38,8 @@ class TransactionExpressionCase(TransactionCase):
                     uni.ids,
                     f"{domain} and {complement_domain} don't cover all records (search all)",
                 )
-                # limit the rest of the check to init_domain
                 complement_domain = init_domain & complement_domain
 
-            # general case where the universe is init_search
             cpl = self._search(
                 model,
                 complement_domain,
@@ -71,7 +66,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         ).write({"active": True})
 
     def test_00_in_not_in_m2m(self):
-        # Create 4 partners with no category, or one or two categories (out of two categories).
         categories = self.env["res.partner.category"]
         cat_a = categories.create({"name": "test_expression_category_A"})
         cat_b = categories.create({"name": "test_expression_category_B"})
@@ -97,17 +91,12 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
         c = partners.create({"name": "test_expression_partner_C"})
 
-        # The tests.
-
-        # On a one2many or many2many field, `in` should be read `contains` (and
-        # `not in` should be read `doesn't contain`.
         with_a = self._search(partners, [("category_id", "in", [cat_a.id])])
         self.assertEqual(a + ab, with_a, "Search for category_id in cat_a failed.")
 
         with_b = self._search(partners, [("category_id", "in", [cat_b.id])])
         self.assertEqual(b + ab, with_b, "Search for category_id in cat_b failed.")
 
-        # Partners with the category A or the category B.
         with_a_or_b = self._search(
             partners, [("category_id", "in", [cat_a.id, cat_b.id])]
         )
@@ -117,7 +106,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id contains cat_a or cat_b failed.",
         )
 
-        # Show that `contains list` is really `contains element or contains element`.
         with_a_or_with_b = self._search(
             partners,
             [
@@ -132,7 +120,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id contains cat_a or contains cat_b failed.",
         )
 
-        # If we change the OR in AND...
         with_a_and_b = self._search(
             partners,
             [
@@ -146,7 +133,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id contains cat_a and cat_b failed.",
         )
 
-        # Partners without category A and without category B.
         without_a_or_b = self._search(
             partners, [("category_id", "not in", [cat_a.id, cat_b.id])]
         )
@@ -159,7 +145,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id doesn't contain cat_a or cat_b failed (2).",
         )
 
-        # Show that `doesn't contain list` is really `doesn't contain element and doesn't contain element`.
         without_a_and_without_b = self._search(
             partners,
             [
@@ -176,7 +161,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id doesn't contain cat_a and cat_b failed (2).",
         )
 
-        # We can exclude any partner containing the category A.
         without_a = self._search(partners, [("category_id", "not in", [cat_a.id])])
         self.assertTrue(
             a not in without_a,
@@ -192,7 +176,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id doesn't contain cat_a failed (3).",
         )
 
-        # Same for category B.
         without_b = self._search(partners, [("category_id", "not in", [cat_b.id])])
         self.assertTrue(
             b not in without_b,
@@ -208,12 +191,10 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Search for category_id doesn't contain cat_b failed (3).",
         )
 
-        # Check `in` condition containing False
         without_categ = self._search(partners, [("category_id", "in", [False])])
         self.assertTrue(c in without_categ, "c is without category")
         self.assertFalse(without_categ & (a + b + ab), "only c is without category")
 
-        # Check `in` condition containing False or containing cat_a
         with_categ_a_none = self._search(
             partners, [("category_id", "in", [cat_a.id, False])]
         )
@@ -273,7 +254,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         Partner = self.env["res.partner"]
         p = Partner.create({"name": "dummy"})
 
-        # hierarchy without parent
         self.assertFalse(p.parent_id)
         p2 = self._search(
             Partner, [("parent_id", "child_of", p.id)], [("id", "=", p.id)]
@@ -288,72 +268,56 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         Partner = self.env["res.partner"]
         Category = self.env["res.partner.category"]
 
-        # search through m2m relation
         partners = self._search(
             Partner, [("category_id", "child_of", self.partner_category.id)]
         )
         self.assertTrue(partners)
 
-        # setup test partner categories
         categ_root = Category.create({"name": "Root category"})
         categ_0 = Category.create(
             {"name": "Parent category", "parent_id": categ_root.id}
         )
         categ_1 = Category.create({"name": "Child1", "parent_id": categ_0.id})
 
-        # test hierarchical search in m2m with child id (list of ids)
         cats = self._search(Category, [("id", "child_of", categ_root.ids)])
         self.assertEqual(len(cats), 3)
 
-        # test hierarchical search in m2m with child id (single id)
         cats = self._search(Category, [("id", "child_of", categ_root.id)])
         self.assertEqual(len(cats), 3)
 
-        # test hierarchical search in m2m with child ids
         cats = self._search(Category, [("id", "child_of", (categ_0 + categ_1).ids)])
         self.assertEqual(len(cats), 2)
 
-        # test hierarchical search in m2m with child ids
         cats = self._search(Category, [("id", "child_of", categ_0.ids)])
         self.assertEqual(len(cats), 2)
 
-        # test hierarchical search in m2m with child ids
         cats = self._search(Category, [("id", "child_of", categ_1.ids)])
         self.assertEqual(len(cats), 1)
 
-        # test hierarchical search in m2m with an empty list
         cats = self._search(Category, [("id", "child_of", [])])
         self.assertEqual(len(cats), 0)
 
-        # test hierarchical search in m2m with 'False' value
         cats = self._search(Category, [("id", "child_of", False)])
         self.assertEqual(len(cats), 0)
 
-        # test hierarchical search in m2m with parent id (list of ids)
         cats = self._search(Category, [("id", "parent_of", categ_1.ids)])
         self.assertEqual(len(cats), 3)
 
-        # test hierarchical search in m2m with parent id (single id)
         cats = self._search(Category, [("id", "parent_of", categ_1.id)])
         self.assertEqual(len(cats), 3)
 
-        # test hierarchical search in m2m with parent ids
         cats = self._search(Category, [("id", "parent_of", (categ_root + categ_0).ids)])
         self.assertEqual(len(cats), 2)
 
-        # test hierarchical search in m2m with parent ids
         cats = self._search(Category, [("id", "parent_of", categ_0.ids)])
         self.assertEqual(len(cats), 2)
 
-        # test hierarchical search in m2m with parent ids
         cats = self._search(Category, [("id", "parent_of", categ_root.ids)])
         self.assertEqual(len(cats), 1)
 
-        # test hierarchical search in m2m with an empty list
         cats = self._search(Category, [("id", "parent_of", [])])
         self.assertEqual(len(cats), 0)
 
-        # test hierarchical search in m2m with 'False' value
         cats = self._search(Category, [("id", "parent_of", False)])
         self.assertEqual(len(cats), 0)
 
@@ -364,7 +328,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         med = Partner.create({"name": "Medium", "parent_id": top.id})
         bot = Partner.create({"name": "Bottom", "parent_id": med.id})
 
-        # restrict access of user Demo to partners Top and Bottom
         accessible = top + bot
         self.env["ir.rule"].search([]).unlink()
         self.env["ir.rule"].create(
@@ -375,13 +338,10 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             }
         )
 
-        # these searches should return the subset of accessible nodes that are
-        # in the given hierarchy
         self.assertEqual(Partner.search([]), accessible)
         self.assertEqual(Partner.search([("id", "child_of", top.ids)]), accessible)
         self.assertEqual(Partner.search([("id", "parent_of", bot.ids)]), accessible)
 
-        # same kind of search from another model
         Bank = self.env["res.partner.bank"].with_user(self.user_demo)
         bank_top, bank_med, bank_bot = Bank.create(
             [
@@ -405,29 +365,21 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_10_eq_lt_gt_lte_gte(self):
-        # test if less/greater than or equal operators work
         currency = self.env["res.currency"].search([], limit=1)
-        # test equal
         res = self._search(currency, [("rounding", "=", currency.rounding)])
         self.assertTrue(currency in res)
-        # test not equal
         res = self._search(currency, [("rounding", "!=", currency.rounding)])
         self.assertTrue(currency not in res)
-        # test greater than
         res = self._search(currency, [("rounding", ">", currency.rounding)])
         self.assertTrue(currency not in res)
-        # test greater than or equal
         res = self._search(currency, [("rounding", ">=", currency.rounding)])
         self.assertTrue(currency in res)
-        # test less than
         res = self._search(currency, [("rounding", "<", currency.rounding)])
         self.assertTrue(currency not in res)
-        # test less than or equal
         res = self._search(currency, [("rounding", "<=", currency.rounding)])
         self.assertTrue(currency in res)
 
     def test_10_equivalent_id(self):
-        # equivalent queries
         Currency = self.env["res.currency"]
         non_currency_id = max(Currency.search([]).ids) + 1003
         res_0 = self._search(Currency, [])
@@ -442,7 +394,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         res_4 = self._search(Currency, [("id", "!=", False)])
         self.assertEqual(res_0, res_4)
 
-        # equivalent queries, integer and string
         Partner = self.env["res.partner"]
         all_partners = self._search(Partner, [])
         self.assertTrue(len(all_partners) > 1)
@@ -451,7 +402,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
 
         res_1 = self._search(Partner, [("id", "=", one.id)])
         self.assertEqual(one, res_1)
-        # Partner.search([('id', '!=', others)]) # not permitted
         res_2 = self._search(Partner, [("id", "not in", others.ids)])
         self.assertEqual(one, res_2)
         res_3 = self._search(Partner, ["!", ("id", "!=", one.id)])
@@ -470,39 +420,31 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
     def test_15_m2o(self):
         Partner = self.env["res.partner"]
 
-        # testing equality with False
         partners = Partner._search([("parent_id", "=", False)])
         self.assertTrue(partners)
 
-        # testing equality with name
         partners = self._search(Partner, [("parent_id", "=", "Pepper Street")])
         self.assertTrue(partners)
 
-        # testing the in operator with name
         partners = self._search(Partner, [("parent_id", "in", "Pepper Street")])
         self.assertTrue(partners)
 
-        # testing the in operator with a list of names
         partners = self._search(
             Partner, [("parent_id", "in", ["Pepper Street", "Inner Works"])]
         )
         self.assertTrue(partners)
 
-        # check if many2one works with empty search list
         partners = self._search(Partner, [("company_id", "in", [])])
         self.assertFalse(partners)
 
-        # testing the in operator with a list that includes False
         partners = Partner._search([("parent_id", "in", [False])])
         self.assertTrue(partners)
 
-        # create new company with partners, and partners with no company
         company2 = self.env["res.company"].create({"name": "Acme 2"})
         for i in range(4):
             Partner.create({"name": "P of Acme %s" % i, "company_id": company2.id})
             Partner.create({"name": "P of All %s" % i, "company_id": False})
 
-        # check if many2one works with negative empty list
         all_partners = Partner.search([])
         res_partners = self._search(
             Partner,
@@ -510,21 +452,18 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
         self.assertEqual(all_partners, res_partners, "not in [] fails")
 
-        # check that many2one will pick the correct records with a list
         partners = self._search(Partner, [("company_id", "in", [False])])
         self.assertTrue(
             len(partners) >= 4,
             "We should have at least 4 partners with no company",
         )
 
-        # check that many2one will exclude the correct records with a list
         partners = self._search(Partner, [("company_id", "not in", [1])])
         self.assertTrue(
             len(partners) >= 4,
             "We should have at least 4 partners not related to company #1",
         )
 
-        # check that many2one will exclude the correct records with a list and False
         partners = self._search(
             Partner,
             ["|", ("company_id", "not in", [1]), ("company_id", "=", False)],
@@ -534,22 +473,16 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "We should have at least 8 partners not related to company #1",
         )
 
-        # check that multi-level expressions also work
         partners = self._search(Partner, [("company_id.partner_id", "in", [])])
         self.assertFalse(partners)
 
-        # check multi-level expressions with magic columns
         partners = self._search(Partner, [("create_uid.active", "=", True)])
 
-        # check that multi-level expressions with negative op work
         all_partners = self._search(Partner, [("company_id", "!=", False)])
 
-        # check with empty list
         res_partners = self._search(Partner, [("company_id.partner_id", "not in", [])])
         self.assertEqual(all_partners, res_partners, "not in [] fails")
 
-        # Test '(not) like/in' behavior on parent_id, a many2one with both null
-        # and non-null values in demo data.
         all_partners = self._search(Partner, [])
         non_partner_id = max(all_partners.ids) + 1
 
@@ -557,39 +490,21 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         without_parent = all_partners.filtered(lambda p: not p.parent_id)
         with_website = all_partners.filtered(lambda p: p.website)
 
-        # Unlike SQL, the ORM treats NULL so that a domain and its negation
-        # cover all records: ('parent_id', 'not in', [0]) returns every record,
-        # including those with a null parent_id.
-
-        # existing values be treated similarly if we simply check that some
-        # existing value belongs to them.
         res_0 = self._search(
             Partner, [("parent_id", "not like", "probably_unexisting_name")]
-        )  # get all rows, included null parent_id
+        )
         self.assertEqual(res_0, all_partners)
-        res_1 = self._search(
-            Partner, [("parent_id", "not in", [non_partner_id])]
-        )  # get all rows, included null parent_id
+        res_1 = self._search(Partner, [("parent_id", "not in", [non_partner_id])])
         self.assertEqual(res_1, all_partners)
-        res_2 = self._search(
-            Partner, [("parent_id", "!=", False)]
-        )  # get rows with not null parent_id, deprecated syntax
+        res_2 = self._search(Partner, [("parent_id", "!=", False)])
         self.assertEqual(res_2, with_parent)
-        res_3 = self._search(
-            Partner, [("parent_id", "not in", [])]
-        )  # get all rows, included null parent_id
+        res_3 = self._search(Partner, [("parent_id", "not in", [])])
         self.assertEqual(res_3, all_partners)
-        res_4 = self._search(
-            Partner, [("parent_id", "not in", [False])]
-        )  # get rows with not null parent_id
+        res_4 = self._search(Partner, [("parent_id", "not in", [False])])
         self.assertEqual(res_4, with_parent)
-        res_4b = self._search(
-            Partner, [("parent_id", "not ilike", "")]
-        )  # get only rows without parent
+        res_4b = self._search(Partner, [("parent_id", "not ilike", "")])
         self.assertEqual(res_4b, without_parent)
 
-        # The results of these queries, when combined with queries 0..4 must
-        # give the whole set of ids.
         res_5 = self._search(
             Partner, [("parent_id", "like", "probably_unexisting_name")]
         )
@@ -602,13 +517,9 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertFalse(res_8)
         res_9 = self._search(Partner, [("parent_id", "in", [False])])
         self.assertEqual(res_9, without_parent)
-        res_9b = self._search(
-            Partner, [("parent_id", "ilike", "")]
-        )  # get those with a parent
+        res_9b = self._search(Partner, [("parent_id", "ilike", "")])
         self.assertEqual(res_9b, with_parent)
 
-        # These queries must return exactly the results than the queries 0..4,
-        # i.e. not ... in ... must be the same as ... not in ... .
         res_10 = self._search(
             Partner, ["!", ("parent_id", "like", "probably_unexisting_name")]
         )
@@ -622,7 +533,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         res_14 = self._search(Partner, ["!", ("parent_id", "in", [False])])
         self.assertEqual(res_4, res_14)
 
-        # Testing many2one field is not enough, a regular char field is tested
         res_15 = self._search(Partner, [("website", "in", [])])
         self.assertFalse(res_15)
         res_16 = self._search(Partner, [("website", "not in", [])])
@@ -630,15 +540,10 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         res_17 = self._search(Partner, [("website", "!=", False)])
         self.assertEqual(res_17, with_website)
 
-        # check behavior for required many2one fields: currency_id is required
         companies = self.env["res.company"].search([])
-        res_101 = self._search(
-            companies, [("currency_id", "not ilike", "")]
-        )  # get no companies
+        res_101 = self._search(companies, [("currency_id", "not ilike", "")])
         self.assertFalse(res_101)
-        res_102 = self._search(
-            companies, [("currency_id", "ilike", "")]
-        )  # get all companies
+        res_102 = self._search(companies, [("currency_id", "ilike", "")])
         self.assertEqual(res_102, companies)
 
     def test_in_operator(self):
@@ -668,11 +573,9 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
     def test_15_m2m_false(self):
         Partner = self.env["res.partner"]
 
-        # test many2many operator with empty search list
         partners = self._search(Partner, [("category_id", "in", [])])
         self.assertFalse(partners)
 
-        # test many2many operator with False
         partners = self._search(Partner, [("category_id", "=", False)])
         self.assertTrue(partners)
         for partner in partners:
@@ -686,16 +589,13 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
     def test_15_o2m(self):
         Partner = self.env["res.partner"]
 
-        # test one2many operator with empty search list
         partners = self._search(Partner, [("child_ids", "in", [])])
         self.assertFalse(partners)
 
-        # test one2many operator with False
         partners = self._search(Partner, [("child_ids", "=", False)])
         for partner in partners:
             self.assertFalse(partner.child_ids)
 
-        # verify domain evaluation for one2many != False and one2many == False
         categories = self.env["res.partner.category"].search([])
         parents = self._search(categories, [("child_ids", "!=", False)])
         self.assertEqual(parents, categories.filtered(lambda c: c.child_ids))
@@ -703,16 +603,12 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(leaves, categories.filtered(lambda c: not c.child_ids))
         assert parents and leaves, "did we test something?"
 
-        # check `in` condition containing False or/and an id
-        leaves_with_parent = leaves.sorted(
-            "parent_id.id"
-        )  # Prioritize leaves with parents
+        leaves_with_parent = leaves.sorted("parent_id.id")
         leaves_or_parent = self._search(
             categories, [("child_ids", "in", [leaves_with_parent[0].id, False])]
         )
         self.assertEqual(leaves_or_parent, leaves | leaves_with_parent[0].parent_id)
 
-        # filtering on nonexistent value across x2many should return nothing
         partners = self._search(Partner, [("child_ids.city", "=", "foo")])
         self.assertFalse(partners)
 
@@ -734,7 +630,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                 lambda self: [c for c in commercial_fields if c != "industry_id"],
             ),
             patch.object(Partner.__class__, "_validate_fields"),
-        ):  # skip industry_id synchronize
+        ):
             partners = Partner.create(
                 [
                     {
@@ -809,12 +705,10 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         partner_a, partner_b, partner_c, __ = partners
         init_domain = [("id", "in", partners.ids)]
 
-        # find partners with children in industry_1
         domain = init_domain + [("child_ids.industry_id", "=", industry_1.id)]
         result = self._search(Partner, domain, init_domain)
         self.assertEqual(result, partner_a + partner_b)
 
-        # find partners with children in other industries than industry_1
         domain = init_domain + [("child_ids.industry_id", "!=", industry_1.id)]
         result = self._search(Partner, domain, init_domain)
         self.assertEqual(result, partner_a + partner_c)
@@ -824,17 +718,11 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         company3 = Company.create({"name": "Acme 3"})
         company4 = Company.create({"name": "Acme 4", "parent_id": company3.id})
 
-        # one2many towards same model
-        res_1 = self._search(
-            Company, [("child_ids", "in", company3.child_ids.ids)]
-        )  # any company having a child of company3 as child
+        res_1 = self._search(Company, [("child_ids", "in", company3.child_ids.ids)])
         self.assertEqual(res_1, company3)
-        res_2 = self._search(
-            Company, [("child_ids", "in", company3.child_ids[0].ids)]
-        )  # any company having the first child of company3 as child
+        res_2 = self._search(Company, [("child_ids", "in", company3.child_ids[0].ids)])
         self.assertEqual(res_2, company3)
 
-        # child_of x returns x and its children (direct or not).
         expected = company3 + company4
         res_1 = self._search(Company, [("id", "child_of", [company3.id])])
         self.assertEqual(res_1, expected)
@@ -845,7 +733,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         res_4 = self._search(Company, [("id", "child_of", company3.name)])
         self.assertEqual(res_4, expected)
 
-        # parent_of x returns x and its parents (direct or not).
         expected = company3 + company4
         res_1 = self._search(Company, [("id", "parent_of", [company4.id])])
         self.assertEqual(res_1, expected)
@@ -856,7 +743,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         res_4 = self._search(Company, [("id", "parent_of", company4.name)])
         self.assertEqual(res_4, expected)
 
-        # try testing real subsets with IN/NOT IN
         Partner = self.env["res.partner"]
         Users = self.env["res.users"]
         p1, _ = Partner.name_create("Dédé Boitaclou")
@@ -917,7 +803,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             ]
         )
 
-        # create a currency and a currency rate
         currency = Currency.create({"name": "ZZZ", "symbol": "ZZZ", "rounding": 1.0})
         currency_rate = CurrencyRate.create(
             {"name": "2010-01-01", "currency_id": currency.id, "rate": 1.0}
@@ -925,7 +810,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         non_currency_id = currency_rate.id + 1000
         default_currency = Currency.browse(1)
 
-        # search the currency via its rates one2many (the one2many must point back at the currency)
         currency_rate1 = self._search(
             CurrencyRate,
             [("currency_id", "not like", "probably_unexisting_name")],
@@ -937,22 +821,18 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         currency_rate3 = self._search(CurrencyRate, [("id", "not in", [])])
         self.assertEqual(currency_rate1, currency_rate3)
 
-        # one2many towards another model
         res_3 = self._search(
             Currency, [("rate_ids", "in", default_currency.rate_ids.ids)]
-        )  # currencies having a rate of main currency
+        )
         self.assertEqual(res_3, default_currency)
         res_4 = self._search(
             Currency, [("rate_ids", "in", default_currency.rate_ids[0].ids)]
-        )  # currencies having first rate of main currency
+        )
         self.assertEqual(res_4, default_currency)
         res_5 = self._search(
             Currency, [("rate_ids", "in", default_currency.rate_ids[0].id)]
-        )  # currencies having first rate of main currency
+        )
         self.assertEqual(res_5, default_currency)
-        # res_6 = Currency.search([('rate_ids', 'in', [default_currency.rate_ids[0].name])])
-        # res_7 = Currency.search([('rate_ids', '=', default_currency.rate_ids[0].name)])
-        # res_8 = Currency.search([('rate_ids', 'like', default_currency.rate_ids[0].name)])
 
         res_9 = self._search(
             Currency, [("rate_ids", "like", "probably_unexisting_name")]
@@ -961,7 +841,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         with self.assertRaises(ValueError):
             Currency.search([("rate_ids", "unexisting_op", "probably_unexisting_name")])
 
-        # get the currencies referenced by some currency rates using a weird negative domain
         res_10 = self._search(
             Currency, [("rate_ids", "not like", "probably_unexisting_name")]
         )
@@ -991,7 +870,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
     def test_20_expression_parse(self):
         Users = self.env["res.users"]
 
-        # Create users
         a = Users.create({"name": "test_A", "login": "test_A"})
         b1 = Users.create({"name": "test_B", "login": "test_B"})
         b2 = Users.create(
@@ -1002,17 +880,14 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             }
         )
 
-        # Test1: simple inheritance
         users = self._search(Users, [("name", "like", "test")])
         self.assertEqual(users, a + b1 + b2, "searching through inheritance failed")
         users = self._search(Users, [("name", "=", "test_B")])
         self.assertEqual(users, b1, "searching through inheritance failed")
 
-        # Test2: inheritance + relational fields
         users = self._search(Users, [("child_ids.name", "like", "test_B")])
         self.assertEqual(users, b1, "searching through inheritance failed")
 
-        # Special =? operator mean "is equal if right is set, otherwise always True"
         users = self._search(
             Users, [("name", "like", "test"), ("parent_id", "=?", False)]
         )
@@ -1081,7 +956,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             Domain(simple), simple, "Domain(Domain) should return the instance"
         )
 
-        # inequalities
         neg_domain = ~Domain("x", ">", 5)
         self.assertEqual(
             neg_domain.OPERATOR,
@@ -1089,7 +963,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             "Inequalities are not simplified during construction",
         )
 
-        # negative and nary
         neg_domain = ~Domain("foo.x", ">", "bar")
         self.assertEqual(
             list(neg_domain),
@@ -1098,14 +971,12 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
         and_domain = simple & Domain("bar", "=", "baz")
 
-        # bool
         self.assertEqual(Domain(True), Domain.TRUE)
         self.assertEqual(Domain([]), Domain.TRUE)
         self.assertEqual(Domain(False), Domain.FALSE)
         self.assertEqual(Domain(*_FALSE_LEAF), Domain.FALSE)
         self.assertEqual(Domain(*_TRUE_LEAF), Domain.TRUE)
 
-        # truth value
         for dom, is_bool in [
             (simple, None),
             (Domain.TRUE, True),
@@ -1121,11 +992,9 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             self.assertEqual(dom.is_true(), is_bool is True, f"{dom}.is_true()")
             self.assertEqual(dom.is_false(), is_bool is False, f"{dom}.is_false()")
 
-        # invalid operator
         with self.assertRaises(ValueError):
             Domain("foo", "xxx", "bar")
 
-        # special case for any! operators
         for operator in ("any!", "not any!"):
             Domain("foo", operator, [])
             with self.assertRaises(ValueError):
@@ -1133,7 +1002,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             dom = Domain([("foo", operator, [])], internal=True)
             self.assertIsInstance(dom.value, Domain, "subdomain must be parsed")
 
-        # &| operators create new instances
         and_domain_2 = and_domain
         and_domain_2 &= Domain("x", ">", 3)
         self.assertIsNot(and_domain_2, and_domain, "Domains are immutable")
@@ -1141,7 +1009,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         or_domain_2 |= Domain("x", ">", 3)
         self.assertIsNot(or_domain_2, and_domain, "Domains are immutable")
 
-        # here, just make sure it is created from multiple types, other tests will be done later
         self.assertIsInstance(Domain.AND([simple, simple_list, Domain.TRUE]), Domain)
 
     def test_31_backwards_compatible_domain(self):
@@ -1207,7 +1074,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         with self.assertRaises(ValueError):
             normalize_domain([("a", "=", 1), "!"])
 
-        # rewrite rules when making a list
         self.assertEqual(
             list(Domain("foo", "any", Domain("bar", "=", "baz"))),
             [("foo", "any", [("bar", "=", "baz")])],
@@ -1390,7 +1256,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertNotIn(helen, self._search(Model, [("name", "not =ilike", "Hel%")]))
         self.assertNotIn(helen, self._search(Model, [("name", "not =ilike", "hél%")]))
 
-        # =like and like should be case and accent sensitive
         self.assertEqual(helen, self._search(Model, [("name", "=like", "Hél%")]))
         self.assertNotIn(helen, self._search(Model, [("name", "=like", "Hel%")]))
         self.assertEqual(helen, self._search(Model, [("name", "like", "élè")]))
@@ -1414,12 +1279,9 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                 [("parent_path", "=like", f"{helen.id}/%")], order="id asc"
             )
             self.assertEqual(rs, helen | hermione | nicostratus)
-            # the result of `unaccent()` is the wrapper and that's
-            # what should not be called
             w().assert_not_called()
 
     def test_like_wildcards(self):
-        # check that =like/=ilike expressions are working on an untranslated field
         Partner = self.env["res.partner"]
         partners = self._search(Partner, [("name", "=like", "I_ner_W_rk_")])
         self.assertTrue(
@@ -1429,7 +1291,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         partners = self._search(Partner, [("name", "=ilike", "G%")])
         self.assertTrue(len(partners) >= 1, "Must match one partner (Gemini Furniture)")
 
-        # check that =like/=ilike expressions are working on translated field
         Country = self.env["res.country"]
         countries = self._search(Country, [("name", "=like", "Ind__")])
         self.assertTrue(len(countries) == 1, "Must match India only")
@@ -1467,7 +1328,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertNotIn(record, self._search(Model, [("name", "not like", "X")]))
         self.assertNotIn(record, self._search(Model, [("name", "not ilike", "X")]))
 
-        # like, ilike, not like, not ilike convert their lhs to str
         self.assertIn(record, self._search(Model, [("color", "like", "4")]))
         self.assertIn(record, self._search(Model, [("color", "ilike", "4")]))
         self.assertIn(record, self._search(Model, [("color", "not like", "3")]))
@@ -1478,10 +1338,8 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertNotIn(record, self._search(Model, [("color", "not like", "4")]))
         self.assertNotIn(record, self._search(Model, [("color", "not ilike", "4")]))
 
-        # =like and =ilike work on non-character fields
         self._search(Model, [("name", "=", "X"), ("color", "=like", "4%")])
 
-        # like can cast to str, but =like cannot
         self._search(Model, [("name", "=", "X"), ("color", "like", 4)])
         with self.assertRaises(TypeError):
             self._search(Model, [("name", "=", "X"), ("color", "=like", 4)])
@@ -1498,7 +1356,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         other = Model.create({"name": "other"})
         partners = parent1 + parent2 + child1 + child2 + other
 
-        # replace all ir.rules by one global rule to prevent access to parent1
         self.env["ir.rule"].search([]).unlink()
         self.env["ir.rule"].create(
             [
@@ -1510,7 +1367,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             ]
         )
 
-        # search for children, bypassing access rights
         found = self._search(
             Model,
             [("parent_id", "like", "Parent"), ("id", "in", partners.ids)],
@@ -1518,9 +1374,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
         self.assertEqual(found, child1 + child2)
 
-        # search for children with opposite condition and access rights; we find
-        # all except parent1 (no access) and child2(parent matches 'Parent')
-        partners.invalidate_recordset()  # avoid cache poisoning
+        partners.invalidate_recordset()
         found = self._search(
             Model.with_user(self.user_demo),
             [("parent_id", "not like", "Parent"), ("id", "in", partners.ids)],
@@ -1574,7 +1428,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             Country.search([("create_date", "=", "1970-01-01'); --")])
 
     def test_active(self):
-        # testing for many2many field with category office and active=False
         Partner = self.env["res.partner"]
         vals = {
             "name": "Odoo Test",
@@ -1599,7 +1452,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             partner, "Record not Found with category sellers and active False."
         )
 
-        # testing for one2many field with country Belgium and active=False
         partner = self._search(
             Partner,
             [("child_ids.country_id", "=", "Belgium"), ("active", "=", False)],
@@ -1611,12 +1463,10 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
 
     def test_lp1071710(self):
         """Check that we can exclude translated fields (bug lp:1071710)"""
-        # first install french language
         self.env["res.lang"]._activate_lang("fr_FR")
         self.env["res.partner"].search(
             [("name", "=", "Pepper Street")]
         ).country_id = self.env.ref("base.be")
-        # actual test
         Country = self.env["res.country"].with_context(lang="fr_FR")
         be = self.env.ref("base.be")
         be.with_context(lang="fr_FR").name = "Belgique"
@@ -1628,7 +1478,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         not_be = self._search(Country, [("name", "!=", "Belgique")])
         self.assertNotIn(be, not_be)
 
-        # indirect search via m2o
         Partner = self.env["res.partner"]
         acme_corp = self._search(Partner, [("name", "=", "Pepper Street")])
 
@@ -1640,9 +1489,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertNotIn(acme_corp, not_be)
 
     def test_or_with_implicit_and(self):
-        # Check that when using expression.OR on a list of domains with at least one
-        # implicit '&' the returned domain is the expected result.
-        # from #24038
         d1 = [("foo", "=", 1), ("bar", "=", 1)]
         d2 = ["&", ("foo", "=", 2), ("bar", "=", 2)]
 
@@ -1660,72 +1506,50 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(Domain.OR([d1, d2]), expected)
 
     def test_proper_combine_unit_leaves(self):
-        # test that unit leaves (TRUE_LEAF, FALSE_LEAF) are properly handled in specific cases
         false = Domain.FALSE
         true = Domain.TRUE
         normal = Domain("foo", "=", "bar")
-        # OR and AND with empty list should return their unit value
         self.assertEqual(Domain.OR([]), false)
         self.assertEqual(Domain.AND([]), true)
-        # OR with single FALSE_LEAF
         expr = Domain.OR([false])
         self.assertEqual(expr, false)
-        # OR with multiple FALSE_LEAF
         expr = Domain.OR([false, false])
         self.assertEqual(expr, false)
-        # OR with FALSE_LEAF and a normal leaf
         expr = Domain.OR([false, normal])
         self.assertEqual(expr, normal)
-        # OR with AND of single TRUE_LEAF and normal leaf
         expr = Domain.OR([Domain.AND([true]), normal])
         self.assertEqual(expr, true)
-        # AND with single TRUE_LEAF
         expr = Domain.AND([true])
         self.assertEqual(expr, true)
-        # AND with multiple TRUE_LEAF
         expr = Domain.AND([true, true])
         self.assertEqual(expr, true)
-        # AND with TRUE_LEAF and normal leaves
         expr = Domain.AND([true, normal])
         self.assertEqual(expr, normal)
-        # AND with OR with single FALSE_LEAF and normal leaf
         expr = Domain.AND([Domain.OR([false]), normal])
         self.assertEqual(expr, false)
-        # empty domain inside the list should be treated as true
         expr = Domain.AND([[], normal])
         self.assertEqual(expr, normal)
         expr = Domain.OR([[], normal])
         self.assertEqual(expr, true)
 
     def test_combine_simple_conditions(self):
-        # test that boolean leaves are properly handled in specific cases
         false = Domain.FALSE
         true = Domain.TRUE
         normal = Domain("foo", "=", "bar")
-        # OR and AND with empty list should return their zero value
         self.assertEqual(Domain.OR([]), false)
         self.assertEqual(Domain.AND([]), true)
-        # OR with single FALSE_LEAF
         self.assertEqual(Domain.OR([false]), false)
-        # OR with multiple FALSE_LEAF
         self.assertEqual(Domain.OR([false, false]), false)
         self.assertEqual(false | false, false)
-        # OR with FALSE_LEAF and a normal leaf
         self.assertEqual(Domain.OR([false, normal]), normal)
         self.assertEqual(false | normal, normal)
-        # OR with AND of single TRUE_LEAF and normal leaf
         self.assertEqual(Domain.OR([Domain.AND([true]), normal]), true)
-        # AND with single TRUE_LEAF
         self.assertEqual(Domain.AND([true]), true)
-        # AND with multiple TRUE_LEAF
         self.assertEqual(Domain.AND([true, true]), true)
         self.assertEqual(true & true, true)
-        # AND with TRUE_LEAF and normal leaves
         self.assertEqual(Domain.AND([true, normal]), normal)
         self.assertEqual(true & normal, normal)
-        # AND with OR with single FALSE_LEAF and normal leaf
         self.assertEqual(Domain.AND([Domain.OR([false]), normal]), false)
-        # empty domain inside the list should be treated as true
         self.assertEqual(Domain.AND([[], normal]), normal)
         self.assertEqual(Domain.OR([[], normal]), true)
 
@@ -1776,15 +1600,12 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         domain = [("name", "ilike", "a")]
         countries = self.env["res.country"].search(domain)
         self.assertGreater(len(countries), 1)
-        # same ids, same order
         self.assertEqual(countries.filtered_domain(domain)._ids, countries._ids)
-        # again, trying the other way around
         countries = countries.browse(reversed(countries._ids))
         self.assertEqual(countries.filtered_domain(domain)._ids, countries._ids)
 
     def test_filtered_domain_order2(self):
         countries = self.env["res.country"].search([])
-        # match the first two countries, in order
         expected = countries[:2]
         id1, id2 = expected._ids
         domain = ["|", ("id", "=", id1), ("id", "=", id2)]
@@ -1821,7 +1642,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
         self.assertEqual(other_partners, all_partner - partner)
 
-        # check if we perform the check in batch
         PartnerClass = self.env.registry["res.partner"]
         with patch.object(
             PartnerClass,
@@ -1893,7 +1713,6 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
 @tagged("res_partner")
 class TestExpression2(TransactionExpressionCase):
     def test_long_table_alias(self):
-        # To test the 64 characters limit for table aliases in PostgreSQL
         self.patch(self.registry["res.users"], "_order", "partner_id")
         self.patch(
             self.registry["res.partner"],
@@ -1906,12 +1725,10 @@ class TestExpression2(TransactionExpressionCase):
 @tagged("res_partner")
 class TestBypassAccess(TransactionExpressionCase):
     def test_bypass_search_access(self):
-        # Get models
         partner_obj = self.env["res.partner"]
         state_obj = self.env["res.country.state"]
         bank_obj = self.env["res.partner.bank"]
 
-        # Get test columns
         def patch_bypass_search_access(model, fname, value):
             self.patch(model._fields[fname], "bypass_search_access", value)
             model.invalidate_model([fname])
@@ -1920,7 +1737,6 @@ class TestBypassAccess(TransactionExpressionCase):
             self.patch(model._fields[fname], "domain", value)
             model.invalidate_model([fname])
 
-        # Get country/state data
         Country = self.env["res.country"]
         country_us = Country.search([("code", "like", "US")], limit=1)
         State = self.env["res.country.state"]
@@ -1930,7 +1746,6 @@ class TestBypassAccess(TransactionExpressionCase):
         Category = self.env["res.partner.category"]
         categories = Category.create([{"name": name} for name in ("foo", "bar")])
 
-        # Create demo data: partners and bank object
         p_a = partner_obj.create(
             {
                 "name": "test__A",
@@ -1984,13 +1799,8 @@ class TestBypassAccess(TransactionExpressionCase):
         p_a.category_id = categories[0]
         p_b.category_id = categories[1]
 
-        # --------------------------------------------------
-        # Test: one2many
-        # --------------------------------------------------
-
         name_test = "12"
 
-        # Do: one2many without bypass_search_access
         partners = self._search(
             partner_obj, [("bank_ids.sanitized_acc_number", "like", name_test)]
         )
@@ -2019,7 +1829,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access off: '|', ('name', 'like', 'C'), ('bank_ids.sanitized_acc_number', 'like', '..'): incorrect result",
         )
 
-        # Do: cascaded one2many without bypass_search_access
         partners = self._search(
             partner_obj, [("child_ids.bank_ids.id", "in", [b_aa.id, b_ba.id])]
         )
@@ -2029,7 +1838,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access off: ('child_ids.bank_ids.id', 'in', [..]): incorrect result",
         )
 
-        # Do: one2many with bypass_search_access
         patch_bypass_search_access(partner_obj, "bank_ids", True)
         partners = self._search(
             partner_obj, [("bank_ids.sanitized_acc_number", "like", name_test)]
@@ -2059,7 +1867,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on: '|', ('name', 'like', 'C'), ('bank_ids.sanitized_acc_number', 'like', '..'): incorrect result",
         )
 
-        # Do: one2many with bypass_search_access, test final leaf is an id
         bank_ids = [b_aa.id, b_ab.id]
         partners = self._search(partner_obj, [("bank_ids.id", "in", bank_ids)])
         self.assertEqual(
@@ -2068,7 +1875,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on: ('bank_ids.id', 'in', [..]) incorrect result",
         )
 
-        # Do: 2 cascaded one2many with bypass_search_access, test final leaf is an id
         patch_bypass_search_access(partner_obj, "child_ids", True)
         bank_ids = [b_aa.id, b_ba.id]
         partners = self._search(
@@ -2080,12 +1886,8 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on: ('child_ids.bank_ids.id', 'not in', [..]): incorrect result",
         )
 
-        # --------------------------------------------------
-        # Test: many2one
-        # --------------------------------------------------
         name_test = "US"
 
-        # Do: many2one without bypass_search_access
         partners = self._search(
             partner_obj, [("state_id.country_id.code", "like", name_test)]
         )
@@ -2114,7 +1916,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access off: disjunction incorrect result",
         )
 
-        # Do: many2one with 1 bypass_search_access on the first many2one
         patch_bypass_search_access(partner_obj, "state_id", True)
         partners = self._search(
             partner_obj, [("state_id.country_id.code", "like", name_test)]
@@ -2140,7 +1941,6 @@ class TestBypassAccess(TransactionExpressionCase):
             p_c, partners, "bypass_search_access: disjunction incorrect result"
         )
 
-        # Do: many2one with 1 bypass_search_access on the second many2one
         patch_bypass_search_access(partner_obj, "state_id", False)
         patch_bypass_search_access(state_obj, "country_id", True)
         partners = self._search(
@@ -2152,7 +1952,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on for country_id: ('state_id.country_id.code', 'like', '..') incorrect result",
         )
 
-        # Do: many2one with 2 bypass_search_access
         patch_bypass_search_access(partner_obj, "state_id", True)
         patch_bypass_search_access(state_obj, "country_id", True)
         partners = self._search(
@@ -2164,10 +1963,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on: ('state_id.country_id.code', 'like', '..') incorrect result",
         )
 
-        # --------------------------------------------------
-        # Test: domain attribute on one2many fields
-        # --------------------------------------------------
-
         patch_bypass_search_access(partner_obj, "child_ids", True)
         patch_bypass_search_access(partner_obj, "bank_ids", True)
         patch_domain(
@@ -2177,7 +1972,6 @@ class TestBypassAccess(TransactionExpressionCase):
         )
         patch_domain(partner_obj, "bank_ids", [("sanitized_acc_number", "like", "2")])
 
-        # Do: 2 cascaded one2many with bypass_search_access, test final leaf is an id
         partners = self._search(
             partner_obj,
             [
@@ -2214,10 +2008,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access on one2many with domains incorrect result",
         )
 
-        # ----------------------------------------
-        # Test: domain attribute on many2many fields
-        # ----------------------------------------
-
         patch_domain(partner_obj, "category_id", lambda self: [("name", "!=", "bar")])
         self.assertIn(
             p_a, self._search(partner_obj, [("category_id.name", "=", "foo")])
@@ -2226,10 +2016,6 @@ class TestBypassAccess(TransactionExpressionCase):
         self.assertIn(
             p_a, self._search(partner_obj, [("category_id.name", "=", "foo")])
         )
-
-        # ----------------------------------------
-        # Test: result-based tests
-        # ----------------------------------------
 
         patch_bypass_search_access(partner_obj, "category_id", False)
         patch_bypass_search_access(partner_obj, "bank_ids", False)
@@ -2240,7 +2026,6 @@ class TestBypassAccess(TransactionExpressionCase):
         patch_domain(partner_obj, "child_ids", [])
         patch_domain(partner_obj, "bank_ids", [])
 
-        # Do: ('child_ids.state_id.country_id.code', 'like', '..') without bypass_search_access
         partners = self._search(
             partner_obj,
             [("child_ids.state_id.country_id.code", "like", name_test)],
@@ -2251,7 +2036,6 @@ class TestBypassAccess(TransactionExpressionCase):
             "bypass_search_access off: ('child_ids.state_id.country_id.code', 'like', '..') incorrect result",
         )
 
-        # Do: ('child_ids.state_id.country_id.code', 'like', '..') with bypass_search_access
         patch_bypass_search_access(partner_obj, "child_ids", True)
         patch_bypass_search_access(partner_obj, "state_id", True)
         patch_bypass_search_access(state_obj, "country_id", True)
@@ -2446,7 +2230,7 @@ class TestQueries(TransactionCase):
 
     @mute_logger("odoo.models.unlink")
     def test_access_rules(self):
-        skip_if_dev_mode("xml")  # ir.rule domain ormcache
+        skip_if_dev_mode("xml")
         Model = self.env["res.users"].with_user(self.env.ref("base.user_admin"))
         self.env["ir.rule"].search([]).unlink()
         self.env["ir.rule"].create(
@@ -2482,7 +2266,7 @@ class TestQueries(TransactionCase):
 
     @mute_logger("odoo.models.unlink")
     def test_access_rules_active_test(self):
-        skip_if_dev_mode("xml")  # ir.rule domain ormcache
+        skip_if_dev_mode("xml")
         PartnerCateg = self.env["res.partner.category"]
 
         model_id = self.env["ir.model"]._get("res.partner.category").id
@@ -2532,7 +2316,7 @@ class TestQueries(TransactionCase):
         )
         inaccessible_records = PartnerCateg.create(
             [
-                {"name": "ua1"},  # No public parent
+                {"name": "ua1"},
                 {"name": "ua2", "parent_id": pri_active.id},
                 {
                     "name": "ua3",
@@ -2550,7 +2334,7 @@ class TestQueries(TransactionCase):
         domain = [("id", "in", records.ids)]
 
         PartnerCateg = PartnerCateg.with_user(self.env.ref("base.user_admin"))
-        PartnerCateg.search(domain)  # warmup
+        PartnerCateg.search(domain)
 
         with self.assertQueries(
             [
@@ -2590,7 +2374,7 @@ class TestQueries(TransactionCase):
         )
 
     def test_access_rules_active_test_neg(self):
-        skip_if_dev_mode("xml")  # ir.rule domain ormcache
+        skip_if_dev_mode("xml")
         Model = self.env["res.partner"].with_user(self.env.ref("base.user_admin"))
         self.env["ir.rule"].search([]).unlink()
         self.env["ir.rule"].create(
@@ -2633,7 +2417,6 @@ class TestQueries(TransactionCase):
     def test_rec_names_search(self):
         Model = self.env["ir.model"]
 
-        # search on both 'name' and 'model'
         self.assertEqual(Model._rec_names_search, ["name", "model"])
 
         with self.assertQueries(
@@ -2692,8 +2475,6 @@ class TestMany2one(TransactionCase):
         ):
             self.User.search([("name", "like", "foo")])
 
-        # the field supporting the inheritance should be bypass_search_access, too
-        # TODO: use another model, since 'res.users' has explicit bypass_search_access
         with self.assertQueries(
             [
                 """
@@ -2821,7 +2602,6 @@ class TestMany2one(TransactionCase):
             )
             self.Partner.search([("company_id", "in", company_ids)])
 
-        # special case, with a LIMIT to make ORDER BY necessary
         with self.assertQueries(
             [
                 """
@@ -2843,7 +2623,6 @@ class TestMany2one(TransactionCase):
             )
             self.Partner.search([("company_id", "in", company_ids)])
 
-        # special case, when the query has been "forced"
         with self.assertQueries(
             [
                 """
@@ -2866,7 +2645,6 @@ class TestMany2one(TransactionCase):
             company_ids = tuple(company_ids)
             self.Partner.search([("company_id", "in", company_ids)])
 
-        # special case, when the query has been build from a record
         with self.assertQueries(
             [
                 """
@@ -2889,7 +2667,6 @@ class TestMany2one(TransactionCase):
             company_ids = companies._as_query(ordered=False)
             self.Partner.search([("company_id", "in", company_ids)])
 
-        # special case, when the query has been transformed to SQL
         with self.assertQueries(
             [
                 """
@@ -2910,7 +2687,6 @@ class TestMany2one(TransactionCase):
             self.Partner.search([("company_id", "in", company_ids.subselect())])
 
     def testbypass_search_access(self):
-        # bypass_search_access on the first many2one
         self.patch(self.Partner._fields["company_id"], "bypass_search_access", True)
         self.patch(self.company._fields["partner_id"], "bypass_search_access", False)
         self.Partner.search([("company_id.partner_id.name", "like", self.company.name)])
@@ -2961,7 +2737,6 @@ class TestMany2one(TransactionCase):
         ):
             self.Partner.search([("company_id.parent_id", "=", False)])
 
-        # bypass_search_access on the second many2one
         self.patch(self.Partner._fields["company_id"], "bypass_search_access", False)
         self.patch(self.company._fields["partner_id"], "bypass_search_access", True)
         self.Partner.search([("company_id.partner_id.name", "like", self.company.name)])
@@ -2984,7 +2759,6 @@ class TestMany2one(TransactionCase):
                 [("company_id.partner_id.name", "like", self.company.name)]
             )
 
-        # bypass_search_access on both many2one
         self.patch(self.Partner._fields["company_id"], "bypass_search_access", True)
         self.patch(self.company._fields["partner_id"], "bypass_search_access", True)
         self.Partner.search([("company_id.partner_id.name", "like", self.company.name)])
@@ -3007,7 +2781,6 @@ class TestMany2one(TransactionCase):
                 [("company_id.partner_id.name", "like", self.company.name)]
             )
 
-        # union with two bypass_search_access
         self.patch(self.Partner._fields["company_id"], "bypass_search_access", True)
         self.patch(self.Partner._fields["country_id"], "bypass_search_access", True)
         self.Partner.search(
@@ -3261,7 +3034,6 @@ class TestOne2many(TransactionCase):
                 [("child_ids.bank_ids.sanitized_acc_number", "like", "12")]
             )
 
-        # check domains on one2many fields
         self.patch(
             self.Partner._fields["bank_ids"],
             "domain",
@@ -3359,7 +3131,6 @@ class TestOne2many(TransactionCase):
         self.Partner.search([("bank_ids", "!=", False)], order="id")
         self.Partner.search([("bank_ids", "=", False)], order="id")
 
-        # no not_null check of "res_partner_bank"."partner_id" because the field is not null
         with self.assertQueries(
             [
                 """

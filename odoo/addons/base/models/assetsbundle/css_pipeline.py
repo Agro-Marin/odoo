@@ -12,8 +12,6 @@ from odoo.tools.misc import file_path
 from odoo.tools.sass_embedded import SassCompileError
 
 if TYPE_CHECKING:
-    # Under TYPE_CHECKING to break the runtime import cycle: ``bundle`` imports
-    # this module.
     from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
 
     from .bundle import AssetsBundle
@@ -32,7 +30,7 @@ def _rtlcss_bin() -> str:
     """Resolve the rtlcss executable, handling the Windows ``.cmd`` shim.
 
     Single source for both the probe (:func:`_check_rtlcss`) and the invocation
-    (:meth:`AssetsBundle.run_rtlcss`), so Windows resolves the npm ``.cmd`` shim
+    (:meth:`CssPipeline.run_rtlcss`), so Windows resolves the npm ``.cmd`` shim
     consistently instead of the probe failing on plain ``rtlcss``.
     """
     if os.name == "nt":
@@ -57,8 +55,6 @@ def _check_rtlcss() -> bool:
         check.communicate()
         _logger.warning("rtlcss --version probe timed out; disabling RTL support")
         return False
-    # A non-zero ``--version`` means a broken binary (wrong shim, bad install);
-    # treat it as unavailable rather than failing every later ``run_rtlcss``.
     if check.returncode:
         _logger.warning(
             "rtlcss --version exited with %s; disabling RTL support",
@@ -88,48 +84,19 @@ class CssPipeline:
     ``sourcemap_bundle`` sequence.
     """
 
-    # @import sanitizer pattern. Group 3 (``([^;{]*;?)``) captures the post-quote
-    # tail (media query, optional ``;``), making the dedup key media-aware — same
-    # url with different media stays distinct, and a deduped removal takes the
-    # media query with it. The ``{`` boundary stops a missing-``;`` import from
-    # swallowing a following rule body.
     rx_preprocess_imports = re.compile(r"""(@import\s*['"]([^'"]+)['"]([^;{]*;?))""")
-    # SCSS-aware scanner driving the @import sanitizer (:meth:`compile_css`). An
-    # ``@import`` inside a comment or string literal is not a directive and is
-    # passed through verbatim; otherwise a commented ``// @import "x";`` would
-    # trip the security check and poison the dedup set. SCSS analogue of
-    # :func:`_rewrite_css_outside_strings`, but it also consumes the Sass ``//``
-    # line comment (that helper omits it since ``//`` is ordinary text in plain
-    # CSS, e.g. ``url(//cdn/...)``). Arms: ``_CSS_STRING_OR_COMMENT`` (block
-    # comment + string), ``//[^\n]*`` (line comment), ``rx_preprocess_imports``
-    # (directive grammar, the only arm with capture groups — ref/tail stay groups
-    # 2/3). Left-to-right scan resolves overlaps. DOTALL is scoped to the
-    # block-comment/string arm (``(?s:...)``) so a ``.`` added to another arm
-    # later isn't silently affected.
     _rx_import_scanner = re.compile(
         rf"//[^\n]*|(?s:{_CSS_STRING_OR_COMMENT.pattern})|{rx_preprocess_imports.pattern}",
     )
-    # Split marker namespaced (``odoo-split:``) so it can't alias a CSS loud
-    # comment (``/*! <token> */``) that Sass and the minifier preserve — a bare
-    # ``/*! <hex> */`` build-hash stamp must not read as a fragment boundary.
-    # Kept in lockstep with ``StylesheetAsset.get_source``.
     rx_css_split = re.compile(r"/\*! odoo-split:([a-f0-9-]+) \*/")
 
-    # rtlcss subprocess budget; a hung binary must not pin a worker.
     _RTLCSS_TIMEOUT_S: int = 60
 
-    # Separates the carried-over previous CSS from the appended error banner.
-    # Used by both the split (strips a prior banner so repeats don't stack) and
-    # the join (re-adds it) in :meth:`_render_css_error_banner`.
     _CSS_ERROR_HEADER = "\n\n/* ## CSS error message ##*/"
 
     def __init__(self, bundle: AssetsBundle) -> None:
         """Bind the pipeline to the bundle whose stylesheets it transforms."""
         self._bundle = bundle
-        # Ordered render list :meth:`preprocess` assembles (optional @at-rules
-        # fragment + the bundle's stylesheets with compiled content), read back
-        # by :meth:`sourcemap_bundle`. Held here rather than in
-        # ``bundle.stylesheets`` so preprocess never mutates the source list.
         self._rendered_assets: list[StylesheetAsset] = []
 
     def preprocess(self) -> str:
@@ -142,21 +109,11 @@ class CssPipeline:
         reassigned to its source asset so per-file headers and source maps work.
         """
         bundle = self._bundle
-        # preprocess is the single authority on ``css_errors``: it rebuilds the
-        # list from scratch every call — bundle-level compile/rtl failures plus
-        # each asset's harvested fetch errors — so a re-run never double-reports.
         bundle.css_errors.clear()
-        # Rebuild the render list from scratch too. preprocess never mutates
-        # ``bundle.stylesheets``, so re-runs are idempotent by construction.
         self._rendered_assets = []
         if not bundle.stylesheets:
             return ""
 
-        # Reset per-asset state so the rebuild-from-source contract holds for the
-        # leaves. ``css_errors`` is cleared above but then *extended* from each
-        # asset's ``errors``, so without clearing those here a second call would
-        # double-report every leaf fetch error. Resetting ``_content`` keeps
-        # minify()/get_source() in step so a cleared error is re-recorded.
         for asset in bundle.stylesheets:
             asset.errors.clear()
             asset._content = None
@@ -164,12 +121,6 @@ class CssPipeline:
         compiled = ""
         assets = [a for a in bundle.stylesheets if isinstance(a, PreprocessedCSS)]
         if assets:
-            # The whole concatenation is compiled through ONE compiler (Sass
-            # needs the global ``@import`` scope), so ``assets[0].compile`` must
-            # serve every asset — all preprocessed assets must share one dialect.
-            # Enforce it so a future second dialect trips here instead of being
-            # silently compiled through the first asset's compiler. Plain
-            # ``raise`` (not ``assert``) so it still fires under ``python -O``.
             dialects = {type(a) for a in assets}
             if len(dialects) != 1:
                 raise RuntimeError(
@@ -179,7 +130,6 @@ class CssPipeline:
             source = "\n".join(asset.get_source() for asset in assets)
             compiled = self.compile_css(assets[0].compile, source)
 
-        # RTL: merge plain CSS into compiled output, then transform the whole
         if bundle.rtl:
             plain_css_assets = [
                 asset
@@ -189,38 +139,20 @@ class CssPipeline:
             compiled += "\n".join(asset.get_source() for asset in plain_css_assets)
             compiled = self.run_rtlcss(compiled)
 
-        # At this point ``css_errors`` can only hold bundle-level entries (leaf
-        # fetch errors are harvested later), so a non-empty list means a
-        # bundle-level failure (Sass/rtl error or forbidden @import) left
-        # ``compiled`` empty. Short-circuit the split + minify reassembly.
         compile_failed = bool(bundle.css_errors)
         if compile_failed:
-            # With no usable ``compiled`` output the split assigns no fragments;
-            # the ``minify()`` pass would re-fetch and re-error every leaf (whose
-            # ``_content`` is unset) and discard the raw result anyway. Harvest
-            # the leaf errors from ``get_source()`` and return "".
             for asset in bundle.stylesheets:
                 bundle.css_errors.extend(asset.errors)
             return ""
 
-        # Split compiled output back into per-file fragments using UUID markers
         fragments = self.rx_css_split.split(compiled)
         at_rules = fragments.pop(0)
-        # Sass moves @at-rules (e.g. @charset) to the top for CSS 2.1. They have
-        # no source asset, so wrap them in a synthetic StylesheetAsset prepended
-        # to the RENDER list — never to ``bundle.stylesheets``, keeping the
-        # source list immutable so preprocess stays a pure rebuild.
         rendered = list(bundle.stylesheets)
         if at_rules:
             rendered.insert(0, StylesheetAsset(bundle, inline=at_rules))
         self._rendered_assets = rendered
 
-        # Fragments match back to SOURCE assets only; the synthetic @at-rules
-        # asset carries its content inline, never via a split marker.
         assets_by_id = {a.id: a for a in bundle.stylesheets}
-        # ``rx_css_split`` yields ``marker, content, marker, content, …``;
-        # pair-iterate instead of ``pop(0)`` in a loop (O(N²) on hundreds of
-        # fragments).
         marker_iter = iter(fragments)
         for asset_id, content in zip(marker_iter, marker_iter, strict=True):
             asset = assets_by_id.get(asset_id)
@@ -231,22 +163,11 @@ class CssPipeline:
                 )
             asset._content = content
 
-        # Autoprefix EVERY stylesheet's content — Sass-compiled fragments AND
-        # plain .css assets (whose fetch this ``content`` read triggers) — since
-        # the ``.autoprefixed`` URL claims the whole bundle is prefixed. Applied
-        # per asset (not the joined output) so the debug path rebuilt by
-        # ``sourcemap_bundle`` from each asset's ``content`` is prefixed too.
-        # String-aware, so literals and headers are safe.
         if bundle.autoprefix:
             for asset in bundle.stylesheets:
                 asset._content = self._autoprefix_css(asset.content)
 
         bundle_css = "\n".join(asset.minify() for asset in self._rendered_assets)
-        # Harvest each asset's fetch/rewrite errors, now fully populated by the
-        # minify pass (and earlier get_source() reads) that triggered fetching.
-        # Compilation succeeded (a bundle-level failure returned "" above), so a
-        # leaf-only fetch error still ships the partial bundle and css() banners
-        # on it (pinned by test_bundle_harvests_asset_errors).
         for asset in bundle.stylesheets:
             bundle.css_errors.extend(asset.errors)
         return bundle_css
@@ -274,9 +195,6 @@ class CssPipeline:
                 content = asset.with_header(asset.content)
                 if asset.url:
                     generator.add_source(asset.url, content, content_line_count)
-                # Comment out the @import rules hoisted to the top of the bundle
-                # (string-aware: an ``@import`` inside a ``content: "…"`` value
-                # is left intact).
                 content = _rewrite_css_outside_strings(
                     self._bundle.rx_css_import,
                     lambda matchobj: f"/* {matchobj.group(0)} */",
@@ -301,26 +219,13 @@ class CssPipeline:
 
         def sanitize_import(matchobj: re.Match) -> str:
             token = matchobj.group(0)
-            # Comment / string span: the ``@import`` inside it is not a directive
-            # — return it untouched so a commented ``// @import "x";`` neither
-            # raises a spurious security error nor poisons ``seen_imports``.
             if token[:2] in ("/*", "//") or token[:1] in ("'", '"'):
                 return token
             ref = matchobj.group(2)
             line = f'@import "{ref}"{matchobj.group(3)}'
-            # Dedup FIRST, media-aware: ``line`` reconstructs the full statement
-            # (group 3 carries the trailing media query), so same url + different
-            # media stays distinct. Deduping ahead of the security check reports
-            # a repeated forbidden import ONCE, not once per occurrence (each
-            # would otherwise stack a banner line). Re-imported library partials
-            # are the normal SCSS case and dropped silently.
             if line in seen_imports:
                 return ""
             seen_imports.add(line)
-            # Security: reject local/relative imports — a dotted filename
-            # (``foo.scss``) or a path-like ref (``./``, ``/``, ``~``). These
-            # must come through the assets bundle, not a raw @import resolved off
-            # the compiler's load path.
             if "." in ref or ref.startswith((".", "/", "~")):
                 msg = (
                     f"Local import {ref!r} is forbidden for security reasons."
@@ -342,13 +247,6 @@ class CssPipeline:
             bundle.css_errors.append(error)
             return ""
 
-    # Vendor-prefix matcher for the ``appearance`` property, handling expanded
-    # and compressed Dart Sass output. The value group is ``[\w-]+`` so a
-    # hyphenated value (``menulist-button``) survives intact; an optional
-    # ``!important`` is captured and replicated onto the prefixed copies (else
-    # they lose to ``appearance: none !important``). Existing
-    # ``-webkit-``/``-moz-appearance`` are left untouched — their ``appearance``
-    # is preceded by ``-``, outside the ``[{; \t]`` lead-in.
     _RX_APPEARANCE = re.compile(r"([{; \t])appearance:\s*([\w-]+)(\s*!important)?(;?)")
 
     @classmethod
@@ -386,13 +284,8 @@ class CssPipeline:
             _logger.warning("%s", error)
             self._bundle.css_errors.append(error)
             return ""
-        # Compare on stripped forms so a whitespace-only rtlcss result doesn't
-        # read as truthy and ship "" with no banner; stripping ``source`` too
-        # avoids a false positive on a legitimately empty payload.
         out = out.strip()
         if source.strip() and not out:
-            # Zero exit but empty output for a non-empty payload — rtlcss
-            # swallowed the stylesheet without reporting an error.
             error = "rtlcss: error processing payload\n"
             _logger.warning("%s", error)
             self._bundle.css_errors.append(error)

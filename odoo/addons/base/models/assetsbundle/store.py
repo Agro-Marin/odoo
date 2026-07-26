@@ -10,9 +10,6 @@ from odoo.libs.constants import (
 from odoo.tools import SQL
 
 if TYPE_CHECKING:
-    # Model-class imports must stay typing-only: base/models/__init__ imports
-    # assetsbundle FIRST, and registering ir.attachment before model 'base'
-    # exists aborts registry load (see ir_attachment.py's TYPE_CHECKING block).
     from odoo.addons.base.models.ir_attachment import IrAttachment
 from .common import _logger
 
@@ -27,17 +24,10 @@ class AssetAttachmentStore:
     callback, leaving :class:`AssetsBundle` the source of truth for checksums.
     """
 
-    # Bundles whose rebuild broadcasts a ``bundle_changed`` bus message.
     TRACKED_BUNDLES = ("web.assets_web",)
 
-    # Stylesheet artifact extensions accepted by ``is_css``.
     _CSS_EXTENSIONS = frozenset({"css", "min.css", "css.map"})
 
-    # Persistable bundle artifacts and their served mimetype; doubles as the
-    # ``save_attachment`` extension whitelist (one source of truth). No
-    # ``xml`` / ``min.xml``: template bundles don't persist here — ESM
-    # templates save via ``ir_qweb._save_esm_attachment``, legacy ones ship
-    # inside the concatenated ``(min.)js`` artifact.
     _ATTACHMENT_MIMETYPES = MappingProxyType(
         {
             "js": "application/javascript",
@@ -177,9 +167,6 @@ class AssetAttachmentStore:
                 list(attachments.ids),
             )
         )
-        # ``SKIP LOCKED`` may leave rows in place; only mark the filestore
-        # entries of rows that were actually deleted (the GC's reference
-        # check would catch a wrong mark, but don't lean on the backstop).
         deleted_ids = {row[0] for row in self.env.cr.fetchall()}
         to_delete = {
             fname
@@ -187,7 +174,6 @@ class AssetAttachmentStore:
             if attach_id in deleted_ids
         }
         for fpath in to_delete:
-            # key-axis dispatch: deletes follow the store key's backend
             attachments._storage_delete(fpath)
 
     def _clean_attachments(self, extension: str, keep_url: str) -> None:
@@ -199,10 +185,6 @@ class AssetAttachmentStore:
         """
         ira = self.env["ir.attachment"]
         to_clean_pattern = self.get_asset_url_pattern(extension=extension)
-        # Mirror the identity columns ``get_attachments`` reads on (create_uid /
-        # res_model / res_id): the delete must not reach a row the read would
-        # not surface, or a public attachment merely sharing the URL pattern
-        # would be GC'd despite being invisible to the serving path.
         domain = [
             ("url", "=like", to_clean_pattern),
             ("url", "!=", keep_url),
@@ -260,10 +242,6 @@ class AssetAttachmentStore:
                 extension=extension,
                 ignore_params=True,
             )
-            # The cross-params fallback only matches when an
-            # ``_get_asset_bundle_url`` override (website) widens the
-            # ``ignore_params=True`` pattern. In base the two patterns are
-            # identical, so skip the guaranteed-empty second query.
             similar_attachment_ids = []
             if fallback_url_pattern != url_pattern:
                 self.env.cr.execute(SQL(query, SUPERUSER_ID, fallback_url_pattern))
@@ -277,8 +255,6 @@ class AssetAttachmentStore:
                     url_pattern,
                     similar.url,
                 )
-                # The pattern LIKE-escapes the bundle name (``\_``); the
-                # stored URL must be the real, unescaped one.
                 url = self.get_asset_url(unique=unique, extension=extension)
                 values = self._attachment_values(
                     name=similar.name,
@@ -304,11 +280,6 @@ class AssetAttachmentStore:
             raise ValueError(f"Invalid asset extension {extension!r}")
         ira = self.env["ir.attachment"]
 
-        # LTR/RTL (and autoprefixed) variants are distinguished by the URL, not
-        # the name: ``_asset_url`` injects ``.rtl`` / ``.autoprefixed`` segments
-        # that ``get_attachments`` / ``_clean_attachments`` match on, so the
-        # variants never collide despite sharing this ``name``. (Upstream
-        # encoded the direction in the name; this fork moved it to the URL.)
         fname = f"{self.name}.{extension}"
         unique = self._version("css" if self.is_css(extension) else "js")
         url = self.get_asset_url(
@@ -328,8 +299,6 @@ class AssetAttachmentStore:
 
         self._clean_attachments(extension, url)
 
-        # For end-user assets (common and backend), send a message on the bus
-        # to invite the user to refresh their browser
         if "bus.bus" in self.env and self.name in self.TRACKED_BUNDLES:
             self.env["bus.bus"]._sendone(
                 "broadcast",

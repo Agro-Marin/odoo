@@ -28,8 +28,6 @@ EU_EXTRA_VAT_CODES = {
 
 _logger = logging.getLogger(__name__)
 
-# Address formats that already triggered a fallback warning in
-# _display_address(); guards the log against flooding (warn once per format).
 _FAILED_ADDRESS_FORMATS: set[str] = set()
 
 
@@ -55,19 +53,14 @@ def _find_duplicate(
         for candidate in candidates_by_value.get(value, []):
             if candidate.id == partner_id:
                 continue
-            # Exclude descendants (replaces child_of domain negation)
             if partner_id and _is_descendant_of(candidate, partner_id):
                 continue
-            # Country filter — skip candidates with a different country
             if (
                 country_id
                 and candidate.country_id.id
                 and candidate.country_id.id != country_id
             ):
                 continue
-            # Company filter — skip candidates whose company differs. Applies
-            # when the partner has a company, or unconditionally when
-            # company_scoped (registry).
             if (
                 candidate.company_id.id
                 and candidate.company_id.id != company_id
@@ -99,7 +92,6 @@ def _lang_get(self) -> list[tuple[str, str]]:
     return self.env["res.lang"].get_installed()
 
 
-# put POSIX 'Etc/*' entries at the end to avoid confusing users - see bug 1086728
 _tzs = [
     (tz, tz)
     for tz in sorted(
@@ -112,7 +104,6 @@ def _tz_get(self) -> list[tuple[str, str]]:
     return _tzs
 
 
-# Precompiled regex for collapsing whitespace before newlines in display names.
 _RE_WHITESPACE_BEFORE_NEWLINE = re.compile(r"\s+\n")
 
 
@@ -150,12 +141,11 @@ class ResPartner(models.Model):
         "ref",
         "vat",
         "company_registry",
-    ]  # TODO vat must be sanitized the same way for storing/searching
+    ]
     _allow_sudo_commands = False
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
 
-    # the partner types that must be added to a partner's complete name, like "Delivery"
     _complete_name_displayed_types = ("invoice", "delivery", "other")
 
     def _default_category(self) -> ResPartnerCategory:
@@ -170,7 +160,6 @@ class ResPartner(models.Model):
         if "company_id" in fields and "parent_id" in fields and values.get("parent_id"):
             parent = self.browse(values.get("parent_id"))
             values["company_id"] = parent.company_id.id
-        # protection for `default_type` values leaking from menu action context (e.g. for crm's email)
         if "type" in fields and values.get("type"):
             if values["type"] not in self._fields["type"].get_values(self.env):
                 values["type"] = None
@@ -206,13 +195,11 @@ class ResPartner(models.Model):
         domain=[("active", "=", True)],
         context={"active_test": False},
     )
-    # Warning: user_id is a Salesperson, not the inverse of partner_id in res.users.
-    # For the latter, see user_ids and main_user_id.
     user_id: ResUsers = fields.Many2one(
         "res.users",
         string="Salesperson",
         compute="_compute_user_id",
-        precompute=True,  # avoid queries post-create
+        precompute=True,
         readonly=False,
         store=True,
         help="The internal user in charge of this contact.",
@@ -297,7 +284,6 @@ class ResPartner(models.Model):
         string="Address Type",
         default="contact",
     )
-    # company_type is only an interface field, do not use it in business logic
     company_type = fields.Selection(
         string="Company Type",
         selection=[("person", "Person"), ("company", "Company")],
@@ -308,7 +294,6 @@ class ResPartner(models.Model):
         "Address Type Description",
         compute="_compute_type_address_label",
     )
-    # address fields
     street = fields.Char()
     street2 = fields.Char()
     zip = fields.Char(change_default=True)
@@ -386,7 +371,6 @@ class ResPartner(models.Model):
         "access or with a limited access created for sharing data.",
     )
 
-    # technical field used for managing commercial fields
     commercial_partner_id = fields.Many2one(
         "res.partner",
         string="Commercial Entity",
@@ -402,7 +386,6 @@ class ResPartner(models.Model):
     )
     company_name = fields.Char("Company Name")
 
-    # hack to allow using plain browse record in qweb views, and used in ir.qweb.field.contact
     self = fields.Many2one(
         comodel_name="res.partner",
         compute="_compute_get_ids",
@@ -416,14 +399,7 @@ class ResPartner(models.Model):
         "CHECK( (type='contact' AND name IS NOT NULL) or (type!='contact') )",
         "Contacts require a name",
     )
-    # GIN trigram index backing the ilike autocomplete path of _rec_names_search.
-    # Complements (not replaces) the field btree serving _order; index="trigram"
-    # on the field would swap the btree for the GIN (one index per field).
     _complete_name_trgm_index = models.Index(_complete_name_trgm_index_definition)
-    # GIN index backing the `barcode @> jsonb_build_object(...)` containment probe
-    # of _check_barcode_unicity; a btree expression index cannot serve it (the
-    # company slot key is only known at runtime). jsonb_path_ops is more selective
-    # here than the default jsonb_ops.
     _barcode_gin_index = models.Index("USING gin (barcode jsonb_path_ops)")
 
     def _compute_application_statistics(self) -> None:
@@ -473,8 +449,6 @@ class ResPartner(models.Model):
         partners_without_image = (self - partners_with_internal_user).filtered(
             lambda p: not p[image_field]
         )
-        # _avatar_get_placeholder() serves module-cached bytes per path, so a
-        # plain per-record loop replaces the former group-by-path batching.
         for partner in partners_without_image:
             partner[avatar_field] = base64.b64encode(partner._avatar_get_placeholder())
 
@@ -507,8 +481,6 @@ class ResPartner(models.Model):
             if not self.is_company and not self.env.context.get(
                 "partner_display_name_hide_company"
             ):
-                # Sudo: parent company may be outside the user's company scope
-                # (res.partner record rule), so name would be empty without it.
                 name = f"{self.commercial_company_name or self.sudo().parent_id.name}, {name}"
         return name.strip()
 
@@ -522,8 +494,6 @@ class ResPartner(models.Model):
     )
     def _compute_complete_name(self) -> None:
         type_description = dict(self._fields["type"]._description_selection(self.env))
-        # Use with_context({}) to strip context keys that affect display_name
-        # (show_address, show_email, etc.) — but only create one proxy.
         clean_self = self.with_context({}) if self.env.context else self
         for partner in clean_self:
             partner.complete_name = partner._get_complete_name(type_description)
@@ -534,13 +504,11 @@ class ResPartner(models.Model):
         default if any. Otherwise, fallback to default context / DB lang"""
         if not self:
             return
-        # default_get does not depend on the partner; compute it once.
         default_lang = self.default_get(["lang"]).get("lang")
         for partner in self:
             if partner.parent_id:
                 partner.lang = partner.parent_id.lang or default_lang or self.env.lang
             elif not partner.lang:
-                # parent-less contacts (e.g. m2o quick-create) still get a lang
                 partner.lang = default_lang or self.env.lang
 
     @api.depends("lang")
@@ -580,8 +548,6 @@ class ResPartner(models.Model):
         partner is the best (internal over share, smallest id) — no per-partner
         ``min()`` needed.
         """
-        # Sudo: res.users record rule hides users from other companies; we need
-        # all linked users to determine the main user regardless of company scope.
         Users = self.env["res.users"].sudo()
         current_user = self.env.user
         current_partner_id = current_user.partner_id.id
@@ -592,8 +558,6 @@ class ResPartner(models.Model):
             self.env["ir.model.data"]._xmlid_to_res_id("base.user_root")
         )
 
-        # Fetch all active users sorted (share ASC, id ASC): internal before
-        # portal, then smallest id — the first user per partner is the best.
         best_user: dict[int, ResUsers] = {}
         all_users = Users.search_fetch(
             [("partner_id", "in", self.ids), ("active", "=", True)],
@@ -624,10 +588,8 @@ class ResPartner(models.Model):
         if not partners:
             return
 
-        # Default: all partners are "share" (external / no user)
         partners.partner_share = True
 
-        # Single query: find partner_ids that have at least one internal user
         internal_partner_ids = {
             partner.id
             for (partner,) in self.env["res.users"]._read_group(
@@ -653,11 +615,8 @@ class ResPartner(models.Model):
         Fetches all candidates in 1-2 bulk queries and matches in Python instead
         of one search() per partner.
         """
-        # active_test=False: deactivated partners should still flag duplicates
         Partner = self.with_context(active_test=False).sudo()
 
-        # Phase 1: Collect all VAT variants and registries across the batch.
-        # Memoize per-partner VAT variant lists to avoid recomputing in Phase 3.
         all_vats = set()
         all_registries = set()
         vat_variants: dict[int, list[str]] = {}
@@ -679,9 +638,6 @@ class ResPartner(models.Model):
             if partner.company_registry and not partner.parent_id:
                 all_registries.add(partner.company_registry)
 
-        # Phase 2: Batch-fetch candidates, indexed by field value for O(1) lookup
-        # per partner. search_fetch returns only existing rows, so the fetched
-        # keys are the set of existing values (no separate existence check).
         vat_by_value: dict[str, list] = defaultdict(list)
         if all_vats:
             for c in Partner.search_fetch(
@@ -698,8 +654,6 @@ class ResPartner(models.Model):
             ):
                 reg_by_value[c.company_registry].append(c)
 
-        # Phase 3: Python-only matching (no further queries). Reuses memoized
-        # VAT variants; membership in *_by_value doubles as the existence guard.
         for partner in self:
             partner_id = partner._origin.id
             vats = vat_variants.get(partner.id)
@@ -776,7 +730,6 @@ class ResPartner(models.Model):
             ) or partner.company_name
 
     def _compute_company_registry(self) -> None:
-        # exists to allow overrides
         for partner in self:
             partner.company_registry = partner.company_registry
 
@@ -827,16 +780,11 @@ class ResPartner(models.Model):
 
     @api.onchange("parent_id")
     def onchange_parent_id(self) -> dict[str, Any] | None:
-        # Return values in an onchange-style ``result`` dict: res.users
-        # delegates its own onchange_parent_id() here (see res_users.py).
         if not self.parent_id:
             return None
         result = {}
         partner = self._origin
         if (partner.type or self.type) == "contact":
-            # for contacts: copy the parent address, if set (aka, at least one
-            # value is set in the address: otherwise, keep the one from the
-            # contact)
             if address_values := self.parent_id._get_address_values():
                 result["value"] = address_values
         return result
@@ -905,11 +853,8 @@ class ResPartner(models.Model):
         so a non-empty barcode ir.default would make fallback-only partners look
         like duplicates of that default value and raise spuriously (RP-L1).
         """
-        # Flush pending barcode writes so the freshly-written jsonb slots are
-        # visible to the raw queries below.
         self.flush_model(["barcode"])
         cid = str(self.env.company.id)
-        # Read the explicit per-company slots of the records under check.
         self.env.cr.execute(
             tools.SQL(
                 "SELECT id, barcode ->> %(cid)s FROM res_partner"
@@ -922,18 +867,10 @@ class ResPartner(models.Model):
         for partner_id, value in self.env.cr.fetchall():
             ids_by_value[value].append(partner_id)
         if any(len(ids) > 1 for ids in ids_by_value.values()):
-            # duplicate within the checked batch itself
             raise ValidationError(_("Another partner already has this barcode"))
         if not ids_by_value:
             return
-        # Probe the rest of the table with jsonb containment (`@>`) terms: each is
-        # served by the GIN index (_barcode_gin_index) and the OR becomes one
-        # BitmapOr — one query per batch, not per value (pinned by
-        # test_check_barcode_batch). `barcode ->> %(cid)s = %(value)s` would
-        # instead force a seq scan (runtime jsonb key defeats expression indexes).
         probes = tools.SQL(" OR ").join(
-            # explicit ::text casts: jsonb_build_object is variadic "any", so
-            # the server-side binding cannot infer the parameter types
             tools.SQL(
                 "barcode @> jsonb_build_object(%(cid)s::text, %(value)s::text)",
                 cid=cid,
@@ -1032,10 +969,6 @@ class ResPartner(models.Model):
             sync_vals = commercial_partner._get_commercial_values()
             if sync_vals:
                 self.write(sync_vals)
-                # Propagate to descendants only the fields actually synced onto
-                # self (those SET on the commercial entity): an unset commercial
-                # field must not wipe descendants' values, as it doesn't wipe
-                # self's above.
                 self._commercial_sync_to_descendants(list(sync_vals))
             self._company_dependent_commercial_sync()
 
@@ -1083,19 +1016,11 @@ class ResPartner(models.Model):
         frontier = self.child_ids.filtered(lambda c: not c.is_company)
         while frontier:
             descendants |= frontier
-            # exclude already-seen nodes (and self) to stay safe under cycles
             frontier = (frontier.child_ids - self - descendants).filtered(
                 lambda c: not c.is_company
             )
         if descendants:
             sync_vals = commercial_partner._convert_fields_to_values(fields_to_sync)
-            # Only write to descendants that actually differ from the target
-            # values. Reading the (few) commercial fields across the subtree is
-            # cheap and batched, whereas an unconditional write() on an already
-            # in-sync subtree still prepares mail tracking, triggers dependent
-            # recomputes and flushes every node -- the main source of the
-            # memory/time blow-up during batch operations that re-sync an
-            # unchanged commercial entity (e.g. batch payments).
             descendants_to_sync = descendants.filtered(
                 lambda d: any(
                     d._fields[fname].convert_to_write(d[fname], d) != sync_vals[fname]
@@ -1115,12 +1040,6 @@ class ResPartner(models.Model):
 
         :param values: updated values triggering the sync
         """
-        # Batch-read the fields the sync helpers below read on every record.
-        # ``write()`` calls this per-partner, but each single-record ``self``
-        # keeps the whole write's prefetch set, so the first iteration loads
-        # these for all partners in one query instead of one query per record
-        # (avoids the per-partner read storm on large batch writes).
-        self.fetch(["parent_id", "type", "commercial_partner_id"])
         self._sync_from_parent(values)
         self._sync_to_parent(values)
         self._children_sync(values)
@@ -1130,13 +1049,8 @@ class ResPartner(models.Model):
         parent changed, and address fields for contacts. See :meth:`_fields_sync`."""
         if not (values.get("parent_id") or values.get("type") == "contact"):
             return
-        # Commercial fields: sync if parent changed.
         if values.get("parent_id"):
-            # Sudo required: commercial sync must propagate across company
-            # boundaries. The new parent may be in a different company than
-            # the current user, making its commercial values inaccessible.
             self.sudo()._commercial_sync_from_company()
-        # Address fields: sync if parent or use_parent changed *and* both are now set.
         if self.parent_id and self.type == "contact":
             if address_values := self.parent_id._get_address_values():
                 self._update_address(address_values)
@@ -1148,16 +1062,12 @@ class ResPartner(models.Model):
         if not self.parent_id:
             return
         address_fields = self._address_fields()
-        # Contact address mirrors the parent's, so push address changes up.
         if (
             self.type == "contact"
             and ("parent_id" in values or any(f in values for f in address_fields))
             and any(self[f] != self.parent_id[f] for f in address_fields)
         ):
-            # is going to trigger _fields_sync again
             self.parent_id.write(self._get_address_values())
-        # Synced commercial fields (vat) propagate up unless self is itself the
-        # commercial entity.
         synced_fields = self._synced_commercial_fields()
         if (
             self.commercial_partner_id != self
@@ -1167,25 +1077,10 @@ class ResPartner(models.Model):
             self.parent_id.write(self._get_synced_commercial_values())
 
     def _children_sync(self, values: dict[str, Any]) -> None:
-        # NB: no ``if not self.child_ids: return`` short-circuit here. That guard
-        # read child_ids under the *current user's* record rules, so a commercial
-        # entity whose only descendants live in another company (and are hidden
-        # from the user) looked childless and skipped the commercial sync below —
-        # defeating the sudo cross-company propagation it is supposed to guarantee.
-        # 3a. Commercial Fields: sync if commercial entity
         if self.commercial_partner_id == self:
             fields_to_sync = values.keys() & self._commercial_fields()
-            # Skip the recursive descendant walk when no commercial field
-            # changed: _commercial_sync_to_descendants would otherwise traverse
-            # the whole subtree and issue no-op write({}) calls at every level.
             if fields_to_sync:
-                # Sudo required: descendants may belong to other companies where
-                # the current user lacks write access. Commercial field consistency
-                # must be enforced system-wide across company boundaries. Child
-                # discovery also runs under sudo so hidden descendants are reached.
                 self.sudo()._commercial_sync_to_descendants(fields_to_sync)
-        # 3b. Address fields: sync if address changed. Kept under the current
-        # user's rules on purpose: address mirroring has no cross-company mandate.
         address_fields = self._address_fields()
         if any(field in values for field in address_fields):
             contacts = self.child_ids.filtered(lambda c: c.type == "contact")
@@ -1221,8 +1116,6 @@ class ResPartner(models.Model):
         public_group = self.env.ref("base.group_public", raise_if_not_found=False)
         if not public_group:
             return
-        # active_test=False + sudo: the public user is archived and hidden by the
-        # res.users record rule, so both are needed to see it.
         public_partner_ids = {
             partner.id
             for (partner,) in self.env["res.users"]
@@ -1284,11 +1177,7 @@ class ResPartner(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("active") is False:
-            # When creating a user for a partner, the user is automatically added to partner.user_ids.
-            # If the partner is then archived, the user is not active, but partner.user_ids only
-            # returns active users, so the inverse field cache becomes stale and must be invalidated.
             self.invalidate_recordset(["user_ids"])
-            # Sudo: must find all linked users including those in other companies.
             users = (
                 self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
             )
@@ -1299,29 +1188,16 @@ class ResPartner(models.Model):
         if vals.get("parent_id"):
             vals["company_name"] = False
         if vals.get("name"):
-            # Guarded bank-account holder-name sync: acc_holder_name is a
-            # user-editable default (stored compute depending on partner_id
-            # only — see res.partner.bank), so a rename does NOT recompute it.
-            # Follow the rename only on accounts still matching the current
-            # (pre-write) partner name; hand-customized names are preserved.
             banks_to_sync = self.bank_ids.filtered(
                 lambda bank: bank.acc_holder_name == bank.partner_id.name
             )
             if banks_to_sync:
                 banks_to_sync.acc_holder_name = vals["name"]
 
-        # Keep only really updated values: field sync walks the partner tree, so
-        # we must avoid infinite loops when a cycle re-writes the same value (e.g.
-        # a property field → computed field → inverse writing back the property).
         pre_values_list = [
             {fname: partner[fname] for fname in vals} for partner in self
         ]
 
-        # res.partner must only allow to set the company_id of a partner if it
-        # is the same as the company of all users that inherit from this partner
-        # (this is to allow the code from res_users to write to the partner!) or
-        # if setting the company_id to False (this is compatible with any user
-        # company)
         if "company_id" in vals:
             company_id = vals["company_id"]
             if company_id:
@@ -1335,25 +1211,12 @@ class ResPartner(models.Model):
                                     "The selected company is not compatible with the companies of the related user(s)"
                                 )
                             )
-            # Validate every partner first, then cascade to ALL children in one
-            # write (each level recurses through this same code path), instead
-            # of one write per parent. Search with active_test=False: ``child_ids``
-            # is active-filtered, so archived children would otherwise keep the
-            # stale company_id and diverge after being unarchived.
             children = self.with_context(active_test=False).search(
                 [("parent_id", "in", self.ids)]
             )
             if children:
                 children.write({"company_id": company_id})
 
-        # Access control BEFORE mutating: writing to a partner that backs another
-        # internal user requires write access on that user. Run it pre-write so a
-        # caller catching AccessError cannot keep the unauthorized change — the
-        # check previously ran after super().write(). Read the backing users via
-        # sudo(): as the acting user, record rules could hide an internal user we
-        # are not allowed to see, silently skipping the guard (the old post-write
-        # read happened to see it via cache populated during the write). Then
-        # check the acting user's access in the non-sudo env.
         for partner in self:
             backing_ids = (
                 partner.sudo()
@@ -1363,11 +1226,6 @@ class ResPartner(models.Model):
             if backing_ids:
                 self.env["res.users"].browse(backing_ids).check_access("write")
         result = True
-        # Sudo required for is_company writes by non-system partner managers:
-        # changing is_company recomputes commercial_partner_id across the whole
-        # partner hierarchy, which may include partners outside the current
-        # user's company scope. The sudo propagates through those cascade
-        # effects. System admins (env.su) already have full access.
         if (
             "is_company" in vals
             and not self.env.su
@@ -1378,12 +1236,6 @@ class ResPartner(models.Model):
             )
             del vals["is_company"]
         result = result and super().write(vals)
-        # context_get (a res.users ormcache keyed on uid) reads lang/tz, which
-        # physically live on res.partner via _inherits. A write performed
-        # directly on the partner bypasses res.users.write's invalidation, so
-        # clear the cache here when lang/tz changes on a partner that backs a
-        # user. The `{"lang", "tz"} & vals` guard keeps the common partner write
-        # to a single cheap set-intersection.
         if {"lang", "tz"} & vals.keys() and self.sudo().with_context(
             active_test=False
         ).user_ids:
@@ -1408,10 +1260,6 @@ class ResPartner(models.Model):
             if vals.get("parent_id"):
                 vals["company_name"] = False
         partners = super().create(vals_list)
-        # due to ir.default, compute is not called as there is a default value
-        # hence calling the compute manually. _compute_lang resolves the default
-        # lang once for its whole recordset, so call it a single time on the
-        # partners that had no explicit lang rather than once per record.
         partners_without_lang = partners.browse(
             partner.id
             for partner, values in zip(partners, vals_list, strict=True)
@@ -1423,8 +1271,6 @@ class ResPartner(models.Model):
         if self.env.context.get("_partners_skip_fields_sync"):
             return partners
 
-        # Share one missing-defaults cache across the loop: batches with
-        # uniform vals keys resolve the missing fields only once.
         missing_defaults_cache: dict[frozenset[str], list[str]] = {}
         for partner, vals in zip(partners, vals_list, strict=True):
             vals = self.env["res.partner"]._add_missing_default_values(
@@ -1435,8 +1281,6 @@ class ResPartner(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_user(self) -> None:
-        # Sudo: safety check must find all linked users, including those hidden
-        # by the res.users record rule (users in other companies).
         users = self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
         if users:
             self._raise_linked_user_error(users, "delete")
@@ -1446,8 +1290,6 @@ class ResPartner(models.Model):
             ResPartner, self.with_context(_partners_skip_fields_sync=True)
         )._load_records_create(vals_list)
 
-        # batch up first part of _fields_sync
-        # group partners by commercial_partner_id (if not self) and parent_id (if type == contact)
         groups = collections.defaultdict(list)
         for partner, vals in zip(partners, vals_list, strict=True):
             cp_id = None
@@ -1460,14 +1302,11 @@ class ResPartner(models.Model):
             groups[(cp_id, add_id)].append(partner.id)
 
         for (cp_id, add_id), children in groups.items():
-            # values from parents (commercial, regular) written to their common children
             to_write = {}
-            # commercial fields from commercial partner
             if cp_id:
                 to_write = self.browse(cp_id)._convert_fields_to_values(
                     self._commercial_fields()
                 )
-            # address fields from parent
             if add_id:
                 parent = self.browse(add_id)
                 for f in self._address_fields():
@@ -1475,12 +1314,8 @@ class ResPartner(models.Model):
                     if v:
                         to_write[f] = v.id if isinstance(v, models.BaseModel) else v
             if to_write:
-                # Sudo required: child partners may belong to other companies
-                # outside the creating user's company scope (same reason as
-                # _commercial_sync_to_descendants).
                 self.sudo().browse(children).write(to_write)
 
-        # do the second half of _fields_sync the "normal" way
         for partner, vals in zip(partners, vals_list, strict=True):
             partner._children_sync(vals)
             partner._handle_first_contact_creation()
@@ -1524,10 +1359,6 @@ class ResPartner(models.Model):
         }
 
     @api.depends(
-        # _display_address_depends() covers the full address rendered under the
-        # show_address context (street/street2/zip/city + state_id/country_id/
-        # company_name); without it, display_name would go stale after e.g. a
-        # street or city write.
         lambda self: [
             "complete_name",
             "email",
@@ -1543,8 +1374,6 @@ class ResPartner(models.Model):
         "show_vat",
         "lang",
         "formatted_display_name",
-        # read by _get_complete_name(); without it the cache would be shared
-        # between contexts with and without the key
         "partner_display_name_hide_company",
     )
     def _compute_display_name(self) -> None:
@@ -1606,7 +1435,7 @@ class ResPartner(models.Model):
             raise ValidationError(_("Couldn't create contact without email address!"))
 
         create_values = {self._rec_name: name or email_normalized}
-        if email_normalized:  # keep default_email in context
+        if email_normalized:
             create_values["email"] = email_normalized
         partner = self.create(create_values)
         return partner.id, partner.display_name
@@ -1630,10 +1459,6 @@ class ResPartner(models.Model):
             )
 
         if parsed_email_normalized:
-            # Escape the value: ``=ilike`` treats ``_`` and ``%`` as wildcards,
-            # and both are legal in an email local part, so an unescaped lookup
-            # for ``a_b@x.com`` would match (and return) ``axb@x.com``.  Mirrors
-            # ``res.users._get_email_domain``.
             partners = self.search(
                 [("email", "=ilike", tools.escape_psql(parsed_email_normalized))],
                 limit=1,
@@ -1642,7 +1467,7 @@ class ResPartner(models.Model):
                 return partners
 
         create_values = {self._rec_name: parsed_name or parsed_email_normalized}
-        if parsed_email_normalized:  # keep default_email in context
+        if parsed_email_normalized:
             create_values["email"] = parsed_email_normalized
         return self.create(create_values)
 
@@ -1666,9 +1491,6 @@ class ResPartner(models.Model):
             adr_pref.add("contact")
         result = {}
         if self:
-            # Build, per partner, its chain of scan roots: the partner itself,
-            # then its ancestors up to (and including) the first commercial
-            # entity (`is_company`) or the hierarchy root.
             chains = []
             for partner in self:
                 chain = [partner]
@@ -1676,19 +1498,12 @@ class ResPartner(models.Model):
                 current = partner
                 while not current.is_company and current.parent_id:
                     current = current.parent_id
-                    if current.id in seen_ids:  # cycle guard
+                    if current.id in seen_ids:
                         break
                     seen_ids.add(current.id)
                     chain.append(current)
                 chains.append(chain)
 
-            # Prefetch the whole reachable forest in ONE search on the topmost
-            # roots (child_of includes the roots themselves). active_test=False
-            # plus the explicit `active` filter below mirrors the child_ids field
-            # (domain [('active','=',True)]): archived nodes are never traversed
-            # as children, while chain roots are scanned regardless of active.
-            # Record rules apply: descendants hidden from the user are unreachable,
-            # as with per-node child_ids reads.
             children_map = defaultdict(list)
             root_ids = [
                 chain[-1].id for chain in chains if isinstance(chain[-1].id, int)
@@ -1698,8 +1513,6 @@ class ResPartner(models.Model):
                     [("id", "child_of", root_ids)]
                 )
                 nodes.fetch(["parent_id", "type", "is_company", "active"])
-                # search order is the model order, i.e. the same order as
-                # child_ids reads; per-parent sublists preserve it
                 for node in nodes:
                     if node.parent_id and node.active:
                         children_map[node.parent_id.id].append(node)
@@ -1707,8 +1520,6 @@ class ResPartner(models.Model):
             visited = set()
             for chain in chains:
                 for current in chain:
-                    # Scan the root's subtree, DFS, over the prefetched
-                    # adjacency (in-cache child_ids for new records).
                     stack = [current]
                     while stack:
                         record = stack.pop()
@@ -1723,13 +1534,10 @@ class ResPartner(models.Model):
                             children = children_map.get(record.id, ())
                         else:
                             children = record.child_ids
-                        # Push non-company children in reverse so the first
-                        # child is scanned first (DFS order).
                         stack.extend(
                             reversed([c for c in children if not c.is_company])
                         )
 
-        # default to type 'contact' or the first partner itself
         default = result.get("contact", self[:1].id or False)
         for adr_type in adr_pref:
             result[adr_type] = result.get(adr_type) or default
@@ -1790,9 +1598,6 @@ class ResPartner(models.Model):
         try:
             return address_format % args
         except KeyError, ValueError:
-            # address_format is user-editable in res.country; fall back gracefully
-            # if it is malformed (bad conversion spec) -> ValueError. Unknown
-            # placeholders don't raise: args is a defaultdict(str).
             if address_format not in _FAILED_ADDRESS_FORMATS:
                 _FAILED_ADDRESS_FORMATS.add(address_format)
                 _logger.warning(
@@ -1819,7 +1624,6 @@ class ResPartner(models.Model):
             )
 
     def _display_address_depends(self) -> list[str]:
-        # field dependencies of method _display_address()
         return self._formatting_address_fields() + [
             "country_id",
             "company_name",
@@ -1847,14 +1651,12 @@ class ResPartner(models.Model):
         """
         States = self.env["res.country.state"]
         states_ids = {vals["state_id"] for vals in vals_list if vals.get("state_id")}
-        # Fetch country_id AND code in one query so we need no additional browse calls.
         state_info_by_id = {
             rec["id"]: rec
             for rec in States.search_read(
                 [("id", "in", list(states_ids))], ["country_id", "code"]
             )
         }
-        # Collect all mismatched (code, country_id) pairs for batch lookup
         mismatch_keys: set[tuple[str, int]] = set()
         for vals in vals_list:
             if not vals.get("state_id") or not vals.get("country_id"):
@@ -1865,7 +1667,6 @@ class ResPartner(models.Model):
             if state_info["country_id"][0] != vals["country_id"]:
                 mismatch_keys.add((state_info["code"], vals["country_id"]))
 
-        # Batch search: one query for all mismatched states
         state_by_key: dict[tuple[str, int], Any] = {}
         if mismatch_keys:
             all_codes = list({code for code, _ in mismatch_keys})
@@ -1880,7 +1681,6 @@ class ResPartner(models.Model):
                 if key in mismatch_keys:
                     state_by_key.setdefault(key, state)
 
-        # Apply corrections
         for vals in vals_list:
             if not vals.get("state_id") or not vals.get("country_id"):
                 continue

@@ -143,29 +143,16 @@ class ResGroups(models.Model):
 
     @api.constrains("implied_ids", "implied_by_ids")
     def _check_disjoint_groups(self) -> None:
-        # check for users that might have two exclusive groups
         self.env.registry.clear_cache("groups")
         self.all_implied_by_ids._check_user_disjoint_groups()
 
     @api.constrains("view_access")
     def _check_inherited_view_groups(self) -> None:
-        # groups must not be linked to inherited views via view_access: that
-        # creates ir_ui_view_group_rel rows which break module upgrades. Use
-        # the view XML 'groups' attribute instead.
         self.view_access._check_groups()
 
     @api.constrains("user_ids")
     def _check_user_disjoint_groups(self) -> None:
-        # We should check every user in any group of 'self'
-        # (self.user_ids._check_disjoint_groups()), but that does not scale for
-        # large groups (10K+ users). Instead, search for one offending user.
         gids = self._get_user_type_groups().ids
-        # Restricted to active users: an archived user holding two disjoint
-        # user-type groups cannot log in, so it is harmless, and re-validating
-        # dormant data on every group write would not scale. Note the asymmetry
-        # with _compute_all_user_ids, which fills the all_user_ids cache with
-        # active_test=False so archived members are reachable in active_test=False
-        # contexts.
         domain = (
             Domain("active", "=", True)
             & Domain("group_ids", "in", self.ids)
@@ -177,7 +164,7 @@ class ResGroups(models.Model):
         )
         user = self.env["res.users"].search(domain, order="id", limit=1)
         if user:
-            user._check_disjoint_groups()  # raises a ValidationError
+            user._check_disjoint_groups()
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_settings_group(self) -> None:
@@ -193,12 +180,6 @@ class ResGroups(models.Model):
     @api.depends("privilege_id.name", "name")
     @api.depends_context("short_display_name")
     def _compute_full_name(self) -> None:
-        # Sudo is needed to read privilege_id.name: ir.module.category is
-        # restricted to group_erp_manager, but full_name is computed for all
-        # users who view groups in any UI context.
-        # The zip pattern is intentional: field assignment must go on the
-        # non-sudo record (group) so it lands in the correct record cache,
-        # while the sudo record (group1) is used only for reading privilege_id.
         for group, group1 in zip(self, self.sudo(), strict=True):
             if group1.privilege_id and not self.env.context.get("short_display_name"):
                 group.full_name = f"{group1.privilege_id.name} / {group1.name}"
@@ -258,7 +239,6 @@ class ResGroups(models.Model):
         order: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        # add explicit ordering if search is sorted on full_name
         if order and order.startswith("full_name"):
             groups = super().search(domain)
             groups = groups.sorted("full_name", reverse=order.endswith("DESC"))
@@ -280,20 +260,13 @@ class ResGroups(models.Model):
                     self.env._('The name of the group can not start with "-"')
                 )
 
-        # Invalidate caches before updating groups, since the recomputation of
-        # res.users field 'share' depends on all_group_ids (cache-backed).
         if self.ids:
             self.env["ir.model.access"].call_cache_clearing_methods()
 
         res = super().write(vals)
 
-        # Any write to a group can affect the cached `groups` registry family:
-        # _get_view_group_hierarchy and _get_group_definitions read the
-        # implication/membership graph plus name/comment/privilege_id. Busting it
-        # only on implied_ids/implied_by_ids left e.g. a renamed group stale in the
-        # hierarchy widget. Group writes are rare and config-time, so invalidate
-        # unconditionally.
         if self.ids:
+            self.env["ir.model.access"].call_cache_clearing_methods()
             self.env.registry.clear_cache("groups")
 
         return res
@@ -329,9 +302,6 @@ class ResGroups(models.Model):
 
     def _inverse_all_user_ids(self) -> None:
         for group in self:
-            # Capture implied-by membership BEFORE modifying user_ids so the
-            # validation check reads the original state, not a potentially stale
-            # ORM-cached value that could change after the assignment.
             implied_by_users = group.all_implied_by_ids.user_ids
             user_to_add = group.all_user_ids - implied_by_users
             user_to_remove = implied_by_users - group.all_user_ids
@@ -413,22 +383,12 @@ class ResGroups(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         groups = super().create(vals_list)
-        # Bust the `default` family too (via call_cache_clearing_methods, as
-        # write() does): res.users._get_group_ids and ir.ui.menu._visible_menu_ids
-        # are @ormcache in `default`, not `groups`. Clearing only `groups` would
-        # leave those stale. Defensive on create (a new group has no users yet);
-        # load-bearing on unlink (RG-L3).
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.env.registry.clear_cache("groups")
         return groups
 
     def unlink(self) -> bool:
         res = super().unlink()
-        # Symmetric with write()/create(): a deleted group's id stays in the
-        # `default`-family caches (res.users._get_group_ids,
-        # ir.ui.menu._visible_menu_ids) of users who held it until an unrelated
-        # default-flush. call_cache_clearing_methods() flushes `stable` -> `default`
-        # (RG-L3).
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.env.registry.clear_cache("groups")
         return res
@@ -551,9 +511,6 @@ class ResGroups(models.Model):
         consistent for flows triggered by public/portal users and avoids cache
         misses (upstream semantics — see odoo/odoo@d3e9e379ec9).
         """
-        # Checking implication from base.group_user instead would ignore
-        # per-user grants, which feature gates must honour (it broke every
-        # test enabling features via `user.group_ids += group`).
         return (
             self.env["res.users"]
             .sudo()
@@ -563,13 +520,6 @@ class ResGroups(models.Model):
 
     @api.depends("all_user_ids")
     def _compute_all_users_count(self) -> None:
-        # Count via search_count instead of len(all_user_ids): reading the
-        # relational field would materialize the whole implied-user population
-        # into the ORM cache per render. Semantics preserved, inheriting the
-        # caller's active_test — the x2many it replaces excluded archived users at
-        # access time in the default context, even though _compute_all_user_ids
-        # fills the cache with active_test=False. Runs as superuser
-        # (compute_sudo=True), like the relational read it replaces.
         Users = self.env["res.users"]
         for group in self:
             group.all_users_count = Users.search_count(

@@ -22,21 +22,18 @@ class TestXMLID(TransactionCase):
         model = self.env["res.partner.category"]
         xml_id = "test_convert.category_foo"
 
-        # create category (flag 'noupdate' should be False by default)
         data = {"xml_id": xml_id, "values": {"name": "Foo"}}
         category = model._load_records([data])
         self.assertEqual(category, self.env.ref(xml_id, raise_if_not_found=False))
         self.assertEqual(category.name, "Foo")
         self.assertEqual(self.get_data(xml_id).noupdate, False)
 
-        # update category
         data = {"xml_id": xml_id, "values": {"name": "Bar"}}
         category1 = model._load_records([data], update=True)
         self.assertEqual(category, category1)
         self.assertEqual(category.name, "Bar")
         self.assertEqual(self.get_data(xml_id).noupdate, False)
 
-        # update category
         data = {"xml_id": xml_id, "values": {"name": "Baz"}, "noupdate": True}
         category2 = model._load_records([data], update=True)
         self.assertEqual(category, category2)
@@ -47,21 +44,18 @@ class TestXMLID(TransactionCase):
         model = self.env["res.partner.category"]
         xml_id = "test_convert.category_foo"
 
-        # create category
         data = {"xml_id": xml_id, "values": {"name": "Foo"}, "noupdate": True}
         category = model._load_records([data])
         self.assertEqual(category, self.env.ref(xml_id, raise_if_not_found=False))
         self.assertEqual(category.name, "Foo")
         self.assertEqual(self.get_data(xml_id).noupdate, True)
 
-        # update category
         data = {"xml_id": xml_id, "values": {"name": "Bar"}, "noupdate": False}
         category1 = model._load_records([data], update=True)
         self.assertEqual(category, category1)
         self.assertEqual(category.name, "Foo")
         self.assertEqual(self.get_data(xml_id).noupdate, True)
 
-        # update category
         data = {"xml_id": xml_id, "values": {"name": "Baz"}, "noupdate": True}
         category2 = model._load_records([data], update=True)
         self.assertEqual(category, category2)
@@ -83,7 +77,6 @@ class TestXMLID(TransactionCase):
             },
         ]
 
-        # create category
         categories = model._load_records(data_list)
         foo = self.env.ref("test_convert.category_foo")
         bar = self.env.ref("test_convert.category_bar")
@@ -91,7 +84,6 @@ class TestXMLID(TransactionCase):
         self.assertEqual(foo.name, "Foo")
         self.assertEqual(bar.name, "Bar")
 
-        # check data
         self.assertEqual(self.get_data("test_convert.category_foo").noupdate, True)
         self.assertEqual(self.get_data("test_convert.category_bar").noupdate, True)
 
@@ -107,7 +99,6 @@ class TestXMLID(TransactionCase):
             {"xml_id": "test_convert.category_baz", "values": {"name": "Baz"}},
         ]
 
-        # create categories
         foo = model._load_records([data_list[0]])
         bar = model._load_records([data_list[1]])
         baz = model._load_records([data_list[2]])
@@ -115,7 +106,6 @@ class TestXMLID(TransactionCase):
         self.assertEqual(bar.name, "Bar")
         self.assertEqual(baz.name, "Baz")
 
-        # update them, and check the order of result
         for data in data_list:
             data["values"]["name"] += "X"
         cats = model._load_records(data_list, update=True)
@@ -129,7 +119,6 @@ class TestXMLID(TransactionCase):
         xml_id = "test_convert.user_foo"
         par_xml_id = xml_id + "_res_partner"
 
-        # create user
         user = model._load_records(
             [{"xml_id": xml_id, "values": {"name": "Foo", "login": "foo"}}]
         )
@@ -145,22 +134,18 @@ class TestXMLID(TransactionCase):
         xml_id = "test_convert.category_foo"
         data = {"xml_id": xml_id, "values": {"name": "Foo"}}
 
-        # create category
         category = model._load_records([data])
         self.assertEqual(category, self.env.ref(xml_id, raise_if_not_found=False))
         self.assertEqual(category.name, "Foo")
 
-        # suppress category
         category.unlink()
         self.assertFalse(self.env.ref(xml_id, raise_if_not_found=False))
 
-        # update category, this should recreate it
         category = model._load_records([data], update=True)
         self.assertEqual(category, self.env.ref(xml_id, raise_if_not_found=False))
         self.assertEqual(category.name, "Foo")
 
     def test_create_xmlids(self):
-        # create users and assign them xml ids
         foo, bar = self.env["res.users"]._load_records(
             [
                 {
@@ -266,7 +251,6 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should have been updated with record {records[1]}",
         )
 
-        # noupdate case: pins current behaviour, not asserting it makes sense
         xmlid = "base.test_xmlid_noupdates"
         with self.assertQueryCount(1):
             self.env["ir.model.data"]._update_xmlids(
@@ -275,7 +259,7 @@ class TestXMLID(TransactionCase):
                         "xml_id": xmlid,
                         "record": records[3],
                         "noupdate": True,
-                    },  # record created as noupdate
+                    },
                 ]
             )
 
@@ -376,12 +360,9 @@ class TestIrModelEdition(TransactionCase):
     @mute_logger("odoo.db")
     def test_ir_model_fields_name_create(self):
         model = self.env["ir.model"].create({"name": "Bananas", "model": "x_bananas"})
-        # Quick create an ir_model_field should not be possible
-        # It should be raise a ValidationError
         with self.assertRaises(NotNullViolation):
             self.env["ir.model.fields"].name_create("field_name")
 
-        # But with default_ we should be able to name_create
         self.env["ir.model.fields"].with_context(
             default_model_id=model.id,
             default_model=model.name,
@@ -390,7 +371,6 @@ class TestIrModelEdition(TransactionCase):
 
     def test_reflect_models_empty_no_raise(self):
         """IMOD-L1: _reflect_models([]) is a clean no-op (no IndexError)."""
-        # the guard lives in the method now, not only in the init_models caller
         self.assertIsNone(self.env["ir.model"]._reflect_models([]))
 
     def test_reflect_models_prewarms_get_id_cache(self):
@@ -398,8 +378,6 @@ class TestIrModelEdition(TransactionCase):
         round-trip (the cache was pre-warmed from the model->id map)."""
         IrModel = self.env["ir.model"]
         model = IrModel.create({"model": "x_prewarm", "name": "Prewarm test"})
-        # drop any cached entry so the assertion below proves the pre-warm,
-        # not a leftover from create()
         self.env.registry.clear_cache("stable")
         IrModel._reflect_models(["x_prewarm"])
         with self.assertQueryCount(0):
@@ -471,7 +449,6 @@ class TestIrModelEdition(TransactionCase):
 
         compute = make_compute("pass", "field_a, , field_b,")
         self.assertEqual(compute._depends, ("field_a", "field_b"))
-        # the inner function is named for readable tracebacks
         self.assertEqual(compute.__name__, "compute")
 
     def test_inherit_xmlid_format(self):
@@ -487,11 +464,10 @@ class TestIrModelEdition(TransactionCase):
         whole recordset of mixed models is computed in one batch."""
         IrModel = self.env["ir.model"]
         concrete = IrModel._get("res.country")
-        abstract = IrModel._get("base")  # abstract: no table
+        abstract = IrModel._get("base")
         expected = (
             self.env["res.country"].with_context(active_test=False).search_count([])
         )
-        # compute the batch in one shot (exercises the UNION ALL path)
         batch = concrete + abstract
         batch.invalidate_recordset(["count"])
         self.assertEqual(concrete.count, expected)
@@ -522,8 +498,6 @@ class TestEvalContext(TransactionCase):
 @tagged("-at_install", "post_install")
 class TestIrModelFieldsTranslation(HttpCase):
     def test_ir_model_fields_translation(self):
-        # If not enabled (like in demo data), landing on res.config will try
-        # to disable module_sale_quotation_builder and raise an warning
         group_order_template = self.env.ref(
             "sale_management.group_sale_order_template",
             raise_if_not_found=False,
@@ -533,18 +507,14 @@ class TestIrModelFieldsTranslation(HttpCase):
                 {"implied_ids": [(4, group_order_template.id)]}
             )
 
-        # modify en_US translation
         field = self.env["ir.model.fields"].search(
             [("model_id.model", "=", "res.users"), ("name", "=", "login")]
         )
         self.assertEqual(field.with_context(lang="en_US").field_description, "Login")
-        # check the name column of res.users is displayed as 'Login'
         self.start_tour("/odoo", "ir_model_fields_translation_en_tour", login="admin")
         field.update_field_translations("field_description", {"en_US": "Login2"})
-        # check the name column of res.users is displayed as 'Login2'
         self.start_tour("/odoo", "ir_model_fields_translation_en_tour2", login="admin")
 
-        # modify fr_FR translation
         self.env["res.lang"]._activate_lang("fr_FR")
         field = self.env["ir.model.fields"].search(
             [("model_id.model", "=", "res.users"), ("name", "=", "login")]
@@ -555,10 +525,8 @@ class TestIrModelFieldsTranslation(HttpCase):
         )
         admin = self.env["res.users"].search([("login", "=", "admin")], limit=1)
         admin.lang = "fr_FR"
-        # check the name column of res.users is displayed as 'Identifiant'
         self.start_tour("/odoo", "ir_model_fields_translation_fr_tour", login="admin")
         field.update_field_translations("field_description", {"fr_FR": "Identifiant2"})
-        # check the name column of res.users is displayed as 'Identifiant2'
         self.start_tour("/odoo", "ir_model_fields_translation_fr_tour2", login="admin")
 
 
@@ -614,7 +582,6 @@ class TestIrModelFields(TransactionCase):
 
         field.write({"name": "x_renamed"})
 
-        # the column was renamed, not dropped and recreated
         self.env.cr.execute(
             "SELECT column_name FROM information_schema.columns"
             " WHERE table_name = %s AND column_name IN ('x_rename', 'x_renamed')",
@@ -625,14 +592,12 @@ class TestIrModelFields(TransactionCase):
             ["x_renamed"],
             "only the renamed column must remain",
         )
-        # the index followed the rename (fork naming: '{table}__{column}_index')
         self.env.cr.execute(
             "SELECT indexname FROM pg_indexes WHERE tablename = %s", (table,)
         )
         indexes = {row[0] for row in self.env.cr.fetchall()}
         self.assertIn(f"{table}__x_renamed_index", indexes)
         self.assertNotIn(f"{table}__x_rename_index", indexes)
-        # the data survived the rename
         record = self.env[Model._name].browse(record.id)
         self.assertEqual(record.x_renamed, "kept")
 
@@ -739,11 +704,10 @@ class TestIrModelFields(TransactionCase):
         model_name = self.env["ir.model"]._get("res.partner").name
         for field, display_name in zip(fields_, names, strict=True):
             self.assertEqual(display_name, f"{field.field_description} ({model_name})")
-        # the batch fetch left the model name in cache: no query needed
         self.env.invalidate_all()
         fields_.mapped("display_name")
         with self.assertQueryCount(0):
-            self.env["ir.model"]._get("res.partner").name  # noqa: B018
+            self.env["ir.model"]._get("res.partner").name
 
     def test_check_relation_table_invalid_name(self):
         """IMF-C2: an invalid relation_table raises a translated, relation-table
@@ -768,7 +732,6 @@ class TestIrModelFields(TransactionCase):
 
 class TestIrModelInherit(TransactionCase):
     def test_inherit(self):
-        # Filter for the base inheritance (ir.actions.actions) - other modules may add more
         imi = self.env["ir.model.inherit"].search(
             [
                 ("model_id.model", "=", "ir.actions.server"),
@@ -956,8 +919,6 @@ class TestIrModelFieldsSelection(TransactionCase):
                 raise ValidationError("ondelete write refused by a constraint")
             return original_write(self, vals)
 
-        # Deleting the value runs the 'set null' ondelete -> safe_write; the
-        # refused ORM write must fall back to the raw column update.
         with patch.object(type(record), "write", refusing_write):
             draft.unlink()
 
@@ -982,8 +943,6 @@ class TestIrModelFieldsSelection(TransactionCase):
         with patch.object(type(record), "write", buggy_write):
             with self.assertRaises(TypeError):
                 draft.unlink()
-
-    # --- ondelete policy branches (SEL-T1: previously untested) ---
 
     def _field_obj(self, model, stem):
         """Return the live ORM field object for a manual selection field."""
@@ -1072,9 +1031,8 @@ class TestIrModelFieldsSelection(TransactionCase):
             return original(self2, *args, **kwargs)
 
         with patch.object(sel_cls, "_get_records_by_value", counting):
-            field.selection_ids.unlink()  # delete all three values at once
+            field.selection_ids.unlink()
 
-        # one company -> one batched resolve for all three values, not three
         self.assertEqual(len(calls), 1)
         records.invalidate_recordset(["x_pbatch"])
         self.assertEqual(records.mapped("x_pbatch"), [False, False, False])
@@ -1087,7 +1045,7 @@ class TestIrModelFieldsSelection(TransactionCase):
         result = self.env["ir.model.fields.selection"]._update_selection(
             Model._name,
             field.name,
-            [("draft", "Brouillon"), ("new", "New")],  # update + insert + remove
+            [("draft", "Brouillon"), ("new", "New")],
         )
         self.assertIsNone(result)
         self.assertEqual(
@@ -1163,7 +1121,6 @@ class TestIrModelDataCacheInvalidation(TransactionCase):
                 [{"xml_id": xmlid, "record": group}]
             )
         self.assertTrue(self._groups_cleared(mock_clear))
-        # add_value populated the lookup cache: no query needed to resolve it
         with self.assertQueryCount(0):
             self.assertEqual(
                 self.env["ir.model.data"]._xmlid_lookup(xmlid),
@@ -1177,8 +1134,6 @@ class TestIrModelData(TransactionCase):
     def test_toggle_noupdate_access_and_flip(self):
         """A user lacking write access on the target is rejected; with access,
         every xid of the record flips its noupdate flag."""
-        # ir.config_parameter is writable only by group_system; a plain
-        # internal user therefore fails the write-access gate.
         param = self.env["ir.config_parameter"].create(
             {"key": "imd.toggle.test", "value": "x"}
         )
@@ -1201,14 +1156,12 @@ class TestIrModelData(TransactionCase):
             }
         )
 
-        # access gate: non-system user cannot write ir.config_parameter
         user = new_test_user(self.env, login="imd_toggle_user")
         with self.assertRaises(AccessError):
             self.env["ir.model.data"].with_user(user).toggle_noupdate(
                 "ir.config_parameter", param.id
             )
 
-        # with access: each xid's noupdate flips
         self.env["ir.model.data"].toggle_noupdate("ir.config_parameter", param.id)
         self.assertTrue(xid1.noupdate)
         self.assertFalse(xid2.noupdate)
@@ -1244,7 +1197,6 @@ class TestIrModelData(TransactionCase):
             "a noupdate-only write must not clear the default registry cache",
         )
 
-        # guard: any other key still busts the default (_xmlid_lookup) cache
         with patch.object(
             self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
         ) as mock_clear:
@@ -1365,7 +1317,6 @@ class TestIrModelConstraintReflection(TransactionCase):
         names = list(self.env[self.MODEL]._table_objects)
         self.assertTrue(names, "test model must declare table objects")
 
-        # settle: reflect once, then a second run must not touch any row
         Constraint._reflect_constraints([self.MODEL])
         before = self._constraint_rows(names)
         self.assertEqual(set(before), set(names), "every table object reflected")
@@ -1376,7 +1327,6 @@ class TestIrModelConstraintReflection(TransactionCase):
             "an unchanged constraint must not be rewritten (write_date stable)",
         )
 
-        # a drifted definition is repaired by the batched upsert
         drifted = names[0]
         self.env.cr.execute(
             "UPDATE ir_model_constraint SET definition = 'bogus' WHERE name = %s",
@@ -1385,5 +1335,4 @@ class TestIrModelConstraintReflection(TransactionCase):
         Constraint._reflect_constraints([self.MODEL])
         after = self._constraint_rows(names)
         self.assertNotEqual(after[drifted][2], "bogus", "drifted row repaired")
-        # ids preserved: repaired in place, not deleted and recreated
         self.assertEqual(after[drifted][0], before[drifted][0])

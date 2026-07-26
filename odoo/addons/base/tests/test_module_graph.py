@@ -60,19 +60,16 @@ class TestGraph(BaseCase):
             "module4": ["module2", "module3"],
             "module5": ["module2", "module4"],
         }
-        # modules are in random order
         self._test_graph_order(
             dependency,
             [["base"], ["module3", "module4", "module1", "module5", "module2"]],
             ["base", "module1", "module2", "module3", "module4", "module5"],
         )
-        # module 5's depends is missing
         self._test_graph_order(
             dependency,
             [["base"], ["module1", "module2", "module3", "module5"]],
             ["base", "module1", "module2", "module3"],
         )
-        # module 6's manifest is missing
         self._test_graph_order(
             dependency,
             [
@@ -88,7 +85,6 @@ class TestGraph(BaseCase):
             ],
             ["base", "module1", "module2", "module3", "module4", "module5"],
         )
-        # three adding rounds
         self._test_graph_order(
             dependency,
             [
@@ -108,8 +104,6 @@ class TestGraph(BaseCase):
             "module4": ["module3"],
             "module5": ["module2"],
         }
-        # module4 and module5 have the same depth but don't have shared depends
-        # they should be ordered by name
         self._test_graph_order(
             dependency,
             [["base"], ["module3", "module4", "module1", "module5", "module2"]],
@@ -121,7 +115,6 @@ class TestGraph(BaseCase):
             "base": [],
             "module1": ["base"],
             "module2": ["module1"],
-            # depends loop
             "module3": ["module1", "module5"],
             "module4": ["module2", "module3"],
             "module5": ["module2", "module4"],
@@ -133,9 +126,6 @@ class TestGraph(BaseCase):
         )
 
     def test_graph_order_shared_cycle_members_removed(self):
-        # Two cycles sharing nodes 'a' and 'd' (a->b->d->a and a->c->d->a).
-        # Every participant must be dropped; only 'base' survives.  This guards
-        # the Tarjan SCC rewrite against a regression to the old single-pass DFS.
         dependency = {
             "base": [],
             "module1": ["base"],
@@ -222,8 +212,6 @@ class TestCycleDetection(BaseCase):
         return graph
 
     def test_shared_node_two_cycles(self):
-        # a->b->d->a and a->c->d->a: one SCC {a,b,c,d}.  The previous DFS could
-        # reach 'c' only after 'd' was DONE and miss it; Tarjan flags all four.
         graph = self._graph({"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": ["a"]})
         self.assertEqual(graph._find_cycle_members(), {"a", "b", "c", "d"})
 
@@ -262,6 +250,6 @@ class TestCycleDetection(BaseCase):
                 return self.rows
 
         graph._cr = _Cursor()
-        graph._update_from_database(["a", "b"])  # must not raise KeyError
+        graph._update_from_database(["a", "b"])
         self.assertNotIn("a", graph)
         self.assertNotIn("b", graph)

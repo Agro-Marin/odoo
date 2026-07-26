@@ -21,7 +21,7 @@ from odoo.addons.base.models.ir_qweb import (
 )
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
-unsafe_eval = eval  # noqa: S307
+unsafe_eval = eval
 
 
 @tagged("post_install", "-at_install")
@@ -156,7 +156,6 @@ class TestQWebTField(TransactionCase):
             }
         )
 
-        # record.name is non-empty
         result = """
                 <div>My Company</div>
         """
@@ -165,7 +164,6 @@ class TestQWebTField(TransactionCase):
         )
         self.assertEqual(str(rendered.strip()), result.strip(), "")
 
-        # record.name is empty but not False or None, we should render depending on force_display
         result = """
                 <div></div>
         """
@@ -174,7 +172,6 @@ class TestQWebTField(TransactionCase):
         )
         self.assertEqual(str(rendered.strip()), result.strip())
 
-        # record.name is False or None, we should render field default value
         result = """
                 <div>
                     DEFAULT
@@ -185,7 +182,6 @@ class TestQWebTField(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_no_value_no_default_value(self):
-        # no value, no default value with attributes on t-field
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -198,7 +194,6 @@ class TestQWebTField(TransactionCase):
         result = """
                 <div data-oe-xpath="/t[1]/div[1]" data-oe-model="res.partner" data-oe-field="name" data-oe-type="char" data-oe-expression="record.name"></div>
         """
-        # inherit_branding puts attribute on the field tag as well as force the display in case the field is empty
         rendered = (
             self.env["ir.qweb"]
             .with_context(inherit_branding=True)
@@ -692,7 +687,6 @@ class TestQWebNS(TransactionCase):
             }
         )
 
-        # view2 will t-call view1
         view2 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy2",
@@ -710,7 +704,6 @@ class TestQWebNS(TransactionCase):
         result = self.env["ir.qweb"]._render(view2.id)
         result_etree = etree.fromstring(result)
 
-        # check that the root tag has all its xmlns
         expected_ns = {
             (None, "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"),
             (
@@ -724,7 +717,6 @@ class TestQWebNS(TransactionCase):
         }
         self.assertEqual(set(result_etree.nsmap.items()), expected_ns)
 
-        # check that the t-call did its work
         cac_lines = result_etree.findall(
             ".//cac:line",
             namespaces={
@@ -734,7 +726,6 @@ class TestQWebNS(TransactionCase):
         self.assertEqual(len(cac_lines), 2)
         self.assertEqual(result.count("Appel"), 2)
 
-        # check that the t-call did not output the xmlns declaration again
         self.assertEqual(
             result.count(
                 'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"'
@@ -744,7 +735,6 @@ class TestQWebNS(TransactionCase):
 
     def test_render_static_xml_with_extension(self):
         """Extend a view via an xpath expression on a ns-prefixed element."""
-        # primary view
         view1 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy",
@@ -763,7 +753,6 @@ class TestQWebNS(TransactionCase):
             """,
             }
         )
-        # extension patching the primary view
         view2 = self.env["ir.ui.view"].create(
             {
                 "name": "dummy_ext",
@@ -859,8 +848,6 @@ class TestQWebNS(TransactionCase):
 class TestQWebBasic(TransactionCase):
     def test_compile_expr(self):
         tests = [
-            # pylint: disable=C0326
-            # source,                                   values,                         result
             ("1 +2+ 3", {}, 6),
             ("(((1 +2+ 3)))", {}, 6),
             ("(1) +(2+ (3))", {}, 6),
@@ -892,29 +879,26 @@ class TestQWebBasic(TransactionCase):
                 {},
                 9,
             ),
-            ("[x for x in (1,2)]", {}, [1, 2]),  # LOAD_FAST_AND_CLEAR
-            ("list(x for x in (1,2))", {}, [1, 2]),  # END_FOR, CALL_INTRINSIC_1
+            ("[x for x in (1,2)]", {}, [1, 2]),
+            ("list(x for x in (1,2))", {}, [1, 2]),
             (
                 "v if v is None else w",
                 {"v": False, "w": "foo"},
                 "foo",
-            ),  # POP_JUMP_IF_NONE
+            ),
             (
                 "v if v is not None else w",
                 {"v": None, "w": "foo"},
                 "foo",
-            ),  # POP_JUMP_IF_NOT_NONE
-            ("{a for a in (1, 2)}", {}, {1, 2}),  # RERAISE
-            # QWEB-T3: pin the Python 3.14 opcodes the safe allow-set was extended
-            # for; an interpreter bump renaming/removing one silently breaks every
-            # template using that construct.
-            ("(lambda a: a + a)(x)", {"x": 1}, 2),  # LOAD_FAST_BORROW_LOAD_FAST_BORROW
-            ("sum(i for i in range(n))", {"n": 3}, 3),  # LOAD_FAST_BORROW + POP_ITER
-            ("[i * i for i in range(n)]", {"n": 3}, [0, 1, 4]),  # LOAD_FAST_BORROW
-            ("3 + 4 * 5", {}, 23),  # LOAD_SMALL_INT
-            ("None if x else 9", {"x": 0}, 9),  # LOAD_COMMON_CONSTANT (None)
-            ("1 if x else 2", {"x": []}, 2),  # TO_BOOL / NOT_TAKEN on the branch
-            ("bool(x) and x + 1", {"x": 5}, 6),  # TO_BOOL via boolean op
+            ),
+            ("{a for a in (1, 2)}", {}, {1, 2}),
+            ("(lambda a: a + a)(x)", {"x": 1}, 2),
+            ("sum(i for i in range(n))", {"n": 3}, 3),
+            ("[i * i for i in range(n)]", {"n": 3}, [0, 1, 4]),
+            ("3 + 4 * 5", {}, 23),
+            ("None if x else 9", {"x": 0}, 9),
+            ("1 if x else 2", {"x": []}, 2),
+            ("bool(x) and x + 1", {"x": 5}, 6),
         ]
 
         IrQweb = self.env["ir.qweb"]
@@ -1017,9 +1001,7 @@ class TestQWebBasic(TransactionCase):
             }
         )
         values = {"other": "any value"}
-        with self.assertRaises(
-            Exception
-        ):  # NotImplementedError for 'lambda a=open' and Undefined value 'open'.
+        with self.assertRaises(Exception):
             self.env["ir.qweb"]._render(t.id, values)
 
     def test_compile_expr_forbidden(self):
@@ -1040,14 +1022,9 @@ class TestQWebBasic(TransactionCase):
             "__import__('os').system('echo pwned')",
         ]
         for expr in forbidden:
-            # 1) Compile-time gate: tokenize-stage `__` name gate /
-            #    `assert_no_dunder_name` (co_names) must reject the expression.
             with self.assertRaises(Exception, msg="compile should reject: %s" % expr):
                 IrQweb._compile_expr(expr)
 
-            # 2) End-to-end: rendering a template using the gadget must also
-            #    fail (the engine exposes no escape path). Compilation happens
-            #    inside _render, so the gate fires there too.
             view = self.env["ir.ui.view"].create(
                 {
                     "name": "forbidden",
@@ -1079,9 +1056,7 @@ class TestQWebBasic(TransactionCase):
         )
         doc = etree.fromstring("<root>%s</root>" % rendered)
         links = doc.findall("a")
-        # First link: javascript:alert(1) must be blanked.
         self.assertEqual(links[0].get("href"), "")
-        # Second link: the whitelisted history.back() form is preserved.
         self.assertEqual(links[1].get("href"), "javascript:history.back()")
 
     def test_post_processing_att_malicious_scheme_extra_attributes(self):
@@ -1095,12 +1070,10 @@ class TestQWebBasic(TransactionCase):
             )
             self.assertEqual(atts[attr], "", f"{attr!r} javascript: not scrubbed")
             self.assertEqual(atts["title"], "keep")
-        # Static (template-author) attributes are trusted and left untouched.
         static = qweb._post_processing_att(
             "a", {"xlink:href": "javascript:alert(1)"}, is_static=True
         )
         self.assertEqual(static["xlink:href"], "javascript:alert(1)")
-        # A legitimate URL on a newly-covered attribute is preserved.
         legit = qweb._post_processing_att(
             "object", {"data": "/web/content/1"}, is_static=False
         )
@@ -1112,8 +1085,6 @@ class TestQWebBasic(TransactionCase):
         foreign cursor (tenant content leak / closed-cursor crash); the thread's
         ``dbname`` gates rendering. Regression for upstream 07a333c8 + 49b312f5.
         """
-        # Capture a QwebContent that is created but never output, so it stays
-        # unrendered (html is None) and we can drive its lazy __str__ by hand.
         captured = []
         orig_init = QwebContent.__init__
 
@@ -1138,15 +1109,12 @@ class TestQWebBasic(TransactionCase):
         thread = threading.current_thread()
         original = getattr(thread, "dbname", None)
         try:
-            # matching database -> renders normally
             thread.dbname = self.env.cr.dbname
             qc.html = None
             self.assertIn("secret", str(qc))
-            # a different database is now being served -> render is refused
             thread.dbname = "some_other_database"
             qc.html = None
             self.assertEqual(str(qc), "")
-            # a thread with no dbname (e.g. some workers) must not crash
             if hasattr(thread, "dbname"):
                 del thread.dbname
             qc.html = None
@@ -1164,8 +1132,6 @@ class TestQWebBasic(TransactionCase):
         and executes. `_post_processing_att` must strip them before matching.
         Covers the ``URL_CONTROL_CHARS`` defense.
         """
-        # Each payload embeds a C0 control char inside the scheme; all must be
-        # blanked. The benign anchor pins that a legitimate URL is untouched.
         obfuscations = [
             "java\tscript:alert(1)",
             "java\nscript:alert(1)",
@@ -1210,14 +1176,13 @@ class TestQWebBasic(TransactionCase):
             len(order), len(set(order)), "duplicate directive in eval order"
         )
         pos = {name: i for i, name in enumerate(order)}
-        # Documented invariants (see _directives_eval_order docstring).
         pairs = [
-            ("elif", "if"),  # elif/else compiled by the preceding if
+            ("elif", "if"),
             ("else", "if"),
-            ("foreach", "if"),  # foreach wraps if
+            ("foreach", "if"),
             ("as", "foreach"),
             ("if", "call"),
-            ("options", "call"),  # options configure the call/out/field
+            ("options", "call"),
             ("call", "att"),
             ("tag-open", "set"),
             ("set", "inner-content"),
@@ -1269,8 +1234,6 @@ class TestQWebBasic(TransactionCase):
         with patch.object(type(qweb), "_compile", counting_compile):
             rendered = qweb._render(parent.id, {"count": count})
         self.assertEqual(rendered.count("<span>"), count)
-        # 2 distinct templates (parent + child) → a small constant number of
-        # compiles, NOT one per iteration.
         self.assertLessEqual(
             len(calls),
             4,
@@ -1315,9 +1278,7 @@ class TestQWebBasic(TransactionCase):
         payload = "<b>bold</b>"
         with mute_logger("odoo.addons.base.models.ir_qweb"):
             rendered = self.env["ir.qweb"]._render(view.id, {"payload": payload})
-        # t-out escapes the markup.
         self.assertIn("&lt;b&gt;bold&lt;/b&gt;", rendered)
-        # t-raw leaves it untouched (the <b> tag survives as live markup).
         self.assertIn('<span class="raw"><b>bold</b></span>', rendered)
 
     def test_foreach_iter_list(self):
@@ -1361,10 +1322,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_foreach_lazy_last_no_leak(self):
-        # A lazy generator is not Sized/int/Mapping, so ``*_last`` is unknowable
-        # and must be reset to False each iteration; otherwise a caller/outer-loop
-        # ``x_last`` leaks into the loop body. Regression: it was only assigned
-        # when the size was known.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1624,7 +1581,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_set_body_3(self):
-        # check that the cached result does not fail
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1643,7 +1599,6 @@ class TestQWebBasic(TransactionCase):
         rendered = self.env["ir.qweb"]._render(t.id)
         self.assertEqual(str(rendered.strip()), result.strip())
 
-        # test string operations with the content value
         for test, res in [
             ("abc.strip()", "toto"),
             ("abc[2]", "o"),
@@ -1810,7 +1765,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_out_format_6(self):
-        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1829,7 +1783,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(rendered.strip(), result.strip())
 
     def test_out_format_7(self):
-        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1849,7 +1802,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_out_format_8(self):
-        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1873,7 +1825,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_out_format_9(self):
-        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1889,7 +1840,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_out_json(self):
-        # str() yields the string value; t-out then escapes it.
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -1977,7 +1927,6 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(str(rendered.strip()), result.strip())
 
     def test_esc_markup(self):
-        # t-esc is equal to t-out
         t = self.env["ir.ui.view"].create(
             {
                 "name": "test",
@@ -2158,7 +2107,6 @@ class TestQWebBasic(TransactionCase):
             self.assertIn('<div t-esc="abc + def + ("/>', error)
 
     def test_error_message_3(self):
-        # The format error tells the developer what to do.
         template = """<section>
                     <div t-esc="1+2">
                         <span>content</span>
@@ -2184,7 +2132,6 @@ class TestQWebBasic(TransactionCase):
             )
 
     def test_error_message_4(self):
-        # Template record view not found.
         with self.assertRaises(MissingError):
             self.env["ir.qweb"]._render(-999)
         try:
@@ -2207,40 +2154,32 @@ class TestQWebBasic(TransactionCase):
             self.assertIn("template is required", str(e))
 
     def test_error_message_5(self):
-        # Not-found error on the first rendering.
         with self.assertRaises(MissingError, msg="Not Found"):
             self.env["ir.qweb"]._render(-9999)
 
-    @mute_logger("odoo.addons.base.models.ir_qweb")  # warning for template not found
+    @mute_logger("odoo.addons.base.models.ir_qweb")
     def test_error_message_6(self):
-        # Not-found error on the second rendering (the first rendering's option hid this error).
         html = self.env["ir.qweb"]._render(-9999, raise_if_not_found=False)
         self.assertEqual("", html)
 
-        # re try this rendering without any error (use cached method)
         html = self.env["ir.qweb"]._render(-9999, raise_if_not_found=False)
         self.assertEqual("", html)
 
-        # re try this rendering but raise (use cached method)
         with self.assertRaises(MissingError, msg="Not Found"):
             self.env["ir.qweb"]._render(-9999)
 
     def test_error_message_7(self):
-        # Not-found UserError on the first rendering.
         with self.assertRaises(UserError, msg="Not Found"):
             self.env["ir.qweb"]._render(-9999)
 
-    @mute_logger("odoo.addons.base.models.ir_qweb")  # warning for template not found
+    @mute_logger("odoo.addons.base.models.ir_qweb")
     def test_error_message_8(self):
-        # Not-found UserError on the second rendering (the first rendering's option hid this error).
         html = self.env["ir.qweb"]._render(-9999, raise_if_not_found=False)
         self.assertEqual("", html)
 
-        # re try this rendering without any error (use cached method)
         html = self.env["ir.qweb"]._render(-9999, raise_if_not_found=False)
         self.assertEqual("", html)
 
-        # re try this rendering but raise (use cached method)
         with self.assertRaises(UserError, msg="Not Found"):
             self.env["ir.qweb"]._render(-9999)
 
@@ -2391,7 +2330,6 @@ class TestQWebBasic(TransactionCase):
                 f"          ({t.id}, '/section/t[1]/div/t', '<t t-out=\"1/div\"/>')",
             )
 
-        # an error triggered on first render
         self.env.registry.clear_cache("templates")
 
         try:
@@ -2455,7 +2393,6 @@ class TestQWebBasic(TransactionCase):
                 error,
             )
 
-        # an error triggered on first render
         self.env.registry.clear_cache("templates")
 
         with self.assertRaises(QWebError):
@@ -2876,7 +2813,7 @@ class TestQWebBasic(TransactionCase):
             """,
             }
         )
-        self.env["ir.qweb"]._render(view1.id, {"user": u})  # should not crash
+        self.env["ir.qweb"]._render(view1.id, {"user": u})
 
     def test_render_widget_duration_fallback(self):
         self.env["res.lang"].with_context(active_test=False).search(
@@ -2891,9 +2828,7 @@ class TestQWebBasic(TransactionCase):
             """,
             }
         )
-        self.env["ir.qweb"].with_context(lang="pt_BR")._render(
-            view1.id, {}
-        )  # should not crash
+        self.env["ir.qweb"].with_context(lang="pt_BR")._render(view1.id, {})
 
     def test_render_template_from_file(self):
         with file_open("base/tests/file_template/file_expected_render.xml") as f:
@@ -2933,14 +2868,12 @@ class TestQWebBasic(TransactionCase):
             },
         )
 
-        # Check that we cannot bypass the templates subfolder. We should only be able to read file under this specific subfolder
         with self.assertRaises(QWebError):
             self.env["ir.qweb"]._render(
                 "base/tests/file_template/templates/../unreadable_file_template.xml",
                 values={},
             )
 
-        # As above, if we do not have a parent called templates, the file becomes unreadable for security reasons.
         with self.assertRaises(QWebError):
             self.env["ir.qweb"]._render(
                 "base/tests/file_template/unreadable_file_template.xml",
@@ -2962,7 +2895,6 @@ class TestQWebBasic(TransactionCase):
             second[0],
             "file template compilation must be served from the ormcache",
         )
-        # and the cached functions still render correctly on reuse
         values = {
             "document_name": "Test Document",
             "partner": {"name": "Jerry", "forename": "Khan"},
@@ -3314,10 +3246,8 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
 
         env = self.env(user=self.user_demo)
 
-        # warmup
         env["ir.qweb"]._render("base.testing_content", {"doc": doc})
 
-        # do not count those fetching queries
         doc.with_env(env).fetch(["name"])
         env.user.fetch(["name"])
 
@@ -3332,22 +3262,9 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
                 f"Maximum queries: {queries}",
             )
 
-        # 'base.testing_content'
-        #     SELECT id + fields from xmlid
-        #     SELECT RECURSIVE arch combine
-        # 'base.testing_layout', 'base.testing_header_0'
-        #     SELECT id + fields from xmlid
-        #     SELECT RECURSIVE arch combine => TODO: batch me
-        # 'base.testing_header', 'base.testing_footer'
-        #     SELECT id + fields from xmlid
-        #     SELECT RECURSIVE arch combine => TODO: batch me
-        # 'base.testing_header_1', 'base.testing_footer_0', 'base.testing_footer_1'
-        #     SELECT id + fields from xmlid
-        #     SELECT RECURSIVE arch combine => TODO: batch me
-
-        FIRST_SEARCH_FETCH = 1  # the first "SELECT id + fields from xmlid"
-        OTHER_SEARCH_FETCH = 3  # "SELECT id + fields from xmlid"
-        ARCH_COMBINE = 4  # SELECT RECURSIVE arch combine
+        FIRST_SEARCH_FETCH = 1
+        OTHER_SEARCH_FETCH = 3
+        ARCH_COMBINE = 4
 
         self.env.registry.clear_cache("templates")
         view.invalidate_model()
@@ -3356,7 +3273,7 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
             "base.testing_content",
             "test-cold-0",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
         check("base.testing_content", "test-hot-0", 0)
         check("base.testing_content", "test-hot-1", 0)
 
@@ -3364,38 +3281,34 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
         check("base.testing_content", "test-hot-2", 0)
         check(view.id, "test-hot-id", 0)
 
-        # like 'test-cold-0'
         self.env.registry.clear_cache("templates")
         check(
             view.id,
             "test-cold-id-1",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
-        # like 'test-cold-0' the first search query is replaced by a fetching
         self.env.registry.clear_cache("templates")
         view.invalidate_model()
         check(
             view.id,
             "test-cold-id-2",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
-        # like 'test-cold-0'
         self.env.registry.clear_cache("templates")
         check(
             "base.testing_content",
             "test-cold-1",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE,
-        )  # 8
+        )
 
-        # like 'test-cold-0'
         self.env.registry.clear_cache("templates")
         check(
             view.id,
             "test-cold-id-3",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE - 1,
-        )  # 7
+        )
 
 
 @tagged("post_install", "-at_install")
@@ -3484,7 +3397,7 @@ class TestQWebCompileIsolation(TransactionCase):
         qweb = self.env["ir.qweb"]
         element = etree.fromstring('<t><span t-esc="1 + 1"/></t>')
         first = str(qweb._render(element))
-        second = str(qweb._render(element))  # same object reused
+        second = str(qweb._render(element))
         self.assertEqual(first, "<span>2</span>")
         self.assertEqual(
             first,
@@ -3500,10 +3413,8 @@ class TestQWebHelpers(TransactionCase):
 
     def test_compile_format(self):
         qweb = self.env["ir.qweb"]
-        # no placeholder: a literal '%' must survive (not leak as '%%')
         code = qweb._compile_format("Save 50%")
         self.assertEqual(unsafe_eval(code, {"self": qweb}, {"values": {}}), "Save 50%")
-        # with placeholders + a literal '%' around them
         code = qweb._compile_format("Hi #{name} 50%")
         self.assertEqual(
             unsafe_eval(code, {"self": qweb}, {"values": {"name": "Bob"}}),
@@ -3533,11 +3444,9 @@ class TestQWebHelpers(TransactionCase):
         qweb = self.env["ir.qweb"]
         ctx = {"nsmap": {}}
         self.assertTrue(qweb._is_static_node(etree.fromstring('<div class="x"/>'), ctx))
-        # technical directives do not make a node dynamic
         self.assertTrue(
             qweb._is_static_node(etree.fromstring('<div t-tag-open="div"/>'), ctx)
         )
-        # a <t> is never static
         self.assertFalse(qweb._is_static_node(etree.fromstring("<t/>"), ctx))
         self.assertFalse(
             qweb._is_static_node(etree.fromstring('<div t-att-x="1"/>'), ctx)
@@ -3551,14 +3460,10 @@ class TestQWebHelpers(TransactionCase):
     def test_namespace_helpers(self):
         qweb = self.env["ir.qweb"]
         el = etree.fromstring('<div xmlns:x="urn:x"/>')
-        # newly-declared namespace surfaces when not inherited...
         self.assertEqual(qweb._new_namespaces(el, {"nsmap": {}}), {("x", "urn:x")})
-        # ...and is filtered out once inherited
         self.assertEqual(qweb._new_namespaces(el, {"nsmap": {"x": "urn:x"}}), set())
-        # default namespace uses the None prefix
         eld = etree.fromstring('<div xmlns="urn:d"/>')
         self.assertEqual(qweb._new_namespaces(eld, {"nsmap": {}}), {(None, "urn:d")})
-        # uri -> prefix map inverts the nsmap
         self.assertEqual(qweb._ns_prefix_map(el, {"nsmap": {}}), {"urn:x": "x"})
 
     def test_compile_out_target(self):
@@ -3571,7 +3476,7 @@ class TestQWebHelpers(TransactionCase):
         ):
             el = etree.fromstring(f'<span {attr}="{expr}"/>')
             self.assertEqual(qweb._compile_out_target(el), expected)
-            self.assertNotIn(attr, el.attrib)  # the attribute is consumed
+            self.assertNotIn(attr, el.attrib)
 
     def test_element_marker_roundtrip(self):
         """The marker emitter and ``ELEMENT_MARKER_REGEXP`` parser must agree — the
@@ -3603,18 +3508,15 @@ class TestQWebHelpers(TransactionCase):
                 "https://ok/",
                 f"{attr} safe url wrongly scrubbed",
             )
-        # control-character obfuscation collapses to javascript: and is caught
         self.assertEqual(
             qweb._post_processing_att("a", {"src": "java\tscript:alert(1)"})["src"], ""
         )
-        # the history.back() allow-listed form is preserved
         self.assertEqual(
             qweb._post_processing_att("a", {"href": "javascript:history.back()"})[
                 "href"
             ],
             "javascript:history.back()",
         )
-        # static node attributes come from the (trusted) template: not scrubbed
         self.assertEqual(
             qweb._post_processing_att(
                 "a", {"href": "javascript:alert(1)"}, is_static=True
@@ -3647,12 +3549,12 @@ class TestQWebHelpers(TransactionCase):
         """The dev-mode code-framing helper marks the failing line and includes
         the preceding and following context (previously uncovered)."""
         qweb = self.env["ir.qweb"]
-        code_lines = [f"line{n}" for n in range(1, 11)]  # line1 .. line10
+        code_lines = [f"line{n}" for n in range(1, 11)]
         out = qweb._error_surrounding(code_lines, 5, None)
         self.assertIn("Line triggering the error", out)
-        self.assertIn("line5", out)  # the failing line (code_lines[line_nb - 1])
-        self.assertIn("line4", out)  # preceding context
-        self.assertIn("line6", out)  # following context
+        self.assertIn("line5", out)
+        self.assertIn("line4", out)
+        self.assertIn("line6", out)
 
 
 class TestQWebRenderStandalone(TransactionCase):
@@ -3813,8 +3715,6 @@ class TestQWebProfilingWrap(TransactionCase):
         self.assertTrue(options.get("profile"), "sanity: profile mode expected")
         self.assertEqual(functions1[def_name].__name__, "profiled_method_compile")
 
-        # The cached mapping (what _generate_code_cached returned to _compile)
-        # must still hold the unwrapped functions.
         cached_functions = qweb._generate_code_cached(view.id)[0]
         self.assertNotEqual(
             cached_functions[def_name].__name__,
@@ -3822,8 +3722,6 @@ class TestQWebProfilingWrap(TransactionCase):
             "profiling wrappers leaked into the cached function mapping",
         )
 
-        # Each _compile call builds its own wrapped mapping from the pristine
-        # cached one — never a wrapper around a previous wrapper.
         functions2 = qweb._compile(view.id)[0]
         self.assertEqual(functions2[def_name].__name__, "profiled_method_compile")
         self.assertIsNot(functions2[def_name], functions1[def_name])
@@ -3834,7 +3732,6 @@ class TestQWebImageDataUri(TransactionCase):
     WebP source must be swapped for its pre-converted JPEG attachment copy
     (WeasyPrint cannot render WebP in PDF reports)."""
 
-    # Same WebP payload as web/tests/test_ir_qweb.py::test_image_field_webp.
     WEBP_B64 = "UklGRsCpAQBXRUJQVlA4WAoAAAAQAAAAGAQA/wMAQUxQSMywAAAdNANp22T779/0RUREkvqLOTPesG1T21jatpLTSbpXQzTMEw3zWMM81jCPnWG2fTM7vpndvpkd38y2758Y+6a/Ld/Mt3zzT/XwzCKlV0Ooo61UpZIsKLjKc98R"
     PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAF0lEQVR4nGJxKFrEwMDAxAAGgAAAAP//D+IBWx9K7TUAAAAASUVORK5CYII="
 
@@ -3847,7 +3744,7 @@ class TestQWebImageDataUri(TransactionCase):
         )
         converted = Attachment.create(
             {
-                "name": "webpcopy.jpg",  # .jpg name => image/jpeg mimetype
+                "name": "webpcopy.jpg",
                 "res_model": "ir.attachment",
                 "res_id": origin.id,
                 "datas": self.PNG_B64,

@@ -42,7 +42,6 @@ def unquote(s: str) -> str:
 
 _stats_logger = logging.getLogger("odoo.tests.stats")
 
-# a string with various unicode characters
 SPECIAL_CHARACTERS = " ¥®°²Æçéðπ⁉€∇⓵▲☑♂♥✓➔『にㄅ㊀中한︸🌈🌍👌😀"
 
 
@@ -70,17 +69,16 @@ class TranslationToolsTestCase(BaseCase):
                 occurrences=[(f"model_terms:ir.ui.view,arch_db:base.{xmlid}", "0")],
             )
 
-        reader = PoFileReader.__new__(PoFileReader)  # bypass polib parsing
+        reader = PoFileReader.__new__(PoFileReader)
         reader.pofile = [
-            entry("module: base", "v_ok"),  # well-formed Odoo comment
-            entry("", "v_empty"),  # no translator comment (polib default)
-            entry("a free-form note", "v_note"),  # non-"module:" comment
+            entry("module: base", "v_ok"),
+            entry("", "v_empty"),
+            entry("a free-form note", "v_note"),
         ]
 
-        rows = [r for r in reader if r.get("type") == "model_terms"]  # must not raise
+        rows = [r for r in reader if r.get("type") == "model_terms"]
 
         self.assertEqual({r["imd_name"] for r in rows}, {"v_ok", "v_empty", "v_note"})
-        # module comes from the occurrence, so it is set even when the comment is not
         self.assertTrue(all(r["module"] == "base" for r in rows))
 
     def test_quote_unquote(self):
@@ -94,8 +92,6 @@ class TranslationToolsTestCase(BaseCase):
          \\\\ nope\n\n"
          """)
 
-        # Terms with 1+ backslashes directly followed by a newline or literal N
-        # can fail; handling them needs a slower state-machine parser, so avoid them.
         self.assertRaises(
             AssertionError,
             quote,
@@ -367,7 +363,6 @@ class TranslationToolsTestCase(BaseCase):
     def test_translate_xml_with_namespace(self):
         """Test xml_translate() on elements with namespaces."""
         terms = []
-        # do not split the long line below, otherwise the result will not match
         source = """<Invoice xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
                         <cbc:UBLVersionID t-esc="version_id"/>
                         <t t-foreach="[1, 2, 3, 4]" t-as="value">
@@ -399,37 +394,31 @@ class TranslationToolsTestCase(BaseCase):
         self.assertEqual(result, expect)
 
     def test_translate_xml_illegal_translations(self):
-        # attributes
         make_xml = '<form string="{}">test</form>'.format
         attr = 'Damien Roberts" <d.roberts@example.com>'
         escaped_attr = "Damien Roberts&quot; &lt;d.roberts@example.com&gt;"
 
-        # {legal: legal(not escaped attr)}
         self.assertEqual(
             xml_translate({"X": attr}.get, make_xml("X")),
             make_xml(escaped_attr),
             "attr should be translated and escaped",
         )
 
-        # {legal(not escaped attr): legal}
         self.assertEqual(
             xml_translate({attr: "X"}.get, make_xml(escaped_attr)),
             make_xml("X"),
             "attrs should be translated by using unescaped old terms",
         )
 
-        # {illegal(escaped attr): legal}
         self.assertEqual(
             xml_translate({escaped_attr: "X"}.get, make_xml(escaped_attr)),
             make_xml(escaped_attr),
             "attrs cannot be translated by using escaped old terms",
         )
 
-        # text and elements
         make_xml = '<form string="X">{}</form>'.format
         term = '<i class="fa-solid fa-circle" role="img" aria-label="Invalid" title="Invalid"/>'
 
-        # {legal: legal}
         valid = '<i class="fa-solid fa-circle" role="img" aria-label="Non-valide" title="Non-valide"/>X'
         self.assertEqual(
             xml_translate({term: valid}.get, make_xml(term)),
@@ -437,7 +426,6 @@ class TranslationToolsTestCase(BaseCase):
             "content in inline-block should be treated as one term and translated",
         )
 
-        # {legal: illegal(has no text)}
         invalid = '<i class="fa-solid fa-circle" role="img"/>'
         self.assertEqual(
             xml_translate({term: invalid}.get, make_xml(term)),
@@ -457,7 +445,6 @@ class TranslationToolsTestCase(BaseCase):
             f"translation {invalid!r} has no text and should be dropped as a translation",
         )
 
-        # {legal: illegal(has non-translatable elements)}
         invalid = "<div>X</div>"
         self.assertEqual(
             xml_translate({term: invalid}.get, make_xml(term)),
@@ -482,7 +469,6 @@ class TranslationToolsTestCase(BaseCase):
             terms, ["My ro-{{0}}", "Big {{0}} first {{1}} second:{{2}}", "cat"]
         )
 
-        # try to insert malicious expression
         malicous = {
             "My ro-{{0}}": "Translated ro-{{0}} and {{1+1}}",
             "Big {{0}} first {{1}} second:{{2}}": "Big Translated {{0}} second ({{2}}) first {{1+1}}",
@@ -536,7 +522,6 @@ class TestLanguageInstall(TransactionCase):
         wizard = self.env["base.language.install"].create({"lang_ids": fr.ids})
         self.env.flush_all()
 
-        # running the wizard calls _load_module_terms() to load PO files
         loaded = []
 
         def _load_module_terms(
@@ -550,7 +535,6 @@ class TestLanguageInstall(TransactionCase):
         ):
             wizard.lang_install()
 
-        # _load_module_terms is called once with lang='fr_FR' and overwrite=True
         self.assertEqual(len(loaded), 1)
         self.assertEqual(loaded[0][1], ["fr_FR"])
         self.assertEqual(loaded[0][2], True)
@@ -603,19 +587,14 @@ class TestTranslation(TransactionCase):
         self.assertEqual(category.with_context(lang="fr_FR").name, "Clients")
 
         with self.assertRaises(UserError):
-            # inactive language
             _ = category.with_context(lang="nl_NL").name
         with self.assertRaises(UserError):
-            # non-existing language
             _ = category.with_context(lang="Dummy").name
         with self.assertRaises(UserError):
-            # technical language starts with '_'
             _ = category.with_context(lang="_en_US").name
         with self.assertRaises(UserError):
-            # SQL injection language
             _ = category.with_context(lang="'', NOW(").name
 
-        # lang as en_US and None are always readable even when en_US is not activated
         self.env["res.partner"].with_context(active_test=False).search([]).write(
             {"lang": "fr_FR"}
         )
@@ -671,11 +650,9 @@ class TestTranslation(TransactionCase):
 
     def test_104_orderby_translated_field(self):
         """Test search ordered by a translated field."""
-        # create a category with a French translation
         padawans = self.env["res.partner.category"].create({"name": "Padawans"})
         padawans_fr = padawans.with_context(lang="fr_FR")
         padawans_fr.write({"name": "Apprentis"})
-        # search for categories, and sort them by (translated) name
         categories = padawans_fr.search(
             [("id", "in", [self.customers.id, padawans.id])], order="name"
         )
@@ -861,21 +838,6 @@ class TestTranslation(TransactionCase):
             self.assertEqual(category_nl.name, "Klanten")
             self.assertEqual(category_en.name, "Customers")
 
-    # TODO Currently, the unique constraint doesn't work for translatable field
-    # def test_111_unique_en(self):
-    #     Country = self.env['res.country']
-    #     country_1 = Country.create({'name': 'Odoo'})
-    #     country_1.with_context(lang='fr_FR').name = 'Odoo_Fr'
-    #     country_1.flush_recordset()
-    #
-    #     country_2 = Country.create({'name': 'Odoo2'})
-    #     with self.assertRaises(IntegrityError), mute_logger('odoo.db'):
-    #         country_2.name = 'Odoo'
-    #         country_2.flush_recordset()
-    #
-    #     with self.assertRaises(IntegrityError), mute_logger('odoo.db'):
-    #         country_3 = Country.create({'name': 'Odoo'})
-
 
 class TestTranslationWrite(TransactionCase):
     @classmethod
@@ -900,8 +862,6 @@ class TestTranslationWrite(TransactionCase):
         field = category._fields["name"]
         core = self.env._core
 
-        # Reproduce the stale-flat-entry shape: a scalar value keyed directly
-        # by record id, with no nested ``{(lang,): {id: value}}`` entry.
         core.get_field_data(field).clear()
         core.cache.set_value(field, category.id, "Reblochon")
 
@@ -958,7 +918,6 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(category3.with_context(lang="fr_FR").name, "French 2")
 
         with self.assertRaises(UserError):
-            # Illegal context lang starts with "_" should raise UserError
             category.with_context(lang="_en_US").name = "_Customers"
 
     def test_01_invalid_lang(self):
@@ -966,7 +925,6 @@ class TestTranslationWrite(TransactionCase):
         self.category.with_context(lang="nl_NL").name = "Reblochon nl_NL"
         self.env.ref("base.lang_nl").active = False
 
-        # [inactive_lang, non_existing_lang, technical_lang, sql_injection_lang]
         langs = ["nl_NL", "Dummy", "_en_US", "'', NOW("]
 
         for lang in langs:
@@ -996,10 +954,8 @@ class TestTranslationWrite(TransactionCase):
             fr_name[0]["name"], "French Name", "Reference field not updated"
         )
 
-        # read from the cache
         self.assertEqual(self.category.with_context(lang="fr_FR").name, "French Name")
 
-        # read from database
         self.category.invalidate_recordset()
         self.assertEqual(self.category.with_context(lang="fr_FR").name, "French Name")
 
@@ -1031,15 +987,12 @@ class TestTranslationWrite(TransactionCase):
         self.category.with_context(lang="fr_FR").write({"name": "French Name"})
         self.category.with_context(lang="en_US").write({"name": "English Name"})
 
-        # read from the cache first
         self.assertEqual(self.category.with_context(lang=None).name, "English Name")
         self.assertEqual(self.category.with_context(lang="fr_FR").name, "French Name")
         self.assertEqual(self.category.with_context(lang="en_US").name, "English Name")
 
-        # force save to database and clear the cache: force a clean state
         self.category.invalidate_recordset()
 
-        # read from database
         self.assertEqual(self.category.with_context(lang=None).name, "English Name")
         self.assertEqual(self.category.with_context(lang="fr_FR").name, "French Name")
         self.assertEqual(self.category.with_context(lang="en_US").name, "English Name")
@@ -1063,15 +1016,12 @@ class TestTranslationWrite(TransactionCase):
         self.category.with_context(lang="es_ES").write({"name": "Spanish Name"})
         self.category.with_context(lang=None).write({"name": "None Name"})
 
-        # read from the cache first
         self.assertEqual(self.category.with_context(lang="fr_FR").name, "French Name")
         self.assertEqual(self.category.with_context(lang="es_ES").name, "Spanish Name")
         self.assertEqual(self.category.with_context(lang=None).name, "None Name")
 
-        # force save to database and clear the cache: force a clean state
         self.category.invalidate_recordset()
 
-        # read from database
         self.assertEqual(self.category.with_context(lang="fr_FR").name, "French Name")
         self.assertEqual(self.category.with_context(lang="es_ES").name, "Spanish Name")
         self.assertEqual(self.category.with_context(lang=None).name, "None Name")
@@ -1090,13 +1040,10 @@ class TestTranslationWrite(TransactionCase):
         )
 
         belgium = self.env.ref("base.be")
-        # vat_label is translatable and not required
         belgium.with_context(lang="en_US").write({"vat_label": "VAT"})
         belgium.with_context(lang="fr_FR").write({"vat_label": "TVA"})
 
-        # remove the value
         belgium.with_context(lang="fr_FR").write({"vat_label": empty_value})
-        # should recover the initial value from db
         self.assertEqual(
             empty_value,
             belgium.with_context(lang="fr_FR").vat_label,
@@ -1116,7 +1063,6 @@ class TestTranslationWrite(TransactionCase):
         belgium.with_context(lang="en_US").write({"vat_label": "VAT"})
         belgium.with_context(lang="fr_FR").write({"vat_label": "TVA"})
 
-        # remove the value
         belgium.with_context(lang="en_US").write({"vat_label": empty_value})
         self.assertEqual(
             empty_value,
@@ -1150,7 +1096,6 @@ class TestTranslationWrite(TransactionCase):
         )
 
         belgium = self.env.ref("base.be")
-        # vat_label is translatable and not required
         belgium.with_context(lang="en_US").write({"vat_label": "VAT_US"})
         belgium.with_context(lang="fr_FR").write({"vat_label": "VAT_FR"})
         belgium.with_context(lang="nl_NL").write({"vat_label": "VAT_NL"})
@@ -1169,10 +1114,6 @@ class TestTranslationWrite(TransactionCase):
 
     def test_create_empty_false(self):
         self._test_create_empty(False)
-
-    # feature removed
-    # def test_cresate_emtpy_empty_string(self):
-    #     self._test_create_empty('')
 
     def _test_create_empty(self, empty_value):
         self.env["res.lang"]._activate_lang("fr_FR")
@@ -1208,7 +1149,6 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(categoryEN.name, "English Name")
         self.assertEqual(categoryFR.name, "French Name")
 
-        # void fr_FR translation and fallback to en_US
         self.category.update_field_translations("name", {"fr_FR": False})
         self.assertEqual(categoryEN.name, "English Name")
         self.assertEqual(categoryFR.name, "English Name")
@@ -1217,7 +1157,6 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(categoryEN.name, "English Name 2")
         self.assertEqual(categoryFR.name, "English Name 2")
 
-        # cannot void en_US
         self.category.update_field_translations(
             "name", {"en_US": "English Name", "fr_FR": "French Name"}
         )
@@ -1225,7 +1164,6 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(categoryEN.name, "English Name")
         self.assertEqual(categoryFR.name, "French Name")
 
-        # empty str is a valid translation
         self.category.update_field_translations("name", {"fr_FR": ""})
         self.assertEqual(categoryEN.name, "English Name")
         self.assertEqual(categoryFR.name, "")
@@ -1236,7 +1174,6 @@ class TestTranslationWrite(TransactionCase):
         self.assertEqual(categoryEN.name, "")
         self.assertEqual(categoryFR.name, "French Name")
 
-        # raise error when the translations are in the form for model_terms translated fields
         with self.assertRaises(UserError):
             self.category.update_field_translations(
                 "name", {"fr_FR": {"English Name": "French Name"}}
@@ -1293,7 +1230,6 @@ class TestTranslationWrite(TransactionCase):
         """Test translations of field descriptions in get_view()."""
         self.env["res.lang"]._activate_lang("fr_FR")
 
-        # add translation for the string of field ir.model.name
         ir_model_field = self.env["ir.model.fields"]._get("ir.model", "name")
         LABEL = "Description du Modèle"
 
@@ -1310,12 +1246,10 @@ class TestTranslationWrite(TransactionCase):
             translation_importer.load(f, "po", "fr_FR")
             translation_importer.save(overwrite=True)
 
-        # check that fields_get() returns the expected label
         model = self.env["ir.model"].with_context(lang="fr_FR")
         info = model.fields_get(["name"])
         self.assertEqual(info["name"]["string"], LABEL)
 
-        # check that get_views() also returns the expected label
         info = model.get_views([(False, "form")])
         self.assertEqual(info["models"][model._name]["fields"]["name"]["string"], LABEL)
 
@@ -1356,21 +1290,17 @@ class TestXMLTranslation(TransactionCase):
         env_en = self.env(context={"lang": "en_US"})
         env_fr = self.env(context={"lang": "fr_FR"})
 
-        # check translated field
         self.assertEqual(view0.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view0.with_env(env_fr).arch_db, archf % terms_fr)
 
-        # copy without lang
         view1 = view0.with_env(env_en).copy({})
         self.assertEqual(view1.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view1.with_env(env_fr).arch_db, archf % terms_fr)
 
-        # copy with lang='fr_FR'
         view2 = view0.with_env(env_fr).copy({})
         self.assertEqual(view2.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view2.with_env(env_fr).arch_db, archf % terms_fr)
 
-        # copy with lang='fr_FR' and translate=html_translate
         self.patch(type(self.env["ir.ui.view"]).arch_db, "translate", html_translate)
         view3 = view0.with_env(env_fr).copy({})
         self.assertEqual(view3.with_env(env_en).arch_db, archf % terms_en)
@@ -1403,11 +1333,9 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify source term in view (fixed type in 'cheeze')
         terms_en = ("Bread and cheese",)
         view.with_env(env_en).write({"arch_db": archf % terms_en})
 
-        # check whether translations have been synchronized
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
@@ -1416,11 +1344,9 @@ class TestXMLTranslation(TransactionCase):
         view = self.create_view(
             archf, terms_fr, en_US=terms_en, fr_FR=terms_fr, nl_NL=terms_nl
         )
-        # modify source term in view in another language with close term
         new_terms_fr = ("Pains et fromage",)
         view.with_env(env_fr).write({"arch_db": archf % new_terms_fr})
 
-        # check whether translations have been synchronized
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % new_terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
@@ -1445,27 +1371,23 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify source term in view (add css style)
         terms_en = (
             'Bread <span style="font-weight:bold">and</span> cheese',
             "Fork",
         )
         view.with_env(env_en).write({"arch_db": archf % terms_en})
 
-        # check whether translations have been kept
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify source term in view (actual text change)
         terms_en = (
             'Bread <span style="font-weight:bold">and</span> butter',
             "Fork",
         )
         view.with_env(env_en).write({"arch_db": archf % terms_en})
 
-        # check whether translations have been reset
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(
@@ -1496,7 +1418,6 @@ class TestXMLTranslation(TransactionCase):
         env_fr = self.env(context={"lang": "fr_FR"})
         env_nl = self.env(context={"lang": "nl_NL"})
 
-        # style change and typo change
         terms_fr = (
             'Pain <span style="font-weight:bold">et</span> fromage',
             "Fourchette",
@@ -1535,7 +1456,6 @@ class TestXMLTranslation(TransactionCase):
         env_en = self.env(context={"lang": "en_US"})
         env_fr = self.env(context={"lang": "fr_FR"})
 
-        # modify the arch view, keep the same text content: 'Hi'
         terms_en = "Hi"
         archf = (
             '<form string="X"><setting string="%s"><span color="red"/></setting></form>'
@@ -1544,7 +1464,6 @@ class TestXMLTranslation(TransactionCase):
 
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
-        # check that we didn't set string="&lt;span&gt;Salut&lt;/span&gt;"
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_en)
 
     def test_sync_xml_collision(self):
@@ -1588,7 +1507,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify source term in view (small change)
         terms_en = (
             "Bread and cheese",
             "Knife and Fork",
@@ -1596,13 +1514,11 @@ class TestXMLTranslation(TransactionCase):
         )
         view.with_env(env_en).write({"arch_db": archf % terms_en})
 
-        # check whether translations have been kept
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify source term in view (actual text change)
         terms_en = (
             "Bread and cheese",
             "Fork and Knife",
@@ -1610,7 +1526,6 @@ class TestXMLTranslation(TransactionCase):
         )
         view.with_env(env_en).write({"arch_db": archf % terms_en})
 
-        # check whether translations have been reset
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(
@@ -1662,7 +1577,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify attributes in source term
         terms_en = (
             "Bread and cheese",
             "Knife and Fork",
@@ -1680,13 +1594,11 @@ class TestXMLTranslation(TransactionCase):
             'Knife <span invisible="1">and</span> Fork',
         )
 
-        # check whether translations have been kept
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
 
-        # modify attributes in source term
         terms_en = (
             "Bread and cheese",
             "Knife and Fork",
@@ -1704,7 +1616,6 @@ class TestXMLTranslation(TransactionCase):
             'Knife <span style="text-align: center;" readonly="1">and</span> Fork',
         )
 
-        # check whether translations have been kept
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
@@ -1729,11 +1640,9 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
 
-        # modify source term in view
         terms_en = ("RandomRandom1", "SomethingElse", "RandomRandom3")
         view.with_env(env_en).write({"arch_db": archf % terms_en})
 
-        # check whether close terms have correct translations
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
         self.assertEqual(
@@ -1742,7 +1651,6 @@ class TestXMLTranslation(TransactionCase):
         )
 
     def test_sync_xml_upgrade(self):
-        # text term and xml term with the same text content, text term is removed, xml term is changed
         archf = "<form>%s<div>%s</div></form>"
         terms_en = ("Draft", '<span invisible="1">Draft</span>')
         terms_fr = ("Brouillon", '<span invisible="1">Brouillon</span>')
@@ -1756,7 +1664,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.arch_db, archf % terms_en)
         self.assertEqual(view.with_context(lang="fr_FR").arch_db, archf % terms_fr)
 
-        # change the order of the text term and the xml term and redo the previous test
         archf = "<form>%s<div>%s</div></form>"
         terms_en = ('<span invisible="1">Draft</span>', "Draft")
         terms_fr = ('<span invisible="1">Brouillon</span>', "Brouillon")
@@ -1770,7 +1677,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.arch_db, archf % terms_en)
         self.assertEqual(view.with_context(lang="fr_FR").arch_db, archf % terms_fr)
 
-        # xml terms with same text context but different structure, one is removed, another is changed
         archf = "<form>%s<div>%s</div></form>"
         terms_en = ("<i>Draft</i>", '<span invisible="1">Draft</span>')
         terms_fr = ("<i>Brouillon</i>", '<span invisible="1">Brouillon</span>')
@@ -1784,7 +1690,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertEqual(view.arch_db, archf % terms_en)
         self.assertEqual(view.with_context(lang="fr_FR").arch_db, archf % terms_fr)
 
-        # terms with same text context but different structure, both are removed
         archf = "<form>%s<div>%s</div></form>"
         terms_en = ("<i>Draft</i>", '<span invisible="1">Draft</span>')
         terms_fr = ("<i>Brouillon</i>", '<span invisible="1">Brouillon</span>')
@@ -1795,13 +1700,12 @@ class TestXMLTranslation(TransactionCase):
         terms_fr = (
             "Draft",
             "Draft",
-        )  # ('Brouillon', 'Brouillon') would be better
+        )
         view.with_context(install_mode=True).write({"arch_db": archf % terms_en})
 
         self.assertEqual(view.arch_db, archf % terms_en)
         self.assertEqual(view.with_context(lang="fr_FR").arch_db, archf % terms_fr)
 
-        # text term and xml text term with the same text content, both are removed
         archf = "<form>%s<div>%s</div></form>"
         terms_en = ("Draft", '<span invisible="1">Draft</span>')
         terms_fr = ("Brouillon", '<span invisible="1">Brouillon</span>')
@@ -1809,7 +1713,7 @@ class TestXMLTranslation(TransactionCase):
 
         archf = "<form><div>%s</div></form>"
         terms_en = "<i>Draft</i>"
-        terms_fr = "<i>Draft</i>"  # '<i>Brouillon</i> would be better
+        terms_fr = "<i>Draft</i>"
         view.with_context(install_mode=True).write({"arch_db": archf % terms_en})
 
         self.assertEqual(view.arch_db, archf % terms_en)
@@ -1827,7 +1731,6 @@ class TestXMLTranslation(TransactionCase):
         self.assertIn("<b>", view.arch_db)
         self.assertIn("<b>", view_fr.arch_db)
 
-        # write with no lang, and check consistency in other languages
         view.write({"arch_db": "<form><i>content</i></form>"})
         self.assertIn("<i>", view.arch_db)
         self.assertIn("<i>", view_fr.arch_db)
@@ -1839,7 +1742,6 @@ class TestXMLTranslation(TransactionCase):
         terms_nl = ("Brood and kaas", "Vork")
         view = self.create_view(archf, terms_en, fr_FR=terms_fr, nl_NL=terms_nl)
 
-        # cache arch_db
         _ = view.arch_db
         _ = view.with_context(lang="en_US").arch_db
         _ = view.with_context(lang="fr_FR").arch_db
@@ -1879,7 +1781,6 @@ class TestXMLTranslation(TransactionCase):
         )
         self.assertEqual(view.with_context(lang="nl_NL").arch_db, view_nl)
 
-        # update translations for fallback values and en_US
         self.env["res.lang"]._activate_lang("es_ES")
         self.assertEqual(
             view.with_context(lang="es_ES").arch_db,
@@ -1906,7 +1807,6 @@ class TestXMLTranslation(TransactionCase):
 
         archf2 = '<form string="%s"><p>%s</p><div>%s</div></form>'
         terms_en2 = ("new Knife", "Fork", "Spoon")
-        # write en_US with delay_translations
         view0.with_context(lang="en_US", delay_translations=True).arch_db = (
             archf2 % terms_en2
         )
@@ -1982,7 +1882,6 @@ class TestXMLTranslation(TransactionCase):
             archf2 % terms_en2,
         )
 
-        # update and confirm translations
         view0.update_field_translations("arch_db", {"fr_FR": {}})
         self.assertEqual(
             view0.with_context(lang="fr_FR").arch_db,
@@ -2000,7 +1899,6 @@ class TestXMLTranslation(TransactionCase):
         view0 = self.create_view(archf, terms_en, fr_FR=terms_fr)
 
         archf2 = "<form/>"
-        # delay_translations only works when the written value has at least one translatable term
         view0.with_context(lang="en_US", delay_translations=True).arch_db = archf2
         for lang in ("en_US", "fr_FR", "nl_NL"):
             self.assertEqual(
@@ -2064,8 +1962,6 @@ class TestXMLTranslation(TransactionCase):
         terms_en = ("Knife", "Fork", "Spoon")
         view1 = self.create_view(archf, terms_en)
 
-        # update when fr_FR is not in the jsonb
-        # the fr_FR source value falls back to the en_US value
         view1.update_field_translations(
             "arch_db",
             {
@@ -2127,9 +2023,7 @@ class TestXMLTranslation(TransactionCase):
         )
 
     def test_update_field_translations_partially(self):
-        # partially translate en_US
         xml = "<form><div>%s</div><div>%s</div></form>"
-        # xml developed in fr_FR
         view1 = (
             self.env["ir.ui.view"]
             .with_context(lang="fr_FR")
@@ -2137,35 +2031,22 @@ class TestXMLTranslation(TransactionCase):
                 {
                     "name": "view_1",
                     "model": "res.partner",
-                    "arch": xml % ("Pomme", "Poire"),  # with typo
+                    "arch": xml % ("Pomme", "Poire"),
                 }
             )
-        )  # with typo
-        # jsonb column value:
-        # {
-        #     "en_US": "<form><div>Pomme</div><div>Banane</div></form>",
-        #     "fr_FR": "<form><div>Pomme</div><div>Banane</div></form>"
-        # }
+        )
         view1_us = view1.with_context(lang="en_US")
         view1_fr = view1.with_context(lang="fr_FR")
         view1.update_field_translations("arch_db", {"en_US": {"Pomme": "Apple"}})
         self.assertEqual(view1_us.arch_db, xml % ("Apple", "Poire"))
         self.assertEqual(view1_fr.arch_db, xml % ("Pomme", "Poire"))
         view1.update_field_translations("arch_db", {"en_US": {"Poire": "Pear"}})
-        self.assertEqual(
-            view1_us.arch_db, xml % ("Apple", "Pear")
-        )  # all en_US terms should be translated
-        self.assertEqual(
-            view1_fr.arch_db, xml % ("Pomme", "Poire")
-        )  # fr_FR shouldn't be changed
+        self.assertEqual(view1_us.arch_db, xml % ("Apple", "Pear"))
+        self.assertEqual(view1_fr.arch_db, xml % ("Pomme", "Poire"))
 
     def test_update_field_translations_typofix(self):
-        # as a side effect of the behavior in test_update_field_translations_partially
-        # term update in one language won't be populated to other translated language values
         self.env["res.lang"]._activate_lang("en_GB")
-        # fix typo / update terms in en_US
         xml = "<form><div>%s</div><div>%s</div><div>%s</div></form>"
-        # xml developed in en_GB
         view1 = (
             self.env["ir.ui.view"]
             .with_context(lang="en_GB")
@@ -2173,55 +2054,29 @@ class TestXMLTranslation(TransactionCase):
                 {
                     "name": "view_1",
                     "model": "res.partner",
-                    "arch": xml % ("Footbell", "Clbus", "Rakning"),  # with typo
+                    "arch": xml % ("Footbell", "Clbus", "Rakning"),
                 }
             )
         )
-        view1.update_field_translations(
-            "arch_db", {"en_US": {"Footbell": "SocceR"}}
-        )  # still with a typo
-        # jsonb column value:
-        # {
-        #     "en_US": "<form><div>SocceR</div><div>Clbus</div><div>Rakning</div></form>",
-        #     "en_GB": "<form><div>Footbell</div><div>Clbus</div><div>Rakning</div></form>"
-        # }
+        view1.update_field_translations("arch_db", {"en_US": {"Footbell": "SocceR"}})
         view1_us = view1.with_context(lang="en_US")
         view1_gb = view1.with_context(lang="en_GB")
         view1_fr = view1.with_context(lang="fr_FR")
-        # fix "Clbus" in en_GB
         view1.update_field_translations("arch_db", {"en_GB": {"Clbus": "Clubs"}})
-        self.assertEqual(
-            view1_us.arch_db, xml % ("SocceR", "Clbus", "Rakning")
-        )  # nothing should be fixed in en_US
-        self.assertEqual(
-            view1_gb.arch_db, xml % ("Footbell", "Clubs", "Rakning")
-        )  # "Clbus" should be fixed in en_GB
-        self.assertEqual(
-            view1_fr.arch_db, xml % ("SocceR", "Clbus", "Rakning")
-        )  # fr_FR should fall back to en_US
-        # fix "SocceR" in en_US and "Footbell" in en_GB
+        self.assertEqual(view1_us.arch_db, xml % ("SocceR", "Clbus", "Rakning"))
+        self.assertEqual(view1_gb.arch_db, xml % ("Footbell", "Clubs", "Rakning"))
+        self.assertEqual(view1_fr.arch_db, xml % ("SocceR", "Clbus", "Rakning"))
         view1.update_field_translations(
             "arch_db",
             {"en_US": {"SocceR": "Soccer"}, "en_GB": {"SocceR": "Football"}},
-        )  # always use old_en_terms to update
-        self.assertEqual(
-            view1_us.arch_db, xml % ("Soccer", "Clbus", "Rakning")
-        )  # "SocceR" should be fixed in en_US
-        self.assertEqual(
-            view1_gb.arch_db, xml % ("Football", "Clubs", "Rakning")
-        )  # "Clbus" should be fixed in en_GB
+        )
+        self.assertEqual(view1_us.arch_db, xml % ("Soccer", "Clbus", "Rakning"))
+        self.assertEqual(view1_gb.arch_db, xml % ("Football", "Clubs", "Rakning"))
         self.assertEqual(view1_fr.arch_db, xml % ("Soccer", "Clbus", "Rakning"))
-        # fix "Rakning" in en_US
         view1.update_field_translations("arch_db", {"en_US": {"Rakning": "Ranking"}})
-        self.assertEqual(
-            view1_us.arch_db, xml % ("Soccer", "Clbus", "Ranking")
-        )  # "Rakning" should be fixed in en_US
-        self.assertEqual(
-            view1_gb.arch_db, xml % ("Football", "Clubs", "Rakning")
-        )  # "Rakning" isn't fixed in en_GB
-        self.assertEqual(
-            view1_us.arch_db, xml % ("Soccer", "Clbus", "Ranking")
-        )  # fr_FR should fall back to en_US
+        self.assertEqual(view1_us.arch_db, xml % ("Soccer", "Clbus", "Ranking"))
+        self.assertEqual(view1_gb.arch_db, xml % ("Football", "Clubs", "Rakning"))
+        self.assertEqual(view1_us.arch_db, xml % ("Soccer", "Clbus", "Ranking"))
 
 
 class TestXMLDuplicateTranslations(TransactionCase):
@@ -2248,15 +2103,9 @@ class TestXMLDuplicateTranslations(TransactionCase):
                 }
             )
         )
-        # jsonb column value:
-        # {
-        #     "en_US": "<form><div>un étudiant</div><div>une étudiante</div></form>",
-        #     "fr_FR": "<form><div>un étudiant</div><div>une étudiante</div></form>",
-        # }
         cls.view1_en = cls.view1.with_context(lang="en_US")
         cls.view1_fr = cls.view1.with_context(lang="fr_FR")
         cls.view1_es = cls.view1.with_context(lang="es_ES")
-        # translate 2 fr_FR terms to one en_US term
         cls.view1.update_field_translations(
             "arch_db",
             {
@@ -2271,29 +2120,17 @@ class TestXMLDuplicateTranslations(TransactionCase):
             },
         )
 
-    # intuitive behaviour
     def test_update_field_translations_result(self):
-        # the field value for en_US has 2 same terms
         self.assertEqual(self.view1_en.arch_db, self.xml % ("a student", "a student"))
-        # the field value for fr_FR has two different terms
         self.assertHTMLEqual(
             self.view1_fr.arch_db, self.xml % ("un étudiant", "une étudiante")
         )
-        # the field value for es_SP has two different terms
         self.assertHTMLEqual(
             self.view1_es.arch_db,
             self.xml % ("un estudiante", "una estudiante"),
         )
-        # jsonb column value:
-        # {
-        #     "en_US": "<form><div>a student</div><div>a student</div></form>",
-        #     "fr_FR": "<form><div>un étudiant</div><div>une étudiante</div></form>",
-        #     "es_ES": "<form><div>un estudiante</div><div>una estudiante</div></form>"
-        # }
 
-    # tricky behaviour
     def test_update_field_translations_again(self):
-        # confirm translation for es_SP
         self.view1.update_field_translations("arch_db", {"es_ES": {}})
         self.assertEqual(self.view1_en.arch_db, self.xml % ("a student", "a student"))
         self.assertEqual(
@@ -2304,7 +2141,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
             self.xml % ("un estudiante", "una estudiante"),
         )
 
-        # capitalize the en_US
         self.view1.update_field_translations(
             "arch_db", {"en_US": {"a student": "A STUDENT"}}
         )
@@ -2317,20 +2153,18 @@ class TestXMLDuplicateTranslations(TransactionCase):
             self.xml % ("un estudiante", "una estudiante"),
         )
 
-        # capitalize 'un étudiant' in fr_FR only
         self.view1.update_field_translations(
             "arch_db", {"fr_FR": {"A STUDENT": "UNE ÉTUDIANTE"}}
         )
         self.assertEqual(self.view1_en.arch_db, self.xml % ("A STUDENT", "A STUDENT"))
         self.assertEqual(
             self.view1_fr.arch_db, self.xml % ("UNE ÉTUDIANTE", "UNE ÉTUDIANTE")
-        )  # 'un étudiant' is dropped
+        )
         self.assertEqual(
             self.view1_es.arch_db,
             self.xml % ("un estudiante", "una estudiante"),
         )
 
-    # tricky behaviour
     def test_get_field_translations(self):
         """open the translation dialog from the form view
 
@@ -2338,10 +2172,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
         not consistent
         """
 
-        # there is only one term for fr_FR in the translation dialog
-        # {'lang': 'fr_FR', 'src': 'a student', 'value': 'un étudiant'} is missing
-        # because the fr_FR term 'une étudiante' appears after the 'un étudiant' and overwrites the translation mapping
-        # same for the es_SP
         self.assertItemsEqual(
             self.view1.get_field_translations("arch_db")[0],
             [
@@ -2359,7 +2189,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
             ],
         )
 
-    # tricky behaviour
     def test_write(self):
         """add one more div without changing any term
 
@@ -2367,7 +2196,6 @@ class TestXMLDuplicateTranslations(TransactionCase):
         same term in the current language value
         """
 
-        # write in fr_FR
         new_xml1 = "<form><div>%s</div><div>%s</div><div/></form>"
         self.view1_fr.arch = new_xml1 % ("un étudiant", "une étudiante")
         self.assertEqual(self.view1_en.arch_db, new_xml1 % ("a student", "a student"))
@@ -2379,19 +2207,17 @@ class TestXMLDuplicateTranslations(TransactionCase):
             new_xml1 % ("un estudiante", "una estudiante"),
         )
 
-        # write in en_US
         new_xml2 = "<form><div>%s</div><div>%s</div><div/><div/></form>"
         self.view1_en.arch = new_xml2 % ("a student", "a student")
         self.assertEqual(self.view1_en.arch_db, new_xml2 % ("a student", "a student"))
         self.assertEqual(
             self.view1_fr.arch_db, new_xml2 % ("une étudiante", "une étudiante")
-        )  # 'un étudiant' is dropped
+        )
         self.assertEqual(
             self.view1_es.arch_db,
             new_xml2 % ("una estudiante", "una estudiante"),
-        )  # 'un estudiante' is dropped
+        )
 
-    # tricky behaviour
     def test_copy(self):
         """copy record
 
@@ -2399,17 +2225,7 @@ class TestXMLDuplicateTranslations(TransactionCase):
         same term in the current language value
         """
 
-        # copy translated field means
-        # 1. create with the current language value
-        # 2. use the translation mapping from current_lang_terms to other_lang_terms to update_field_translations
-
-        # copy the record in fr_FR
         view1_fr_copy = self.view1_fr.copy({"name": "view1_fr_copy"})
-        # view1_en_copy.update_field_translations('arch_db', {
-        #     'en_US': {'un étudiant': 'a student', 'une étudiante': 'a student'},
-        #     'es_ES': {'un étudiant': 'un estudiante', 'une étudiante': 'una estudiante'},
-        # })
-        # is called when copy
         self.assertEqual(
             view1_fr_copy.with_context(lang="en_US").arch_db,
             self.xml % ("a student", "a student"),
@@ -2422,22 +2238,16 @@ class TestXMLDuplicateTranslations(TransactionCase):
             self.xml % ("un estudiante", "una estudiante"),
         )
 
-        # copy the record in en_US
         view1_en_copy = self.view1_en.copy({"name": "view1_us_copy"})
-        # view1_en_copy.update_field_translations('arch_db', {
-        #     'fr_FR': {'a student': 'une étudiante'},
-        #     'es_ES': {'a student': ''una estudiante'},
-        # })
-        # is called when copy
         self.assertEqual(view1_en_copy.arch_db, self.xml % ("a student", "a student"))
         self.assertEqual(
             view1_en_copy.with_context(lang="fr_FR").arch_db,
             self.xml % ("une étudiante", "une étudiante"),
-        )  # 'un étudiant' is dropped
+        )
         self.assertEqual(
             view1_en_copy.with_context(lang="es_ES").arch_db,
             self.xml % ("una estudiante", "una estudiante"),
-        )  # 'un estudiante' is dropped
+        )
 
 
 class TestHTMLTranslation(TransactionCase):
@@ -2449,8 +2259,6 @@ class TestHTMLTranslation(TransactionCase):
         company = self.env["res.company"].browse(9999)
         company.report_footer = html
         self.assertHTMLEqual(company.report_footer, html)
-        # flushing on non-existing records does not break for scalar fields; the
-        # same behavior is expected for translated fields
         company.flush_recordset()
 
     def test_delay_translations_no_term(self):
@@ -2465,7 +2273,6 @@ class TestHTMLTranslation(TransactionCase):
         )
 
         for html in ("<h1></h1>", "", False):
-            # delay_translations only works when the written value has at least one translatable term
             company0.with_context(
                 lang="en_US", delay_translations=True
             ).report_footer = html
@@ -2501,7 +2308,6 @@ class TestTranslationTrigramIndexPatterns(BaseCase):
     def test_value_conversion(self):
         sc = SPECIAL_CHARACTERS
         cases = [
-            # pylint: disable=bad-whitespace
             ("abc", "%abc%", "simple text is not escaped correctly"),
             ('a"bc', r'%a\\"bc%', '" is not escaped correctly'),
             (r"a\bc", r"%a\\\\bc%", r"\ is not escaped correctly"),
@@ -2521,7 +2327,6 @@ class TestTranslationTrigramIndexPatterns(BaseCase):
     def test_pattern_conversion(self):
         sc = SPECIAL_CHARACTERS
         cases = [
-            # pylint: disable=bad-whitespace
             ("abc", "%abc%", "simple pattern is not escaped correctly"),
             ('a"bc', r'%a\\"bc%', '" is not escaped correctly'),
             (r"a\\bc", r"%a\\\\bc%", r"\ is not escaped correctly"),
@@ -2575,7 +2380,7 @@ class TestReconcileObsoleteTerms(TransactionCase):
         new_terms = field.get_trans_terms("<div>Hello world!</div>")
         self.assertTrue(old_terms and new_terms)
         old_term, new_term = old_terms[0], new_terms[0]
-        self.assertNotEqual(old_term, new_term)  # the edit changed the term
+        self.assertNotEqual(old_term, new_term)
         td = {old_term: {"fr_FR": "Bonjour le monde"}}
         field._reconcile_obsolete_terms(td, set(new_terms), "fr_FR", self.env)
         self.assertNotIn(old_term, td, "obsolete term should be re-keyed away")

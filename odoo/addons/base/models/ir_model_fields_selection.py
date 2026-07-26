@@ -154,7 +154,6 @@ class IrModelFieldsSelection(models.Model):
             new_row, cur_row = new_rows.get(value), cur_rows.get(value)
             if new_row is None:
                 if self.pool.ready:
-                    # value dropped from the new list; removing at your own risk
                     _logger.warning(
                         "Removing selection value %s on %s.%s",
                         cur_row["value"],
@@ -217,9 +216,6 @@ class IrModelFieldsSelection(models.Model):
             if model in self.pool and name in self.pool[model]._fields:
                 model_names.add(model)
             else:
-                # Field not yet in registry (e.g. selection row created during
-                # module load before its field is set up); skip the refresh but
-                # log so the silent path stays observable (SEL-C7).
                 _logger.debug(
                     "Skipped registry setup for selection on %s.%s: "
                     "field not in registry",
@@ -227,7 +223,6 @@ class IrModelFieldsSelection(models.Model):
                     name,
                 )
         if model_names:
-            # re-initialize the models in the registry
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr, model_names)
 
@@ -256,11 +251,6 @@ class IrModelFieldsSelection(models.Model):
             self._raise_base_field_error()
 
         if "value" in vals:
-            # Two rows of one field cannot share a value (UNIQUE(field_id,
-            # value)); a batch renaming several rows of one field to the same
-            # value would only fail at flush -- after the destructive column
-            # rewrites below already ran. Reject up front: len(self) >
-            # len(self.field_id) iff some field owns more than one row (SEL-C2).
             if len(self) > len(self.field_id):
                 raise UserError(
                     _(
@@ -272,15 +262,9 @@ class IrModelFieldsSelection(models.Model):
                 if selection.value == vals["value"]:
                     continue
                 if selection.field_id.store:
-                    # invalidate the field to keep the cache consistent
                     model = self.env[selection.field_id.model]
                     fname = selection.field_id.name
                     model.invalidate_model([fname])
-                    # Replace the old value by the new one in the stored column.
-                    # company_dependent fields are jsonb keyed by company; a value
-                    # rename is global, so every company key holding the old value
-                    # must migrate. Mirror the branch in _get_records_by_value so
-                    # the two cannot diverge (SEL-C1).
                     if self._is_jsonb_stored(selection.field_id):
                         query = SQL(
                             "UPDATE %s AS t SET %s = ("
@@ -313,10 +297,6 @@ class IrModelFieldsSelection(models.Model):
 
         result = super().write(vals)
 
-        # Rebuild the models only when the change can alter the selection SET or
-        # ORDER. A label-only (name) edit leaves values and order intact, so the
-        # only stale artefact is the lang-keyed get_field_selection ormcache
-        # ("stable"); clearing it is far cheaper than _setup_models__ (SEL-C6).
         self.env.flush_all()
         if {"value", "sequence", "field_id"} & vals.keys():
             model_names = self.field_id.model_id.mapped("model")
@@ -328,7 +308,6 @@ class IrModelFieldsSelection(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_manual(self) -> None:
-        # Prevent manual deletion of module columns
         if self.pool.ready and any(
             selection.field_id.state != "manual" for selection in self
         ):
@@ -340,10 +319,7 @@ class IrModelFieldsSelection(models.Model):
         self._process_ondelete()
         result = super().unlink()
 
-        # Reload registry for normal unlink only. For module uninstall, the
-        # reload is done independently in odoo.modules.loading.
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
-            # re-initialize the models in the registry
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr, model_names)
 
@@ -366,12 +342,6 @@ class IrModelFieldsSelection(models.Model):
                 with self.env.cr.savepoint():
                     records.write({fname: value})
             except (UserError, psycopg.Error) as error:
-                # The ORM write was refused by an override or a constraint; fall
-                # back to a raw column update so module-uninstall cleanup of a
-                # removed selection value can still complete. The catch is
-                # narrowed to recoverable failures -- a programming error (e.g.
-                # TypeError in an override) now propagates instead of being
-                # masked by a silent data write (SEL-C4).
                 _logger.warning(
                     "Could not fulfill ondelete action for field %s.%s (%s); "
                     "attempting ORM bypass",
@@ -379,7 +349,6 @@ class IrModelFieldsSelection(models.Model):
                     fname,
                     error,
                 )
-                # if this fails there is nothing we can do except fix on a case-by-case basis
                 self.env.execute_query(
                     SQL(
                         "UPDATE %s SET %s=%s WHERE id = ANY(%s)",
@@ -391,13 +360,7 @@ class IrModelFieldsSelection(models.Model):
                 )
                 records.invalidate_recordset([fname])
 
-        # Group the deleted rows by field so each field's model is resolved and
-        # flushed once, not once per value.
         for field_record, selections in self.grouped("field_id").items():
-            # The field may exist in database but not in registry; skip it (in
-            # production this should be handled by a migration script). The ORM
-            # handles the orphaned 'ir.model.fields' down the stack and logs a
-            # warning prompting the developer to write one.
             Model = self.env.get(field_record.model)
             if Model is None:
                 continue
@@ -405,22 +368,17 @@ class IrModelFieldsSelection(models.Model):
             if not field or not field.store or not Model._auto:
                 continue
 
-            # Field changed its type, skip it.
             if field.type not in ("selection", "reference"):
                 continue
 
-            # resolve the ondelete policy of each deleted value, dropping values
-            # that carry none
             policies = {}
             for selection in selections:
                 ondelete = (field.ondelete or {}).get(selection.value)
-                # special case for custom fields
                 if ondelete is None and field.manual and not field.required:
                     ondelete = "set null"
                 if ondelete is not None:
                     policies[selection.value] = ondelete
             if not policies:
-                # nothing to do, none of the values come from a field extension
                 continue
 
             companies = (
@@ -430,7 +388,6 @@ class IrModelFieldsSelection(models.Model):
             )
             for company in companies:
                 company_model = Model.with_company(company.id)
-                # one flush + one query resolves every value's records
                 records_by_value = self._get_records_by_value(
                     company_model, field, list(policies)
                 )
@@ -450,7 +407,6 @@ class IrModelFieldsSelection(models.Model):
                     elif ondelete == "cascade":
                         records.unlink()
                     else:
-                        # sanity check; should never happen
                         raise ValueError(
                             _(
                                 'The ondelete policy "%(policy)s" is not valid for field "%(field)s"',
@@ -475,7 +431,6 @@ class IrModelFieldsSelection(models.Model):
         fname = field.name
         company_model.flush_model([fname])
         if self._is_jsonb_stored(field):
-            # company-dependent fields are stored as jsonb (e.g. {company_id: value})
             company_key = str(company_model.env.company.id)
             query = SQL(
                 "SELECT %s ->> %s AS value, array_agg(id) AS ids FROM %s "
@@ -488,7 +443,6 @@ class IrModelFieldsSelection(models.Model):
                 values,
             )
         else:
-            # normal selection fields are stored as a plain column
             query = SQL(
                 "SELECT %s AS value, array_agg(id) AS ids FROM %s "
                 "WHERE %s = ANY(%s) GROUP BY 1",

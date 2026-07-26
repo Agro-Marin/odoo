@@ -157,10 +157,6 @@ class TestCommand(BaseCase):
         )
         self.assertIn("usage: ", proc.stdout)
         self.assertIn("Rewrite the entire source code", proc.stdout)
-        # Regression: the stub Command.parser used to rebuild a fresh
-        # ArgumentParser on every access, so none of the real flags were
-        # registered on the parser that parse_args() eventually used.
-        # Asserting flag visibility in --help catches that class of bug.
         for flag in (
             "--script",
             "--from",
@@ -228,7 +224,6 @@ class TestCommand(BaseCase):
             check=False,
         )
         self.assertNotEqual(proc.returncode, 0)
-        # argparse errors should include 'required' or the flag name in stderr
         msg = proc.stderr.lower()
         self.assertTrue(
             "required" in msg or "-l" in msg or "--languages" in msg,
@@ -251,7 +246,7 @@ class TestCommand(BaseCase):
         with tempfile.TemporaryDirectory() as tmp:
             missing = Path(tmp) / "no_such_templates"
             cwd = Path.cwd()
-            os.chdir(tmp)  # no ./default dir to fall back on
+            os.chdir(tmp)
             buf = io.StringIO()
             try:
                 with mock.patch.object(
@@ -410,7 +405,7 @@ class TestCommand(BaseCase):
             "allfields": False,
             "no_default_fields": False,
         }
-        ns = lambda **kw: argparse.Namespace(**{**base, **kw})  # noqa: E731
+        ns = lambda **kw: argparse.Namespace(**{**base, **kw})
 
         self.assertEqual(_select_fields(ns()), list(DEFAULT_FIELDS))
         self.assertEqual(
@@ -510,7 +505,7 @@ class TestCommand(BaseCase):
             mod = Path(tmp) / "mymod"
             mod.mkdir()
             (mod / "__manifest__.py").write_text("{'name': 'mymod'}\n")
-            (mod / "build").write_text("legit content")  # file, not a dir
+            (mod / "build").write_text("legit content")
             (mod / "node_modules").mkdir()
             (mod / "node_modules" / "junk.js").write_text("junk")
             zpath = Deploy().zip_module(mod)
@@ -570,8 +565,6 @@ class TestCommand(BaseCase):
             "/nonexistent/path.conf",
             check=False,
         )
-        # The command may still fail (config missing), but argparse must not
-        # complain about 'unrecognized arguments' for -c.
         self.assertNotIn("unrecognized arguments", proc.stderr)
 
     def test_db_connection_flags_before_subcommand_survive(self):
@@ -615,12 +608,9 @@ class TestCommand(BaseCase):
         from odoo.cli.deploy import Deploy
 
         deploy = Deploy()
-        # Stub the HTTP session so we exercise only the db-encoding path.
         deploy.session = mock.MagicMock()
         deploy.session.post.return_value = mock.MagicMock(status_code=200, text="ok")
         with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
-            # db=None is the worst case (worse than the new "" default); it must
-            # not raise TypeError from urllib.parse.quote.
             try:
                 deploy.login_upload_module(
                     module_file=tmp.name,
@@ -629,7 +619,7 @@ class TestCommand(BaseCase):
                     password="admin",
                     db=None,
                 )
-            except TypeError as exc:  # pragma: no cover - regression guard
+            except TypeError as exc:
                 self.fail(f"login_upload_module crashed on db=None: {exc}")
         self.assertTrue(deploy.session.get.called)
 
@@ -679,22 +669,18 @@ class TestCommand(BaseCase):
         with tempfile.TemporaryDirectory() as tmp:
             cli_dir = Path(tmp) / "brokenmod" / "cli"
             cli_dir.mkdir(parents=True)
-            # Missing colon -> SyntaxError at import (not an ImportError).
             (cli_dir / "brokencmd.py").write_text(
                 "from odoo.cli import Command\n"
                 "class Brokencmd(Command)\n"
                 "    def run(self, args): pass\n"
             )
-            # Patch the addons search path to just our temp dir (a plain list,
-            # so no _NamespacePath mutation) and neuter initialize_sys_path so
-            # it does not rebuild the path from config.
             with (
                 mock.patch.object(odoo.addons, "__path__", [tmp]),
                 mock.patch.object(cmd, "initialize_sys_path", lambda: None),
             ):
                 try:
-                    load_addons_commands()  # the all-discovery path help uses
-                except SyntaxError:  # pragma: no cover - regression guard
+                    load_addons_commands()
+                except SyntaxError:
                     self.fail("a broken addon cli file broke command discovery")
             self.assertNotIn("brokencmd", commands)
 
@@ -706,8 +692,6 @@ class TestCommand(BaseCase):
         self.assertIn("127.0.0.1", _LOCAL_HOSTS)
         self.assertIn("0.0.0.0", _LOCAL_HOSTS)
         self.assertIn("::1", _LOCAL_HOSTS)
-        # The substring trap that the previous startswith() implementation
-        # fell into:
         self.assertNotIn("localhost.evil.com", _LOCAL_HOSTS)
         self.assertNotIn("127.0.0.1.evil.com", _LOCAL_HOSTS)
 
@@ -732,8 +716,6 @@ class TestCommand(BaseCase):
             self.assertIn(name, EXCLUDED_DIR_NAMES)
         for ext in (".pyc", ".pyo", ".swp", ".bak"):
             self.assertIn(ext, EXCLUDED_SUFFIXES)
-        # By NAME, not suffix: Path('.DS_Store').suffix == '' (dotfile), so a
-        # suffix-based exclusion never fired and the junk file shipped.
         self.assertIn(".DS_Store", EXCLUDED_FILE_NAMES)
 
     def test_start_db_filter_escapes_regex(self):
@@ -762,15 +744,12 @@ class TestCommand(BaseCase):
             config.options, {"dbfilter": ".*", "db_name": ["test_db"]}
         ):
             self.assertEqual(db_filter(dbs, host="localhost"), ["test_db"])
-        # dbfilter alone still filters by pattern only
         with mock.patch.dict(config.options, {"dbfilter": "^al", "db_name": []}):
             self.assertEqual(db_filter(dbs, host="localhost"), ["alpha"])
-        # db_name alone still intersects (sorted)
         with mock.patch.dict(
             config.options, {"dbfilter": "", "db_name": ["beta", "alpha"]}
         ):
             self.assertEqual(db_filter(dbs, host="localhost"), ["alpha", "beta"])
-        # both set: intersection of the two
         with mock.patch.dict(
             config.options, {"dbfilter": "^(alpha|prod)$", "db_name": ["prod", "beta"]}
         ):
@@ -813,8 +792,6 @@ class TestCommand(BaseCase):
         starts_with, not LIKE — the latter treats '_' as a wildcard and
         would also exclude tables like 'irrelevant' or 'iru_custom'."""
         src = (Path(__file__).parents[3] / "cli/obfuscate.py").read_text()
-        # Strip Python comments so docstrings/explanations don't trip the
-        # 'LIKE' check.
         non_comment = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
         self.assertIn("starts_with(table_name, 'ir_')", non_comment)
         self.assertNotIn("LIKE 'ir_%'", non_comment)
@@ -941,8 +918,6 @@ class TestCommand(BaseCase):
         helper = type("HelperBase", (Command,), {}, register=False)
         self.assertEqual(commands, before, msg="opt-out base must not register")
         self.assertIsNone(helper.name)
-        # a concrete subclass goes through the usual validation (here it
-        # fails the module-name check, proving validation still applies)
         with self.assertRaises(ValueError):
             type("Concrete", (helper,), {"run": lambda self, args: None})
         self.assertEqual(commands, before)
@@ -1012,7 +987,6 @@ class TestCommand(BaseCase):
                 executed.append(params)
 
             def fetchall(self):
-                # text/varchar/jsonb are kept; an unsupported type is dropped.
                 return [
                     ("res_partner", "name", "varchar"),
                     ("res_partner", "email", "varchar"),
@@ -1057,7 +1031,6 @@ class TestCommand(BaseCase):
         with shell:
             self.assertFalse(shell.wait(), "exited with a non 0 code")
 
-            # we skip local variables as they differ based on configuration (e.g.: if a database is specified or not)
             lines = [
                 line
                 for line in shell.stdout.read().splitlines()
@@ -1084,15 +1057,11 @@ class TestCommand(BaseCase):
             (module / "__manifest__.py").write_text("{'name': 'mymodule'}\n")
 
             cfg = configmanager()
-            # FIRST parse: what command.main does with the bootstrap
-            # --addons-path (plus a normal --data-dir, used below as a control).
             cfg._parse_config([f"--addons-path={ad}", f"--data-dir={dd}"])
             first_addons = list(cfg["addons_path"])
             first_data_dir = cfg["data_dir"]
             self.assertIn(ad, first_addons)
 
-            # SECOND parse: what DatabaseCommand.bootstrap_config does — only
-            # -d, NO --addons-path.
             cfg._parse_config(["-d", "somedb"])
             second_addons = list(cfg["addons_path"])
             second_data_dir = cfg["data_dir"]
@@ -1103,9 +1072,6 @@ class TestCommand(BaseCase):
                 msg="addons_path lost on the second config parse: "
                 "`module install --addons-path=X` would find no modules",
             )
-            # Control: a non-preserved option (data_dir) is NOT carried over,
-            # proving addons_path's survival is a deliberate special case and
-            # not a generic 'CLI options persist' behaviour.
             self.assertNotEqual(
                 second_data_dir,
                 first_data_dir,
@@ -1131,7 +1097,6 @@ class TestCommand(BaseCase):
             ["--no-http", "-c", "cfg", "-d", "db"],
         )
         self.assertNotIn("--addons-path", build_config_args("cfg", "db"))
-        # extra_args is the only channel for anything beyond -c/-d/--no-http:
         self.assertIn(
             "--workers=4",
             build_config_args(None, None, extra_args=["--workers=4"]),
@@ -1146,10 +1111,6 @@ class TestCommand(BaseCase):
 
         cmd = dbmod.Db()
         protected = ["postgres", "template0", "template1", config["db_template"]]
-        # exp_db_exist=True + force=True: without the guard, every subcommand
-        # would sail through its free/exists checks and reach a (mocked)
-        # destructive call — so each assertion below discriminates the guard,
-        # and no code path touches the real cluster.
         with (
             mock.patch.object(dbmod, "exp_db_exist", return_value=True),
             mock.patch.object(dbmod, "_drop_database") as drop_mock,
@@ -1166,10 +1127,6 @@ class TestCommand(BaseCase):
                     cmd.rename(mock.Mock(source=name, target="tgt", force=True))
                 with self.assertRaises(SystemExit, msg=f"duplicate onto {name}"):
                     cmd.duplicate(mock.Mock(source="src", target=name, force=True))
-            # dump is read-only: refuse only the PG system databases (never
-            # Odoo databases). The configured db_template stays dumpable —
-            # a seed template may be a legitimate Odoo database, and dumping
-            # it is how it gets backed up.
             for name in ("postgres", "template0", "template1"):
                 with self.assertRaises(SystemExit, msg=f"dump {name} not refused"):
                     cmd.dump(mock.Mock(database=name))
@@ -1236,8 +1193,6 @@ class TestCommand(BaseCase):
         self.assertEqual(set(dbmod.Db._CONNECTION_HELP), declared)
         parser = argparse.ArgumentParser(prog="db")
         dbmod.Db._add_connection_flags(parser)
-        # option_strings keeps declaration order; the long form is last,
-        # matching the _CONNECTION_FLAGS convention.
         registered = {
             a.option_strings[-1]: a.help
             for a in parser._actions
@@ -1318,9 +1273,7 @@ class TestCommand(BaseCase):
 
         from odoo.cli.shell import Shell
 
-        # The stdlib console is always available.
         self.assertTrue(Shell._repl_available("python"))
-        # Every non-stdlib supported shell must have a probe mapping.
         self.assertEqual(
             set(Shell._REPL_MODULES),
             set(Shell.supported_shells) - {"python"},

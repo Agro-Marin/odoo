@@ -34,7 +34,6 @@ class TestIrLoggingInit(TransactionCase):
             sql.constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT),
             "a second init() must not recreate the FK",
         )
-        # A third call is equally inert.
         model.init()
         self.assertIsNone(
             sql.constraint_definition(self.env.cr, "ir_logging", self.CONSTRAINT)
@@ -75,7 +74,6 @@ class TestIrLoggingRawInsert(TransactionCase):
                 "test_raw_insert_is_parameterised",
             ),
         )
-        # The table still exists and the row count increased by exactly one.
         self.assertEqual(self.env["ir.logging"].search_count([]), before + 1)
         record = self.env["ir.logging"].search([("name", "=", "ilog.t2")], limit=1)
         self.assertEqual(

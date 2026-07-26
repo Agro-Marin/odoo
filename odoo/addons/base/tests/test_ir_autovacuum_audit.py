@@ -97,7 +97,6 @@ class TestAutovacuumTimeBudget(TransactionCase):
 
         def fake_gc(model):
             calls.append(model._name)
-            # more work on the first pass, done on the second
             return (1, len(calls) == 1)
 
         with self.assertNoLogs(_IR_AUTOVACUUM_LOGGER, level="WARNING"):
@@ -111,16 +110,12 @@ class TestAutovacuumTimeBudget(TransactionCase):
 
         def fake_gc(model):
             calls.append(model._name)
-            return (1, 12345)  # always reports remaining work
+            return (1, 12345)
 
-        # The dispatcher reads the clock at run start, per-method start, the
-        # re-enqueue check and the per-method duration log: +2000s per read
-        # exceeds the 3600s budget at the first re-enqueue check.
         ticks = itertools.count(start=0, step=2000)
         fake_time = SimpleNamespace(monotonic=lambda: next(ticks))
         with self.assertLogs(_IR_AUTOVACUUM_LOGGER, level="WARNING") as capture:
             self._run([("_gc_fake", fake_gc)], fake_time=fake_time)
-        # Ran exactly once: the backlog was deferred instead of re-enqueued.
         self.assertEqual(calls, ["ir.autovacuum"])
         warning = "\n".join(capture.output)
         self.assertIn("wall-clock budget", warning)
@@ -140,8 +135,6 @@ class TestAutovacuumTimeBudget(TransactionCase):
             calls.append("b")
             return (1, False)
 
-        # Budget already blown when the first re-enqueue check happens, yet
-        # both first passes must run.
         ticks = itertools.count(start=0, step=2000)
         fake_time = SimpleNamespace(monotonic=lambda: next(ticks))
         with self.assertLogs(_IR_AUTOVACUUM_LOGGER, level="WARNING"):

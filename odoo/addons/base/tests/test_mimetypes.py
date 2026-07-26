@@ -24,11 +24,9 @@ NAMESPACED_SVG = b"""<svg:svg xmlns:svg="http://www.w3.org/2000/svg" viewBox="0 
   <svg:rect x="10" y="10" width="80" height="80" fill="green" />
 </svg:svg>"""
 
-# single pixel webp image
 WEBP = b"""UklGRjoAAABXRUJQVlA4IC4AAAAwAQCdASoBAAEAAUAmJaAAA3AA/u/uY//8s//2W/7LeM///5Bj
 /dl/pJxGAAAA"""
 
-# minimal zip file with an empty `t.txt` file
 ZIP = b"""UEsDBBQACAAIAGFva1AAAAAAAAAAAAAAAAAFACAAdC50eHRVVA0AB5bgaF6W4GheluBoXnV4CwABBOgDAAAE6AMAAA
 MAUEsHCAAAAAACAAAAAAAAAFBLAQIUAxQACAAIAGFva1AAAAAAAgAAAAAAAAAFACAAAAAAAAAAAACkgQAAAAB0LnR4dFVUDQAHlu
 BoXpbgaF6W4GhedXgLAAEE6AMAAAToAwAAUEsFBgAAAAABAAEAUwAAAFUAAAAAAA=="""
@@ -65,13 +63,10 @@ Hello world!
 class test_guess_mimetype(BaseCase):
     def test_default_mimetype_empty(self):
         mimetype = guess_mimetype(b"")
-        # odoo implementation returns application/octet-stream by default
-        # python-magic returns application/x-empty
         self.assertIn(mimetype, ("application/octet-stream", "application/x-empty"))
 
     def test_default_mimetype(self):
         mimetype = guess_mimetype(b"", default="test")
-        # python-magic returns application/x-empty
         self.assertIn(mimetype, ("test", "application/x-empty"))
 
     def test_mimetype_octet_stream(self):
@@ -86,7 +81,6 @@ class test_guess_mimetype(BaseCase):
     def test_mimetype_bmp(self):
         content = base64.b64decode(BMP)
         mimetype = guess_mimetype(content, default="test")
-        # mimetype should match image/bmp, image/x-ms-bmp, ...
         self.assertRegex(mimetype, r"image/.*\bbmp")
 
     def test_mimetype_jpg(self):
@@ -106,8 +100,6 @@ class test_guess_mimetype(BaseCase):
 
         mimetype = guess_mimetype(NAMESPACED_SVG, default="test")
         self.assertTrue(mimetype.startswith("image/svg"))
-        # python-magic handles whitespace-padded SVG correctly
-        # (odoo's fallback implementation does not detect them)
 
     def test_mimetype_webp(self):
         content = base64.b64decode(WEBP)
@@ -133,7 +125,6 @@ class test_guess_mimetype(BaseCase):
         self.assertEqual(get_extension("filename.torrent"), ".torrent")
         self.assertEqual(get_extension("filename.ab_c"), ".ab_c")
         self.assertEqual(get_extension(".htaccess"), "")
-        # enough to suppose that extension is present and don't suffix the filename
         self.assertEqual(get_extension("filename.tar.gz"), ".gz")
         self.assertEqual(get_extension("filename"), "")
         self.assertEqual(get_extension("filename."), "")

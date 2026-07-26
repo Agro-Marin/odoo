@@ -15,16 +15,13 @@ class TestResConfig(TransactionCase):
         super().setUp()
         self.ResConfig = self.env["res.config.settings"]
 
-        # Define the test values
         self.menu_xml_id = "base.menu_action_res_users"
         self.full_field_name = "res.partner.lang"
         self.error_msg = "WarningRedirect test string: %(field:res.partner.lang)s - %(menu:base.menu_action_res_users)s."
         self.error_msg_wo_menu = (
             "WarningRedirect test string: %(field:res.partner.lang)s."
         )
-        # See get_config_warning() doc for a better example
 
-        # Fetch the expected values
         menu = self.env.ref(self.menu_xml_id)
 
         model_name, field_name = self.full_field_name.rsplit(".", 1)
@@ -46,13 +43,11 @@ class TestResConfig(TransactionCase):
         """The get_option_path() method should return a tuple containing a string and an integer"""
         res = self.ResConfig.get_option_path(self.menu_xml_id)
 
-        # Check types
         self.assertIsInstance(res, tuple)
         self.assertEqual(len(res), 2, "The result should contain 2 elements")
         self.assertIsInstance(res[0], str)
         self.assertIsInstance(res[1], int)
 
-        # Check returned values
         self.assertEqual(res[0], self.expected_path)
         self.assertEqual(res[1], self.expected_action_id)
 
@@ -60,20 +55,16 @@ class TestResConfig(TransactionCase):
         """The get_option_name() method should return a string"""
         res = self.ResConfig.get_option_name(self.full_field_name)
 
-        # Check type
         self.assertIsInstance(res, str)
 
-        # Check returned value
         self.assertEqual(res, self.expected_name)
 
     def test_20_get_config_warning(self):
         """The get_config_warning() method should return a RedirectWarning"""
         res = self.ResConfig.get_config_warning(self.error_msg)
 
-        # Check type
         self.assertIsInstance(res, exceptions.RedirectWarning)
 
-        # Check returned value
         self.assertEqual(res.args[0], self.expected_final_error_msg)
         self.assertEqual(res.args[1], self.expected_action_id)
 
@@ -81,13 +72,10 @@ class TestResConfig(TransactionCase):
         """The get_config_warning() method should return a Warning exception"""
         res = self.ResConfig.get_config_warning(self.error_msg_wo_menu)
 
-        # Check type
         self.assertIsInstance(res, exceptions.UserError)
 
-        # Check returned value
         self.assertEqual(res.args[0], self.expected_final_error_msg_wo_menu)
 
-    # TODO: ASK DLE if this test can be removed
     def test_40_view_expected_architecture(self):
         """Ensure the res.config.settings form view sent to the web client has
         the structure its custom widget expects (blocks, classes, order).
@@ -121,7 +109,6 @@ class TestResConfig(TransactionCase):
             "The res.config.settings form view architecture is not what is expected by the web client.",
         )
 
-    # TODO: ASK DLE if this test can be removed
     def test_50_view_expected_architecture_t_node_groups(self):
         """Form view postprocessing when an `app` block is wrapped in a
         `<t groups="...">` (used to gate a section on two groups at once)."""
@@ -146,7 +133,6 @@ class TestResConfig(TransactionCase):
         with self.debug_mode():
             arch = self.env["res.config.settings"].get_view(view.id)["arch"]
             tree = etree.fromstring(arch)
-            # The <t> must be removed from the structure
             self.assertFalse(
                 tree.xpath("//t"),
                 'The `<t groups="...">` block must not remain in the view',
@@ -162,10 +148,6 @@ class TestResConfig(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestResConfigClassification(TransactionCase):
-    # post_install: creating a res.config.settings record needs the fields
-    # (and NOT NULL columns) other modules add to the model, like
-    # web's required company_id.
-
     def _patched_fields(self, **fake_fields):
         """Temporarily extend res.config.settings' ``_fields`` mapping.
 
@@ -189,7 +171,6 @@ class TestResConfigClassification(TransactionCase):
         boolean_field = fields.Boolean()
         with self._patched_fields(module_fake_boolean=boolean_field):
             classified = Settings._get_classified_fields(["module_fake_boolean"])
-        # an unknown module name classifies to an empty module recordset
         self.assertFalse(classified["module"])
 
     def test_group_selection_fields_still_accepted(self):
@@ -237,7 +218,7 @@ class TestResConfigClassification(TransactionCase):
         argument) computes the classification itself and still works.
         """
         settings = self.env["res.config.settings"].create({})
-        settings.set_values()  # must not raise
+        settings.set_values()
 
 
 @tagged("post_install", "-at_install")
@@ -271,8 +252,6 @@ class TestResConfigExecute(TransactionCase):
             }
         )
 
-        # If not enabled (like in demo data), landing on res.config will try
-        # to disable module_sale_quotation_builder and raise an issue
         group_order_template = self.env.ref(
             "sale_management.group_sale_order_template",
             raise_if_not_found=False,
@@ -295,12 +274,8 @@ class TestResConfigExecute(TransactionCase):
         """Verify that settings user are able to create & save settings."""
         settings = self.env["res.config.settings"].with_user(user).create({})
 
-        # Save the settings
         settings.set_values()
 
-        # Check user has access to all models of relational fields in view
-        # because the webclient makes a read of display_name request for all specified records
-        # even if they are not shown to the user.
         settings_view_arch = etree.fromstring(
             settings.get_view(view_id=self.settings_view.id)["arch"]
         )
@@ -308,8 +283,6 @@ class TestResConfigExecute(TransactionCase):
         for node in settings_view_arch.iterdescendants(tag="field"):
             fname = node.get("name")
             if fname not in settings._fields:
-                # fname isn't a settings fields, but the field of a model
-                # linked to settings through a relational field
                 continue
             seen_fields.add(fname)
 

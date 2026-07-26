@@ -32,7 +32,6 @@ class TestHttpCase(HttpCase):
                     return_value=None,
                 ):
                     self.browser_js(url_path="about:blank", code=code)
-            # last line must contain the error message
             self.assertEqual(
                 error_catcher.exception.args[0].splitlines()[-1],
                 "test error message",
@@ -49,7 +48,6 @@ class TestHttpCase(HttpCase):
                     return_value=None,
                 ):
                     self.browser_js(url_path="about:blank", code=code)
-            # last line must contain the error message
             self.assertEqual(
                 error_catcher.exception.args[0].splitlines()[-2:],
                 ["TypeError: test error message", "    at <anonymous>:1:15"],
@@ -140,7 +138,7 @@ class TestAllowRequests(HttpCase):
             with self.assertRaises(BadRequest):
                 self.assertCanOpenTestCursor()
             with patch.object(self, "http_request_allow_all", True):
-                self.assertCanOpenTestCursor()  # must not raise
+                self.assertCanOpenTestCursor()
 
 
 @tagged("-at_install", "post_install")
@@ -183,7 +181,7 @@ class TestChromeBrowser(HttpCase):
         applied a second time inside _websocket_request (factor squared)."""
         self.browser.navigate_to("about:blank")
         self.browser._wait_ready()
-        self.browser.throttling_factor = 3  # budgets only; Chrome untouched
+        self.browser.throttling_factor = 3
         try:
             start = time.monotonic()
             with patch.object(ChromeBrowser, "take_screenshot", return_value=None):
@@ -192,8 +190,8 @@ class TestChromeBrowser(HttpCase):
         finally:
             self.browser.throttling_factor = 1
         self.assertFalse(ok)
-        self.assertGreater(elapsed, 2.5)  # single application: ~3s
-        self.assertLess(elapsed, 7)  # squared application was ~9s
+        self.assertGreater(elapsed, 2.5)
+        self.assertLess(elapsed, 7)
 
     def test_wait_code_ok_wraps_evaluate_timeout(self):
         """Code whose promise outlives the budget must raise
@@ -229,19 +227,10 @@ class TestChromeBrowserOddDimensions(TestChromeBrowser):
 
 
 class TestRequestRemainingCommon(HttpCase):
-    # Reproduces a request lost between two tests and executed during the next:
-    # - test A's browser js finishes with a pending request
-    # - _wait_remaining_requests misses it (thread not yet spawned/named)
-    # - test B starts and executes a SELECT
-    # - the request runs a concurrent fetchall, so B's fetchall fails on the
-    #   already-used cursor
-    # Similar cases can also consume savepoints, make the main cursor readonly, ...
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.thread_a = None
-        # this lock is used to ensure the request is executed after test b starts
         cls.main_lock = threading.Lock()
         cls.main_lock.acquire()
 
@@ -251,8 +240,6 @@ class TestRequestRemainingCommon(HttpCase):
                 assert request.env.cr.__class__.__name__ == "TestCursor"
                 request.env.cr.execute("SELECT 1")
                 request.env.cr.fetchall()
-                # note that the previous queries are not really needed since the http stack will check the registry
-                # but this makes the test more clear and robust
                 _logger.info("B finish")
 
         cls.env.registry.clear_cache("routing")
@@ -261,12 +248,9 @@ class TestRequestRemainingCommon(HttpCase):
     def _test_requests_a(self, cookie=False):
 
         def late_request_thread():
-            # In some rare case the request may arrive after _wait_remaining_requests.
-            # this thread is trying to reproduce this case.
             _logger.info("Waiting for B to start")
             if self.main_lock.acquire(timeout=10):
                 _logger.info("Opening url")
-                # don't use url_open since it simulates a lost request from chrome and url_open would wait to acquire the lock
                 s = requests.Session()
                 if cookie:
                     s.cookies.set(TEST_CURSOR_COOKIE_NAME, self.canonical_tag)
@@ -359,28 +343,23 @@ class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
 
         def late_request_thread():
             _logger.info("Opening url")
-            # don't use url_open since it simulates a lost request from chrome and url_open would wait to acquire the lock
             s = requests.Session()
             s.cookies.set(TEST_CURSOR_COOKIE_NAME, self.http_request_key)
-            # we expect the request to be stuck when acquiring the registry lock
             s.get(self.base_url() + "/web/concurrent", timeout=10)
 
         type(self).thread_a = threading.Thread(target=late_request_thread)
         main_lock = self.main_lock
         self.thread_a.start()
-        # we need to ensure that the first check is made and that we are acquiring the lock
         main_lock.acquire()
 
     def assertCanOpenTestCursor(self):
         super().assertCanOpenTestCursor()
-        # the first time we check assertCanOpenTestCursor we need to release the lock (locks ensure we are still inside test_requests_a)
         if self.main_lock:
             self.main_lock.release()
             self.main_lock = None
 
     def test_requests_b(self):
         _logger.info("B started, waiting for A to finish")
-        # url_open will simulate an enabled request
         with (
             self.assertLogs("odoo.tests.common") as log_catcher,
             self.allow_requests(),

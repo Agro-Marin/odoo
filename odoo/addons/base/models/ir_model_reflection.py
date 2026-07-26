@@ -66,10 +66,6 @@ class IrModelConstraint(models.Model):
         self.check_access("unlink")
         ids_set = set(self.ids)
 
-        # Fetch, in a single query, every constraint record that shares a name
-        # with the records being deleted. A schema object is only dropped when
-        # *all* of its owners are in this unlink set: an installed module may
-        # define the same-named element and would then still need it.
         owners: dict[str, set[int]] = {}
         names = list({data.name for data in self})
         if names:
@@ -87,7 +83,6 @@ class IrModelConstraint(models.Model):
         for data in self.sorted(key="id", reverse=True):
             name = data.name
             if owners.get(name, set()) - ids_set:
-                # installed modules still own this schema element: keep it
                 continue
 
             hname = sql.make_identifier(name)
@@ -98,10 +93,6 @@ class IrModelConstraint(models.Model):
                     if data.model.model in self.env
                     else data.model.model.replace(".", "_")
                 )
-                # Our type='u' means any "other" constraint, so match check/
-                # unique/exclude ('c','u','x') and exclude primary and foreign
-                # keys. An 'f' may live on a related m2m table, which we ignore.
-                # See: https://www.postgresql.org/docs/current/catalog-pg-constraint.html
                 if self.env.execute_query(
                     SQL(
                         """SELECT
@@ -155,8 +146,6 @@ class IrModelConstraint(models.Model):
         :return: the created/modified record, or ``None`` if unchanged
         """
         if not module:
-            # no need to save constraints for custom models as they're not part
-            # of any module
             return None
         if type not in ("f", "u", "i"):
             raise ValueError(
@@ -227,7 +216,6 @@ class IrModelConstraint(models.Model):
         CONFLICT``) so the upsert does not require the ``(name, module)`` unique
         constraint to already exist in the database.
         """
-        # expected rows, keyed by (name, module_name)
         expected: dict[tuple[str, str], dict[str, Any]] = {}
         for model_name in model_names:
             model = self.env[model_name]
@@ -248,7 +236,6 @@ class IrModelConstraint(models.Model):
         if not expected:
             return
 
-        # one SELECT for all (name, module) pairs
         existing = {
             (name, module): row
             for name, module, *row in self.env.execute_query(
@@ -268,7 +255,6 @@ class IrModelConstraint(models.Model):
             if existing.get(key) != [vals["type"], vals["definition"], vals["message"]]
         }
 
-        # one upsert for the created/changed rows
         cons_ids: dict[tuple[str, str], int] = {}
         if changed:
             module_ids = dict(
@@ -325,7 +311,6 @@ class IrModelConstraint(models.Model):
                 for cons_id, name, module_id in result
             }
 
-        # batched xml-id update; unchanged rows only get marked as loaded
         data_list = []
         for name, module in expected:
             xml_id = f"{module}.constraint_{name}"
@@ -367,9 +352,6 @@ class IrModelRelation(models.Model):
 
         ids_set = set(self.ids)
 
-        # Fetch, in a single query, every relation record sharing a name with
-        # the records being deleted, so the ownership check below is O(1) per
-        # record instead of one round-trip each.
         owners: dict[str, set[int]] = {}
         names = list({data.name for data in self})
         if names:
@@ -387,8 +369,6 @@ class IrModelRelation(models.Model):
         to_drop = OrderedSet()
         for data in self.sorted(key="id", reverse=True):
             name = data.name
-            # only drop the table when every record owning it is being deleted;
-            # installed modules may still need it
             if not owners.get(name, set()).issubset(ids_set):
                 continue
             if sql.table_exists(self.env.cr, name):
@@ -396,7 +376,6 @@ class IrModelRelation(models.Model):
 
         self.unlink()
 
-        # drop m2m relation tables
         for table in to_drop:
             self.env.cr.execute(SQL("DROP TABLE %s CASCADE", SQL.identifier(table)))
             _logger.info("Dropped table %s", table)
@@ -404,9 +383,6 @@ class IrModelRelation(models.Model):
     def _reflect_relation(self, model: Any, table: str, module: str) -> None:
         """Reflect the m2m table of the given model so it can be dropped when
         the module is uninstalled."""
-        # No cache invalidation needed: this reads and writes ir_model_relation
-        # through raw SQL only (like the sibling ``_reflect_constraint``), so
-        # the ORM record cache is never consulted here.
         if not self.env.execute_query(
             SQL(
                 """SELECT 1 FROM ir_model_relation r, ir_module_module m

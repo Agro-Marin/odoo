@@ -32,7 +32,6 @@ class TestDecimalPrecisionAudit(TransactionCase):
         """DP-W1: an unknown application falls back to 2 digits with a warning."""
         Precision = self.env["decimal.precision"]
         name = "audit_dp_unknown_application"
-        # make sure the miss is not already cached from a previous run
         self.env.registry.clear_cache("stable")
         with self.assertLogs(
             "odoo.addons.base.models.decimal_precision", "WARNING"
@@ -45,8 +44,6 @@ class TestDecimalPrecisionAudit(TransactionCase):
         Precision = self.env["decimal.precision"]
         name = "audit_dp_cache"
         precision = Precision.create({"name": name, "digits": 2})
-        # Prime the cache, then change the value and confirm the cached accessor
-        # reflects the update (the write override clears the "stable" cache).
         self.assertEqual(Precision.precision_get(name), 2)
         precision.write({"digits": 5})
         self.assertEqual(Precision.precision_get(name), 5)

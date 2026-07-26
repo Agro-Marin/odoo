@@ -67,20 +67,17 @@ class TestReports(odoo.tests.TransactionCase):
             '<html><head><link rel="stylesheet" href="/a/rtl.css"/></head>'
             "<body>y</body></html>"
         )
-        # Stub the parsed-CSS map so routing is exercised without WeasyPrint.
         ltr_css, rtl_css = object(), object()
         parsed_by_url = {"/a/ltr.css": ltr_css, "/a/rtl.css": rtl_css}
 
         html0, css0 = engine._process_body_html(ltr, "", parsed_by_url)
         html1, css1 = engine._process_body_html(rtl, "", parsed_by_url)
 
-        # Each body keeps only its own stylesheet, and its <link> is stripped.
         self.assertEqual(css0, [ltr_css])
         self.assertEqual(css1, [rtl_css])
         self.assertNotIn("stylesheet", html0)
         self.assertNotIn("stylesheet", html1)
 
-        # A link with no parsed entry (parse failure) is left in place, not dropped.
         unknown = (
             '<html><head><link rel="stylesheet" href="/a/keep.css"/></head>'
             "<body>z</body></html>"
@@ -164,11 +161,10 @@ class TestReports(odoo.tests.TransactionCase):
                 pass
 
             def write_pdf(self, **kwargs):
-                # Runs inside the patched critical section.
                 with counter_lock:
                     state["cur"] += 1
                     state["max"] = max(state["max"], state["cur"])
-                time.sleep(0.02)  # widen the window so any overlap is observed
+                time.sleep(0.02)
                 with counter_lock:
                     state["cur"] -= 1
                 return b"%PDF-fake"
@@ -235,7 +231,6 @@ class TestReports(odoo.tests.TransactionCase):
             try:
                 self.env[report_model]
             except KeyError:
-                # Only test the generic reports here
                 _logger.info("testing report %s", report.report_name)
                 report_model_domain = specific_model_domains.get(report.report_name, [])
                 report_records = self.env[report.model].search(
@@ -247,7 +242,6 @@ class TestReports(odoo.tests.TransactionCase):
                     )
 
                 data = extra_data_reports.get(report.report_name, {})
-                # Test report generation
                 if not report.multi:
                     for record in report_records:
                         Report._render_qweb_html(report.id, record.ids, data)
@@ -297,15 +291,12 @@ class TestReports(odoo.tests.TransactionCase):
 
         self.patch(type(Report), "_render_html_to_pdf", _render_html_to_pdf)
 
-        # sanity check: the report is not set to save attachment
-        # assert that there are no pre-existing attachment
         partner_id = self.env.user.partner_id.id
         self.assertFalse(get_attachments(partner_id))
         pdf = report._render_qweb_pdf(report.id, [partner_id])
         self.assertFalse(get_attachments(partner_id))
         self.assertEqual(pdf[0], b"0")
 
-        # set the report to reload from attachment and make one
         pdf_text = "1"
         report.attachment = "'test_attach'"
         report.attachment_use = True
@@ -313,8 +304,6 @@ class TestReports(odoo.tests.TransactionCase):
         attach_1 = get_attachments(partner_id)
         self.assertTrue(attach_1.exists())
 
-        # use the context key to not reload from attachment
-        # and not create another one
         pdf_text = "2"
         report = report.with_context(report_pdf_no_attachment=True)
         pdf = report._render_qweb_pdf(report.id, [partner_id])
@@ -350,14 +339,12 @@ class TestReports(odoo.tests.TransactionCase):
                 "type": "binary",
             }
         )
-        # Only a non-ORM write can leave mimetype NULL (the ORM re-guesses it).
         self.env.cr.execute(
             "UPDATE ir_attachment SET mimetype = NULL WHERE id = %s", (attachment.id,)
         )
         attachment.invalidate_recordset()
         self.assertFalse(attachment.mimetype)
 
-        # Must not raise AttributeError('bool' object has no attribute 'startswith').
         streams = report._render_qweb_pdf_prepare_streams(
             report.id, {}, res_ids=[partner_id]
         )
@@ -365,7 +352,6 @@ class TestReports(odoo.tests.TransactionCase):
         self.assertTrue(streams[partner_id]["stream"])
 
 
-# Some paper format examples
 PAPER_SIZES = {
     (842, 1190): "A3",
     (595, 842): "A4",
@@ -478,8 +464,6 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
             (round(x), round(y)), (0, 0), "Expecting top corner to be 0, 0 "
         )
         orientation = "portait"
-        # Round to integers — WeasyPrint produces exact mm→pt conversions
-        # (e.g. 595.275591 for A4 width) while PAPER_SIZES uses integers.
         paper_size = (round(width), round(height))
         if width > height:
             orientation = "landscape"
@@ -532,8 +516,6 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
                     </t>
                 </t>
             """
-        # No web.external_layout: keeps header/footer editing simple; this tests
-        # rendering only, not company base.document.layout.
         if partners is None:
             partners = self.partners
         self.last_pdf_content = (
@@ -580,7 +562,7 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
                 self.get_paper_format(page.mediabox),
                 expected_format,
                 "Expecting pdf to be in A4 portait format",
-            )  # this is the default expected format and other layout assertions are based on this one.
+            )
             interpreter.process_page(page)
             layout = device.get_result()
             elements = []
@@ -592,7 +574,6 @@ class TestReportsRenderingCommon(odoo.tests.HttpCase):
                     page_width=pages[0].mediabox[2],
                 )
                 if isinstance(obj, LTTextBox):
-                    # inverse x to start from top left corner
                     elements.append((box, obj.get_text().strip()))
                 elif isinstance(obj, LTFigure):
                     elements.append((box, "LTFigure"))
@@ -660,36 +641,11 @@ class TestReportsRendering(TestReportsRenderingCommon):
         page_positions = [[elem[0] for elem in page] for page in pages]
         logo, header, content, footer = page_positions[0]
 
-        # leaving this as reference but this is too fragile to make a strict assertion
-        # 14.3, 29.6, 43.1, 137.2     # logo
-        # 19.1, 137.2, 32.5, 214.2   # header
-        # 111.3, 29.6, 124.8, 123.7   # content
-        # 751.6, 220.1, 765.1, 375.0  # footer
-
-        #
-        #   \ \ / // _ \ | | | || _ \  | |
-        #    \ V /| (_) || |_| ||   /  | |__ / _ \/ _` |/ _ \     Some header Text
-        #     |_|  \___/  \___/ |_|_\  |____|\___/\__, |\___/
-        #
-        #
-        #   Name: Report record 0
-        #
-        #
-        #
-        #
-        #
-        #
-        #             Footer for Report record 0 Page: 1 / 1
-        #
-        #
-
         self.assertEqual(
             logo.left,
             content.left,
             "Logo and content should have the same left margin",
         )
-        # WeasyPrint renders inline whitespace (between <img> and <span>) as a
-        # visible gap (~3pt), whereas wkhtmltopdf absorbed it into the text box.
         self.assertAlmostEqual(
             header.left, logo.end_left, delta=5, msg="Header starts after logo"
         )
@@ -726,16 +682,12 @@ class TestReportsRendering(TestReportsRenderingCommon):
         ]
         page_css = "@page { size: A4; margin: 10mm; }"
 
-        # split=True -> list of single-page PDFs, Documents freed between bodies.
         pdfs = engine.render(bodies, page_css, split=True)
         self.assertEqual(len(pdfs), 3)
         for pdf in pdfs:
             self.assertTrue(pdf.startswith(b"%PDF"))
             self.assertEqual(len(self._get_pdf_pages(pdf)), 1)
 
-        # Threshold 1 (< 3 bodies) forces the incremental pypdf merge path.
-        # The threshold is frozen at construction, so rebuild the engine after
-        # changing the config parameter.
         self.env["ir.config_parameter"].sudo().set_param(
             "report.weasyprint_native_merge_max", "1"
         )
@@ -796,13 +748,13 @@ class TestReportsRendering(TestReportsRenderingCommon):
             expected_pages_contents.extend(
                 [
                     [
-                        "LTFigure",  # logo
+                        "LTFigure",
                         "Some header Text",
                         f"Name: {partner.name}",
                         f"Footer for {partner.name} Page: 1 / 2",
                     ],
                     [
-                        "LTFigure",  # logo
+                        "LTFigure",
                         "Some header Text",
                         f"Last page for {partner.name}",
                         f"Footer for {partner.name} Page: 2 / 2",
@@ -831,13 +783,9 @@ class TestReportsRendering(TestReportsRenderingCommon):
             6,
             "6 pages are expected, 3 per record (you may ensure `nb_lines` has a correct value to generate an oveflow)",
         )
-        first_page_break_at = int(
-            pages[1][2][1].split("\n")[0]
-        )  # This element should be the first line, 61 when this test was written
+        first_page_break_at = int(pages[1][2][1].split("\n")[0])
         second_page_break_at = int(pages[2][2][1].split("\n")[0])
 
-        # There is some inconsistency caused by the pdfminer library when \n are placed, to be sure we don't have issues
-        # We put one element per line
         pages_contents = []
         for page in pages:
             page_content = []
@@ -849,15 +797,13 @@ class TestReportsRendering(TestReportsRenderingCommon):
             pages_contents.append(page_content)
 
         expected_pages_contents = []
-        # These changes are needed to format the page content and the expected page the same due to the inconsistency
-        # With the pdfminer library
         for partner in self.partners:
 
             def create_page_content(
                 start, end, page_number, include_name=False, partner=partner
             ):
                 content = [
-                    "LTFigure",  # logo
+                    "LTFigure",
                     "Some header Text",
                 ]
                 if include_name:
@@ -904,15 +850,14 @@ class TestReportsRendering(TestReportsRenderingCommon):
             "6 pages are expected, 3 per record (you may ensure `nb_lines` has a correct value to generate an oveflow)",
         )
 
-        # This element should be the first line of the table, 28 when this test was written
         first_page_break_at = int(pages[1][5][1])
         second_page_break_at = int(pages[2][5][1])
 
         def expected_table(start, end):
-            table = ["T1", "T2", "T3"]  # thead
+            table = ["T1", "T2", "T3"]
             for i in range(start, end):
                 table += [str(i), str(i), str(i)]
-            table += ["T1", "T2", "T3"]  # tfoot
+            table += ["T1", "T2", "T3"]
             return table
 
         expected_pages_contents = []
@@ -920,19 +865,19 @@ class TestReportsRendering(TestReportsRenderingCommon):
             expected_pages_contents.extend(
                 [
                     [
-                        "LTFigure",  # logo
+                        "LTFigure",
                         "Some header Text",
                         *expected_table(0, first_page_break_at),
                         f"Footer for {partner.name} Page: 1 / 3",
                     ],
                     [
-                        "LTFigure",  # logo
+                        "LTFigure",
                         "Some header Text",
                         *expected_table(first_page_break_at, second_page_break_at),
                         f"Footer for {partner.name} Page: 2 / 3",
                     ],
                     [
-                        "LTFigure",  # logo
+                        "LTFigure",
                         "Some header Text",
                         *expected_table(second_page_break_at, nb_lines),
                         f"Footer for {partner.name} Page: 3 / 3",
@@ -968,8 +913,6 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.assertIn("border-bottom: 1px solid black", css)
         self.assertIn("content: element(page-header)", css)
         self.assertIn("content: element(page-footer)", css)
-        # Running elements and page counters are now declared statically
-        # in report_paged_media.css, not emitted per-report by _paperformat_to_css().
         self.assertNotIn("counter(page)", css)
         self.assertNotIn("counter(pages)", css)
         self.assertNotIn("running(page-header)", css)
@@ -993,7 +936,6 @@ class TestReportsRendering(TestReportsRenderingCommon):
                 "margin_right": 10,
             }
         )
-        # Truthy string values must override the portrait paperformat
         for truthy in ("True", "1"):
             with self.subTest(value=truthy):
                 css = Report._paperformat_to_css(
@@ -1006,7 +948,6 @@ class TestReportsRendering(TestReportsRenderingCommon):
                     css,
                     f"Expected landscape orientation for data-report-landscape={truthy!r}",
                 )
-        # Falsy string values must NOT override portrait
         for falsy in ("False", "0", "false", ""):
             with self.subTest(value=falsy):
                 css = Report._paperformat_to_css(
@@ -1085,11 +1026,10 @@ class TestReportsRendering(TestReportsRenderingCommon):
             pf,
             landscape=False,
             specific_paperformat_args={
-                "data-report-margin-top": "2cm",  # malformed: unit suffix
+                "data-report-margin-top": "2cm",
                 "data-report-margin-bottom": "not-a-number",
             },
         )
-        # Falls back to paperformat margins (25 top, 75 bottom); no exception.
         self.assertIn("margin: 25.0mm 100.0mm 75.0mm 50.0mm", css)
 
     def test_render_html_to_image_format(self):
@@ -1103,10 +1043,8 @@ class TestReportsRendering(TestReportsRenderingCommon):
         """
         Report = self.env["ir.actions.report"]
 
-        # Bypass the current_test early-return so the real backend runs.
         self.patch(modules.module, "current_test", False)
 
-        # JPEG (default) — RGB, exact target size.
         jpg_images = Report._render_html_to_image(
             ["<p>x</p>"], width=20, height=10, image_format="jpg"
         )
@@ -1116,7 +1054,6 @@ class TestReportsRendering(TestReportsRenderingCommon):
             self.assertEqual(out.size, (20, 10))
             self.assertEqual(out.format, "JPEG")
 
-        # PNG — preserves format and target size.
         png_images = Report._render_html_to_image(
             ["<p>x</p>"], width=8, height=16, image_format="png"
         )
@@ -1142,7 +1079,6 @@ class TestReportsRenderingLimitations(TestReportsRenderingCommon):
                 </div>
             </div>
         """
-        # page margin keeps header and body from being read as the same box
         pdf_content = self.create_pdf(
             page_content=page_content, header_content=header_content
         )
@@ -1246,20 +1182,17 @@ class TestAggregatePdfReports(odoo.tests.HttpCase):
             force_report_rendering=True
         )
 
-        # Make sure attachments are created.
         report = reports._get_report(report_ref)
         if not report.attachment:
             report.attachment = "object.name + '.pdf'"
         report.attachment_use = True
 
-        # Generate report for chosen record to create an attachment.
         record_report, content_type = reports._render_qweb_pdf(
             report_ref, res_ids=record_to_report.id
         )
         self.assertEqual(content_type, "pdf", "Report is not a PDF")
         self.assertTrue(record_report, "PDF not generated")
 
-        # Make sure the attachment is created.
         report = reports._get_report(report_ref)
         self.assertTrue(
             report.retrieve_attachment(record_to_report),

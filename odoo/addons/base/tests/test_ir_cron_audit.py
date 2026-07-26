@@ -21,7 +21,6 @@ class TestCronTriggerCoalesce(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # A non-admin owner is enough; the cron only writes triggers as sudo.
         cls.user = new_test_user(cls.env, login="cron_audit_user")
         cls.cron = cls.env["ir.cron"].create(cls._cron_vals(cls.env, cls.user))
 
@@ -38,7 +37,6 @@ class TestCronTriggerCoalesce(TransactionCase):
             "active": True,
             "interval_number": 1,
             "interval_type": "days",
-            # Keep nextcall in the future so only triggers schedule the job.
             "nextcall": fields.Datetime.now() + timedelta(hours=1),
         }
 
@@ -56,15 +54,12 @@ class TestCronTriggerCoalesce(TransactionCase):
     @mute_logger("odoo.addons.base.models.ir_cron")
     def test_coalesce_rounds_up_to_next_minute_boundary(self):
         """A sub-minute ``at`` is rounded UP to the next coalesce boundary."""
-        # 12:03:17 with coalesce=5 must land on the next 5-minute mark.
         at = datetime(2026, 5, 28, 12, 3, 17)
         triggers = self.cron._trigger(at=at, coalesce=5)
 
         self.assertEqual(len(triggers), 1)
         expected = self._expected_boundary(at, 5)
         self.assertEqual(triggers.call_at, expected)
-        # The stored boundary is strictly after the requested instant and
-        # within the coalescing window.
         self.assertGreater(triggers.call_at, at)
         self.assertLessEqual(triggers.call_at - at, timedelta(minutes=5))
 
@@ -81,15 +76,12 @@ class TestCronTriggerCoalesce(TransactionCase):
         triggers = self.cron._trigger(at=instants, coalesce=5)
 
         self.assertEqual(len(triggers), len(instants))
-        # All four fall in the [09:00, 09:05) window and coalesce to 09:05.
         expected = self._expected_boundary(base + timedelta(seconds=1), 5)
         self.assertEqual(set(triggers.mapped("call_at")), {expected})
 
     @mute_logger("odoo.addons.base.models.ir_cron")
     def test_coalesce_boundary_exact_value_kept(self):
         """An instant already on a boundary is not pushed to the next one."""
-        # math.ceil leaves an exact multiple unchanged, so a value already on
-        # a coalesce boundary stays put rather than jumping a full window.
         coalesce = 5
         factor = coalesce * 60
         on_boundary = datetime.fromtimestamp((1_700_000_000 // factor) * factor)
@@ -105,7 +97,6 @@ class TestCronTriggerCoalesce(TransactionCase):
         triggers = self.cron._trigger(at=at)
 
         self.assertEqual(len(triggers), 1)
-        # No quantization: the sub-minute seconds are preserved verbatim.
         self.assertEqual(triggers.call_at, at)
 
 
@@ -125,12 +116,8 @@ class TestCronTriggerIndexes(TransactionCase):
         composite = indexes.get("ir_cron_trigger_cron_id_call_at_idx")
         self.assertTrue(composite, f"composite index missing, got: {sorted(indexes)}")
         self.assertIn("(cron_id, call_at)", composite)
-        # call_at keeps a dedicated index (leading column call_at) for the GC.
         self.assertTrue(
             any("(call_at)" in d for d in indexes.values()),
             f"call_at index missing, got: {indexes}",
         )
-        # The composite's prefix covers cron_id, so the field must no longer
-        # declare its own index. (Checked on the declaration, not pg_indexes:
-        # on a legacy database the ORM keeps the now-"unexpected" old index.)
         self.assertFalse(self.env["ir.cron.trigger"]._fields["cron_id"].index)

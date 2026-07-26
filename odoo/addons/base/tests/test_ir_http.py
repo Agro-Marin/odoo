@@ -17,8 +17,6 @@ _logger = logging.getLogger(__name__)
 class TestIrHttpPerformances(TransactionCase):
     def test_routing_map_performance(self):
         self.env.registry.clear_cache("routing")
-        # Measure the cold state: drop any compiled-regex cache a prior routing
-        # map may have left behind.
         re._cache.clear()
 
         self.env.registry.clear_cache("routing")
@@ -27,7 +25,6 @@ class TestIrHttpPerformances(TransactionCase):
         duration = time.time() - start
         _logger.info("Routing map web generated in %.3fs", duration)
 
-        # second website: check we reuse anything the first routing map computed
         start = time.time()
         self.env["ir.http"].routing_map(key=1)
         duration = time.time() - start
@@ -64,8 +61,6 @@ class TestIrHttpAuth(TransactionCase):
     def test_authenticate_explicit_unknown_method(self):
         """An unknown ``auth=`` value fails closed with AccessDenied (IHTTP-M3)."""
         with self._fake_request(self.env) as fake:
-            # no stored session, so _authenticate_explicit goes straight to
-            # the auth-method dispatch
             fake.session = SimpleNamespace(uid=None)
             with self.assertRaises(AccessDenied):
                 self.registry["ir.http"]._authenticate_explicit("does_not_exist")
@@ -78,8 +73,6 @@ class TestIrHttpAuth(TransactionCase):
         on an unmatched path would be served to anonymous callers.
         """
         path = "/non_public_fallback_probe"
-        # sudo() create bypasses the write-time serving guard, mirroring the
-        # residual risk the fix hardens against.
         self.env["ir.attachment"].sudo().create(
             {
                 "name": "probe.bin",

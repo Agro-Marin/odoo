@@ -13,7 +13,6 @@ class TestSafeEval(BaseCase):
         expected = (1, {"a": {2.5}}, [None, "foo"])
         actual = const_eval('(1, {"a": {2.5}}, [None, u"foo"])')
         self.assertEqual(actual, expected)
-        # Test RETURN_CONST
         self.assertEqual(const_eval("10"), 10)
 
     def test_expr(self):
@@ -23,26 +22,26 @@ class TestSafeEval(BaseCase):
 
     def test_expr_eval_opcodes(self):
         for expr, expected in [
-            ("3", 3),  # RETURN_CONST
-            ("[1,2,3,4][1:3]", [2, 3]),  # BINARY_SLICE
+            ("3", 3),
+            ("[1,2,3,4][1:3]", [2, 3]),
         ]:
             self.assertEqual(expr_eval(expr), expected)
 
     def test_safe_eval_opcodes(self):
         for expr, context, expected in [
-            ("[x for x in (1,2)]", {}, [1, 2]),  # LOAD_FAST_AND_CLEAR
-            ("list(x for x in (1,2))", {}, [1, 2]),  # END_FOR, CALL_INTRINSIC_1
+            ("[x for x in (1,2)]", {}, [1, 2]),
+            ("list(x for x in (1,2))", {}, [1, 2]),
             (
                 "v if v is None else w",
                 {"v": False, "w": "foo"},
                 "foo",
-            ),  # POP_JUMP_IF_NONE
+            ),
             (
                 "v if v is not None else w",
                 {"v": None, "w": "foo"},
                 "foo",
-            ),  # POP_JUMP_IF_NOT_NONE
-            ("{a for a in (1, 2)}", {}, {1, 2}),  # RERAISE
+            ),
+            ("{a for a in (1, 2)}", {}, {1, 2}),
         ]:
             self.assertEqual(safe_eval(expr, context), expected)
 
@@ -58,29 +57,22 @@ class TestSafeEval(BaseCase):
             """,
                 {},
                 1,
-            ),  # LOAD_FAST_CHECK
+            ),
         ]:
             safe_eval(dedent(expr), context, mode="exec")
             self.assertEqual(context["result"], expected)
 
     def test_safe_eval_strips(self):
-        # cpython strips spaces and tabs by default since 3.10
-        # https://github.com/python/cpython/commit/e799aa8b92c195735f379940acd9925961ad04ec
-        # but we need to strip all whitespaces
         for expr, expected in [
-            # simple ascii
             ("\n 1 + 2", 3),
             ("\n\n\t 1 + 2 \n", 3),
             ("   1 + 2", 3),
             ("1 + 2   ", 3),
-            # Unicode (non-ASCII spaces)
-            ("\u00a01 + 2\u00a0", 3),  # nbsp
+            ("\u00a01 + 2\u00a0", 3),
         ]:
             self.assertEqual(safe_eval(expr), expected)
 
     def test_runs_top_level_scope(self):
-        # a var defined at top-level scope must land in both locals and globals
-        # so that f's frame can access it too.
         expr = dedent("""
         var = 1
         def f():
@@ -91,7 +83,6 @@ class TestSafeEval(BaseCase):
         safe_eval(expr, context={}, mode="exec")
 
     def test_safe_eval_ctx_mutation(self):
-        # simple eval also has side-effect on context
         expr = "(answer := 42)"
         context = {}
         self.assertEqual(safe_eval(expr, context), 42)
@@ -117,18 +108,13 @@ class TestSafeEval(BaseCase):
         escape = "[(lambda v: v.__class__.__bases__)(x) for x in [()]]"
 
         safe_eval_mod._validated_bytecode_cache.clear()
-        # Prime the cache with the benign expression (identical parent bytecode).
         self.assertEqual(safe_eval(benign), [5])
 
-        # The malicious twins must still be rejected, not served from cache.
         with self.assertRaises(NameError):
             safe_eval(malicious)
         with self.assertRaises(NameError):
             safe_eval(escape)
-        # test_python_expr shares the same cache: it must also report invalid.
         self.assertTrue(test_python_expr(malicious))
-        # The malicious lambda's forbidden name must never be in a cached key
-        # (key = (co_code, co_names, allowed_id); co_names holds the attr names).
         self.assertFalse(
             any(
                 "__class__" in name
@@ -170,15 +156,12 @@ class TestSafeEval(BaseCase):
     @mute_logger("odoo.tools.safe_eval")
     def test_05_safe_eval_forbiddon(self):
         """Try forbidden expressions in safe_eval to verify they are not allowed"""
-        # no forbidden builtin expression
         with self.assertRaises(ValueError):
             safe_eval('open("/etc/passwd","r")')
 
-        # no forbidden opcodes
         with self.assertRaises(ValueError):
             safe_eval("import odoo", mode="exec")
 
-        # no dunder
         with self.assertRaises(NameError):
             safe_eval("self.__name__", {"self": self}, mode="exec")
 
@@ -189,11 +172,9 @@ class TestParentStore(TransactionCase):
     def setUp(self):
         super().setUp()
 
-        # force res_partner_category.copy() to copy children
         category = self.env["res.partner.category"]
         self.patch(category._fields["child_ids"], "copy", True)
 
-        # setup categories
         self.root = category.create({"name": "Root category"})
         self.cat0 = category.create(
             {"name": "Parent category", "parent_id": self.root.id}
@@ -224,12 +205,10 @@ class TestParentStore(TransactionCase):
 
     def test_missing_parent(self):
         """Missing parent id should not raise an error."""
-        # Missing parent with _parent_store
         new_cat0 = self.cat0.copy()
         records = new_cat0.search([("parent_id", "parent_of", 999999999)])
         self.assertEqual(len(records), 0)
 
-        # Missing parent without _parent_store
         category = self.env["res.partner.category"]
         self.patch(self.env.registry["res.partner.category"], "_parent_store", False)
         records = category.search([("parent_id", "child_of", 999999999)])
@@ -237,12 +216,10 @@ class TestParentStore(TransactionCase):
 
     def test_missing_child(self):
         """Missing child id should not raise an error."""
-        # Missing child with _parent_store
         new_cat0 = self.cat0.copy()
         records = new_cat0.search([("parent_id", "child_of", 999999999)])
         self.assertEqual(len(records), 0)
 
-        # Missing child without _parent_store
         category = self.env["res.partner.category"]
         self.patch(self.env.registry["res.partner.category"], "_parent_store", False)
         records = category.search([("parent_id", "child_of", 999999999)])
@@ -430,7 +407,6 @@ class TestGroups(TransactionCase):
         self.assertTrue(groups, "did not match search for '/'")
 
     def test_res_group_has_cycle(self):
-        # four groups with no cycle, check them all together
         a = self.env["res.groups"].create({"name": "A"})
         b = self.env["res.groups"].create({"name": "B"})
         c = self.env["res.groups"].create(
@@ -441,7 +417,6 @@ class TestGroups(TransactionCase):
         )
         self.assertFalse((a + b + c + d)._has_cycle("implied_ids"))
 
-        # create a cycle and check
         a.implied_ids = d
         self.assertTrue(a._has_cycle("implied_ids"))
 
@@ -457,7 +432,6 @@ class TestGroups(TransactionCase):
             {"name": "C", "implied_ids": [Command.set(a.ids)]}
         )
 
-        # C already implies A, we want both B+C to imply A
         (b + c)._apply_group(a)
 
         self.assertIn(a, b.implied_ids)
@@ -500,30 +474,22 @@ class TestGroups(TransactionCase):
                 ),
             )
 
-        # sanity checks
         assertUsersEqual([u1, u2, p], a)
         assertUsersEqual([u1], b)
         assertUsersEqual([u2, p], c)
         assertUsersEqual([u2], d)
 
-        # C already implies A, we want none of B+C to imply A
         (b + c)._remove_group(a)
 
         self.assertNotIn(a, b.implied_ids)
         self.assertNotIn(a, c.implied_ids)
         self.assertIn(a, d.implied_ids)
 
-        # - Since B didn't imply A, removing A from the implied groups of (B+C)
-        #   should not remove user U1 from A, even though C implied A, since C does
-        #   not have U1 as a user
-        # - P should be removed as it was only added via inheritance to C
-        # - U2 should not be removed from A since it is implied via C but also via D
         assertUsersEqual([u1, u2], a)
         assertUsersEqual([u1], b)
         assertUsersEqual([u2, p], c)
         assertUsersEqual([u2], d)
 
-        # When adding a new group to all users
         e = self.env["res.groups"].create({"name": "E"})
         self.env.ref("base.group_user").write({"implied_ids": [Command.link(e.id)]})
         self.assertIn(u1, e.all_user_ids)

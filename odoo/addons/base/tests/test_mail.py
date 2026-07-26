@@ -54,12 +54,12 @@ class TestSanitizer(BaseCase):
 
     def test_basic_sanitizer(self):
         cases = [
-            ("yop", "<p>yop</p>"),  # simple
-            ("lala<p>yop</p>xxx", "<p>lala</p><p>yop</p>xxx"),  # trailing text
+            ("yop", "<p>yop</p>"),
+            ("lala<p>yop</p>xxx", "<p>lala</p><p>yop</p>xxx"),
             (
                 "Merci à l'intérêt pour notre produit.nous vous contacterons bientôt. Merci",
                 "<p>Merci à l'intérêt pour notre produit.nous vous contacterons bientôt. Merci</p>",
-            ),  # unicode
+            ),
             ("<div>a<div>b</div></div>", "<div>a<div>b</div></div>"),
             ("<div><div>a</div></div>", "<div><div>a</div></div>"),
             ("<script> alert(1) </script>", ""),
@@ -86,70 +86,49 @@ class TestSanitizer(BaseCase):
         self.assertNotIn("alert(1)", html_result)
 
     def test_evil_malicious_code(self):
-        # taken from https://www.owasp.org/index.php/XSS_Filter_Evasion_Cheat_Sheet#Tests
         cases = [
-            ("<IMG SRC=javascript:alert('XSS')>"),  # no quotes and semicolons
+            ("<IMG SRC=javascript:alert('XSS')>"),
             (
                 "<IMG SRC=&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;>"
-            ),  # UTF-8 Unicode encoding
+            ),
             (
                 "<IMG SRC=&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29>"
-            ),  # hex encoding
-            (
-                "<IMG SRC=\"jav&#x0D;ascript:alert('XSS');\">"
-            ),  # embedded carriage return
-            ("<IMG SRC=\"jav&#x0A;ascript:alert('XSS');\">"),  # embedded newline
-            ("<IMG SRC=\"jav   ascript:alert('XSS');\">"),  # embedded tab
-            ("<IMG SRC=\"jav&#x09;ascript:alert('XSS');\">"),  # embedded encoded tab
-            (
-                "<IMG SRC=\" &#14;  javascript:alert('XSS');\">"
-            ),  # spaces and meta-characters
-            ("<IMG SRC=\"javascript:alert('XSS')\""),  # half-open html
-            ('<IMG """><SCRIPT>alert("XSS")</SCRIPT>">'),  # malformed tag
-            (
-                '<SCRIPT/XSS SRC="http://ha.ckers.org/xss.js"></SCRIPT>'
-            ),  # non-alpha-non-digits
-            (
-                '<SCRIPT/SRC="http://ha.ckers.org/xss.js"></SCRIPT>'
-            ),  # non-alpha-non-digits
-            ('<<SCRIPT>alert("XSS");//<</SCRIPT>'),  # extraneous open brackets
-            ("<SCRIPT SRC=http://ha.ckers.org/xss.js?< B >"),  # non-closing script tags
-            ('<INPUT TYPE="IMAGE" SRC="javascript:alert(\'XSS\');">'),  # input image
-            ("<BODY BACKGROUND=\"javascript:alert('XSS')\">"),  # body image
-            ("<IMG DYNSRC=\"javascript:alert('XSS')\">"),  # img dynsrc
-            ("<IMG LOWSRC=\"javascript:alert('XSS')\">"),  # img lowsrc
-            ("<TABLE BACKGROUND=\"javascript:alert('XSS')\">"),  # table
-            ("<TABLE><TD BACKGROUND=\"javascript:alert('XSS')\">"),  # td
-            (
-                "<DIV STYLE=\"background-image: url(javascript:alert('XSS'))\">"
-            ),  # div background
+            ),
+            ("<IMG SRC=\"jav&#x0D;ascript:alert('XSS');\">"),
+            ("<IMG SRC=\"jav&#x0A;ascript:alert('XSS');\">"),
+            ("<IMG SRC=\"jav   ascript:alert('XSS');\">"),
+            ("<IMG SRC=\"jav&#x09;ascript:alert('XSS');\">"),
+            ("<IMG SRC=\" &#14;  javascript:alert('XSS');\">"),
+            ("<IMG SRC=\"javascript:alert('XSS')\""),
+            ('<IMG """><SCRIPT>alert("XSS")</SCRIPT>">'),
+            ('<SCRIPT/XSS SRC="http://ha.ckers.org/xss.js"></SCRIPT>'),
+            ('<SCRIPT/SRC="http://ha.ckers.org/xss.js"></SCRIPT>'),
+            ('<<SCRIPT>alert("XSS");//<</SCRIPT>'),
+            ("<SCRIPT SRC=http://ha.ckers.org/xss.js?< B >"),
+            ('<INPUT TYPE="IMAGE" SRC="javascript:alert(\'XSS\');">'),
+            ("<BODY BACKGROUND=\"javascript:alert('XSS')\">"),
+            ("<IMG DYNSRC=\"javascript:alert('XSS')\">"),
+            ("<IMG LOWSRC=\"javascript:alert('XSS')\">"),
+            ("<TABLE BACKGROUND=\"javascript:alert('XSS')\">"),
+            ("<TABLE><TD BACKGROUND=\"javascript:alert('XSS')\">"),
+            ("<DIV STYLE=\"background-image: url(javascript:alert('XSS'))\">"),
             (
                 "<DIV STYLE=\"background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0061\006c\0065\0072\0074\0028.1027\0058.1053\0053\0027\0029'\0029\">"
-            ),  # div background with unicoded exploit
-            (
-                "<DIV STYLE=\"background-image: url(&#1;javascript:alert('XSS'))\">"
-            ),  # div background + extra characters
-            ("<IMG SRC='vbscript:msgbox(\"XSS\")'>"),  # VBscrip in an image
-            ("<BODY ONLOAD=alert('XSS')>"),  # event handler
-            ("<BR SIZE=\"&{alert('XSS')}\\>"),  # & javascript includes
-            (
-                '<LINK REL="stylesheet" HREF="javascript:alert(\'XSS\');">'
-            ),  # style sheet
-            (
-                '<LINK REL="stylesheet" HREF="http://ha.ckers.org/xss.css">'
-            ),  # remote style sheet
-            (
-                "<STYLE>@import'http://ha.ckers.org/xss.css';</STYLE>"
-            ),  # remote style sheet 2
+            ),
+            ("<DIV STYLE=\"background-image: url(&#1;javascript:alert('XSS'))\">"),
+            ("<IMG SRC='vbscript:msgbox(\"XSS\")'>"),
+            ("<BODY ONLOAD=alert('XSS')>"),
+            ("<BR SIZE=\"&{alert('XSS')}\\>"),
+            ('<LINK REL="stylesheet" HREF="javascript:alert(\'XSS\');">'),
+            ('<LINK REL="stylesheet" HREF="http://ha.ckers.org/xss.css">'),
+            ("<STYLE>@import'http://ha.ckers.org/xss.css';</STYLE>"),
             (
                 '<META HTTP-EQUIV="Link" Content="<http://ha.ckers.org/xss.css>; REL=stylesheet">'
-            ),  # remote style sheet 3
+            ),
             (
                 '<STYLE>BODY{-moz-binding:url("http://ha.ckers.org/xssmoz.xml#xss")}</STYLE>'
-            ),  # remote style sheet 4
-            (
-                "<IMG STYLE=\"xss:expr/*XSS*/ession(alert('XSS'))\">"
-            ),  # style attribute using a comment to break up expression
+            ),
+            ("<IMG STYLE=\"xss:expr/*XSS*/ession(alert('XSS'))\">"),
         ]
         for content in cases:
             html = html_sanitize(content)
@@ -164,7 +143,7 @@ class TestSanitizer(BaseCase):
                 % (content, html),
             )
 
-        content = "<!--[if gte IE 4]><SCRIPT>alert('XSS');</SCRIPT><![endif]-->"  # down-level hidden block
+        content = "<!--[if gte IE 4]><SCRIPT>alert('XSS');</SCRIPT><![endif]-->"
         self.assertEqual(html_sanitize(content, silent=False), "")
 
     def test_html(self):
@@ -238,11 +217,7 @@ class TestSanitizer(BaseCase):
         ]
         for not_email in not_emails:
             sanitized = html_sanitize(not_email)
-            left_part = not_email.split(
-                ">"
-            )[
-                0
-            ]  # take only left part, as the sanitizer could add data information on node
+            left_part = not_email.split(">")[0]
             self.assertNotIn(
                 misc.html_escape(not_email),
                 sanitized,
@@ -282,7 +257,6 @@ class TestSanitizer(BaseCase):
             for text in out_lst:
                 self.assertNotIn(text, new_html)
 
-        # style should not be sanitized if removed
         new_html = html_sanitize(
             test_data[0][0],
             sanitize_attributes=False,
@@ -439,7 +413,6 @@ class TestSanitizer(BaseCase):
 
     def test_quote_signature_container_propagation(self):
         """Test that applying normalization twice doesn't quote more than wanted."""
-        # quote signature with bare signature in main block
         bare_signature_body = (
             "<div>"
             "<div><p>Hello</p><p>Here is your document</p></div>"
@@ -499,13 +472,11 @@ class TestSanitizer(BaseCase):
             )
 
     def test_misc(self):
-        # False / void should not crash
         html = html_sanitize("")
         self.assertEqual(html, "")
         html = html_sanitize(False)
         self.assertEqual(html, False)
 
-        # Message with xml and doctype tags don't crash
         html = html_sanitize(
             '<?xml version="1.0" encoding="iso-8859-1"?>\n<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"\n         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">\n<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">\n <head>\n  <title>404 - Not Found</title>\n </head>\n <body>\n  <h1>404 - Not Found</h1>\n </body>\n</html>\n'
         )
@@ -521,14 +492,6 @@ class TestSanitizer(BaseCase):
             sanitized,
             "img with can have cid containing @ and shouldn't be escaped",
         )
-
-    # ms office is currently not supported, have to find a way to support it
-    # def test_30_email_msoffice(self):
-    #     new_html = html_sanitize(mail_examples.MSOFFICE_1, remove=True)
-    #     for ext in mail_examples.MSOFFICE_1_IN:
-    #         self.assertIn(ext, new_html)
-    #     for ext in mail_examples.MSOFFICE_1_OUT:
-    #         self.assertNotIn(ext, new_html)
 
 
 @tagged("mail_sanitize")
@@ -759,24 +722,19 @@ class TestEmailTools(BaseCase):
         super().setUpClass()
 
         cls.sources = [
-            # single email
             "alfred.astaire@test.example.com",
             " alfred.astaire@test.example.com ",
             "Fredo The Great <alfred.astaire@test.example.com>",
             '"Fredo The Great" <alfred.astaire@test.example.com>',
             'Fredo "The Great" <alfred.astaire@test.example.com>',
-            # multiple emails
             "alfred.astaire@test.example.com, evelyne.gargouillis@test.example.com",
             "Fredo The Great <alfred.astaire@test.example.com>, Evelyne The Goat <evelyne.gargouillis@test.example.com>",
             '"Fredo The Great" <alfred.astaire@test.example.com>, evelyne.gargouillis@test.example.com',
             '"Fredo The Great" <alfred.astaire@test.example.com>, <evelyne.gargouillis@test.example.com>',
-            # text containing email
             "Hello alfred.astaire@test.example.com how are you ?",
             "<p>Hello alfred.astaire@test.example.com</p>",
-            # text containing emails
             'Hello "Fredo" <alfred.astaire@test.example.com>, evelyne.gargouillis@test.example.com',
             'Hello "Fredo" <alfred.astaire@test.example.com> and evelyne.gargouillis@test.example.com',
-            # falsy
             "<p>Hello Fredo</p>",
             'j\'adore écrire des @gmail.com ou "@gmail.com" a bit randomly',
             "",
@@ -801,21 +759,21 @@ class TestEmailTools(BaseCase):
         format_name = "My Super Prénom"
         format_name_ascii = "=?utf-8?b?TXkgU3VwZXIgUHLDqW5vbQ==?="
         sources = [
-            '"Super Déboulonneur" <deboulonneur@example.com>',  # formatted
-            "Déboulonneur deboulonneur@example.com",  # wrong formatting
-            "deboulonneur@example.com Déboulonneur",  # wrong formatting (happens, alas)
-            '"Super Déboulonneur" <DEBOULONNEUR@example.com>, "Super Déboulonneur 2" <deboulonneur2@EXAMPLE.com>',  # multi + case
-            " Déboulonneur deboulonneur@example.com déboulonneur deboulonneur2@example.com",  # wrong formatting + wrong multi
-            '"Déboulonneur 😊" <deboulonneur.😊@example.com>',  # unicode in name and email left-part
-            '"Déboulonneur" <déboulonneur@examplé.com>',  # utf-8
-            '"Déboulonneur" <DéBoulonneur@Examplé.com>',  # utf-8
+            '"Super Déboulonneur" <deboulonneur@example.com>',
+            "Déboulonneur deboulonneur@example.com",
+            "deboulonneur@example.com Déboulonneur",
+            '"Super Déboulonneur" <DEBOULONNEUR@example.com>, "Super Déboulonneur 2" <deboulonneur2@EXAMPLE.com>',
+            " Déboulonneur deboulonneur@example.com déboulonneur deboulonneur2@example.com",
+            '"Déboulonneur 😊" <deboulonneur.😊@example.com>',
+            '"Déboulonneur" <déboulonneur@examplé.com>',
+            '"Déboulonneur" <DéBoulonneur@Examplé.com>',
         ]
         expected_list = [
             "deboulonneur@example.com",
             "deboulonneur@example.com",
             "deboulonneur@example.comdéboulonneur",
             False,
-            False,  # need fix over 'getadresses'
+            False,
             "deboulonneur.😊@example.com",
             "déboulonneur@examplé.com",
             "DéBoulonneur@examplé.com",
@@ -849,13 +807,10 @@ class TestEmailTools(BaseCase):
         ):
             with self.subTest(source=source):
                 self.assertEqual(email_normalize(source, strict=True), expected)
-                # standard usage of formataddr
                 self.assertEqual(
                     formataddr((format_name, (expected or "")), charset="utf-8"),
                     expected_utf8_fmt,
                 )
-                # check using INDA at format time, using ascii charset as done when
-                # sending emails (see extract_rfc2822_addresses)
                 self.assertEqual(
                     formataddr((format_name, (expected or "")), charset="ascii"),
                     expected_ascii_fmt,
@@ -864,13 +819,11 @@ class TestEmailTools(BaseCase):
     def test_email_re(self):
         """Test 'email_re', finding emails in a given text"""
         expected = [
-            # single email
             ["alfred.astaire@test.example.com"],
             ["alfred.astaire@test.example.com"],
             ["alfred.astaire@test.example.com"],
             ["alfred.astaire@test.example.com"],
             ["alfred.astaire@test.example.com"],
-            # multiple emails
             [
                 "alfred.astaire@test.example.com",
                 "evelyne.gargouillis@test.example.com",
@@ -887,10 +840,8 @@ class TestEmailTools(BaseCase):
                 "alfred.astaire@test.example.com",
                 "evelyne.gargouillis@test.example.com",
             ],
-            # text containing email
             ["alfred.astaire@test.example.com"],
             ["alfred.astaire@test.example.com"],
-            # text containing emails
             [
                 "alfred.astaire@test.example.com",
                 "evelyne.gargouillis@test.example.com",
@@ -899,7 +850,6 @@ class TestEmailTools(BaseCase):
                 "alfred.astaire@test.example.com",
                 "evelyne.gargouillis@test.example.com",
             ],
-            # falsy
             [],
             [],
             [],
@@ -917,34 +867,30 @@ class TestEmailTools(BaseCase):
     def test_email_split(self):
         """Test 'email_split'"""
         cases = [
-            ("John <12345@gmail.com>", ["12345@gmail.com"]),  # regular form
-            ("d@x; 1@2", ["d@x", "1@2"]),  # semi-colon + extra space
+            ("John <12345@gmail.com>", ["12345@gmail.com"]),
+            ("d@x; 1@2", ["d@x", "1@2"]),
             (
                 "'(ss)' <123@gmail.com>, 'foo' <foo@bar>",
                 ["123@gmail.com", "foo@bar"],
-            ),  # comma + single-quoting
+            ),
             (
                 '"john@gmail.com"<johnny@gmail.com>',
                 ["johnny@gmail.com"],
-            ),  # double-quoting
+            ),
             (
                 '"<jg>" <johnny@gmail.com>',
                 ["johnny@gmail.com"],
-            ),  # double-quoting with brackets
-            ("@gmail.com", ["@gmail.com"]),  # no left-part
-            # '@domain' corner cases -- all those return a '@gmail.com' (or equivalent)
-            # email address when going through 'getaddresses'
-            # - multi @
+            ),
+            ("@gmail.com", ["@gmail.com"]),
             ("fr@ncois.th@notgmail.com", ["fr@ncois.th"]),
             (
                 "f@r@nc.gz,ois@notgmail.com",
                 ["r@nc.gz", "ois@notgmail.com"],
-            ),  # still failing, but differently from 'getaddresses' alone
+            ),
             (
                 "@notgmail.com esteban_gnole@coldmail.com@notgmail.com",
                 ["esteban_gnole@coldmail.com"],
             ),
-            # - multi emails (with invalid)
             (
                 "Ivan@dezotos.com Cc iv.an@notgmail.com",
                 ["Ivan@dezotos.com", "iv.an@notgmail.com"],
@@ -969,7 +915,6 @@ class TestEmailTools(BaseCase):
                 "francois@nc.gz CC: ois@notgmail.com,ivan@dezotos.com",
                 ["francois@nc.gzCC", "ois@notgmail.com", "ivan@dezotos.com"],
             ),
-            # - separated with '/''
             (
                 "ivan.plein@dezotos.com / ivan.plu@notgmail.com",
                 ["ivan.plein@dezotos.com", "ivan.plu@notgmail.com"],
@@ -978,7 +923,6 @@ class TestEmailTools(BaseCase):
                 "@notgmail.com ivan.parfois@notgmail.com/ ivan.souvent@notgmail.com",
                 ["ivan.parfois@notgmail.com", "ivan.souvent@notgmail.com"],
             ),
-            # - separated with '-''
             (
                 "ivan@dezotos.com - ivan.dezotos@notgmail.com",
                 ["ivan@dezotos.com", "ivan.dezotos@notgmail.com"],
@@ -997,42 +941,34 @@ class TestEmailTools(BaseCase):
         also checks 'email_split_and_format_normalize'."""
         sources = [
             "deboulonneur@example.com",
-            '"Super Déboulonneur" <deboulonneur@example.com>',  # formatted
-            # wrong formatting
-            "Déboulonneur <deboulonneur@example.com",  # with a final typo
-            "Déboulonneur deboulonneur@example.com",  # wrong formatting
-            "deboulonneur@example.com Déboulonneur",  # wrong formatting (happens, alas)
-            # multi
-            "Déboulonneur, deboulonneur@example.com",  # multi-like with errors
-            "deboulonneur@example.com, deboulonneur2@example.com",  # multi
-            " Déboulonneur deboulonneur@example.com déboulonneur deboulonneur2@example.com",  # wrong formatting + wrong multi
-            # format / misc
-            '"Déboulonneur" <"Déboulonneur Encapsulated" <deboulonneur@example.com>>',  # double formatting
+            '"Super Déboulonneur" <deboulonneur@example.com>',
+            "Déboulonneur <deboulonneur@example.com",
+            "Déboulonneur deboulonneur@example.com",
+            "deboulonneur@example.com Déboulonneur",
+            "Déboulonneur, deboulonneur@example.com",
+            "deboulonneur@example.com, deboulonneur2@example.com",
+            " Déboulonneur deboulonneur@example.com déboulonneur deboulonneur2@example.com",
+            '"Déboulonneur" <"Déboulonneur Encapsulated" <deboulonneur@example.com>>',
             '"Super Déboulonneur" <deboulonneur@example.com>, "Super Déboulonneur 2" <deboulonneur2@example.com>',
             '"Super Déboulonneur" <deboulonneur@example.com>, wrong, ',
-            '"Déboulonneur 😊" <deboulonneur@example.com>',  # unicode in name
-            '"Déboulonneur 😊" <deboulonneur.😊@example.com>',  # unicode in name and email left-part
-            '"Déboulonneur" <déboulonneur@examplé.com>',  # utf-8
-            '"Déboulonneur" <DEboulonneur@😊.example.com>',  # case + unicode
-            '"Déboulonneur" <DÉBoulonneur.😊@Éxamplé.com>',  # case + utf-8 + unicode
+            '"Déboulonneur 😊" <deboulonneur@example.com>',
+            '"Déboulonneur 😊" <deboulonneur.😊@example.com>',
+            '"Déboulonneur" <déboulonneur@examplé.com>',
+            '"Déboulonneur" <DEboulonneur@😊.example.com>',
+            '"Déboulonneur" <DÉBoulonneur.😊@Éxamplé.com>',
         ]
         expected_list = [
             ["deboulonneur@example.com"],
             ['"Super Déboulonneur" <deboulonneur@example.com>'],
-            # wrong formatting
             ['"Déboulonneur" <deboulonneur@example.com>'],
-            [
-                '"Déboulonneur" <deboulonneur@example.com>'
-            ],  # extra part correctly considered as a name
-            ["deboulonneur@example.comDéboulonneur"],  # concatenated, not sure why
-            # multi
+            ['"Déboulonneur" <deboulonneur@example.com>'],
+            ["deboulonneur@example.comDéboulonneur"],
             ["deboulonneur@example.com"],
             ["deboulonneur@example.com", "deboulonneur2@example.com"],
             [
                 "deboulonneur@example.com",
                 "deboulonneur2@example.com",
-            ],  # need fix over 'getadresses'
-            # format / misc
+            ],
             ["deboulonneur@example.com"],
             [
                 '"Super Déboulonneur" <deboulonneur@example.com>',
@@ -1045,16 +981,13 @@ class TestEmailTools(BaseCase):
             ['"Déboulonneur" <DEboulonneur@😊.example.com>'],
             ['"Déboulonneur" <DÉBoulonneur.😊@Éxamplé.com>'],
         ]
-        # only the cases that differ from expected_list
         normalized = {
-            # lower
             "deboulonneur@example.com Déboulonneur": [
                 "deboulonneur@example.comdéboulonneur"
             ],
             '"Déboulonneur" <DEboulonneur@😊.example.com>': [
                 '"Déboulonneur" <deboulonneur@😊.example.com>'
             ],
-            # encoded -> not lowerized
             '"Déboulonneur" <DÉBoulonneur.😊@Éxamplé.com>': [
                 '"Déboulonneur" <DÉBoulonneur.😊@éxamplé.com>'
             ],
@@ -1071,13 +1004,11 @@ class TestEmailTools(BaseCase):
         """Test 'email_split_tuples' that returns (name, email) pairs
         found in text input"""
         expected = [
-            # single email
             [("", "alfred.astaire@test.example.com")],
             [("", "alfred.astaire@test.example.com")],
             [("Fredo The Great", "alfred.astaire@test.example.com")],
             [("Fredo The Great", "alfred.astaire@test.example.com")],
             [("Fredo The Great", "alfred.astaire@test.example.com")],
-            # multiple emails
             [
                 ("", "alfred.astaire@test.example.com"),
                 ("", "evelyne.gargouillis@test.example.com"),
@@ -1094,7 +1025,6 @@ class TestEmailTools(BaseCase):
                 ("Fredo The Great", "alfred.astaire@test.example.com"),
                 ("", "evelyne.gargouillis@test.example.com"),
             ],
-            # text containing email -> fallback on parsing to extract text from email
             [("Hello", "alfred.astaire@test.example.comhowareyou?")],
             [("Hello", "alfred.astaire@test.example.com")],
             [
@@ -1105,7 +1035,6 @@ class TestEmailTools(BaseCase):
                 ("Hello Fredo", "alfred.astaire@test.example.com"),
                 ("and", "evelyne.gargouillis@test.example.com"),
             ],
-            # falsy -> probably not designed for that
             [],
             [("j'adore écrire", "des@gmail.comou"), ("", "@gmail.com")],
             [],
@@ -1125,7 +1054,6 @@ class TestEmailTools(BaseCase):
         email_base = "joe@example.com"
         email_idna = "joe@examplé.com"
         cases = [
-            # (name, address),          charsets            expected
             (("", email_base), ["ascii", "utf-8"], "joe@example.com"),
             (
                 ("joe", email_base),
@@ -1177,7 +1105,6 @@ class TestEmailTools(BaseCase):
                 ["admin@example.com"],
             ),
             ("admin@éxample.com", ["admin@xn--xample-9ua.com"]),
-            # email-like names
             (
                 '"admin@éxample.com" <admin@éxample.com>',
                 ["admin@xn--xample-9ua.com", "admin@xn--xample-9ua.com"],
@@ -1190,13 +1117,11 @@ class TestEmailTools(BaseCase):
                 '"robert@notgmail.com" <robert@notgmail.com>',
                 ["robert@notgmail.com", "robert@notgmail.com"],
             ),
-            # "@' in names
             ('"Bike @ Home" <bike@example.com>', ["bike@example.com"]),
             (
                 '"Bike@Home" <bike@example.com>',
                 ["Bike@Home", "bike@example.com"],
             ),
-            # combo @ in names + multi email
             (
                 '"Not an Email" <robert@notgmail.com>, "robert@notgmail.com" <robert@notgmail.com>',
                 [
@@ -1205,7 +1130,6 @@ class TestEmailTools(BaseCase):
                     "robert@notgmail.com",
                 ],
             ),
-            # accents
             ("DéBoulonneur@examplé.com", ["DéBoulonneur@xn--exampl-gva.com"]),
         ]
         for source, expected in cases:
@@ -1215,24 +1139,19 @@ class TestEmailTools(BaseCase):
     def test_single_email_re(self):
         """Test 'single_email_re', matching text input containing only one email"""
         expected = [
-            # single email
             ["alfred.astaire@test.example.com"],
             [],
             [],
             [],
-            [],  # formatting issue for single email re
-            # multiple emails -> couic
             [],
             [],
             [],
             [],
-            # text containing email -> couic
             [],
             [],
-            # text containing emails -> couic
             [],
             [],
-            # falsy
+            [],
             [],
             [],
             [],
@@ -1249,61 +1168,58 @@ class TestEmailTools(BaseCase):
 
     def test_email_anonymize(self):
         cases = [
-            # examples
             (
                 "admin@example.com",
                 "a****@example.com",
                 "a****@e******.com",
-            ),  # short
+            ),
             (
                 "portal@example.com",
                 "p***al@example.com",
                 "p***al@e******.com",
-            ),  # long
-            # edge cases
+            ),
             (
                 "a@example.com",
                 "a@example.com",
                 "a@e******.com",
-            ),  # single letter
+            ),
             (
                 "joé@example.com",
                 "j**@example.com",
                 "j**@e******.com",
-            ),  # hidden unicode
+            ),
             (
                 "élise@example.com",
                 "é****@example.com",
                 "é****@e******.com",
-            ),  # visible unicode
+            ),
             (
                 "admin@[127.0.0.1]",
                 "a****@[127.0.0.1]",
                 "a****@[127.0.0.1]",
-            ),  # IPv4
+            ),
             (
                 "admin@[IPv6:::1]",
                 "a****@[IPv6:::1]",
                 "a****@[IPv6:::1]",
-            ),  # IPv6
-            # bad cases, to show how the system behave
-            ("", "", ""),  # empty string
+            ),
+            ("", "", ""),
             (
                 "@example.com",
                 "@example.com",
                 "@e******.com",
-            ),  # missing local part
-            ("john", "j***", "j***"),  # missing domain
+            ),
+            ("john", "j***", "j***"),
             (
                 "Jo <j@example.com>",
                 "J****@example.com>",
                 "J****@e******.com>",
-            ),  # non-normalized
+            ),
             (
                 "admin@com",
                 "a****@com",
                 "a****@com",
-            ),  # dotless domain, prohibited by icann
+            ),
         ]
         for source, expected, expected_redacted_domain in cases:
             with self.subTest(source=source):

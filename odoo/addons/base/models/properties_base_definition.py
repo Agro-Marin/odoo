@@ -4,11 +4,6 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tools import ormcache
 
-# ``env.cr.cache`` key for the transaction-local memo of definition ids created
-# by the current transaction: ``{(model_name, field_name): definition_id}``.
-# ``cr.cache`` is cleared on commit/rollback/savepoint rollback, so a rolled-back
-# id can never leak into another transaction -- unlike the process-global
-# "stable" ormcache, whose additions are not transaction-aware.
 DEFINITION_MEMO_CACHE_KEY = "properties_base_definition_ids"
 
 
@@ -86,21 +81,15 @@ class PropertiesBaseDefinition(models.Model):
 
         :rtype: int
         """
-        # 1. Transaction-local memo: a definition created earlier in this
-        # (not yet committed) transaction.
         memo = self.env.cr.cache.get(DEFINITION_MEMO_CACHE_KEY)
         if memo and (definition_id := memo.get((model_name, field_name))):
             return definition_id
 
-        # 2. Registry-wide positive lookup ("stable" ormcache).
         try:
             return self._search_definition_id_for_property_field(model_name, field_name)
         except ValueError:
             pass
 
-        # 3. Lazy create. The UNIQUE constraint on properties_field_id serializes
-        # concurrent creators; the id is memoized transaction-locally only, so a
-        # rollback cannot poison the process-global cache.
         field_ids = self.env["ir.model.fields"]._get_ids(model_name)
         field_id = field_ids.get(field_name)
         if not field_id:
@@ -135,7 +124,6 @@ class PropertiesBaseDefinition(models.Model):
         field_id = field_ids.get(field_name)
 
         if field_id:
-            # Direct lookup by field_id - no JOIN required
             cr = self.env.cr
             cr.execute(
                 "SELECT id FROM properties_base_definition WHERE properties_field_id = %s LIMIT 1",

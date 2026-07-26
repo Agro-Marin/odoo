@@ -58,10 +58,6 @@ class TestBaseBenchmark(TransactionCase):
         _logger.info("[BASE_BENCHMARK] %s", stats.summary())
         return stats
 
-    # ------------------------------------------------------------------
-    # _check_path: path constraint on window actions
-    # ------------------------------------------------------------------
-
     def test_bench_check_path(self):
         """Benchmark: path constraint validation on 50 window actions."""
         actions = self.env["ir.actions.act_window"].create(
@@ -80,10 +76,6 @@ class TestBaseBenchmark(TransactionCase):
             actions._check_path,
         )
 
-    # ------------------------------------------------------------------
-    # _check_barcode_unicity: barcode constraint on partners
-    # ------------------------------------------------------------------
-
     def test_bench_check_barcode(self):
         """Benchmark: barcode uniqueness constraint on 50 partners."""
         partners = self.env["res.partner"].create(
@@ -97,10 +89,6 @@ class TestBaseBenchmark(TransactionCase):
             "check_barcode (50 partners)",
             partners._check_barcode_unicity,
         )
-
-    # ------------------------------------------------------------------
-    # _get_bindings: action binding loading
-    # ------------------------------------------------------------------
 
     def test_bench_get_bindings(self):
         """Benchmark: cold-cache binding load for res.partner."""
@@ -117,10 +105,6 @@ class TestBaseBenchmark(TransactionCase):
             invalidate_cache=True,
         )
 
-    # ------------------------------------------------------------------
-    # _compute_partner_share: batch share computation
-    # ------------------------------------------------------------------
-
     def test_bench_compute_partner_share(self):
         """Benchmark: partner_share computation on 100 partners."""
         partners = self.env["res.partner"].create(
@@ -131,10 +115,6 @@ class TestBaseBenchmark(TransactionCase):
             "compute_partner_share (100 partners)",
             partners._compute_partner_share,
         )
-
-    # ------------------------------------------------------------------
-    # _compute_same_vat_partner_id: VAT duplicate detection
-    # ------------------------------------------------------------------
 
     def test_bench_compute_same_vat(self):
         """Benchmark: same VAT compute on 20 partners with unique VATs."""
@@ -154,10 +134,6 @@ class TestBaseBenchmark(TransactionCase):
             partners._compute_same_vat_partner_id,
         )
 
-    # ------------------------------------------------------------------
-    # _compute_is_public: public partner detection
-    # ------------------------------------------------------------------
-
     def test_bench_compute_is_public(self):
         """Benchmark: is_public computation on 50 partners."""
         partners = self.env["res.partner"].create(
@@ -168,10 +144,6 @@ class TestBaseBenchmark(TransactionCase):
             "compute_is_public (50 partners)",
             partners._compute_is_public,
         )
-
-    # ------------------------------------------------------------------
-    # _compute_main_user_id: main user resolution
-    # ------------------------------------------------------------------
 
     def test_bench_compute_main_user_id(self):
         """Benchmark: main_user_id computation on 50 partners."""
@@ -184,14 +156,9 @@ class TestBaseBenchmark(TransactionCase):
             partners._compute_main_user_id,
         )
 
-    # ------------------------------------------------------------------
-    # _selection_target_model: cached model selection
-    # ------------------------------------------------------------------
-
     def test_bench_selection_target_model(self):
         """Benchmark: _selection_target_model on warm cache."""
         ServerAction = self.env["ir.actions.server"]
-        # Warm the cache first
         ServerAction._selection_target_model()
 
         self._run_benchmark(
@@ -201,10 +168,6 @@ class TestBaseBenchmark(TransactionCase):
             invalidate_cache=False,
         )
 
-    # ------------------------------------------------------------------
-    # Company init: paperformat initialization
-    # ------------------------------------------------------------------
-
     def test_bench_company_init(self):
         """Benchmark: company init (paperformat default)."""
         Company = self.env["res.company"]
@@ -213,10 +176,6 @@ class TestBaseBenchmark(TransactionCase):
             "company_init (paperformat)",
             Company.init,
         )
-
-    # ------------------------------------------------------------------
-    # ir.model: batch view_ids, inherited_models, count
-    # ------------------------------------------------------------------
 
     def test_bench_ir_model_view_ids(self):
         """Benchmark: batch view_ids computation on 50 models."""
@@ -244,10 +203,6 @@ class TestBaseBenchmark(TransactionCase):
             "ir_model_compute_count (50 models)",
             models._compute_count,
         )
-
-    # ------------------------------------------------------------------
-    # ir.model.fields: batch display_name
-    # ------------------------------------------------------------------
 
     def test_bench_ir_model_fields_display_name(self):
         """Benchmark: display_name with ormcache pre-warming on 100 fields."""

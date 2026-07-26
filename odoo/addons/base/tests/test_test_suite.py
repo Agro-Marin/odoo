@@ -1,6 +1,3 @@
-# Inline string literals in raise statements, bare Exception, blind except
-# handlers, and trivial re-raises are all intentional: the exact source lines
-# appear in tracebacks, and these tests assert on traceback content.
 import contextlib
 import difflib
 import logging
@@ -28,8 +25,6 @@ from odoo.tests.utils import env_int
 _logger = logging.getLogger(__name__)
 
 
-# ensures simple tests keep working even when BaseCase would be used; only
-# works if doClassCleanup is available on testCase (vendoring of suite.py).
 class TestTestSuite(TestCase):
     test_tags = {"standard", "at_install"}
     test_module = "base"
@@ -53,19 +48,13 @@ class TestRunnerLoggingCommon(TransactionCase):
         return super().setUp()
 
     def _addError(self, result, test, exc_info):
-        # Hook to catch the logged error. Called post-tearDown; thanks to
-        # tests.common._ErrorCatcher the errors are logged directly. This
-        # method can be temporarily renamed to test the real failure.
         try:
             self.test_result = result
-            # check the first frame of the stack is inside the test method
 
             if exc_info:
                 tb = exc_info[2]
                 self._check_first_frame(tb)
 
-            # intercept all ir_logging; log catchers don't work here because
-            # makeRecord is too low level
             log_records = []
 
             def makeRecord(
@@ -97,7 +86,6 @@ class TestRunnerLoggingCommon(TransactionCase):
                 )
 
             def handle(logger, record):
-                # disable error logging
                 return
 
             fake_result = OdooTestResult()
@@ -110,20 +98,15 @@ class TestRunnerLoggingCommon(TransactionCase):
             self._check_log_records(log_records)
 
         except Exception:
-            # _feedErrorsToResult() shouldn't raise; be robust to future changes
             _logger.exception("unexpected exception in _feedErrorsToResult")
 
     def _check_first_frame(self, tb):
         """Check that the first frame of the given traceback is the expected method name."""
-        # expected_first_frame_methods holds a list of expected first frames
-        # (useful for setup/teardown tests)
         if self.expected_first_frame_methods is None:
             expected_first_frame_method = self._testMethodName
         else:
             expected_first_frame_method = self.expected_first_frame_methods.pop(0)
         if expected_first_frame_method.endswith("_with_decorators"):
-            # For decorators the first frame need not match the test name; it
-            # already appears in the stack trace. See odoo/odoo#108202.
             return
         first_frame_method = tb.tb_frame.f_code.co_name
         if first_frame_method != expected_first_frame_method:
@@ -165,21 +148,15 @@ class TestRunnerLoggingCommon(TransactionCase):
 
     def _log_error(self, message):
         """Log an actual error (about a log in a test that doesn't match expectations)"""
-        # use test_result (not plain logging) to keep the test counters correct
         self.test_result.addError(self, (AssertionError, AssertionError(message), None))
 
     def _clean_message(self, message):
-        root_path = PurePath(__file__).parents[
-            4
-        ]  # removes /odoo/addons/base/tests/test_test_suite.py
-        python_path = PurePath(
-            contextlib.__file__
-        ).parent  # /usr/lib/pythonx.x, C:\\python\\Lib, ...
+        root_path = PurePath(__file__).parents[4]
+        python_path = PurePath(contextlib.__file__).parent
         message = re.sub(r"line \d+", "line $line", message)
         message = re.sub(r"py:\d+", "py:$line", message)
         message = re.sub(r"decorator-gen-\d+", "decorator-gen-xxx", message)
         message = re.sub(r"^\s*~*\^+~*\s*\n", "", message, flags=re.MULTILINE)
-        # Python 3.14 elides multi-line source in tracebacks with ...<N lines>...
         message = re.sub(r"\.\.\.<\d+ lines>\.\.\.", "...<$elided>...", message)
         message = message.replace(f'"{root_path}', '"/root_path/odoo')
         message = message.replace(f'"{python_path}', '"/usr/lib/python')
@@ -604,12 +581,12 @@ class TestCursorStack(TransactionCase):
         self.addCleanup(cleanup)
 
         with self.assertLogs("odoo.db.cursor", level="WARNING"):
-            tc1.close()  # out of order: tc2 is the top of the stack
+            tc1.close()
         self.assertNotIn(tc1, TestCursor._cursors_stack)
         self.assertIn(tc2, TestCursor._cursors_stack)
         self.assertFalse(tc2._closed)
 
-        tc2.close()  # normal close, no warning
+        tc2.close()
         self.assertNotIn(tc2, TestCursor._cursors_stack)
 
     def test_readonly_nesting_enforced_lazily(self):
@@ -629,14 +606,12 @@ class TestCursorStack(TransactionCase):
 
         self.addCleanup(cleanup)
 
-        # untouched readonly cursor (no savepoint yet): rw open is allowed
         tc_rw = TestCursor(cr_rw, lock, readonly=False)
         tc_rw.close()
 
-        tc_ro.execute("SELECT 1")  # starts the readonly transaction
+        tc_ro.execute("SELECT 1")
         with self.assertRaisesRegex(Exception, "read/write test cursor"):
             TestCursor(cr_rw, lock, readonly=False)
-        # the refused cursor must not have entered the stack or kept the lock
         self.assertEqual([tc_ro], TestCursor._cursors_stack)
 
 
@@ -650,11 +625,10 @@ class TestBenchmarkStats(BaseCase):
         stats = compute_stats("t", times, query_counts, db_times)
 
         self.assertEqual(stats.iterations, 20)
-        self.assertEqual(stats.total_samples, 19)  # outlier iteration trimmed
+        self.assertEqual(stats.total_samples, 19)
         self.assertEqual(stats.min_us, 100.0)
-        self.assertEqual(stats.max_us, 10000.0)  # raw, not trimmed, extremes
+        self.assertEqual(stats.max_us, 10000.0)
         self.assertAlmostEqual(stats.mean_us, 100.0)
-        # the outlier iteration's DB time and query count are dropped with it
         self.assertAlmostEqual(stats.db_time_us, 60.0)
         self.assertAlmostEqual(stats.db_ratio, 0.6)
         self.assertAlmostEqual(stats.query_count_mean, 3.0)
@@ -680,7 +654,7 @@ class TestEnvInt(BaseCase):
         """Unset, empty and whitespace-only values (CI commonly exports empty
         vars) fall back to the default instead of dying with ValueError."""
         var = "ODOO_TEST_ENV_INT_PROBE"
-        self.assertEqual(env_int(var, 3), 3)  # unset
+        self.assertEqual(env_int(var, 3), 3)
         for raw, expected in [("", 3), (" ", 3), ("0", 0), ("42", 42), ("-1", -1)]:
             with self.subTest(raw=raw), patch.dict(os.environ, {var: raw}):
                 self.assertEqual(env_int(var, 3), expected)

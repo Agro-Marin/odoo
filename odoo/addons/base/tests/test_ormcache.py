@@ -14,7 +14,7 @@ class TestCacheSize(BaseCase):
         regardless of payload — making the SIGUSR2 memory report blind.
         """
 
-        class Holder:  # no __slots__ -> has __dict__
+        class Holder:
             pass
 
         holder = Holder()
@@ -35,17 +35,9 @@ class TestOrmCache(TransactionCase):
             msg = "Cache should not be invalidated when starting this test"
             raise AssertionError(msg)
 
-        # this test verifies the actual side effects of signaling changes
         cls._signal_changes_patcher.stop()
-        # disable autoretry: a cache/registry invalidation before
-        # test_signaling_01_multiple could make it fail then pass on retry,
-        # hiding real errors
         cls._retry = False
 
-        # tx_hit/tx_miss dedup stats are gated behind ODOO_ORMCACHE_TX_STATS
-        # (off by default); enable the runtime-flippable module flag for this
-        # suite so the tx-counter assertions below are self-contained rather than
-        # depending on an external env var being set.
         import odoo.tools.cache as _cache_mod
 
         cls.addClassCleanup(
@@ -67,7 +59,6 @@ class TestOrmCache(TransactionCase):
         self.env.registry.clear_cache()
         self.assertNotIn(key, cache)
 
-        # lookup some reference
         self.env.ref(XMLID)
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss + 1)
@@ -75,7 +66,6 @@ class TestOrmCache(TransactionCase):
         self.assertEqual(counter.tx_miss, tx_miss + 1)
         self.assertIn(key, cache)
 
-        # lookup again
         self.env.ref(XMLID)
         self.assertEqual(counter.hit, hit + 1)
         self.assertEqual(counter.miss, miss + 1)
@@ -83,7 +73,6 @@ class TestOrmCache(TransactionCase):
         self.assertEqual(counter.tx_miss, tx_miss + 1)
         self.assertIn(key, cache)
 
-        # lookup again
         self.env.ref(XMLID)
         self.assertEqual(counter.hit, hit + 2)
         self.assertEqual(counter.miss, miss + 1)
@@ -104,12 +93,10 @@ class TestOrmCache(TransactionCase):
         self.assertEqual(self.env.registry.cache_invalidated, set())
 
     def test_invalidation_thread_local(self):
-        # this test ensures that the registry.cache_invalidated set is thread local
 
         caches = ["default", "templates", "assets"]
         nb_treads = len(caches)
 
-        # use barriers to ensure thread synchronization
         sync_clear_cache = Barrier(nb_treads, timeout=5)
         sync_assert_equal = Barrier(nb_treads, timeout=5)
         sync_reset = Barrier(nb_treads, timeout=5)
@@ -140,7 +127,6 @@ class TestOrmCache(TransactionCase):
         for thread in threads:
             thread.join()
 
-        # thread operations must have run in the expected order
         self.assertEqual(
             operations,
             ["clear_cache"] * nb_treads
@@ -181,19 +167,11 @@ class TestOrmCache(TransactionCase):
                     "other registry sequence shouldn't have changed",
                 )
 
-        with self.assertNoLogs(
-            None, None
-        ):  # the registry sequence should be up to date on the same worker
+        with self.assertNoLogs(None, None):
             registry.check_signaling()
-
-        # simulate other worker state
 
         registry.cache_sequences.update(old_sequences)
 
-        # Pin the logger: a bare assertLogs() listens on root only, so under a
-        # WARNING-level log config the INFO record is filtered at the "odoo"
-        # logger and the assert fails with "no logs triggered on root". Naming
-        # the logger forces assertLogs to set its level to INFO for the block.
         with self.assertLogs("odoo.registry") as logs:
             registry.check_signaling()
         self.assertEqual(
@@ -236,18 +214,11 @@ class TestOrmCache(TransactionCase):
                     "other registry sequence shouldn't have changed",
                 )
 
-        with self.assertNoLogs(
-            None, None
-        ):  # the registry sequence should be up to date on the same worker
+        with self.assertNoLogs(None, None):
             registry.check_signaling()
-
-        # simulate other worker state
 
         registry.cache_sequences.update(old_sequences)
 
-        # Pin the logger (see test_signaling_01_single): a bare assertLogs()
-        # only captures records that reach the root logger, which an
-        # INFO-suppressing log config prevents.
         with self.assertLogs("odoo.registry") as logs:
             registry.check_signaling()
         self.assertEqual(
@@ -295,5 +266,4 @@ class TestOrmCache(TransactionCase):
         self.env["ir.autovacuum"]._gc_orm_signaling()
         assertSignalCount(13, 20, "Keeping the 13 signals having less than one hour")
 
-        # reset sequence to avoid side effects
         cr.execute(f"SELECT setval('orm_signaling_registry_id_seq', {sequence_start})")

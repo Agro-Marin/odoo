@@ -26,11 +26,6 @@ from odoo.tools.misc import file_open, file_path
 from odoo.tools.sass_embedded import SassCompileError, SassNotFoundError, find_sass
 
 if TYPE_CHECKING:
-    # Model-class imports must stay typing-only: base/models/__init__
-    # imports assetsbundle FIRST, and registering ir.attachment before
-    # model 'base' exists aborts registry load (house pattern — see
-    # ir_attachment.py's own TYPE_CHECKING block).
-    # Typing-only sibling import (avoids a runtime cycle with ``bundle``).
     from .bundle import AssetsBundle
     from odoo.addons.base.models.ir_attachment import IrAttachment
 from .common import (
@@ -64,9 +59,6 @@ class WebAsset:
         self._ir_attach: IrAttachment | None = None
         self._last_modified = last_modified
         if not inline and not url:
-            # ``bundle`` is guarded only so the error itself cannot crash: the
-            # contract is a real AssetsBundle (the sole bundle-less construction,
-            # ``ScssStylesheetAsset.for_inline_compile``, always inlines).
             bundle_name = bundle.name if bundle is not None else "<no bundle>"
             raise ValueError(
                 f"An asset should either be inlined or url linked, defined in bundle {bundle_name!r}"
@@ -110,15 +102,9 @@ class WebAsset:
     @property
     def last_modified(self) -> float | int:
         if self._last_modified is None:
-            # Only the expected "asset has no backing attachment" failure is
-            # ignored; a real DB error must propagate, not become ``-1``.
             with suppress(AssetNotFoundError):
                 self._resolve_attachment()
             if self._filename:
-                # debug=assets builds assets without a build-time mtime, so each
-                # render re-stats. Also covers a caller omitting ``last_modified``
-                # for a file-backed asset — previously that froze the checksum on
-                # ``-1`` and file edits stopped invalidating the bundle.
                 with suppress(OSError):
                     self._last_modified = Path(self._filename).stat().st_mtime
             elif self._ir_attach:
@@ -126,8 +112,6 @@ class WebAsset:
                     tzinfo=UTC
                 ).timestamp()
             if self._last_modified is None:
-                # ``is None``, not falsy: an epoch mtime (0.0) is a real
-                # timestamp and must not collapse into the sentinel.
                 self._last_modified = -1
         return self._last_modified
 
@@ -161,10 +145,8 @@ class WebAsset:
         except OSError:
             raise AssetNotFoundError(f"File {self.name} does not exist.") from None
         except AssetError:
-            # Already contextualized; re-wrapping would erase the subclass.
             raise
         except ValueError as e:
-            # ``file_open(filter_ext=...)`` rejecting the extension.
             raise AssetError(f"Could not get content for {self.name}.") from e
 
     def minify(self) -> str:
@@ -184,10 +166,6 @@ class WebAsset:
 class JavascriptAsset(WebAsset):
     """JS file asset: legacy concatenation member or native-ESM module."""
 
-    # Lines ``with_header(minimal=False)`` emits BEFORE the file body (blank +
-    # top border + 2 info lines + bottom border). ``js_with_sourcemap`` feeds it
-    # to the sourcemap generator as ``start_offset``. Keep in sync with
-    # ``with_header``; ``test_js_header_line_count`` guards the coupling.
     _HEADER_LINE_COUNT = 5
 
     @functools.cached_property
@@ -231,12 +209,6 @@ class JavascriptAsset(WebAsset):
 
     def minify(self) -> str:
         content = self.content
-        # rjsmin (1.2.5) corrupts NESTED template literals (whitespace inside a
-        # template-in-``${}`` collapses). A nested literal REQUIRES an
-        # interpolation, so a file with backticks but no ``${`` is safe — minify
-        # it in-process. Only ``${``-bearing backtick files go to esbuild (a
-        # conservative textual superset). On esbuild failure the file ships
-        # unminified, as before.
         if "`" not in content or "${" not in content:
             return self.with_header(rjsmin(content, keep_bang_comments=True))
         minified = minify_js(content, label=self.url or self.name)
@@ -252,13 +224,6 @@ class JavascriptAsset(WebAsset):
         if minimal:
             return super().with_header(content)
 
-        # Verbose header — _HEADER_LINE_COUNT (5) lines before the body,
-        # consumed by js_with_sourcemap as the sourcemap offset:
-        #   <blank>
-        #   /**************************
-        #   *  Filepath: <asset_url>  *
-        #   *  Lines: 42              *
-        #   **************************/
         line_count = content.count("\n")
         lines = [
             f"Filepath: {self.url}",
@@ -307,9 +272,6 @@ class XMLAsset(WebAsset):
         """
         root = self._parsed_root
         if root.tag in ("templates", "template", "odoo"):
-            # Keep elements only: the parser strips comments but not processing
-            # instructions, and a PI reaching ``xml()`` aborts the bundle with a
-            # misleading "Template name is missing."
             return [el for el in root if isinstance(el.tag, str)]
         return [root]
 
@@ -326,41 +288,14 @@ class XMLAsset(WebAsset):
 class StylesheetAsset(WebAsset):
     """Plain CSS asset with relative-URL rewriting and regex minification."""
 
-    # Both rewrite patterns consume the WHOLE quoted argument — opening quote,
-    # body, and closing ``(?P=q)`` — and their replacements re-emit the closing
-    # quote. Consuming only the opening quote desynchronizes
-    # ``_rewrite_css_outside_strings``'s quote pairing: the scanner then reads
-    # ``") format("`` as a string literal and swallows every subsequent
-    # ``url(`` token of a multi-url ``src:`` list (or the next ``@import``), so
-    # only the first URL of a ``@font-face`` ``src:`` was ever rewritten and
-    # bundle web fonts 404'd against ``/web/assets/<unique>/``.
     rx_import = re.compile(
         r"""@import\s+(?P<q>'|")(?!'|"|/|https?://)(?P<path>[^'"]*)(?P=q)"""
     )
-    # ``rx_url`` matches ``url(`` and the optional opening quote, capturing the
-    # relative body. Capturing it lets us prefix ``web_dir/`` and collapse the
-    # ``<dir>/../<seg>`` the concatenation produces. Without the collapse the
-    # emitted URL wouldn't match ``<link rel="preload" href="…">`` byte-for-byte
-    # and the browser deems the preload unused — see
-    # knowledge/.../2026-04-19-esm-import-map-conflict-investigation.md §10.2.
-    # A quoted url whose body contains a quote-stopper (space, ``'``, ``"``,
-    # ``)``) no longer half-matches: ``(?P=q)`` fails and the url is left
-    # untouched (before, the body was truncated at the stopper and mangled).
     rx_url = re.compile(
         r"""(?<!")url\s*\(\s*(?P<q>['"]|)(?!['"]|/|https?://|data:|\#\{str)(?P<body>[^'")\s]*)(?P=q)""",
     )
     rx_charset = re.compile(r'(@charset "[^"]+";)')
-    # The two CSS spans minification must NOT reach into — comments and string
-    # literals — tokenized by the shared ``_CSS_STRING_OR_COMMENT``. Reused here
-    # so the masking minifier and ``_rewrite_css_outside_strings`` share one
-    # tokenizer and cannot drift on what they treat as opaque.
     _CSS_TOKEN_RE = _CSS_STRING_OR_COMMENT
-    # Opaque spans for the whole-text rewrites in :meth:`_fetch_content`, which
-    # run on the asset's *source*. Plain CSS and SCSS need different tokenizers
-    # (``//`` is a comment in one and ordinary text in the other), so this is
-    # kept separate from ``_CSS_TOKEN_RE`` — that one also masks for
-    # :meth:`_minify_css_body`, which always sees *compiled* CSS and must keep
-    # reading the ``//`` in ``https://`` as text.
     _SOURCE_TOKEN_RE = _CSS_STRING_OR_COMMENT
 
     def __init__(
@@ -368,11 +303,6 @@ class StylesheetAsset(WebAsset):
     ) -> None:
         self.rtl = rtl
         self.autoprefix = autoprefix
-        # Per-asset fetch/rewrite errors, recorded by ``_fetch_content`` and
-        # harvested into the bundle's ``css_errors`` by ``preprocess_css``.
-        # StylesheetAsset-only (not WebAsset): "record and degrade to empty
-        # output" is the *stylesheet* recovery policy — JS degrades via a
-        # console.error stub, XML treats a content error as fatal.
         self.errors: list[str] = []
         super().__init__(*args, **kw)
 
@@ -387,15 +317,9 @@ class StylesheetAsset(WebAsset):
     def _fetch_content(self) -> str:
         try:
             content = super()._fetch_content()
-            # ``self.url`` is a forward-slash web path: resolve its directory
-            # with posixpath, NOT pathlib.Path (``WindowsPath.parent`` would emit
-            # backslashes that leak into the rewritten URLs).
             web_dir = posixpath.dirname(self.url)
 
             def _rewrite_import(match: re.Match[str]) -> str:
-                # Function replacement (like ``_rewrite_url``): never splice
-                # ``web_dir`` into a regex replacement TEMPLATE, where a
-                # backslash would raise ``re.PatternError`` past this handler.
                 q = match.group("q")
                 return f"@import {q}{web_dir}/{match.group('path')}{q}"
 
@@ -405,13 +329,6 @@ class StylesheetAsset(WebAsset):
                 )
 
             def _rewrite_url(match: re.Match[str]) -> str:
-                # Prefix the bundled URL with ``web_dir`` then collapse
-                # ``<dir>/../`` segments so the rewritten ``url(…)`` is
-                # byte-identical to a ``<link rel="preload">`` URL. An empty body
-                # (``url()``) is preserved by the dedicated branch below.
-                # Applied via ``_rewrite_css_outside_strings``, so a ``url(...)``
-                # inside a ``content: "…"`` value or comment is skipped, while a
-                # real ``url("x")`` (matched at the ``url(`` token) is rewritten.
                 q = match.group("q")
                 body = match.group("body")
                 if not body:
@@ -423,18 +340,12 @@ class StylesheetAsset(WebAsset):
                 self.rx_url, _rewrite_url, content, self._SOURCE_TOKEN_RE
             )
 
-            # remove charset declarations, we only support utf-8
             return self.rx_charset.sub("", content)
         except AssetError as e:
             self.errors.append(str(e))
             return ""
 
     def get_source(self) -> str:
-        # ``odoo-split:`` namespaces the marker against legitimate CSS loud
-        # comments Sass preserves (see ``CssPipeline.rx_css_split``).
-        # ``_raw_source`` (not ``content``): the compile input must be re-read
-        # from the original source, bypassing the ``_content`` cache that
-        # ``preprocess`` later overwrites with the compiled fragment.
         return f"/*! odoo-split:{self.id} */\n{self._raw_source()}"
 
     @classmethod
@@ -462,10 +373,6 @@ class StylesheetAsset(WebAsset):
         Header-less for unit-testing against the legacy pipeline; :meth:`minify`
         adds the header.
         """
-        # NUL is invalid in CSS (spec replaces U+0000 with U+FFFD). Strip it so
-        # source text can't collide with the NUL-delimited placeholders below: a
-        # raw ``\x00<digits>\x00`` would be caught by the restore regex and index
-        # into ``protected`` — an IndexError that kills the whole CSS compile.
         content = content.replace("\x00", "")
 
         protected: list[str] = []
@@ -475,21 +382,14 @@ class StylesheetAsset(WebAsset):
             if token[0] in "\"'" or token.startswith("/*!"):
                 protected.append(token)
                 return f"\x00{len(protected) - 1}\x00"
-            return ""  # ordinary comment — dropped
+            return ""
 
         masked = cls._CSS_TOKEN_RE.sub(_mask, content)
         masked = re.sub(r"\s+", " ", masked)
         masked = re.sub(r" *([{}]) *", r"\1", masked)
-        # Restore via a function replacement so backslashes inside a string
-        # literal are not reinterpreted as regex escapes.
         return re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], masked)
 
     def minify(self) -> str:
-        # In debug, ``css_with_sourcemap`` rebuilds the bundle from each asset's
-        # ``content`` and the minified join is consumed only for @import
-        # extraction (unminified content serves equally well), so skip the regex
-        # passes — mirroring ``ScssStylesheetAsset.minify``. Production still
-        # minifies: there the join IS the ``.min.css`` body.
         if self.bundle.is_debug_assets:
             return self.with_header(self.content)
         return self.with_header(self._minify_css_body(self.content))
@@ -499,12 +399,8 @@ class PreprocessedCSS(StylesheetAsset):
     """Base for stylesheet dialects compiled through an external CLI."""
 
     rx_import = None
-    # ``_fetch_content`` rewrites this asset's URLs while it is still
-    # preprocessor source, i.e. before the compiler strips ``//`` comments.
     _SOURCE_TOKEN_RE = _SCSS_STRING_OR_COMMENT
 
-    # Largest bundles take tens of seconds on the CLI fallback path; generous,
-    # but a hung compiler must not pin a worker.
     _COMPILE_TIMEOUT_S: int = 180
 
     def get_command(self) -> list[str]:
@@ -535,9 +431,6 @@ class ScssStylesheetAsset(PreprocessedCSS):
         """
         return cls(None, inline=source)
 
-    # Process-wide one-shot guard for the embedded-Sass → CLI fallback warning
-    # (see :meth:`_warn_embedded_fallback`). A class attribute so flipping it
-    # needs no ``global``.
     _embedded_fallback_warned = False
 
     @classmethod
@@ -590,10 +483,7 @@ class ScssStylesheetAsset(PreprocessedCSS):
         """Compile SCSS: embedded Dart Sass -> Dart Sass CLI."""
         import odoo.addons
 
-        # Try 1: Embedded Sass Protocol (fast, custom importers)
         try:
-            # ``SassCompileError`` is imported at module level; only the
-            # embedded-protocol-specific symbols are imported lazily here.
             from odoo.tools.sass_embedded import (
                 OdooSassImporter,
                 get_sass_compiler,
@@ -612,21 +502,13 @@ class ScssStylesheetAsset(PreprocessedCSS):
         except SassCompileError:
             raise
         except SassNotFoundError:
-            # Dart Sass is required — a missing binary is a deployment
-            # misconfiguration, not a transient embedded-protocol failure. Fail
-            # loudly rather than degrade to the CLI (which needs the same binary).
             raise
         except Exception as exc:
-            # A broken/unavailable embedded compiler (dead subprocess, …) — NOT
-            # a real SCSS error (SassCompileError, re-raised above) — degrades to
-            # the CLI. Warned once (see :meth:`_warn_embedded_fallback`).
             self._warn_embedded_fallback(exc)
-            # Close the singleton to reap any zombie process.
             from odoo.tools.sass_embedded import close_sass_compiler
 
             close_sass_compiler()
 
-        # Try 2: Dart Sass CLI (no custom importers, uses --load-path)
         return super().compile(source)
 
     def get_command(self) -> list[str]:

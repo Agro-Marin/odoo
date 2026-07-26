@@ -37,7 +37,6 @@ class DecimalPrecision(models.Model):
         )
         res = self.env.cr.fetchone()
         if not res:
-            # the result is ormcached, so this logs once per registry per name
             _logger.warning(
                 "Decimal precision '%s' is not defined, using the default of 2 digits",
                 application,

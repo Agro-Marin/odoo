@@ -13,7 +13,6 @@ from odoo.addons.base.models.report_paperformat import (
     PAPER_SIZES,
 )
 
-# A4 in mm, as stored in PAPER_SIZES (width x height, portrait orientation).
 A4_WIDTH = 210.0
 A4_HEIGHT = 297.0
 
@@ -51,6 +50,46 @@ class TestReportPaperformatAudit(TransactionCase):
         )
         self.assertAlmostEqual(pf.print_page_width, 150)
         self.assertAlmostEqual(pf.print_page_height, 250)
+
+    def test_print_page_size_recomputed_on_orientation_change(self):
+        """RPF-T1: flipping orientation must swap the reported dimensions.
+
+        Regression: the compute declared no @api.depends, so the pair was
+        computed once and never invalidated.
+        """
+        pf = self.env["report.paperformat"].create(
+            {"name": "audit reorient", "format": "A4", "orientation": "Portrait"}
+        )
+        self.assertAlmostEqual(pf.print_page_width, A4_WIDTH)
+        pf.orientation = "Landscape"
+        self.assertAlmostEqual(pf.print_page_width, A4_HEIGHT)
+        self.assertAlmostEqual(pf.print_page_height, A4_WIDTH)
+
+    def test_print_page_size_recomputed_on_format_change(self):
+        """RPF-T1: changing the named format must re-read the paper size."""
+        pf = self.env["report.paperformat"].create(
+            {"name": "audit reformat", "format": "A4", "orientation": "Portrait"}
+        )
+        self.assertAlmostEqual(pf.print_page_height, A4_HEIGHT)
+        pf.format = "A5"
+        a5 = PAPER_SIZE_BY_KEY["A5"]
+        self.assertAlmostEqual(pf.print_page_width, a5["width"])
+        self.assertAlmostEqual(pf.print_page_height, a5["height"])
+
+    def test_print_page_size_recomputed_on_custom_dimension_change(self):
+        """RPF-T1: a custom format tracks later page_width/page_height edits."""
+        pf = self.env["report.paperformat"].create(
+            {
+                "name": "audit recustom",
+                "format": "custom",
+                "orientation": "Portrait",
+                "page_width": 150,
+                "page_height": 250,
+            }
+        )
+        self.assertAlmostEqual(pf.print_page_width, 150)
+        pf.page_width = 160
+        self.assertAlmostEqual(pf.print_page_width, 160)
 
     def test_named_format_with_page_dimensions_rejected(self):
         """RPF-T1: _check_format_or_page forbids a named format with explicit dims."""

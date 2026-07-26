@@ -22,7 +22,6 @@ class TestAmountToTextBackend(TransactionCase):
     def test_negative_fractional_amount(self):
         """amount_to_text(-0.50) should include the negative sign."""
         result = self.usd.amount_to_text(-0.50)
-        # num2words renders negative numbers with "Minus" prefix
         self.assertIn("Minus", result, f"Negative sign lost in: {result}")
 
     def test_negative_one_dollar(self):

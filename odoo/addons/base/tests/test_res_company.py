@@ -22,21 +22,17 @@ class TestCompany(TransactionCase):
             }
         )
 
-        # The company cannot be archived because it still has active users
         with self.assertRaisesRegex(ValidationError, r"cannot be archived[\s\S]*foo"):
             company.action_archive()
 
-        # The company can be archived because it has no active users
         user.action_archive()
         company.action_archive()
 
-        # The user cannot be unarchived because it's default company is archived
         with self.assertRaisesRegex(
             ValidationError, "Company foo is not in the allowed companies"
         ):
             user.action_unarchive()
 
-        # The user can be unarchived once we set another, active, company
         main_company = self.env.ref("base.main_company")
         user.write(
             {
@@ -74,7 +70,6 @@ class TestCompany(TransactionCase):
         self.assertTrue(company.logo, "Should have a default logo")
         self.assertTrue(company.uses_default_logo)
         company.partner_id.image_1920 = False
-        # No logo falls back to a default logo, so uses_default_logo stays True.
         self.assertTrue(company.uses_default_logo)
         company.partner_id.image_1920 = (
             "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
@@ -95,10 +90,7 @@ class TestCompany(TransactionCase):
         branch = self.env["res.company"].create(
             {"name": "color branch", "parent_id": root.id}
         )
-        # Prime both caches before changing the root partner's color.
         self.assertEqual(root.color, branch.color)
-        # Two successive writes: at most one value can coincide with the
-        # ``root.id % 12`` fallback, so a stale cache cannot pass both.
         for color in (5, 7):
             root.partner_id.color = color
             self.assertEqual(root.color, color)
@@ -176,14 +168,10 @@ class TestCompanyPublicUser(TransactionCase):
         copy raising on the global login-uniqueness constraint."""
         company = self.env["res.company"].create({"name": "Public Co 3"})
         public_user = company._get_public_user()
-        # Stale state: the public user exists but is no longer a member of
-        # base.group_public, so the old group-membership probe would miss it and
-        # the login copy would collide on the global UNIQUE(login) constraint.
         public_group = self.env.ref("base.group_public")
         public_user.sudo().write({"group_ids": [Command.unlink(public_group.id)]})
         self.assertNotIn(public_user, public_group.sudo().all_user_ids)
 
-        # Must return the existing record (by login probe), not raise / duplicate.
         again = company._get_public_user()
         self.assertEqual(
             again,

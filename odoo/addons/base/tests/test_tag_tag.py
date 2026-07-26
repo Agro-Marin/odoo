@@ -4,8 +4,8 @@ from odoo.tests.common import TransactionCase
 class TestTagTag(TransactionCase):
     """TAG-T1: fork-specific tag.mixin logic exercised through tag.tag.
 
-    Covers the batched frontier-walk ``_compute_display_name`` (full ancestor
-    path) and the hierarchical ``_search_display_name`` rewrite: positive
+    Covers the parent_path-based ``_compute_display_name`` (full ancestor path,
+    cycle-safe) and the hierarchical ``_search_display_name`` rewrite: positive
     ``like`` expands to the subtree via ``child_of``; negative ``like`` returns
     NotImplemented and falls back to negating the positive rewrite.
     """
@@ -25,9 +25,7 @@ class TestTagTag(TransactionCase):
         self.assertEqual(self.leaf.display_name, "Rootag / Midtag / Leaftag")
         self.assertEqual(self.other.display_name, "Loosetag")
 
-    def test_display_name_batched_frontier_walk(self):
-        # Recomputing the whole set at once (batched, level by level) must match
-        # record-by-record access.
+    def test_display_name_batched_recompute(self):
         tags = self.root + self.mid + self.leaf + self.other
         tags.invalidate_recordset(["display_name"])
         self.assertEqual(
@@ -40,14 +38,50 @@ class TestTagTag(TransactionCase):
         self.assertEqual(self.leaf.display_name, "Renamedtag / Midtag / Leaftag")
 
     def test_display_name_includes_archived_ancestor(self):
-        # archiving a parent hides it from searches but must not truncate the
-        # ancestor path of its active descendants
         self.root.active = False
         (self.mid + self.leaf).invalidate_recordset(["display_name"])
         self.assertEqual(self.leaf.display_name, "Rootag / Midtag / Leaftag")
 
+    def test_display_name_newid_cycle_terminates(self):
+        """TAG-T1: a parent cycle staged in cache (onchange) must not hang.
+
+        Regression: the level-by-level parent_id walk followed the cycle
+        forever, wedging the worker thread. Constraints do not run on
+        NewId records, so the guard has to live in the compute.
+        """
+        Tag = self.env["tag.tag"]
+        first = Tag.new({"name": "Firstag"})
+        second = Tag.new({"name": "Secondtag"})
+        first.parent_id = second
+        second.parent_id = first
+        self.assertEqual(first.display_name, "Secondtag / Firstag")
+        self.assertEqual(second.display_name, "Firstag / Secondtag")
+
+    def test_display_name_newid_without_parent(self):
+        """TAG-T1: a NewId record with no parent still gets its own name."""
+        self.assertEqual(self.env["tag.tag"].new({"name": "Solo"}).display_name, "Solo")
+
+    def test_display_name_resolved_in_constant_queries(self):
+        """TAG-T1: the ancestor path costs the same regardless of depth.
+
+        parent_path resolves the whole chain, so a deep tag must not issue one
+        query per hierarchy level.
+        """
+        Tag = self.env["tag.tag"]
+        parent = self.env["tag.tag"]
+        deep_ids = []
+        for level in range(10):
+            parent = Tag.create({"name": f"Deep{level}", "parent_id": parent.id})
+            deep_ids.append(parent.id)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        leaf = Tag.browse(deep_ids[-1])
+        self.assertEqual(
+            leaf.display_name,
+            " / ".join(f"Deep{level}" for level in range(10)),
+        )
+
     def test_search_display_name_like_expands_to_subtree(self):
-        # Positive match becomes child_of: the matched tag and its whole subtree.
         found = self.env["tag.tag"].search([("display_name", "like", "Midtag")])
         self.assertEqual(set(found.ids), {self.mid.id, self.leaf.id})
 
@@ -55,12 +89,9 @@ class TestTagTag(TransactionCase):
         self.assertEqual(set(found.ids), {self.root.id, self.mid.id, self.leaf.id})
 
     def test_search_display_name_like_archived_root(self):
-        # Subtree expansion honors the ambient active_test: an archived root no
-        # longer anchors the match, so neither it nor its subtree is found by name.
         self.root.active = False
         found = self.env["tag.tag"].search([("display_name", "like", "Rootag")])
         self.assertFalse(found)
-        # with active_test disabled, the whole subtree is found again
         found = (
             self.env["tag.tag"]
             .with_context(active_test=False)
@@ -69,8 +100,6 @@ class TestTagTag(TransactionCase):
         self.assertEqual(set(found.ids), {self.root.id, self.mid.id, self.leaf.id})
 
     def test_search_display_name_not_like_excludes_subtree(self):
-        # 'not like' returns NotImplemented, so the ORM negates the positive
-        # rewrite: the matched tag AND its descendants are excluded.
         scope = (self.root + self.mid + self.leaf + self.other).ids
         found = self.env["tag.tag"].search(
             [("display_name", "not like", "Midtag"), ("id", "in", scope)]

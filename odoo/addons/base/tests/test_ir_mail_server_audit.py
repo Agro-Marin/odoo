@@ -11,7 +11,6 @@ from odoo.tools import mute_logger
 
 from odoo.addons.base.models.ir_mail_server import MailDeliveryError
 
-# Path of the model module, used to mute its logger around tested paths.
 _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
 
 
@@ -24,8 +23,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.IrMailServer = cls.env["ir.mail_server"]
-        # Names sort differently from creation order, so error-message ordering
-        # by display_name can be asserted.
         cls.server_b, cls.server_a, cls.server_c = cls.IrMailServer.create(
             [
                 {
@@ -49,10 +46,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
             ]
         )
 
-    # ------------------------------------------------------------------
-    # MS-T1: write() archive guard
-    # ------------------------------------------------------------------
-
     def test_smtp_connection_test_disabled_send_raises_clean_error(self):
         """With _disable_send() active, _connect__ returns None and
         test_smtp_connection must raise a clear UserError, not an AttributeError
@@ -64,7 +57,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
 
     def test_archive_unused_server_succeeds(self):
         """In base, _active_usages_compute returns {} so archiving always works."""
-        # Sanity: the base implementation reports no usage.
         self.assertEqual(self.IrMailServer._active_usages_compute(), {})
         self.server_a.active = True
         self.server_a.write({"active": False})
@@ -82,7 +74,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
             "_active_usages_compute",
             lambda self: usages,
         ):
-            # Not setting active -> guard short-circuits, write succeeds.
             self.server_a.write({"name": "Alpha Renamed"})
         self.assertEqual(self.server_a.name, "Alpha Renamed")
         self.assertTrue(self.server_a.active)
@@ -99,14 +90,10 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
             with self.assertRaises(UserError) as ctx:
                 self.server_a.write({"active": False})
         message = str(ctx.exception)
-        # Singular wording, server name and usage detail are present.
         self.assertIn("You cannot archive this Outgoing Mail Server", message)
         self.assertIn("Alpha Server", message)
         self.assertIn("- Used by alias catchall", message)
-        # The single-server branch must NOT use the "Dedicated Outgoing Mail
-        # Server" per-server header (that is only for the multi-server branch).
         self.assertNotIn("(Dedicated Outgoing Mail Server)", message)
-        # The write was blocked: the server stays active.
         self.assertTrue(self.server_a.active)
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
@@ -127,23 +114,15 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
             with self.assertRaises(UserError) as ctx:
                 servers.write({"active": False})
         message = str(ctx.exception)
-        # Plural wording is used for multiple servers.
         self.assertIn("You cannot archive these Outgoing Mail Servers", message)
-        # Each server carries the dedicated-server per-server header line.
         self.assertIn("Alpha Server (Dedicated Outgoing Mail Server):", message)
         self.assertIn("Bravo Server (Dedicated Outgoing Mail Server):", message)
         self.assertIn("Charlie Server (Dedicated Outgoing Mail Server):", message)
-        # The header server list is sorted by display_name: Alpha, Bravo, Charlie.
         self.assertLess(message.index("Alpha Server"), message.index("Bravo Server"))
         self.assertLess(message.index("Bravo Server"), message.index("Charlie Server"))
-        # Detail lines follow the same ordering as their owning servers.
         self.assertLess(message.index("Alpha usage"), message.index("Bravo usage"))
         self.assertLess(message.index("Bravo usage"), message.index("Charlie usage"))
         self.assertTrue(all(servers.mapped("active")))
-
-    # ------------------------------------------------------------------
-    # MS-T2: _alter_message__ anti-spoofing header build
-    # ------------------------------------------------------------------
 
     def _make_message(self):
         """Build a minimal SMTP-policy EmailMessage for header-rewrite tests."""
@@ -158,12 +137,10 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         """
         message = self._make_message()
         message["X-Msg-To-Add"] = "added@example.com"
-        # smtp_from equals From so the From header is left untouched.
         self.IrMailServer._alter_message__(
             message, "sender@example.com", ["added@example.com"]
         )
         self.assertEqual(message["To"], "added@example.com")
-        # The control header is scrubbed afterwards.
         self.assertIsNone(message["X-Msg-To-Add"])
 
     def test_alter_message_x_msg_to_add_dedupes_against_existing_to(self):
@@ -171,7 +148,6 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         non-empty original To there is no leading comma."""
         message = self._make_message()
         message["To"] = "keep@example.com"
-        # 'keep@example.com' is already present and must be filtered out.
         message["X-Msg-To-Add"] = "keep@example.com, extra@example.com"
         self.IrMailServer._alter_message__(
             message, "sender@example.com", ["keep@example.com"]
@@ -189,13 +165,10 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         self.IrMailServer._alter_message__(
             message, "sender@example.com", ["forged@example.com"]
         )
-        # X-Forge-To wins over the original To (and short-circuits X-Msg-To-Add).
         self.assertEqual(message["To"], "forged@example.com")
-        # Anti-spoofing scrubbing removed every control header and the Bcc.
         self.assertIsNone(message["Bcc"])
         self.assertIsNone(message["X-Forge-To"])
         self.assertIsNone(message["X-Msg-To-Add"])
-        # From was rewritten to the provided smtp_from since it differed.
         self.assertEqual(message["From"], "sender@example.com")
 
 
@@ -230,8 +203,6 @@ class TestMailServerSendFailureObservability(TransactionCase):
     def test_send_email_failure_warns_and_chains(self):
         IrMailServer = self.env["ir.mail_server"]
         with (
-            # _disable_send() short-circuits delivery in test mode; force the
-            # real send path so the failure branch is exercised.
             patch.object(
                 type(IrMailServer), "_disable_send", classmethod(lambda cls: False)
             ),
@@ -242,15 +213,11 @@ class TestMailServerSendFailureObservability(TransactionCase):
                 self._make_message(), smtp_session=_FailingSMTPSession()
             )
 
-        # The exception chain carries the root SMTP error (not `from None`).
         self.assertIsInstance(ctx.exception.__cause__, smtplib.SMTPDataError)
-        # The rendered message (mail.mail failure_reason) is unchanged: short
-        # human message, then the detailed delivery report.
         rendered = str(ctx.exception)
         self.assertTrue(rendered.startswith("Mail Delivery Failed\n"))
         self.assertIn("Mail delivery failed via SMTP server 'unknown'", rendered)
         self.assertIn("SMTPDataError", rendered)
-        # Logged at WARNING with the traceback attached (exc_info=True).
         record = next(
             r for r in capture.records if "Mail delivery failed" in r.getMessage()
         )
@@ -283,7 +250,6 @@ class TestMailServerOnchangeEncryption(TransactionCase):
         server.smtp_encryption = "none"
         server._onchange_encryption()
         self.assertEqual(server.smtp_port, 25)
-        # The strict variants behave like their plain counterparts.
         server.smtp_encryption = "ssl_strict"
         server._onchange_encryption()
         self.assertEqual(server.smtp_port, 465)

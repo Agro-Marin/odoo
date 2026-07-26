@@ -11,6 +11,7 @@ from . import test_deprecation
 from . import test_db_cursor
 from . import test_db_service_drop
 from . import test_display_name
+from . import test_export_import_roundtrip
 from . import test_expression
 from . import test_float
 from . import test_format_address_mixin
@@ -55,6 +56,7 @@ from . import test_base_language_wizards_audit
 from . import test_base_module_wizards
 from . import test_change_password_wizard_audit
 from . import test_decimal_precision_audit
+from . import test_depends_audit
 from . import test_report_layout_audit
 from . import test_report_modernization
 from . import test_report_paperformat_audit
@@ -81,7 +83,6 @@ from . import test_sql
 from . import test_translate
 from . import test_tz
 
-# from . import test_uninstall  # loop
 from . import test_user_has_group
 from . import test_views
 from . import test_res_company

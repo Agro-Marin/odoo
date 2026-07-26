@@ -41,7 +41,7 @@ class CronMixinCase:
 
         :param cron_id: optional cron id (int) or xmlid (str) to filter by.
         """
-        if isinstance(cron_id, str):  # xmlid case
+        if isinstance(cron_id, str):
             cron_id = self.env.ref(cron_id).id
 
         return RecordCapturer(
@@ -94,8 +94,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.env["ir.cron.trigger"].search(domain).unlink()
         self.env["ir.cron.progress"].search(domain).unlink()
 
-        # pin cr.now() to the frozen datetime so "remaining jobs after some
-        # time" is deterministic
         self.patch(self.env.cr, "now", self.frozen_datetime)
 
     def _acquire_job(self, cr, cron=None):
@@ -148,7 +146,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron.code = textwrap.dedent("raise UserError('oops')")
         with (
             self.enter_registry_test_mode(),
-            self.assertLogs("odoo.addons.base.models.ir_cron", 40),  # logging.ERROR
+            self.assertLogs("odoo.addons.base.models.ir_cron", 40),
             self.registry.cursor() as cron_cr,
         ):
             action = self.cron.with_env(self.env(cr=cron_cr)).method_direct_trigger()
@@ -195,15 +193,15 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
     def test_cron_ready_jobs_order(self):
         cron_avg = self.cron.copy()
-        cron_avg.priority = 5  # average priority
+        cron_avg.priority = 5
 
         cron_high = self.cron.copy()
-        cron_high.priority = 0  # highest priority
+        cron_high.priority = 0
 
         cron_low = self.cron.copy()
-        cron_low.priority = 10  # lowest priority
+        cron_low.priority = 10
 
-        crons = cron_high | cron_avg | cron_low  # order is important
+        crons = cron_high | cron_avg | cron_low
         crons.write({"nextcall": fields.Datetime.now()})
         crons.flush_recordset()
         ready_jobs = self.registry["ir.cron"]._get_all_ready_jobs(self.cr)
@@ -214,8 +212,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_cron_skip_unactive_triggers(self):
-        # Admin disabled the cron, another user triggers it *now*: the cron
-        # must not be ready and the trigger must not be stored.
         self.cron.active = False
         self.cron.nextcall = fields.Datetime.now() + timedelta(days=2)
         self.cron.flush_recordset()
@@ -231,26 +227,19 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertFalse(capture.records, "trigger should has been skipped")
 
     def test_cron_keep_future_triggers(self):
-        # Yesterday an admin disabled the cron; while disabled another user
-        # triggered it to run today. Re-enabled before today, it should run.
 
-        # go yesterday
         self.frozen_datetime.tick(delta=timedelta(days=-1))
 
-        # admin disable the cron
         self.cron.active = False
         self.cron.nextcall = fields.Datetime.now() + timedelta(days=10)
         self.cron.flush_recordset()
 
-        # user triggers the cron to run *tomorrow of yesterday (=today)
         with self.capture_triggers() as capture:
             self.cron._trigger(at=fields.Datetime.now() + timedelta(days=1))
 
-        # admin re-enable the cron
         self.cron.active = True
         self.cron.flush_recordset()
 
-        # go today, check the cron should run
         self.frozen_datetime.tick(delta=timedelta(days=1))
         ready_jobs = self.registry["ir.cron"]._get_all_ready_jobs(self.cr)
         self.assertIn(
@@ -261,9 +250,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertTrue(capture.records, "trigger should has been kept")
 
     def test_trigger_call_at_uses_db_transaction_clock(self):
-        # _trigger must stamp call_at from the DB transaction clock (cr.now),
-        # NOT the process wall clock, so writer and "is it due" reader agree
-        # even when the app host clock differs from the DB's (or lacks tzset).
         db_time = datetime(2020, 1, 1, 12, 0, 0)
         self.patch(self.env.cr, "now", lambda: db_time)
         with self.capture_triggers(self.cron.id) as capture:
@@ -275,7 +261,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_toggle_sets_active_from_domain_existence(self):
-        # Also guards the search_count(limit=1) existence-check optimisation.
         self.env["ir.config_parameter"].sudo().set_param("database.is_neutralized", "")
         self.cron.write({"active": False})
         self.cron.toggle("res.partner", [("id", "=", self.partner.id)])
@@ -284,7 +269,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertFalse(self.cron.active, "empty domain -> cron disabled")
 
     def test_toggle_noop_on_neutralized_database(self):
-        # On a neutralized DB, toggle must never re-enable a disabled cron.
         self.env["ir.config_parameter"].sudo().set_param("database.is_neutralized", "1")
         self.cron.write({"active": False})
         self.cron.toggle("res.partner", [("id", "=", self.partner.id)])
@@ -385,8 +369,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             return f, state
 
         CASES = [
-            #                 IN          |                 OUT
-            #       callback, curr_failures, trigger, call_count, done_count, fail_count, active,
             (nothing, 0, False, 1, 0, 0, True),
             (nothing, almost_failed, False, 1, 0, 0, True),
             (eleven_success, 0, True, 10, 10, 0, True),
@@ -480,7 +462,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
-            # make each run 2 seconds, so that it is run 10 times, 20 seconds in total
             mocked_run_state["duration"] = 2
             self.registry["ir.cron"]._process_job(cr, self._acquire_job(cr))
 
@@ -506,7 +487,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
-            # make each run 0.5 seconds, so that it is run 20 times, 10 seconds in total
             mocked_run_state["duration"] = 0.5
             self.registry["ir.cron"]._process_job(cr, self._acquire_job(cr))
 
@@ -625,9 +605,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
     def test_cron_timeout_failure(self):
         self.cron._trigger()
-        # `_acquire_one_job` joins the latest progress row, so acquired job
-        # dicts carry this row's `progress_id`/`done`/`remaining`/
-        # `timed_out_counter`, as in production.
         self.env["ir.cron.progress"].create(
             [
                 {
@@ -663,9 +640,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
     def test_cron_timeout_success(self):
         self.cron._trigger()
-        # `_acquire_one_job` joins the latest progress row, so acquired job
-        # dicts carry this row's `progress_id`/`done`/`remaining`/
-        # `timed_out_counter`, as in production.
         self.env["ir.cron.progress"].create(
             [
                 {
@@ -709,9 +683,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
     def patch_cron_process_jobs_loop(self):
         """Yield a simplified function for testing `_process_jobs_loop`."""
         self.cron.active = True
-        self.cron.search(
-            [("id", "not in", self.cron.ids)]
-        ).active = False  # deactivate all other for the test
+        self.cron.search([("id", "not in", self.cron.ids)]).active = False
         with (
             self.enter_registry_test_mode(),
             self.registry.cursor() as cr,
@@ -768,7 +740,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         with (
             self.patch_cron_process_jobs_loop() as process_jobs,
             self.patch_run_job() as run,
-            # simulate that record is locked
             patch.object(IrCron, "_acquire_one_job", return_value=None) as acquire,
             patch.object(time, "monotonic", side_effect=lambda: 42 + run.call_count),
         ):
@@ -783,7 +754,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
                 self.cron.env(cr=cr, context={"cron_id": self.cron.id})
             )
 
-            # check remaining time
             cron, progress = cron._add_progress()
             result = cron._commit_progress()
             self.assertEqual(result, float("inf"))
@@ -792,7 +762,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             )._commit_progress()
             self.assertEqual(result, 0)
 
-            # check remaining count
             cron, progress = cron._add_progress()
             cron._commit_progress(remaining=5)
             self.assertEqual(progress.done, 0)
@@ -801,7 +770,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             self.assertEqual(progress.done, 3)
             self.assertEqual(progress.remaining, 7)
 
-            # check processed count
             cron, progress = cron._add_progress()
             cron._commit_progress(remaining=5)
             cron._commit_progress(2)
@@ -814,7 +782,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             self.assertEqual(progress.done, 6)
             self.assertEqual(progress.remaining, 0)
 
-            # check deactivate flag
             cron, progress = cron._add_progress()
             cron._commit_progress(1, deactivate=True)
             self.assertEqual(progress.done, 1)
@@ -867,7 +834,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             self.registry.cursor() as cr,
         ):
             job = self._acquire_job(cr)
-            # Pin the production shape of a job without failure history.
             self.assertEqual(job["failure_count"], 0)
             self.assertIsNone(
                 job["first_failure_date"],
@@ -876,7 +842,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
             self.assertTrue(job["active"])
             self.registry["ir.cron"]._process_job(cr, job)
 
-        # Assert against the row itself, not the ORM cache.
         self.env.cr.execute("SELECT active FROM ir_cron WHERE id = %s", [self.cron.id])
         self.assertFalse(
             self.env.cr.fetchone()[0],
@@ -885,10 +850,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_gc_cron_triggers_uses_transaction_clock(self):
-        # The GC cutoff must come from the transaction clock (cr.now(), the
-        # clock that stamps `call_at`), not the process wall clock. Only the
-        # transaction clock is advanced past the retention window while the
-        # frozen wall clock stays put: the row must be collected.
         self.cron.active = False
         trigger = self.env["ir.cron.trigger"].create(
             {"cron_id": self.cron.id, "call_at": fields.Datetime.now()}
@@ -903,8 +864,6 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_gc_cron_progress_uses_transaction_clock(self):
-        # Same discriminator as test_gc_cron_triggers_uses_transaction_clock,
-        # for the progress GC (cutoff compared against `create_date`).
         progress = self.env["ir.cron.progress"].create(
             [{"cron_id": self.cron.id, "remaining": 0, "done": 0}]
         )
@@ -961,9 +920,6 @@ class TestIrCronAcquireLock(BaseCase):
     def setUp(self):
         super().setUp()
         self.registry = Registry(common.get_db_name())
-        # Commit a dedicated, ready cron so both connections see the row.
-        # nextcall in the past makes the readiness WHERE clause (real worker
-        # path) match without relying on frozen time.
         with self.registry.cursor() as cr:
             env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
             cron = env["ir.cron"].create(
@@ -999,20 +955,16 @@ class TestIrCronAcquireLock(BaseCase):
         """
         IrCronModel = self.registry["ir.cron"]
         with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
-            # Connection A locks the row (no commit -> lock held).
             job_a = IrCronModel._acquire_one_job(cr_a, self.cron_id)
             self.assertIsNotNone(job_a, "connection A should acquire the ready job")
             self.assertEqual(job_a["id"], self.cron_id)
 
-            # B must be skipped by SKIP LOCKED (no block, no row). A broken lock
-            # would return the job; a missing SKIP LOCKED would block to timeout.
             job_b = IrCronModel._acquire_one_job(cr_b, self.cron_id)
             self.assertIsNone(
                 job_b,
                 "connection B must skip the row locked by connection A",
             )
 
-            # Release both locks; the cron stays committed for cleanup.
             cr_a.rollback()
             cr_b.rollback()
 
@@ -1028,7 +980,7 @@ class TestIrCronAcquireLock(BaseCase):
         with self.registry.cursor() as cr_a:
             job_a = IrCronModel._acquire_one_job(cr_a, self.cron_id)
             self.assertIsNotNone(job_a)
-            cr_a.commit()  # release the lock
+            cr_a.commit()
 
         with self.registry.cursor() as cr_b:
             job_b = IrCronModel._acquire_one_job(cr_b, self.cron_id)
@@ -1056,7 +1008,6 @@ class TestIrCronAcquireLock(BaseCase):
             env_b = odoo.api.Environment(cr_b, common.ADMIN_USER_ID, {})
             with self.assertRaises(UserError) as cm:
                 env_b["ir.cron"].browse(self.cron_id).write({"priority": 3})
-            # Pin to the lock guardrail, not some incidental UserError.
             self.assertIn("currently being executed", str(cm.exception))
 
             cr_a.rollback()
@@ -1094,16 +1045,15 @@ class TestIrCronClassifyOutcome(BaseCase):
         FD = CompletionStatus.FULLY_DONE
         PD = CompletionStatus.PARTIALLY_DONE
         FL = CompletionStatus.FAILED
-        # (success, done, remaining) -> expected status (None == keep looping)
         cases = {
-            (False, 0, 0): FL,  # failed, nothing committed
-            (False, 0, 5): FL,  # failed, only remaining known -> failed
-            (False, 3, 0): FL,  # failed, no remaining reported -> failed
-            (False, 3, 5): None,  # failed but progressed -> retry
-            (True, 0, 0): FD,  # no progress API / nothing left
-            (True, 3, 0): FD,  # processed all, none remaining
-            (True, 0, 5): PD,  # remaining known, none processed this pass
-            (True, 3, 5): None,  # processed some, more remain -> loop
+            (False, 0, 0): FL,
+            (False, 0, 5): FL,
+            (False, 3, 0): FL,
+            (False, 3, 5): None,
+            (True, 0, 0): FD,
+            (True, 3, 0): FD,
+            (True, 0, 5): PD,
+            (True, 3, 5): None,
         }
         for (success, done, remaining), expected in cases.items():
             with self.subTest(success=success, done=done, remaining=remaining):
@@ -1115,7 +1065,6 @@ class TestIrCronClassifyOutcome(BaseCase):
                 )
 
     def test_classify_outcome_ignores_magnitude(self):
-        # Only truthiness of done/remaining matters, not the exact count.
         self.assertEqual(
             IrCron._classify_outcome(success=True, done=999, remaining=0),
             CompletionStatus.FULLY_DONE,
@@ -1143,13 +1092,11 @@ class TestIrCronComputeNextCall(TransactionCase):
         self.assertEqual(nextcall, datetime(2026, 1, 4, 0, 0))
 
     def test_daily_keeps_wall_clock_hour_across_spring_forward(self):
-        # 2026-03-08 02:00 EST -> 03:00 EDT (US spring forward).
-        # A 07:00-local daily job is 12:00 UTC before, 11:00 UTC after.
         rec = self._rec("America/New_York")
         nextcall = IrCron._compute_next_call(
             rec,
-            datetime(2026, 3, 7, 12, 0),  # Sat 07:00 EST
-            datetime(2026, 3, 9, 6, 0),  # Mon after the transition
+            datetime(2026, 3, 7, 12, 0),
+            datetime(2026, 3, 9, 6, 0),
             "days",
             1,
         )
@@ -1158,16 +1105,15 @@ class TestIrCronComputeNextCall(TransactionCase):
         self.assertEqual(local.hour, 7, "local wall-clock hour must be preserved")
 
     def test_daily_keeps_wall_clock_hour_across_fall_back(self):
-        # 2026-11-01 02:00 EDT -> 01:00 EST (US fall back).
         rec = self._rec("America/New_York")
         nextcall = IrCron._compute_next_call(
             rec,
-            datetime(2026, 10, 31, 11, 0),  # Sat 07:00 EDT (UTC-4)
-            datetime(2026, 11, 2, 6, 0),  # Mon after the transition
+            datetime(2026, 10, 31, 11, 0),
+            datetime(2026, 11, 2, 6, 0),
             "days",
             1,
         )
-        self.assertEqual(nextcall, datetime(2026, 11, 2, 12, 0))  # 07:00 EST (UTC-5)
+        self.assertEqual(nextcall, datetime(2026, 11, 2, 12, 0))
         local = fields.Datetime.context_timestamp(rec, nextcall)
         self.assertEqual(local.hour, 7, "local wall-clock hour must be preserved")
 
@@ -1183,9 +1129,6 @@ class TestIrCronComputeNextCall(TransactionCase):
                 self.assertGreater(nextcall, now)
 
     def test_fixed_interval_catchup_matches_stepwise_loop(self):
-        # minutes/hours take an arithmetic fast path; it must reproduce the
-        # stepwise loop's postcondition exactly: advance by whole intervals
-        # from the original nextcall until strictly past now.
         rec = self._rec("America/New_York")
         now = datetime(2026, 6, 15, 12, 0)
         for interval_type, interval_number, overdue in [
@@ -1209,8 +1152,6 @@ class TestIrCronComputeNextCall(TransactionCase):
                 )
 
     def test_fixed_interval_boundary_nextcall_equals_now_advances_once(self):
-        # The loop advances once when nextcall == now (`<=` guard); the
-        # arithmetic path must too.
         rec = self._rec("UTC")
         now = datetime(2026, 6, 15, 12, 0)
         for interval_type in ("minutes", "hours"):
@@ -1221,8 +1162,6 @@ class TestIrCronComputeNextCall(TransactionCase):
                 )
 
     def test_fixed_interval_future_nextcall_unchanged(self):
-        # nextcall already strictly past now -> the loop would not run; the
-        # arithmetic path must leave it untouched as well.
         rec = self._rec("UTC")
         now = datetime(2026, 6, 15, 12, 0)
         future = now + timedelta(seconds=1)
@@ -1231,9 +1170,6 @@ class TestIrCronComputeNextCall(TransactionCase):
         )
 
     def test_fixed_interval_long_overdue_catchup(self):
-        # The motivating case for the fast path: a 1-minute cron 400 days
-        # overdue (576,000+ steps for the loop) must land on the next whole
-        # interval past now, phase-aligned with the original nextcall.
         rec = self._rec("UTC")
         now = datetime(2026, 6, 15, 12, 0, 30)
         nextcall = now - timedelta(days=400)
@@ -1252,7 +1188,6 @@ class TestIrCronShouldContinue(BaseCase):
     """
 
     def test_terminal_status_stops_immediately(self):
-        # Even with no passes done and unlimited budget, a terminal status ends it.
         for status in CompletionStatus:
             with self.subTest(status=status):
                 self.assertFalse(
@@ -1262,7 +1197,6 @@ class TestIrCronShouldContinue(BaseCase):
                 )
 
     def test_under_min_runs_continues_even_with_no_time_left(self):
-        # Time budget already spent (now >= end_time) but below the pass floor.
         self.assertTrue(
             IrCron._should_continue_run(
                 status=None, loop_count=MIN_RUNS_PER_JOB - 1, now=100.0, end_time=0.0
@@ -1277,7 +1211,6 @@ class TestIrCronShouldContinue(BaseCase):
         )
 
     def test_min_runs_reached_but_time_left_continues(self):
-        # Past the pass floor but still within the time budget -> keep looping.
         self.assertTrue(
             IrCron._should_continue_run(
                 status=None,
@@ -1324,14 +1257,12 @@ class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
 
     def test_failure_below_count_threshold_increments_only(self):
         old = self._now() - MIN_DELTA_BEFORE_DEACTIVATION - timedelta(days=1)
-        # count reaches 3 (< MIN_FAILURE_COUNT_BEFORE_DEACTIVATION): the old date
-        # alone must not deactivate.
         self._apply(CompletionStatus.FAILED, failure_count=2, first_failure_date=old)
         self.assertEqual(self.cron.failure_count, 3)
         self.assertTrue(self.cron.active)
 
     def test_count_met_but_time_window_open_keeps_active(self):
-        recent = self._now()  # first failure "now" -> window not elapsed
+        recent = self._now()
         self._apply(
             CompletionStatus.FAILED,
             failure_count=MIN_FAILURE_COUNT_BEFORE_DEACTIVATION - 1,
@@ -1360,9 +1291,6 @@ class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
                 self.cron.write(
                     {"failure_count": 3, "first_failure_date": old, "active": True}
                 )
-                # Flush the ORM write to the row before _update_failure_count's
-                # raw-SQL UPDATE, otherwise the pending ORM value would be flushed
-                # on read-back and clobber it.
                 self.cron.flush_recordset()
                 self._apply(status, failure_count=3, first_failure_date=old)
                 self.assertEqual(self.cron.failure_count, 0)
@@ -1395,9 +1323,6 @@ class TestIrCronDbChecks(TransactionCase):
                 IrCron._check_version(self.cr)
 
     def test_check_version_missing_row_raises_bad_module_state(self):
-        # A wholly absent ``base`` row is a not-ready (module state) signal, not
-        # an opaque TypeError from unpacking an empty ``fetchone()``. Hide the row
-        # by renaming rather than deleting (FKs reference it by id).
         with closing(self.cr.savepoint()):
             self.cr.execute(
                 "UPDATE ir_module_module SET name = 'base__hidden' WHERE name = 'base'"
@@ -1406,21 +1331,14 @@ class TestIrCronDbChecks(TransactionCase):
                 IrCron._check_version(self.cr)
 
     def test_check_version_match_passes(self):
-        # The live test DB is installed at the current base version.
-        IrCron._check_version(self.cr)  # must not raise
+        IrCron._check_version(self.cr)
 
     def test_check_modules_state_stable_passes(self):
-        # No module in a transient ``to ...`` state -> no-op. Don't assume the
-        # live DB is stable: during an install/upgrade run (``-i/-u ...
-        # --test-enable``) base's at_install tests execute while sibling
-        # modules still sit in ``to install``. Fabricate the stable state
-        # inside a savepoint, exactly like the sibling tests fabricate the
-        # transient one.
         with closing(self.cr.savepoint()):
             self.cr.execute(
                 "UPDATE ir_module_module SET state = 'installed' WHERE state LIKE 'to %'"
             )
-            IrCron._check_modules_state(self.cr, jobs=[])  # must not raise
+            IrCron._check_modules_state(self.cr, jobs=[])
 
     def test_check_modules_state_transient_no_jobs_raises(self):
         with closing(self.cr.savepoint()):
@@ -1442,8 +1360,6 @@ class TestIrCronDbChecks(TransactionCase):
                 )
 
     def test_check_modules_state_transient_stale_job_forces_reset(self):
-        # A ready job older than MAX_FAIL_TIME while modules are stuck is taken
-        # as a zombie state -> reset_modules_state is forced (mocked here).
         stale = fields.Datetime.now() - MAX_FAIL_TIME - timedelta(hours=1)
         with closing(self.cr.savepoint()):
             self.cr.execute(

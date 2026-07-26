@@ -10,14 +10,7 @@ class IrDemo_Failure(models.TransientModel):
     _description = "Demo failure"
 
     module_id = fields.Many2one("ir.module.module", required=True, string="Module")
-    # Full multi-line traceback.format_exc(); Text so long tracebacks render readably.
     error = fields.Text(string="Error")
-    # Orphan-row contract (latent IDEMOF-L1): load_demo creates rows with wizard_id
-    # unset; base.demo_failure_action later collects the orphans and links them.
-    # Both models are transient, so _transient_vacuum can unlink rows older than
-    # transient_age_limit — if the cron fires between a slow demo load and the dialog
-    # opening, failures vanish and the count under-reports. Fix is a design change
-    # (link immediately, exclude from vacuum, or make non-transient), not done here.
     wizard_id = fields.Many2one("ir.demo_failure.wizard")
 
 

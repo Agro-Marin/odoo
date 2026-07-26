@@ -20,7 +20,6 @@ class TestIrDefault(TransactionCase):
         field = self.env["ir.model.fields"]._get("res.partner", "ref")
         IrDefault.search([("field_id", "=", field.id)]).unlink()
 
-        # set() twice for the same scope → exactly one row, latest value wins.
         IrDefault.set("res.partner", "ref", "A")
         IrDefault.set("res.partner", "ref", "B")
         rows = IrDefault.search(
@@ -34,7 +33,6 @@ class TestIrDefault(TransactionCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(IrDefault._get_model_defaults("res.partner").get("ref"), "B")
 
-        # A direct duplicate of that scope violates the UNIQUE index.
         with (
             mute_logger("odoo.db.cursor"),
             self.assertRaisesRegex(IntegrityError, "ir_default_unique_scope"),
@@ -58,12 +56,10 @@ class TestIrDefault(TransactionCase):
             }
         )
 
-        # create some default value for some model
         IrDefault1 = self.env["ir.default"]
         IrDefault2 = IrDefault1.with_user(user2)
         IrDefault3 = IrDefault1.with_user(user3)
 
-        # set a default value for all users
         IrDefault1.search([("field_id.model", "=", "res.partner")]).unlink()
         IrDefault1.set("res.partner", "ref", "GLOBAL", user_id=False, company_id=False)
         self.assertEqual(
@@ -82,7 +78,6 @@ class TestIrDefault(TransactionCase):
             "Can't retrieve the created default value for all users.",
         )
 
-        # set a default value for current company (behavior of 'set default' from debug mode)
         IrDefault1.set("res.partner", "ref", "COMPANY", user_id=False, company_id=True)
         self.assertEqual(
             IrDefault1._get_model_defaults("res.partner"),
@@ -100,7 +95,6 @@ class TestIrDefault(TransactionCase):
             "Unexpected default value for company.",
         )
 
-        # set a default value for current user (behavior of 'set default' from debug mode)
         IrDefault2.set("res.partner", "ref", "USER", user_id=True, company_id=True)
         self.assertEqual(
             IrDefault1._get_model_defaults("res.partner"),
@@ -118,7 +112,6 @@ class TestIrDefault(TransactionCase):
             "Unexpected default value for company.",
         )
 
-        # check default values on partners
         default1 = IrDefault1.env["res.partner"].default_get(["ref"]).get("ref")
         self.assertEqual(default1, "COMPANY", "Wrong default value.")
         default2 = IrDefault2.env["res.partner"].default_get(["ref"]).get("ref")
@@ -130,7 +123,6 @@ class TestIrDefault(TransactionCase):
         """check user-defined defaults with condition"""
         IrDefault = self.env["ir.default"]
 
-        # default without condition
         IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
         IrDefault.set("res.partner", "ref", "X")
         self.assertEqual(IrDefault._get_model_defaults("res.partner"), {"ref": "X"})
@@ -139,7 +131,6 @@ class TestIrDefault(TransactionCase):
             {},
         )
 
-        # default with a condition
         IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
         IrDefault.set("res.partner", "street", "X")
         IrDefault.set("res.partner", "street", "Mr", condition="name=Mister")
@@ -172,7 +163,6 @@ class TestIrDefault(TransactionCase):
         IrDefault = self.env["ir.default"]
         IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
 
-        # set a record as a default value
         country_id = self.env["res.country"].create({"name": "country", "code": "ZZ"})
         IrDefault.set("res.partner", "country_id", country_id.id)
         self.assertEqual(
@@ -180,7 +170,6 @@ class TestIrDefault(TransactionCase):
             {"country_id": country_id.id},
         )
 
-        # delete the record, and check the presence of the default value
         country_id.unlink()
         self.assertEqual(IrDefault._get_model_defaults("res.partner"), {})
 
@@ -247,9 +236,6 @@ class TestIrDefault(TransactionCase):
                     "json_value": '{"name":"John", }',
                 }
             )
-        # IDEF-C1: an out-of-int4-bounds integer default must be rejected by the
-        # constraint too (not only by set()), since the constraint is the sole
-        # guard on a direct create/write (e.g. from the form view).
         color_field = self.env["ir.model.fields"].search(
             [("model", "=", "res.partner"), ("name", "=", "color")]
         )
@@ -266,21 +252,16 @@ class TestIrDefault(TransactionCase):
         IrDefault = self.env["ir.default"]
         IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
 
-        # no default yet
         self.assertIsNone(IrDefault._get("res.partner", "ref"))
 
-        # a global default round-trips
         IrDefault.set("res.partner", "ref", "GLOBAL")
         self.assertEqual(IrDefault._get("res.partner", "ref"), "GLOBAL")
 
-        # _get matches an exact scope, it does not fall back: a user+company
-        # default is only visible for that precise scope
         IrDefault.set("res.partner", "ref", "MINE", user_id=True, company_id=True)
         self.assertEqual(
             IrDefault._get("res.partner", "ref", user_id=True, company_id=True),
             "MINE",
         )
-        # the ``True`` sentinels resolve to the current user / company
         self.assertEqual(
             IrDefault._get(
                 "res.partner",
@@ -290,9 +271,7 @@ class TestIrDefault(TransactionCase):
             ),
             "MINE",
         )
-        # the global default is still returned for the global scope
         self.assertEqual(IrDefault._get("res.partner", "ref"), "GLOBAL")
-        # an unmatched scope yields None
         self.assertIsNone(
             IrDefault._get("res.partner", "ref", user_id=self.env.uid + 1000)
         )
@@ -319,7 +298,6 @@ class TestIrDefault(TransactionCase):
         IrDefault.discard_values("res.partner", "ref", ["OTHER", "DROP"])
         self.assertIsNone(IrDefault._get("res.partner", "ref"))
 
-        # a value absent from the list leaves the default untouched
         IrDefault.set("res.partner", "ref", "KEEP")
         IrDefault.discard_values("res.partner", "ref", ["NOPE"])
         self.assertEqual(IrDefault._get("res.partner", "ref"), "KEEP")
@@ -342,17 +320,13 @@ class TestIrDefault(TransactionCase):
             mocked_write.call_count, 0, "an identical set() must not write"
         )
 
-        # a genuine change still updates in place
         IrDefault.set("res.partner", "ref", "CHANGED")
         self.assertEqual(IrDefault._get("res.partner", "ref"), "CHANGED")
 
     def test_set_checks_field_write_access(self):
         """A user may only set a default for a field they are allowed to write."""
-        # ``ir.mail_server.smtp_user`` is restricted to ``base.group_system``.
         model_name, field_name = "ir.mail_server", "smtp_user"
 
-        # an unprivileged internal user can create their own defaults (record
-        # rule), but not for a field they cannot write (field-level check)
         plain_user = new_test_user(
             self.env, login="ird_plain_user", groups="base.group_user"
         )
@@ -361,7 +335,6 @@ class TestIrDefault(TransactionCase):
                 model_name, field_name, "smtp-login", user_id=True
             )
 
-        # a system user (still not the superuser) is allowed
         system_user = new_test_user(
             self.env,
             login="ird_system_user",

@@ -7,9 +7,6 @@ from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
-# PostgreSQL ``int4`` range. Both entry points (``set`` and the
-# ``_check_json_format`` constraint) reject out-of-range values up front via
-# ``_fits_column`` rather than failing later against the real column (IDEF-C1).
 INT4_MIN = -(2**31)
 INT4_MAX = 2**31 - 1
 
@@ -49,18 +46,10 @@ class IrDefault(models.Model):
     )
     json_value = fields.Char("Default Value (JSON format)", required=True)
 
-    # One default per scope.  NULL user_id/company_id/condition are folded via
-    # COALESCE so the all-NULL scope is unique too; otherwise a concurrent
-    # ``set()`` race leaves permanent shadow rows the read path silently ignores.
-    # See migrations/1.5/pre-migration.py for the one-time dedupe.
     _unique_scope = models.UniqueIndex(
         "(field_id, COALESCE(user_id, 0), COALESCE(company_id, 0),"
         " COALESCE(condition, ''))"
     )
-
-    # ------------------------------------------------------------------
-    # Value validation (shared by set() and the create/write constraint)
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _fits_column(field, parsed: Any) -> bool:
@@ -108,18 +97,12 @@ class IrDefault(models.Model):
                 )
 
     def _check_accessible_field_id(self) -> None:
-        # a user may only set a default for a field they can write; called
-        # after record-level access has been checked
         if self.env.su:
             return
         for record in self:
             if field := record.field_id:
                 model = self.env[field.model]
                 model._check_field_access(model._fields[field.name], "write")
-
-    # ------------------------------------------------------------------
-    # Cache invalidation on any change to the stored defaults
-    # ------------------------------------------------------------------
 
     def _invalidate_defaults_cache(self) -> None:
         """Drop the caches derived from the stored defaults.
@@ -152,10 +135,6 @@ class IrDefault(models.Model):
         if self:
             self._invalidate_defaults_cache()
         return result
-
-    # ------------------------------------------------------------------
-    # Scope helpers (shared by set() and _get())
-    # ------------------------------------------------------------------
 
     def _resolve_scope(
         self, user_id: int | bool, company_id: int | bool
@@ -212,8 +191,6 @@ class IrDefault(models.Model):
         """
         user_id, company_id = self._resolve_scope(user_id, company_id)
 
-        # resolve the model and field, distinguishing an unknown field (KeyError)
-        # from an unconvertible value (ValueError/TypeError) for a precise message
         try:
             model = self.env[model_name]
             orm_field = model._fields[field_name]
@@ -255,7 +232,6 @@ class IrDefault(models.Model):
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
         if default:
-            # avoid busting the cache when nothing actually changes
             if default.json_value != json_value:
                 default.write({"json_value": json_value})
         else:
@@ -298,9 +274,6 @@ class IrDefault(models.Model):
 
     @api.model
     @tools.ormcache("self.env.uid", "self.env.company.id", "model_name", "condition")
-    # ormcache invalidation is not needed when deleting a field, user or company
-    # (those defaults will no longer be requested); only when a user's company
-    # changes.
     def _get_model_defaults(
         self, model_name: str, condition: str | bool = False
     ) -> dict[str, Any]:
@@ -309,16 +282,12 @@ class IrDefault(models.Model):
         """
         cr = self.env.cr
         self.flush_model()
-        # self.env.company is empty when there is no user (controllers with auth=None)
         company_id = self.env.company.id or None
         condition_clause = (
             tools.SQL("d.condition = %s", condition)
             if condition
             else tools.SQL("d.condition IS NULL")
         )
-        # Priority: user-and-company specific > user > company > global. The
-        # ``IS NOT NULL`` sort keys put the most specific row first explicitly,
-        # not relying on PostgreSQL's default NULLS ordering.
         query = tools.SQL(
             """ SELECT f.name, d.json_value
                 FROM ir_default d
@@ -339,7 +308,6 @@ class IrDefault(models.Model):
         cr.execute(query)
         result = {}
         for row in cr.fetchall():
-            # keep the highest priority default for each field (first seen wins)
             if row[0] not in result:
                 result[row[0]] = json.loads(row[1])
         return result
@@ -367,9 +335,6 @@ class IrDefault(models.Model):
 
     @tools.ormcache("model_name", "field_name")
     def _get_field_column_fallbacks(self, model_name: str, field_name: str) -> str:
-        # Use cr.execute directly instead of execute_query to avoid the
-        # flush_query → _flush → _execute_update → _get_field_column_fallbacks
-        # re-entrancy path that can leave cursor.description=None with psycopg3.
         cr = self.env.cr
         cr.execute("SELECT ARRAY_AGG(id) FROM res_company")
         company_ids = cr.fetchone()[0] or []

@@ -12,31 +12,31 @@ class TestGroupsObject(common.BaseCase):
         cls.definitions = SetDefinitions(
             {
                 1: {"ref": "A"},
-                2: {"ref": "A1", "supersets": [1]},  # A1 <= A
-                3: {"ref": "A11", "supersets": [2]},  # A11 <= A1
-                4: {"ref": "A2", "supersets": [1]},  # A2 <= A
-                5: {"ref": "A21", "supersets": [4]},  # A21 <= A2
-                6: {"ref": "A22", "supersets": [4]},  # A22 <= A2
+                2: {"ref": "A1", "supersets": [1]},
+                3: {"ref": "A11", "supersets": [2]},
+                4: {"ref": "A2", "supersets": [1]},
+                5: {"ref": "A21", "supersets": [4]},
+                6: {"ref": "A22", "supersets": [4]},
                 7: {"ref": "B"},
-                8: {"ref": "B1", "supersets": [7]},  # B1 <= B
-                9: {"ref": "B11", "supersets": [8]},  # B11 <= B1
-                10: {"ref": "B2", "supersets": [7]},  # B2 <= B
+                8: {"ref": "B1", "supersets": [7]},
+                9: {"ref": "B11", "supersets": [8]},
+                10: {"ref": "B2", "supersets": [7]},
                 11: {
                     "ref": "BX",
-                    "supersets": [7],  # BX <= B
+                    "supersets": [7],
                     "disjoints": [8, 10],
-                },  # BX disjoint from B1, B2
-                12: {"ref": "A1B1", "supersets": [2, 8]},  # A1B1 <= A1, B1
+                },
+                12: {"ref": "A1B1", "supersets": [2, 8]},
                 13: {"ref": "C"},
-                14: {"ref": "D", "disjoints": [1, 7]},  # D disjoint from A, B
+                14: {"ref": "D", "disjoints": [1, 7]},
                 15: {
                     "ref": "E",
                     "disjoints": [1, 7, 14],
-                },  # E disjoint from A, B, D
+                },
                 16: {
                     "ref": "E1",
                     "supersets": [15],
-                },  # E1 <= E (and thus disjoint from A, B, D)
+                },
             }
         )
 
@@ -233,7 +233,6 @@ class TestGroupsObject(common.BaseCase):
         De Morgan expands ``~((A1 & A2) | ...)`` to ``2**N`` terms for N two-leaf
         disjuncts, so a pathological expression must be guarded, not materialized.
         """
-        # 40 groups -> 20 two-leaf intersections; inverting = 2**20 terms.
         defs = SetDefinitions({i: {"ref": f"g{i}"} for i in range(1, 41)})
         groups = [defs.parse(f"g{i}") for i in range(1, 41)]
         expr = defs.empty
@@ -243,7 +242,6 @@ class TestGroupsObject(common.BaseCase):
         with self.assertRaises(SetExpressionError):
             _ = ~expr
 
-        # A small inversion of the same shape still succeeds.
         small = (groups[0] & groups[1]) | (groups[2] & groups[3])
         self.assertTrue(str(~small))
 
@@ -666,7 +664,7 @@ class TestGroupsOdoo(common.TransactionCase):
         self.assertEqual(parse("base.group_system") <= parse("base.group_system"), True)
         self.assertEqual(
             parse("base.group_public") <= parse("base.group_system"), False
-        )  # None ?
+        )
         self.assertEqual(parse("base.group_user") <= parse("base.group_system"), False)
         self.assertEqual(parse("base.group_system") <= parse("base.group_user"), True)
         self.assertEqual(parse("base.group_user") <= parse("base.group_portal"), False)
@@ -1169,7 +1167,6 @@ class TestGroupsOdoo(common.TransactionCase):
         )
 
         tests = [
-            # group on the user, # groups access, access
             (
                 "base.group_public",
                 "base.group_system | base.group_public",
@@ -1292,7 +1289,6 @@ class TestGroupsOdoo(common.TransactionCase):
             }
         )
 
-        # update res.users groups with distinct groups
         with self.assertRaises(
             ValidationError,
             msg="The user cannot have more than one user types.",
@@ -1306,7 +1302,6 @@ class TestGroupsOdoo(common.TransactionCase):
 
         user.group_ids = self.env.ref("base.group_user") + self.test_group
 
-        # update res.group implied_ids having the effect that users have distinct groups
         with self.assertRaises(
             ValidationError,
             msg="The user cannot have more than one user types.",
@@ -1318,7 +1313,6 @@ class TestGroupsOdoo(common.TransactionCase):
         ):
             self.env.ref("base.group_public").implied_by_ids = self.test_group
 
-        # this works because public user is inactive
         self.env.ref("base.group_public").implied_ids += self.test_group
 
 
@@ -1333,8 +1327,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # The `groups` cache is registry-wide and not rolled back with the
-        # transaction; clear it so rolled-back records do not linger.
         self.addCleanup(self.env.registry.clear_cache, "groups")
 
     def test_group_rename_invalidates_view_group_hierarchy(self):
@@ -1384,7 +1376,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         )
         user.group_ids += group
 
-        # Warm the @ormcache (default family); the group must be present.
         self.assertIn(
             group.id,
             user._get_group_ids(),
@@ -1393,8 +1384,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
 
         group.unlink()
 
-        # No intervening default-flushing op: the unlink override itself must
-        # have busted the `default` family.
         self.assertNotIn(
             group.id,
             user._get_group_ids(),
@@ -1409,8 +1398,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         """
         Groups = self.env["res.groups"]
 
-        # _is_feature_enabled checks PROPER implication by group_user (a group
-        # never implies itself), so the feature needs its own external id.
         feature = Groups.create({"name": "Audit RG-T2 Feature"})
         self.env["ir.model.data"].create(
             {
@@ -1426,7 +1413,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
             "a feature group implied by group_user is enabled for all internal users",
         )
 
-        # A standalone group that nothing implies is not a global feature.
         standalone = Groups.create({"name": "Audit RG-T2 Standalone"})
         self.env["ir.model.data"].create(
             {
@@ -1441,7 +1427,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
             "a standalone group not implied by group_user must be disabled",
         )
 
-        # An unknown reference resolves to no feature id.
         self.assertFalse(
             Groups._is_feature_enabled("base.this_group_does_not_exist"),
             "an unknown group reference must return False",
@@ -1454,7 +1439,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
         Groups = self.env["res.groups"]
         Privilege = self.env["res.groups.privilege"]
 
-        # Warm, then create: the privilege must appear.
         Groups._get_view_group_hierarchy()
         privilege = Privilege.create({"name": "Audit RGP-T1"})
         hierarchy = Groups._get_view_group_hierarchy()
@@ -1464,7 +1448,6 @@ class TestGroupsCacheInvalidation(common.TransactionCase):
             "create did not invalidate the groups-family view_group_hierarchy",
         )
 
-        # Warm again, then unlink: the privilege must disappear.
         Groups._get_view_group_hierarchy()
         privilege_id = privilege.id
         privilege.unlink()
@@ -1516,7 +1499,6 @@ class TestAllUsersCount(common.TransactionCase):
                 "group_ids": [Command.link(group_implying.id)],
             }
         )
-        # Default context: archived members excluded, like len(all_user_ids).
         self.assertEqual(group_base.all_users_count, 2)
         self.assertEqual(group_implying.all_users_count, 1)
         self.assertEqual(
@@ -1527,9 +1509,6 @@ class TestAllUsersCount(common.TransactionCase):
         self.assertEqual(
             group_implying.all_users_count, len(group_implying.all_user_ids)
         )
-        # active_test=False context: archived members included, like the
-        # relational read (invalidate first: the non-stored integer cache is
-        # context-independent).
         self.env.invalidate_all()
         base_no_active_test = group_base.with_context(active_test=False)
         implying_no_active_test = group_implying.with_context(active_test=False)
@@ -1575,10 +1554,7 @@ class TestPrivilegeGroupSorting(common.TransactionCase):
             }
         )
         result = Groups._sorted_privilege_group_ids(privilege)
-        # implication counts (self included): g1 -> 1, g2 -> 2, g3 -> 3
         self.assertEqual(result, [g1.id, g2.id, g3.id])
-        # same-count groups fall back to sequence: give g3 its own privilege
-        # so g2/g1 stay, then equalize counts via a fresh pair
         ga = Groups.create(
             {"name": "priv ga", "privilege_id": privilege.id, "sequence": 9}
         )
@@ -1586,8 +1562,6 @@ class TestPrivilegeGroupSorting(common.TransactionCase):
             {"name": "priv gb", "privilege_id": privilege.id, "sequence": 1}
         )
         result = Groups._sorted_privilege_group_ids(privilege)
-        # ga/gb imply only themselves (count 1, like g1): sequence decides
         self.assertEqual(result, [gb.id, g1.id, ga.id, g2.id, g3.id])
-        # the hierarchy consumed by the web client uses the helper's order
         hierarchy = Groups._get_view_group_hierarchy()
         self.assertEqual(hierarchy["privileges"][privilege.id]["group_ids"], result)

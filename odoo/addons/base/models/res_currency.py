@@ -16,18 +16,8 @@ from odoo.tools import SQL, ormcache, parse_date
 
 _logger = logging.getLogger(__name__)
 
-# Total digits in the Float ``digits`` tuple; 69 (kept from upstream) is an
-# arbitrarily large count so the integer part is effectively never truncated.
 _CURRENCY_TOTAL_DIGITS = 69
 
-# RCUR-M1: ``env.cr.cache`` key of the transaction-scoped rate-history memo::
-#
-#     {(currency_id, company_root_id):
-#         ((specific_dates, specific_values), (global_dates, global_values))}
-#
-# Populated by ``_get_rates_from_memo``, dropped by
-# ``ResCurrencyRate.create/write/unlink``. ``cr.cache`` is transaction-local
-# (cleared on rollback/reset), so cross-transaction staleness cannot occur.
 RATE_HISTORY_CACHE_KEY = "res_currency_rate_history"
 
 
@@ -37,7 +27,6 @@ class ResCurrency(models.Model):
     _rec_names_search = ["name", "full_name"]
     _order = "active desc, name"
 
-    # 'code' column was removed in v6.0; 'name' now holds the ISO code.
     name = fields.Char(
         string="Currency",
         size=3,
@@ -104,21 +93,18 @@ class ResCurrency(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
         self._toggle_group_multi_currency()
-        # invalidate cache for get_all_currencies
         self.env.registry.clear_cache("stable")
         return res
 
     def unlink(self) -> bool:
         res = super().unlink()
         self._toggle_group_multi_currency()
-        # invalidate cache for get_all_currencies
         self.env.registry.clear_cache("stable")
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
         res = super().write(vals)
         if vals.keys() & {"active", "name", "position", "symbol", "rounding"}:
-            # invalidate cache for get_all_currencies
             self.env.registry.clear_cache("stable")
         if "active" not in vals:
             return res
@@ -153,10 +139,6 @@ class ResCurrency(models.Model):
         if self.env.context.get("install_mode") or self.env.context.get(
             "force_deactivate"
         ):
-            # install_mode: at install the "active" field of a currency added to a
-            #   company still evaluates False despite being auto-set True on add.
-            # force_deactivate: allows deactivating a currency in tests for
-            #   non-multi-currency behaviours.
             return
 
         currencies = self.filtered(lambda c: not c.active)
@@ -178,9 +160,6 @@ class ResCurrency(models.Model):
         """
         if not self.ids:
             return {}
-        # RCUR-M1: first lookup per (currency, company root) loads the full rate
-        # history into the memo; later dates resolve by bisect, so batch flows
-        # with per-line dates avoid one SQL query per (date, company, currency).
         rates = self._get_rates_from_memo(company, date)
         if rates is not None:
             return rates
@@ -213,9 +192,6 @@ class ResCurrency(models.Model):
                 currency_id,
             )
         )
-        # RCUR-L1: fallback for dates before the currency's first recorded rate.
-        # 'name ASC' is deliberate — it returns the *earliest* known rate,
-        # asymmetric with the primary 'name DESC' selection, not a bug.
         rate_fallback = Rate._search(
             [
                 ("company_id", "in", (False, company.root_id.id)),
@@ -282,9 +258,6 @@ class ResCurrency(models.Model):
                 specific, global_ = histories[rate.currency_id.id]
                 dates, values = specific if rate.company_id else global_
                 dates.append(rate.name)
-                # CHECK (rate > 0) forbids 0.0, so a falsy value is SQL NULL,
-                # which the COALESCE chain skips — keep None so
-                # _resolve_rate_from_history matches.
                 values.append(rate.rate or None)
             for currency_id, history in histories.items():
                 memo[currency_id, root_id] = history
@@ -314,8 +287,6 @@ class ResCurrency(models.Model):
         elif index := bisect_right(global_dates, date):
             value = global_values[index - 1]
         if value is None:
-            # RCUR-L1 asymmetric fallback: earliest known rate; may itself be
-            # a NULL-valued row (then the final 1.0 identity applies).
             if specific_values:
                 value = specific_values[0]
             elif global_values:
@@ -328,12 +299,6 @@ class ResCurrency(models.Model):
         for currency in self:
             currency.is_current_company_currency = company_currency == currency
 
-    # RCUR-C1: selection depends on the rate's date ('name') and company scope,
-    # not only its value — declaring all three keeps the owning currency's
-    # cached rate/inverse_rate/rate_string consistent. It does not replace the
-    # invalidate_model() calls in ResCurrencyRate: another currency's cached
-    # values can depend on this one's rates (via 'to_currency' or as the company
-    # currency), a cross-record dependency @api.depends cannot express.
     @api.depends("rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:
@@ -397,8 +362,6 @@ class ResCurrency(models.Model):
         integer_value = int(integral)
         lang = tools.get_lang(self.env)
         integral_text = _num2words(integer_value, lang=lang.iso_code)
-        # For amounts in (-1, 0), int("-0") == 0 silently loses the sign.
-        # num2words also drops "minus" for such values, so prepend manually.
         if amount < 0 and integer_value == 0:
             integral_text = self.env._("Minus %s", integral_text)
         if self.is_zero(amount - integer_value):
@@ -500,6 +463,8 @@ class ResCurrency(models.Model):
     ) -> float:
         """Return ``from_amount`` converted from ``self`` to ``to_currency``.
 
+        :param company: company whose rates are used to look up the conversion
+        :param date: date at which the conversion rate is taken
         :param bool round: round the result to ``to_currency``'s precision
         """
         if from_amount is None:
@@ -514,10 +479,8 @@ class ResCurrency(models.Model):
             raise UserError(
                 self.env._("Cannot convert amount: target currency is not set.")
             )
-        # RCUR-L2: conversion is defined for a single source/target pair.
         self.ensure_one()
         to_currency.ensure_one()
-        # Short-circuit on zero to avoid a needless rate lookup.
         if not from_amount:
             return 0.0
         to_amount = from_amount * self._get_conversion_rate(
@@ -672,49 +635,36 @@ class ResCurrencyRate(models.Model):
         return vals
 
     def write(self, vals: dict[str, Any]) -> bool:
-        # Other currencies' rate/inverse_rate/rate_string may be computed against
-        # self's rate rows (company/context currency and 'to_currency' in
-        # _compute_current_rate) — a cross-record dependency @api.depends cannot
-        # express, so invalidate all three model-wide.
         self.env["res.currency"].invalidate_model(
             ["rate", "inverse_rate", "rate_string"]
         )
         res = super().write(self._sanitize_vals(vals))
-        # RCUR-M1: drop the transaction-scoped rate-history memo too.
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
         return res
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # Model-wide invalidation for the same reason as write() above.
         self.env["res.currency"].invalidate_model(
             ["rate", "inverse_rate", "rate_string"]
         )
         records = super().create([self._sanitize_vals(vals) for vals in vals_list])
-        # RCUR-M1: drop the transaction-scoped rate-history memo too.
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
         return records
 
     def unlink(self) -> bool:
-        # Cross-record invalidation for the same reason as write() above.
         self.env["res.currency"].invalidate_model(
             ["rate", "inverse_rate", "rate_string"]
         )
         res = super().unlink()
-        # RCUR-M1: drop the transaction-scoped rate-history memo too.
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
         return res
 
     def _get_latest_rate(self) -> Self:
-        # Make sure 'name' is defined when creating a new rate.
         if not self.name:
             raise UserError(
                 self.env._("The name for the current rate is empty.\nPlease set it.")
             )
         company = self.company_id or self.env.company.root_id
-        # RCUR-P1: rate_ids is ordered "name desc, id" and dates are unique per
-        # (currency, company), so the first match below is the latest rate
-        # strictly before 'name' — no full filter + re-sort needed.
         for rate in self.currency_id.rate_ids.sudo():
             if rate.rate and rate.company_id == company and rate.name < self.name:
                 return rate
@@ -723,8 +673,6 @@ class ResCurrencyRate(models.Model):
     def _get_last_rates_for_companies(self, companies: Any) -> dict:
         result = {}
         for company in companies:
-            # max by (name, id) matches the previous stable
-            # .sorted("name")[-1:] tie-breaking without a per-company sort.
             last = max(
                 (
                     rate
@@ -746,15 +694,11 @@ class ResCurrencyRate(models.Model):
         last_rate = self.env["res.currency.rate"]._get_last_rates_for_companies(
             self.company_id | env_company_root
         )
-        # RCUR-P1: precompute, per (currency, company), the [(date, rate)] list
-        # sorted by date once, then bisect per record — instead of filtering
-        # and re-sorting the currency's whole rate history for every record.
         rates_per_key = {}
         for currency_rate in self:
             company = currency_rate.company_id or env_company_root
             rate = currency_rate.rate
             if not rate:
-                # Same guard as _get_latest_rate: a dated lookup needs a date.
                 if not currency_rate.name:
                     raise UserError(
                         self.env._(
@@ -769,12 +713,7 @@ class ResCurrencyRate(models.Model):
                         for rate_sudo in currency_rate.currency_id.rate_ids.sudo()
                         if rate_sudo.rate and rate_sudo.company_id == company
                     ]
-                    # rate_ids is ordered "name desc, id": reverse to the
-                    # date-ascending order bisect needs (dates unique per
-                    # currency/company).
                     candidates.reverse()
-                # Latest rate strictly before this record's date, like
-                # _get_latest_rate; 1.0 when there is none.
                 index = bisect_left(candidates, (currency_rate.name,)) - 1
                 rate = candidates[index][1] if index >= 0 else 1.0
             currency_rate.company_rate = rate / last_rate[company]
@@ -792,7 +731,6 @@ class ResCurrencyRate(models.Model):
     @api.depends("company_rate")
     def _compute_inverse_company_rate(self) -> None:
         for currency_rate in self:
-            # Use a local variable to avoid mutating company_rate (a dependency).
             company_rate = currency_rate.company_rate or 1.0
             currency_rate.inverse_company_rate = 1.0 / company_rate
 

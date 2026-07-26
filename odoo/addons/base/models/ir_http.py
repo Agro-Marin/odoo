@@ -36,7 +36,6 @@ from odoo.tools.translate import code_translations
 
 _logger = logging.getLogger(__name__)
 
-# Pre-compiled regexes for URL slugification
 _SLUG_SPLIT_RE = re.compile(r"[-_ ]")
 _SLUG_NONWORD_RE = re.compile(r"[^\w]+")
 
@@ -87,12 +86,6 @@ class SignedIntConverter(NumberConverter):
     num_convert = int
 
 
-# ``FasterRule`` / ``LazyCompiledBuilder`` moved to ``odoo.http.routing`` (imported
-# above) so both routing maps — the nodb map in ``Application.nodb_routing_map`` and
-# the per-database map in :meth:`IrHttp.routing_map` — share the lazy-builder
-# optimization instead of the nodb map paying full compilation up front.
-
-
 class IrHttp(models.AbstractModel):
     _name = "ir.http"
     _description = "HTTP Routing"
@@ -124,7 +117,6 @@ class IrHttp(models.AbstractModel):
                 s = cls._slugify_one(u, max_length=max_length)
                 if s:
                     res.append(s)
-            # check if supported extension
             p = Path(value)
             ext = p.suffix
             if ext in EXTENSION_TO_WEB_MIMETYPES and res:
@@ -143,10 +135,6 @@ class IrHttp(models.AbstractModel):
             return None, int(value)
         except ValueError:
             return None, None
-
-    # ------------------------------------------------------
-    # Routing map
-    # ------------------------------------------------------
 
     @classmethod
     def _get_converters(cls) -> dict[str, type]:
@@ -179,10 +167,8 @@ class IrHttp(models.AbstractModel):
         headers = request.httprequest.headers
 
         def get_http_authorization_bearer_token() -> str | None:
-            # werkzeug<2.3 doesn't expose `authorization.token`; read the header directly.
             header = headers.get("Authorization")
             if header and (m := re.match(r"^bearer\s+(.+)$", header, re.IGNORECASE)):
-                # strip trailing whitespace so it does not leak into the token
                 return m.group(1).strip()
             return None
 
@@ -198,7 +184,6 @@ class IrHttp(models.AbstractModel):
             )
 
         if token := get_http_authorization_bearer_token():
-            # 'rpc' scope does not really exist, we require a global key (scope NULL)
             uid = request.env["res.users.apikeys"]._check_credentials(
                 scope="rpc", key=token
             )
@@ -209,7 +194,7 @@ class IrHttp(models.AbstractModel):
                 e = "Session user does not match the used apikey."
                 raise AccessDenied(e)
             request.update_env(user=uid)
-            request.session.can_save = False  # stateless
+            request.session.can_save = False
         elif not request.env.uid:
             e = "User not authenticated, use an API Key with a Bearer Authorization header."
             raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
@@ -255,9 +240,6 @@ class IrHttp(models.AbstractModel):
                     request.env = api.Environment(
                         request.env.cr, None, request.session.context
                     )
-            # `auth` comes from trusted route metadata, never request input;
-            # an unknown value means a misconfigured @http.route. Fail closed
-            # with a clear message instead of a confusing AttributeError log.
             auth_method = getattr(cls, f"_auth_method_{auth}", None)
             if auth_method is None:
                 msg = f"Unknown authentication method: {auth!r}"
@@ -278,16 +260,22 @@ class IrHttp(models.AbstractModel):
         pass
 
     @classmethod
-    def _pre_dispatch(cls, rule: werkzeug.routing.Rule, args: dict[str, Any]) -> None:
-        ICP = request.env["ir.config_parameter"].with_user(SUPERUSER_ID)
+    def _apply_max_upload_size(cls) -> None:
+        """Lower the request's body-size cap to the ``web.max_file_upload_size`` ICP.
 
-        # Override the default 128MiB upload limit with the ICP value, before http's
-        # generic pre_dispatch so a per-route @route(..., max_content_length=x) still wins.
+        Must run before anything reads the body. Called from :meth:`_pre_dispatch`
+        (the matched-route path) *and* from ``Request._serve_ir_http_fallback``
+        (the no-route-matched path): the fallback parses query/form data too, but
+        never reaches ``_pre_dispatch``, so it used to buffer up to the 128 MiB
+        framework default no matter how low the operator set the ICP — an
+        administrative limit that any unmatched URL sidestepped.
+        """
+        ICP = request.env["ir.config_parameter"].with_user(SUPERUSER_ID)
         key = "web.max_file_upload_size"
         if (value := ICP.get_param(key, None)) is not None:
             try:
                 request.httprequest.max_content_length = int(value)
-            except ValueError:  # better not crash on ALL requests
+            except ValueError:
                 _logger.error(
                     "invalid %s: %r, using %s instead",
                     key,
@@ -295,10 +283,12 @@ class IrHttp(models.AbstractModel):
                     request.httprequest.max_content_length,
                 )
 
+    @classmethod
+    def _pre_dispatch(cls, rule: werkzeug.routing.Rule, args: dict[str, Any]) -> None:
+        cls._apply_max_upload_size()
+
         request.dispatcher.pre_dispatch(rule, args)
 
-        # Ensure the context lang is valid, else fall back to company lang,
-        # English, or the first installed lang.
         env = (
             request.env
             if request.env.uid
@@ -306,7 +296,6 @@ class IrHttp(models.AbstractModel):
         )
         request.update_context(lang=get_lang(env).code)
 
-        # Rebind record args to the current request.env before checking access.
         for key, val in list(args.items()):
             if not isinstance(val, models.BaseModel):
                 continue
@@ -318,13 +307,11 @@ class IrHttp(models.AbstractModel):
                 continue
 
             try:
-                # explicitly crash now, instead of crashing later
                 args[key].check_access("read")
             except (
                 odoo.exceptions.AccessError,
                 odoo.exceptions.MissingError,
             ) as e:
-                # custom behavior in case a record is not accessible / has been removed
                 if handle_error := rule.endpoint.routing.get(
                     "handle_params_access_error"
                 ):
@@ -338,8 +325,6 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _dispatch(cls, endpoint: Any) -> Any:
-        # Verify the captcha in case it was set on @http.route
-        # https://httpwg.org/specs/rfc9110.html#safe.methods
         if (
             captcha := endpoint.routing.get("captcha")
         ) and request.httprequest.method not in SAFE_HTTP_METHODS:
@@ -364,9 +349,6 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _serve_fallback(cls) -> Response | None:
         model = request.env["ir.attachment"]
-        # Only public attachments may be served by the URL fallback: the search runs
-        # under sudo(), so without this filter any attachment whose url collides with
-        # an unmatched path would leak to anonymous callers. See IHTTP-L3.
         attach = model.sudo()._get_serve_attachment(
             request.httprequest.path, extra_domain=[("public", "=", True)]
         )
@@ -379,10 +361,6 @@ class IrHttp(models.AbstractModel):
         return werkzeug.utils.redirect(location, code=code, Response=Response)
 
     def _generate_routing_rules(self, modules: list[str]) -> Any:
-        # NB: werkzeug resolves URL converters from the Map (built with
-        # ``_get_converters()`` in :meth:`routing_map`), never per rule — the
-        # historical ``converters`` parameter threaded through here and the
-        # website override.
         return http._generate_routing_rules(modules, False)
 
     @tools.ormcache("key", cache="routing")
@@ -392,8 +370,6 @@ class IrHttp(models.AbstractModel):
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)
-        # @tools.ormcache(cache="routing") caches and shares this map; it is rebuilt only
-        # on a cache clear (every registry _setup_models__, i.e. every module install/upgrade/uninstall).
         routing_map = werkzeug.routing.Map(
             strict_slashes=False, converters=self._get_converters()
         )
@@ -405,8 +381,6 @@ class IrHttp(models.AbstractModel):
 
     @api.autovacuum
     def _gc_sessions(self) -> None:
-        # str2bool so documented off-values ("0"/"false"/"no"/...) don't count as
-        # "set" and skip the GC (same pattern as ir_cron's ODOO_NOTIFY_CRON_CHANGES).
         if str2bool(os.getenv("ODOO_SKIP_GC_SESSIONS", ""), default=False):
             return
         http.root.session_store.vacuum(
@@ -436,8 +410,6 @@ class IrHttp(models.AbstractModel):
             else None
         )
 
-        # Regional languages (ll_CC) must inherit/override their parent lang (ll), but this is
-        # done server-side when the language is loaded, so we only need to load the user's lang.
         translations_per_module = {}
         for module in modules:
             translations_per_module[module] = code_translations.get_web_translations(
@@ -457,7 +429,6 @@ class IrHttp(models.AbstractModel):
             "multi_lang": len(self.env["res.lang"].sudo().get_installed()) > 1,
         }
         if self.env.context.get("cache_translation_data"):
-            # put in the transactional cache
             self.env.cr.cache["translation_data"] = translation_cache
         return cache_hash(
             json_dumps_bytes(

@@ -7,9 +7,6 @@ class test_search(TransactionCase):
         self.patch(self.registry[model], "_order", order)
 
     def test_00_search_order(self):
-        # Create 6 partners in a fixed creation order to fix their ID order. Some
-        # are inactive to verify they're excluded by default and to give a second
-        # `order` argument.
 
         Partner = self.env["res.partner"]
         c = Partner.create({"name": "test_search_order_C"})
@@ -18,9 +15,6 @@ class test_search(TransactionCase):
         b = Partner.create({"name": "test_search_order_B"})
         ab = Partner.create({"name": "test_search_order_AB"})
         e = Partner.create({"name": "test_search_order_E", "active": False})
-
-        # Basic searches exclude active=False records; result order follows the
-        # `order` parameter.
 
         name_asc = Partner.search(
             [("name", "like", "test_search_order%")], order="name asc"
@@ -50,9 +44,6 @@ class test_search(TransactionCase):
         self.assertEqual(
             [ab, b, a, c], list(id_desc), "Search with 'ID DESC' order failed."
         )
-
-        # A condition on `active` in the domain stops excluding inactive records;
-        # `order` accepts any legal comma-separated values.
 
         active_asc_id_asc = Partner.search(
             [
@@ -184,7 +175,6 @@ class test_search(TransactionCase):
                     result.mapped("name"),
                 )
 
-        # sorting by an m2o should alias to the natural order of the m2o
         self.patch_order("res.country", "phone_code")
         a.country_id, c.country_id = self.env["res.country"].create(
             [
@@ -211,8 +201,6 @@ class test_search(TransactionCase):
                     result.mapped("name"),
                 )
 
-        # NULLS applies to the m2o itself, not its sub-fields, so a null `phone_code`
-        # will sort normally (larger than non-null codes)
         b.country_id = self.env["res.country"].create(
             {"name": "Country X", "code": "C3"}
         )
@@ -231,8 +219,6 @@ class test_search(TransactionCase):
                     result.mapped("name"),
                 )
 
-        # a field DESC should reverse the nested behaviour (and thus the inner
-        # NULLS clauses), but the outer NULLS clause still has no effect
         self.patch_order("res.country", "phone_code NULLS FIRST")
         for order, result in [
             ("country_id", b | a | c),
@@ -291,7 +277,6 @@ class test_search(TransactionCase):
 
         Users = Users.with_user(u)
 
-        # Order by an inherits'd res.partner field, then res.users fields
         expected_ids = [u.id, a.id, c.id, b.id]
         user_ids = Users.search(
             [("id", "in", expected_ids)], order="name asc, login desc"
@@ -302,7 +287,6 @@ class test_search(TransactionCase):
             "search on res_users did not provide expected ids or expected order",
         )
 
-        # Order by many2one and inherits'd fields
         expected_ids = [c.id, b.id, a.id, u.id]
         user_ids = Users.search(
             [("id", "in", expected_ids)],
@@ -314,7 +298,6 @@ class test_search(TransactionCase):
             "search on res_users did not provide expected ids or expected order",
         )
 
-        # Order by many2one and inherits'd fields
         expected_ids = [u.id, b.id, c.id, a.id]
         user_ids = Users.search(
             [("id", "in", expected_ids)],
@@ -326,7 +309,6 @@ class test_search(TransactionCase):
             "search on res_users did not provide expected ids or expected order",
         )
 
-        # Order by many2one via _order override instead of the order param
         self.patch_order("res.users", "country_id desc, name asc, login desc")
         expected_ids = [u.id, c.id, b.id, a.id]
         user_ids = Users.search([("id", "in", expected_ids)]).ids
@@ -379,7 +361,6 @@ class test_search(TransactionCase):
     def test_13_m2o_order_loop_multi(self):
         Users = self.env["res.users"]
 
-        # will sort by login desc of the creator, then by name
         self.patch_order("res.partner", "create_uid, name")
         self.patch_order("res.users", "partner_id, login desc")
 
@@ -394,11 +375,6 @@ class test_search(TransactionCase):
             ]
         }
 
-        # When creating with the superuser, the ordering by 'create_uid' will
-        # compare user logins with the superuser's login "__system__", which
-        # may give different results, because "_" may come before or after
-        # letters, depending on the database's locale.  In order to avoid this
-        # issue, use a user with a login that doesn't include "_".
         u0 = Users.create(dict(name="A system", login="a", **kw)).id
 
         u1 = Users.with_user(u0).create(dict(name="Q", login="m", **kw)).id
@@ -412,16 +388,10 @@ class test_search(TransactionCase):
 
     def test_20_x_active(self):
         """Check the behaviour of the x_active field."""
-        # A custom x_active field should filter like active. res.country works as
-        # a test model: it's in base and has no active field.
-        self.addCleanup(
-            self.registry.reset_changes
-        )  # reset the registry to avoid polluting other tests
+        self.addCleanup(self.registry.reset_changes)
 
         model_country = self.env["res.country"]
-        self.assertNotIn(
-            "active", model_country._fields
-        )  # just in case someone adds the active field in the model
+        self.assertNotIn("active", model_country._fields)
         self.env["ir.model.fields"].create(
             {
                 "name": "x_active",
@@ -451,8 +421,6 @@ class test_search(TransactionCase):
             ussr_search,
             "Search with active_test on a custom x_active field failed",
         )
-        # A custom x_active on a model that already has active must not interfere.
-        # res.bank has an active field and is simple to use.
         model_bank = self.env["res.bank"]
         self.env["ir.model.fields"].create(
             {
@@ -501,8 +469,6 @@ class test_search(TransactionCase):
     def test_22_like_folding(self):
         Model = self.env["res.country"]
 
-        # there is just one query for the first search as it matches all
-        # the second search does not run, because the domain is False
         with self.assertQueries(
             [
                 """

@@ -48,7 +48,7 @@ class TestConfigManager(TransactionCase):
                         self.config.options[k], truth[k], f"{k!r} doesn't match"
                     )
                 except AssertionError as exc2:
-                    if hasattr(Exception, "add_note"):  # 3.11
+                    if hasattr(Exception, "add_note"):
                         exc2.add_note(str(self.config._get_sources(k)))
                         raise exc2 from exc1
                     raise AssertionError(
@@ -68,7 +68,6 @@ class TestConfigManager(TransactionCase):
     def test_01_default_config(self):
         self.assertConfigEqual(
             {
-                # options not exposed on the command line
                 "admin_passwd": "admin",
                 "bin_path": "",
                 "csv_internal_sep": ",",
@@ -79,7 +78,6 @@ class TestConfigManager(TransactionCase):
                 "websocket_rate_limit_burst": 10,
                 "websocket_rate_limit_delay": 0.2,
                 "websocket_keep_alive_timeout": 3600,
-                # common
                 "config": EMPTY_CONFIG_PATH,
                 "save": False,
                 "init": {},
@@ -99,22 +97,18 @@ class TestConfigManager(TransactionCase):
                 "pre_upgrade_scripts": [],
                 "server_wide_modules": ["base", "rpc", "web"],
                 "data_dir": DEFAULT_DATADIR,
-                # HTTP
                 "http_interface": "0.0.0.0",
                 "http_port": 8069,
                 "gevent_port": 8072,
                 "http_enable": True,
                 "proxy_mode": False,
                 "x_sendfile": False,
-                # web
                 "dbfilter": "",
-                # testing
                 "test_file": "",
                 "test_enable": False,
                 "test_tags": None,
                 "screencasts": "",
                 "screenshots": "/tmp/odoo_tests",
-                # logging
                 "logfile": "",
                 "syslog": False,
                 "log_handler": [":INFO"],
@@ -122,7 +116,6 @@ class TestConfigManager(TransactionCase):
                 "log_db_level": "warning",
                 "log_level": "info",
                 "log_config": "",
-                # SMTP
                 "email_from": "",
                 "from_filter": "",
                 "smtp_server": "localhost",
@@ -132,7 +125,6 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "",
                 "smtp_ssl_certificate_filename": "",
                 "smtp_ssl_private_key_filename": "",
-                # database
                 "db_name": [],
                 "db_user": "",
                 "db_password": "",
@@ -152,12 +144,9 @@ class TestConfigManager(TransactionCase):
                 "db_replica_host": None,
                 "db_replica_port": None,
                 "db_app_name": "odoo-{pid}",
-                # i18n
                 "load_language": None,
                 "overwrite_existing_translations": False,
-                # security
                 "list_db": True,
-                # advanced
                 "dev_mode": [],
                 "skip_auto_install": False,
                 "stop_after_init": False,
@@ -169,7 +158,6 @@ class TestConfigManager(TransactionCase):
                 "unaccent": False,
                 "geoip_city_db": "/usr/share/GeoIP/GeoLite2-City.mmdb",
                 "geoip_country_db": "/usr/share/GeoIP/GeoLite2-Country.mmdb",
-                # multiprocessing
                 "workers": 0,
                 "limit_memory_soft": 2048 * 1024 * 1024,
                 "limit_memory_soft_gevent": None,
@@ -188,22 +176,20 @@ class TestConfigManager(TransactionCase):
             self.config._parse_config(["-c", config_path])
         self.assertConfigEqual(
             {
-                # options not exposed on the command line
                 "admin_passwd": "Tigrou007",
                 "bin_path": "",
                 "csv_internal_sep": "@",
                 "default_productivity_apps": False,
                 "proxy_access_token": "",
-                "publisher_warranty_url": "http://example.com",  # blacklist for save, read from the config file
+                "publisher_warranty_url": "http://example.com",
                 "reportgz": True,
                 "websocket_rate_limit_burst": 1,
                 "websocket_rate_limit_delay": 2.0,
                 "websocket_keep_alive_timeout": 600,
-                # common
                 "config": config_path,
                 "save": False,
-                "init": {},  # blacklist for save, ignored from the config file
-                "update": {},  # blacklist for save, ignored from the config file
+                "init": {},
+                "update": {},
                 "reinit": [],
                 "skip_unchanged_data_files": True,
                 "skip_unchanged_modules": True,
@@ -214,27 +200,23 @@ class TestConfigManager(TransactionCase):
                 "import_partial": "",
                 "import_url_regex": "^(?:http|https)://",
                 "pidfile": "/tmp/pidfile",
-                "addons_path": [],  # the path found in the config file is invalid
-                "upgrade_path": [],  # the path found in the config file is invalid
-                "pre_upgrade_scripts": [],  # the path found in the config file is invalid
+                "addons_path": [],
+                "upgrade_path": [],
+                "pre_upgrade_scripts": [],
                 "server_wide_modules": ["web", "base", "mail"],
                 "data_dir": "/tmp/data-dir",
-                # HTTP
                 "http_interface": "10.0.0.254",
                 "http_port": 6942,
                 "gevent_port": 8012,
                 "http_enable": False,
                 "proxy_mode": True,
                 "x_sendfile": True,
-                # web
                 "dbfilter": ".*",
-                # testing
                 "test_file": "",
                 "test_enable": False,
                 "test_tags": None,
                 "screencasts": "/tmp/screencasts",
                 "screenshots": "/tmp/screenshots",
-                # logging
                 "logfile": "/tmp/odoo.log",
                 "syslog": False,
                 "log_handler": [":DEBUG"],
@@ -242,7 +224,6 @@ class TestConfigManager(TransactionCase):
                 "log_db_level": "debug",
                 "log_level": "debug",
                 "log_config": "",
-                # SMTP
                 "email_from": "admin@example.com",
                 "from_filter": ".*",
                 "smtp_server": "smtp.localhost",
@@ -252,7 +233,6 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "Tigrou0072",
                 "smtp_ssl_certificate_filename": "/tmp/tlscert",
                 "smtp_ssl_private_key_filename": "/tmp/tlskey",
-                # database
                 "db_name": ["horizon"],
                 "db_user": "kiwi",
                 "db_password": "Tigrou0073",
@@ -272,13 +252,10 @@ class TestConfigManager(TransactionCase):
                 "db_pool_reap_idle": 300.0,
                 "db_discard_on_return": False,
                 "db_app_name": "odoo-{pid}",
-                # i18n
-                "load_language": "fr_FR",  # blacklist for save, read from the config file
-                "overwrite_existing_translations": False,  # blacklist for save, read from the config file
-                # security
+                "load_language": "fr_FR",
+                "overwrite_existing_translations": False,
                 "list_db": False,
-                # advanced
-                "dev_mode": ["xml"],  # blacklist for save, read from the config file
+                "dev_mode": ["xml"],
                 "stop_after_init": False,
                 "skip_auto_install": False,
                 "osv_memory_count_limit": 71,
@@ -289,7 +266,6 @@ class TestConfigManager(TransactionCase):
                 "unaccent": True,
                 "geoip_city_db": "/tmp/city.db",
                 "geoip_country_db": "/tmp/country.db",
-                # multiprocessing
                 "workers": 92,
                 "limit_memory_soft": 1048576,
                 "limit_memory_soft_gevent": 1048577,
@@ -339,12 +315,9 @@ class TestConfigManager(TransactionCase):
         with file_open_temporary_directory(self.env) as temp_dir:
             config_path = f"{temp_dir}/save_perms.conf"
             cfg = Path(config_path)
-            # First save creates the file restricted.
             self.config._parse_config(["--config", config_path, "--save"])
             self.assertEqual(cfg.stat().st_mode & 0o777, 0o600)
-            # Simulate a permissive umask / external edit loosening the file.
             cfg.chmod(0o644)
-            # Re-save must re-tighten (this is the regression guard).
             self.config._parse_config(["--config", config_path, "--save"])
             self.assertEqual(
                 cfg.stat().st_mode & 0o777,
@@ -353,8 +326,6 @@ class TestConfigManager(TransactionCase):
             )
 
     def test_04_odoo16_config_file(self):
-        # test that loading the Odoo 16.0 generated default config works
-        # with a modern version
         config_path = file_path("base/tests/config/16.0.conf")
         with self.assertLogs("odoo.tools.config", "WARNING") as capture:
             self.config._parse_config(["--config", config_path])
@@ -365,7 +336,6 @@ class TestConfigManager(TransactionCase):
             self.config._warn_deprecated_options()
         self.assertConfigEqual(
             {
-                # options taken from the configuration file
                 "admin_passwd": "admin",
                 "config": config_path,
                 "csv_internal_sep": ",",
@@ -429,7 +399,6 @@ class TestConfigManager(TransactionCase):
                 "upgrade_path": [],
                 "pre_upgrade_scripts": [],
                 "with_demo": True,
-                # options that are not taken from the file (also in 14.0)
                 "addons_path": [],
                 "data_dir": DEFAULT_DATADIR,
                 "dev_mode": [],
@@ -439,12 +408,10 @@ class TestConfigManager(TransactionCase):
                 "save": False,
                 "skip_auto_install": False,
                 "stop_after_init": False,
-                # undocummented options
                 "bin_path": "",
                 "default_productivity_apps": False,
                 "osv_memory_age_limit": "False",
                 "proxy_access_token": "",
-                # multiprocessing
                 "workers": 0,
                 "limit_memory_soft": 2048 * 1024 * 1024,
                 "limit_memory_soft_gevent": None,
@@ -454,7 +421,6 @@ class TestConfigManager(TransactionCase):
                 "limit_time_real": 120,
                 "limit_time_real_cron": -1,
                 "limit_request": 1 << 16,
-                # new options since 14.0
                 "db_maxconn_gevent": None,
                 "db_borrow_timeout": 30.0,
                 "db_conn_max_lifetime": 3600,
@@ -542,7 +508,6 @@ class TestConfigManager(TransactionCase):
 
         self.assertConfigEqual(
             {
-                # options not exposed on the command line
                 "admin_passwd": "admin",
                 "bin_path": "",
                 "csv_internal_sep": ",",
@@ -553,7 +518,6 @@ class TestConfigManager(TransactionCase):
                 "websocket_rate_limit_burst": 10,
                 "websocket_rate_limit_delay": 0.2,
                 "websocket_keep_alive_timeout": 3600,
-                # common
                 "config": EMPTY_CONFIG_PATH,
                 "save": False,
                 "init": {"hr": True, "stock": True},
@@ -573,22 +537,18 @@ class TestConfigManager(TransactionCase):
                 "pre_upgrade_scripts": [],
                 "server_wide_modules": ["web", "base", "mail"],
                 "data_dir": "/tmp/data-dir",
-                # HTTP
                 "http_interface": "10.0.0.254",
                 "http_port": 6942,
                 "gevent_port": 8012,
                 "http_enable": False,
                 "proxy_mode": True,
                 "x_sendfile": True,
-                # web
                 "dbfilter": ".*",
-                # testing
                 "test_file": "/tmp/file-file",
                 "test_enable": True,
                 "test_tags": ":TestMantra.test_is_extra_mile_done",
                 "screencasts": "/tmp/screencasts",
                 "screenshots": "/tmp/screenshots",
-                # logging
                 "logfile": "/tmp/odoo.log",
                 "syslog": False,
                 "log_handler": [
@@ -601,7 +561,6 @@ class TestConfigManager(TransactionCase):
                 "log_db_level": "debug",
                 "log_level": "debug",
                 "log_config": "",
-                # SMTP
                 "email_from": "admin@example.com",
                 "from_filter": ".*",
                 "smtp_server": "smtp.localhost",
@@ -611,7 +570,6 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "Tigrou0072",
                 "smtp_ssl_certificate_filename": "/tmp/tlscert",
                 "smtp_ssl_private_key_filename": "/tmp/tlskey",
-                # database
                 "db_name": ["horizon"],
                 "db_user": "kiwi",
                 "db_password": "Tigrou0073",
@@ -631,12 +589,9 @@ class TestConfigManager(TransactionCase):
                 "db_pool_reap_idle": 300.0,
                 "db_discard_on_return": False,
                 "db_app_name": "myapp{pid}",
-                # i18n
                 "load_language": "fr_FR",
                 "overwrite_existing_translations": True,
-                # security
                 "list_db": False,
-                # advanced
                 "dev_mode": ["xml", "reload"],
                 "skip_auto_install": False,
                 "stop_after_init": True,
@@ -675,7 +630,6 @@ class TestConfigManager(TransactionCase):
 
         self.assertConfigEqual(
             {
-                # options not exposed on the command line
                 "admin_passwd": "admin",
                 "bin_path": "",
                 "csv_internal_sep": ",",
@@ -686,7 +640,6 @@ class TestConfigManager(TransactionCase):
                 "websocket_rate_limit_burst": 10,
                 "websocket_rate_limit_delay": 0.2,
                 "websocket_keep_alive_timeout": 3600,
-                # common
                 "config": EMPTY_CONFIG_PATH,
                 "save": False,
                 "init": {},
@@ -707,22 +660,18 @@ class TestConfigManager(TransactionCase):
                 "server_wide_modules": ["web", "base", "mail"],
                 "skip_auto_install": False,
                 "data_dir": "/tmp/data-dir",
-                # HTTP
                 "http_interface": "10.0.0.254",
                 "http_port": 6942,
                 "gevent_port": 8012,
                 "http_enable": False,
                 "proxy_mode": True,
                 "x_sendfile": True,
-                # web
                 "dbfilter": ".*",
-                # testing
                 "test_file": "",
                 "test_enable": False,
                 "test_tags": None,
                 "screencasts": "/tmp/screencasts",
                 "screenshots": "/tmp/screenshots",
-                # logging
                 "logfile": "/tmp/odoo.log",
                 "syslog": False,
                 "log_handler": [
@@ -733,7 +682,6 @@ class TestConfigManager(TransactionCase):
                 "log_db_level": "debug",
                 "log_level": "debug",
                 "log_config": "",
-                # SMTP
                 "email_from": "admin@example.com",
                 "from_filter": ".*",
                 "smtp_server": "smtp.localhost",
@@ -743,7 +691,6 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "Tigrou0072",
                 "smtp_ssl_certificate_filename": "/tmp/tlscert",
                 "smtp_ssl_private_key_filename": "/tmp/tlskey",
-                # database
                 "db_name": ["horizon"],
                 "db_user": "kiwi",
                 "db_password": "Tigrou0073",
@@ -763,14 +710,11 @@ class TestConfigManager(TransactionCase):
                 "db_pool_reap_idle": 300.0,
                 "db_discard_on_return": False,
                 "db_app_name": "envapp",
-                # i18n (not loaded)
                 "load_language": None,
                 "overwrite_existing_translations": False,
-                # security
                 "list_db": False,
-                # advanced
                 "dev_mode": ["xml", "reload"],
-                "stop_after_init": False,  # not on env
+                "stop_after_init": False,
                 "osv_memory_count_limit": 71,
                 "transient_age_limit": 4.0,
                 "max_cron_threads": 4,
