@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """XML record field and element-attribute sorter for Odoo data files.
 
 Two canonical orderings are enforced:
@@ -28,61 +27,51 @@ from pathlib import Path
 
 from lxml import etree
 
-# ---------------------------------------------------------------------------
-# Canonical <field> child ordering per record model
-# ---------------------------------------------------------------------------
 
-#: Maps Odoo model names to their canonical ``<field>`` child ordering.
-#: Known fields appear in this order; unknown fields are appended alphabetically.
 FIELD_ORDER: dict[str, list[str]] = {
-    # Views ──────────────────────────────────────────────────────────────────
     "ir.ui.view": [
-        "name",          # view identifier string (e.g. "sale.order.form")
-        "model",         # target model
-        "inherit_id",    # parent view (when inheriting)
-        "mode",          # "primary" / "extension"
-        "priority",      # numeric resolution priority
-        "groups_id",     # access groups
-        "active",        # whether the view is enabled
-        "arch",          # view XML architecture — MUST be last
+        "name",
+        "model",
+        "inherit_id",
+        "mode",
+        "priority",
+        "groups_id",
+        "active",
+        "arch",
     ],
-    # Window actions ─────────────────────────────────────────────────────────
     "ir.actions.act_window": [
         "name",
         "res_model",
-        "path",              # URL slug
-        "view_mode",         # "list,form" etc.
-        "view_id",           # default view override
+        "path",
+        "view_mode",
+        "view_id",
         "search_view_id",
-        "target",            # "current" / "new" / "inline" / "fullscreen"
+        "target",
         "domain",
         "context",
         "filter",
         "limit",
         "mobile_view_filter",
-        "binding_model_id",  # smart-button / action binding
+        "binding_model_id",
         "binding_view_types",
-        "help",              # empty-state HTML — last (often multiline)
+        "help",
     ],
-    # Window action / view linking table ─────────────────────────────────────
     "ir.actions.act_window.view": [
         "sequence",
         "view_mode",
         "view_id",
         "act_window_id",
     ],
-    # Server actions ─────────────────────────────────────────────────────────
     "ir.actions.server": [
         "name",
         "model_id",
         "binding_model_id",
         "binding_view_types",
         "groups_id",
-        "state",         # "code" / "object_create" / "object_write" / "multi"
-        "child_ids",     # sub-actions for "multi" state
-        "code",          # Python code — last when present (often multiline)
+        "state",
+        "child_ids",
+        "code",
     ],
-    # Reports ────────────────────────────────────────────────────────────────
     "ir.actions.report": [
         "name",
         "model",
@@ -98,7 +87,6 @@ FIELD_ORDER: dict[str, list[str]] = {
         "binding_type",
         "groups_id",
     ],
-    # Client actions ─────────────────────────────────────────────────────────
     "ir.actions.client": [
         "name",
         "res_model",
@@ -109,21 +97,12 @@ FIELD_ORDER: dict[str, list[str]] = {
     ],
 }
 
-# ---------------------------------------------------------------------------
-# Canonical attribute ordering per element tag
-# ---------------------------------------------------------------------------
 
-#: Maps XML element tag names to their canonical attribute ordering.
-#: Only data-layer elements are listed; view-arch elements are never touched.
-#: Unknown attributes are appended alphabetically after the known ones.
 ATTRIB_ORDER: dict[str, list[str]] = {
-    # <record id="..." model="...">
     "record": [
         "id",
         "model",
     ],
-    # <field name="..." eval/ref/type/file>  (data-layer only; inside <record>)
-    # eval and ref specify HOW the value is set; type specifies the encoding.
     "field": [
         "name",
         "eval",
@@ -131,7 +110,6 @@ ATTRIB_ORDER: dict[str, list[str]] = {
         "type",
         "file",
     ],
-    # <menuitem id="..." name="..." parent="..." action="..." sequence="..." ...>
     "menuitem": [
         "id",
         "name",
@@ -142,7 +120,6 @@ ATTRIB_ORDER: dict[str, list[str]] = {
         "web_icon",
         "active",
     ],
-    # <template id="..." name="..." inherit_id="..." ...>
     "template": [
         "id",
         "name",
@@ -152,13 +129,11 @@ ATTRIB_ORDER: dict[str, list[str]] = {
         "groups",
         "active",
     ],
-    # <delete id="..." model="..." search="...">
     "delete": [
         "id",
         "model",
         "search",
     ],
-    # <function model="..." name="..." eval="...">
     "function": [
         "model",
         "name",
@@ -167,19 +142,12 @@ ATTRIB_ORDER: dict[str, list[str]] = {
     ],
 }
 
-# XML declaration written to rewritten files.
 _XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>'
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 
-# Tags whose elements are processed for attribute ordering at any nesting depth.
-# <field> is excluded here because it is handled separately (only inside <record>).
 _TOP_LEVEL_TAGS = frozenset(ATTRIB_ORDER) - {"record", "field"}
 
-
-# ---------------------------------------------------------------------------
-# Public ordering helpers
-# ---------------------------------------------------------------------------
 
 def expected_field_order(present_fields: list[str], model: str) -> list[str]:
     """Return canonical ``<field>`` child ordering for *present_fields* given *model*.
@@ -216,17 +184,13 @@ def expected_record_attrib_order(present_attribs: list[str]) -> list[str]:
     return expected_attrib_order("record", present_attribs)
 
 
-# ---------------------------------------------------------------------------
-# XML manipulation helpers
-# ---------------------------------------------------------------------------
-
 def _normalize_attribs(element: etree._Element) -> bool:
     """Normalize *element*'s attribute order per :data:`ATTRIB_ORDER`.
 
     Returns ``True`` if the order changed.
     """
     tag = element.tag
-    if callable(tag):  # lxml comment / PI nodes
+    if callable(tag):
         return False
     attribs = dict(element.attrib)
     current = list(attribs.keys())
@@ -254,7 +218,6 @@ def _sort_record_fields(record: etree._Element, model: str) -> bool:
     """
     children = list(record)
 
-    # Skip records that contain comment or PI nodes (callable .tag in lxml).
     if any(callable(c.tag) for c in children):
         return False
 
@@ -268,12 +231,8 @@ def _sort_record_fields(record: etree._Element, model: str) -> bool:
     if actual_names == expected_names:
         return False
 
-    # Save per-position tails before removal.
-    # The N-th tail in the original order belongs to the N-th slot in the
-    # new order (all non-last tails are identical indent; only the last differs).
     original_tails = [f.tail for f in fields]
 
-    # Build name → element map (first occurrence wins for any duplicates).
     field_map: dict[str, etree._Element] = {}
     for f in fields:
         name = f.get("name")
@@ -290,10 +249,6 @@ def _sort_record_fields(record: etree._Element, model: str) -> bool:
 
     return True
 
-
-# ---------------------------------------------------------------------------
-# Per-file processing
-# ---------------------------------------------------------------------------
 
 def sort_xml_file(
     path: Path,
@@ -312,10 +267,9 @@ def sort_xml_file(
 
     Elements inside ``<arch>`` / QWeb template bodies are never modified.
 
-    Returns:
-        ``True``  — file was changed (or would change in dry-run mode)
-        ``False`` — file already canonical; no change made
-        ``None``  — file was skipped due to a parse error (warning on stderr)
+    :return: ``True`` if the file was changed (or would change in dry-run mode),
+        ``False`` if it was already canonical, ``None`` if it was skipped due to
+        a parse error (warning on stderr)
     """
     source = path.read_bytes()
     try:
@@ -327,7 +281,6 @@ def sort_xml_file(
     root = tree.getroot()
     was_modified = False
 
-    # ── Records: field order + record/field attribute order ─────────────────
     for record in root.iter("record"):
         model = record.get("model")
         if model is None:
@@ -338,8 +291,6 @@ def sort_xml_file(
         if _normalize_attribs(record):
             was_modified = True
 
-        # Normalize data-layer <field> attributes (direct children only;
-        # arch content is never recursed into).
         for field in record:
             if not callable(field.tag) and field.tag == "field":
                 if _normalize_attribs(field):
@@ -348,7 +299,6 @@ def sort_xml_file(
         if model in FIELD_ORDER and _sort_record_fields(record, model):
             was_modified = True
 
-    # ── Top-level shorthand elements: menuitem, template, delete, function ──
     for tag in _TOP_LEVEL_TAGS:
         for elem in root.iter(tag):
             if _normalize_attribs(elem):
@@ -359,15 +309,12 @@ def sort_xml_file(
 
     if not dry_run:
         buf = BytesIO()
-        # pretty_print=False preserves original text/tail whitespace.
         tree.write(buf, xml_declaration=False, encoding="utf-8", pretty_print=False)
         body = buf.getvalue()
 
-        # Prepend a clean double-quoted XML declaration when the original had one.
         had_decl = source.lstrip().startswith(b"<?xml")
         new_content = (_XML_DECL + b"\n" + body) if had_decl else body
 
-        # Preserve original trailing newline.
         if source.endswith(b"\n") and not new_content.endswith(b"\n"):
             new_content += b"\n"
 
@@ -375,10 +322,6 @@ def sort_xml_file(
 
     return True
 
-
-# ---------------------------------------------------------------------------
-# CLI (standalone use)
-# ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> None:
     """Entry point for standalone use."""
@@ -397,7 +340,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Directories to search recursively (default: current directory)",
     )
     parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Print which files would change without modifying them",
     )
@@ -407,8 +351,7 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         dest="models",
         help=(
-            "Only process records of this model (repeatable); "
-            "default: all known models"
+            "Only process records of this model (repeatable); default: all known models"
         ),
     )
     parser.add_argument(
@@ -417,8 +360,7 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         default=["_vendor", "enterprise", "static"],
         help=(
-            "Directory names to skip "
-            "(default: _vendor, enterprise, static); repeatable"
+            "Directory names to skip (default: _vendor, enterprise, static); repeatable"
         ),
     )
     args = parser.parse_args(argv)

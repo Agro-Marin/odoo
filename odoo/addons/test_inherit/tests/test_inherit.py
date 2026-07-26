@@ -5,11 +5,8 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 
 class test_inherits(common.TransactionCase):
-
     def test_10_access_from_child_to_parent_model(self):
         """check whether added field in model is accessible from children models (_inherits)"""
-        # Verify the new column added to a parent model is accessible from the
-        # child model, exercising the inheritance computation in odoo.orm._build_model.
         mother = self.env["test.inherit.mother"]
         daughter = self.env["test_inherit_daughter"]
 
@@ -21,25 +18,20 @@ class test_inherits(common.TransactionCase):
         mother = self.env["test.inherit.mother"]
         daughter = self.env["test_inherit_daughter"]
 
-        # the field mother.name must have required=True and "Bar" as default
         field = mother._fields["name"]
         self.assertTrue(field.required)
         self.assertEqual(field.default(mother), "Bar")
         self.assertEqual(mother.default_get(["name"]), {"name": "Bar"})
 
-        # the field daughter.name must have required=False and "Baz" as default
         field = daughter._fields["name"]
         self.assertFalse(field.required)
         self.assertEqual(field.default(daughter), "Baz")
         self.assertEqual(daughter.default_get(["name"]), {"name": "Baz"})
 
-        # the field mother.state must have no default value
         field = mother._fields["state"]
         self.assertFalse(field.default)
         self.assertEqual(mother.default_get(["state"]), {})
 
-        # the field daughter.template_id should have
-        # comodel_name='test.inherit.mother', string='Template', required=True
         field = daughter._fields["template_id"]
         self.assertEqual(field.comodel_name, "test.inherit.mother")
         self.assertEqual(field.string, "Template")
@@ -50,7 +42,6 @@ class test_inherits(common.TransactionCase):
         mother = self.env["test.inherit.mother"]
         field = mother._fields["surname"]
 
-        # the field dependencies are added
         self.assertItemsEqual(
             self.registry.field_depends[field], ["name", "field_in_mother"]
         )
@@ -59,7 +50,6 @@ class test_inherits(common.TransactionCase):
         """check that attribute selection_add=... extends selection on fields."""
         mother = self.env["test.inherit.mother"]
 
-        # the extra values are added, both in the field and the column
         self.assertEqual(
             mother._fields["state"].selection,
             [("a", "A"), ("d", "D"), ("b", "B"), ("c", "C"), ("e", "E")],
@@ -83,10 +73,8 @@ class test_inherits(common.TransactionCase):
 
 
 class test_inherits_demo(TransactionCaseWithUserDemo):
-
     def test_50_search_one2many(self):
         """check search on one2many field based on inherited many2one field."""
-        # create a daughter record attached to partner Demo
         partner_demo = self.partner_demo
         daughter = self.env["test_inherit_daughter"].create(
             {"partner_id": partner_demo.id}
@@ -94,7 +82,6 @@ class test_inherits_demo(TransactionCaseWithUserDemo):
         self.assertEqual(daughter.partner_id, partner_demo)
         self.assertIn(daughter, partner_demo.daughter_ids)
 
-        # search the partner from the daughter record
         partners = self.env["res.partner"].search(
             [("daughter_ids", "like", "not existing daugther")]
         )
@@ -112,11 +99,9 @@ class test_inherits_demo(TransactionCaseWithUserDemo):
 
 
 class test_override_property(common.TransactionCase):
-
     def test_override_with_normal_field(self):
         """test overriding a property field by a function field"""
         record = self.env["test_inherit_property"].create({"name": "Stuff"})
-        # record.property_foo is not a property field
         self.assertFalse(record.property_foo)
         self.assertFalse(type(record).property_foo.company_dependent)
         self.assertTrue(type(record).property_foo.store)
@@ -124,7 +109,6 @@ class test_override_property(common.TransactionCase):
     def test_override_with_computed_field(self):
         """test overriding a property field by a computed field"""
         record = self.env["test_inherit_property"].create({"name": "Stuff"})
-        # record.property_bar is not a property field
         self.assertEqual(record.property_bar, 42)
         self.assertFalse(type(record).property_bar.company_dependent)
 
@@ -143,23 +127,19 @@ class TestInherit(common.TransactionCase):
         parent = self.env["test_inherit_parent"]
         child = self.env["test_inherit_child"]
 
-        # check fields
         self.assertIn("foo", parent.fields_get())
         self.assertNotIn("bar", parent.fields_get())
         self.assertIn("foo", child.fields_get())
         self.assertIn("bar", child.fields_get())
 
-        # check method overriding
         self.assertEqual(parent.stuff(), "P1P2")
         self.assertEqual(child.stuff(), "P1P2C1")
 
-        # check inferred model attributes
         self.assertEqual(parent._table, "test_inherit_parent")
         self.assertEqual(child._table, "test_inherit_child")
         self.assertEqual(len(parent._table_objects), 1)
         self.assertEqual(len(child._table_objects), 1)
 
-        # check properties memoized on model
         self.assertEqual(len(parent._constraint_methods), 1)
         self.assertEqual(len(child._constraint_methods), 1)
 
@@ -178,11 +158,8 @@ class TestInherit(common.TransactionCase):
         """
         parent = self.env["test_inherit_parent"]
         child = self.env["test_inherit_child"]
-        # access parent first: this is what populates the parent memo and would
-        # trigger the leak on the subsequent child access under the old code.
-        parent._constraint_methods  # noqa: B018
-        child._constraint_methods  # noqa: B018
-        # each model computed and stored its OWN memo (not inherited):
+        parent._constraint_methods
+        child._constraint_methods
         self.assertIn("_constraint_methods__", type(parent).__dict__)
         self.assertIn("_constraint_methods__", type(child).__dict__)
 

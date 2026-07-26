@@ -35,7 +35,7 @@ class TestReadGroupAuditFixes(TransactionCase):
         """groupby=[] + dict fill_temporal used to crash with IndexError."""
         model = self.env["test_orm.lesson"].with_context(fill_temporal={})
         rows = self._read_group_deprecated(model, [], ["__count"], [])
-        self.assertEqual(len(rows), 1)  # postgresql always returns one group
+        self.assertEqual(len(rows), 1)
         self.assertIn("__count", rows[0])
 
     def test_read_group_fill_temporal_unknown_keys_ignored(self):
@@ -50,18 +50,75 @@ class TestReadGroupAuditFixes(TransactionCase):
             fill_temporal={
                 "fill_from": "2024-01-01",
                 "fill_to": "2024-04-30",
-                "bogus_key": 42,  # must be ignored, not crash
+                "bogus_key": 42,
             }
         )
         rows = self._read_group_deprecated(
             model, [("id", "in", lessons.ids)], ["__count"], ["date:month"]
         )
-        # the known keys must still apply: Jan..Apr filled contiguously
         self.assertEqual(len(rows), 4)
+
+    def test_read_group_range_accumulates_across_temporal_groupbys(self):
+        """``__range`` is keyed BY GROUP and must survive a date *property*.
+
+        ``_read_group_format_result`` writes the date/datetime branch with
+        ``row.setdefault("__range", {})[group] = ...`` (accumulating), but
+        ``_read_group_format_result_properties`` assigned a fresh dict
+        (``row["__range"] = {group: ...}`` / ``= {}``). Grouping by a real date
+        field *and* a date property in one request therefore dropped the date
+        field's entry from every row -- and the null-property row lost
+        ``__range`` entirely. The web client reads ``__range`` to build the
+        date-range drill-down domain, so the entry silently going missing breaks
+        navigation rather than raising.
+        """
+        discussion = self.env["test_orm.discussion"].create(
+            {
+                "name": "range accumulation",
+                "participants": [Command.set([self.env.user.id])],
+                "attributes_definition": [
+                    {"name": "pdate", "type": "date", "string": "P Date"},
+                ],
+            }
+        )
+        Message = self.env["test_orm.message"]
+        Message.create(
+            [
+                {
+                    "discussion": discussion.id,
+                    "name": "m1",
+                    "attributes": {"pdate": "2024-03-10"},
+                },
+                {
+                    "discussion": discussion.id,
+                    "name": "m2",
+                    "attributes": {"pdate": "2024-05-20"},
+                },
+                {
+                    "discussion": discussion.id,
+                    "name": "m3",
+                    "attributes": {"pdate": False},
+                },
+            ]
+        )
+        rows = self._read_group_deprecated(
+            Message.with_context(active_test=False),
+            [("discussion", "=", discussion.id)],
+            [],
+            ["create_date:month", "attributes.pdate:month"],
+            lazy=False,
+        )
+        self.assertEqual(len(rows), 3)
+        for row in rows:
+            self.assertIn(
+                "create_date:month",
+                row["__range"],
+                "the date field's __range entry was dropped by the property group",
+            )
+            self.assertIn("attributes.pdate:month", row["__range"])
 
     def test_formatted_read_group_malformed_having_raises_valueerror(self):
         model = self.env["test_orm.lesson"]
-        model.create({"name": "l"})  # non-empty so HAVING is actually built
+        model.create({"name": "l"})
         for having in (
             ["|", ("__count", ">", 1)],
             ["&"],
@@ -72,7 +129,6 @@ class TestReadGroupAuditFixes(TransactionCase):
                 self.assertRaisesRegex(ValueError, "Invalid having clause"),
             ):
                 model.formatted_read_group([], [], ["__count"], having=having)
-        # sane having still works
         result = model.formatted_read_group(
             [], [], ["__count"], having=[("__count", ">", 0)]
         )
@@ -81,33 +137,26 @@ class TestReadGroupAuditFixes(TransactionCase):
     def test_read_group_empty_query_checks_field_access(self):
         """The empty-query shortcut must apply the same field-level checks as
         the non-empty path (cf. search_fetch's empty path)."""
-        user = new_test_user(self.env, "audit_fix_user")  # base.group_user
-        # test_orm.course.private_field has groups="base.group_no_one"
+        user = new_test_user(self.env, "audit_fix_user")
         course = self.env["test_orm.course"].with_user(user)
         empty_domain = [("id", "in", [])]
 
-        # baseline: the non-empty path raises AccessError
         with self.assertRaises(AccessError):
             course._read_group([], ["private_field"], ["__count"])
 
-        # empty path: groupby spec
         with self.assertRaises(AccessError):
             course._read_group(empty_domain, ["private_field"], ["__count"])
-        # empty path: aggregate spec
         with self.assertRaises(AccessError):
             course._read_group(empty_domain, [], ["private_field:count"])
-        # empty path: grouping sets
         with self.assertRaises(AccessError):
             course._read_grouping_sets(
                 empty_domain, [["private_field"], []], ["__count"]
             )
-        # empty path: invalid specs still rejected
         with self.assertRaises(ValueError):
             course._read_group(empty_domain, ["nonexistent_field"], [])
         with self.assertRaises(ValueError):
             course._read_group(empty_domain, [], ["name:bogus_agg"])
 
-        # accessible specs on the empty path still return empty results
         self.assertEqual(course._read_group(empty_domain, ["name"], ["__count"]), [])
         self.assertEqual(
             course._read_group(empty_domain, [], ["__count"]),
@@ -139,9 +188,7 @@ class TestExportXidDeterminism(TransactionCase):
 
         [(rec, xid)] = list(record._ensure_xml_ids())
         self.assertEqual(rec, record)
-        # oldest ir_model_data row wins...
         self.assertEqual(xid, "__export__.audit_xid_first")
-        # ...matching the xmlid reported by get_metadata()
         self.assertEqual(
             record.get_metadata()[0]["xmlid"], "__export__.audit_xid_first"
         )
@@ -153,10 +200,8 @@ class TestWithCompanyNewId(TransactionCase):
         ghost = self.env["res.company"].new({"name": "Ghost Co"})
         with self.assertRaisesRegex(ValueError, "saved .real-id. company"):
             model.with_company(ghost)
-        # falsy values still keep the current environment
         self.assertIs(model.with_company(None), model)
         self.assertIs(model.with_company(self.env["res.company"].browse()), model)
-        # a real company still works
         result = model.with_company(self.env.company)
         self.assertEqual(result.env.company, self.env.company)
 
@@ -164,16 +209,9 @@ class TestWithCompanyNewId(TransactionCase):
 class TestSearchDisplayNameRobustness(TransactionCase):
     def test_unconvertible_scalar_value_does_not_raise(self):
         model = self.env["test_orm.lesson"]
-        # force the scalar branch onto a date field: Date.to_date raises
-        # TypeError for these values, which used to escape (the collection
-        # branch already suppressed it)
         self.patch(self.registry["test_orm.lesson"], "_rec_names_search", ["date"])
         domain = model._search_display_name("=", object())
-        # unconvertible value -> no matching criterion
         self.assertTrue(Domain(domain).is_false())
-        # NB: a truthy dict value still raises: Date.to_date does value[:10],
-        # and dict.__getitem__(slice) raises KeyError -- that gap lives in
-        # odoo/orm/fields/temporal.py, out of scope for this fix.
 
 
 class TestCopyTranslationsAlignment(TransactionCase):
@@ -192,8 +230,6 @@ class TestCopyTranslationsAlignment(TransactionCase):
                 ],
             }
         )
-        # simulate copy_data having dropped a line (recursion guard): the copy
-        # has fewer messages than the original
         new = Discussion.create(
             {
                 "name": "new",
@@ -204,7 +240,9 @@ class TestCopyTranslationsAlignment(TransactionCase):
         with self.assertLogs("odoo.models", level="DEBUG") as capture:
             old.copy_translations(new)
         self.assertTrue(
-            any("skipping one2many field 'messages'" in line for line in capture.output),
+            any(
+                "skipping one2many field 'messages'" in line for line in capture.output
+            ),
             capture.output,
         )
 

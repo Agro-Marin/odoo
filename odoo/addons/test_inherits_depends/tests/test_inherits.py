@@ -2,7 +2,6 @@ from odoo.tests import common
 
 
 class test_inherits(common.TransactionCase):
-
     def test_ir_model_data_inherits_again(self):
         """Re-run test_inherits test to make sure another imd hasn't been created"""
         IrModelData = self.env["ir.model.data"]

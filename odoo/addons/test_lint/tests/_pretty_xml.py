@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Canonical XML formatter for Odoo data files.
 
 Enforces the coding-guidelines XML style:
@@ -38,38 +37,23 @@ from pathlib import Path
 
 from lxml import etree
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
 _XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>'
 
-#: 4-space indent string.
 _INDENT = "    "
 
-#: Maximum line length — tags exceeding this are wrapped one-attribute-per-line.
 _MAX_LINE = 88
 
-#: Direct children of these container elements are separated by blank lines.
 _BLANK_SEP_CONTAINERS: frozenset[str] = frozenset({"odoo", "openerp"})
 
-#: Elements whose inner content is opaque (re-indented but not reformatted).
-#: Field elements with ``type="xml"`` or ``name="arch"`` are handled separately
-#: by :func:`_is_opaque_field`.
 _OPAQUE_TAGS: frozenset[str] = frozenset({"template"})
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _is_opaque_field(elem: etree._Element) -> bool:
     """Return ``True`` if this ``<field>`` element contains opaque inner content."""
     return elem.tag == "field" and (
-        elem.get("name") == "arch"
-        or elem.get("type") in ("xml", "html")
+        elem.get("name") == "arch" or elem.get("type") in ("xml", "html")
     )
 
 
@@ -83,7 +67,6 @@ def _esc_text(value: str) -> str:
     return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-# Matches '/>' not already preceded by a space — used to normalise lxml output.
 _SELF_CLOSE_RE = re.compile(r"(?<! )/>")
 
 
@@ -120,12 +103,10 @@ def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
     the absolute position to the correct depth in the formatted file.
     """
     if orig_base == new_base:
-        # Fast path: no base shift needed.  Still convert internal step if needed.
         pass
 
     lines = content.split("\n")
 
-    # Detect original step size: minimum indentation above orig_base.
     above = sorted(
         len(line) - len(line.lstrip(" "))
         for line in lines
@@ -134,7 +115,6 @@ def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
     if above:
         step = above[0] - orig_base
     else:
-        # No children — plain shift suffices.
         step = 0
 
     result: list[str] = []
@@ -148,7 +128,6 @@ def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
             level, remainder = divmod(rel, step)
             new_spaces = new_base + level * len(_INDENT) + remainder
         else:
-            # Flat content: just shift.
             new_spaces = new_base + (spaces - orig_base)
         result.append(" " * max(0, new_spaces) + line.lstrip(" "))
     return "\n".join(result)
@@ -164,10 +143,7 @@ def _inner_content(elem: etree._Element) -> str:
     corrupting the slice.
     """
     s = etree.tostring(elem, pretty_print=False, encoding="unicode", with_tail=False)
-    # Find the end of the opening tag.  Attribute values are escaped by lxml
-    # (&amp;, &quot;, &lt;), so the first bare '>' is always the tag end.
     start = s.index(">") + 1
-    # Remove the closing tag from the end.
     end = len(s) - len(f"</{elem.tag}>")
     return s[start:end]
 
@@ -190,7 +166,6 @@ def _open_tag_lines(tag: str, attrib: dict, pad: str, suffix: str) -> list[str]:
         single = f"{pad}<{tag}{suffix}"
     if len(single) <= _MAX_LINE:
         return [single]
-    # Multi-line: one attribute per line, suffix appended to the last.
     attr_pad = pad + _INDENT
     lines = [f"{pad}<{tag}"]
     for i, part in enumerate(attr_parts):
@@ -199,8 +174,6 @@ def _open_tag_lines(tag: str, attrib: dict, pad: str, suffix: str) -> list[str]:
     return lines
 
 
-# Matches a single ``name="value"`` attribute in an already-serialised tag.
-# lxml escapes ``"`` -> ``&quot;`` inside values, so ``[^"]*`` never over-runs.
 _SERIALIZED_ATTR_RE = re.compile(r'[\w:.\-]+\s*=\s*"[^"]*"')
 
 
@@ -246,8 +219,6 @@ def _wrap_serialized_tag(line: str) -> list[str]:
     attrs = _SERIALIZED_ATTR_RE.findall(attr_str)
     if not attrs:
         return [line]
-    # Loss check: the parsed tag+attributes must reproduce the input (modulo
-    # whitespace).  If not, an attribute was missed — leave the line untouched.
     rebuilt = f"<{tag} {' '.join(attrs)}{suffix}"
     if rebuilt.split() != stripped.split():
         return [line]
@@ -267,11 +238,6 @@ def _wrap_opaque_lines(lines: list[str]) -> list[str]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Per-element formatters
-# ---------------------------------------------------------------------------
-
-
 def _format_comment(node: etree._Comment, depth: int) -> list[str]:
     """Format a comment node, re-indenting multi-line comments.
 
@@ -287,13 +253,10 @@ def _format_comment(node: etree._Comment, depth: int) -> list[str]:
     lines = text.split("\n")
     if len(lines) == 1:
         return [f"{pad}<!--{text}-->"]
-    # Strip the leading empty string from the '\n' after <!--
     if lines and lines[0] == "":
         lines = lines[1:]
-    # Strip the trailing whitespace-only element (indent before -->)
     if lines and not lines[-1].strip():
         lines = lines[:-1]
-    # Re-indent each content line to depth+1; preserve blank lines as-is.
     inner_lines = [
         f"{_INDENT * (depth + 1)}{line.strip()}" if line.strip() else ""
         for line in lines
@@ -316,21 +279,13 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
     """
     pad = _INDENT * depth
 
-    # Empty opaque element (no children, no text).
     if len(elem) == 0 and not (elem.text and elem.text.strip()):
         return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
 
-    # Collect inner content via lxml's text/tail serialisation (with_tail=False
-    # excludes the element's own sibling-separator whitespace).
     inner = _inner_content(elem)
 
-    # If .text has actual (non-whitespace) content the element has mixed
-    # text/element content — preserve verbatim to avoid corrupting inline text.
     if elem.text and elem.text.strip():
         inner_lines = inner.split("\n")
-        # Strip leading/trailing whitespace-only lines so the '\n' inserted by
-        # "\n".join() between the opening tag and first inner line does not
-        # accumulate into an extra blank line on each formatting pass.
         while inner_lines and not inner_lines[0].strip():
             inner_lines.pop(0)
         while inner_lines and not inner_lines[-1].strip():
@@ -346,14 +301,11 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
             + [f"{pad}</{elem.tag}>"]
         )
 
-    # Pure-structural content: re-indent to the target depth.
     orig_depth = _orig_depth_from_text(elem.text)
     target_depth = (depth + 1) * len(_INDENT)
 
     shifted = _convert_arch_indent(inner, orig_depth, target_depth)
 
-    # Strip the leading newline produced by "\n    " field.text patterns
-    # and any trailing whitespace-only lines.
     shifted_lines = shifted.split("\n")
     if shifted_lines and not shifted_lines[0].strip():
         shifted_lines = shifted_lines[1:]
@@ -363,8 +315,6 @@ def _format_opaque(elem: etree._Element, depth: int) -> list[str]:
     if not shifted_lines:
         return _open_tag_lines(elem.tag, elem.attrib, pad, " />")
 
-    # Normalise lxml-serialised self-closing tags inside arch/template content,
-    # then wrap any lone start-tag that exceeds the maximum line length.
     shifted_lines = _wrap_opaque_lines(
         [_normalize_self_close(line) for line in shifted_lines]
     )
@@ -388,7 +338,7 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
     - Text-only elements: single line.
     - Empty elements: self-closing.
     """
-    if callable(elem.tag):  # lxml Comment / PI node
+    if callable(elem.tag):
         return _format_comment(elem, depth)
 
     if _is_opaque_field(elem) or elem.tag in _OPAQUE_TAGS:
@@ -399,7 +349,6 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
     children = list(elem)
 
     if elem.tag in _BLANK_SEP_CONTAINERS:
-        # Container: children separated by blank lines, wrapped with blank lines.
         inner = _format_children(children, depth + 1, blank_sep=True)
         lines = _open_tag_lines(elem.tag, elem.attrib, pad, ">")
         lines.append("")
@@ -415,17 +364,11 @@ def _format_element(elem: etree._Element, depth: int) -> list[str]:
             elem.tag, elem.attrib, pad, f">{_esc_text(text)}</{elem.tag}>"
         )
 
-    # Has children — multi-line, no blank lines between them.
     lines = _open_tag_lines(elem.tag, elem.attrib, pad, ">")
     for child in children:
         lines.extend(_format_element(child, depth + 1))
     lines.append(f"{pad}</{elem.tag}>")
     return lines
-
-
-# ---------------------------------------------------------------------------
-# Child grouping (comments attached to the element they precede)
-# ---------------------------------------------------------------------------
 
 
 def _group_children(
@@ -441,11 +384,9 @@ def _group_children(
     i = 0
     while i < len(children):
         group: list[etree._Element] = []
-        # Collect leading comments.
         while i < len(children) and callable(children[i].tag):
             group.append(children[i])
             i += 1
-        # Then one non-comment element (if any).
         if i < len(children):
             group.append(children[i])
             i += 1
@@ -476,11 +417,6 @@ def _format_children(
     return lines
 
 
-# ---------------------------------------------------------------------------
-# File-level formatting
-# ---------------------------------------------------------------------------
-
-
 def format_xml_file(
     path: Path,
     *,
@@ -498,10 +434,9 @@ def format_xml_file(
       otherwise preserved verbatim.
     - Pre-root comment nodes (copyright headers) are preserved.
 
-    Returns:
-        ``True``  — file was changed (or would change in dry-run mode)
-        ``False`` — file already canonical; no change made
-        ``None``  — file was skipped due to a parse error (warning on stderr)
+    :return: ``True`` if the file was changed (or would change in dry-run mode),
+        ``False`` if it was already canonical, ``None`` if it was skipped due to
+        a parse error (warning on stderr)
     """
     source = path.read_bytes()
     try:
@@ -513,7 +448,6 @@ def format_xml_file(
     root = tree.getroot()
     had_decl = source.lstrip().startswith(b"<?xml")
 
-    # ── Collect pre-root comment nodes (copyright headers, etc.) ────────────
     pre_root: list[str] = []
     node = root.getprevious()
     while node is not None:
@@ -521,14 +455,11 @@ def format_xml_file(
             pre_root.insert(0, etree.tostring(node, encoding="unicode"))
         node = node.getprevious()
 
-    # ── Build output ─────────────────────────────────────────────────────────
     out: list[str] = []
     if had_decl:
         out.append('<?xml version="1.0" encoding="utf-8"?>')
     out.extend(pre_root)
 
-    # The root element is formatted by _format_element (which handles
-    # _BLANK_SEP_CONTAINERS internally for <odoo>/<openerp>).
     out.extend(_format_element(root, depth=0))
 
     new_content = "\n".join(out) + "\n"
@@ -543,17 +474,10 @@ def format_xml_file(
     return True
 
 
-# ---------------------------------------------------------------------------
-# CLI (standalone use)
-# ---------------------------------------------------------------------------
-
-
 def main(argv: list[str] | None = None) -> None:
     """Entry point for standalone use."""
     parser = argparse.ArgumentParser(
-        description=(
-            "Format Odoo XML data files with canonical 4-space indentation."
-        ),
+        description=("Format Odoo XML data files with canonical 4-space indentation."),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -564,7 +488,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Directories to search recursively (default: current directory)",
     )
     parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Print which files would change without modifying them",
     )
@@ -574,8 +499,7 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         default=["_vendor", "enterprise", "static"],
         help=(
-            "Directory names to skip "
-            "(default: _vendor, enterprise, static); repeatable"
+            "Directory names to skip (default: _vendor, enterprise, static); repeatable"
         ),
     )
     args = parser.parse_args(argv)

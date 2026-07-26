@@ -26,7 +26,6 @@ The other "what could go wrong" I can think about:
 * you cannot import some modules (in the Python sense)
 * some modules are marked to be installed/upgraded/uninstalled and that fails (that's part of Registry.new)
 """
-# TODO: write some tests for those too
 
 
 def duplicate_db(db_source, db_dest):
@@ -53,8 +52,6 @@ class TestHttpRegistry(BaseCase):
     def setUpClass(cls):
         reset_cached_properties(odoo.http.root)
         cls.addClassCleanup(reset_cached_properties, odoo.http.root)
-        # ``odoo.conf`` no longer exists in this fork; patch the config chainmap
-        # the way ``test_common.TestHttpBase`` does.
         cls.classPatch(
             config,
             "options",
@@ -62,24 +59,12 @@ class TestHttpRegistry(BaseCase):
                 {"server_wide_modules": ["base", "web", "rpc", "test_http"]}
             ),
         )
-        # ``/test_http/ensure_db`` is a test route; the production constant no
-        # longer lists it. Patch the CONSUMING namespace (application.py binds
-        # the name at import), so ``_recover_from_registry_error`` strips
-        # ``?db=`` for it like it does for ``/web``.
         cls.classPatch(
             odoo.http.application,
             "ENSURE_DB_PATHS",
             odoo.http.application.ENSURE_DB_PATHS | {"/test_http/ensure_db"},
         )
 
-        # make sure there are always many databases, to break monodb.
-        # Patch the CONSUMING namespaces, not just the ``odoo.http`` re-exports:
-        # ``request_class`` binds ``db_filter`` / ``_list_all_dbs`` at import
-        # time (see ``test_common.multidb_url_open`` for the same seams), so a
-        # patch on ``odoo.http.db_filter`` alone never reaches
-        # ``_get_session_and_dbname`` — the real ``db_filter`` then rejects the
-        # duplicated databases (``--database`` allowlist) and every test below
-        # silently runs against the healthy main database instead.
         cls._db_list = cls.startClassPatcher(patch("odoo.http.db_list"))
         cls._db_list.return_value = ["postgres", get_db_name()]
 
@@ -102,15 +87,12 @@ class TestHttpRegistry(BaseCase):
         self.opener = requests.Session()
         Registry.delete(get_db_name())
         close_db(get_db_name())
-        # The monodb-detection memo (5s TTL) must not serve a catalog cached
-        # before this test dropped/duplicated databases.
         odoo.http.request_class.clear_monodb_cache()
         self.addCleanup(odoo.http.request_class.clear_monodb_cache)
 
     def duplicate_current_db(self, db_suffix):
         db_duplicate = f"{get_db_name()}-test-http-registry-{db_suffix}"
 
-        # duplicate the current database
         duplicate_db(db_source=get_db_name(), db_dest=db_duplicate)
         self.addCleanup(drop_db, db_duplicate)
         self.addCleanup(close_db, db_duplicate)
@@ -134,16 +116,13 @@ class TestHttpRegistry(BaseCase):
         return self.opener.get(url, allow_redirects=allow_redirects)
 
     def test_signaling(self):
-        # open a registry + session on the current db
         self.authenticate()
         res = self.url_open("/test_http/ensure_db")
         self.assertEqual(res.status_code, 200)
 
-        # invalidate the registry of the current db
         with Registry(get_db_name()).cursor() as cr:
             cr.execute("INSERT INTO orm_signaling_registry default values")
 
-        # the registry should rebuild itself just fine
         with self.assertLogs("odoo.registry", logging.INFO) as capture:
             res = self.url_open("/test_http/ensure_db")
             self.assertEqual(res.status_code, 200)
@@ -158,28 +137,22 @@ class TestHttpRegistry(BaseCase):
     def test_missing_db(self):
         db_duplicate = self.duplicate_current_db("drop")
 
-        # open a registry + session on the duplicated db
         session = self.authenticate(db=db_duplicate)
         res = self.url_open("/test_http/ensure_db")
         self.assertEqual(res.status_code, 200)
 
-        # drop the duplicate, leave the session and registry dangling
         close_db(db_duplicate)
         drop_db(db_duplicate)
-        self.assertIn(db_duplicate, Registry.registries)  # dangling
+        self.assertIn(db_duplicate, Registry.registries)
 
-        # the registry is unusable, make sure the system recovers fine
         with self.assertLogs("odoo.http.application", logging.WARNING) as capture:
             res = self.url_open("/test_http/ensure_db")
             res.raise_for_status()
-            # The db is CONFIRMED dropped (RegistryError.db_absent=True): unlike
-            # a catalog-unreachable blip, the logout must be durable — a session
-            # bound to a dead database must not stay logged in on disk.
             self.assertFalse(
                 odoo.http.root.session_store.get(session.sid).db,
                 "A session on a dropped database must be durably logged out.",
             )
-            self.authenticate(db=db_duplicate)  # session was dropped
+            self.authenticate(db=db_duplicate)
             res_query = self.url_open(f"/test_http/ensure_db?db={db_duplicate}")
             res_query.raise_for_status()
 
@@ -209,11 +182,6 @@ class TestHttpRegistry(BaseCase):
         )
 
     def test_catalog_unreachable_keeps_session(self):
-        # A transient outage where even the catalog is unreachable (PostgreSQL
-        # restarting) says nothing about the session's database: the request is
-        # served db-less ONCE but the session must survive, or a blip forces a
-        # site-wide re-login. Only a decidable catalog check (db dropped, or
-        # present with a broken registry) may log the session out.
         session = self.authenticate()
         boom = psycopg.OperationalError("server closed the connection unexpectedly")
         with (
@@ -245,14 +213,6 @@ class TestHttpRegistry(BaseCase):
         )
 
     def test_pool_error_keeps_session(self):
-        # A downed PostgreSQL behind a WARM pool surfaces as PoolError (the
-        # pool wraps psycopg_pool's PoolTimeout), NOT as a raw
-        # OperationalError — and pool starvation under load raises the same
-        # class. Both are transient failures against an existing database:
-        # the request must degrade db-less without 500ing (PoolError used to
-        # miss the recovery tuple entirely) and WITHOUT durably logging the
-        # session out (the catalog still lists the db, but nothing about it
-        # is broken).
         session = self.authenticate()
         with (
             patch("odoo.http._serve.Registry") as registry_cls,
@@ -278,16 +238,13 @@ class TestHttpRegistry(BaseCase):
     def test_corrupt_ir_module_module_table(self):
         db_duplicate = self.duplicate_current_db("corrupt-irmodule")
 
-        # corrupt the ir_module_module table
         with db_connect(db_duplicate).cursor() as cr:
             cr.execute("""
                 ALTER TABLE "ir_module_module" DROP COLUMN "state"
             """)
 
-        # we have a session on that database but no registry
         self.authenticate(db=db_duplicate)
 
-        # impossible to build a registry, make sure the system recovers
         with (
             self.assertLogs("odoo.registry", logging.ERROR) as capture1,
             self.assertLogs("odoo.http.application", logging.WARNING) as capture2,
@@ -314,19 +271,16 @@ class TestHttpRegistry(BaseCase):
     def test_corrupt_signaling(self):
         db_duplicate = self.duplicate_current_db("corrupt-sequence")
 
-        # open a registry + session on the current db (for first subtest)
         self.authenticate(db=db_duplicate)
         res = self.url_open("/test_http/ensure_db")
         self.assertEqual(res.status_code, 200)
 
-        # drop the signaling sequence
         with db_connect(db_duplicate).cursor() as cr:
             cr.execute("""
                 DROP table "orm_signaling_registry"
             """)
 
         with self.subTest(name="existing registry"):
-            # attempt to reuse the registry, make sure the system recovers
             with self.assertLogs("odoo.http.application", logging.WARNING) as capture:
                 res = self.url_open("/test_http/greeting-public")
                 self.assertEqual(res.status_code, 404)
@@ -343,7 +297,5 @@ class TestHttpRegistry(BaseCase):
         with self.subTest(name="new registry"):
             self.authenticate(db=db_duplicate)
             Registry.delete(db_duplicate)
-            # attempt to create a new registry, it should create the
-            # missing sequences and go on just fine
             res = self.url_open("/test_http/greeting-public")
             self.assertEqual(res.status_code, 200)

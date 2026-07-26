@@ -13,7 +13,6 @@ def strip_prefix(prefix, names):
 
 
 class TestOnchange(SavepointCaseWithUserDemo):
-
     def setUp(self):
         super().setUp()
         self.Discussion = self.env["test_orm.discussion"]
@@ -74,7 +73,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # changing 'discussion' should recompute 'name'
         values = {
             "discussion": discussion.id,
             "name": f"[] {USER.name}",
@@ -91,7 +89,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # changing 'body' should recompute 'size'
         values = {
             "discussion": discussion.id,
             "name": f"[{discussion.name}] {USER.name}",
@@ -108,8 +105,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # changing 'body' should not recompute 'name', even if 'discussion' and
-        # 'name' are not consistent with each other
         values = {
             "discussion": discussion.id,
             "name": False,
@@ -138,7 +133,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
 
         root = Category.create({"name": "root"})
 
-        # set 'parent' to root, and check that 'root_categ' is computed as expected
         values = {
             "name": "test",
             "parent": root.id,
@@ -153,7 +147,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # set 'parent' to False, and check that 'root_categ' is computed as expected
         values = {
             "name": "test",
             "parent": False,
@@ -172,7 +165,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         """test the effect of onchange() on one2many fields"""
         USER = self.env.user
 
-        # create an independent message
         message1 = self.Message.create({"body": "ABC"})
         message2 = self.Message.create({"body": "ABC"})
         self.assertEqual(message1.name, "[%s] %s" % ("", USER.name))
@@ -194,7 +186,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # modify discussion name
         values = {
             "name": "Foo",
             "categories": [],
@@ -229,7 +220,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             ],
         )
 
-        # ensure onchange changing one2many without subfield works
         one_level_fields_spec = {field_name: {} for field_name in fields_spec}
         values = dict(values, name="{generate_dummy_message}")
         result = self.Discussion.with_context(generate_dummy_message=True).onchange(
@@ -264,8 +254,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # modify discussion name, and check that the reference of the new line
-        # is returned
         values = {
             "name": "Foo",
             "categories": [],
@@ -323,14 +311,10 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # modify 'partner'
-        #   -> set 'partner' on all lines
-        #   -> recompute 'name'
-        #       -> set 'name' on all lines
         partner2 = self.env["res.partner"].create({"name": "A second partner"})
         values = {
             "name": partner1.name,
-            "partner": partner2.id,  # this one just changed
+            "partner": partner2.id,
             "lines": [
                 (
                     Command.CREATE,
@@ -375,10 +359,9 @@ class TestOnchange(SavepointCaseWithUserDemo):
             },
         )
 
-        # do it again, but this time with a new tag on the second line
         values = {
             "name": partner1.name,
-            "partner": partner2.id,  # this one just changed
+            "partner": partner2.id,
             "lines": [
                 (
                     Command.CREATE,
@@ -420,7 +403,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         }
         self.assertEqual(result["value"], expected_value)
 
-        # ensure ID is not returned when asked and a many2many record is set to be created
         self.env.invalidate_all()
 
         fields_spec = multi._get_fields_spec()
@@ -428,7 +410,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         result = multi.onchange(values, ["partner"], fields_spec)
         self.assertEqual(result["value"], expected_value)
 
-        # ensure inverse of one2many field is not returned
         self.env.invalidate_all()
 
         fields_spec = multi._get_fields_spec()
@@ -441,8 +422,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         default_messages = [Command.create({"body": "A"})]
         model = self.Discussion.with_context(default_messages=default_messages)
 
-        # the command CREATE below must be applied on the empty value, instead
-        # of the default value above
         values = {
             "name": "Stuff",
             "messages": [(Command.CREATE, "virtual1", {"name": "[] ", "body": "B"})],
@@ -479,11 +458,9 @@ class TestOnchange(SavepointCaseWithUserDemo):
             fields_spec.get("participants"), {"fields": {"display_name": {}}}
         )
 
-        # first remove demo user from participants
         discussion.participants -= demo
         self.assertNotIn(demo, discussion.participants)
 
-        # check that demo_user is added to participants when set as moderator
         values = {
             "moderator": demo.id,
         }
@@ -509,16 +486,13 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertTrue(type(Foo).value1.change_default)
         self.assertIn("value1", Foo._onchange_methods)
 
-        # create a user-defined default based on 'value1'
         self.env["ir.default"].set("test_orm.foo", "value2", 666, condition="value1=42")
 
-        # setting 'value1' to 42 should trigger the change of 'value2'
         self.env.invalidate_all()
         values = {"name": "X", "value1": 42, "value2": False}
         result = Foo.onchange(values, ["value1"], fields_spec)
         self.assertEqual(result["value"], {"value2": 666})
 
-        # setting 'value1' to 24 should not trigger the change of 'value2'
         self.env.invalidate_all()
         values = {"name": "X", "value1": 24, "value2": False}
         result = Foo.onchange(values, ["value1"], fields_spec)
@@ -536,7 +510,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             self.assertEqual(form.partner, partner)
             self.assertEqual(form.name, partner.name)
             with form.lines.new() as line:
-                # the first onchange() must have computed partner
                 self.assertEqual(line.partner, partner)
 
     def test_onchange_one2many_value(self):
@@ -596,8 +569,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         discussion = self.env.ref("test_orm.discussion_0")
         demo = self.user_demo
 
-        # mimic UI behaviour, so we get subfields
-        # (we need at least subfield: 'important_emails.important')
         view_info = self.Discussion.get_view(
             self.env.ref("test_orm.discussion_form").id, "form"
         )
@@ -634,7 +605,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         BODY = "What a beautiful day!"
         USER = self.env.user
 
-        # create standalone email
         email = self.EmailMessage.create(
             {
                 "discussion": discussion.id,
@@ -646,15 +616,12 @@ class TestOnchange(SavepointCaseWithUserDemo):
             }
         )
 
-        # check if server-side cache is working correctly
         self.env.invalidate_all()
         self.assertIn(email, discussion.emails)
         self.assertNotIn(email, discussion.important_emails)
         email.important = True
         self.assertIn(email, discussion.important_emails)
 
-        # check that triggering an onchange does not reset important emails
-        # (force `invalidate`, as they only appear in onchange on a cache miss)
         self.env.invalidate_all()
         self.assertEqual(len(discussion.messages), 4)
         values = {
@@ -744,7 +711,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
                 called[0] = True
             return orig_read(self, fields, load)
 
-        # changing 'discussion' on message should not read 'messages' on discussion
         with patch.object(type(discussion), "read", mock_read, create=True):
             self.env.invalidate_all()
             self.Message.onchange(values, ["discussion"], fields_spec)
@@ -758,9 +724,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             }
         )
 
-        # this call to onchange() is made when creating a new line in field
-        # order.line_ids; check what happens when the line's form view contains
-        # the inverse many2one field
         values = {"order_id": {"id": order.id, "currency_id": order.currency_id.id}}
         fields_spec = {
             "order_id": {},
@@ -793,9 +756,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             }
         )
 
-        # both fields 'tag_id' and 'tag_name' are inherited through 'move_id';
-        # assigning 'tag_id' should modify 'move_id.tag_id' accordingly, which
-        # should in turn recompute `move.tag_name` and `tag_name`
         form = Form(self.env["test_orm.payment"], view)
         self.assertEqual(form.tag_name, False)
         form.tag_id = foo
@@ -851,8 +811,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(move.payment_ids.tag_repeat, 1)
 
     def test_onchange_inherited_computed(self):
-        # 'test_orm.payment' inherits from 'test_orm.move', which has a computed
-        # field that depends on the corresponding payment's amount
         view = self.env["ir.ui.view"].create(
             {
                 "name": "Payment form view",
@@ -868,8 +826,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             form.amount = 0
             self.assertEqual(form.payment_amount, 0)
 
-        # same thing, but with 'test_orm.payment' as lines in a one2many in the
-        # form of a 'test_orm.move'
         view = self.env["ir.ui.view"].create(
             {
                 "name": "Move form view",
@@ -914,9 +870,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
         self.assertEqual(record.display_name, "")
 
     def test_reading_one2many_and_inverse_is_not_supported(self):
-        # when reading a relation one2many, sometime the relation itself defines
-        # the many2one toward the parent model. Adding this to the fields_spec
-        # is not supported
         USER = self.env.user
 
         fields_spec = {
@@ -925,13 +878,11 @@ class TestOnchange(SavepointCaseWithUserDemo):
                 "fields": {
                     "name": {},
                     "author": {"fields": {"display_name": {}}},
-                    # add the inverse of field 'messages' into its subfields
                     "discussion": {"fields": {"display_name": {}}},
                 }
             },
         }
 
-        # modify discussion name with a special value that adds a new message
         values = {
             "name": "{generate_dummy_message}",
         }
@@ -946,7 +897,7 @@ class TestOnchange(SavepointCaseWithUserDemo):
                     {
                         "name": f"[{{generate_dummy_message}}] {USER.name}",
                         "author": {"id": 1, "display_name": f"{USER.name}"},
-                        "discussion": False,  # this value is False because the main record does not exist yet
+                        "discussion": False,
                     }
                 ),
             ],
@@ -962,7 +913,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             "root_categ": {"fields": {"display_name": {}, "color": {}}},
         }
 
-        # set 'parent' to root, and check that 'root_categ' is computed as expected
         values = {
             "name": "test",
             "parent": root.id,
@@ -1007,10 +957,8 @@ class TestOnchange(SavepointCaseWithUserDemo):
                 },
             },
         )
-        # add a context on field 'lines' to change the display_name of subfield 'partner'
         fields_spec["lines"]["context"] = {"show_email": True}
 
-        # create a partner (for a change)
         partner = self.env["res.partner"].create(
             {
                 "name": "A partner",
@@ -1021,12 +969,8 @@ class TestOnchange(SavepointCaseWithUserDemo):
         display_name_email = partner.with_context(show_email=True).display_name
         self.assertNotEqual(display_name_email, display_name)
 
-        # modify 'partner'
-        #   -> set 'partner' on all lines
-        #   -> recompute 'name'
-        #       -> set 'name' on all lines
         values = {
-            "partner": partner.id,  # this one just changed
+            "partner": partner.id,
         }
         self.env.invalidate_all()
 
@@ -1066,7 +1010,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             "name": {},
             "partner": {"fields": {"display_name": {}}},
             "lines": {
-                # this context should change the 'display_name' of 'tags'
                 "context": {"special_tag": True},
                 "fields": {
                     "name": {},
@@ -1077,7 +1020,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             "tags": {"fields": {"display_name": {}}},
         }
 
-        # set field 'tags': this should modify 'tags' on all lines
         tag = self.env["test_orm.multi.tag"].create({"name": "tag"})
         self.assertEqual(tag.display_name, "tag")
         self.assertEqual(tag.with_context(special_tag=True).display_name, "tag!")
@@ -1120,9 +1062,6 @@ class TestOnchange(SavepointCaseWithUserDemo):
             }
         )
 
-        # having 'lines' below force the prefetching of the subfields 'name'
-        # and 'tags'; this test ensures that the ids of 'tags' are "newified"
-        # in the new record
         values = {
             "lines": [(Command.CREATE, "virtual1", {"name": "X", "tags": []})],
             "tags": [Command.link(tag2.id)],
@@ -1161,33 +1100,27 @@ class TestOnchange(SavepointCaseWithUserDemo):
 
 
 class TestComputeOnchange2(TransactionCase):
-
     def test_create(self):
         model = self.env["test_orm.compute.onchange"]
 
-        # compute 'bar' (readonly) and 'baz' (editable)
         record = model.create({"active": True})
         self.assertEqual(record.bar, "r")
         self.assertEqual(record.baz, "z")
 
-        # compute 'bar' and 'baz'
         record = model.create({"active": True, "foo": "foo"})
         self.assertEqual(record.bar, "foor")
         self.assertEqual(record.baz, "fooz")
 
-        # compute 'bar' but not 'baz'
         record = model.create(
             {"active": True, "foo": "foo", "bar": "bar", "baz": "baz"}
         )
         self.assertEqual(record.bar, "foor")
         self.assertEqual(record.baz, "baz")
 
-        # compute 'bar' and 'baz', but do not change its value
         record = model.create({"active": False, "foo": "foo"})
         self.assertEqual(record.bar, "foor")
         self.assertEqual(record.baz, False)
 
-        # compute 'bar' but not 'baz'
         record = model.create(
             {"active": False, "foo": "foo", "bar": "bar", "baz": "baz"}
         )
@@ -1197,7 +1130,6 @@ class TestComputeOnchange2(TransactionCase):
     def test_copy(self):
         Model = self.env["test_orm.compute.onchange"]
 
-        # create tags
         tag_foo, tag_bar = self.env["test_orm.multi.tag"].create(
             [
                 {"name": "foo1"},
@@ -1205,14 +1137,12 @@ class TestComputeOnchange2(TransactionCase):
             ]
         )
 
-        # compute 'bar' (readonly), 'baz', 'line_ids' and 'tag_ids' (editable)
         record = Model.create({"active": True, "foo": "foo1"})
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "foo1z")
         self.assertEqual(record.line_ids.mapped("foo"), ["foo1"])
         self.assertEqual(record.tag_ids, tag_foo)
 
-        # manually update 'baz' and 'lines' to test copy attribute
         record.write(
             {
                 "baz": "baz1",
@@ -1225,23 +1155,21 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(record.line_ids.mapped("foo"), ["foo1", "bar"])
         self.assertEqual(record.tag_ids, tag_foo + tag_bar)
 
-        # copy the record, and check results
         copied = record.copy()
-        self.assertEqual(copied.foo, "foo1 (copy)")  # copied and modified
-        self.assertEqual(copied.bar, "foo1 (copy)r")  # computed
-        self.assertEqual(copied.baz, "baz1")  # copied
-        self.assertEqual(record.line_ids.mapped("foo"), ["foo1", "bar"])  # copied
-        self.assertEqual(record.tag_ids, tag_foo + tag_bar)  # copied
+        self.assertEqual(copied.foo, "foo1 (copy)")
+        self.assertEqual(copied.bar, "foo1 (copy)r")
+        self.assertEqual(copied.baz, "baz1")
+        self.assertEqual(record.line_ids.mapped("foo"), ["foo1", "bar"])
+        self.assertEqual(record.tag_ids, tag_foo + tag_bar)
 
     def test_copy_batch(self):
         partners = self.env["test_orm.partner"].create(
             [{"name": f"Partner {index}"} for index in range(5)]
         )
 
-        # warmup
         partners.copy()
 
-        with self.assertQueryCount(2):  # psycopg3: INSERT + SELECT for defaults
+        with self.assertQueryCount(2):
             new_partners = partners.copy()
 
         for old_partner, new_partner in zip(partners, new_partners, strict=False):
@@ -1253,22 +1181,18 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(record.bar, "foor")
         self.assertEqual(record.baz, "fooz")
 
-        # recompute 'bar' (readonly) and 'baz' (editable)
         record.write({"foo": "foo1"})
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "foo1z")
 
-        # recompute 'bar' but not 'baz'
         record.write({"foo": "foo2", "bar": "bar2", "baz": "baz2"})
         self.assertEqual(record.bar, "foo2r")
         self.assertEqual(record.baz, "baz2")
 
-        # recompute 'bar' and 'baz', but do not change its value
         record.write({"active": False, "foo": "foo3"})
         self.assertEqual(record.bar, "foo3r")
         self.assertEqual(record.baz, "baz2")
 
-        # recompute 'bar' but not 'baz'
         record.write({"active": False, "foo": "foo4", "bar": "bar4", "baz": "baz4"})
         self.assertEqual(record.bar, "foo4r")
         self.assertEqual(record.baz, "baz4")
@@ -1279,27 +1203,22 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(record.bar, "foor")
         self.assertEqual(record.baz, "fooz")
 
-        # recompute 'bar' (readonly) and 'baz' (editable)
         record.foo = "foo1"
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "foo1z")
 
-        # do not recompute 'baz'
         record.baz = "baz2"
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "baz2")
 
-        # recompute 'baz', but do not change its value
         record.active = False
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "baz2")
 
-        # recompute 'baz', but do not change its value
         record.foo = "foo3"
         self.assertEqual(record.bar, "foo3r")
         self.assertEqual(record.baz, "baz2")
 
-        # do not recompute 'baz'
         record.baz = "baz4"
         self.assertEqual(record.bar, "foo3r")
         self.assertEqual(record.baz, "baz4")
@@ -1310,33 +1229,27 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(record.bar, "r")
         self.assertEqual(record.baz, "z")
 
-        # recompute 'bar' (readonly) and 'baz' (editable)
         record.foo = "foo1"
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "foo1z")
 
-        # do not recompute 'baz'
         record.baz = "baz2"
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "baz2")
 
-        # recompute 'baz', but do not change its value
         record.active = False
         self.assertEqual(record.bar, "foo1r")
         self.assertEqual(record.baz, "baz2")
 
-        # recompute 'baz', but do not change its value
         record.foo = "foo3"
         self.assertEqual(record.bar, "foo3r")
         self.assertEqual(record.baz, "baz2")
 
-        # do not recompute 'baz'
         record.baz = "baz4"
         self.assertEqual(record.bar, "foo3r")
         self.assertEqual(record.baz, "baz4")
 
     def test_onchange(self):
-        # check computations of 'bar' (readonly) and 'baz' (editable)
         form = Form(self.env["test_orm.compute.onchange"])
         self.assertEqual(form.bar, "r")
         self.assertEqual(form.baz, False)
@@ -1361,7 +1274,6 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(form.baz, "foo3z")
 
         with form.line_ids.new() as line:
-            # check computation of 'bar' (readonly)
             self.assertEqual(line.foo, False)
             self.assertEqual(line.bar, "r")
             line.foo = "foo"
@@ -1399,8 +1311,6 @@ class TestComputeOnchange2(TransactionCase):
                 default_quux="no",
             )
         )
-        # 'baz' is computed editable, so when given a default value it should
-        # not be recomputed, even if a dependency also has a default value
         self.assertEqual(form.foo, "foo")
         self.assertEqual(form.bar, "foor")
         self.assertEqual(form.baz, "baz")
@@ -1432,7 +1342,6 @@ class TestComputeOnchange2(TransactionCase):
         self.assertEqual(record.child_ids.mapped("name"), list("WXYZ"))
         self.assertEqual(record.cost, 22)
 
-        # modifying a line should not recompute the cost on other lines
         with Form(record) as form:
             with form.child_ids.edit(1) as line:
                 line.name = "XXX"
@@ -1447,7 +1356,6 @@ class TestComputeOnchange2(TransactionCase):
             self.assertEqual(form.cost, 61)
 
     def test_onchange_editable_compute_one2many(self):
-        # create a record with a computed editable field ('edit') on lines
         record = self.env["test_orm.compute_editable"].create(
             {
                 "line_ids": [Command.create({"value": 7})],
@@ -1457,13 +1365,8 @@ class TestComputeOnchange2(TransactionCase):
         line = record.line_ids
         self.assertRecordValues(line, [{"value": 7, "edit": 7, "count": 0}])
 
-        # retrieve the onchange spec for calling 'onchange'
         fields_spec = record._get_fields_spec()
 
-        # The onchange on 'line_ids' should increment 'count' and keep the value
-        # of 'edit' (this field should not be recomputed), whatever the order of
-        # the fields in the dictionary.  This ensures that the value set by the
-        # user on a computed editable field on a line is not lost.
         line_ids = [
             Command.update(line.id, {"value": 8, "edit": 9, "count": 0}),
             (Command.CREATE, "virtual2", {"value": 8, "edit": 9, "count": 0}),
@@ -1479,7 +1382,6 @@ class TestComputeOnchange2(TransactionCase):
         }
         self.assertEqual(result, expected)
 
-        # change dict order in lines, and try again
         line_ids = [
             (op, id_, dict(reversed(list(vals.items())))) for op, id_, vals in line_ids
         ]
@@ -1496,7 +1398,6 @@ class TestComputeOnchange2(TransactionCase):
             ],
         )
 
-        # trigger recomputation by changing name
         record.name = "bar"
         self.assertRecordValues(
             record.line_ids,
@@ -1506,7 +1407,6 @@ class TestComputeOnchange2(TransactionCase):
             ],
         )
 
-        # manually adding a line should not trigger recomputation
         record.line_ids.create({"name": "baz", "container_id": record.id})
         self.assertRecordValues(
             record.line_ids,
@@ -1517,7 +1417,6 @@ class TestComputeOnchange2(TransactionCase):
             ],
         )
 
-        # changing the field in the domain should not trigger recomputation...
         record.line_ids[-1].count = 2
         self.assertRecordValues(
             record.line_ids,
@@ -1528,7 +1427,6 @@ class TestComputeOnchange2(TransactionCase):
             ],
         )
 
-        # ...and may show cache inconsistencies
         record.line_ids[-1].count = 0
         self.assertRecordValues(
             record.line_ids,
@@ -1570,14 +1468,10 @@ class TestComputeOnchange2(TransactionCase):
         with Form(discussion, "test_orm.discussion_form_2") as discussion_form:
             self.assertEqual(len(discussion_form.messages), 1)
             with discussion_form.messages.new() as message_form:
-                # this actually checks that during the onchange, the new message
-                # has access to its sibling messages through the discussion
                 self.assertEqual(message_form.has_important_sibling, True)
                 message_form.body = "Required Body"
             self.assertEqual(len(discussion_form.messages), 2)
 
-        # Test the same flow but when the important message is archived.
-        # The _compute_has_important_sibling should take in account archived siblings.
         discussion = self.env["test_orm.discussion"].create(
             {
                 "messages": [
@@ -1597,8 +1491,6 @@ class TestComputeOnchange2(TransactionCase):
         with Form(discussion, "test_orm.discussion_form_2") as discussion_form:
             self.assertEqual(len(discussion_form.messages), 0)
             with discussion_form.messages.new() as message_form:
-                # this actually checks that during the onchange, the new message
-                # has access to its archived sibling messages through the discussion
                 self.assertEqual(message_form.has_important_sibling, True)
                 message_form.body = "Required Body"
             self.assertEqual(len(discussion_form.messages), 1)
@@ -1641,13 +1533,11 @@ class TestComputeOnchange2(TransactionCase):
         with Form(discussion, "test_orm.discussion_form_2") as discussion_form:
             self.assertEqual(len(discussion_form.messages), 1)
             with discussion_form.messages.new() as message_form:
-                # check that Msg1 is visible in the one2many during onchange()
                 self.assertEqual(message_form.has_important_sibling, True)
                 message_form.body = "Msg2: New"
 
             self.assertEqual(len(discussion_form.messages), 2)
             with discussion_form.messages.new() as message_form:
-                # check that Msg1 is visible in the one2many during onchange()
                 self.assertEqual(message_form.has_important_sibling, True)
                 message_form.body = "Msg3: New"
 

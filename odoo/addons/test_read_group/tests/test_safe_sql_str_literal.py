@@ -22,26 +22,24 @@ class TestSafeSqlStrLiteral(common.TransactionCase):
         self.assertEqual(_safe_sql_str_literal("UTC"), "'UTC'")
 
     def test_pytz_with_slash(self):
-        # canonical pytz names contain forward slashes
         self.assertEqual(
             _safe_sql_str_literal("America/New_York"),
             "'America/New_York'",
         )
 
     def test_pytz_with_plus(self):
-        # Etc/GMT zones have signed offsets
         self.assertEqual(_safe_sql_str_literal("Etc/GMT+0"), "'Etc/GMT+0'")
         self.assertEqual(_safe_sql_str_literal("Etc/GMT-12"), "'Etc/GMT-12'")
 
     def test_time_granularity_keys(self):
-        # all keys of READ_GROUP_TIME_GRANULARITY must be embeddable
         from odoo.orm.constants import READ_GROUP_TIME_GRANULARITY
+
         for key in READ_GROUP_TIME_GRANULARITY:
             self.assertEqual(_safe_sql_str_literal(key), f"'{key}'")
 
     def test_pg_granularity_values(self):
-        # all values of READ_GROUP_NUMBER_GRANULARITY must be embeddable
         from odoo.orm.constants import READ_GROUP_NUMBER_GRANULARITY
+
         for value in READ_GROUP_NUMBER_GRANULARITY.values():
             self.assertEqual(_safe_sql_str_literal(value), f"'{value}'")
 
@@ -64,5 +62,4 @@ class TestSafeSqlStrLiteral(common.TransactionCase):
             _safe_sql_str_literal(["a"])
 
     def test_empty_string(self):
-        # empty string is allowed — produces the empty SQL literal ''
         self.assertEqual(_safe_sql_str_literal(""), "''")

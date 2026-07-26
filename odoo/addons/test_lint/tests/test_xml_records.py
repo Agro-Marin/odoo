@@ -41,8 +41,6 @@ class XmlRecordLinter(LintCase):
             with self.subTest(file=xml_file):
                 self._check_attrib_order(xml_file)
 
-    # ── Helpers ──────────────────────────────────────────────────────────────
-
     def _parse(self, xml_file: str) -> etree._ElementTree | None:
         """Parse *xml_file*; return ``None`` and log a warning on syntax error."""
         try:
@@ -61,7 +59,6 @@ class XmlRecordLinter(LintCase):
             model = record.get("model")
             if model not in _sort_xml_records.FIELD_ORDER:
                 continue
-            # Skip records with comment/PI nodes — intentional grouping.
             if any(callable(c.tag) for c in record):
                 continue
 
@@ -71,9 +68,7 @@ class XmlRecordLinter(LintCase):
 
             if actual != expected:
                 record_id = record.get("id", "<no id>")
-                violations.append(
-                    f"  {model} id={record_id!r}: {actual} → {expected}"
-                )
+                violations.append(f"  {model} id={record_id!r}: {actual} → {expected}")
 
         if violations:
             self.fail(
@@ -89,7 +84,6 @@ class XmlRecordLinter(LintCase):
         violations: list[str] = []
         root = tree.getroot()
 
-        # <record> and their direct <field> children.
         for record in root.iter("record"):
             if record.get("model") is None:
                 continue
@@ -111,16 +105,13 @@ class XmlRecordLinter(LintCase):
                         f" in {record.get('id')!r}: {actual} → {expected}"
                     )
 
-        # <menuitem>, <template>, <delete>, <function>.
         for tag in _sort_xml_records._TOP_LEVEL_TAGS:
             for elem in root.iter(tag):
                 actual = list(elem.attrib.keys())
                 expected = _sort_xml_records.expected_attrib_order(tag, actual)
                 if actual != expected:
                     eid = elem.get("id") or elem.get("name") or elem.get("model", "?")
-                    violations.append(
-                        f"  <{tag}> id={eid!r}: {actual} → {expected}"
-                    )
+                    violations.append(f"  <{tag}> id={eid!r}: {actual} → {expected}")
 
         if violations:
             self.fail(

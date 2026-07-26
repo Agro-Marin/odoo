@@ -37,11 +37,8 @@ class TestExport(common.TransactionCase):
         def converter(value, options=None, context=None):
             context = context or {}
             record = self.Model.with_context(context).new({name: value})
-            # normalise non-newline spaces: some versions of babel use regular
-            # spaces while others use non-break space when formatting timedeltas
-            # to the french locale
             return re.sub(
-                r"[^\S\n\r]",  # no \p{Zs}
+                r"[^\S\n\r]",
                 " ",
                 model.with_context(context).record_to_html(record, name, options or {}),
             )
@@ -271,7 +268,6 @@ class TestHTMLExport(TestBasicExport):
 class TestDatetimeExport(TestBasicExport):
     def setUp(self):
         super().setUp()
-        # set user tz to known value
         self.env.user.write({"tz": "Pacific/Niue"})
 
     def test_date(self):
@@ -279,7 +275,6 @@ class TestDatetimeExport(TestBasicExport):
 
         value = converter("2011-05-03")
 
-        # default lang/format is US
         self.assertEqual(value, "05/03/2011")
 
     def test_datetime(self):
@@ -287,7 +282,6 @@ class TestDatetimeExport(TestBasicExport):
 
         value = converter("2011-05-03 11:12:13")
 
-        # default lang/format is US
         self.assertEqual(value, "05/03/2011 12:12:13 AM")
 
     def test_custom_format(self):
@@ -304,7 +298,6 @@ class TestDatetimeExport(TestBasicExport):
 class TestDurationExport(TestBasicExport):
     def setUp(self):
         super().setUp()
-        # needs to have lang installed otherwise falls back on en_US
         self.env["res.lang"]._activate_lang("fr_FR")
 
     def test_default_unit(self):
@@ -349,12 +342,8 @@ class TestDurationExport(TestBasicExport):
 
 
 class TestRelativeDatetime(TestBasicExport):
-    # not sure how a test based on "current time" should be tested. Even less
-    # so as it would mostly be a test of babel...
-
     def setUp(self):
         super().setUp()
-        # needs to have lang installed otherwise falls back on en_US
         self.env["res.lang"]._activate_lang("fr_FR")
 
     def test_basic(self):

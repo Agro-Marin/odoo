@@ -31,11 +31,10 @@ import inspect
 def _probe(obj: object, label: str) -> str | None:
     """Return a diagnostic if ``inspect.signature(obj)`` fails on annotations."""
     try:
-        inspect.signature(obj)  # type: ignore[arg-type]
+        inspect.signature(obj)
     except (NameError, AttributeError) as e:
         return f"{label}: {type(e).__name__}: {e}"
     except TypeError, ValueError:
-        # Built-in or otherwise non-signature-able; not what we hunt.
         return None
     return None
 

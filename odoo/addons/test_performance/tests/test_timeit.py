@@ -11,7 +11,6 @@ _logger = logging.getLogger(__name__)
 
 
 class TestPerformanceTimeit(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -65,14 +64,12 @@ class TestPerformanceTimeit(TransactionCase):
         """Get records for testing, give the max size of the recordset"""
         all_records = [p.child_ids for p in cls.get_parents()]
         result = [recs for recs in all_records if len(recs) < max_size]
-        # find the next bigger and truncate it to max size
         if bigger := next((recs for recs in all_records if len(recs) > max_size), None):
             result.append(bigger[:max_size])
         return result
 
     def setUp(self):
         super().setUp()
-        # Warm up the cache of all data
         self.Model.with_context(active_test=False).search([]).mapped("name")
 
     def launch_perf(
@@ -80,10 +77,10 @@ class TestPerformanceTimeit(TransactionCase):
         code: str,
         records: BaseModel,
         *,
-        relative_size: int = 1,  # relative size of the batch (for comparisons)
-        number: int = 100,  # number of runs in each iteration
-        repeat: int = 3,  # number of repeated runs
-        ctx: dict = None,  # additional local variables
+        relative_size: int = 1,
+        number: int = 100,
+        repeat: int = 3,
+        ctx: dict = None,
     ) -> float:
         """Run a performance test.
 
@@ -128,10 +125,8 @@ class TestPerformanceTimeit(TransactionCase):
         number: int = 4,
         **kw,
     ):
-        # initialize the record list with the children records
         if not record_list:
             record_list = self.get_test_children()
-        # relative sizes are initialized to 1, 10, 100, ...
         relative_sizes = relative_size or [10**i for i in range(len(record_list))]
         assert len(relative_sizes) == len(record_list)
         repeat = 3
@@ -146,19 +141,14 @@ class TestPerformanceTimeit(TransactionCase):
             )
             for records, relative_size in zip(record_list, relative_sizes, strict=False)
         ]
-        # checks
         if len(results) <= 3:
             check_type = None
         if check_type == "linear":
-            # approximative check that the resulting runs are behaving linearly
-            # skip the first result as it is very small and not comparable
-            check_results = [r / s for r, s in zip(results, relative_sizes, strict=False)][1:]
-            min_time = check_results[
-                0
-            ]  # take the time for the first check result as a comparison point
+            check_results = [
+                r / s for r, s in zip(results, relative_sizes, strict=False)
+            ][1:]
+            min_time = check_results[0]
             max_time = max(check_results)
-            # just check that the biggest difference of timings per record
-            # compared to minimum run time is not greater than the max_tolerance
             max_tolerance = 2.5
             _logger.info(
                 "%s Linear behaviour for %s",
@@ -230,17 +220,13 @@ class TestPerformanceTimeit(TransactionCase):
             return ["|"] * (N - 1) + [("name", "=", "admin")] * N
 
         ctx = {"dom": large_domain}
-        # _search()
         self.launch_perf_set("records._search(dom(records))", ctx=ctx, number=3)
-        # search() with result, minimal run times, just to check if we can handle the query execution
         self.launch_perf_set(
             "records.search(dom(records))",
-            # max is set to 9.5k because for 10k we get an out of memory error
             record_list=self.get_test_children(max_size=9500),
             ctx=ctx,
             number=1,
         )
-        # filtered_domain() is non-linear and may time-out!
         self.launch_perf_set(
             "records.filtered_domain(dom(records))",
             record_list=self.get_test_children(max_size=400),

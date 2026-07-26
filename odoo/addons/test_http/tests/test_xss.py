@@ -5,10 +5,7 @@ from .test_common import TestHttpBase
 
 @tagged("-at_install", "post_install")
 class TestXSS(TestHttpBase):
-    # In case a XSS isn't filtered, it'll load /test_http/fail which logs an error.
-    # browser_js only returns when it finds "test successful" in the logs.
     fake_success = "console.log('test successful')"
-    #                            ^^^^^^^^^^^^^^^
 
     def test_xss_static(self):
         self.browser_js("/test_http/static/src/img/xss.svg", self.fake_success)

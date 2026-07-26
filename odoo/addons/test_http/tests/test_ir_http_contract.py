@@ -43,8 +43,6 @@ class TestIrHttpImplementsProtocol(TransactionCase):
         hooks = [
             (name, func)
             for name, func in inspect.getmembers(HttpExtension, inspect.isfunction)
-            # typing.Protocol injects dunders (__init__, __subclasshook__, …);
-            # only the protocol's own declared hooks form the contract.
             if not name.startswith("__")
         ]
         self.assertGreaterEqual(len(hooks), 13, "protocol hooks went missing")
@@ -58,11 +56,9 @@ class TestIrHttpImplementsProtocol(TransactionCase):
                 )
                 self.assertTrue(callable(impl), f"ir.http.{name} is not callable")
 
-                # The http package calls hooks positionally: the protocol's
-                # parameter count (minus ``self``) is the call shape.
                 proto_params = list(inspect.signature(proto_func).parameters.values())[
                     1:
-                ]  # drop ``self``
+                ]
                 n_call_args = len(proto_params)
                 n_required_call_args = sum(
                     1 for p in proto_params if p.default is inspect.Parameter.empty

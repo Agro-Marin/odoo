@@ -10,19 +10,15 @@ from . import _sort_manifests
 _logger = logging.getLogger(__name__)
 
 MANIFEST_KEYS = {
-    # mandatory keys
     "name",
     "icon",
     "addons_path",
     "author",
     "license",
-    # optional keys
     *_DEFAULT_MANIFEST,
-    # unused "informative" keys
     "contributors",
     "maintainer",
     "url",
-    # for odoo apps store
     "price",
     "currency",
     "support",
@@ -32,12 +28,9 @@ MANIFEST_KEYS = {
 
 @no_retry
 class ManifestLinter(BaseCase):
-
     def test_manifests(self):
         for manifest in Manifest.all_addon_manifests():
             with self.subTest(module=manifest.name):
-                # we want to check the content of the manifest directly without
-                # parsed values
                 self._test_manifest_keys(manifest)
                 self._test_manifest_key_order(manifest)
                 self._test_manifest_values(manifest)
@@ -77,7 +70,6 @@ class ManifestLinter(BaseCase):
             "demo",
             "data",
             "test",
-            # todo installable ?
         ]
 
         if len(manifest_data.get("countries", [])) == 1 and "l10n" not in module:

@@ -10,7 +10,6 @@ _logger = logging.getLogger(__name__)
 
 
 class TestPerformance(SavepointCaseWithUserDemo):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -66,17 +65,14 @@ class TestPerformance(SavepointCaseWithUserDemo):
         self.assertEqual(len(records), 5)
 
         with self.assertQueryCount(__system__=2, demo=3):
-            # without cache
             for record in records:
                 record.partner_id.country_id.name
 
         with self.assertQueryCount(0):
-            # with cache
             for record in records:
                 record.partner_id.country_id.name
 
         with self.assertQueryCount(0):
-            # value_pc must have been prefetched, too
             for record in records:
                 record.value_pc
 
@@ -86,7 +82,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
-        # add one line on each record
         records.write({"line_ids": [Command.create({})]})
         self.env.invalidate_all()
 
@@ -99,12 +94,10 @@ class TestPerformance(SavepointCaseWithUserDemo):
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
         with self.assertQueryCount(__system__=1, demo=1):
-            # without cache
             for record in reversed(records):
                 record.partner_id
 
         with self.assertQueryCount(__system__=1, demo=1):
-            # without cache
             for record in reversed(records):
                 record.value_ctx
 
@@ -132,43 +125,32 @@ class TestPerformance(SavepointCaseWithUserDemo):
         self.assertEqual(len(records), 5)
 
         with self.assertQueryCount(1):
-            # not in cache yet
             records.fetch(["name", "partner_id"])
 
         with self.assertQueryCount(0):
-            # already in cache
             records.mapped("name")
             records.mapped("partner_id")
 
         with self.assertQueryCount(1):
-            # this one shouldn't have been fetched
             records.mapped("value")
 
         with self.assertQueryCount(0):
-            # 'name' and 'value' are already in cache
             records.fetch(["name", "value"])
 
         with self.assertQueryCount(0):
-            # 'id' should not be fetched
             records.fetch(["id", "name", "partner_id"])
 
         with self.assertQueryCount(0):
-            # 'display_name' depends on name that should already be fetched
             records.fetch(["id", "display_name"])
 
         with self.assertQueryCount(0):
-            # touch the field display_name, they are now in cache
             records.mapped("display_name")
 
-            # remove the dependencies of display_name (only name)
             records.invalidate_recordset(["name"])
 
-            # 'display_name' is in cache, so we should not load its dependencies
             records.fetch(["display_name"])
 
         with self.assertQueryCount(0):
-            # 'indirect_computed_value' depends 'computed_value', which depends
-            #  on 'value', and the latter is in cache
             records.fetch(["indirect_computed_value"])
 
         with self.assertQueryCount(1):
@@ -176,18 +158,12 @@ class TestPerformance(SavepointCaseWithUserDemo):
                 ["value", "computed_value", "indirect_computed_value"]
             )
 
-            # 'indirect_computed_value' depends 'computed_value', which depends
-            #  on 'value', and none of them are in cache
             records.fetch(["indirect_computed_value"])
 
-        # Test that new/false records are ignored. We generally make the assumption that
-        # new records and real record shouldn't mix together but for the sake of robustness
-        # we ignore new/false records in fetch.
         real_record = records[0]
         new_record_origin = records.new(origin=real_record)
         new_record_ref = records.new(ref="virtual_")
         new_record = records.new({"name": "aaa"})
-        # Because the ORM "works" for records.browse([False]).name, fetch should "work" too.
         false_record = records.browse([False])
         records = (
             real_record + new_record_origin + new_record_ref + new_record + false_record
@@ -206,13 +182,11 @@ class TestPerformance(SavepointCaseWithUserDemo):
             for record in records.search([]):
                 record.partner_id
 
-        # search() can do everything in a single query!
         with self.assertQueryCount(1):
             self.env.invalidate_all()
             for record in records.search_fetch([], ["partner_id"]):
                 record.partner_id
 
-        # the case where you don't fetch the right field
         with self.assertQueryCount(2):
             self.env.invalidate_all()
             for record in records.search_fetch([], ["value_pc"]):
@@ -225,7 +199,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         records = Model.search([])
         self.assertEqual(len(records), 5)
 
-        # one query for search and read, one query for display_name
         expected = records.read(["partner_id", "value_pc"])
         with self.assertQueryCount(2):
             self.env.invalidate_all()
@@ -234,7 +207,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
                 expected,
             )
 
-        # one query for search and read
         expected = records.read(["partner_id", "value_pc"], load=False)
         with self.assertQueryCount(1):
             self.env.invalidate_all()
@@ -261,11 +233,9 @@ class TestPerformance(SavepointCaseWithUserDemo):
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 5)
 
-        # all with the same value: O(1) queries
         with self.assertQueryCount(1):
             records.write({"name": "X"})
 
-        # all with different values: O(1) queries
         with self.assertQueryCount(1):
             for index, record in enumerate(records):
                 record.name = f"X {index}"
@@ -287,13 +257,12 @@ class TestPerformance(SavepointCaseWithUserDemo):
         """Write on one2many field."""
         rec1 = self.env["test_performance.base"].create({"name": "X"})
 
-        # create N lines on rec1: O(1) queries
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             rec1.write({"line_ids": [Command.create({"value": 0})]})
         self.assertEqual(len(rec1.line_ids), 1)
 
-        with self.assertQueryCount(5):  # psycopg3: extra query for batch insert
+        with self.assertQueryCount(8):
             self.env.invalidate_all()
             rec1.write(
                 {"line_ids": [Command.create({"value": val}) for val in range(1, 12)]}
@@ -302,7 +271,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
         lines = rec1.line_ids
 
-        # update N lines: O(1) queries
         with self.assertQueryCount(4):
             self.env.invalidate_all()
             rec1.write(
@@ -326,7 +294,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
             )
         self.assertEqual(rec1.line_ids, lines)
 
-        # delete N lines: O(1) queries
         with self.assertQueryCount(10):
             self.env.invalidate_all()
             rec1.write({"line_ids": [Command.delete(line.id) for line in lines[0]]})
@@ -341,7 +308,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         rec1.write({"line_ids": [Command.create({"value": val}) for val in range(12)]})
         lines = rec1.line_ids
 
-        # unlink N lines: O(1) queries
         with self.assertQueryCount(10):
             self.env.invalidate_all()
             rec1.write({"line_ids": [Command.unlink(line.id) for line in lines[0]]})
@@ -357,7 +323,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         lines = rec1.line_ids
         rec2 = self.env["test_performance.base"].create({"name": "X"})
 
-        # link N lines from rec1 to rec2: O(1) queries
         with self.assertQueryCount(6):
             self.env.invalidate_all()
             rec2.write({"line_ids": [Command.link(line.id) for line in lines[0]]})
@@ -380,7 +345,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
             rec2.write({"line_ids": [Command.link(line.id) for line in lines[1:]]})
         self.assertEqual(rec2.line_ids, lines)
 
-        # empty N lines in rec2: O(1) queries
         with self.assertQueryCount(10):
             self.env.invalidate_all()
             rec2.write({"line_ids": [Command.clear()]})
@@ -394,7 +358,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         rec1.write({"line_ids": [Command.create({"value": val}) for val in range(12)]})
         lines = rec1.line_ids
 
-        # set N lines in rec2: O(1) queries
         with self.assertQueryCount(6):
             self.env.invalidate_all()
             rec2.write({"line_ids": [Command.set(lines[0].ids)]})
@@ -418,8 +381,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         rec = self.env["test_performance.base"].create({"name": "Y"})
         rec.write({"line_ids": [Command.create({"value": val}) for val in range(12)]})
 
-        # This write() will raise because of the unique index if the unlink() is
-        # not performed before the create()
         rec.write(
             {
                 "line_ids": [Command.clear()]
@@ -435,13 +396,12 @@ class TestPerformance(SavepointCaseWithUserDemo):
         """Write on many2many field."""
         rec1 = self.env["test_performance.base"].create({"name": "X"})
 
-        # create N tags on rec1: O(1) queries
         with self.assertQueryCount(4):
             self.env.invalidate_all()
             rec1.write({"tag_ids": [Command.create({"name": 0})]})
         self.assertEqual(len(rec1.tag_ids), 1)
 
-        with self.assertQueryCount(5):  # psycopg3: extra query for batch insert
+        with self.assertQueryCount(8):
             self.env.invalidate_all()
             rec1.write(
                 {"tag_ids": [Command.create({"name": val}) for val in range(1, 12)]}
@@ -450,7 +410,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
         tags = rec1.tag_ids
 
-        # update N tags: O(N) queries
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             rec1.write(
@@ -465,7 +424,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
             )
         self.assertEqual(rec1.tag_ids, tags)
 
-        # delete N tags: O(1) queries
         with self.assertQueryCount(__system__=6, demo=6):
             self.env.invalidate_all()
             rec1.write({"tag_ids": [Command.delete(tag.id) for tag in tags[0]]})
@@ -480,7 +438,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         rec1.write({"tag_ids": [Command.create({"name": val}) for val in range(12)]})
         tags = rec1.tag_ids
 
-        # unlink N tags: O(1) queries
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             rec1.write({"tag_ids": [Command.unlink(tag.id) for tag in tags[0]]})
@@ -494,7 +451,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
         rec2 = self.env["test_performance.base"].create({"name": "X"})
 
-        # link N tags from rec1 to rec2: O(1) queries
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             rec2.write({"tag_ids": [Command.link(tag.id) for tag in tags[0]]})
@@ -510,7 +466,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
             rec2.write({"tag_ids": [Command.link(tag.id) for tag in tags[1:]]})
         self.assertEqual(rec2.tag_ids, tags)
 
-        # empty N tags in rec2: O(1) queries
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             rec2.write({"tag_ids": [Command.clear()]})
@@ -522,7 +477,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
             rec2.write({"tag_ids": [Command.clear()]})
         self.assertFalse(rec2.tag_ids)
 
-        # set N tags in rec2: O(1) queries
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             rec2.write({"tag_ids": [Command.set(tags.ids)]})
@@ -560,10 +514,14 @@ class TestPerformance(SavepointCaseWithUserDemo):
     def test_create_base_with_lines(self):
         """Create records with one2many lines.
 
-        4 queries: INSERT parent, nextval (COPY ID pre-generation),
-        COPY lines, UPDATE parent (flush computed fields).
+        7 queries: INSERT parent, LOCK lines + pg_attribute (binary-COPY column
+        types, read under COPY's own lock once per transaction), sequence
+        lookup, nextval (COPY ID pre-generation), COPY lines, UPDATE parent
+        (flush computed fields).  The three catalog/lock queries used to be
+        memoized process-globally; that is what let a concurrent or rolled-back
+        ALTER feed stale types to a later COPY (see odoo/db/schema_cache.py).
         """
-        with self.assertQueryCount(__system__=4, demo=4):
+        with self.assertQueryCount(__system__=7, demo=7):
             self.env["test_performance.base"].create(
                 {
                     "name": "X",
@@ -578,10 +536,7 @@ class TestPerformance(SavepointCaseWithUserDemo):
         with self.assertQueryCount(2):
             self.env["test_performance.base"].create({"name": "X"})
 
-        # create N tags: add O(1) queries
-        # 5 queries: INSERT parent, nextval (COPY ID pre-generation),
-        # COPY tags, INSERT m2m relation, UPDATE parent (flush computed).
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(8):
             self.env["test_performance.base"].create(
                 {
                     "name": "X",
@@ -589,7 +544,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
                 }
             )
 
-        # link N tags: add O(1) queries
         tags = self.env["test_performance.tag"].create(
             [{"name": val} for val in range(10)]
         )
@@ -630,7 +584,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
         records = self.env["test_performance.base"].search([])
         self.assertEqual(len(records), 1280)
 
-        # should only cause 2 queries thanks to prefetching
         with self.assertQueryCount(__system__=1, demo=1):
             records.mapped("value")
 
@@ -645,7 +598,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
             )
             new_recs.mapped("value")
 
-        # clean up after each pass
         self.env.cr.execute(
             "delete from test_performance_base where id != ALL(%s)",
             (list(initial_records.ids),),
@@ -658,11 +610,9 @@ class TestPerformance(SavepointCaseWithUserDemo):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # prepare an update, and mark a field to compute
         with self.assertQueries([], flush=False):
             records[1].value = 42
 
-        # fetching 'name' prefetches all fields on all records
         queries = [
             """ SELECT "test_performance_base"."id",
                        "test_performance_base"."name",
@@ -701,13 +651,11 @@ class TestPerformance(SavepointCaseWithUserDemo):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # make a new recordset corresponding to those records, and access it
         new_record = model.new({"line_ids": [Command.create({"value": 4})]})
         new_records_ids = [model.new(origin=record).id for record in records]
         new_records_ids.append(new_record.id)
         new_records = model.browse(new_records_ids)
 
-        # fetch 'line_ids' on all records (2 queries), fetch 'value' on all lines (1 query)
         with self.assertQueryCount(3):
             for record in new_records:
                 for line in record.line_ids:
@@ -716,7 +664,6 @@ class TestPerformance(SavepointCaseWithUserDemo):
 
 @tagged("bacon_and_eggs")
 class TestIrPropertyOptimizations(TransactionCase):
-
     def setUp(self):
         super().setUp()
         self.Bacon = self.env["test_performance.bacon"]
@@ -729,12 +676,10 @@ class TestIrPropertyOptimizations(TransactionCase):
             )
         )
 
-        # warmup
         eggs = self.Eggs.create({})
         self.Bacon.create({})
         self.Bacon.create({"property_eggs": eggs.id})
 
-        # create with default value
         with self.assertQueryCount(1):
             self.Bacon.create({})
 
@@ -744,7 +689,6 @@ class TestIrPropertyOptimizations(TransactionCase):
         with self.assertQueryCount(1):
             self.Bacon.create({"property_eggs": False})
 
-        # create with another value
         with self.assertQueryCount(1):
             self.Bacon.with_context(default_property_eggs=eggs.id).create({})
 
@@ -760,10 +704,8 @@ class TestIrPropertyOptimizations(TransactionCase):
             self.env["ir.default"]._get("test_performance.bacon", "property_eggs"),
         )
 
-        # warmup
         self.Bacon.create({})
 
-        # create with default value
         with self.assertQueryCount(1):
             self.Bacon.create({})
 
@@ -773,7 +715,6 @@ class TestIrPropertyOptimizations(TransactionCase):
         with self.assertQueryCount(1):
             self.Bacon.create({"property_eggs": eggs.id})
 
-        # create with another value
         eggs = self.Eggs.create({})
         self.Bacon.create({"property_eggs": eggs.id})
 
@@ -792,9 +733,7 @@ class TestIrPropertyOptimizations(TransactionCase):
 
 @tagged("mapped_perf")
 class TestMapped(TransactionCase):
-
     def test_relational_mapped(self):
-        # create 1000 records with one line each
         recs = self.env["test_performance.base"].create(
             [
                 {
@@ -807,7 +746,6 @@ class TestMapped(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # expected same performance as recs.line_ids.mapped('value')
         with self.assertQueryCount(2):
             for rec in recs:
                 rec.line_ids.mapped("value")
@@ -860,10 +798,9 @@ class TestIncrementFieldsSkipLock(TransactionCase):
                 "" if did_update else "not ",
             )
 
-        # increment_fields_skiplock does not invalidate the cache
         self.record.invalidate_recordset()
 
-        with self.assertQueryCount(1):  # Read
+        with self.assertQueryCount(1):
             if did_update:
                 self.assertEqual(
                     self.record.value,
@@ -871,7 +808,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
                     "according to increment_fields_skiplock's output, this number should have been incremented.",
                 )
             else:
-                # Making sure the test random locks do not break the test; but updated and the values must be consistent
                 self.assertEqual(
                     self.record.value,
                     1,
@@ -906,10 +842,9 @@ class TestIncrementFieldsSkipLock(TransactionCase):
                 "" if did_update else "not ",
             )
 
-        # increment_fields_skiplock does not invalidate the cache
         self.record.invalidate_recordset()
 
-        with self.assertQueryCount(1):  # Read
+        with self.assertQueryCount(1):
             if did_update:
                 self.assertEqual(
                     self.record.value,
@@ -921,7 +856,7 @@ class TestIncrementFieldsSkipLock(TransactionCase):
                     3,
                     "according to increment_fields_skiplock's output, this number should have been incremented.",
                 )
-            else:  # Making sure the test random locks do not break the test; but updated and the values must be consistent
+            else:
                 self.assertEqual(
                     self.record.value,
                     1,
@@ -949,7 +884,6 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         When an integer is NULL in database, the ORM automatically converts it to 0.
         However, increment_fields_skiplock is a special tool using raw sql and by-passing the ORM
         """
-        # First, ensure our value is NULL in database
         self.env.cr.execute(
             "SELECT value_null_by_default FROM test_performance_mozzarella WHERE id = %s",
             (self.record.id,),
@@ -957,10 +891,7 @@ class TestIncrementFieldsSkipLock(TransactionCase):
         [value] = self.env.cr.fetchone()
         self.assertIsNone(value)
         self.assertEqual(self.record.value_null_by_default, 0)
-        # Then, increment its count.
         with self.assertQueryCount(1):
             sql.increment_fields_skiplock(self.record, "value_null_by_default")
-        # Invalidate the cache regarding the value of `value_null_by_default` for our record to force fetching from database
-        # as `increment_fields_skiplock` only does raw SQL and doesn't assign the new value in the cache
         self.record.invalidate_recordset(["value_null_by_default"])
         self.assertEqual(self.record.value_null_by_default, 1)

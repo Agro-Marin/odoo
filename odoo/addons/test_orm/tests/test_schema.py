@@ -188,9 +188,6 @@ class TestReflection(common.TransactionCase):
                 self.assertEqual(ir_model.name, model._description or False)
                 self.assertEqual(ir_model.state, "manual" if model._custom else "base")
                 self.assertEqual(ir_model.transient, bool(model._transient))
-                # ir.model.fields may include fields from modules not yet
-                # loaded (e.g. test_inherit_depends adds 'published' to
-                # test_orm.foo), so check model._fields is a subset
                 ir_field_names = set(ir_model.mapped("field_id.name"))
                 model_field_names = set(model._fields)
                 self.assertTrue(
@@ -199,15 +196,10 @@ class TestReflection(common.TransactionCase):
                     f"{model_field_names - ir_field_names}",
                 )
                 for ir_field in ir_model.field_id:
-                    # skip fields not yet in _fields (from modules loaded
-                    # after test_orm, e.g. test_inherit_depends)
                     if ir_field.name not in model._fields:
                         continue
                     with self.subTest(field=ir_field.name):
                         field = model._fields[ir_field.name]
-                        # only check XID for fields owned by test_orm (other
-                        # modules like test_inherit_depends may add fields
-                        # via mixin inheritance)
                         if "test_orm" in field._modules:
                             self.assertFieldXID(ir_field)
                         self.assertEqual(ir_field.model, field.model_name)
@@ -254,10 +246,6 @@ class TestReflection(common.TransactionCase):
                                 (sel.value, sel.name) for sel in ir_field.selection_ids
                             ]
                             if isinstance(field.selection, list):
-                                # ir.model.fields.selection may include values
-                                # from modules not yet loaded (e.g. test_inherit
-                                # adds 'baz' via selection_add); check that the
-                                # current field.selection is a sub-sequence
                                 field_values = {v for v, _ in field.selection}
                                 filtered = [
                                     (v, n) for v, n in selection if v in field_values
@@ -265,9 +253,6 @@ class TestReflection(common.TransactionCase):
                                 self.assertEqual(filtered, field.selection)
                             else:
                                 self.assertEqual(selection, [])
-                            # only check XIDs for selection values owned by
-                            # test_orm (test_inherit may add values via
-                            # selection_add)
                             sel_modules = field._selection_modules(model)
                             for sel in ir_field.selection_ids:
                                 if "test_orm" in sel_modules.get(sel.value, set()):
@@ -284,7 +269,6 @@ class TestReflection(common.TransactionCase):
 
 
 class TestSchema(common.TransactionCase):
-
     def get_table_data(self, tablename):
         query = """ SELECT table_catalog, table_schema, table_name, table_type,
                            user_defined_type_catalog, user_defined_type_schema,
@@ -324,7 +308,6 @@ class TestSchema(common.TransactionCase):
         model = self.env["test_orm.foo"]
         self.assertEqual(model._table, "test_orm_foo")
 
-        # retrieve schema data about that table
         table_data = self.get_table_data("test_orm_foo")
         self.assertEqual(
             table_data,
@@ -341,10 +324,7 @@ class TestSchema(common.TransactionCase):
             },
         )
 
-        # retrieve schema data about the table's columns
         columns_data = self.get_columns_data("test_orm_foo")
-        # other modules (e.g. test_inherit_depends) may add columns via mixin
-        # inheritance, so check that the expected base columns are present
         expected_columns = {
             "id",
             "create_date",
@@ -361,7 +341,6 @@ class TestSchema(common.TransactionCase):
             f"Missing columns: {expected_columns - set(columns_data)}",
         )
 
-        # retrieve schema data about the table's foreign keys
         foreign_keys = self.get_foreign_keys("test_orm_foo")
         self.assertItemsEqual(
             foreign_keys,
@@ -557,8 +536,6 @@ class TestSchema(common.TransactionCase):
         """check the database representation of a text field"""
         model = self.env["test_orm.message"]
         columns_data = self.get_columns_data(model._table)
-        # body is JSONB when test_inherit overrides it with translate=True,
-        # otherwise it's a plain text column
         body_field = model._fields["body"]
         if body_field.translate:
             expected_type, expected_udt = "jsonb", "jsonb"
@@ -847,7 +824,7 @@ class TestSchema(common.TransactionCase):
         """,
             [tablenames, "%short_field_name%"],
         )
-        tables = {table for table, in self.env.cr.fetchall()}
+        tables = {table for (table,) in self.env.cr.fetchall()}
         self.assertEqual(tables, {"test_orm_order", "test_orm_order_line"})
 
     def test_21_too_long_indexes(self):

@@ -62,7 +62,6 @@ class Test_Testing_UtilitiesD(models.Model):
     _name = "test_testing_utilities.d"
     _description = "Testing Utilities D"
 
-    # used to check that defaults & onchange to m2o work
     f = fields.Many2one(
         "test_testing_utilities.m2o",
         required=True,
@@ -228,8 +227,7 @@ class Test_Testing_UtilitiesDefault(models.Model):
             self.subs = False
 
 
-# pylint: disable=E0102
-class Test_Testing_UtilitiesSub3(models.Model):  # noqa: F811
+class Test_Testing_UtilitiesSub3(models.Model):
     _name = "test_testing_utilities.sub3"
     _description = "Testing Utilities Subtraction 3"
 
@@ -398,8 +396,6 @@ class ResConfigTest(models.Model):
         default=True,
     )
 
-    # one boolean and one selection group_ field, to cover saving settings
-    # where both supported group_ encodings coexist (RCFG-S1)
     group_test_checkbox = fields.Boolean(
         string="Test group checkbox",
         group="base.group_user",

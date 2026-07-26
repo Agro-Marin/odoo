@@ -6,7 +6,6 @@ from odoo.addons.base.tests.test_translate import SPECIAL_CHARACTERS
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestIndexedTranslation(TransactionExpressionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -27,13 +26,11 @@ class TestIndexedTranslation(TransactionExpressionCase):
             record_fr.name, '<div class="my_class">%bonjour\\</div>\a<div/>'
         )
 
-        # matching double quotes
         self.assertEqual(
             self._search(record_en, [("name", "ilike", 'class="my_class')]),
             record_en,
         )
 
-        # escaped and unescaped PG wildcards
         self.assertEqual(
             self._search(record_en, [("name", "ilike", r"class%class")]),
             record_en,
@@ -80,7 +77,6 @@ class TestIndexedTranslation(TransactionExpressionCase):
             record_fr,
         )
 
-        # check what the queries look like
         with self.assertQueries(
             [
                 """

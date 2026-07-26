@@ -6,7 +6,6 @@ from odoo.tools.translate import TranslationImporter
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestRelatedTranslation(odoo.tests.TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -177,12 +176,15 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
     def test_import_from_po(self):
         self.assertEqual(self.test2.with_context(lang="fr_FR").name, "Couteau")
         test1_xml_id = self.test1.export_data(["id"]).get("datas")[0][0]
-        po_string = """
+        po_string = (
+            """
                 #. module: test_orm
                 #: model:test_orm.related_translation_1,name:%s
                 msgid "Knife"
                 msgstr "Nouveau couteau"
-                """ % test1_xml_id
+                """
+            % test1_xml_id
+        )
         with io.BytesIO(bytes(po_string, encoding="utf-8")) as f:
             f.name = "dummy"
             translation_importer = TranslationImporter(self.env.cr, verbose=True)
@@ -191,9 +193,9 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         self.assertEqual(self.test2.with_context(lang="fr_FR").name, "Nouveau couteau")
 
     def test_write_from_ori_term(self):
-        self.test1.with_context(lang="fr_FR").html = (
-            "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        )
+        self.test1.with_context(
+            lang="fr_FR"
+        ).html = "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
         self.assertEqual(
             self.test1.with_context(lang="en_US").html,
             "<p>Nouveau couteau</p><p>Fork</p><p>Spoon</p>",
@@ -220,9 +222,9 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         )
 
     def test_delay_write_from_ori_term(self):
-        self.test1.with_context(lang="fr_FR", delay_translations=True).html = (
-            "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        )
+        self.test1.with_context(
+            lang="fr_FR", delay_translations=True
+        ).html = "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
         self.assertEqual(
             self.test1.with_context(lang="en_US").html,
             "<p>Knife</p><p>Fork</p><p>Spoon</p>",
@@ -343,9 +345,9 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         )
 
     def test_write_from_related_term(self):
-        self.test3.with_context(lang="fr_FR").html = (
-            "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        )
+        self.test3.with_context(
+            lang="fr_FR"
+        ).html = "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
         self.assertEqual(
             self.test1.with_context(lang="en_US").html,
             "<p>Nouveau couteau</p><p>Fork</p><p>Spoon</p>",
@@ -372,7 +374,6 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         )
 
     def test_write_from_related_term_more(self):
-        # same as above, but making sure that the related field's cache is invalidated
         self.assertEqual(
             self.test1.with_context(lang="en_US").html,
             "<p>Knife</p><p>Fork</p><p>Spoon</p>",
@@ -389,9 +390,9 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
             self.test2.with_context(lang="fr_FR").html,
             "<p>Couteau</p><p>Fourchette</p><p>Cuiller</p>",
         )
-        self.test2.with_context(lang="fr_FR").html = (
-            "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        )
+        self.test2.with_context(
+            lang="fr_FR"
+        ).html = "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
         self.assertEqual(
             self.test1.with_context(lang="en_US").html,
             "<p>Nouveau couteau</p><p>Fork</p><p>Spoon</p>",
@@ -410,9 +411,9 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         )
 
     def test_delay_write_from_related_term(self):
-        self.test3.with_context(lang="fr_FR", delay_translations=True).html = (
-            "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        )
+        self.test3.with_context(
+            lang="fr_FR", delay_translations=True
+        ).html = "<p>Nouveau couteau</p><p>Fourchette</p><p>Cuiller</p>"
         self.assertEqual(
             self.test1.with_context(lang="en_US").html,
             "<p>Knife</p><p>Fork</p><p>Spoon</p>",
@@ -640,7 +641,6 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         self.env["res.lang"]._activate_lang("nl_NL")
         model = self.env["test_orm.related_translation_1"]
 
-        # The value in env lang should persist after reading the second lang value
         record_en = model.new({"name": "en"})
         record_fr = record_en.with_context(lang="fr_FR")
         record_nl = record_fr.with_context(lang="nl_NL")
@@ -652,7 +652,6 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         self.assertEqual(record_fr.name, "fr")
         self.assertEqual(record_nl.name, "en")
 
-        # The value in second lang should persist after reading the env lang value
         record_fr = model.with_context(lang="fr_FR").new({"name": "fr"})
         record_en = record_fr.with_context(lang=None)
         record_nl = record_fr.with_context(lang="nl_NL")
@@ -660,7 +659,6 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         self.assertEqual(record_nl.name, "fr")
         self.assertEqual(record_fr.name, "fr")
 
-        # get() on a third language should fallback to the value in en_US that was set by default
         record_fr = model.with_context(lang="fr_FR").new({"name": "fr"})
         record_en = record_fr.with_context(lang=None)
         record_nl = record_fr.with_context(lang="nl_NL")
@@ -668,21 +666,18 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         self.assertEqual(record_fr.name, "fr")
         self.assertEqual(record_en.name, "fr")
 
-        # _update_cache should not nullify the values in other langs
         record_en = model.new({"name": "en"})
         record_fr = record_en.with_context(lang="fr_FR")
         record_fr._update_cache({"name": "fr"}, validate=False)
         self.assertEqual(record_en.name, "en")
         self.assertEqual(record_fr.name, "fr")
 
-        # update should not nullify the values in other langs
         record_en = model.new({"name": "en"})
         record_fr = record_en.with_context(lang="fr_FR")
         record_fr.name = "fr"
         self.assertEqual(record_en.name, "en")
         self.assertEqual(record_fr.name, "fr")
 
-        # check with computed field
         child_en = self.env["test_orm.related_translation_2"].new(
             {"related_id": record_en.id}
         )
@@ -698,7 +693,6 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         record_en = model.create({"html": "<p>Knife</p><p>Fork</p><p>Spoon</p>"})
         record_fr = record_en.with_context(lang="fr_FR")
         record_fr.html = "<p>Couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        # expected behavior since the user `write` instead of `update_field_translations`
         self.assertEqual(
             record_en.html, "<p>Couteau</p><p>Fourchette</p><p>Cuiller</p>"
         )
@@ -709,7 +703,6 @@ class TestRelatedTranslation(odoo.tests.TransactionCase):
         record_en = model.new({"html": "<p>Knife</p><p>Fork</p><p>Spoon</p>"})
         record_fr = record_en.with_context(lang="fr_FR")
         record_fr.html = "<p>Couteau</p><p>Fourchette</p><p>Cuiller</p>"
-        # inconsistent behavior but usually users don't care or may even be happy about it
         self.assertEqual(record_en.html, "<p>Knife</p><p>Fork</p><p>Spoon</p>")
         self.assertEqual(
             record_fr.html, "<p>Couteau</p><p>Fourchette</p><p>Cuiller</p>"

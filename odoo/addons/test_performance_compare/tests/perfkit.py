@@ -31,15 +31,9 @@ import statistics
 import time
 from pathlib import Path
 
-# Schema version of the emitted JSON, so compare.py can refuse mismatches.
 REPORT_VERSION = 1
 
-OUTLIER_PCT = 5  # trim this percentile from each tail before aggregating timing
-
-
-# ---------------------------------------------------------------------------
-# statistics helpers
-# ---------------------------------------------------------------------------
+OUTLIER_PCT = 5
 
 
 def _percentile(sorted_data, p):
@@ -81,11 +75,6 @@ def _stats_us(times_us):
     }
 
 
-# ---------------------------------------------------------------------------
-# environment metadata
-# ---------------------------------------------------------------------------
-
-
 def _driver_label():
     """Best-effort name+version of the active PostgreSQL driver.
 
@@ -100,9 +89,8 @@ def _driver_label():
         if mod is not None:
             name = getattr(mod, "__name__", "?")
             ver = getattr(mod, "__version__", "")
-            # psycopg3's __version__ is clean; psycopg2's has trailing build info
             return f"{name} {ver.split(' ')[0]}".strip()
-    except Exception:  # pragma: no cover - metadata only
+    except Exception:
         pass
     for name in ("psycopg", "psycopg2"):
         if importlib.util.find_spec(name) is None:
@@ -117,7 +105,7 @@ def _odoo_version():
         import odoo.release
 
         return odoo.release.version
-    except Exception:  # pragma: no cover - metadata only
+    except Exception:
         return "unknown"
 
 
@@ -133,11 +121,6 @@ def environment_meta():
     }
 
 
-# ---------------------------------------------------------------------------
-# recorder
-# ---------------------------------------------------------------------------
-
-
 class BenchmarkRecorder:
     """Accumulates benchmark results and writes a single labelled JSON report.
 
@@ -147,7 +130,6 @@ class BenchmarkRecorder:
     line up by name.
     """
 
-    # default iteration budget; override per-call or globally via BENCH_ITER
     DEFAULT_ITERATIONS = int(os.environ.get("BENCH_ITER", "60"))
     DEFAULT_WARMUP = int(os.environ.get("BENCH_WARMUP", "8"))
 
@@ -196,15 +178,6 @@ class BenchmarkRecorder:
         q_counts = []
         gc_was_enabled = gc.isenabled()
 
-        # Collect once up front, then keep GC disabled for the whole measured
-        # loop.  A per-iteration ``gc.collect()`` evicts the CPU instruction/data
-        # caches before every timed call, so it measures the *cold-cache* cost of
-        # the operation — for µs-scale ORM ops that is ~8x the warm cost and is
-        # dominated by code/heap footprint (e.g. how many modules are installed)
-        # rather than the operation itself, which unfairly penalises a larger
-        # deployment.  Collecting once and disabling for the loop measures warm
-        # steady-state: lower variance and deployment-independent (the standard
-        # ``timeit``/``pyperf`` approach).
         gc.collect()
         gc.disable()
         try:
@@ -229,9 +202,7 @@ class BenchmarkRecorder:
         record.update(_stats_us(times_us))
         record["query_min"] = min(q_counts) if q_counts else 0
         record["query_max"] = max(q_counts) if q_counts else 0
-        record["query_mean"] = (
-            round(statistics.mean(q_counts), 2) if q_counts else 0.0
-        )
+        record["query_mean"] = round(statistics.mean(q_counts), 2) if q_counts else 0.0
         self.results.append(record)
         self._log(
             "[PERF_CMP] %-38s mean=%9.1fµs  p95=%9.1fµs  cv=%.2f  q=%d",
@@ -242,8 +213,6 @@ class BenchmarkRecorder:
             record["query_max"],
         )
         return record
-
-    # -- output ---------------------------------------------------------------
 
     def report(self, timestamp):
         """Build the full report dict.  ``timestamp`` is supplied by the caller
@@ -261,7 +230,9 @@ class BenchmarkRecorder:
         report = self.report(timestamp)
         label = report["meta"]["label"]
         out = os.environ.get("BENCH_OUT")
-        path = (Path(out) if out else Path.cwd() / f"perf_compare_{label}.json").resolve()
+        path = (
+            Path(out) if out else Path.cwd() / f"perf_compare_{label}.json"
+        ).resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as fh:
             json.dump(report, fh, indent=2, sort_keys=True)

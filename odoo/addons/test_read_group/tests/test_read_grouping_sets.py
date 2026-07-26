@@ -3,7 +3,6 @@ from odoo.tests import common, new_test_user
 
 
 class TestPrivateReadGroupingSets(common.TransactionCase):
-
     def test_simple_read_grouping_sets(self):
         Model = self.env["test_read_group.aggregate"]
         Partner = self.env["res.partner"]
@@ -25,7 +24,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             for grouping_set in grouping_sets
         ]
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT
                 GROUPING(
                     "test_read_group_aggregate"."key",
@@ -46,7 +47,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             ORDER BY
                 "test_read_group_aggregate"."key" ASC,
                 "test_read_group_aggregate"."partner_id" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 Model._read_grouping_sets([], grouping_sets, aggregates=["value:sum"]),
                 expected_result,
@@ -59,11 +62,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             for grouping_set, order in zip(grouping_sets, orders, strict=False)
         ]
 
-        # Forcing order with many2one, traverse use the order of the comodel (res.partner).
-        # ANY_VALUE() is used for comodel ORDER BY columns in GROUPING SETS
-        # (PG16+), making ordering non-deterministic for grouping sets that
-        # don't include the many2one field.
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT
                 GROUPING(
                     "test_read_group_aggregate"."key",
@@ -88,15 +89,15 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") ASC,
                 ANY_VALUE("test_read_group_aggregate__partner_id"."id") DESC,
                 "test_read_group_aggregate"."key" ASC
-        """]):
+        """
+            ]
+        ):
             actual_result = Model._read_grouping_sets(
                 [],
                 grouping_sets,
                 aggregates=["value:sum"],
                 order="partner_id, key",
             )
-            # Grouping sets that include partner_id have deterministic ordering;
-            # sets without it get non-deterministic ANY_VALUE ordering.
             self.assertEqual(actual_result[0], expected_result[0])
             self.assertCountEqual(actual_result[1], expected_result[1])
             self.assertEqual(actual_result[2], expected_result[2])
@@ -107,24 +108,24 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
         mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
         tasks = self.env["test_read_group.task"].create(
             [
-                {  # both users
+                {
                     "name": "Super Mario Bros.",
                     "user_ids": [Command.set((mario + luigi).ids)],
                     "integer": 1,
                 },
-                {  # mario only
+                {
                     "name": "Paper Mario",
                     "user_ids": [Command.set(mario.ids)],
                     "customer_ids": [Command.set(luigi.ids)],
                     "integer": 2,
                 },
-                {  # luigi only
+                {
                     "name": "Luigi's Mansion",
                     "user_ids": [Command.set(luigi.ids)],
                     "customer_ids": [Command.set(mario.ids)],
                     "integer": 3,
                 },
-                {  # no user
+                {
                     "name": "Donkey Kong",
                     "customer_ids": [Command.set((mario + luigi).ids)],
                 },
@@ -231,7 +232,6 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
 
         cases = [
             {
-                # Test 2 many2manys
                 "grouping_sets": [
                     ["user_ids", "customer_ids"],
                     ["key"],
@@ -241,11 +241,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                     [],
                 ],
                 "aggregates": ["__count", "integer:sum"],
-                # 1 for ('user_ids', 'customer_ids') + 1 for ('user_ids',) + 1 for ('customer_ids',) + 1 for remaining (key, [])
                 "nb_queries": 4,
             },
             {
-                # Test that __count doesn't make an extra query
                 "grouping_sets": [
                     ["user_ids", "key"],
                     ["key"],
@@ -256,7 +254,6 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 "nb_queries": 1,
             },
             {
-                # Test that __count as order
                 "grouping_sets": [
                     ["user_ids", "customer_ids"],
                     ["key"],
@@ -279,7 +276,6 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 "nb_queries": 1,
             },
             {
-                # Everything
                 "grouping_sets": [
                     ["user_ids", "customer_ids"],
                     ["key"],
@@ -300,7 +296,6 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 ],
                 "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
                 "aggregates": ["integer:sum", "__count"],
-                # 1 for ('user_ids', 'customer_ids') + 1 for ('customer_ids',) + 1 for remaining grouping set
                 "nb_queries": 3,
             },
         ]
@@ -314,7 +309,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
 
             expected_result = [
                 tasks._read_group(domain, groupby, aggregates, order=order)
-                for groupby, order in zip(grouping_sets, read_group_orders, strict=False)
+                for groupby, order in zip(
+                    grouping_sets, read_group_orders, strict=False
+                )
             ]
             with (
                 self.subTest(f"Case {i} - {grouping_sets!r} - {aggregates!r}"),
@@ -327,7 +324,6 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
 
 
 class TestFormattedReadGroupingSets(common.TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -356,9 +352,9 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             for grouping_set in grouping_sets
         ]
 
-        # ANY_VALUE() wraps comodel ORDER BY columns in GROUPING SETS,
-        # making ordering non-deterministic for sets without partner_id.
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT
                 GROUPING(
                     "test_read_group_aggregate"."partner_id",
@@ -383,12 +379,12 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") ASC,
                 ANY_VALUE("test_read_group_aggregate__partner_id"."id") DESC,
                 "test_read_group_aggregate"."key" ASC
-        """]):
+        """
+            ]
+        ):
             actual_result = Model.formatted_read_grouping_sets(
                 [], grouping_sets, aggregates=["value:sum"]
             )
-            # Grouping sets with partner_id have deterministic ordering;
-            # sets without it get non-deterministic ANY_VALUE ordering.
             self.assertEqual(actual_result[0], expected_result[0])
             self.assertCountEqual(actual_result[1], expected_result[1])
             self.assertEqual(actual_result[2], expected_result[2])
@@ -399,24 +395,24 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
         mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
         tasks = self.env["test_read_group.task"].create(
             [
-                {  # both users
+                {
                     "name": "Super Mario Bros.",
                     "user_ids": [Command.set((mario + luigi).ids)],
                     "integer": 1,
                 },
-                {  # mario only
+                {
                     "name": "Paper Mario",
                     "user_ids": [Command.set(mario.ids)],
                     "customer_ids": [Command.set(luigi.ids)],
                     "integer": 2,
                 },
-                {  # luigi only
+                {
                     "name": "Luigi's Mansion",
                     "user_ids": [Command.set(luigi.ids)],
                     "customer_ids": [Command.set(mario.ids)],
                     "integer": 3,
                 },
-                {  # no user
+                {
                     "name": "Donkey Kong",
                     "customer_ids": [Command.set((mario + luigi).ids)],
                 },
@@ -454,7 +450,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
 
         cases = [
             {
-                # Test 2 many2manys
                 "grouping_sets": [
                     ["user_ids", "customer_ids"],
                     ["key"],
@@ -464,11 +459,9 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                     [],
                 ],
                 "aggregates": ["__count", "integer:sum"],
-                # 1 for ('user_ids', 'customer_ids') + 1 for ('user_ids',) + 1 for ('customer_ids',) + 1 for remaining (key, [])
                 "nb_queries": 4,
             },
             {
-                # Test that __count doesn't make an extra query
                 "grouping_sets": [
                     ["user_ids", "key"],
                     ["key"],
@@ -479,7 +472,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 "nb_queries": 1,
             },
             {
-                # Test that __count as order
                 "grouping_sets": [
                     ["user_ids", "customer_ids"],
                     ["key"],
@@ -502,7 +494,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 "nb_queries": 1,
             },
             {
-                # Everything
                 "grouping_sets": [
                     ["user_ids", "customer_ids"],
                     ["key"],
@@ -523,7 +514,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 ],
                 "complete_order": "key, __count DESC, customer_ids DESC, integer, user_ids",
                 "aggregates": ["integer:sum", "__count"],
-                # 1 for ('user_ids', 'customer_ids') + 1 for ('customer_ids',) + 1 for remaining grouping set
                 "nb_queries": 3,
             },
         ]
@@ -537,7 +527,9 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
 
             expected_result = [
                 tasks.formatted_read_group(domain, groupby, aggregates, order=order)
-                for groupby, order in zip(grouping_sets, read_group_orders, strict=False)
+                for groupby, order in zip(
+                    grouping_sets, read_group_orders, strict=False
+                )
             ]
             with (
                 self.subTest(f"Case {i} - {grouping_sets!r} - {aggregates!r}"),
@@ -579,7 +571,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ],
         )
 
-        # env.su => false
         RelatedBase = RelatedBase.with_user(self.base_user)
 
         grouping_sets = [
@@ -600,7 +591,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ],
         )
 
-        # Cannot groupby on foo_names_sudo because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar.formatted_read_grouping_sets(
                 [], [["foo_names_sudo"]], ["__count"]
@@ -689,7 +679,6 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ]
         )
 
-        # env.su => false
         ChainInherits = ChainInherits.with_user(self.base_user)
 
         inherits_model = self.env["ir.model"]._get(RelatedInherits._name)
@@ -784,19 +773,15 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 expected_result,
             )
 
-        # Targeting the same source field but with different path
         grouping_sets = [
             [],
-            # Targeting the same many2many
             ["foo_id.bar_id.base_ids"],
             ["foo_id.bar_base_ids"],
-            # All targeting foo_id.name
             ["foo_id.name"],
             ["foo_id.name"],
             ["foo_id_name"],
             ["foo_id_name_sudo"],
             ["foo_id_name_sudo", "value"],
-            # All targeting foo_id.bar_id.name
             ["foo_id.bar_id.name"],
             ["foo_id_bar_id_name"],
             ["foo_id_bar_name"],

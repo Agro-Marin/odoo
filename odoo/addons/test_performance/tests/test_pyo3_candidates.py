@@ -62,10 +62,6 @@ class TestPyO3Candidates(TransactionCase):
         self.all_stats.append(stats)
         return stats
 
-    # =====================================================================
-    # 1. safe_eval — bytecode validation
-    # =====================================================================
-
     def test_01_safe_eval_compile(self):
         """compile() for a typical domain expression string."""
         from odoo.tools.safe_eval import compile_codeobj
@@ -82,7 +78,6 @@ class TestPyO3Candidates(TransactionCase):
             compile_codeobj,
         )
 
-        # Use varying expressions to defeat the cache
         exprs = [f"x + {i}" for i in range(N + WARMUP)]
         codes = [compile_codeobj(e) for e in exprs]
         idx = [0]
@@ -104,7 +99,6 @@ class TestPyO3Candidates(TransactionCase):
 
         expr = "partner_id and name == 'test' or value > 50"
         code = compile_codeobj(expr)
-        # warm the cache
         assert_valid_codeobj(_SAFE_OPCODES, code, expr)
         self._bench(
             "safe_eval: validate bytecode (cached)",
@@ -143,10 +137,6 @@ class TestPyO3Candidates(TransactionCase):
             "safe_eval: domain string eval",
             lambda: safe_eval(expr, dict(ctx)),
         )
-
-    # =====================================================================
-    # 2. Iteration utilities
-    # =====================================================================
 
     def test_10_groupby_small(self):
         """groupby on 20 items with 5 groups."""
@@ -224,24 +214,19 @@ class TestPyO3Candidates(TransactionCase):
         """topological_sort on 100 nodes (linear chain)."""
         from odoo.tools import topological_sort
 
-        deps = {f"n{i}": [f"n{i-1}"] if i > 0 else [] for i in range(100)}
+        deps = {f"n{i}": [f"n{i - 1}"] if i > 0 else [] for i in range(100)}
         self._bench("topo_sort: 100 nodes (chain)", lambda: topological_sort(deps))
 
     def test_13_topological_sort_wide(self):
         """topological_sort on 100 nodes (wide graph — module loading pattern)."""
         from odoo.tools import topological_sort
 
-        # Simulates module dependency graph: base deps, several mid-level, many leaves
         deps = {"base": []}
         for i in range(10):
             deps[f"mid_{i}"] = ["base"]
         for i in range(90):
             deps[f"leaf_{i}"] = [f"mid_{i % 10}"]
         self._bench("topo_sort: 100 nodes (wide)", lambda: topological_sort(deps))
-
-    # =====================================================================
-    # 3. OrderedSet
-    # =====================================================================
 
     def test_20_orderedset_create_small(self):
         """OrderedSet creation from 10 items."""
@@ -269,7 +254,7 @@ class TestPyO3Candidates(TransactionCase):
         from odoo.tools import OrderedSet
 
         s = OrderedSet(range(500))
-        lookups = list(range(0, 1000, 2))  # 500 lookups, half hits
+        lookups = list(range(0, 1000, 2))
 
         def bench():
             for x in lookups:
@@ -301,10 +286,6 @@ class TestPyO3Candidates(TransactionCase):
         b = OrderedSet(range(100, 300))
         self._bench("OrderedSet: diff(200, 200)", lambda: a - b)
 
-    # =====================================================================
-    # 4. frozendict
-    # =====================================================================
-
     def test_30_frozendict_create(self):
         """frozendict creation from a typical env.context dict."""
         from odoo.tools import frozendict
@@ -332,7 +313,6 @@ class TestPyO3Candidates(TransactionCase):
             }
         )
 
-        # Force hash recomputation by creating new instances
         def bench():
             f = frozendict.__new__(frozendict, fd)
             hash(f)
@@ -352,17 +332,13 @@ class TestPyO3Candidates(TransactionCase):
                 "default_type": "out_invoice",
             }
         )
-        keys = list(fd.keys()) * 2  # 10 lookups
+        keys = list(fd.keys()) * 2
 
         def bench():
             for k in keys:
                 fd[k]
 
         self._bench("frozendict: 10 key lookups", bench)
-
-    # =====================================================================
-    # 5. HTML / text processing
-    # =====================================================================
 
     def test_40_plaintext2html_short(self):
         """plaintext2html on a short text."""
@@ -403,10 +379,6 @@ class TestPyO3Candidates(TransactionCase):
         )
         self._bench("html_sanitize: 20-paragraph email", lambda: html_sanitize(html))
 
-    # =====================================================================
-    # 6. Miscellaneous hot utilities
-    # =====================================================================
-
     def test_50_clean_context(self):
         """clean_context — strip default_ and search_ keys."""
         from odoo.tools import clean_context
@@ -437,10 +409,6 @@ class TestPyO3Candidates(TransactionCase):
 
         self._bench("str2bool: 8 conversions", bench)
 
-    # =====================================================================
-    # SUMMARY
-    # =====================================================================
-
     def test_99_summary(self):
         """Print summary table sorted by median time."""
         if not self.all_stats:
@@ -470,7 +438,6 @@ class TestPyO3Candidates(TransactionCase):
                 s.get("cv", 0),
             )
 
-        # Group by candidate
         categories = {
             "safe_eval": [
                 s for s in self.all_stats if "safe_eval" in s.get("name", "")

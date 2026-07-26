@@ -25,10 +25,6 @@ import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-# A noqa marker — captures optional codes and any trailing text on the line.
-# We deliberately accept ``# noqa`` (bare), ``# noqa: CODE``,
-# ``# noqa: CODE,CODE`` and the type-comment companion ``# type: ignore``-
-# adjacent forms.
 _NOQA_RE = re.compile(
     r"""
     \#                          # the comment marker
@@ -46,10 +42,8 @@ _NOQA_RE = re.compile(
     re.VERBOSE | re.IGNORECASE,
 )
 
-# Strip leading punctuation/dashes/extra ``#`` so we evaluate the actual prose.
 _RATIONALE_LEAD_RE = re.compile(r"^[\s\-—–:#>·•|]+")
 
-# A "real" rationale must contain at least one letter and four non-space chars.
 _MIN_RATIONALE_CHARS = 4
 
 

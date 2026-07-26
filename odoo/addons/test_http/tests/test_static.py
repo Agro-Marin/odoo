@@ -89,7 +89,6 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.subTest(x_sendfile=True),
             patch.object(config, "options", {**config.options, "x_sendfile": True}),
         ):
-            # The file is outside of the filestore, X-Sendfile disabled
             res = self.assertDownloadGizeh(
                 "/test_http/static/src/img/gizeh.png", x_sendfile=False
             )
@@ -109,11 +108,6 @@ class TestHttpStatic(TestHttpStaticCommon):
         self.assertEqual(res.status_code, 404)
 
     def test_static02b_traversal_out_of_static_dir_is_404(self):
-        # A ``..`` in the resource escapes the addon's ``static/`` directory
-        # while staying inside the addon tree, so ``file_path``'s addons-boundary
-        # check alone would serve the module's Python source / manifest. The
-        # static gate must confine reachable files to ``static/`` (matching the
-        # cold path's ``safe_join``), else this is source disclosure.
         root = http.root
         for resource in (
             "../__manifest__.py",
@@ -185,7 +179,6 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.subTest(x_sendfile=True),
             patch.object(config, "options", {**config.options, "x_sendfile": True}),
         ):
-            # The file is outside of the filestore, X-Sendfile disabled
             self.assertDownloadGizeh("/web/image/test_http.gizeh_url", x_sendfile=False)
 
     def test_static07_attachment_external_url(self):
@@ -297,7 +290,6 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.subTest(x_sendfile=True),
             patch.object(config, "options", {**config.options, "x_sendfile": True}),
         ):
-            # The file is outside of the filestore, X-Sendfile disabled
             self.assertDownloadPlaceholder("/web/image/idontexist")
 
     def test_static13_empty_to_placeholder(self):
@@ -306,7 +298,7 @@ class TestHttpStatic(TestHttpStaticCommon):
                 {
                     "name": "empty.png",
                     "type": "binary",
-                    "raw": b"",  # this is not a valid png file, whatever
+                    "raw": b"",
                     "public": True,
                 }
             ]
@@ -319,7 +311,6 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.subTest(x_sendfile=True),
             patch.object(config, "options", {**config.options, "x_sendfile": True}),
         ):
-            # The file is outside of the filestore, X-Sendfile disabled
             self.assertDownloadPlaceholder(f"/web/image/{att.id}")
 
     def test_static14_download_not_found(self):
@@ -506,9 +497,7 @@ class TestHttpStatic(TestHttpStaticCommon):
             earth[field] = data
             res = self.url_open(f"/web/image/test_http.stargate/{earth.id}/{field}")
             res.raise_for_status()
-            self.assertEqual(
-                res.headers["Content-Type"], "application/octet-stream"
-            )  # Shouldn't be text/html
+            self.assertEqual(res.headers["Content-Type"], "application/octet-stream")
             self.assertEqual(
                 res.headers["Content-Security-Policy"], "default-src 'none'"
             )
@@ -663,11 +652,9 @@ class TestHttpStaticCache(TestHttpStaticCommon):
         res1 = self.nodb_url_open("/test_http/static/src/img/gizeh.png")
         res1.raise_for_status()
         self.assertEqual(res1.status_code, 200)
-        self.assertCacheControl(res1, "public, max-age=604800")  # one week
+        self.assertCacheControl(res1, "public, max-age=604800")
         expires = self.parse_http_expires(res1.headers["Expires"]).timestamp()
-        self.assertIn(
-            expires, range(one_week_away, one_week_away + 60)
-        )  # + 60 for nginx
+        self.assertIn(expires, range(one_week_away, one_week_away + 60))
         self.assertIn("ETag", res1.headers)
 
         res_etag = self.nodb_url_open(
@@ -694,18 +681,13 @@ class TestHttpStaticCache(TestHttpStaticCommon):
 
     @freeze_time(datetime.now(UTC))
     def test_static_cache1_unique(self):
-        # Wed, 21 Oct 2015 07:28:00 GMT
-        # The timezone should be %Z (instead of 'GMT' hardcoded) but
-        # somehow strftime doesn't set it.
         now = datetime.now(UTC)
         one_year_away = int((now + timedelta(days=365)).timestamp())
 
         res1 = self.assertDownloadGizeh("/web/image/test_http.gizeh_png?unique=1")
-        self.assertCacheControl(res1, "public, max-age=31536000, immutable")  # one year
+        self.assertCacheControl(res1, "public, max-age=31536000, immutable")
         expires = self.parse_http_expires(res1.headers["Expires"]).timestamp()
-        self.assertIn(
-            expires, range(one_year_away, one_year_away + 60)
-        )  # + 60 for nginx
+        self.assertIn(expires, range(one_year_away, one_year_away + 60))
         self.assertIn("ETag", res1.headers)
 
         res_etag = self.db_url_open(
@@ -752,7 +734,6 @@ class TestHttpStaticCache(TestHttpStaticCommon):
         gizeh_png.public = False
         url = "/web/image/test_http.gizeh_png"
 
-        # Visitor must get a placeholder
         self.authenticate(None, None)
         res_visitor = self.assertDownloadPlaceholder(url)
         self.assertEqual(
@@ -768,7 +749,6 @@ class TestHttpStaticCache(TestHttpStaticCommon):
             "The visitor should use its cache",
         )
 
-        # Admin can get the actual image
         self.authenticate("admin", "admin")
         res = self.assertDownloadGizeh(url)
         self.assertCacheControl(res, "no-cache, private")
@@ -830,9 +810,33 @@ class TestHttpStaticUpload(TestHttpStaticCommon):
     def test_upload_small_file_with_icp(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "web.max_file_upload_size",
-            16386,  # gizeh.png is smaller
+            16386,
         )
         self._test_upload_small_file()
+
+    def test_upload_large_file_on_an_unmatched_path(self):
+        """The ICP upload cap must also bound the no-route-matched path.
+
+        ``web.max_file_upload_size`` was applied by ``ir.http._pre_dispatch``,
+        which only runs once a controller matched. The fallback path
+        (``Request._serve_ir_http_fallback``) parses query/form data too, but
+        never reaches ``_pre_dispatch`` — so however low an operator set the
+        limit, POSTing to any unmatched URL was still buffered up to the 128 MiB
+        framework default. The cap now has a single owner
+        (``ir.http._apply_max_upload_size``) that both paths call.
+        """
+        with file_open("test_http/static/src/img/gizeh.png", "rb") as file:
+            file_size = file.seek(0, 2)
+            file.seek(0)
+            self.env["ir.config_parameter"].sudo().set_param(
+                "web.max_file_upload_size",
+                file_size - 1,
+            )
+            res = self.url_open(
+                f"{self.base_url()}/test_http/no-such-route-exists",
+                files={"ufile": file},
+            )
+        self.assertEqual(res.status_code, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
 
     def test_upload_large_file(self):
         new_test_user(self.env, "jackoneill")

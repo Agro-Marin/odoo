@@ -7,7 +7,6 @@ from odoo.addons.base.tests.test_views import ViewCase
 
 
 class TestDefaultView(common.TransactionCase):
-
     def test_default_form_view(self):
         self.assertEqual(
             etree.tostring(self.env["test_orm.message"]._get_default_form_view()),
@@ -41,12 +40,6 @@ class TestDefaultView(common.TransactionCase):
 class TestViewGroups(ViewCase):
     def test_attrs_groups(self):
         """Checks that attrs/modifiers with groups work"""
-        # During at_install, modules like 'mail' may not be loaded yet,
-        # but their DB constraints (e.g. notification_type CHECK) exist
-        # from a previous installation.  Changing groups triggers
-        # share=True recomputation, which violates the constraint if
-        # notification_type can't be recomputed (field not in registry).
-        # Set notification_type to a safe default via SQL to avoid this.
         if "notification_type" not in self.env["res.users"]._fields:
             self.env.cr.execute(
                 "SELECT 1 FROM information_schema.columns "
@@ -78,8 +71,6 @@ class TestViewGroups(ViewCase):
         ):
             f.f = 3
 
-        # other access
-
         self.env.user.group_ids = [(6, 0, [self.env.ref("base.group_public").id])]
         f = Form(
             self.env["test_orm.model.some_access"],
@@ -91,17 +82,14 @@ class TestViewGroups(ViewCase):
         with self.assertRaisesRegex(AssertionError, "'c' was not found in the view"):
             f.c = 3
         with self.assertRaisesRegex(AssertionError, "'e' was not found in the view"):
-            # field added automatically but removed from used groups (base.group_erp_manager,base.group_portal on field 'd' and 'f')
             f.e = 3
         with self.assertRaisesRegex(AssertionError, "'f' was not found in the view"):
             f.f = 3
         with self.assertRaisesRegex(
             AssertionError, "can't write on readonly field 'k'"
         ):
-            # field add automatically
             f.k = 3
 
-        # create must warn because 'a' and the model has no 'base.group_portal'
         self.assertWarning(
             """
                 <form>
@@ -113,8 +101,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model.some_access",
         )
 
-        # a: base.group_public,base.group_system > -
-        # d: base.group_public,base.group_system > base.group_erp_manager
         self.assertWarning(
             """
                 <form>
@@ -126,8 +112,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model.some_access",
         )
 
-        # e: base.group_public,base.group_system > base.group_erp_manager,base.group_portal
-        # d: base.group_public,base.group_system > base.group_erp_manager
         self.assertWarning(
             """
                 <form>
@@ -140,8 +124,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model.some_access",
         )
 
-        # i: base.group_public,base.group_system > !base.group_portal
-        # h: base.group_public,base.group_system > base.group_erp_manager,!base.group_portal
         self.assertWarning(
             """
                 <form>
@@ -151,8 +133,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model.some_access",
         )
 
-        # i: base.group_public,base.group_system > !base.group_portal
-        # j: base.group_public,base.group_system > base.group_portal
         self.assertWarning(
             """
                 <form>
@@ -162,8 +142,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model.some_access",
         )
 
-        # i: public,portal,user,system > !base.group_portal
-        # h: public,portal,user,system > base.group_portal
         self.assertWarning(
             """
                 <form>
@@ -173,7 +151,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model.all_access",
         )
 
-        # must raise for does not exists error
         with self.assertRaisesRegex(
             ValidationError,
             'Field "ab" does not exist in model "test_orm.model.some_access"',
@@ -230,7 +207,6 @@ class TestViewGroups(ViewCase):
         self.assertTrue(nodes, "groupby should contains the missing field 'ab'")
 
     def test_related_field_and_groups(self):
-        # group from related
         self.assertWarning(
             """
                 <form>
@@ -241,7 +217,6 @@ class TestViewGroups(ViewCase):
             model="test_orm.model2.some_access",
         )
 
-        # should not fail, the domain is not applied on xxx_sub_id
         self.env["ir.ui.view"].create(
             {
                 "name": "stuff",
@@ -275,14 +250,14 @@ class TestViewGroups(ViewCase):
             self.assertEqual(form._view["onchange"]["bar"], "1")
 
         with Form(self.env["test_orm.computed.modifier"]) as form:
-            form.foo = 1  # should make 'name' readonly by recomputing sub_foo
+            form.foo = 1
             with self.assertRaisesRegex(
                 AssertionError, "can't write on readonly field 'name'"
             ):
                 form.name = "toto"
 
         with Form(self.env["test_orm.computed.modifier"]) as form:
-            form.bar = 1  # should make 'name' readonly by onchange modifying sub_bar
+            form.bar = 1
             with self.assertRaisesRegex(
                 AssertionError, "can't write on readonly field 'name'"
             ):

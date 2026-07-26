@@ -87,12 +87,8 @@ class TestAuditFallbackDeadInBase(TransactionCase):
             css=False,
         )
         store = bundle._store
-        # Warm up lazy init (registry/model load, checksum cache) so the counted
-        # call sees only get_attachments' own SELECT(s).
         self.assertFalse(store.get_attachments("min.js"))
-        with patch.object(
-            store.env.cr, "execute", wraps=store.env.cr.execute
-        ) as spy:
+        with patch.object(store.env.cr, "execute", wraps=store.env.cr.execute) as spy:
             self.assertFalse(store.get_attachments("min.js"))
         self.assertEqual(
             spy.call_count,

@@ -26,8 +26,6 @@ class RoutesLinter(TransactionCase):
             nonlocal checked
             checked += 1
             if "type" in merged_routing:
-                # merged_routing contains non default 'type' value
-                # => current method is an inherited route.
                 useless_overrides = {
                     key: value
                     for key, value in submethod.original_routing.items()
@@ -41,8 +39,6 @@ class RoutesLinter(TransactionCase):
                         pformat(useless_overrides),
                     )
 
-            # The wrapped hook RETURNS the effective fragment the merge
-            # consumes; forward it or every route would merge empty.
             return _check_and_complete_route_definition(
                 controller_cls, submethod, merged_routing
             )
@@ -56,18 +52,11 @@ class RoutesLinter(TransactionCase):
             )
             .mapped("name")
         )
-        # Patch the CONSUMING namespace (``odoo.http.routing``), not the
-        # ``odoo.http`` re-export: ``_generate_routing_rules`` resolves the
-        # hook from its own module, so patching the re-export intercepts
-        # nothing — this linter was silently checking zero routes that way
-        # after the http.py -> package split.
         with patch(
             "odoo.http.routing._check_and_complete_route_definition", extended_check
         ):
             for _ in http._generate_routing_rules(installed_modules, nodb_only=False):
                 pass
-        # Guard against the patch point going dead again: a base install
-        # always declares routes, so the wrapper must have run.
         self.assertGreater(checked, 0, "route-linter hook was never invoked")
 
     def test_reexported_hook_is_the_routing_one(self):

@@ -53,13 +53,13 @@ class TestOpenApi(BaseCase):
         doc = build_openapi([route])
         self.assertEqual(doc["openapi"], "3.1.0")
         path_item = doc["paths"]["/x/{id}"]
-        self.assertNotIn("head", path_item)  # implicit verb omitted
+        self.assertNotIn("head", path_item)
         op = path_item["get"]
         params = {(p["name"], p["in"]): p for p in op["parameters"]}
         self.assertEqual(params[("id", "path")]["schema"], {"type": "integer"})
         self.assertTrue(params[("n", "query")]["required"])
         self.assertEqual(params[("flag", "query")]["schema"], {"type": "boolean"})
-        self.assertEqual(op["security"], [])  # public
+        self.assertEqual(op["security"], [])
         self.assertIn("400", op["responses"])
         self.assertEqual(op["summary"], "Echo n and flag.")
 
@@ -82,8 +82,6 @@ class TestOpenApi(BaseCase):
         )
 
     def test_operation_ids_are_document_unique(self):
-        # Two controllers reusing a handler name (``index``) must not collide:
-        # operationIds derive from (method, path), unique by construction.
         def index(self, **kw):
             return None
 
@@ -144,7 +142,6 @@ class TestOpenApiEndpoint(TestHttpBase):
 
     def test_endpoint_omits_untyped_routes(self):
         spec = self.nodb_url_open("/test_http/openapi.json").json()
-        # echo-http-get is auth='none' but not typed -> excluded by typed_only
         self.assertNotIn("/test_http/echo-http-get", spec["paths"])
 
 
@@ -159,8 +156,6 @@ class TestWebOpenApiEndpoint(HttpCase):
         self.assertEqual(res.status_code, 200)
         spec = res.json()
         self.assertEqual(spec["openapi"], "3.1.0")
-        # Generated from the db map: test_http's typed route is documented,
-        # untyped routes are not (typed_only is not optional on this endpoint).
         self.assertIn("/test_http/typed-echo", spec["paths"])
         self.assertNotIn("/test_http/echo-http-get", spec["paths"])
         self.assertEqual(spec["servers"], [{"url": self.base_url()}])

@@ -4,7 +4,6 @@ from odoo.tests import common, new_test_user
 
 
 class TestPrivateReadGroup(common.TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -26,13 +25,17 @@ class TestPrivateReadGroup(common.TransactionCase):
         Model.create({"value": 6})
         Model.create({})
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_aggregate"."key",
                    SUM("test_read_group_aggregate"."value")
             FROM "test_read_group_aggregate"
             GROUP BY "test_read_group_aggregate"."key"
             ORDER BY "test_read_group_aggregate"."key" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 Model._read_group([], groupby=["key"], aggregates=["value:sum"]),
                 [
@@ -42,8 +45,9 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ],
             )
 
-        # Forcing order with many2one, traverse use the order of the comodel (res.partner)
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_aggregate"."key",
                    "test_read_group_aggregate"."partner_id",
                    SUM("test_read_group_aggregate"."value")
@@ -55,7 +59,9 @@ class TestPrivateReadGroup(common.TransactionCase):
             ORDER BY "test_read_group_aggregate"."key" ASC,
                      ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") ASC,
                      ANY_VALUE("test_read_group_aggregate__partner_id"."id") DESC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 Model._read_group(
                     [],
@@ -73,9 +79,9 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ],
             )
 
-        # Same as before but with private method, the order doesn't traverse
-        # many2one order, then the order is based on id of partner
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_aggregate"."key",
                    "test_read_group_aggregate"."partner_id",
                    SUM("test_read_group_aggregate"."value")
@@ -84,7 +90,9 @@ class TestPrivateReadGroup(common.TransactionCase):
                      "test_read_group_aggregate"."partner_id"
             ORDER BY "test_read_group_aggregate"."key" ASC,
                      "test_read_group_aggregate"."partner_id" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 Model._read_group(
                     [], groupby=["key", "partner_id"], aggregates=["value:sum"]
@@ -160,9 +168,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                     "partner_id:count_distinct",
                 ],
             )
-            # When there are no groupby, postgresql return always one row, check
-            # that it is the case when the domain is falsy and the query is not
-            # made at all
             self.assertEqual(result, [(0, 0, 0)])
 
     def test_prefetch_for_records(self):
@@ -177,12 +182,10 @@ class TestPrivateReadGroup(common.TransactionCase):
 
         result = Model._read_group([], ["partner_id"], [])
 
-        # partner_1 and partner_2 are records
         self.assertEqual(result, [(partner_1,), (partner_2,)])
         [[value1], [value2]] = result
         value1.name
         with self.assertQueryCount(0):
-            # already prefetched with value1.name above
             value2.name
 
         self.env.invalidate_all()
@@ -192,7 +195,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         [[__, value1], [__, value2]] = result
         value1.name
         with self.assertQueryCount(0):
-            # already prefetched with value1.name above
             value2.name
 
     def test_ambiguous_field_name(self):
@@ -208,7 +210,9 @@ class TestPrivateReadGroup(common.TransactionCase):
             }
         )
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_aggregate"."display_name",
                    "test_read_group_aggregate"."partner_id",
                    COUNT(*)
@@ -219,7 +223,9 @@ class TestPrivateReadGroup(common.TransactionCase):
                      "test_read_group_aggregate"."partner_id"
             ORDER BY ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") DESC,
                      ANY_VALUE("test_read_group_aggregate__partner_id"."id") ASC
-        """]):
+        """
+            ]
+        ):
             result = Model._read_group(
                 [],
                 groupby=["display_name", "partner_id"],
@@ -303,7 +309,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             [(1, 5 + 5)],
         )
 
-        # Test flush of domain
         a.key = 2
         self.assertEqual(
             Model._read_group(
@@ -314,7 +319,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ],
         )
 
-        # test flush of groupby clause
         a.key = 3
         self.assertEqual(
             Model._read_group([], groupby=["key"], aggregates=["value:sum"]),
@@ -324,7 +328,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ],
         )
 
-        # Test flush of _read_groups
         b.value = 8
         self.assertEqual(
             Model._read_group([], groupby=["key"], aggregates=["value:sum"]),
@@ -352,7 +355,7 @@ class TestPrivateReadGroup(common.TransactionCase):
             [("before", 1)],
         )
 
-        record.company_dependent_name = "after"  # dirty in cache, not flushed
+        record.company_dependent_name = "after"
         self.assertEqual(
             Model._read_group(
                 [("id", "=", record.id)], ["company_dependent_name"], ["__count"]
@@ -369,14 +372,18 @@ class TestPrivateReadGroup(common.TransactionCase):
         Model.create({"key": 3, "value": 4})
         Model.create({"key": 3, "value": 1})
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_aggregate"."key",
                    SUM("test_read_group_aggregate"."value")
             FROM "test_read_group_aggregate"
             GROUP BY "test_read_group_aggregate"."key"
             HAVING SUM("test_read_group_aggregate"."value") > %s
             ORDER BY "test_read_group_aggregate"."key" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 Model._read_group(
                     [],
@@ -387,7 +394,9 @@ class TestPrivateReadGroup(common.TransactionCase):
                 [(1, 2 + 8)],
             )
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_aggregate"."key",
                    SUM("test_read_group_aggregate"."value"),
                    COUNT(*)
@@ -395,7 +404,9 @@ class TestPrivateReadGroup(common.TransactionCase):
             GROUP BY "test_read_group_aggregate"."key"
             HAVING (COUNT(*) < %s AND SUM("test_read_group_aggregate"."value") > %s)
             ORDER BY "test_read_group_aggregate"."key" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 Model._read_group(
                     [],
@@ -410,43 +421,30 @@ class TestPrivateReadGroup(common.TransactionCase):
             )
 
     def test_having_without_groupby(self):
-        # HAVING must be honoured even with an empty groupby: PostgreSQL applies
-        # it to the single implicit aggregate group.  It used to be silently
-        # dropped (the having clause was only built inside ``if groupby_terms``),
-        # returning the unfiltered aggregate row.
         Model = self.env["test_read_group.aggregate"]
         Model.create({"key": 1, "value": 8})
         Model.create({"key": 1, "value": 2})
 
-        # baseline: single implicit group, total value == 10
         self.assertEqual(Model._read_group([], [], ["value:sum"]), [(10,)])
-        # HAVING the single group fails -> no rows (was: silently returned [(10,)])
         self.assertEqual(
             Model._read_group([], [], ["value:sum"], having=[("value:sum", ">", 10)]),
             [],
         )
-        # HAVING the single group satisfies -> the row is returned
         self.assertEqual(
             Model._read_group([], [], ["value:sum"], having=[("value:sum", ">", 5)]),
             [(10,)],
         )
 
     def test_having_without_groupby_falsy_domain(self):
-        # The statically-false-domain shortcut must honour ``having`` exactly
-        # like the SQL path does over zero rows: aggregates over no rows are
-        # NULL (except COUNT, which is 0), and a NULL comparison is not TRUE.
         Model = self.env["test_read_group.aggregate"]
         Model.create({"key": 1, "value": 8})
 
         for having, expected in [
             ([("value:sum", ">", 1000)], []),
-            # NULL = 0 is not TRUE, so the empty sum does NOT match 0
             ([("value:sum", "=", 0)], []),
-            # COUNT(*) over no rows is 0, so the implicit group is kept
             ([("__count", "=", 0)], [(0, False)]),
         ]:
             with self.subTest(having=having):
-                # shortcut path: statically false domain
                 self.assertEqual(
                     Model._read_group(
                         [("id", "in", [])],
@@ -456,7 +454,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                     ),
                     expected,
                 )
-                # SQL path: equivalent no-match domain that actually executes
                 self.assertEqual(
                     Model._read_group(
                         [("id", "=", -1)],
@@ -469,7 +466,6 @@ class TestPrivateReadGroup(common.TransactionCase):
 
     def test_malformed_params(self):
         Model = self.env["test_read_group.order.line"]
-        # Test malformed groupby clause
         with self.assertRaises(ValueError):
             Model._read_group([], ["create_date:bad_granularity"])
 
@@ -477,7 +473,7 @@ class TestPrivateReadGroup(common.TransactionCase):
             Model._read_group([], ["Other stuff create_date:week"])
 
         with self.assertRaises(ValueError):
-            Model._read_group([], ["create_date"])  # No granularity
+            Model._read_group([], ["create_date"])
 
         with self.assertRaises(ValueError):
             Model._read_group([], ['"create_date:week'])
@@ -485,9 +481,8 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertRaises(ValueError):
             Model._read_group([], ['"create_date:unknown_number'])
 
-        # Test malformed aggregate clause
         with self.assertRaises(ValueError):
-            Model._read_group([], aggregates=["value"])  # No aggregate
+            Model._read_group([], aggregates=["value"])
 
         with self.assertRaises(ValueError):
             Model._read_group([], aggregates=["__count_"])
@@ -516,7 +511,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         ):
             Model._read_group([], aggregates=["value:sum", "not_another_field:sum"])
 
-        # Test malformed having clause
         with self.assertRaises(ValueError):
             Model._read_group([], ["value"], having=[("__count", ">")])
 
@@ -526,7 +520,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertRaises(ValueError):
             Model._read_group([], ["value"], having=['"="'])
 
-        # Test malformed order clause
         with self.assertRaises(ValueError):
             Model._read_group([], ["value"], order="__count DESC other")
 
@@ -539,14 +532,14 @@ class TestPrivateReadGroup(common.TransactionCase):
     def test_groupby_date(self):
         """Test what happens when grouping on date fields"""
         Model = self.env["test_read_group.fill_temporal"]
-        Model.create({})  # Falsy date
-        Model.create({"date": "2022-01-29"})  # Saturday (week of '2022-01-24')
-        Model.create({"date": "2022-01-29"})  # Same day
-        Model.create({"date": "2022-01-30"})  # Sunday
-        Model.create({"date": "2022-01-31"})  # Monday (other week)
-        Model.create({"date": "2022-02-01"})  # (other month)
-        Model.create({"date": "2022-05-29"})  # other quarter
-        Model.create({"date": "2023-01-29"})  # other year
+        Model.create({})
+        Model.create({"date": "2022-01-29"})
+        Model.create({"date": "2022-01-29"})
+        Model.create({"date": "2022-01-30"})
+        Model.create({"date": "2022-01-31"})
+        Model.create({"date": "2022-02-01"})
+        Model.create({"date": "2022-05-29"})
+        Model.create({"date": "2023-01-29"})
 
         result = Model._read_group([], [], ["date:array_agg"])
         self.assertEqual(
@@ -625,7 +618,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                 (False, 1),
             ],
         )
-        # Reverse order
         result = Model._read_group(
             [], ["date:year"], ["__count"], order="date:year DESC"
         )
@@ -638,7 +630,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ],
         )
 
-        # order param not in the aggregate
         result = Model._read_group([], ["date:year"], [], order="__count, date:year")
         self.assertEqual(
             result,
@@ -652,28 +643,14 @@ class TestPrivateReadGroup(common.TransactionCase):
     def test_groupby_date_part_number(self):
         """Test grouping by date part number (ex. month_number gives 1 for January)"""
         Model = self.env["test_read_group.fill_temporal"]
-        Model.create({})  # Falsy date
-        Model.create(
-            {"date": "2022-01-29", "datetime": "2022-01-29 13:55:12"}
-        )  # W4, M1, Q1
-        Model.create(
-            {"date": "2022-01-29", "datetime": "2022-01-29 15:55:13"}
-        )  # W4, M1, Q1
-        Model.create(
-            {"date": "2022-01-30", "datetime": "2022-01-30 13:54:14"}
-        )  # W4, M1, Q1
-        Model.create(
-            {"date": "2022-01-31", "datetime": "2022-01-31 15:55:14"}
-        )  # W5, M1, Q1
-        Model.create(
-            {"date": "2022-02-01", "datetime": "2022-02-01 14:54:13"}
-        )  # W5, M2, Q1
-        Model.create(
-            {"date": "2022-05-29", "datetime": "2022-05-29 14:55:13"}
-        )  # W21, M5, Q2
-        Model.create(
-            {"date": "2023-01-29", "datetime": "2023-01-29 15:55:13"}
-        )  # W4, M1, Q1
+        Model.create({})
+        Model.create({"date": "2022-01-29", "datetime": "2022-01-29 13:55:12"})
+        Model.create({"date": "2022-01-29", "datetime": "2022-01-29 15:55:13"})
+        Model.create({"date": "2022-01-30", "datetime": "2022-01-30 13:54:14"})
+        Model.create({"date": "2022-01-31", "datetime": "2022-01-31 15:55:14"})
+        Model.create({"date": "2022-02-01", "datetime": "2022-02-01 14:54:13"})
+        Model.create({"date": "2022-05-29", "datetime": "2022-05-29 14:55:13"})
+        Model.create({"date": "2023-01-29", "datetime": "2023-01-29 15:55:13"})
 
         result = Model._read_group([], ["datetime:second_number"], ["__count"])
         self.assertEqual(
@@ -748,9 +725,9 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertEqual(
             result,
             [
-                (4, 4),  # week 4 has 4 records
-                (5, 2),  # week 5 has 2 records
-                (21, 1),  # week 21 has 1 record
+                (4, 4),
+                (5, 2),
+                (21, 1),
                 (False, 1),
             ],
         )
@@ -759,9 +736,9 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertEqual(
             result,
             [
-                (1, 5),  # month 1 has 5 records
-                (2, 1),  # month 2 has 1 record
-                (5, 1),  # month 5 has 1 record
+                (1, 5),
+                (2, 1),
+                (5, 1),
                 (False, 1),
             ],
         )
@@ -770,13 +747,12 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertEqual(
             result,
             [
-                (1, 6),  # quarter 1 has 6 records
-                (2, 1),  # quarter 2 has 1 record
+                (1, 6),
+                (2, 1),
                 (False, 1),
             ],
         )
 
-        # Test datetime with quarter_number + DESC order
         result = Model._read_group(
             [],
             ["datetime:quarter_number"],
@@ -796,8 +772,8 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertEqual(
             result,
             [
-                (2022, 6),  # year 2022 has 6 records
-                (2023, 1),  # year 2023 has 1 record
+                (2022, 6),
+                (2023, 1),
                 (False, 1),
             ],
         )
@@ -814,7 +790,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ]
         )
 
-        # With "UTC" timezone (the default one)
         Model = Model.with_context(tz="UTC")
 
         self.assertEqual(
@@ -864,7 +839,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ],
         )
 
-        # With "Europe/Brussels" [+01:00 UTC | +02:00 UTC DST] timezone
         Model = Model.with_context(tz="Europe/Brussels")
         self.assertEqual(
             Model._read_group(
@@ -913,7 +887,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ],
         )
 
-        # With "America/Anchorage" [-09:00 UTC | -08:00 UTC DST] timezone
         Model = Model.with_context(tz="America/Anchorage")
         self.assertEqual(
             Model._read_group(
@@ -934,7 +907,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ),
             ],
         )
-        # by hour
         self.assertEqual(
             Model._read_group(
                 [("id", "in", records.ids)], ["datetime:hour"], ["value:sum"]
@@ -1010,7 +982,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         domain1 = [("id", "in", records.ids), ("line_ids.value", "=", 1)]
         domain2 = [("id", "in", records.ids), ("line_ids.value", ">", 0)]
 
-        # reference results
         self.assertEqual(len(model.search(domain1)), 2)
         self.assertEqual(len(model.search(domain2)), 2)
 
@@ -1020,7 +991,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         result2 = model._read_group(domain2, aggregates=["__count"])
         self.assertEqual(result1, [(2,)])
 
-        # same requests, with bypass_search_access
         self.patch(type(model).line_ids, "bypass_search_access", True)
 
         self.assertEqual(len(model.search(domain1)), 2)
@@ -1047,35 +1017,34 @@ class TestPrivateReadGroup(common.TransactionCase):
         Model = self.env["ir.model"]
         Access = self.env["ir.model.access"]
         group_user = self.env.ref("base.group_user")
-        # Grant the base user model read on both models, so the test isolates
-        # *field* access from *model* access.
-        Access.create([
-            {
-                "name": "test task read",
-                "model_id": Model._get("test_read_group.task").id,
-                "group_id": group_user.id,
-                "perm_read": True, "perm_write": False,
-                "perm_create": False, "perm_unlink": False,
-            },
-            {
-                "name": "test user read",
-                "model_id": Model._get("test_read_group.user").id,
-                "group_id": group_user.id, "perm_read": True,
-            },
-        ])
+        Access.create(
+            [
+                {
+                    "name": "test task read",
+                    "model_id": Model._get("test_read_group.task").id,
+                    "group_id": group_user.id,
+                    "perm_read": True,
+                    "perm_write": False,
+                    "perm_create": False,
+                    "perm_unlink": False,
+                },
+                {
+                    "name": "test user read",
+                    "model_id": Model._get("test_read_group.user").id,
+                    "group_id": group_user.id,
+                    "perm_read": True,
+                },
+            ]
+        )
         task_as_user = Task.with_user(self.base_user)
 
-        # Control: with model access, the base user may group by the m2m.
         task_as_user._read_group([], groupby=["user_ids"], aggregates=["__count"])
 
-        # Restrict the stored m2m to a group the base user does not have.
         self.patch(type(Task).user_ids, "groups", "base.group_system")
 
-        # The base user must now be denied (the bypass is closed)...
         with self.assertRaises(AccessError):
             task_as_user._read_group([], groupby=["user_ids"], aggregates=["__count"])
 
-        # ...while a privileged user is unaffected (no over-restriction).
         Task._read_group([], groupby=["user_ids"], aggregates=["__count"])
 
     def test_groupby_many2many(self):
@@ -1083,26 +1052,24 @@ class TestPrivateReadGroup(common.TransactionCase):
         mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
         tasks = self.env["test_read_group.task"].create(
             [
-                {  # both users
+                {
                     "name": "Super Mario Bros.",
                     "user_ids": [Command.set((mario + luigi).ids)],
                 },
-                {  # mario only
+                {
                     "name": "Paper Mario",
                     "user_ids": [Command.set(mario.ids)],
                 },
-                {  # luigi only
+                {
                     "name": "Luigi's Mansion",
                     "user_ids": [Command.set(luigi.ids)],
                 },
-                {  # no user
+                {
                     "name": "Donkey Kong",
                 },
             ]
         )
 
-        # TODO: should we order by the relation and not by the id also for many2many
-        # (same than many2one) ? for public methods ?
         expected = """
             SELECT
                 "test_read_group_task__user_ids"."user_id",
@@ -1125,16 +1092,15 @@ class TestPrivateReadGroup(common.TransactionCase):
                     (
                         mario,
                         ["Super Mario Bros.", "Paper Mario"],
-                    ),  # tasks of Mario
+                    ),
                     (
                         luigi,
                         ["Super Mario Bros.", "Luigi's Mansion"],
-                    ),  # tasks of Luigi
-                    (User, ["Donkey Kong"]),  # tasks of nobody
+                    ),
+                    (User, ["Donkey Kong"]),
                 ],
             )
 
-        # Inverse the order, only inverse depending of id (see TODO above)
         expected = """
             SELECT
                 "test_read_group_task__user_ids"."user_id",
@@ -1155,19 +1121,18 @@ class TestPrivateReadGroup(common.TransactionCase):
                     order="user_ids DESC",
                 ),
                 [
-                    (User, ["Donkey Kong"]),  # tasks of nobody
+                    (User, ["Donkey Kong"]),
                     (
                         luigi,
                         ["Super Mario Bros.", "Luigi's Mansion"],
-                    ),  # tasks of Luigi
+                    ),
                     (
                         mario,
                         ["Super Mario Bros.", "Paper Mario"],
-                    ),  # tasks of Mario
+                    ),
                 ],
             )
 
-        # group tasks with some ir.rule on users
         users_model = self.env["ir.model"]._get(mario._name)
         self.env["ir.rule"].create(
             {
@@ -1176,10 +1141,8 @@ class TestPrivateReadGroup(common.TransactionCase):
                 "domain_force": [("id", "=", mario.id)],
             }
         )
-        # as demo user, ir.rule should apply
         tasks = tasks.with_user(self.base_user)
 
-        # warming up various caches; this avoids extra queries
         tasks._read_group([], groupby=["user_ids"], aggregates=["name:array_agg"])
 
         expected = """
@@ -1378,7 +1341,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ]
         )
 
-        # env.su => false
         RelatedBase = RelatedBase.with_user(self.base_user)
 
         field_info = RelatedBase.fields_get(
@@ -1411,7 +1373,9 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
 
         RelatedBase._read_group([], ["foo_id_name_sudo"], ["__count"])
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_related_base__foo_id"."name",
                     COUNT(*)
             FROM "test_read_group_related_base"
@@ -1419,13 +1383,14 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             GROUP BY "test_read_group_related_base__foo_id"."name"
             ORDER BY "test_read_group_related_base__foo_id"."name" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 RelatedBase._read_group([], ["foo_id_name_sudo"], ["__count"]),
                 [("foo_a_bar_a", 2), ("foo_b_bar_false", 1), (False, 2)],
             )
 
-        # Same query generated by grouping foo_id_bar_id_name/foo_id_bar_name/foo_id_bar_name_sudo
         foo_bar_name_query = """
             SELECT "test_read_group_related_base__foo_id__bar_id"."name",
                     COUNT(*)
@@ -1446,14 +1411,18 @@ class TestPrivateReadGroup(common.TransactionCase):
             RelatedBase._read_group([], ["foo_id_bar_name"], ["__count"])
             RelatedBase._read_group([], ["foo_id_bar_name_sudo"], ["__count"])
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT COUNT(DISTINCT "test_read_group_related_base__foo_id__bar_id"."name")
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_base__foo_id__bar_id"
                 ON ("test_read_group_related_base__foo_id"."bar_id" = "test_read_group_related_base__foo_id__bar_id"."id")
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 RelatedBase._read_group(
                     [], aggregates=["foo_id_bar_id_name:count_distinct"]
@@ -1461,7 +1430,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                 [(1,)],
             )
 
-        # Cannot groupby on foo_names_sudo because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar._read_group([], ["foo_names_sudo"])
 
@@ -1487,7 +1455,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ]
         )
 
-        # env.su => false
         RelatedInherits = RelatedInherits.with_user(self.base_user)
 
         field_info = RelatedInherits.fields_get(
@@ -1499,9 +1466,10 @@ class TestPrivateReadGroup(common.TransactionCase):
         self.assertTrue(field_info["foo_id_name_sudo"]["groupable"])
         self.assertEqual(field_info["value"]["aggregator"], "sum")
 
-        # warmup
         RelatedInherits._read_group([], ["name"], ["__count"])
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_related_inherits__base_id"."name",
                     COUNT(*)
             FROM "test_read_group_related_inherits"
@@ -1509,13 +1477,17 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ON ("test_read_group_related_inherits"."base_id" = "test_read_group_related_inherits__base_id"."id")
             GROUP BY "test_read_group_related_inherits__base_id"."name"
             ORDER BY "test_read_group_related_inherits__base_id"."name" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 RelatedInherits._read_group([], ["name"], ["__count"]),
                 [("a", 3), ("b", 1), (False, 1)],
             )
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_related_inherits__base_id"."name",
                     SUM("test_read_group_related_inherits__base_id"."value")
             FROM "test_read_group_related_inherits"
@@ -1523,13 +1495,17 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ON ("test_read_group_related_inherits"."base_id" = "test_read_group_related_inherits__base_id"."id")
             GROUP BY "test_read_group_related_inherits__base_id"."name"
             ORDER BY "test_read_group_related_inherits__base_id"."name" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 RelatedInherits._read_group([], ["name"], ["value:sum"]),
                 [("a", 1 + 1 + 2), ("b", 3), (False, 4)],
             )
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_related_inherits__base_id__foo_id"."name",
                     COUNT(*)
             FROM "test_read_group_related_inherits"
@@ -1539,22 +1515,24 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ON ("test_read_group_related_inherits__base_id"."foo_id" = "test_read_group_related_inherits__base_id__foo_id"."id")
             GROUP BY "test_read_group_related_inherits__base_id__foo_id"."name"
             ORDER BY "test_read_group_related_inherits__base_id__foo_id"."name" ASC
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 RelatedInherits._read_group([], ["foo_id_name_sudo"], ["__count"]),
                 [(False, 5)],
             )
 
-        # Cannot groupby because foo_id_name is related_sudo=False
         with self.assertRaises(ValueError):
             RelatedInherits._read_group([], ["foo_id_name"])
 
     def test_related_many2many_groupby(self):
         RelatedFoo = self.env["test_read_group.related_foo"].with_user(self.base_user)
 
-        # warmup
         RelatedFoo._read_group([], ["bar_base_ids"], ["__count"])
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_base_id",
                     COUNT(*)
             FROM "test_read_group_related_foo"
@@ -1564,13 +1542,14 @@ class TestPrivateReadGroup(common.TransactionCase):
                 ON ("test_read_group_related_foo__bar_id"."id" = "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_bar_id")
             GROUP BY "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_base_id"
             ORDER BY "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_base_id" ASC
-        """]):
+        """
+            ]
+        ):
             RelatedFoo._read_group([], ["bar_base_ids"], ["__count"])
 
         field_info = RelatedFoo.fields_get(["bar_base_ids"], ["groupable"])
         self.assertTrue(field_info["bar_base_ids"]["groupable"])
 
-        # With ir.rule on the comodel of the many2many
         related_base_model = self.env["ir.model"]._get("test_read_group.related_base")
         self.env["ir.rule"].create(
             {
@@ -1580,10 +1559,10 @@ class TestPrivateReadGroup(common.TransactionCase):
             }
         )
 
-        # warmup
         RelatedFoo._read_group([], ["bar_base_ids"], ["__count"])
-        # The related_sudo=True should not bypass ir_rule of the comodel
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_base_id", COUNT(*)
             FROM "test_read_group_related_foo"
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_foo__bar_id"
@@ -1598,10 +1577,11 @@ class TestPrivateReadGroup(common.TransactionCase):
                 )
             GROUP BY "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_base_id"
             ORDER BY "test_read_group_related_foo__bar_id__base_ids"."test_read_group_related_base_id" ASC
-        """]):
+        """
+            ]
+        ):
             RelatedFoo._read_group([], ["bar_base_ids"], ["__count"])
 
-        # Test chain of fields have the same result than the related one (no ir.rule)
         self.assertEqual(
             RelatedFoo._read_group([], ["bar_base_ids"], ["__count"]),
             RelatedFoo._read_group([], ["bar_id.base_ids"], ["__count"]),
@@ -1611,7 +1591,6 @@ class TestPrivateReadGroup(common.TransactionCase):
         """many2many fields are not aggregable"""
         Model = self.env["test_read_group.task"]
 
-        # it works with another field
         Model._read_group([], [], ["name:array_agg"])
 
         with self.assertRaises(ValueError):
@@ -1667,7 +1646,6 @@ class TestPrivateReadGroup(common.TransactionCase):
             ]
         )
 
-        # warmup ormcache
         RelatedBase._read_group([], ["foo_id.bar_id"], ["__count"])
 
         expected_query = """
@@ -1685,10 +1663,8 @@ class TestPrivateReadGroup(common.TransactionCase):
                 [(bars[0], 3), (bars[1], 1), (RelatedBar, 1)],
             )
 
-        # Test without sudo but without ir_rules
         RelatedBase = RelatedBase.with_user(self.base_user)
 
-        # warmup ormcache
         RelatedBase._read_group([], ["foo_id.bar_id"], ["__count"])
 
         with self.assertQueries([expected_query]):
@@ -1697,7 +1673,6 @@ class TestPrivateReadGroup(common.TransactionCase):
                 [(bars[0], 3), (bars[1], 1), (RelatedBar, 1)],
             )
 
-        # Test without sudo + ir_rules
         users_model = self.env["ir.model"]._get(RelatedFoo._name)
         self.env["ir.rule"].create(
             {
@@ -1708,11 +1683,12 @@ class TestPrivateReadGroup(common.TransactionCase):
         )
         RelatedBase = RelatedBase.with_user(self.base_user)
 
-        # warmup ormcache
         RelatedBase._read_group([], ["foo_id.bar_id"], ["__count"])
 
         alias_join = f"test_read_group_related_base__foo_id__{self.base_user.id}"
-        with self.assertQueries([f"""
+        with self.assertQueries(
+            [
+                f"""
             SELECT "{alias_join}"."bar_id",
                    COUNT(*)
             FROM "test_read_group_related_base"
@@ -1726,8 +1702,9 @@ class TestPrivateReadGroup(common.TransactionCase):
             )
             GROUP BY "{alias_join}"."bar_id"
             ORDER BY "{alias_join}"."bar_id" ASC
-        """]):
-            # foos[0] not accessible, then foo_id.bar_id results in empty recordset
+        """
+            ]
+        ):
             self.assertEqual(
                 RelatedBase._read_group([], ["foo_id.bar_id"], ["__count"]),
                 [(bars[0], 1), (bars[1], 1), (RelatedBar, 3)],
@@ -1764,10 +1741,8 @@ class TestPrivateReadGroup(common.TransactionCase):
             ]
         )
 
-        # Warmup ormcache
         RelatedBase._read_group([], ["foo_id.bar_id.name"], ["__count"])
 
-        # Same query generated by grouping foo_id.bar_id.name/foo_id.bar_name/foo_id.bar_name_sudo
         query_expected = """
             SELECT "test_read_group_related_base__foo_id__bar_id"."name",
                     COUNT(*)
@@ -1790,17 +1765,13 @@ class TestPrivateReadGroup(common.TransactionCase):
                     [("bar_a", 3), (False, 2)],
                 )
 
-        # Cannot groupby on foo_ids.name because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar._read_group([], ["foo_ids.name"])
 
-        # Test without sudo but without ir_rules
         RelatedBase = RelatedBase.with_user(self.base_user)
 
-        # Warmup ormcache
         RelatedBase._read_group([], ["foo_id.bar_id.name"], ["__count"])
 
-        # Same query generated by grouping foo_id.bar_id.name/foo_id.bar_name_sudo
         expected_query = """
             SELECT "test_read_group_related_base__foo_id__bar_id"."name",
                     COUNT(*)
@@ -1819,11 +1790,9 @@ class TestPrivateReadGroup(common.TransactionCase):
                     [("bar_a", 3), (False, 2)],
                 )
 
-        # Doesn't work since bar_name is unsudoed
         with self.assertRaises(ValueError):
             RelatedBase._read_group([], ["foo_id.bar_name"], ["__count"])
 
-        # Test without sudo + ir_rules
         users_model = self.env["ir.model"]._get(RelatedFoo._name)
         self.env["ir.rule"].create(
             {
@@ -1833,10 +1802,8 @@ class TestPrivateReadGroup(common.TransactionCase):
             }
         )
 
-        # Warmup ormcache
         RelatedBase._read_group([], ["foo_id.bar_id.name"], ["__count"])
 
-        # Same query generated by grouping foo_id.bar_id.name/foo_id.bar_name_sudo
         alias_join = f"test_read_group_related_base__foo_id__{self.base_user.id}"
         expected_query = f"""
             SELECT "{alias_join}__bar_id"."name",
@@ -1858,7 +1825,6 @@ class TestPrivateReadGroup(common.TransactionCase):
 
         with self.assertQueries([expected_query] * 2):
             for fname_chain in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:
-                # foos[0] not accessible, then bar_a only exists via foos[2]
                 self.assertEqual(
                     RelatedBase._read_group([], [fname_chain], ["__count"]),
                     [("bar_a", 1), (False, 4)],

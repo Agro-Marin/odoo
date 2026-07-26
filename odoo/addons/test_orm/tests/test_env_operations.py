@@ -17,8 +17,6 @@ class TestSudo(TransactionCase):
         super().setUpClass()
         cls.Category = cls.env["test_orm.category"]
         cls.cat = cls.Category.create({"name": "Sudo Cat"})
-        # Use a non-SUPERUSER user so sudo(False) can actually disable su.
-        # Environment.__new__ forces su=True when uid == SUPERUSER_ID.
         cls.admin_user = cls.env.ref("base.user_admin")
 
     def test_sudo_enables_su(self):
@@ -35,7 +33,6 @@ class TestSudo(TransactionCase):
 
     def test_sudo_false_reverts(self):
         """sudo(False) disables superuser mode on a non-SUPERUSER_ID user."""
-        # with_user sets su=False; sudo() then enables it
         record = self.cat.with_user(self.admin_user).sudo()
         self.assertTrue(record.env.su)
         record2 = record.sudo(False)
@@ -45,7 +42,6 @@ class TestSudo(TransactionCase):
         """sudo() on already sudo record returns same record."""
         record = self.cat.with_user(self.admin_user).sudo()
         record2 = record.sudo()
-        # Should be the same object (no new environment created)
         self.assertIs(record, record2)
 
     def test_sudo_false_idempotent(self):
@@ -62,7 +58,6 @@ class TestWithUser(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Use existing system users to avoid res_users_settings creation issues
         cls.admin_user = cls.env.ref("base.user_admin")
         cls.cat = cls.env["test_orm.category"].create({"name": "User Cat"})
 
@@ -89,7 +84,6 @@ class TestWithUser(TransactionCase):
 
     def test_with_user_chain(self):
         """Chaining with_user uses the last user."""
-        # Switch to admin, then back to the current user
         current_user = self.env.user
         record = self.cat.with_user(self.admin_user).with_user(current_user)
         self.assertEqual(record.env.uid, current_user.id)
@@ -132,7 +126,6 @@ class TestWithContext(TransactionCase):
         """When replacing context, allowed_company_ids is preserved."""
         company_ids = [1, 2, 3]
         record = self.cat.with_context(allowed_company_ids=company_ids)
-        # Replace context but don't set allowed_company_ids — it should be kept
         record2 = record.with_context({}, custom=True)
         self.assertEqual(record2.env.context.get("allowed_company_ids"), company_ids)
 
@@ -192,7 +185,6 @@ class TestWithPrefetch(TransactionCase):
         all_ids = self.cats._ids
         record = subset.with_prefetch(all_ids)
         self.assertEqual(record._prefetch_ids, all_ids)
-        # Records are the same
         self.assertEqual(record._ids, subset._ids)
 
     def test_with_prefetch_preserves_env(self):
@@ -247,7 +239,7 @@ class TestEnvironmentProperties(TransactionCase):
         """env[model_name] returns an empty recordset of that model."""
         Category = self.env["test_orm.category"]
         self.assertEqual(Category._name, "test_orm.category")
-        self.assertFalse(Category)  # empty recordset
+        self.assertFalse(Category)
 
     def test_env_cr(self):
         """env.cr is the database cursor."""
@@ -301,13 +293,13 @@ class TestNewRecords(TransactionCase):
         Category = self.env["test_orm.category"]
         record = Category.new({"name": "Virtual"})
         self.assertEqual(record.name, "Virtual")
-        self.assertFalse(record.id)  # NewId is falsy
+        self.assertFalse(record.id)
 
     def test_new_with_origin(self):
         """new(origin=record) tracks the original DB record."""
         cat = self.env["test_orm.category"].create({"name": "Original"})
         virtual = self.env["test_orm.category"].new({"name": "Modified"}, origin=cat)
-        self.assertFalse(virtual.id)  # Still a new record
+        self.assertFalse(virtual.id)
         self.assertEqual(virtual._origin, cat)
 
     def test_new_with_ref(self):
@@ -315,7 +307,6 @@ class TestNewRecords(TransactionCase):
         Category = self.env["test_orm.category"]
         rec1 = Category.new({"name": "A"}, ref="ref1")
         rec2 = Category.new({"name": "B"}, ref="ref1")
-        # Same ref means equal NewIds
         self.assertEqual(rec1.id, rec2.id)
 
     def test_origin_real_records(self):

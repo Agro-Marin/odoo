@@ -21,7 +21,6 @@ except OSError:
 @skipIf(eslint is None, "eslint tool not found on this system")
 @tagged("test_themes")
 class TestESLint(lint_case.LintCase):
-
     longMessage = True
 
     def _test_eslint(self, modules, eslintrc_path):
@@ -30,10 +29,8 @@ class TestESLint(lint_case.LintCase):
         files_to_check = [
             p
             for p in self.iter_module_files("**/static/**/*.js", modules=modules)
-            if not re.match(r".*/libs?/.*", p)  # don't check libraries
-            if not re.match(
-                r".*/o_spreadsheet/o_spreadsheet.js", p
-            )  # don't check generated code
+            if not re.match(r".*/libs?/.*", p)
+            if not re.match(r".*/o_spreadsheet/o_spreadsheet.js", p)
         ]
         _logger.info("Testing %s js files", len(files_to_check))
         cmd = [

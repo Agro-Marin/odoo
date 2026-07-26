@@ -118,7 +118,6 @@ class TestAssetAttachmentStoreUnit(BaseCase):
         self.assertTrue(store.is_css("css.map"))
         self.assertFalse(store.is_css("min.js"))
         self.assertEqual(store._like_escape("web.assets_web"), r"web.assets\_web")
-        # Decoupled by design: the store never back-references its bundle.
         self.assertFalse(hasattr(store, "bundle"))
 
     def test_get_asset_url_uses_plain_name(self):
@@ -433,14 +432,12 @@ class TestCleanAttachmentsIdentityFilter(TransactionCase):
                 "name": "rogue",
                 "type": "binary",
                 "raw": b"x",
-                "res_model": "ir.attachment",  # NOT ir.ui.view
+                "res_model": "ir.attachment",
                 "res_id": 0,
                 "public": True,
-                "url": real.url,  # same URL the bundle artifact uses
+                "url": real.url,
             }
         )
-        # Clean with a keep_url that excludes neither row by the ``!=`` clause,
-        # so only the identity columns decide what is deleted.
         store._clean_attachments("min.css", keep_url="/web/assets/nomatch/x.min.css")
         self.assertFalse(real.exists(), "the real outdated artifact is GC'd")
         self.assertTrue(rogue.exists(), "the rogue non-ir.ui.view row is left alone")
@@ -466,8 +463,6 @@ class TestBacktickMinification(TransactionCase):
             env=self.env,
         )
         content = bundle.js().raw.decode()
-        # esbuild may keep the template or constant-fold it; either way the
-        # whitespace-significant interior must be byte-identical.
         self.assertIn("hello   ", content)
         self.assertIn("window.testTpl", content)
         self.assertNotIn("\n    var name", content)
@@ -514,7 +509,6 @@ class TestEsmConfigValidation(TransactionCase):
         self.assertIn("point_of_sale._assets_pos", reg.bundles)
         self.assertIn("web_tour.automatic", reg.dynamic_children["web.assets_web"])
         self.assertIn("web.assets_unit_tests", reg.import_map_included_bundles)
-        # Re-running the validator on the live aggregate must not raise.
         validate_esm_config(
             reg.bundles,
             reg.dynamic_children,
@@ -610,11 +604,8 @@ class TestCssVersionStability(TransactionCase):
             )
             version_before = bundle.get_version("css")
             bundle.preprocess_css()
-            # The source list is NOT mutated (was grown to 2 by the old insert)...
             self.assertEqual(len(bundle.stylesheets), 1)
-            # ...the hoisted @at-rules fragment lives in the render list instead.
             self.assertEqual(len(bundle._css._rendered_assets), 2)
-            # ...and the advertised URL stays stable.
             self.assertEqual(bundle.get_version("css"), version_before)
 
     def test_version_independent_of_call_order(self):
@@ -628,15 +619,11 @@ class TestCssVersionStability(TransactionCase):
             "compile",
             lambda self, source: '@charset "UTF-8";\n' + source,
         ):
-            # Bundle A: version computed FIRST (the historically-required order).
             bundle_a = AssetsBundle(
                 "test_assetsbundle.cssorder", files, env=self.env, js=False
             )
             version_first = bundle_a.get_version("css")
 
-            # Bundle B (identical): preprocess FIRST, THEN read the version.
-            # Pre-fix this returned a different hash (the at-rules insert moved
-            # the live list); now the list is untouched.
             bundle_b = AssetsBundle(
                 "test_assetsbundle.cssorder", files, env=self.env, js=False
             )
@@ -670,10 +657,6 @@ class TestBridgeHashWidth(BridgeRequestBoundCase):
 
     def test_bridge_url_hash_is_32_hex(self):
         bundle = AssetsBundle("web.assets_web", [], env=self.env)
-        # Mock the persistence seam: this test only checks URL shape, and an
-        # unmocked persist now commits a real (content-addressed) row through
-        # the independent rw cursor — which would pollute sibling tests that
-        # share content. See TestBridgePersistenceDecoupled.
         with patch.object(
             BridgeShimManager, "_persist_bridges_via_rw_cursor", return_value=True
         ):
@@ -777,8 +760,6 @@ class TestDebugCssMinifySkipsRegex(BaseCase):
         return StylesheetAsset(bundle, inline="body {  color:   red ; }").minify()
 
     def test_debug_leaves_content_unminified(self):
-        # The collapsed whitespace surviving proves _minify_css_body was skipped:
-        # had it run, the double space would be gone.
         self.assertIn("  color", self._minify(debug=True))
 
     def test_production_minifies(self):
@@ -892,11 +873,7 @@ class TestXmlBundleUrlEscaping(TransactionCase):
             "test_assetsbundle.urlesc", files, env=self.env, css=False, js=True
         )
         js = bundle._xml.generate_xml_bundle()
-        # The template body stays a backtick literal and is escaped...
         self.assertIn(r"\${body}", js)
-        # ...and the URL is now a JSON-quoted string argument: its backtick
-        # and ``${`` are escaped/quoted, so the raw sequence cannot appear
-        # inside an unescaped backtick literal.
         self.assertNotIn("`/test/evil`", js)
         self.assertIn(json.dumps("/test/evil`${1 + 1}.xml"), js)
 
@@ -928,9 +905,6 @@ class TestAuditRegressionFixes(TransactionCase):
         bundle.templates = [asset]
         blocks = bundle.xml()
         self.assertEqual(blocks[0]["type"], "templates")
-
-    # Epoch-0 mtime preservation is pinned by
-    # ``test_audit_challenge.TestAuditEpochMtime`` (updated with the fix).
 
     def test_fetch_content_preserves_not_found_subclass(self):
         """``AssetNotFoundError`` exits ``_fetch_content`` unwrapped.
@@ -994,10 +968,6 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
 
     @staticmethod
     def _sanitize(source):
-        # A passthrough compiler exercises only the @import sanitization with no
-        # Sass subprocess; compile_css touches ``CssPipeline.rx_preprocess_imports``
-        # (a class attr) and the bundle's ``css_errors`` before the compiler
-        # call, so a tiny fake bundle suffices.
         bundle = SimpleNamespace(css_errors=[])
         out = CssPipeline(bundle).compile_css(lambda s: s, source)
         return out, bundle.css_errors
@@ -1016,8 +986,6 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         self.assertEqual(out, '@import "foo" screen;\n@import "foo" print;')
 
     def test_duplicate_with_media_removed_without_orphan(self):
-        # Same url + same media => deduped; the media tail goes with it
-        # (compile_css .strip()s the output, hence no trailing newline).
         out, _ = self._sanitize('@import "foo" screen;\n@import "foo" screen;')
         self.assertEqual(out, '@import "foo" screen;')
 
@@ -1037,13 +1005,6 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         self.assertTrue(errs)
 
     def test_repeated_forbidden_import_reported_once(self):
-        # Regression (2026-06-17): the forbidden-import check used to run BEFORE
-        # the dedup check and return without recording the statement as seen, so
-        # the same forbidden import repeated across concatenated files appended
-        # one ``css_errors`` entry (and emitted one server warning) per
-        # occurrence. ``css_errors`` is joined verbatim into the degraded-CSS
-        # banner, so N copies stacked into N identical banner lines. Deduping
-        # first collapses them to one.
         with self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING") as cm:
             out, errs = self._sanitize(
                 '@import "./a.scss";\n@import "./a.scss";\n@import "./a.scss";'
@@ -1055,16 +1016,9 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         )
 
     def test_distinct_forbidden_imports_each_reported(self):
-        # Dedup keys on the full statement, so two DIFFERENT forbidden imports
-        # are still each reported — the collapse is per-statement, not blanket.
         with self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING"):
             _out, errs = self._sanitize('@import "./a.scss";\n@import "./b.scss";')
         self.assertEqual(len(errs), 2)
-
-    # ── comment / string awareness (regression 2026-06-18) ──
-    # The sanitizer scanned raw text, so an @import inside a comment or string
-    # was treated as a directive: it could poison the dedup set (dropping a real
-    # later import) or trip the security check (degrading the whole bundle).
 
     @staticmethod
     def _code_imports(out):
@@ -1072,8 +1026,6 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         return [ln for ln in out.splitlines() if ln.strip().startswith("@import")]
 
     def test_line_commented_import_does_not_poison_dedup(self):
-        # ``// @import "mixins";`` in an earlier file must NOT suppress the real
-        # ``@import "mixins";`` later — the previously-silent data-loss bug.
         out, errs = self._sanitize(
             '// @import "mixins";\n.a{}\n@import "mixins";\n.b{}'
         )
@@ -1081,8 +1033,6 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         self.assertFalse(errs)
 
     def test_forbidden_import_in_line_comment_ignored(self):
-        # A commented-out local import must not raise the security error that
-        # would replace the whole bundle with the red error banner.
         out, errs = self._sanitize('// @import "theme/foo.scss";\n.a{}')
         self.assertFalse(errs)
         self.assertIn('// @import "theme/foo.scss";', out)
@@ -1099,7 +1049,6 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
         self.assertFalse(errs)
 
     def test_real_forbidden_import_still_caught(self):
-        # Comment-awareness must NOT weaken the security check for real code.
         with self.assertLogs("odoo.addons.base.models.assetsbundle", "WARNING"):
             out, errs = self._sanitize('@import "./evil.scss";\n.a{}')
         self.assertTrue(errs)
@@ -1121,7 +1070,6 @@ class TestEmbeddedSassFallbackWarning(BaseCase):
             ) as cm:
                 ScssStylesheetAsset._warn_embedded_fallback(RuntimeError("boom"))
             self.assertEqual(sum("markedly slower" in m for m in cm.output), 1)
-            # A second fallback must NOT emit another WARNING (only DEBUG).
             with self.assertLogs(
                 "odoo.addons.base.models.assetsbundle", "DEBUG"
             ) as cm2:
@@ -1138,9 +1086,6 @@ class _NativeStubBundle:
         self.native_modules = modules
         self.bridge_input = None
 
-    # ``get_native_module_data`` builds bridges through the ``_bridges``
-    # collaborator (see AssetsBundle); the stub is its own bridge layer, so
-    # ``self._bridges._build_native_to_legacy_bridge`` lands on the method below.
     @property
     def _bridges(self):
         return self
@@ -1162,8 +1107,6 @@ class TestNativeModuleDataSpecifiers(BaseCase):
     """
 
     def _asset(self, url):
-        # Inline source + url: module_path (from url) and parsed_header (from
-        # content) both resolve without an env or a live attachment.
         return JavascriptAsset(
             _NativeStubBundle([]), inline="export const x = 1;\n", url=url
         )
@@ -1193,7 +1136,6 @@ class TestNativeModuleDataSpecifiers(BaseCase):
             ["/web/static/src/core/registry.js"], with_bridges=False
         )
         self.assertEqual(res["bridge_import_map"], {})
-        # The builder never ran, so no specifier set was captured.
         self.assertIsNone(bundle.bridge_input)
 
 
@@ -1205,8 +1147,6 @@ class TestAssetErrorTaxonomy(BaseCase):
         self.assertTrue(issubclass(XMLAssetError, AssetError))
 
     def test_compile_error_is_a_separate_family(self):
-        # CompileError is caught explicitly alongside SassCompileError, never
-        # via an ``except AssetError`` net — so it must stay outside that tree.
         self.assertFalse(issubclass(CompileError, AssetError))
         self.assertTrue(issubclass(CompileError, RuntimeError))
 
@@ -1223,9 +1163,6 @@ class TestEsmGraphCanonicalHome(BaseCase):
     def test_dead_reexport_not_resurrected(self):
         import odoo.addons.base.models.assetsbundle as ab
 
-        # ``_parse_odoo_module_header`` stays (used internally by
-        # JavascriptAsset.parsed_header); the unused ``is_native_module``
-        # re-export was removed and must not creep back as "historical surface".
         self.assertTrue(hasattr(ab, "_parse_odoo_module_header"))
         self.assertFalse(hasattr(ab, "is_native_module"))
 
@@ -1241,8 +1178,6 @@ class TestStylesheetErrorInversion(BaseCase):
     """
 
     class _StubBundle(AssetsBundle):
-        # Skip the env / esm_registry-heavy __init__; inherit the class-level
-        # regexes and the real ``preprocess_css`` harvest path.
         def __init__(self):
             self.stylesheets = []
             self.css_errors = []
@@ -1251,7 +1186,7 @@ class TestStylesheetErrorInversion(BaseCase):
             self.is_debug_assets = False
 
     def test_asset_records_error_without_touching_bundle(self):
-        class BareBundle:  # deliberately has no css_errors attribute
+        class BareBundle:
             pass
 
         asset = StylesheetAsset(BareBundle(), url="/web/static/src/css/missing.css")
@@ -1259,13 +1194,11 @@ class TestStylesheetErrorInversion(BaseCase):
             out = asset._fetch_content()
         self.assertEqual(out, "")
         self.assertEqual(asset.errors, ["boom"])
-        # The old design appended to self.bundle.css_errors here and would have
-        # raised AttributeError on a bundle that has no such list.
         self.assertFalse(hasattr(asset.bundle, "css_errors"))
 
     def test_bundle_harvests_asset_errors(self):
         bundle = self._StubBundle()
-        good = StylesheetAsset(bundle, inline=".ok{color:red}")  # inline -> no fetch
+        good = StylesheetAsset(bundle, inline=".ok{color:red}")
         bad1 = StylesheetAsset(bundle, url="/web/static/src/css/x1.css")
         bad2 = StylesheetAsset(bundle, url="/web/static/src/css/x2.css")
         bundle.stylesheets = [good, bad1, bad2]
@@ -1276,7 +1209,7 @@ class TestStylesheetErrorInversion(BaseCase):
         with patch.object(WebAsset, "_fetch_content", fake_fetch):
             result = bundle.preprocess_css()
 
-        self.assertIn(".ok{color:red}", result)  # the good asset still ships
+        self.assertIn(".ok{color:red}", result)
         self.assertEqual(good.errors, [])
         self.assertEqual(
             bundle.css_errors,
@@ -1287,8 +1220,6 @@ class TestStylesheetErrorInversion(BaseCase):
         )
 
     def test_preprocess_css_does_not_double_report_on_rerun(self):
-        # preprocess_css rebuilds css_errors from scratch each call, so running
-        # it twice must not accumulate duplicates (the harvest is idempotent).
         bundle = self._StubBundle()
         bad = StylesheetAsset(bundle, url="/web/static/src/css/x.css")
         bundle.stylesheets = [bad]
@@ -1331,8 +1262,6 @@ class TestPlainCssMinifyStringHandling(BaseCase):
         self.assertEqual(self._min('x { content: "{ }"; }'), 'x{content: "{ }";}')
 
     def test_comment_sequence_inside_string_is_preserved(self):
-        # The old comment-strip reached into strings; the new tokenizer treats a
-        # ``/* */`` opened inside a string as string text.
         out = self._min('x { content: "/* not a comment */"; }')
         self.assertIn('"/* not a comment */"', out)
 
@@ -1340,27 +1269,23 @@ class TestPlainCssMinifyStringHandling(BaseCase):
         self.assertEqual(self._min("x { content: '  y  '; }"), "x{content: '  y  ';}")
 
     def test_escaped_quote_does_not_end_the_string(self):
-        # ``\\"`` is string content, not a terminator — the whole literal survives.
         out = self._min(r'x { content: "a\"  b"; }')
         self.assertIn(r'"a\"  b"', out)
 
     def test_ordinary_comment_is_still_stripped(self):
         out = self._min("a { color: red; } /* drop me */ b { color: blue; }")
         self.assertNotIn("drop me", out)
-        # whitespace flanking the dropped comment collapses across it, exactly
-        # as the legacy pipeline did (the rules abut: ``}b``).
         self.assertEqual(out, "a{color: red;}b{color: blue;}")
 
     def test_legal_comment_is_kept_verbatim(self):
         out = self._min("/*!  License  */\n.a {\n  color: red;\n}")
-        self.assertIn("/*!  License  */", out)  # whitespace inside it untouched
-        self.assertIn(".a{color: red;}", out)  # surrounding CSS still minified
+        self.assertIn("/*!  License  */", out)
+        self.assertIn(".a{color: red;}", out)
 
     def test_minification_still_applies_outside_strings(self):
         out = self._min("a   {\n  color :  red ;\n}\n\n  b{}")
-        self.assertNotIn("  ", out)  # no double spaces in ordinary CSS
+        self.assertNotIn("  ", out)
         self.assertEqual(out, "a{color : red ;}b{}")
-        # (SCSS-path string safety is covered by TestScssMinifySkipsRegex.)
 
 
 class TestEsmAttachmentSidecars(TransactionCase):
@@ -1396,7 +1321,6 @@ class TestEsmAttachmentSidecars(TransactionCase):
         self.assertTrue(self._att(url + ".map"), "sourcemap sidecar must be persisted")
 
     def test_template_save_writes_no_sidecars(self):
-        # No metafile/sourcemap (the ``.templates.esm.js`` path) -> no sidecars.
         url = self.env["ir.qweb"]._save_esm_attachment(
             "test_assetsbundle.sidecar_tpl.templates",
             "export const tpl = 2;",
@@ -1420,9 +1344,9 @@ class TestCssErrorBanner(BaseCase):
 
     def test_message_is_escaped_for_a_css_string_literal(self):
         out = AssetsBundle._render_css_error_banner(['boom "x" *\n y'], "")
-        self.assertIn(r"\"x\"", out)  # quotes can't close the content: value
-        self.assertIn(r"\A", out)  # newline -> CSS escaped newline
-        self.assertIn(r"\*", out)  # star can't open a comment
+        self.assertIn(r"\"x\"", out)
+        self.assertIn(r"\A", out)
+        self.assertIn(r"\*", out)
         self.assertIn("A css error occurred", out)
 
     def test_previous_good_css_is_carried_over(self):
@@ -1431,8 +1355,6 @@ class TestCssErrorBanner(BaseCase):
         self.assertIn(self.H, out)
 
     def test_banner_does_not_stack_across_repeated_errors(self):
-        # The whole point of the split-on-header: re-rendering over an output
-        # that already carries a banner must replace it, not append a second.
         first = AssetsBundle._render_css_error_banner(["err_one"], ".keep{}")
         second = AssetsBundle._render_css_error_banner(["err_two"], first)
         self.assertEqual(second.count(self.H), 1, "exactly one banner survives")
@@ -1442,7 +1364,7 @@ class TestCssErrorBanner(BaseCase):
 
     def test_multiple_errors_are_joined_into_one_message(self):
         out = AssetsBundle._render_css_error_banner(["a", "b"], "")
-        self.assertIn(r"a\Ab", out)  # newline-joined, then escaped
+        self.assertIn(r"a\Ab", out)
 
 
 class TestVendoredCssMinifyCorpus(BaseCase):
@@ -1463,7 +1385,6 @@ class TestVendoredCssMinifyCorpus(BaseCase):
 
     @staticmethod
     def _legacy_minify(content):
-        # Verbatim reproduction of the pre-fix StylesheetAsset.minify pipeline.
         content = re.sub(r"/\*# sourceMappingURL=.*", "", content)
         content = re.sub(r"/\*(?!!).*?\*/", "", content, flags=re.DOTALL)
         content = re.sub(r"\s+", " ", content)
@@ -1471,8 +1392,6 @@ class TestVendoredCssMinifyCorpus(BaseCase):
 
     @staticmethod
     def _mask(css):
-        # Blank out the two spans the fix is allowed to differ on, so what
-        # remains is the structural CSS that must match the legacy output.
         css = re.sub(r"/\*!.*?\*/", "<C>", css, flags=re.DOTALL)
         css = re.sub(r'"(?:[^"\\]|\\.)*"', "<S>", css)
         return re.sub(r"'(?:[^'\\]|\\.)*'", "<S>", css)
@@ -1505,8 +1424,6 @@ class TestVendoredCssMinifyCorpus(BaseCase):
             checked += 1
             differed += new != legacy
         self.assertGreater(checked, 0, "no shipped .css files were found to check")
-        # Surfaced so the corpus size and how many files the fix actually changes
-        # (string/legal-comment differences) are visible in the test log.
         _logger.info(
             "vendored-css minify corpus: %d files checked, %d changed (string/"
             "legal-comment only)",
@@ -1514,13 +1431,6 @@ class TestVendoredCssMinifyCorpus(BaseCase):
             differed,
         )
 
-
-# ── coverage-gap batch (2026-06-17 audit follow-up) ────────────────────────
-# Three behaviours that were present but only happy-path asserted: the JS
-# source-map line mapping (only the header-offset constant was pinned), the RTL
-# *transform* output (only URL naming / the flag were checked, never the flip),
-# and ``_unlink_attachments`` under a genuinely concurrent lock (only the
-# all-rows-deleted path, where ``deleted_ids`` trivially equals every id).
 
 _B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
@@ -1537,7 +1447,7 @@ def _vlq_decode_mappings(mappings):
     out = []
     gen_line = 0
     src_idx = 0
-    orig_line0 = 0  # 0-based cumulative original line
+    orig_line0 = 0
     for field in mappings.split(";"):
         gen_line += 1
         for seg in field.split(","):
@@ -1553,7 +1463,7 @@ def _vlq_decode_mappings(mappings):
                 else:
                     vals.append((acc >> 1) * (-1 if acc & 1 else 1))
                     acc = shift = 0
-            if len(vals) >= 4:  # [genCol, srcIdxΔ, srcLineΔ, srcColΔ]
+            if len(vals) >= 4:
                 src_idx += vals[1]
                 orig_line0 += vals[2]
                 out.append((gen_line, src_idx, orig_line0 + 1))
@@ -1592,7 +1502,6 @@ class TestJsSourceMapAccuracy(TransactionCase):
         smap = bundle.get_attachments("js.map")
         self.assertTrue(smap, "a js.map sibling must be produced in debug mode")
         raw = smap.raw.decode()
-        # get_content() prefixes the XSSI guard ")]}'\n" before the JSON.
         data = json.loads(raw.split("\n", 1)[1] if raw.startswith(")]}'") else raw)
 
         self.assertEqual(data["sources"], ["/test/a.js", "/test/b.js"])
@@ -1601,8 +1510,6 @@ class TestJsSourceMapAccuracy(TransactionCase):
         src_lines = {0: a.split("\n"), 1: b.split("\n")}
         checked = 0
         for gen_line, src_idx, orig_line in _vlq_decode_mappings(data["mappings"]):
-            # Skip line 1 of each source: the verbose header region is also
-            # mapped to original line 1, so line 1 is ambiguous by design.
             lines = src_lines[src_idx]
             if orig_line < 2 or orig_line > len(lines):
                 continue
@@ -1674,7 +1581,6 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
         ids = []
         locker = None
         try:
-            # committed fixture: two filestore-backed attachments
             with reg.cursor() as cr:
                 env = api.Environment(cr, SUPERUSER_ID, {})
                 atts = env["ir.attachment"].create(
@@ -1700,7 +1606,6 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
             )
             locked_id, free_id = ids[0], ids[1]
 
-            # hold a lock on the first row from an independent connection
             locker = db_connect(db).cursor()
             locker.execute("SET lock_timeout = '2000ms'")
             locker.execute(
@@ -1708,7 +1613,6 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
                 (locked_id,),
             )
 
-            # run the REAL method on a third cursor; SKIP LOCKED must skip the row
             with reg.cursor() as cr:
                 cr.execute("SET lock_timeout = '3000ms'")
                 env = api.Environment(cr, SUPERUSER_ID, {})
@@ -1719,7 +1623,6 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
                 marked = {call.args[-1] for call in file_delete.call_args_list}
                 cr.commit()
 
-            # only the deleted (unlocked) row's fname is marked; the locked one isn't
             self.assertEqual(
                 marked,
                 {fname_by_id[free_id]},

@@ -22,10 +22,8 @@ from .perfkit import BenchmarkRecorder
 
 _logger = logging.getLogger(__name__)
 
-# Corpus sizing — kept modest so the run is quick but large enough that
-# per-record Python overhead dominates fixed costs.
 CORPUS = 200
-HOT = 100  # subset used for read/recordset benchmarks
+HOT = 100
 N_REL = 10
 N_TAGS = 10
 
@@ -54,7 +52,6 @@ class TestPerfCompare(TransactionCase):
                     "amount": i * 1.5,
                     "state": ("draft", "open", "done", "cancel")[i % 4],
                     "rel_id": rel_ids[i % N_REL],
-                    # first 50 records get a few lines for o2m/total benchmarks
                     "line_ids": (
                         [(0, 0, {"value": j}) for j in range(3)] if i < 50 else []
                     ),
@@ -68,8 +65,6 @@ class TestPerfCompare(TransactionCase):
         recs = self.Base.search([], limit=CORPUS, order="id")
         return recs, recs[:HOT]
 
-    # -- the suite ------------------------------------------------------------
-
     def test_benchmark_suite(self):
         env = self.env
         rec = BenchmarkRecorder(self.cr, logger=_logger)
@@ -78,11 +73,9 @@ class TestPerfCompare(TransactionCase):
         single = hot[0]
         Base = self.Base
 
-        # warm everything once
         all_recs.mapped("value")
         all_recs.mapped("rel_id")
 
-        # === SEARCH (clean corpus, before any mutation) =====================
         rec.measure(
             "search.empty_limit100",
             lambda: Base.search([], limit=100),
@@ -110,7 +103,6 @@ class TestPerfCompare(TransactionCase):
             invalidate=env.invalidate_all,
         )
 
-        # === READ ============================================================
         read_recs = Base.browse(hot_ids)
         rec.measure(
             "read.cold_100x3",
@@ -118,7 +110,6 @@ class TestPerfCompare(TransactionCase):
             group="read",
             invalidate=env.invalidate_all,
         )
-        # warm read: no invalidation between iterations
         read_recs.read(["name", "value", "rel_id"])
         rec.measure(
             "read.warm_100x3",
@@ -131,7 +122,7 @@ class TestPerfCompare(TransactionCase):
             group="read",
             invalidate=env.invalidate_all,
         )
-        _ = single.value  # warm
+        _ = single.value
         rec.measure(
             "field.access_scalar_cached",
             lambda: single.value,
@@ -140,7 +131,6 @@ class TestPerfCompare(TransactionCase):
             warmup=40,
         )
 
-        # === RECORDSET OPS (pure Python, cache warm) ========================
         read_recs.read(["name", "value", "rel_id"])
         rec.measure(
             "mapped.scalar_100",
@@ -173,17 +163,14 @@ class TestPerfCompare(TransactionCase):
             group="recordset",
         )
 
-        # === READ GROUP ======================================================
         try:
             Base._read_group([], groupby=["state"], aggregates=["__count"])
-        except Exception:  # pragma: no cover - signature guard for portability
+        except Exception:
             _logger.warning("[PERF_CMP] _read_group unavailable; skipping group")
         else:
             rec.measure(
                 "read_group.by_state",
-                lambda: Base._read_group(
-                    [], groupby=["state"], aggregates=["__count"]
-                ),
+                lambda: Base._read_group([], groupby=["state"], aggregates=["__count"]),
                 group="read_group",
                 invalidate=env.invalidate_all,
             )
@@ -196,19 +183,18 @@ class TestPerfCompare(TransactionCase):
                 invalidate=env.invalidate_all,
             )
 
-        # === WRITE (mutates corpus; runs after all reads) ===================
         counter = [0]
 
         def _write_recompute():
             counter[0] += 1
-            single.write({"value": counter[0]})  # triggers stored value_pc
+            single.write({"value": counter[0]})
             env.flush_all()
 
         rec.measure("write.single_recompute", _write_recompute, group="write")
 
         def _write_plain():
             counter[0] += 1
-            single.write({"name": f"x_{counter[0]}"})  # no recompute
+            single.write({"name": f"x_{counter[0]}"})
             env.flush_all()
 
         rec.measure("write.single_norecompute", _write_plain, group="write")
@@ -231,7 +217,6 @@ class TestPerfCompare(TransactionCase):
 
         rec.measure("write.assign_scalar", _assign, group="write")
 
-        # === CREATE ==========================================================
         cc = [0]
 
         def _create_single():
@@ -274,9 +259,7 @@ class TestPerfCompare(TransactionCase):
 
         def _create_tags():
             cc[0] += 1
-            Base.create(
-                {"name": f"ct_{cc[0]}", "tag_ids": [(6, 0, tag_ids)]}
-            )
+            Base.create({"name": f"ct_{cc[0]}", "tag_ids": [(6, 0, tag_ids)]})
             env.flush_all()
 
         rec.measure(
@@ -287,7 +270,6 @@ class TestPerfCompare(TransactionCase):
             warmup=5,
         )
 
-        # === UNLINK (setup builds the victim each iteration, untimed) =======
         victim = [None]
 
         def _mk_single():
@@ -324,9 +306,6 @@ class TestPerfCompare(TransactionCase):
             warmup=5,
         )
 
-        # === persist =========================================================
-        # Timestamp is informational only (never a comparison key); fetched from
-        # the DB clock so the test stays free of an in-process wall-clock call.
         self.cr.execute("SELECT now()")
         timestamp = self.cr.fetchone()[0].isoformat()
         path = rec.write(timestamp)
@@ -336,5 +315,4 @@ class TestPerfCompare(TransactionCase):
             rec.report(timestamp)["meta"]["label"],
             path,
         )
-        # sanity: we actually produced the expected battery
         self.assertGreaterEqual(len(rec.results), 20)

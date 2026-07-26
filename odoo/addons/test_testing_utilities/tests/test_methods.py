@@ -22,16 +22,13 @@ class TestBasic(common.TransactionCase):
         self.assertRecordValues(records, [X1, Y2])
 
         with self.assertRaises(AssertionError):
-            # order should match
             self.assertRecordValues(records, [Y2, X1])
 
-        # fail if wrong size
         with self.assertRaises(AssertionError):
             self.assertRecordValues(records, [X1])
         with self.assertRaises(AssertionError):
             self.assertRecordValues(records, [X1, Y2, Y3])
 
-        # fail if fields don't match
         with self.assertRaises(AssertionError):
             self.assertRecordValues(records, [X1, Y3])
         with self.assertRaises(AssertionError):
@@ -47,7 +44,6 @@ class TestBasic(common.TransactionCase):
         self.assertRecordValues(r, [{"dummy": 42}])
 
     def test_assertRecordValues_float_formatting(self):
-        # ensure diff configuration is the default
         self.patch(self, "maxDiff", 80 * 8)
 
         Records = self.env["test_testing_utilities.wide"]
@@ -92,7 +88,6 @@ First differing element 63:
             for k, v in values[63].items()
             if k in ("discount", "price_subtotal", "price_total", "quantity")
         }
-        # if the default ndiff fits into the default diff limits keep that as is
         with self.assertRaises(AssertionError) as cm:
             self.assertRecordValues(records[63], [vs])
         self.assertEqual(
@@ -130,7 +125,6 @@ First differing element 0:
 
         Raises an exception when `savepoint()` calls `flush()` during setup.
         """
-        # ensure we catch the error with the "base" method to avoid any interference
         with (
             mock.patch.object(BaseCursor, "flush", side_effect=CustomError),
             TestCase.assertRaises(self, CustomError),
@@ -161,9 +155,6 @@ First differing element 0:
         AccessError.
         """
 
-        # on the first `clear` call, break the current transaction with nonsense
-        # (on further calls do nothing as savepoint() needs to clear() for its
-        # own recovery)
         def clear(call_count=itertools.count()):
             if next(call_count) == 0:
                 self.env.cr.execute("select nonsense")
@@ -175,6 +166,4 @@ First differing element 0:
             with self.assertRaises(AccessError):
                 raise NotImplementedError
 
-        # check that the transaction has been rolled back and we can perform
-        # queries again
         self.env.cr.execute("select 1")

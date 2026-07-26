@@ -26,8 +26,13 @@ WSGI_SAFE_KEYS = {
 }
 
 
-# Force concurrency errors. Patched in some tests.
 should_fail = None
+
+reroute_upload_files = []
+
+replay_observations = []
+
+su_on_entry = []
 
 
 class TestHttp(http.Controller):
@@ -36,10 +41,6 @@ class TestHttp(http.Controller):
 
     def _max_content_length_1kiB(self):
         return 1024
-
-    # =====================================================
-    # Greeting
-    # =====================================================
 
     @http.route(
         ("/test_http/greeting", "/test_http/greeting-none"),
@@ -85,7 +86,10 @@ class TestHttp(http.Controller):
             key: val
             for key, val in request.httprequest.environ.items()
             if (
-                key.startswith(("HTTP_", "REMOTE_", "REQUEST_", "SERVER_", "werkzeug.proxy_fix.")) or key in WSGI_SAFE_KEYS
+                key.startswith(
+                    ("HTTP_", "REMOTE_", "REQUEST_", "SERVER_", "werkzeug.proxy_fix.")
+                )
+                or key in WSGI_SAFE_KEYS
             )
         }
 
@@ -93,9 +97,6 @@ class TestHttp(http.Controller):
             json.dumps(environ, indent=4), headers=list(CT_JSON.items())
         )
 
-    # =====================================================
-    # Echo-Reply
-    # =====================================================
     @http.route("/test_http/echo-http-get", type="http", auth="none", methods=["GET"])
     def echo_http_get(self, **kwargs):
         return str(kwargs)
@@ -104,23 +105,16 @@ class TestHttp(http.Controller):
         "/test_http/typed-echo", type="http", auth="none", methods=["GET"], typed=True
     )
     def typed_echo(self, n: int, flag: bool = False, **kwargs):
-        # ``typed=True`` coerces the query strings: ``n`` becomes a real int and
-        # ``flag`` a real bool before this body runs.
         return f"{n}:{type(n).__name__}:{flag}:{type(flag).__name__}"
 
     @http.route(
         "/test_http/typed-list", type="http", auth="none", methods=["GET"], typed=True
     )
     def typed_list(self, vals: list[int] | None = None):
-        # A ``list[...]`` param on a typed http route collects every repeated
-        # occurrence of its query key (``?vals=1&vals=2`` → ``[1, 2]``).
         return repr(vals)
 
     @http.route("/test_http/openapi.json", type="http", auth="none", methods=["GET"])
     def openapi_json(self):
-        # Serve the curated (typed) API as an OpenAPI 3.1 document, generated
-        # from the live nodb routing map.  Imported locally: the module top is
-        # past its first statement, so a top-level import would trip E402.
         from odoo.http.openapi import openapi_from_map
 
         spec = openapi_from_map(
@@ -156,8 +150,6 @@ class TestHttp(http.Controller):
         csrf=False,
     )
     def csrf_token(self, **kwargs):
-        # Issue a CSRF token for the current (possibly anonymous) session,
-        # mirroring what a rendered form does via ``request.csrf_token()``.
         return request.csrf_token()
 
     @http.route(
@@ -205,9 +197,6 @@ class TestHttp(http.Controller):
             raise werkzeug.exceptions.BadRequest("Invalid JSON data") from exc
         return request.make_json_response(data)
 
-    # =====================================================
-    # Models
-    # =====================================================
     @http.route(
         '/test_http/<model("test_http.galaxy"):galaxy>',
         auth="public",
@@ -250,9 +239,6 @@ class TestHttp(http.Controller):
 
         return http.request.render("test_http.tmpl_stargate", {"gate": gate})
 
-    # =====================================================
-    # Cors
-    # =====================================================
     @http.route("/test_http/cors_http_default", type="http", auth="none", cors="*")
     def cors_http(self):
         return "Hello"
@@ -271,18 +257,29 @@ class TestHttp(http.Controller):
     def cors_json(self, **kwargs):
         return {}
 
-    # =====================================================
-    # Dual nodb/db
-    # =====================================================
+    @http.route("/test_http/session_then_error", type="http", auth="none")
+    def session_then_error(self, **kwargs):
+        request.session["gate_address"] = "P3X-984"
+        raise UserError("Chevron seven, locked.")
+
+    @http.route("/test_http/expire_session", type="http", auth="user")
+    def expire_session(self, **kwargs):
+        raise http.SessionExpiredException("Gate address scrambled.")
+
+    @http.route("/test_http/expire_session_json", type="jsonrpc", auth="user")
+    def expire_session_json(self, **kwargs):
+        raise http.SessionExpiredException("Gate address scrambled.")
+
+    @http.route("/test_http/cors_http_error", type="http", auth="none", cors="*")
+    def cors_http_error(self, **kwargs):
+        raise UserError("Chevron seven, locked.")
+
     @http.route("/test_http/ensure_db", type="http", auth="none")
     def ensure_db_endpoint(self, db=None):
         ensure_db()
         assert request.db, "There should be a database"
         return request.db
 
-    # =====================================================
-    # Session
-    # =====================================================
     @http.route("/test_http/geoip", type="http", auth="none")
     def geoip(self):
         return json.dumps(
@@ -308,9 +305,6 @@ class TestHttp(http.Controller):
         request.session.touch()
         return ""
 
-    # =====================================================
-    # Errors
-    # =====================================================
     @http.route("/test_http/fail", type="http", auth="none")
     def fail(self):
         _logger.error(
@@ -347,36 +341,81 @@ class TestHttp(http.Controller):
         csrf=False,
     )
     def upload_file_retry(self, ufile):
-        global should_fail  # pylint: disable=W0603
+        global should_fail
         if should_fail is None:
             raise ValueError("should_fail should be set.")
 
         data = ufile.read()
         if should_fail:
-            should_fail = False  # Fail once
+            should_fail = False
             sf = SerializationFailure()
             sf.__setstate__({"pgcode": SERIALIZATION_FAILURE})
             raise sf
 
         return data.decode()
 
+    @http.route(
+        '/test_http/<model("test_http.galaxy"):galaxy>/su_setname',
+        methods=["POST"],
+        type="http",
+        auth="user",
+        readonly=True,
+        csrf=False,
+    )
+    def galaxy_su_setname(self, galaxy, name):
+        su_on_entry.append(request.env.su)
+        request.update_env(su=True)
+        galaxy.sudo().name = name
+        return name
+
+    @http.route(
+        "/test_http/reroute_upload",
+        methods=["POST"],
+        type="http",
+        auth="none",
+        csrf=False,
+    )
+    def reroute_upload(self, ufile):
+        if not request.httprequest.headers.get("X-Test-Reroute"):
+            request.reroute("/test_http/reroute_upload")
+        reroute_upload_files.append(request.httprequest.files["ufile"])
+        return request.httprequest.files["ufile"].read().decode()
+
+    @http.route("/test_http/retry_replay", type="http", auth="user")
+    def retry_replay(self):
+        global should_fail
+        default_env = request.env.transaction.default_env
+        replay_observations.append(
+            {
+                "su": request.env.su,
+                "default_env_su": default_env.su if default_env is not None else None,
+                "staged_cookies": len(
+                    request.future_response.headers.getlist("Set-Cookie")
+                ),
+            }
+        )
+        request.update_env(su=True)
+        request.future_response.set_cookie("probe", "1")
+        if should_fail:
+            should_fail = False
+            e = "A dummy concurrency error occurred"
+            raise ConcurrencyError(e)
+        return "ok"
+
     @http.route("/test_http/concurrency_error", type="http", auth="none")
     def concurrency_error(self):
-        global should_fail  # noqa: PLW0603
+        global should_fail
         if should_fail is None:
             e = "should_fail must be set."
             raise ValueError(e)
 
         if should_fail:
-            should_fail = False  # Fail once
+            should_fail = False
             e = "A dummy concurrency error occurred"
             raise ConcurrencyError(e)
 
         return ""
 
-    # =====================================================
-    # Security
-    # =====================================================
     @http.route("/test_http/httprequest_attrs", type="http", auth="none")
     def request_attrs(self):
         return json.dumps(dir(request.httprequest))

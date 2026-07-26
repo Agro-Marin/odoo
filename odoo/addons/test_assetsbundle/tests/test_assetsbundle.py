@@ -53,7 +53,6 @@ class TestAddonPaths(TransactionCase):
             ],
         )
 
-        # append with a duplicate of 'c'
         asset_paths.append(
             [
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
@@ -71,7 +70,6 @@ class TestAddonPaths(TransactionCase):
             ],
         )
 
-        # insert with a duplicate of 'c' after 'c'
         asset_paths.insert(
             [
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
@@ -91,7 +89,6 @@ class TestAddonPaths(TransactionCase):
             ],
         )
 
-        # insert with a duplicate of 'd' before 'd'
         asset_paths.insert(
             [
                 ("/home/user/odoo/addons/web/b", "/web/b", 1),
@@ -112,7 +109,6 @@ class TestAddonPaths(TransactionCase):
             ],
         )
 
-        # remove
         asset_paths.remove(
             [
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
@@ -142,8 +138,6 @@ class TestAddonPaths(TransactionCase):
             ],
             "bundle1",
         )
-        # Simulate REPLACE where source resolved to nothing:
-        # insert([], ...) is a no-op, then remove deletes the target.
         target_index = asset_paths.index("/web/b.js", "bundle1")
         asset_paths.insert([], "bundle1", target_index)
         asset_paths.remove([("/web/b.js", "/full/b.js", 1)], "bundle1")
@@ -156,7 +150,6 @@ class TestAddonPaths(TransactionCase):
     def test_glob_static_file_race_condition(self):
         """Files deleted between glob() and stat() should be skipped."""
         deleted_file = "/tmp/_test_asset_race_condition.js"
-        # Patch glob to return a file that doesn't exist on disk
         with patch(
             "odoo.addons.base.models.ir_asset.glob",
             return_value=[deleted_file],
@@ -166,15 +159,15 @@ class TestAddonPaths(TransactionCase):
 
     def test_glob_static_file_filters_extensions(self):
         """Only ASSET_EXTENSIONS files should be returned."""
-        with patch(
-            "odoo.addons.base.models.ir_asset.glob",
-            return_value=["/tmp/file.js", "/tmp/file.py", "/tmp/file.css"],
-        ), patch(
-            "odoo.addons.base.models.ir_asset.Path"
-        ) as MockPath:
+        with (
+            patch(
+                "odoo.addons.base.models.ir_asset.glob",
+                return_value=["/tmp/file.js", "/tmp/file.py", "/tmp/file.css"],
+            ),
+            patch("odoo.addons.base.models.ir_asset.Path") as MockPath,
+        ):
             MockPath.return_value.stat.return_value.st_mtime = 100.0
             result = _glob_static_file("/tmp/*")
-        # .py should be filtered out, .js and .css kept
         paths = [r[0] for r in result]
         self.assertIn("/tmp/file.js", paths)
         self.assertIn("/tmp/file.css", paths)
@@ -249,9 +242,10 @@ class TestSilentNoopDirectives(TransactionCase):
         """REMOVE pointing at a path that resolves to nothing emits a WARNING."""
         IrAsset = self._make_ir_asset()
         asset_paths = AssetPaths()
-        # Patch _get_paths to simulate a stale path (file moved/deleted).
-        with patch.object(self._ir_asset_cls, "_get_paths", return_value=[]), \
-             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
+        with (
+            patch.object(self._ir_asset_cls, "_get_paths", return_value=[]),
+            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
+        ):
             IrAsset._process_path(
                 bundle="some.bundle",
                 directive="remove",
@@ -263,9 +257,7 @@ class TestSilentNoopDirectives(TransactionCase):
                 installed=set(),
                 bundle_start_index=0,
             )
-        # The asset_paths list is unchanged because the path resolved to nothing.
         self.assertEqual(asset_paths.list, [])
-        # The warning carries enough context for the operator to find the manifest.
         joined = " ".join(cm.output)
         self.assertIn("REMOVE", joined)
         self.assertIn("some.bundle", joined)
@@ -276,14 +268,14 @@ class TestSilentNoopDirectives(TransactionCase):
         IrAsset = self._make_ir_asset()
         asset_paths = AssetPaths()
 
-        # First _get_paths call (for path_def) returns the source file;
-        # second (for target) returns nothing — simulating a renamed anchor.
         side_effects = [
-            [("/web/source.scss", "/full/source.scss", 1)],  # source resolves
-            [],  # target does NOT
+            [("/web/source.scss", "/full/source.scss", 1)],
+            [],
         ]
-        with patch.object(self._ir_asset_cls, "_get_paths", side_effect=side_effects), \
-             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
+        with (
+            patch.object(self._ir_asset_cls, "_get_paths", side_effect=side_effects),
+            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
+        ):
             IrAsset._process_path(
                 bundle="some.bundle",
                 directive="after",
@@ -295,8 +287,6 @@ class TestSilentNoopDirectives(TransactionCase):
                 installed=set(),
                 bundle_start_index=0,
             )
-        # source.scss was NOT inserted because the target index could not be
-        # resolved — the directive is a complete no-op.
         self.assertEqual(asset_paths.list, [])
         joined = " ".join(cm.output)
         self.assertIn("after", joined)
@@ -307,13 +297,14 @@ class TestSilentNoopDirectives(TransactionCase):
         """BEFORE with a missing target emits a WARNING (same path as AFTER)."""
         IrAsset = self._make_ir_asset()
         asset_paths = AssetPaths()
-        with patch.object(
-            self._ir_asset_cls,
-            "_get_paths",
-            side_effect=[[("/web/x.js", "/full/x.js", 1)], []],
-        ), self.assertLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ) as cm:
+        with (
+            patch.object(
+                self._ir_asset_cls,
+                "_get_paths",
+                side_effect=[[("/web/x.js", "/full/x.js", 1)], []],
+            ),
+            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
+        ):
             IrAsset._process_path(
                 bundle="b.b",
                 directive="before",
@@ -334,13 +325,14 @@ class TestSilentNoopDirectives(TransactionCase):
         """AFTER with target=None emits a WARNING."""
         IrAsset = self._make_ir_asset()
         asset_paths = AssetPaths()
-        with patch.object(
-            self._ir_asset_cls,
-            "_get_paths",
-            return_value=[("/web/x.js", "/full/x.js", 1)],
-        ), self.assertLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
-        ) as cm:
+        with (
+            patch.object(
+                self._ir_asset_cls,
+                "_get_paths",
+                return_value=[("/web/x.js", "/full/x.js", 1)],
+            ),
+            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
+        ):
             IrAsset._process_path(
                 bundle="x.y",
                 directive="after",
@@ -365,13 +357,8 @@ class TestSilentNoopDirectives(TransactionCase):
         """
         IrAsset = self._make_ir_asset()
         asset_paths = AssetPaths()
-        # The existing _get_paths warning at line 526 covers the empty-glob
-        # case; assertNoLogs is used to assert that our new warnings did NOT
-        # also fire for APPEND.
         with patch.object(self._ir_asset_cls, "_get_paths", return_value=[]):
-            with self.assertNoLogs(
-                "odoo.addons.base.models.ir_asset", level="WARNING"
-            ):
+            with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
                 IrAsset._process_path(
                     bundle="x.y",
                     directive="append",
@@ -395,12 +382,13 @@ class TestSilentNoopDirectives(TransactionCase):
             [("/web/x.js", "/full/x.js", 1)],
             "preexisting",
         )
-        with patch.object(
-            self._ir_asset_cls,
-            "_get_paths",
-            return_value=[("/web/x.js", "/full/x.js", 1)],
-        ), self.assertNoLogs(
-            "odoo.addons.base.models.ir_asset", level="WARNING"
+        with (
+            patch.object(
+                self._ir_asset_cls,
+                "_get_paths",
+                return_value=[("/web/x.js", "/full/x.js", 1)],
+            ),
+            self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"),
         ):
             IrAsset._process_path(
                 bundle="x.y",
@@ -413,7 +401,6 @@ class TestSilentNoopDirectives(TransactionCase):
                 installed=set(),
                 bundle_start_index=0,
             )
-        # The path was successfully removed.
         self.assertEqual(asset_paths.list, [])
 
 
@@ -452,7 +439,6 @@ class FileTouchable(AddonManifestPatched):
             result = ORIGINAL_PATH_STAT(path_self, *args, **kwargs)
             touched = self.touches.get(str(path_self))
             if touched is not None:
-                # Return a modified stat_result with the faked st_mtime
                 return os.stat_result(
                     (
                         result.st_mode,
@@ -476,7 +462,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # this is mainly to avoid tests breaking when executed after pre-generate
         cls.maxDiff = 10000
         cls.env["ir.attachment"].search(
             [("url", "=like", "/web/assets/%test_assetsbundle%")]
@@ -510,7 +495,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         """
         self.bundle = self._get_asset(self.jsbundle_name, debug_assets=False)
 
-        # there shouldn't be any minified attachment associated to this bundle
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
             0,
@@ -522,10 +506,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
             "there shouldn't be any minified attachment associated to this bundle",
         )
 
-        # trigger the first generation and, thus, the first save in database
         self.bundle.js()
 
-        # there should be one minified attachment associated to this bundle
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
             1,
@@ -537,7 +519,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             "there should be one minified attachment associated to this bundle",
         )
 
-        # there shouldn't be any non-minified attachment associated to this bundle
         self.assertEqual(
             len(self._any_ira_for_bundle("js")),
             0,
@@ -549,11 +530,9 @@ class TestJavascriptAssetsBundle(FileTouchable):
             "there shouldn't be any non-minified attachment associated to this bundle",
         )
 
-        # trigger the first generation and, thus, the first save in database for the non-minified version.
         self.bundle_debug = self._get_asset(self.jsbundle_name, debug_assets=True)
         self.bundle_debug.js()
 
-        # there should be one non-minified attachment associated to this bundle
         self.assertEqual(
             len(self._any_ira_for_bundle("js")),
             1,
@@ -631,7 +610,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
                 "the version must should because the bundle has changed.",
             )
 
-            # check if the previous attachment is correctly cleaned
             self.assertEqual(
                 len(self._any_ira_for_bundle("js")),
                 1,
@@ -677,7 +655,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             "the version should be different because a file has been added to the bundle",
         )
 
-        # check if the previous attachment are correctly cleaned
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
             1,
@@ -691,17 +668,14 @@ class TestJavascriptAssetsBundle(FileTouchable):
         debug_bundle = self._get_asset(self.jsbundle_name)
         content = debug_bundle.get_links()
         debug_bundle.js()
-        # there should be a minified file
         self.assertIn("test_assetsbundle.bundle1.min.js", content[0])
 
-        # there should be one minified assets created in normal mode
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
             1,
             "there should be one minified assets created in normal mode",
         )
 
-        # there shouldn't be any non-minified assets created in normal mode
         self.assertEqual(
             len(self._any_ira_for_bundle("js")),
             0,
@@ -754,21 +728,18 @@ class TestJavascriptAssetsBundle(FileTouchable):
         debug_bundle = self._get_asset(self.jsbundle_name, debug_assets=True)
         content = debug_bundle.get_links()
         debug_bundle.js()
-        # there should be a minified file
         self.assertIn(
             "test_assetsbundle.bundle1.js",
             content[0],
             "there should be one non-minified assets created in debug assets mode",
         )
 
-        # there shouldn't be any minified assets created in debug mode
         self.assertEqual(
             len(self._any_ira_for_bundle("min.js")),
             0,
             "there shouldn't be any minified assets created in debug assets mode",
         )
 
-        # there should be one non-minified assets created in debug mode
         self.assertEqual(
             len(self._any_ira_for_bundle("js")),
             1,
@@ -776,7 +747,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
     def test_08_css_generation3(self):
-        # self.cssbundle_xlmid contains 3 rules (not checked below)
         self.bundle = self._get_asset(self.cssbundle_name)
         self.bundle.css()
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
@@ -798,8 +768,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             ".a { color: red; }\n"
             '@import "bootstrap/scss/functions";'
         )
-        # compile_css takes the compiler as an argument; an identity stub
-        # exercises only the @import sanitization, no Sass subprocess.
         out = bundle._css.compile_css(lambda s: s, source)
         self.assertEqual(
             bundle.css_errors,
@@ -820,7 +788,7 @@ class TestJavascriptAssetsBundle(FileTouchable):
         unmatched and reached the compiler unsanitized. ``\s*`` closes the gap.
         """
         bundle = self._get_asset(self.cssbundle_name)
-        source = '@import  "./secret.css";'  # two spaces — the historic bypass
+        source = '@import  "./secret.css";'
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             out = bundle._css.compile_css(lambda s: s, source)
         self.assertTrue(
@@ -857,8 +825,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
         asset = StylesheetAsset(bundle, url="/web/static/src/css/foo.css")
 
-        # Stub the base file/DB read so only the rewrite logic runs, and force
-        # the Windows path flavour so a Path-based regression would resurface.
         with (
             patch.object(WebAsset, "_fetch_content", lambda self: sample),
             patch.object(assetsbundle.assets, "Path", pathlib.PureWindowsPath),
@@ -892,18 +858,20 @@ class TestJavascriptAssetsBundle(FileTouchable):
         """
         from odoo.addons.base.models import assetsbundle
 
-        # ``_rtlcss_bin`` is @functools.cache'd; clear it around each scenario so
-        # a patched result never leaks into other tests' real rtlcss runs.
         self.addCleanup(assetsbundle.css_pipeline._rtlcss_bin.cache_clear)
 
         assetsbundle.css_pipeline._rtlcss_bin.cache_clear()
         with (
             patch.object(assetsbundle.css_pipeline.os, "name", "nt"),
             patch.object(
-                assetsbundle.css_pipeline.misc, "find_in_path", return_value="C:/npm/rtlcss.cmd"
+                assetsbundle.css_pipeline.misc,
+                "find_in_path",
+                return_value="C:/npm/rtlcss.cmd",
             ) as find,
         ):
-            self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), "C:/npm/rtlcss.cmd")
+            self.assertEqual(
+                assetsbundle.css_pipeline._rtlcss_bin(), "C:/npm/rtlcss.cmd"
+            )
             find.assert_called_once_with("rtlcss.cmd")
 
         assetsbundle.css_pipeline._rtlcss_bin.cache_clear()
@@ -921,8 +889,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         """
         bundle = self._get_asset(self.jsbundle_name)
         asset = JavascriptAsset(bundle, url="/web/static/src/_probe.js", inline="x")
-        # A single-line body adds no newlines, so the rendered header+body's
-        # newline count equals the number of header lines before the body.
         rendered = asset.with_header("SINGLE_LINE_BODY", minimal=False)
         self.assertEqual(rendered.count("\n"), JavascriptAsset._HEADER_LINE_COUNT)
 
@@ -936,7 +902,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
         resolver = _BridgeExportResolver({}, {}, "test_bundle")
-        # Seed the disk-read cache so source_exports resolves without I/O.
         resolver._cache["@x/y"] = "export const A = 1;\nexport default A;"
         first = resolver.source_exports("@x/y")
         second = resolver.source_exports("@x/y")
@@ -965,7 +930,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
             asset = XMLAsset(bundle, inline=src, url="/web/static/src/_probe.xml")
             names = [el.get("t-name") for el in asset.template_elements]
             self.assertEqual(names, expected, f"for {src!r}")
-            # Cached: parsed once, same list object on re-access.
             self.assertIs(asset.template_elements, asset.template_elements)
 
     def test_09_css_access(self):
@@ -1020,17 +984,14 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertNotEqual(files0, files1)
         self.assertNotEqual(version0, version1)
 
-        # check if the previous attachment are correctly cleaned
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
 
     def test_12_css_debug(self):
         """Check that a bundle in debug mode outputs non-minified assets."""
         debug_bundle = self._get_asset(self.cssbundle_name, debug_assets=True)
         links = debug_bundle.get_links()
-        # there should be a minified file
         self.assertEqual(links[0], "/web/assets/debug/test_assetsbundle.bundle2.css")
 
-        # there should be one css asset created in debug mode
         debug_bundle.css()
         self.assertEqual(
             len(self._any_ira_for_bundle("css")),
@@ -1046,17 +1007,13 @@ class TestJavascriptAssetsBundle(FileTouchable):
         bundle0.css()
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
 
-        # duplicate the asset bundle
         ira0 = self._any_ira_for_bundle("min.css")
         ira1 = ira0.copy()
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 2)
         self.assertEqual(ira0.store_fname, ira1.store_fname)
 
-        # the ir.attachment records should be deduplicated in the bundle's content
         content = bundle0.get_links()
         self.assertIn("test_assetsbundle.bundle2.min.css", content[0])
-
-    # Language direction specific tests
 
     def test_15_rtl_css_generation(self):
         """Checks that a bundle creates an ir.attachment record when its `css` method is called
@@ -1064,17 +1021,13 @@ class TestJavascriptAssetsBundle(FileTouchable):
         """
         self.bundle = self._get_asset(self.cssbundle_name, rtl=True)
 
-        # there shouldn't be any attachment associated to this bundle
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 0)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 0)
 
-        # trigger the first generation and, thus, the first save in database
         self.bundle.css()
 
-        # there should be no compilation errors
         self.assertEqual(len(self.bundle.css_errors), 0)
 
-        # there should be one attachment associated to this bundle
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 1)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
 
@@ -1092,7 +1045,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         ir.attachment record when rendered multiple times for rtl direction also check we have two css bundles,
         one for ltr and one for rtl.
         """
-        # Assets access for en_US language
         ltr_bundle0 = self._get_asset(self.cssbundle_name, debug_assets=False)
         ltr_bundle0.css()
 
@@ -1131,10 +1083,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         self.assertEqual(rtl_version0, rtl_version1)
 
-        # Checks rtl and ltr bundles are different
         self.assertNotEqual(ltr_ira1.id, rtl_ira1.id)
 
-        # Check two bundles are available, one for ltr and one for rtl
         css_bundles = self.env["ir.attachment"].search(
             [
                 (
@@ -1158,8 +1108,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         rtl_last_modified0 = rtl_bundle0.get_checksum("css")
         rtl_version0 = rtl_bundle0.get_version("css")
 
-        # Touch test_cssfile1.css
-        # Note: No lang specific context given while calling _get_asset so it will load assets for en_US
         path = file_path("test_assetsbundle/static/src/css/test_cssfile1.css")
         ltr_bundle1 = self._get_asset(self.cssbundle_name, debug_assets=True)
 
@@ -1182,10 +1130,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
             self.assertNotEqual(rtl_last_modified0, rtl_last_modified1)
             self.assertNotEqual(rtl_version0, rtl_version1)
 
-            # Checks rtl and ltr bundles are different
             self.assertNotEqual(ltr_ira1.id, rtl_ira1.id)
 
-            # check if the previous attachment is correctly cleaned
             css_bundles = self.env["ir.attachment"].search(
                 [
                     (
@@ -1201,7 +1147,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         """Checks that a bundle is invalidated when its content is modified by adding a file to
         source.
         """
-        # Assets for en_US
         ltr_bundle0 = self._get_asset(self.cssbundle_name)
         ltr_bundle0.css()
         ltr_files0 = ltr_bundle0.files
@@ -1249,10 +1194,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertNotEqual(rtl_files0, rtl_files1)
         self.assertNotEqual(rtl_version0, rtl_version1)
 
-        # Checks rtl and ltr bundles are different
         self.assertNotEqual(ltr_ira1.id, rtl_ira1.id)
 
-        # check if the previous attachment are correctly cleaned
         css_bundles = self.env["ir.attachment"].search(
             [
                 (
@@ -1269,7 +1212,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         debug_bundle = self._get_asset(self.cssbundle_name, rtl=True, debug_assets=True)
         content = debug_bundle.get_links()
 
-        # there should be an css assets bundle in /debug/rtl if user's lang direction is rtl and debug=assets
         self.assertEqual(
             f"/web/assets/debug/{self.cssbundle_name}.rtl.css",
             content[0],
@@ -1277,7 +1219,6 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
 
         debug_bundle.css()
-        # there should be an css assets bundle created in /rtl if user's lang direction is rtl and debug=assets
         css_bundle = self.env["ir.attachment"].search(
             [
                 (
@@ -1302,7 +1243,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
 
         self.assertEqual(
             str(html.strip()),
-            (f"""<!DOCTYPE html>
+            (
+                f"""<!DOCTYPE html>
 <html>
     <head>
         <link type="text/css" rel="stylesheet" href="http://test.external.link/style1.css"/>
@@ -1315,7 +1257,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
     </head>
     <body>
     </body>
-</html>"""),
+</html>"""
+            ),
         )
 
     def test_21_external_lib_assets_debug_mode(self):
@@ -1324,7 +1267,8 @@ class TestJavascriptAssetsBundle(FileTouchable):
         )
         self.assertEqual(
             str(html.strip()),
-            ("""<!DOCTYPE html>
+            (
+                """<!DOCTYPE html>
 <html>
     <head>
         <link type="text/css" rel="stylesheet" href="http://test.external.link/style1.css"/>
@@ -1337,12 +1281,12 @@ class TestJavascriptAssetsBundle(FileTouchable):
     </head>
     <body>
     </body>
-</html>"""),
+</html>"""
+            ),
         )
 
 
 class TestXMLAssetsBundle(FileTouchable):
-
     def _get_asset(self, bundle, rtl=False, debug_assets=False):
         files, _ = self.env["ir.qweb"]._get_asset_content(bundle)
         return AssetsBundle(
@@ -1356,8 +1300,6 @@ class TestXMLAssetsBundle(FileTouchable):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.broken_xml")
 
-            # there shouldn't be any test_assetsbundle.invalid_xml template.
-            # there should be an parsing_error template with the parsing error message.
             with self.assertRaisesRegex(
                 XMLAssetError,
                 "Invalid XML template: Opening and ending tag mismatch: SomeComponent line 4 and t, line 5, column 7' in file '/test_assetsbundle/static/invalid_src/xml/invalid_xml.xml",
@@ -1369,8 +1311,6 @@ class TestXMLAssetsBundle(FileTouchable):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.multiple_broken_xml")
 
-            # there shouldn't be any test_assetsbundle.invalid_xml template or test_assetsbundle.second_invalid_xml template.
-            # there should be one parsing_error templates with the parsing error message for the first file.
             with self.assertRaisesRegex(
                 XMLAssetError,
                 "Invalid XML template: Opening and ending tag mismatch: SomeComponent line 4 and t, line 5, column 7' in file '/test_assetsbundle/static/invalid_src/xml/invalid_xml.xml",
@@ -1382,8 +1322,6 @@ class TestXMLAssetsBundle(FileTouchable):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.wo_name")
 
-            # there shouldn't be raise a ValueError, there should a parsing_error template with
-            # the error message.
             with self.assertRaisesRegex(
                 XMLAssetError,
                 "'Template name is missing.' in file '/test_assetsbundle/static/invalid_src/xml/template_wo_name.xml'",
@@ -1395,11 +1333,6 @@ class TestXMLAssetsBundle(FileTouchable):
         with mute_logger("odoo.addons.base.models.assetsbundle"):
             self.bundle = self._get_asset("test_assetsbundle.file_not_found")
 
-            # there shouldn't be raise a ValueError, there should a parsing_error template with
-            # the error message.
-            # ``AssetNotFoundError`` reaches the XML error path unwrapped, so
-            # the message is the precise "Could not find" — not the generic
-            # "Could not get content for" re-wrap it used to degrade into.
             with self.assertRaisesRegex(
                 XMLAssetError,
                 "Could not find test_assetsbundle/static/invalid_src/xml/file_not_found.xml",
@@ -1445,8 +1378,6 @@ class TestAssetsBundleInBrowser(HttpCase):
             login="admin",
         )
 
-    # LPE Fixme
-    # Review point @al: is this really what we want people to do ?
     def test_03_js_interpretation_recommended_new_method(self):
         """Checks the feature of test_02 is still produceable, but in another way
         '/web/content/<int:id>/<string: filename.js>',
@@ -1459,7 +1390,6 @@ class TestAssetsBundleInBrowser(HttpCase):
                 "datas": base64.b64encode(code),
             }
         )
-        # Use this route (filename is necessary)
         custom_url = "/web/content/%s/%s" % (attach.id, attach.name)
         attach.url = custom_url
 
@@ -1483,10 +1413,6 @@ class TestAssetsBundleWithIRAMock(FileTouchable):
         self.stylebundle_name = "test_assetsbundle.bundle3"
         self.counter = counter = Counter()
 
-        # patch methods 'create' and 'unlink' of model 'ir.attachment'.
-        # ``_unlink_attachments`` moved to AssetAttachmentStore; ``save_attachment``
-        # (also on the store) calls it on the store instance, so patch it there —
-        # patching the AssetsBundle delegator would not intercept that internal call.
         origin_create = IrAttachment.create
         origin_unlink = AssetAttachmentStore._unlink_attachments
 
@@ -1545,37 +1471,27 @@ class TestAssetsBundleWithIRAMock(FileTouchable):
         """Checks that the ir.attachments records created for compiled assets in debug mode
         are correctly invalidated.
         """
-        # Compile for the first time
         self._bundle(self._get_asset(), True, False, "(First access)")
 
-        # Compile a second time, without changes
         self._bundle(self._get_asset(), False, False, "(Second access, no change)")
 
-        # Touch the file and compile a third time
         path = file_path("test_assetsbundle/static/src/scss/test_file1.scss")
         t = time.time() + 5
         asset = self._get_asset()
         with self._touch(path, t):
             self._bundle(asset, True, True)
 
-            # Because we are in the same transaction since the beginning of the test, the first asset
-            # created and the second one have the same write_date, but the file's last modified date
-            # has really been modified. If we do not update the write_date to a posterior date, we are
-            # not able to reproduce the case where we compile this bundle again without changing
-            # anything.
             self.env["ir.attachment"].flush_model(["checksum", "write_date"])
             self.cr.execute(
                 "update ir_attachment set write_date=clock_timestamp() + interval '10 seconds' where id = (select max(id) from ir_attachment)"
             )
             self.env["ir.attachment"].invalidate_model(["write_date"])
 
-            # Compile a fourth time, without changes
             self._bundle(self._get_asset(), False, False)
 
 
 @tagged("assets_manifest")
 class TestAssetsManifest(AddonManifestPatched):
-
     def make_asset_view(self, asset_key, t_call_assets_attrs=None):
         default_attrs = {
             "t-js": "true",
@@ -1775,7 +1691,6 @@ class TestAssetsManifest(AddonManifestPatched):
                 "path": "test_assetsbundle/static/src/js/test_jsfile4.js",
             }
         )
-        # asset is now: js_file4 ; js_file3
         self.env["ir.asset"].create(
             {
                 "name": "test_jsfile4",
@@ -1785,8 +1700,6 @@ class TestAssetsManifest(AddonManifestPatched):
                 "target": "test_assetsbundle/static/src/js/test_jsfile[45].js",
             }
         )
-        # asset is now: js_file1 ; js_file2 ; js_file3
-        # because js_file is replaced by 1 and 2
         bundle = self.env["ir.qweb"]._get_asset_bundle("test_assetsbundle.manifest4")
         attach = bundle.js()
         content = attach.raw.decode()
@@ -1867,7 +1780,6 @@ class TestAssetsManifest(AddonManifestPatched):
             }
         )
         bundle = self.env["ir.qweb"]._get_asset_bundle("test_assetsbundle.manifest2")
-        # indeed everything in the bundle matches the glob, so there is no attachment
         self.assertFalse(bundle.javascripts)
         self.assertFalse(bundle.get_links())
 
@@ -2170,15 +2082,6 @@ class TestAssetsManifest(AddonManifestPatched):
             """,
         )
 
-    #
-    # LPE Fixme: Warning, this matches a change in behavior
-    # Before this, each node within an asset could have a "media" and/or a "direction"
-    # attribute to tell the browser to take preferably the css resource
-    # in the relevant viewport or text direction
-    #
-    # with the new ir_assert mechanism, these attributes are only evaluated at the t-call-asset
-    # step, that is, a step earlier than before, implicating a more restrictive usage
-    #
     def test_19_css_specific_attrs_in_tcallassets(self):
         self.env["ir.asset"].create(
             {
@@ -2263,22 +2166,17 @@ class TestAssetsManifest(AddonManifestPatched):
         self.assertRegex(
             content, r"\.appearance-none-prefixed\{-webkit-appearance:none\}"
         )
-        # Regression: ``!important`` must be replicated onto the prefixed copies
-        # (previously dropped, so a WebKit form-control reset lost its weight).
         self.assertRegex(
             content,
             r"\.appearance-none-important\{-webkit-appearance:none !important;"
             r"-moz-appearance:none !important;appearance:none !important\}",
         )
-        # Regression: a hyphenated value must reach the prefixed copies intact
-        # (``\w+`` truncated ``menulist-button`` to ``menulist``).
         self.assertRegex(
             content,
             r"\.appearance-menulist-button\{-webkit-appearance:menulist-button;"
             r"-moz-appearance:menulist-button;appearance:menulist-button\}",
         )
 
-        # Flex properties are not vendor-prefixed (autoprefix_css only handles appearance)
         self.assertRegex(content, r"\.display-flex\{display:flex\}")
         self.assertRegex(content, r"\.display-inline-flex\{display:inline-flex\}")
         self.assertRegex(content, r"\.display-inline\{display:inline\}")
@@ -2336,7 +2234,6 @@ class TestAssetsManifest(AddonManifestPatched):
         bundle = self.env["ir.qweb"]._get_asset_bundle(
             "test_assetsbundle.irasset_split", js=False
         )
-        # Must not raise; the rule compiles and the inert hex comment survives.
         content = bundle.css().raw.decode()
         self.assertRegex(content, r"\.split-marker-regression\{color:red\}")
         self.assertIn("/*! a1b2c3d */", content)
@@ -2695,9 +2592,7 @@ class TestAssetsManifest(AddonManifestPatched):
     def test_31(self):
         path_to_dummy = "../../tests/dummy.js"
         me = pathlib.Path(__file__).parent.absolute()
-        file_path = me.joinpath(
-            "..", path_to_dummy
-        )  # assuming me = test_assetsbundle/tests
+        file_path = me.joinpath("..", path_to_dummy)
         self.assertTrue(file_path.is_file())
 
         self.env["ir.asset"].create(
@@ -2719,9 +2614,7 @@ class TestAssetsManifest(AddonManifestPatched):
     def test_32_a_relative_path_in_addon(self):
         path_to_dummy = "../../tests/dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
-        file_path = me.joinpath(
-            "..", path_to_dummy
-        )  # assuming me = test_assetsbundle/tests
+        file_path = me.joinpath("..", path_to_dummy)
         self.assertTrue(file_path.is_file())
 
         self.env["ir.asset"].create(
@@ -2746,16 +2639,12 @@ class TestAssetsManifest(AddonManifestPatched):
                 )
             ],
         )
-        # TODO, validate this behaviour
-        # the idea is that if the second element is False (not None) it will be added to the assetbundle, but considered in any case as an attachment url)
 
     @mute_logger("odoo.addons.base.models.ir_asset")
     def test_32_b_relative_path_outsied_addon(self):
         path_to_dummy = "../../tests/dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
-        file_path = me.joinpath(
-            "..", path_to_dummy
-        )  # assuming me = test_assetsbundle/tests
+        file_path = me.joinpath("..", path_to_dummy)
         self.assertTrue(file_path.is_file())
 
         self.env["ir.asset"].create(
@@ -2795,7 +2684,6 @@ class TestAssetsManifest(AddonManifestPatched):
             }
         )
         bundle = self.env["ir.qweb"]._get_asset_bundle("test_assetsbundle.irassetsec")
-        # No exception: uninstalled addon assets are gracefully excluded
         content = bundle.js()
         self.assertNotIn("notinstalled_module", content)
 
@@ -2909,7 +2797,6 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         attach = bundle.css()
         content = attach.raw.decode()
-        # The scss should be compiled
         self.assertStringEqual(
             content,
             """
@@ -2921,7 +2808,6 @@ class TestAssetsManifest(AddonManifestPatched):
 
 @tagged("-at_install", "post_install")
 class AssetsNodeOrmCacheUsage(TransactionCase):
-
     def cache_keys(self):
         keys = list(self.env.registry.ormcache_lrus["assets"])
 
@@ -2929,7 +2815,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
             key
             for key in keys
             if key[0] == "ir.asset" and "_get_asset_paths" in str(key[1])
-        ]  # ignore topological sort entry
+        ]
         qweb_keys = [key for key in keys if key[0] == "ir.qweb"]
         return asset_keys, qweb_keys
 
@@ -2944,9 +2830,6 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
 
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        # link + native-data + native-nodes: the ESM build-caching change
-        # added _get_native_module_nodes_cached as a third assets entry
-        # per (bundle, assets_params).
         self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="tests")
@@ -2959,7 +2842,6 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.assertEqual(len(asset_keys), 1)
         self.assertEqual(len(qweb_keys), 3)
 
-        # in debug=assets, the ormcache is not used for _generate_asset_links_cache
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="assets")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
@@ -2975,19 +2857,17 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=True, css=False)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)  # link(js) + native-data + native-nodes
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=False, css=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 4)  # + link(css); css-only skips native caches
+        self.assertEqual(len(qweb_keys), 4)
 
-        # NOTE: this result is not really desired but this is the current behaviour. In practice, we usually only generate one of them.
-        # This could be enforced or avoided
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=True, css=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 5)  # + link(js+css)
+        self.assertEqual(len(qweb_keys), 5)
 
     def test_assets_node_orm_cache_usage_lang(self):
         self.env.registry.clear_cache("assets")
@@ -3004,7 +2884,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)  # link + native-data + native-nodes
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"].with_context(lang="en_US")._get_asset_nodes(
             "web.assets_backend"
@@ -3018,15 +2898,13 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        # + a second link entry for rtl; the native caches are shared
-        # (lang is not part of their key)
         self.assertEqual(len(qweb_keys), 4)
 
     def test_assets_node_orm_cache_usage_website(self):
         if self.env["ir.module.module"].search(
             [("name", "=", "website"), ("state", "=", "uninstalled")]
         ):
-            return  # only makes sense if website is installed
+            return
         self.env.registry.clear_cache("assets")
 
         asset_keys, qweb_keys = self.cache_keys()
@@ -3038,16 +2916,13 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)  # link + native-data + native-nodes
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"].with_context(website_id=1)._get_asset_nodes(
             "web.assets_backend"
         )
         asset_keys, qweb_keys = self.cache_keys()
-        self.assertEqual(
-            len(asset_keys), 2
-        )  # the content may be different for different websites, even if it is not always the case
-        # 2 link + 2 native-data + 2 native-nodes (assets_params per website)
+        self.assertEqual(len(asset_keys), 2)
         self.assertEqual(len(qweb_keys), 6)
 
     def test_assets_node_orm_cache_usage_node_flags(self):
@@ -3060,7 +2935,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)  # link + native-data + native-nodes
+        self.assertEqual(len(qweb_keys), 3)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", media="print")
         asset_keys, qweb_keys = self.cache_keys()
@@ -3085,11 +2960,10 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
     os.getenv("ODOO_FAKETIME_TEST_MODE"), "This test cannot work with faketime"
 )
 class TestErrorManagement(HttpCase):
-
     def test_assets_bundle_css_error_backend(self):
         self.env["ir.qweb"]._get_asset_bundle(
             "web.assets_backend", assets_params={}
-        ).css()  # force pregeneration so that we have the base style
+        ).css()
         self.env["ir.asset"].create(
             {
                 "name": "Css error",
@@ -3109,7 +2983,7 @@ class TestErrorManagement(HttpCase):
         )
         self.env["ir.qweb"]._get_asset_bundle(
             "web.assets_frontend", assets_params=whatever
-        ).css()  # force pregeneration so that we have the base style
+        ).css()
         self.env["ir.asset"].create(
             {
                 "name": "Css error",
@@ -3118,18 +2992,4 @@ class TestErrorManagement(HttpCase):
             }
         )
         with mute_logger("odoo.addons.base.models.assetsbundle"):
-            # Public session + `?debug=1`, and both halves are load-bearing.
-            #
-            # A style-compilation failure is only surfaced to someone who could
-            # fix it (`canActOnScssErrors`: administrator or debug mode), so as
-            # a plain visitor this tour could only ever time out. But logging in
-            # as an administrator does not work either: `/` then redirects to
-            # the backend, which loads `web.assets_web_*` and never
-            # `web.assets_frontend` — the very bundle this test breaks on
-            # purpose. Debug mode is the only way to satisfy both at once.
-            #
-            # The "a regular visitor is shown nothing" half of that policy has
-            # no tour (asserting an absence is inherently racy here); it is
-            # pinned as a unit test in
-            # web/static/tests/services/scss_error_display.test.js.
             self.start_tour("/?debug=1", "css_error_tour_frontend")

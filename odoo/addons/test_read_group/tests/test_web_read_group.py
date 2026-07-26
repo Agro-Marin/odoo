@@ -11,13 +11,6 @@ class TestWebReadGroup(common.TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # ``web_read_group`` is ``@versioned`` (odoo.tools.cache_version): it
-        # injects a ``__version`` content-hash used by the client rpc cache.
-        # These tests assert the semantic payload only, so strip the stamp from
-        # every call — mirrors the ``result.pop("__version", None)`` convention
-        # used elsewhere (e.g. odoo/addons/test_http/tests/test_webjson.py).
-        # Patch on ``base`` (where web_read_group is defined) so every model
-        # used by these tests (aggregate, order, order.line) is covered.
         model_cls = type(self.env["base"])
         original = model_cls.web_read_group
 
@@ -46,10 +39,8 @@ class TestWebReadGroup(common.TransactionCase):
             ],
         )
 
-        # warmup
         Model.web_read_group(domain=[], groupby=["key"], aggregates=["value:sum"])
 
-        # One query for read_group because limit is reached
         with self.assertQueryCount(1):
             self.assertEqual(
                 Model.web_read_group(
@@ -83,7 +74,6 @@ class TestWebReadGroup(common.TransactionCase):
                 },
             )
 
-        # One _read_group with the limit and other without to get the length
         with self.assertQueryCount(2):
             self.assertEqual(
                 Model.web_read_group(
@@ -111,7 +101,6 @@ class TestWebReadGroup(common.TransactionCase):
                 },
             )
 
-        # One _read_group/query because limit is reached
         with self.assertQueryCount(1):
             self.assertEqual(
                 Model.web_read_group(
@@ -191,7 +180,6 @@ class TestWebReadGroup(common.TransactionCase):
         key1_read_records = records[:3].web_read(read_spec)
         key2_read_records = records[3:6].web_read(read_spec)
 
-        # Warmup ormcache
         Model.web_read_group(
             domain=[],
             groupby=["key"],
@@ -202,53 +190,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # One query formatted_read_group
-        # One query get records first column
-        # One query get records second column
-        # One query to read all records
-        with self.assertQueryCount(4):
-            self.assertEqual(
-                Model.web_read_group(
-                    domain=[],
-                    groupby=["key"],
-                    aggregates=["value:sum"],
-                    auto_unfold=True,
-                    unfold_read_specification=read_spec,
-                ),
-                {
-                    "groups": [
-                        {
-                            "__extra_domain": [("key", "=", 1)],
-                            "key": 1,
-                            "__count": 3,
-                            "value:sum": 1 + 2 + 3,
-                            "__records": key1_read_records,
-                        },
-                        {
-                            "__extra_domain": [("key", "=", 2)],
-                            "key": 2,
-                            "__count": 3,
-                            "value:sum": 4 + 5,
-                            "__records": key2_read_records,
-                        },
-                        {
-                            "__extra_domain": [("key", "=", False)],
-                            "key": False,
-                            "__count": 2,
-                            "value:sum": 6,
-                            # No records, since we patch MAX_NUMBER_OPENED_GROUPS to 2
-                        },
-                    ],
-                    "length": 3,
-                },
-            )
-
-        self.env.invalidate_all()
-
-        # One query formatted_read_group
-        # One query get records first column
-        # One query get records second column
-        # One query to read records
         with self.assertQueryCount(4):
             self.assertEqual(
                 Model.web_read_group(
@@ -287,10 +228,44 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # One query formatted_read_group
-        # One query to get the number of group (because limit is reached)
-        # One query get records first column
-        # One query to read records
+        with self.assertQueryCount(4):
+            self.assertEqual(
+                Model.web_read_group(
+                    domain=[],
+                    groupby=["key"],
+                    aggregates=["value:sum"],
+                    auto_unfold=True,
+                    unfold_read_specification=read_spec,
+                ),
+                {
+                    "groups": [
+                        {
+                            "__extra_domain": [("key", "=", 1)],
+                            "key": 1,
+                            "__count": 3,
+                            "value:sum": 1 + 2 + 3,
+                            "__records": key1_read_records,
+                        },
+                        {
+                            "__extra_domain": [("key", "=", 2)],
+                            "key": 2,
+                            "__count": 3,
+                            "value:sum": 4 + 5,
+                            "__records": key2_read_records,
+                        },
+                        {
+                            "__extra_domain": [("key", "=", False)],
+                            "key": False,
+                            "__count": 2,
+                            "value:sum": 6,
+                        },
+                    ],
+                    "length": 3,
+                },
+            )
+
+        self.env.invalidate_all()
+
         with self.assertQueryCount(4):
             self.assertEqual(
                 Model.web_read_group(
@@ -343,18 +318,14 @@ class TestWebReadGroup(common.TransactionCase):
             "partner_id": {"fields": {"display_name": {}}},
         }
 
-        # Warmup ormcache
         Model.web_read_group(
             domain=[],
             groupby=["partner_id", "key"],
             aggregates=["value:sum"],
         )
 
-        # Scenario: list view groupby ['partner_id', 'key'] - no group opened by default
         self.env.invalidate_all()
 
-        # One query for the _read_group
-        # One query to read the display_name of partner_id
         with self.assertQueryCount(2):
             self.assertEqual(
                 Model.web_read_group(
@@ -387,36 +358,32 @@ class TestWebReadGroup(common.TransactionCase):
                 },
             )
 
-        # Scenario:
-        # Client opened manually several groups and reload the view (add a filter / change of views / ...).
-        # Simulate that DEFAULT_GROUP_LIMIT is 2.
         opening_info = [
             {
                 "value": partner_1.id,
-                "folded": False,  # open the partner group (partner=P1)
+                "folded": False,
                 "limit": 2,
                 "offset": 0,
                 "progressbar_domain": [],
                 "groups": [
                     {
                         "value": 1,
-                        "folded": False,  # open the subgroup (key=1)
+                        "folded": False,
                         "limit": 2,
-                        "offset": 2,  # next page of records
+                        "offset": 2,
                         "progressbar_domain": [],
                     },
                 ],
             },
             {
                 "value": partner_2.id,
-                "folded": False,  # open the partner group (partner=P2)
+                "folded": False,
                 "limit": 2,
-                "offset": 2,  # next page of subgroups
-                # Don't put progressbar_domain and it should work
+                "offset": 2,
                 "groups": [
                     {
                         "value": False,
-                        "folded": False,  # open the subgroup (key=False)
+                        "folded": False,
                         "limit": 2,
                         "offset": 0,
                         "progressbar_domain": [],
@@ -433,13 +400,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # One query for the main _read_group
-        # One query for the to open subgroup partner=P1
-        # One query for the to open subgroup partner=P2
-        # One query get records first subgroup
-        # One query get records second subgroup
-        # One query to read fields of test_read_group.aggregate fields
-        # One query to read display_name of partner
         with self.assertQueryCount(7):
             self.assertEqual(
                 Model.web_read_group(
@@ -492,7 +452,6 @@ class TestWebReadGroup(common.TransactionCase):
                             "partner_id": False,
                             "__count": 2,
                             "value:sum": 6,
-                            # Group not opened since it is a Falsy value
                         },
                     ],
                     "length": 3,
@@ -527,7 +486,6 @@ class TestWebReadGroup(common.TransactionCase):
             "partner_id": {"fields": {"display_name": {}}},
         }
 
-        # Warmup ormcache
         Model.web_read_group(
             domain=[],
             groupby=["partner_id"],
@@ -537,13 +495,6 @@ class TestWebReadGroup(common.TransactionCase):
         )
         self.env.invalidate_all()
 
-        # Scenario: groupby many2one (no __fold information) on a kanban view
-
-        # One query for the _read_group
-        # One query to read the display_name of partner_id
-        # One query get records first column
-        # One query get records second column
-        # One query to read all records opened
         with self.assertQueryCount(5):
             self.assertEqual(
                 Model.web_read_group(
@@ -574,7 +525,6 @@ class TestWebReadGroup(common.TransactionCase):
                             "partner_id": False,
                             "__count": 2,
                             "value:sum": 6,
-                            # No __records since we don't open False relational value by default
                         },
                     ],
                     "length": 3,
@@ -583,12 +533,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # Scenario: list view with expand="1", auto opened the first level of groupby
-
-        # One query for the _read_group
-        # One query to read the display_name of partner_id
-        # One query to open subgroups partner_1 (not batched - hard to do)
-        # One query to open subgroups partner_2
         with self.assertQueryCount(4):
             self.assertEqual(
                 Model.web_read_group(
@@ -658,7 +602,6 @@ class TestWebReadGroup(common.TransactionCase):
             )
 
     def test_extra_domain_records(self):
-        # Scenario: Open a kanban view, select an part of the records with the progress bar.
 
         Model = self.env["test_read_group.aggregate"]
         records = Model.create(
@@ -677,19 +620,19 @@ class TestWebReadGroup(common.TransactionCase):
         opening_info = [
             {
                 "value": 1,
-                "folded": False,  # open the partner group (key=1)
+                "folded": False,
                 "limit": 2,
                 "offset": 0,
-                "progressbar_domain": [  # select specific part of records with the progress_bar
+                "progressbar_domain": [
                     ["value", "=", 1],
                 ],
             },
             {
                 "value": 2,
-                "folded": False,  # open the partner group (key=2)
+                "folded": False,
                 "limit": 2,
                 "offset": 0,
-                "progressbar_domain": [  # select specific part of records with the progress_bar
+                "progressbar_domain": [
                     ["value", "=", 5],
                 ],
             },
@@ -701,7 +644,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         read_spec = {"value": {}}
 
-        # warmup ormcache
         Model.web_read_group(
             domain=[],
             groupby=["key"],
@@ -714,12 +656,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # One query for the _read_group
-        # One query per progressbar-filtered group to recompute its aggregates
-        # under the progressbar_domain (two groups here)
-        # One query get records of the first column
-        # One query get records of the second column
-        # One query to read all records opened
         with self.assertQueryCount(6):
             self.assertEqual(
                 Model.web_read_group(
@@ -731,11 +667,6 @@ class TestWebReadGroup(common.TransactionCase):
                     unfold_read_specification=read_spec,
                     unfold_read_default_limit=80,
                 ),
-                # Aggregate contract for progress-bar-filtered groups: the
-                # displayed aggregates describe the FILTERED record set shown
-                # in __records (value:sum 1 and 5, not the whole-group 6 and
-                # 9), while __count stays UNFILTERED (3, not 1) — it feeds the
-                # "Other" bar remainder and the group pager total.
                 {
                     "groups": [
                         {
@@ -763,7 +694,6 @@ class TestWebReadGroup(common.TransactionCase):
                 },
             )
 
-    # The patch exists to test that MAX_NUMBER_OPENED_GROUPS is ignored in case of forced opened groups
     @patch("odoo.addons.web.models.web_read_group.MAX_NUMBER_OPENED_GROUPS", 1)
     def test_specific_opened_group_and_unfold_limit(self):
         Model = self.env["test_read_group.aggregate"]
@@ -783,17 +713,17 @@ class TestWebReadGroup(common.TransactionCase):
         opening_info = [
             {
                 "value": 1,
-                "folded": False,  # open the partner group (key=1)
+                "folded": False,
                 "limit": 2,
                 "offset": 0,
                 "progressbar_domain": [],
             },
             {
                 "value": 2,
-                "folded": True,  # close the partner group (key=2)
+                "folded": True,
             },
             {
-                "value": False,  # manually open the partner group (key=False)
+                "value": False,
                 "folded": False,
                 "limit": 2,
                 "offset": 0,
@@ -803,7 +733,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         read_spec = {"value": {}}
 
-        # warmup ormcache
         Model.web_read_group(
             domain=[],
             groupby=["key"],
@@ -815,10 +744,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # One query for the _read_group
-        # One query get records of the first column
-        # One query get records of the third column
-        # One query to read all records opened
         with self.assertQueryCount(4):
             self.assertEqual(
                 Model.web_read_group(
@@ -880,7 +805,6 @@ class TestWebReadGroup(common.TransactionCase):
 
         read_spec = {"value": {}}
 
-        # warmup ormcache
         Line.web_read_group(
             domain=[],
             groupby=["order_expand_id"],
@@ -891,15 +815,8 @@ class TestWebReadGroup(common.TransactionCase):
 
         self.env.invalidate_all()
 
-        # Scenario: kanban view where fold information is in the comodel
-
-        # One query for the _read_group
-        # One query for the _read_group_expand_full of order_expand_id
-        # One query to read the display_name/fold of order_expand_id
-        # One query get records first column (second column empty - no query)
-        # One query to read all records opened
         with self.assertQueryCount(5):
-            self.assertEqual(  # No group_expand limit reached directly
+            self.assertEqual(
                 Line.web_read_group(
                     domain=[],
                     groupby=["order_expand_id"],
@@ -946,17 +863,10 @@ class TestWebReadGroup(common.TransactionCase):
                 },
             )
 
-        # Scenario: view list where fold information is in the comodel
-
         self.env.invalidate_all()
 
-        # One query for the _read_group
-        # One query for the _read_group_expand_full of order_expand_id
-        # One query to read the display_name/fold of order_expand_id
-        # One query to get all records
-        # One query to read all records opened
         with self.assertQueryCount(5):
-            self.assertEqual(  # No group_expand limit reached directly
+            self.assertEqual(
                 Line.web_read_group(
                     domain=[],
                     groupby=["order_expand_id", "value"],
@@ -976,7 +886,6 @@ class TestWebReadGroup(common.TransactionCase):
                                         "value": 1,
                                         "__extra_domain": [("value", "=", 1)],
                                         "__count": 1,
-                                        # Shouldn't be unfold
                                     },
                                 ],
                                 "length": 1,
@@ -1033,7 +942,6 @@ class TestWebReadGroup(common.TransactionCase):
         key1_read_records = records[:3].web_read(read_spec)
         key2_read_records = records[3:6].web_read(read_spec)
         key_false_read_records = records[6:].web_read(read_spec)
-        # warmup
         Model.web_read_group(
             domain=[],
             groupby=["key"],
@@ -1041,10 +949,6 @@ class TestWebReadGroup(common.TransactionCase):
             unfold_read_specification=read_spec,
         )
 
-        # One query for the _read_group
-        # One query to get first group records
-        # One query to get second group records
-        # One query to read all records
         with self.assertQueryCount(4):
             self.assertEqual(
                 Model.web_read_group(
@@ -1052,7 +956,7 @@ class TestWebReadGroup(common.TransactionCase):
                     groupby=["key"],
                     aggregates=["value:sum"],
                     unfold_read_specification=read_spec,
-                    auto_unfold=True,  # To check order of records too
+                    auto_unfold=True,
                     order="__count",
                 ),
                 {
@@ -1089,7 +993,7 @@ class TestWebReadGroup(common.TransactionCase):
                 groupby=["key"],
                 aggregates=["value:sum"],
                 unfold_read_specification=read_spec,
-                auto_unfold=True,  # To check order of records too
+                auto_unfold=True,
                 order="__count DESC, key DESC",
             ),
             {
@@ -1126,7 +1030,7 @@ class TestWebReadGroup(common.TransactionCase):
                 groupby=["key"],
                 aggregates=["value:sum"],
                 unfold_read_specification=read_spec,
-                auto_unfold=True,  # To check order of records too
+                auto_unfold=True,
                 order="value",
             ),
             {
@@ -1169,7 +1073,7 @@ class TestWebReadGroup(common.TransactionCase):
                 groupby=["key"],
                 aggregates=["value:sum"],
                 unfold_read_specification=read_spec,
-                auto_unfold=True,  # To check order of records too
+                auto_unfold=True,
                 order="key DESC",
             ),
             {
@@ -1221,7 +1125,6 @@ class TestWebReadGroup(common.TransactionCase):
             ],
         )
 
-        # Warmup ormcache
         Model.web_read_group(
             domain=[],
             groupby=["partner_id"],
@@ -1231,8 +1134,6 @@ class TestWebReadGroup(common.TransactionCase):
         self.env.invalidate_all()
 
         Partner = self.registry["res.partner"]
-        # One query for the _read_group
-        # One query to read ref/display_name of partners
         with (
             self.assertQueryCount(2),
             patch.object(
@@ -1270,7 +1171,7 @@ class TestWebReadGroup(common.TransactionCase):
                             "partner_id": False,
                             "__count": 2,
                             "value:sum": 6,
-                            "__values": {"id": False},  # Sentinel for the webclient
+                            "__values": {"id": False},
                         },
                     ],
                     "length": 3,

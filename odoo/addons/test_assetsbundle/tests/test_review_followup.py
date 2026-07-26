@@ -40,9 +40,9 @@ class TestPreprocessCssErrorContract(BaseCase):
     def test_compile_failure_returns_empty_not_raw_source(self):
         """A Sass failure (compile_css -> "" + recorded error) must yield "",
         not the uncompiled SCSS the split/minify fallback would assemble."""
-        scss = Mock(spec=ScssStylesheetAsset)  # isinstance PreprocessedCSS -> True
+        scss = Mock(spec=ScssStylesheetAsset)
         scss.get_source.return_value = "$x: 1; a {}"
-        scss.minify.return_value = "RAW_UNCOMPILED_SCSS"  # would be served pre-fix
+        scss.minify.return_value = "RAW_UNCOMPILED_SCSS"
         scss.errors = []
         self.assertIsInstance(scss, PreprocessedCSS)
 
@@ -64,14 +64,10 @@ class TestPreprocessCssErrorContract(BaseCase):
         bundle is returned (css() still banners on the harvested error). Only a
         bundle-level compile/rtl failure short-circuits to ""; this guards the
         narrow boundary against regressing back to "any css_errors -> ''"."""
-        plain = Mock(spec=StylesheetAsset)  # not a PreprocessedCSS
+        plain = Mock(spec=StylesheetAsset)
         plain._content = None
         plain.errors = []
 
-        # A real StylesheetAsset records its fetch/rewrite error WHILE minify()
-        # pulls content; preprocess clears asset.errors first and rebuilds it
-        # this run, so model the error as recorded during minify() rather than
-        # pre-seeded (a pre-seeded list is now reset before the run).
         def _minify():
             plain.errors.append("audit_missing.css does not exist.")
             return "body{color:red}"
@@ -111,15 +107,12 @@ class TestMinifyNulGuard(BaseCase):
     def test_nul_digit_no_longer_crashes(self):
         out = StylesheetAsset._minify_css_body("a{}\x000\x00b{}")
         self.assertNotIn("\x00", out)
-        # the surrounding rules survive the strip
         self.assertIn("a{}", out)
         self.assertIn("b{}", out)
 
     def test_strip_does_not_disturb_normal_minification(self):
         """Regression guard: the NUL strip leaves string/comment handling intact."""
-        # whitespace inside a string literal is preserved
         self.assertIn('"x   y"', StylesheetAsset._minify_css_body('a{content:"x   y"}'))
-        # /*! legal comment kept, ordinary comment dropped
         out = StylesheetAsset._minify_css_body(
             "/*! keep */ a{color:red} /* drop */ b{}"
         )
@@ -140,8 +133,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
     rx = StylesheetAsset.rx_url
 
     def _rewrite(self, css):
-        # Mirror _fetch_content's url rewrite with an observable marker. Like
-        # the real replacement, re-emit the closing quote the regex consumes.
         def repl(match):
             q = match.group("q")
             return f"url({q}REW/{match.group('body')}{q}"
@@ -152,8 +143,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
         self.assertIn("REW/", self._rewrite("a{background:url(x.png)}"))
 
     def test_quoted_real_url_is_rewritten(self):
-        # url("x") — the match starts at the url( token (code); the inner "x" is
-        # the only protected span and the rewrite never needs to enter it.
         self.assertIn('url("REW/x', self._rewrite('a{background:url("x.png")}'))
 
     def test_multi_url_src_list_all_rewritten(self):
@@ -170,14 +159,10 @@ class TestUrlRewriteStringBoundary(BaseCase):
             "url('./l/a.ttf') format('truetype');"
         )
         self.assertEqual(out.count("REW/"), 3, out)
-        # The format() hints are strings and must survive verbatim.
         self.assertIn('format("woff")', out)
         self.assertIn("format('truetype')", out)
 
     def test_quoted_url_with_space_is_left_untouched(self):
-        # A quoted body containing a stopper char can't be matched to its
-        # closing quote; it must pass through whole, never half-rewritten
-        # (the old regex truncated the body at the space and mangled the url).
         out = self._rewrite('a{background:url("x y.png")}')
         self.assertNotIn("REW/", out)
         self.assertIn('url("x y.png")', out)
@@ -203,8 +188,6 @@ class TestUrlRewriteStringBoundary(BaseCase):
         self.assertIn('"hello url(x.png) y"', out)
 
     def test_raw_regex_remains_permissive(self):
-        # The guard lives in the scanner, not the regex: the bare regex still
-        # matches a url() inside a string. Documents where the protection is.
         self.assertEqual(len(self.rx.findall('a{content:"hello url(x.png) y"}')), 1)
 
 
@@ -225,12 +208,11 @@ class TestPreprocessCssAtRulesIdempotent(BaseCase):
     mirroring ``TestPreprocessCssErrorContract``.
     """
 
-    # @charset hoisted above the per-file split marker, as Dart Sass emits it.
     _COMPILED = '@charset "UTF-8";\n/*! odoo-split:abc123 */\nh1{color:red}'
 
     def _pipeline(self, rtl=False):
-        scss = Mock(spec=ScssStylesheetAsset)  # isinstance PreprocessedCSS -> True
-        scss.id = "abc123"  # must match [a-f0-9-]+ for CssPipeline.rx_css_split
+        scss = Mock(spec=ScssStylesheetAsset)
+        scss.id = "abc123"
         scss.get_source.return_value = "/*! odoo-split:abc123 */\nh1{}"
         scss.minify.return_value = "h1{color:red}"
         scss.errors = []
@@ -295,7 +277,6 @@ class TestCssErrorBannerBackslashEscape(BaseCase):
         self.assertIn(r"C:\\foo", content_line)
 
     def test_quote_escape_stays_single_backslash(self):
-        # the backslash pass must not double the backslash the quote escape adds
         banner = AssetsBundle._render_css_error_banner(['say "hi"'], "")
         content_line = next(ln for ln in banner.splitlines() if "say" in ln)
         self.assertIn(r"say \"hi\"", content_line)
@@ -450,15 +431,12 @@ class TestPreprocessLeafErrorRebuilt(BaseCase):
         error count stays at one rather than growing 1 -> 2 -> 3."""
         bundle, asset = self._bundle_with_missing_scss()
         pipeline = CssPipeline(bundle)
-        # Identity compile keeps the split markers, so compilation "succeeds"
-        # (a missing leaf returns "" but does not fail the whole bundle).
         pipeline.compile_css = lambda compiler, source: source
 
         leaf_msg = f"Could not find {self._MISSING}"
         for _ in range(3):
             pipeline.preprocess()
             self.assertEqual(bundle.css_errors.count(leaf_msg), 1)
-        # the leaf's own list is rebuilt each run, not appended to forever
         self.assertEqual(asset.errors.count(leaf_msg), 1)
 
 
@@ -484,8 +462,6 @@ class TestAutoprefixImportStringBoundary(BaseCase):
         self.assertIn('" appearance: auto"', out)
 
     def test_import_hoist_matches_real_rule(self):
-        # The raw regex stays permissive; string-awareness is applied at the
-        # call site via _rewrite_css_outside_strings (see below).
         self.assertEqual(
             AssetsBundle.rx_css_import.findall('@import "a.css";\nbody{}'),
             ['@import "a.css";'],
@@ -520,8 +496,6 @@ class TestRewriteScannerDotallScope(BaseCase):
     """
 
     def test_dot_in_target_does_not_span_newlines(self):
-        # A target using '.' (compiled WITHOUT DOTALL) must not match across a
-        # newline when run through the helper.
         hits = []
         _rewrite_css_outside_strings(
             re.compile(r"X.Y"), lambda m: hits.append(m.group(0)) or "H", "X\nY"
@@ -529,8 +503,6 @@ class TestRewriteScannerDotallScope(BaseCase):
         self.assertEqual(hits, [], "target's '.' must not gain DOTALL")
 
     def test_target_with_explicit_dotall_is_respected(self):
-        # If the caller WANTS DOTALL it compiles it into the target; the helper
-        # must honour that (its own flags survive — they are not stripped).
         hits = []
         _rewrite_css_outside_strings(
             re.compile(r"X.Y", re.DOTALL),
@@ -540,8 +512,6 @@ class TestRewriteScannerDotallScope(BaseCase):
         self.assertEqual(hits, ["X\nY"])
 
     def test_multiline_comment_still_protected(self):
-        # The string/comment arm keeps DOTALL: a url() after a multi-line block
-        # comment is still rewritten, and the comment passes through verbatim.
         out = _rewrite_css_outside_strings(
             StylesheetAsset.rx_url, lambda m: "U", "a/*\n c \n*/ url(z)"
         )
@@ -702,7 +672,6 @@ class TestImportMapSpecCollision(BaseCase):
         with self.assertLogs(self._LOG, level="WARNING") as cm:
             data = self._data(mods)
         self.assertIn("import_map_spec_collision", "\n".join(cm.output))
-        # last-wins is preserved (purely additive change)
         self.assertEqual(data["import_map"]["@web/foo"], "/web/static/src/foo/index.js")
 
     def test_colliding_alias_warns(self):
@@ -715,8 +684,6 @@ class TestImportMapSpecCollision(BaseCase):
         self.assertIn("kind=alias", "\n".join(cm.output))
 
     def test_single_module_spec_and_index_longform_do_not_warn(self):
-        # foo/index.js adds @web/foo AND @web/foo/index, both the SAME url —
-        # that is not a collision and must stay silent.
         mods = [self._mod("@web/foo", "/web/static/src/foo/index.js")]
         with self.assertNoLogs(self._LOG, level="WARNING"):
             data = self._data(mods)

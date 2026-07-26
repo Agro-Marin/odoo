@@ -41,9 +41,11 @@ def _stringify_annotation(ann: object) -> str:
     origin = getattr(ann, "__origin__", None)
     if origin is not None:
         args = getattr(ann, "__args__", ())
-        origin_name = getattr(origin, "__qualname__", None) or getattr(
-            origin, "_name", None
-        ) or repr(origin)
+        origin_name = (
+            getattr(origin, "__qualname__", None)
+            or getattr(origin, "_name", None)
+            or repr(origin)
+        )
         return f"{origin_name}[{', '.join(_stringify_annotation(a) for a in args)}]"
     if isinstance(ann, type):
         return ann.__qualname__
@@ -61,10 +63,9 @@ Incompatible override definition in {child_module}:{override_decorators}
 
 
 MODULES_TO_IGNORE = {
-    "pos_blackbox_be",  # TODO cannot update to sanitize without certification
+    "pos_blackbox_be",
 }
 METHODS_TO_IGNORE = {
-    # enterprise: timer_mixin(self) vs timesheet_grid(self, try_to_match=False)
     "action_timer_stop",
 }
 MODEL_METHODS_TO_IGNORE = {
@@ -105,29 +106,14 @@ def check_parameter(
     cparam: inspect.Parameter,
     is_private: bool = False,
 ) -> bool:
-    # don't check annotations
     return (
-        (
-            pparam.name == cparam.name
-            or pparam.kind == POSITIONAL_ONLY
-            or is_private  # ignore names of (positional or keyword) attributes
-        )
+        (pparam.name == cparam.name or pparam.kind == POSITIONAL_ONLY or is_private)
+        and (pparam.default is EMPTY or pparam.default == cparam.default)
         and (
-            # if parent has a default, child should have the same one
-            pparam.default is EMPTY or pparam.default == cparam.default
-        )
-        and (
-            # if both are annotated, then they should be similar (for typing)
             (pann := pparam.annotation) is EMPTY
             or (cann := cparam.annotation) is EMPTY
             or pann == cann
-            # accept annotations of different types as valid to keep logic simple
-            # for example, typing can be a str or the class
             or pann.__class__ != cann.__class__
-            # ForwardRef('X') vs resolved X collapse to the same string —
-            # the source code referenced the same symbol; the only divergence
-            # is whether one of the two modules guarded the import behind
-            # ``if TYPE_CHECKING:`` (so the runtime namespace was empty).
             or _stringify_annotation(pann) == _stringify_annotation(cann)
         )
     )
@@ -137,19 +123,15 @@ def assert_valid_override(parent_signature, child_signature, is_private):
     pparams = parent_signature.parameters
     cparams = child_signature.parameters
 
-    # parent and child have exact same signature
     if pparams == cparams:
         return
 
-    # parent has *args/**kwargs: child can define new custom args/kwargs
     parent_has_varargs = any(pp.kind == VAR_POSITIONAL for pp in pparams.values())
     parent_has_varkwargs = any(pp.kind == VAR_KEYWORD for pp in pparams.values())
 
-    # child has *args/**kwargs: all unknown args/kargs are delegated
     child_has_varargs = any(cp.kind == VAR_POSITIONAL for cp in cparams.values())
     child_has_varkwargs = any(cp.kind == VAR_KEYWORD for cp in cparams.values())
 
-    # check positionals
     pos_kinds = (POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD)
     pposparams = [pp for pp in pparams.values() if pp.kind in pos_kinds]
     cposparams = [cp for cp in cparams.values() if cp.kind in pos_kinds]
@@ -164,7 +146,6 @@ def assert_valid_override(parent_signature, child_signature, is_private):
             f"wrong positional parameter {cparam.name!r}"
         )
 
-    # check keywords
     kw_kinds = (KEYWORD_ONLY,) if is_private else (POSITIONAL_OR_KEYWORD, KEYWORD_ONLY)
     pkwparams = {pp_name: pp for pp_name, pp in pparams.items() if pp.kind in kw_kinds}
     ckwparams = {cp_name: cp for cp_name, cp in cparams.items() if cp.kind in kw_kinds}
@@ -190,9 +171,7 @@ def assert_attribute_override(parent_method, child_method, is_private):
         parent_attr = getattr(parent_method, attribute, None)
         child_attr = getattr(child_method, attribute, None)
         assert parent_attr == child_attr, f"attribute {attribute!r} does not match"
-    # https://docs.python.org/3/library/typing.html#typing.final
     assert not getattr(parent_method, "__final__", False), "parent method is final"
-    # https://docs.python.org/3/library/warnings.html#warnings.deprecated
     assert bool(getattr(parent_method, "__deprecated__", False)) == bool(
         getattr(child_method, "__deprecated__", False)
     ), "parent and child method should either both be deprecated or none of them"
@@ -226,7 +205,6 @@ class TestLintOverrideSignatures(LintCase):
                 ):
                     continue
 
-                # Find the original function definition
                 reverse_mro = reversed(model_cls.mro()[1:-1])
                 for parent_class in reverse_mro:
                     method = getattr(parent_class, method_name, None)
@@ -234,10 +212,6 @@ class TestLintOverrideSignatures(LintCase):
                         break
 
                 parent_module = get_odoo_module_name(parent_class.__module__)
-                # Use FORWARDREF to avoid evaluating annotations at runtime.
-                # Many ORM methods have annotations referencing types imported
-                # only under TYPE_CHECKING (Field, Self, etc.) which would
-                # raise NameError under PEP 649 lazy evaluation.
                 _annfmt = annotationlib.Format.FORWARDREF
                 original_signature = inspect.signature(
                     method, annotation_format=_annfmt
@@ -245,7 +219,6 @@ class TestLintOverrideSignatures(LintCase):
                 original_decorators = get_decorators(method)
                 is_private = method_name.startswith("_")
 
-                # Assert that all child classes correctly override the method
                 for child_class in reverse_mro:
                     if method_name not in child_class.__dict__:
                         continue

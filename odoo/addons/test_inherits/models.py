@@ -2,7 +2,6 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
-# We just create a new model
 class TestUnit(models.Model):
     _name = "test.unit"
     _description = "Test Unit"
@@ -28,7 +27,6 @@ class TestUnitLine(models.Model):
     unit_id = fields.Many2one("test.unit", required=True)
 
 
-# We want to _inherits from the parent model and add some fields in the child object
 class TestBox(models.Model):
     _name = "test.box"
     _inherits = {"test.unit": "unit_id"}
@@ -39,7 +37,6 @@ class TestBox(models.Model):
     size = fields.Integer()
 
 
-# We add a third level of _inherits
 class TestPallet(models.Model):
     _name = "test.pallet"
     _inherits = {"test.box": "box_id"}
@@ -49,7 +46,6 @@ class TestPallet(models.Model):
     field_in_pallet = fields.Char("Field2")
 
 
-# Another model for another test suite
 class TestAnother_Unit(models.Model):
     _name = "test.another_unit"
     _description = "Another Test Unit"
@@ -57,8 +53,6 @@ class TestAnother_Unit(models.Model):
     val1 = fields.Integer("Value 1", required=True)
 
 
-# We want to _inherits from the parent model, add a field and check
-# the new field is always equal to the first one
 class TestAnother_Box(models.Model):
     _name = "test.another_box"
     _inherits = {"test.another_unit": "another_unit_id"}

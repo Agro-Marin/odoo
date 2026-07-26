@@ -8,14 +8,12 @@ class Many2manyCase(TransactionCase):
     def setUp(self):
         super().setUp()
         self.ship = self.env["test_orm.ship"].create({"name": "Colombus"})
-        # the ship contains one prisoner
         self.env["test_orm.prisoner"].create(
             {
                 "name": "Brian",
                 "ship_ids": self.ship.ids,
             }
         )
-        # the ship contains one pirate
         self.blackbeard = self.env["test_orm.pirate"].create(
             {
                 "name": "Black Beard",
@@ -36,9 +34,8 @@ class Many2manyCase(TransactionCase):
         partner = self.env["res.partner"].create(
             {"name": "P", "category_id": [Command.set((a + b).ids)]}
         )
-        b.active = False  # archive one of the two linked categories
+        b.active = False
 
-        # SET to [c] must remove BOTH a and the archived b, leaving only c.
         partner.write({"category_id": [Command.set(c.ids)]})
 
         self.assertEqual(
@@ -60,7 +57,6 @@ class Many2manyCase(TransactionCase):
         p2 = self.env["test_orm.prisoner"].create({"name": "P2"})
         s1 = Ship.new({"name": "S1"})
         s2 = Ship.new({"name": "S2"})
-        # one batch, two pairs, each linking a *different* prisoner
         Ship._fields["prisoner_ids"].write_new(
             [(s1, [Command.link(p1.id)]), (s2, [Command.link(p2.id)])]
         )
@@ -75,7 +71,6 @@ class Many2manyCase(TransactionCase):
         self.assertEqual(pirates, self.redbeard)
 
     def test_not_in_relation_as_query(self):
-        # ship_ids is a Query object
         ship_ids = self.env["test_orm.ship"]._search([("name", "=", "Colombus")])
         pirates = self.env["test_orm.pirate"].search([("ship_ids", "not in", ship_ids)])
         self.assertEqual(len(pirates), 1)
@@ -146,7 +141,6 @@ class Many2manyCase(TransactionCase):
         field = record._fields["m2m_attachment_ids"]
         self.assertTrue(field.bypass_search_access)
 
-        # check that attachments are searched with bypass_access, and filtered with _check_access()
         Attachment = type(attachment)
         with (
             patch.object(
@@ -166,7 +160,6 @@ class Many2manyCase(TransactionCase):
             )
             _check_access.assert_called_once_with(attachment, "read")
 
-        # check that otherwise, attachments are searched without bypass_access
         self.patch(field, "bypass_search_access", False)
         with (
             patch.object(

@@ -9,17 +9,6 @@ from odoo.tests.common import BaseCase, no_retry
 
 from ._checker_pep649 import scan_module
 
-# Modules whose public callables must introspect cleanly.  A regression
-# that re-introduces a ``TYPE_CHECKING``-only annotation in any of these
-# modules will fail the test and name the offending identifier so the
-# contributor knows what to fix.
-#
-# When the cycle itself cannot be runtime-imported (e.g. ``Environment``
-# in ``odoo.tools`` or ``Field`` in ``odoo.tools.sql``), the fix pattern
-# is to keep the ``TYPE_CHECKING`` import for static type checkers but
-# provide a runtime fallback alias (usually ``typing.Any``) in the
-# ``else:`` branch — see ``odoo.tools.files``, ``odoo.tools.locale_utils``
-# and ``odoo.tools.sql`` for the shape.
 CLEAN_MODULES = (
     "odoo.cli.command",
     "odoo.cli.module",

@@ -29,7 +29,9 @@ class InitChecker(ast.NodeVisitor):
             assert (alias.name, alias.asname) == (
                 "*",
                 None,
-            ), f"only star-imports can be used to import test sub-modules, got {ast.dump(node)}"
+            ), (
+                f"only star-imports can be used to import test sub-modules, got {ast.dump(node)}"
+            )
             with unittest.mock.patch.object(
                 self, "prefix", f"{self.prefix}{node.module}/"
             ):
@@ -61,14 +63,13 @@ class TestTestHoles(LintCase):
                 continue
 
             init = p / "__init__.py"
-            assert (
-                init.exists()
-            ), f"Python test directories must have an init, none found in {p}"
+            assert init.exists(), (
+                f"Python test directories must have an init, none found in {p}"
+            )
 
             checker.visit(ast.parse(init.read_bytes(), init))
 
             for f in p.rglob("test_*.py"):
-                # special case of a test file which can't be tested normally
                 if f.match("odoo/addons/base/tests/test_uninstall.py"):
                     continue
                 checker.names[os.fspath(f.relative_to(p))] -= 1

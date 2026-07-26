@@ -20,11 +20,9 @@ from odoo.addons.base.models.ir_fields import BOOLEAN_TRANSLATIONS
 
 
 class TestImport(common.TransactionCase):
-
     def test_import_code_translation(self):
         self.env["res.lang"]._activate_lang("fr_FR")
 
-        # Tip: code translations don't need to be imported explicitly
         model = self.env["test.translation.import.model1"]
         self.assertEqual(
             model.with_context(lang="fr_FR").get_code_translation(),
@@ -80,7 +78,6 @@ class TestImport(common.TransactionCase):
         """
         menu = self.env.ref("test_translation_import.menu_test_translation_import")
         self.assertEqual(menu.name, "Test translation model1")
-        # install french and change translation content
         self.env["res.lang"]._activate_lang("fr_FR")
         self.env["ir.module.module"]._load_module_terms(
             ["test_translation_import"], ["fr_FR"]
@@ -90,7 +87,6 @@ class TestImport(common.TransactionCase):
             "Test translation import in french",
         )
         menu.with_context(lang="fr_FR").name = "Nouveau nom"
-        # reload with overwrite
         self.env["ir.module.module"]._load_module_terms(
             ["test_translation_import"], ["fr_FR"], overwrite=True
         )
@@ -105,7 +101,6 @@ class TestImport(common.TransactionCase):
             ["test_translation_import"], ["fr_BE", "fr_CA"], overwrite=True
         )
 
-        # language override base language
         record = self.env.ref(
             "test_translation_import.test_translation_import_model1_record1"
         )
@@ -119,7 +114,6 @@ class TestImport(common.TransactionCase):
             '<form string="Fourchette, Belgium"><div>Couteau, Belgium</div><div>Cuillère, Belgium</div></form>',
         )
 
-        # not specified localized language fallback on base language
         self.assertEqual(
             record.with_context(lang="fr_CA").get_code_translation(),
             "Code, Français",
@@ -184,7 +178,6 @@ class TestImport(common.TransactionCase):
         )
         context = None
 
-        # Comparison of lazy strings must be explicitely casted to string
         with self.assertRaises(NotImplementedError):
             _ = TRANSLATED_TERM == "Code, English"
         self.assertEqual(
@@ -216,11 +209,10 @@ class TestImport(common.TransactionCase):
             "_lt + _lt concatenation failed",
         )
 
-        # test lazy translation in another module
         self.env["res.lang"]._activate_lang("fr_FR")
         context = {"lang": "en_US"}
         self.assertEqual(str(BOOLEAN_TRANSLATIONS[0]), "yes")
-        context = {"lang": "fr_FR"}  # noqa: F841
+        context = {"lang": "fr_FR"}
         self.assertEqual(str(BOOLEAN_TRANSLATIONS[0]), "oui")
 
     def test_import_from_csv_file(self):
@@ -242,7 +234,6 @@ class TestImport(common.TransactionCase):
         dot_lang = self.env["res.lang"]._lang_get("dot")
         self.assertTrue(dot_lang, "The imported language was not creates")
 
-        # code translation cannot be changed or imported, it only depends on the po file in the module directory
         record = self.env.ref(
             "test_translation_import.test_translation_import_model1_record1"
         )
@@ -260,39 +251,33 @@ class TestImport(common.TransactionCase):
             lang="fr_BE"
         )
 
-        # correctly translate
         self.assertEqual(
             model_fr_BE.get_code_placeholder_translation(1),
             "Code, 1, Français, Belgium",
             "Translation placeholders were not applied",
         )
 
-        # don't translate byte strings as lists
         self.assertEqual(
             model_fr_BE.get_code_placeholder_translation(b"Test byte string"),
             "Code, b'Test byte string', Français, Belgium",
             "Translation placeholders were not applied, byte string argument mishandled",
         )
 
-        # correctly format lists
         self.assertEqual(
             model_fr_BE.get_code_placeholder_translation(["1", "2", "3"]),
             "Code, 1, 2 et 3, Français, Belgium",
             "Translation placeholders were not applied",
         )
 
-        # source error: wrong arguments
         with self.assertRaises(TypeError):
             model_fr_BE.get_code_placeholder_translation(1, "🧀")
 
-        # correctly translate
         self.assertEqual(
             model_fr_BE.get_code_named_placeholder_translation(num=2, symbol="🧀"),
             "Code, 2, 🧀, Français, Belgium",
             "Translation placeholders were not applied",
         )
 
-        # correctly format lists
         self.assertEqual(
             model_fr_BE.get_code_named_placeholder_translation(
                 num=2, symbol=["1", "2", "3"]
@@ -301,11 +286,9 @@ class TestImport(common.TransactionCase):
             "Translation placeholders were not applied",
         )
 
-        # source error: wrong arguments
         with self.assertRaises(KeyError):
-            model_fr_BE.get_code_named_placeholder_translation(symbol="🧀"),
+            (model_fr_BE.get_code_named_placeholder_translation(symbol="🧀"),)
 
-        # correctly translate markup
         self.assertEqual(
             model_fr_BE.get_code_named_placeholder_translation(
                 num=Markup(2), symbol="<🧀>"
@@ -317,7 +300,6 @@ class TestImport(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTranslationFlow(common.TransactionCase):
-
     def test_export_pot(self):
         module_name = "test_translation_import"
         module = self.env.ref("base.module_" + module_name)
@@ -334,7 +316,8 @@ class TestTranslationFlow(common.TransactionCase):
                 translation_file_reader(pot_file, "po"),
                 translation_file_reader(
                     file_path(f"{module_name}/i18n/{module_name}.pot"), "po"
-                ), strict=False,
+                ),
+                strict=False,
             ):
                 self.assertEqual(line1, line2)
 
@@ -359,9 +342,7 @@ class TestTranslationFlow(common.TransactionCase):
         po_file_data = export.data
         self.assertIsNotNone(po_file_data)
 
-        # test code translations
         new_code_translations = CodeTranslations()
-        # a hack to load code translations for new_code_translations
         with io.BytesIO(base64.b64decode(po_file_data)) as po_file:
             po_file.name = "fr_FR.po"
 
@@ -427,7 +408,6 @@ class TestTranslationFlow(common.TransactionCase):
             "Python only translations should not be stored as webclient translations",
         )
 
-        # test model and model terms translations
         record = self.env.ref(
             "test_translation_import.test_translation_import_model1_record1"
         )
@@ -438,7 +418,6 @@ class TestTranslationFlow(common.TransactionCase):
             '<form string="Fourchette"><div>Couteau</div><div>Cuillère</div></form>',
         )
 
-        # remove All translations
         record.name = False
         record.name = "Tableware"
         record.xml = False

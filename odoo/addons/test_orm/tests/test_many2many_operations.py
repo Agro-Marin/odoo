@@ -31,10 +31,6 @@ class TestMany2manyCommands(TransactionCase):
         vals.update(kwargs)
         return self.env["test_orm.discussion"].create(vals)
 
-    # -------------------------------------------------------------------------
-    # Command.link
-    # -------------------------------------------------------------------------
-
     def test_link_command(self):
         """Command.link() adds a relation without removing existing ones."""
         disc = self._make_discussion(categories=[Command.link(self.cat_a.id)])
@@ -61,10 +57,6 @@ class TestMany2manyCommands(TransactionCase):
         )
         self.assertEqual(len(disc.categories), 3)
 
-    # -------------------------------------------------------------------------
-    # Command.unlink
-    # -------------------------------------------------------------------------
-
     def test_unlink_command(self):
         """Command.unlink() removes a specific relation."""
         disc = self._make_discussion(
@@ -81,10 +73,6 @@ class TestMany2manyCommands(TransactionCase):
         disc = self._make_discussion(categories=[Command.link(self.cat_a.id)])
         disc.write({"categories": [Command.unlink(self.cat_c.id)]})
         self.assertEqual(disc.categories, self.cat_a)
-
-    # -------------------------------------------------------------------------
-    # Command.clear
-    # -------------------------------------------------------------------------
 
     def test_clear_command(self):
         """Command.clear() removes all relations."""
@@ -103,10 +91,6 @@ class TestMany2manyCommands(TransactionCase):
         disc = self._make_discussion()
         disc.write({"categories": [Command.clear()]})
         self.assertFalse(disc.categories)
-
-    # -------------------------------------------------------------------------
-    # Command.set
-    # -------------------------------------------------------------------------
 
     def test_set_command(self):
         """Command.set() replaces all relations with the given ids."""
@@ -137,10 +121,6 @@ class TestMany2manyCommands(TransactionCase):
         disc.write({"categories": [Command.set([self.cat_a.id, self.cat_b.id])]})
         self.assertEqual(disc.categories, self.cat_a | self.cat_b)
 
-    # -------------------------------------------------------------------------
-    # Command.create
-    # -------------------------------------------------------------------------
-
     def test_create_command(self):
         """Command.create() creates a new related record and links it."""
         disc = self._make_discussion(
@@ -162,22 +142,13 @@ class TestMany2manyCommands(TransactionCase):
         self.assertEqual(len(disc.categories), 2)
         self.assertEqual(set(disc.categories.mapped("name")), {"Cat X", "Cat Y"})
 
-    # -------------------------------------------------------------------------
-    # Command.delete
-    # -------------------------------------------------------------------------
-
     def test_delete_command(self):
         """Command.delete() unlinks and deletes the related record."""
         cat_temp = self.env["test_orm.category"].create({"name": "Temporary"})
         disc = self._make_discussion(categories=[Command.link(cat_temp.id)])
         disc.write({"categories": [Command.delete(cat_temp.id)]})
         self.assertFalse(disc.categories)
-        # Record should be deleted from DB
         self.assertFalse(cat_temp.exists())
-
-    # -------------------------------------------------------------------------
-    # Combined commands
-    # -------------------------------------------------------------------------
 
     def test_combined_commands(self):
         """Multiple command types in a single write."""
@@ -196,10 +167,6 @@ class TestMany2manyCommands(TransactionCase):
             }
         )
         self.assertEqual(disc.categories, self.cat_b | self.cat_c)
-
-    # -------------------------------------------------------------------------
-    # Create record with M2M
-    # -------------------------------------------------------------------------
 
     def test_create_with_m2m(self):
         """Creating a record with M2M values."""
@@ -323,7 +290,6 @@ class TestMany2manyCache(TransactionCase):
         self.assertFalse(disc.categories)
 
         disc.write({"categories": [Command.link(self.cat_a.id)]})
-        # Should be in cache immediately, no need to invalidate
         self.assertEqual(disc.categories, self.cat_a)
 
     def test_cache_after_clear(self):
@@ -360,7 +326,6 @@ class TestMany2manyCache(TransactionCase):
         )
         disc.flush_recordset()
         disc.invalidate_recordset()
-        # Re-fetch from DB
         self.assertEqual(disc.categories, self.cat_a)
 
     def test_cache_consistency_multiple_writes(self):
@@ -447,7 +412,6 @@ class TestMany2manyRelated(TransactionCase):
             }
         )
 
-        # Pirate and prisoner are on the same ship
         self.assertIn(pirate, ship.pirate_ids)
         self.assertIn(prisoner, ship.prisoner_ids)
         self.assertIn(ship, pirate.ship_ids)
@@ -456,18 +420,13 @@ class TestMany2manyRelated(TransactionCase):
     def test_m2m_with_domain(self):
         """M2M field with domain attribute (test_orm.multi.tags has domain)."""
         tag_a = self.env["test_orm.multi.tag"].create({"name": "alpha"})
-        tag_b = self.env["test_orm.multi.tag"].create(
-            {"name": "xyz"}
-        )  # doesn't match domain ilike 'a'
+        tag_b = self.env["test_orm.multi.tag"].create({"name": "xyz"})
         multi = self.env["test_orm.multi"].create(
             {
                 "partner": self.env.ref("base.partner_root").id,
                 "tags": [Command.set([tag_a.id, tag_b.id])],
             }
         )
-        # Domain on tags field is [("name", "ilike", "a")]
-        # Both are linked, but domain filter may apply on read
-        # The domain is used for UI purposes; the ORM still stores both links
         self.assertTrue(multi.tags)
 
     def test_copy_m2m(self):
@@ -565,7 +524,5 @@ class TestMany2manyQueryCount(TransactionCase):
         )
         self.env.flush_all()
         discussions.invalidate_recordset()
-        # All discussions share the same prefetch group and should return
-        # the correct categories regardless of access order.
         for disc in discussions:
             self.assertEqual(sorted(disc.categories.ids), sorted(self.cats.ids))

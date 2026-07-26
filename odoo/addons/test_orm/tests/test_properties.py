@@ -177,7 +177,6 @@ class PropertiesCase(TestPropertiesMixin):
             )
 
         with self.assertRaises(AccessError):
-            # Even in SUDO, we can not change the field
             definition_record.sudo().properties_field_id = field.id
 
         with self.assertRaises(AccessError):
@@ -244,7 +243,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     def test_properties_field(self):
         self.assertIsInstance(self.message_1.attributes, abc.Mapping)
-        # testing assigned value
         self.assertEqual(
             self.message_1.attributes,
             {
@@ -258,7 +256,6 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.assertEqual(self.message_2.attributes, {"discussion_color_code": "blue"})
 
-        # testing default value
         self.assertEqual(
             self.message_3.attributes,
             {"state": "draft"},
@@ -287,7 +284,6 @@ class PropertiesCase(TestPropertiesMixin):
             },
         )
 
-        # check that the value has been updated in the database
         database_values = self._get_sql_properties(self.message_1)
         self.assertTrue(isinstance(database_values, dict))
         self.assertEqual(
@@ -296,8 +292,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="Value must be updated in the database",
         )
 
-        # if we write False on the field, it should still
-        # return the properties definition for the web client
         self.message_3.attributes = False
         self.env.invalidate_all()
 
@@ -313,7 +307,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
         with self.assertRaises(ValueError):
-            # non-alphanumeric name
             self.message_1.attributes = [
                 {
                     "name": "12     301",
@@ -323,7 +316,6 @@ class PropertiesCase(TestPropertiesMixin):
             ]
 
         with self.assertRaises(ValueError):
-            # too long name
             self.message_1.attributes = [
                 {
                     "name": "name" * 1000,
@@ -333,7 +325,6 @@ class PropertiesCase(TestPropertiesMixin):
             ]
 
         with self.assertRaises(ValueError):
-            # missing 'type'
             self.message_1.attributes = [{"name": "name", "definition_changed": True}]
 
     def test_properties_web_read(self):
@@ -433,7 +424,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
     def test_properties_field_parameters_raised(self):
-        # check that the keys not valid for the given type are raised
         with self.assertRaises(ValueError):
             self.message_1.attributes = [
                 {
@@ -443,9 +433,7 @@ class PropertiesCase(TestPropertiesMixin):
                     "default": "blue",
                     "value": "Test",
                     "definition_changed": True,
-                    "selection": [
-                        ["a", "A"]
-                    ],  # selection key is not valid for char type
+                    "selection": [["a", "A"]],
                 }
             ]
 
@@ -491,7 +479,6 @@ class PropertiesCase(TestPropertiesMixin):
 
         Simulate a write operation done by the web client.
         """
-        # mix both properties
         properties_values = (self.message_1 | self.message_3).read(["attributes"])
         properties_values = (
             properties_values[0]["attributes"] + properties_values[1]["attributes"]
@@ -507,7 +494,6 @@ class PropertiesCase(TestPropertiesMixin):
             properties["definition_changed"] = True
 
         with self.assertRaises(UserError):
-            # Can not write properties on records having different definition
             (self.message_1 | self.message_3).write({"attributes": properties_values})
 
         self.message_3.discussion = self.message_1.discussion
@@ -517,7 +503,6 @@ class PropertiesCase(TestPropertiesMixin):
         sql_values_1 = self._get_sql_properties(self.message_1)
         sql_values_3 = self._get_sql_properties(self.message_3)
 
-        # definition of both child has been changed
         self.assertEqual(
             sql_values_1,
             {
@@ -559,8 +544,6 @@ class PropertiesCase(TestPropertiesMixin):
             },
         ]
 
-        # body column is JSONB (with ->>%s) when test_inherit is installed
-        # (it overrides body with translate=True), otherwise plain text
         body_field = self.env["test_orm.message"]._fields["body"]
         body_col = (
             '"test_orm_message"."body"->>%s'
@@ -569,7 +552,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
         expected_queries = [
-            # read the properties field value
             """ SELECT "test_orm_message"."id",
                        "test_orm_message"."attributes"
                 FROM "test_orm_message"
@@ -591,7 +573,6 @@ class PropertiesCase(TestPropertiesMixin):
                 FROM "test_orm_message"
                 WHERE "test_orm_message"."id" IN (%s)
             """,
-            # read the definition on the definition record
             """ SELECT "test_orm_discussion"."id",
                        "test_orm_discussion"."name",
                        "test_orm_discussion"."moderator",
@@ -605,7 +586,6 @@ class PropertiesCase(TestPropertiesMixin):
                 FROM "test_orm_discussion"
                 WHERE "test_orm_discussion"."id" IN (%s)
             """,
-            # check the many2one existence
             """ SELECT "test_orm_partner"."id"
                 FROM "test_orm_partner"
                 WHERE "test_orm_partner"."id" = ANY(%s)
@@ -625,7 +605,6 @@ class PropertiesCase(TestPropertiesMixin):
         with self.assertQueryCount(5), self.assertQueries(expected_queries):
             self.message_1.read(["attributes"])
 
-        # read in batch a lot of records
         discussions = [self.discussion_1, self.discussion_2]
         partners = self.env["test_orm.partner"].create(
             [{"name": f"Test {i}"} for i in range(50)]
@@ -655,12 +634,8 @@ class PropertiesCase(TestPropertiesMixin):
         with self.assertQueryCount(5), self.assertQueries(expected_queries):
             values = messages.read(["attributes"])
 
-        # remove some partners in the list
         partners[:20].unlink()
         self.env.invalidate_all()
-        # 5 queries instead of 25 queries, thanks to the cache values that has been
-        # cleaned (the properties field can trust the cached value, the deleted ids
-        # are not in the cache even if they still exists in the database)
         with self.assertQueryCount(5):
             values = messages.read(["attributes"])
 
@@ -703,7 +678,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     @mute_logger("odoo.fields")
     def test_properties_field_create_batch(self):
-        # first create to cache the access rights
         self.env["test_orm.message"].create({"name": "test"})
 
         with self.assertQueryCount(2):
@@ -732,7 +706,6 @@ class PropertiesCase(TestPropertiesMixin):
                         "author": self.user.id,
                         "attributes": [
                             {
-                                # no name, should be automatically generated
                                 "string": "Discussion Color code",
                                 "type": "char",
                                 "default": "blue",
@@ -740,7 +713,6 @@ class PropertiesCase(TestPropertiesMixin):
                                 "definition_changed": True,
                             },
                             {
-                                # the name is already set and shouldn't be re-generated
                                 "name": "moderator_partner_id",
                                 "string": "Partner",
                                 "type": "many2one",
@@ -775,7 +747,6 @@ class PropertiesCase(TestPropertiesMixin):
         sql_definition = self._get_sql_definition(self.discussion_1)
         self.assertEqual(len(sql_definition), 2)
 
-        # check the generated name
         property_color_name = sql_definition[0]["name"]
         self.assertTrue(
             property_color_name, msg="Property name must have been generated"
@@ -861,7 +832,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="Writing None should not reset to the default value",
         )
 
-        # test the case where the definition record come from a default as well
         def default_discussion(_record):
             return self.discussion_2.id
 
@@ -883,7 +853,6 @@ class PropertiesCase(TestPropertiesMixin):
                 msg="Should have taken the default value",
             )
 
-            # the definition record come from a default value
             self.discussion_2.attributes_definition = [
                 {
                     "name": "test",
@@ -899,14 +868,12 @@ class PropertiesCase(TestPropertiesMixin):
             self.assertEqual(message.discussion, self.discussion_2)
             self.assertEqual(message.attributes, {"test": "default char"})
 
-        # test a default many2one
         self.discussion_1.attributes_definition = [
             {
                 "name": "my_many2one",
                 "string": "Partner",
                 "comodel": "test_orm.partner",
                 "type": "many2one",
-                # send the value like the web client does
                 "default": [self.partner.id, "Bob"],
             },
         ]
@@ -922,7 +889,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="When reading many2one default, it should return the display name",
         )
 
-        # read the default many2one and deactivate the display_name
         read_values = self.discussion_1.read(["attributes_definition"], load=None)[0][
             "attributes_definition"
         ]
@@ -947,8 +913,6 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.assertEqual(message.attributes, {"my_many2one": self.partner.id})
 
-        # give a default value and a value for a many2one
-        # the default value must be ignored
         property_definition = self.discussion_1.read(["attributes_definition"])[0][
             "attributes_definition"
         ]
@@ -967,7 +931,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="Should not take the default value",
         )
 
-        # default value but no parent are set
         record = self.env["test_orm.message"].create(
             {
                 "attributes": {"my_many2one": self.partner_2.id},
@@ -975,7 +938,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.assertFalse(self._get_sql_properties(record))
 
-        # default value but the parent has no definition
         self.discussion_1.attributes_definition = []
         record = self.env["test_orm.message"].create(
             {
@@ -985,7 +947,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.assertFalse(self._get_sql_properties(record))
 
-        # default value but the parent has no definition and we create a new property
         self.discussion_1.attributes_definition = []
         record = self.env["test_orm.message"].create(
             {
@@ -1003,7 +964,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.assertEqual(self._get_sql_properties(record), {"test": self.partner_2.id})
 
-        # default value, a parent is set and change the definition
         record = self.env["test_orm.message"].create(
             {
                 "discussion": self.discussion_1.id,
@@ -1028,8 +988,6 @@ class PropertiesCase(TestPropertiesMixin):
             {"my_char": "my char", "test": self.partner_2.id},
         )
 
-        # use the context to set the default value, the default key in the definition is ignored
-        # (e.g. when you create a new record in a Kanban view grouped by a property)
         del property_definition[0]["value"]
         self.discussion_1.attributes_definition = property_definition
         partner = self.env["test_orm.partner"].create({"name": "Test Default"})
@@ -1051,7 +1009,6 @@ class PropertiesCase(TestPropertiesMixin):
         properties = message.read(["attributes"])[0]["attributes"]
         self.assertEqual(properties[0]["value"], (partner.id, partner.display_name))
 
-        # "None" is a valid default value
         del property_definition[0]["value"]
         message = (
             self.env["test_orm.message"]
@@ -1167,7 +1124,6 @@ class PropertiesCase(TestPropertiesMixin):
         ]
         self.assertEqual(definition[0]["default"], expected)
 
-        # write a dict on the record
         self.message_2.attributes = {"test_html": xss_payload}
         self.assertEqual(self.message_2.attributes["test_html"], expected)
         properties = self.message_2.read(["attributes"])[0]["attributes"]
@@ -1237,7 +1193,6 @@ class PropertiesCase(TestPropertiesMixin):
             },
         )
 
-        # read the many2one
         properties = self.message_2.read(["attributes"])[0]["attributes"]
         self.assertEqual(
             properties[1]["value"],
@@ -1245,7 +1200,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.assertEqual(properties[1]["comodel"], "test_orm.partner")
 
-        # should not be able to set a transient model
         with self.assertRaises(ValueError):
             self.message_2.attributes = [
                 {
@@ -1274,18 +1228,13 @@ class PropertiesCase(TestPropertiesMixin):
             }
         ]
 
-        # remove the partner on message 2
         self.partner.unlink()
         with self.assertQueryCount(4):
-            # 1 query to read the field
-            # 1 query to read the definition
-            # 2 queries to check if the many2one still exists / display_name
             self.assertIs(
                 self.message_2.read(["attributes"])[0]["attributes"][0].get("value"),
                 None,
             )
 
-        # remove the partner, and use the read method
         self.message_2.attributes = [
             {
                 "name": "moderator_partner_id",
@@ -1300,7 +1249,6 @@ class PropertiesCase(TestPropertiesMixin):
             self.assertFalse(value[1]["value"])
             self.assertEqual(value[1]["comodel"], "test_orm.partner")
 
-        # many2one properties in a default value
         partner = self.env["res.partner"].create({"name": "test unlink"})
         self.message_2.attributes = [
             {
@@ -1337,8 +1285,6 @@ class PropertiesCase(TestPropertiesMixin):
 
     def test_properties_field_many2one_model_removed(self):
         """Test the case where we uninstall a module, and the model does not exist anymore."""
-        # simulate a module uninstall, the model is not available now
-        # when reading the model / many2one, it should return False
         self.message_1.attributes = [
             {
                 "name": "message",
@@ -1367,7 +1313,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="The model does not exist anymore, it should return false",
         )
 
-        # read the many2one on the child, should return False as well
         self.assertFalse(
             self.get_read_dict(self.message_1, "attributes").get("message")
         )
@@ -1388,7 +1333,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="Do not clean the definition until we write on the field",
         )
 
-        # write on the properties definition must clean the wrong model name
         self.discussion_1.attributes_definition = (
             self.discussion_1.attributes_definition
         )
@@ -1413,8 +1357,6 @@ class PropertiesCase(TestPropertiesMixin):
         domain = self.message_1.read(["attributes"])[0]["attributes"][0]["domain"]
         self.assertEqual(domain, "[('name', 'ilike', 'message')]")
 
-        # set a wrong domain, it can happen if we uninstall a module
-        # and if a field defined in this module was used in the domain
         self.env.flush_all()
         new_properties = json.dumps(
             [
@@ -1481,7 +1423,7 @@ class PropertiesCase(TestPropertiesMixin):
             },
             {
                 "name": "boolean_value",
-                "value": 77777,  # should be converted into True
+                "value": 77777,
             },
         ]
 
@@ -1502,10 +1444,6 @@ class PropertiesCase(TestPropertiesMixin):
             False,
             msg="Boolean value must have been converted to False",
         )
-
-        # When the user sets the value 0 for the property fields of type integer
-        # and float, the system should store the value 0 and shouldn't transform
-        # 0 to False (-> unset value).
 
         self.message_1.attributes = {"int_value": 0, "float_value": 0}
         data = self.get_read_dict(self.message_1, "attributes")
@@ -1566,10 +1504,6 @@ class PropertiesCase(TestPropertiesMixin):
             }
         )
 
-        # When the user sets the value 0 for the property fields of type integer
-        # and float, the system shouldn't consider 0 as a falsy value and fallback
-        # to the default value.
-
         self.assertEqual(
             message_1.attributes,
             {
@@ -1589,7 +1523,6 @@ class PropertiesCase(TestPropertiesMixin):
         self.env.invalidate_all()
         self.assertEqual(self.message_3.attributes, {"state": "done"})
 
-        # the option might have been removed on the definition, write False
         self.message_3.attributes = [{"name": "state", "value": "unknown_selection"}]
         self.env.invalidate_all()
         self.assertEqual(
@@ -1597,7 +1530,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
         with self.assertRaises(ValueError):
-            # check that 2 options can not have the same id
             self.discussion_1.attributes_definition = [
                 {
                     "name": "option",
@@ -1726,7 +1658,6 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.env.invalidate_all()
 
-        # remove the DE tags on the definition
         self.discussion_1.attributes_definition = [
             {
                 "name": "my_tags",
@@ -1741,7 +1672,6 @@ class PropertiesCase(TestPropertiesMixin):
             },
         ]
 
-        # the value must remain in the database until the next write on the child
         self.assertEqual(self._get_sql_properties(message), {"my_tags": ["be", "de"]})
         attributes = message.read(["attributes"])[0]["attributes"]
         self.assertEqual(
@@ -1751,13 +1681,11 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.assertEqual(message.attributes, {"my_tags": ["be", "de"]})
 
-        # next write on the child must update the value
         message.attributes = message.read(["attributes"])[0]["attributes"]
 
         self.assertEqual(self._get_sql_properties(message), {"my_tags": ["be"]})
 
         with self.assertRaises(ValueError):
-            # it should detect that the tag is duplicated
             self.discussion_1.attributes_definition = [
                 {
                     "name": "my_tags",
@@ -1827,8 +1755,6 @@ class PropertiesCase(TestPropertiesMixin):
             attributes = self.message_1.read(["attributes"])[0]["attributes"]
             self.assertEqual(attributes[0]["value"], name_get(partners[:10]))
 
-        # regression: hashing a Property holding a many2many (list) value must
-        # not raise TypeError (a frozendict over a list is unhashable).
         self.assertIsInstance(hash(self.message_1.attributes), int)
 
         partners[:5].unlink()
@@ -1841,8 +1767,6 @@ class PropertiesCase(TestPropertiesMixin):
             properties = self.message_1.read(["attributes"])[0]["attributes"]
         self.assertEqual(properties[0]["value"], name_get(partners[6:10]))
 
-        # need to wait next write to clean data in database
-        # a single read won't clean the removed many2many
         attributes = self.message_1.read(["attributes"])[0]["attributes"]
         self.message_1.invalidate_recordset()
         self.message_1.attributes = attributes
@@ -1850,7 +1774,6 @@ class PropertiesCase(TestPropertiesMixin):
         sql_values = self._get_sql_properties(self.message_1)
         self.assertEqual(sql_values, {"moderator_partner_ids": partners[6:10].ids})
 
-        # Check that duplicated ids are removed
         self.env.flush_all()
         moderator_partner_ids = partners[6:10].ids
         moderator_partner_ids += moderator_partner_ids[2:]
@@ -1872,7 +1795,6 @@ class PropertiesCase(TestPropertiesMixin):
             msg="Should removed duplicated ids",
         )
 
-        # write a list with many2many values
         self.message_1.attributes = [
             {
                 "name": "partner_ids",
@@ -1915,7 +1837,6 @@ class PropertiesCase(TestPropertiesMixin):
             ],
         )
 
-        # should not be able to set a transient model
         with self.assertRaises(ValueError):
             self.message_2.attributes = [
                 {
@@ -1937,7 +1858,6 @@ class PropertiesCase(TestPropertiesMixin):
     @users("test")
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.fields")
     def test_properties_field_many2many_filtering(self):
-        # a user read a properties with a many2many and he doesn't have access to all records
         tags = self.env["test_orm.multi.tag"].create(
             [{"name": f"Test Tag {i}"} for i in range(10)]
         )
@@ -1986,7 +1906,6 @@ class PropertiesCase(TestPropertiesMixin):
     def test_properties_field_performance(self):
         self.env.invalidate_all()
         with self.assertQueryCount(5):
-            # read to put the partner name in cache
             self.message_1.read(["attributes"])
 
         with self.assertQueryCount(0, msg="Must read value from cache"):
@@ -2024,7 +1943,6 @@ class PropertiesCase(TestPropertiesMixin):
         last_message_id = (
             self.env["test_orm.message"].search([], order="id DESC", limit=1).id
         )
-        # based on batch optimization, _read_format should not crash on non existing records
         values = (
             self.env["test_orm.message"]
             .browse((self.message_1.id, last_message_id + 1))
@@ -2050,7 +1968,6 @@ class PropertiesCase(TestPropertiesMixin):
         self.env.invalidate_all()
         self.assertEqual(self.get_read_dict(self.message_1, "attributes"), {})
 
-        # add a property on the definition record
         attributes_definition += [{"name": "state", "string": "State", "type": "char"}]
         self.discussion_1.attributes_definition = attributes_definition
         self.message_1.attributes = [{"name": "state", "value": "ready"}]
@@ -2061,12 +1978,7 @@ class PropertiesCase(TestPropertiesMixin):
             self.get_read_dict(self.message_1, "attributes"), {"state": "ready"}
         )
 
-        # remove a property from the definition
-        # the properties on the child can be remained, until we write on it
-        # when reading, the removed property must be filtered
-        self.discussion_1.attributes_definition = attributes_definition[
-            :-1
-        ]  # remove the state field
+        self.discussion_1.attributes_definition = attributes_definition[:-1]
 
         self.assertEqual(
             self.message_1.attributes,
@@ -2087,13 +1999,11 @@ class PropertiesCase(TestPropertiesMixin):
             msg="After updating an other property, the value must be cleaned",
         )
 
-        # check that we can only set a allowed list of properties type
         with self.assertRaises(ValueError):
             self.discussion_1.attributes_definition = [
                 {"name": "state", "type": "wrong_type"}
             ]
 
-        # check the property ID unicity
         with self.assertRaises(ValueError):
             self.discussion_1.attributes_definition = [
                 {"name": "state", "type": "char"},
@@ -2129,7 +2039,6 @@ class PropertiesCase(TestPropertiesMixin):
                 msg="Should take the new definition when changing the definition record",
             )
 
-            # change the discussion field
             message_form.discussion = self.discussion_2
 
             properties = message_form.attributes
@@ -2146,13 +2055,11 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.assertEqual(message.attributes, {"state": "draft"})
 
-        # check cached value
         cached_value = self.env._core.cache.get_value(
             message._fields["attributes"], message.id
         )
         self.assertEqual(cached_value, {"state": "draft"})
 
-        # change the definition record, change the definition and add default values
         self.assertEqual(message.discussion, self.discussion_2)
 
         with self.assertQueryCount(4):
@@ -2202,8 +2109,6 @@ class PropertiesCase(TestPropertiesMixin):
             }
         ]
 
-        # change the message discussion to remove the properties
-        # discussion 1 -> discussion 2
         message.discussion = self.discussion_2
         message.attributes = [{"name": "test", "value": "Test"}]
         fields_spec = message._get_fields_spec()
@@ -2232,8 +2137,6 @@ class PropertiesCase(TestPropertiesMixin):
             "Should have reset the properties definition",
         )
 
-        # change the message discussion to add new properties
-        # discussion 2 -> discussion 1
         message.discussion = self.discussion_1
         values = {
             "discussion": self.discussion_2.id,
@@ -2258,7 +2161,6 @@ class PropertiesCase(TestPropertiesMixin):
             "Should have reset the properties definition to the discussion 1 definition",
         )
 
-        # change the definition record and the definition at the same time
         message_form = Form(message)
         message_form.discussion = self.discussion_2
         message_form.attributes = [
@@ -2276,12 +2178,9 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.assertEqual(message.attributes, {"new_property": "test value"})
 
-        # re-write the same parent again and check that value are not reset
         message.discussion = message.discussion
         self.assertEqual(message.attributes, {"new_property": "test value"})
 
-        # trigger a other onchange after setting the properties
-        # and check that it does not impact the properties
         message.discussion.attributes_definition = []
         message_form = Form(message)
         message.attributes = [
@@ -2307,7 +2206,6 @@ class PropertiesCase(TestPropertiesMixin):
                 "string": "Partner",
                 "comodel": "test_orm.partner",
                 "type": "many2one",
-                # send the value like the web client does
                 "default": [self.partner.id, "Bob"],
                 "value": [self.partner_2.id, "Test"],
             },
@@ -2316,7 +2214,6 @@ class PropertiesCase(TestPropertiesMixin):
                 "string": "Partner",
                 "comodel": "test_orm.partner",
                 "type": "many2many",
-                # send the value like the web client does
                 "default": [
                     [self.partner.id, "Bob"],
                     [self.partner_2.id, "Test"],
@@ -2366,7 +2263,6 @@ class PropertiesCase(TestPropertiesMixin):
 
         message = self.message_1.with_user(self.test_user)
 
-        # a user read a properties with a many2one to a record he doesn't have access to
         tag = self.env["test_orm.multi.tag"].create({"name": "Test Tag"})
 
         message.attributes = [
@@ -2388,8 +2284,6 @@ class PropertiesCase(TestPropertiesMixin):
             values = message.read(["attributes"])[0]["attributes"][0]
         self.assertEqual(values["value"], (tag.id, None))
 
-        # a user read a properties with a many2one to a record
-        # but doesn't have access to its parent
         self.env.invalidate_all()
         with patch(
             "odoo.addons.test_orm.models.test_orm.TestOrmDiscussion.check_access",
@@ -2422,7 +2316,6 @@ class PropertiesCase(TestPropertiesMixin):
         )
         self.env.invalidate_all()
 
-        # this makes message inaccessible, but flush_all() should not crash
         message.discussion = self.discussion_2
         self.env.flush_all()
 
@@ -2513,15 +2406,12 @@ class PropertiesCase(TestPropertiesMixin):
         )
 
     def test_getitem_property(self):
-        # read a property that exist nowhere
         with self.assertRaises(KeyError):
             self.message_3["attributes"]["____"]
 
-        # read a property that exists, but on the wrong record
         with self.assertRaises(KeyError):
             self.message_3["attributes"]["moderator_partner_id"]
 
-        # read many types
         self.assertEqual(self.message_1["attributes"]["discussion_color_code"], "Test")
         self.assertEqual(
             self.message_1["attributes"]["moderator_partner_id"], self.partner
@@ -2575,7 +2465,6 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.message_1.attributes = [
             {
-                # no comodel
                 "name": "many2many",
                 "type": "many2many",
                 "value": (self.partner | self.partner_2).ids,
@@ -2587,10 +2476,8 @@ class PropertiesCase(TestPropertiesMixin):
         with self.assertRaises(KeyError):
             self.message_3["attributes"]["many2many"]
 
-        # call __getitem__ on an empty recordset
         self.assertEqual(self.env["test_orm.message"]["attributes"]["many2many"], False)
 
-        # Test the prefetch on the returned records
         partner_3 = self.env["test_orm.partner"].create({})
         self.message_1.attributes = [
             {
@@ -2628,7 +2515,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         ).unlink()
 
     def test_properties_field_search_boolean(self):
-        # search on boolean
         self.message_1.attributes = [
             {
                 "name": "myboolean",
@@ -2650,8 +2536,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         messages = self._search(
             self.env["test_orm.message"], [("attributes.myboolean", "=", False)]
         )
-        # message 2 has a falsy boolean properties
-        # message 3 doesn't have the properties (key in dict doesn't exist)
         self.assertEqual(messages, self.message_2 | self.message_3)
         messages = self._search(
             self.env["test_orm.message"], [("attributes.myboolean", "!=", True)]
@@ -2659,7 +2543,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(messages, self.message_2 | self.message_3)
 
     def test_properties_field_search_char(self):
-        # search on text properties
         self.message_1.attributes = [
             {
                 "name": "mychar",
@@ -2709,7 +2592,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
                         [(f"attributes.{search}", "=", "Test")]
                     )
 
-        # search falsy properties
         self.message_3.discussion = self.message_2.discussion
         self.message_3.attributes = [{"name": "mychar", "value": False}]
         self.assertEqual(self._get_sql_properties(self.message_3), {"mychar": False})
@@ -2718,8 +2600,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_3)
 
-        # search falsy properties when the key doesn't exist in the dict
-        # message 2 properties is False, message 3 properties doesn't exist in database
         self.message_2.attributes = [{"name": "mychar", "value": False}]
         self.env.cr.execute(
             "UPDATE test_orm_message SET attributes = '{}' WHERE id = %s",
@@ -2735,8 +2615,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_1)
 
-        # message 1 property contain a string but is not falsy so it's not returned
-        # TODO comparing to True makes no sense
         messages = self.env["test_orm.message"].search(
             [("attributes.mychar", "!=", True)]
         )
@@ -2747,7 +2625,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_1)
 
-        # message 3 is now null instead of being an empty dict
         self.env.cr.execute(
             "UPDATE test_orm_message SET attributes = NULL WHERE id = %s",
             [self.message_3.id],
@@ -2764,7 +2641,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(messages, self.message_1)
 
     def test_properties_field_search_float(self):
-        # search on float
         self.message_1.attributes = [
             {
                 "name": "myfloat",
@@ -2796,9 +2672,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(messages, self.message_1)
 
     def test_properties_field_search_date_relative(self):
-        # A relative date value ("today") on a date property must be resolved to
-        # a concrete date rather than compared lexicographically against the raw
-        # "today" literal (regression: the comparison matched every or no row).
         self.message_1.attributes = [
             {
                 "name": "mydate",
@@ -2814,12 +2687,10 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(past, self.message_1)
         future = self._search(Message, [("attributes.mydate", ">", "today")])
         self.assertEqual(future, self.message_2)
-        # An explicit ISO date literal keeps working, too.
         both = self._search(Message, [("attributes.mydate", "<", "2100-01-01")])
         self.assertEqual(both, self.message_1 | self.message_2)
 
     def test_properties_field_search_integer(self):
-        # search on integer
         self.messages.discussion = self.discussion_1
         self.message_1.attributes = [
             {
@@ -2844,7 +2715,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             self.env["test_orm.message"], [("attributes.myint", "=", 111)]
         )
         self.assertEqual(messages, self.message_2)
-        # search on the JSONified value (operator "->>")
         messages = self._search(
             self.env["test_orm.message"], [("attributes.myint", "ilike", "1")]
         )
@@ -2872,8 +2742,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.message_2.attributes = {"mymany2many": [partners[1].id]}
         self.message_3.attributes = {"mymany2many": [partners[2].id]}
 
-        # NOTE: filtered won't work because each message can point to a
-        # different model or even have a different data type
         messages = self.env["test_orm.message"].search(
             [("attributes.mymany2many", "in", partners[0].ids)]
         )
@@ -2891,13 +2759,10 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_2 | self.message_3)
 
-        # IN operator (not supported on many2many and return weird results)
         messages = self.env["test_orm.message"].search(
             [("attributes.mymany2many", "in", partners[0:2].ids)]
         )
-        self.assertEqual(
-            messages, self.message_2
-        )  # should be self.message_1 | self.message_2
+        self.assertEqual(messages, self.message_2)
 
     def test_properties_field_search_many2one(self):
         self.messages.discussion = self.discussion_1
@@ -2913,8 +2778,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.message_2.attributes = {"mypartner": self.partner_2.id}
         self.message_3.attributes = {"mypartner": False}
 
-        # NOTE: filtered won't work because each message can point to a
-        # different model or even have a different data type
         messages = self.env["test_orm.message"].search(
             [
                 (
@@ -2962,7 +2825,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             [("attributes.mytags", "in", "a")]
         )
         self.assertEqual(messages, self.message_1)
-        # the search is done on the JSONified value (operator "->>")
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "ilike", "a")]
         )
@@ -2983,13 +2845,11 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             [("attributes.mytags", "not in", "b")]
         )
         self.assertEqual(messages, self.message_3)
-        # the search is done on the JSONified value (operator "->>")
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "ilike", '["aa"]')]
         )
         self.assertEqual(messages, self.message_3)
 
-        # IN operator on array
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "in", [])]
         )
@@ -3021,14 +2881,11 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
 
     def test_properties_field_search_unaccent(self):
         if not self.registry.has_unaccent:
-            # To enable unaccent feature:
-            # CREATE EXTENSION unaccent;
             msg = "unaccent not enabled"
             raise unittest.SkipTest(msg)
 
         Model = self.env["test_orm.message"]
         (self.message_1 | self.message_2).discussion = self.discussion_1
-        # search on text properties
         self.message_1.attributes = [
             {
                 "name": "mychar",
@@ -3142,7 +2999,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             )
 
             if c == " ":
-                # allow multiple spaces after the property name
                 orders = orders[1:]
 
             for order in orders:
@@ -3190,11 +3046,6 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
 class PropertiesGroupByCase(TestPropertiesMixin):
     def setUp(self):
         super().setUp()
-        # ``web_read_group`` is ``@versioned`` (odoo.tools.cache_version): it
-        # injects a ``__version`` content-hash for the client rpc cache.  These
-        # tests assert the semantic payload only, so strip the stamp from every
-        # call — mirrors the ``result.pop("__version", None)`` convention used
-        # elsewhere (e.g. odoo/addons/test_http/tests/test_webjson.py).
         model_cls = type(self.env["base"])
         original = model_cls.web_read_group
 
@@ -3234,7 +3085,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         Model = self.env["test_orm.message"]
 
         self.messages.discussion = self.discussion_1
-        # search on text properties
         self.message_1.attributes = [
             {
                 "name": "mychar",
@@ -3252,7 +3102,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.message_2.attributes = {"mychar": "qsd", "myinteger": 5}
         self.message_3.attributes = {"mychar": "boum", "myinteger": 1337}
 
-        # group by the char property
         with self.assertQueryCount(3):
             result = Model.formatted_read_group(
                 domain=[],
@@ -3262,7 +3111,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
         self.assertEqual(len(result), 3)
 
-        # check counts
         count_by_values = {
             value["attributes.mychar"]: value["__count"] for value in result
         }
@@ -3270,7 +3118,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(count_by_values["qsd"], 2)
         self.assertEqual(count_by_values[False], 1)
 
-        # check domains
         domain_by_values = {
             value["attributes.mychar"]: value["__extra_domain"] for value in result
         }
@@ -3278,7 +3125,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(domain_by_values["qsd"], [("attributes.mychar", "=", "qsd")])
         self._check_domains_count(result)
 
-        # group by the integer property
         with self.assertQueryCount(3):
             result = Model.formatted_read_group(
                 domain=[],
@@ -3295,7 +3141,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(count_by_values[1337], 2)
         self.assertEqual(count_by_values[False], 1)
 
-        # falsy properties
         self.message_3.attributes = {"mychar": False, "myinteger": False}
         with self.assertQueryCount(3):
             result = Model.formatted_read_group(
@@ -3310,7 +3155,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         self._check_domains_count(result)
 
-        # non existing keys in the dict values should be grouped with False value
         self.env.cr.execute(
             """
             UPDATE test_orm_message
@@ -3330,12 +3174,9 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(
             result[-1]["__extra_domain"], [("attributes.myinteger", "=", False)]
         )
-        result = Model.search(
-            result[-1]["__extra_domain"]
-        )  # check the domain is correct for the search
+        result = Model.search(result[-1]["__extra_domain"])
         self.assertEqual(result, self.message_2 | self.message_3 | self.message_4)
 
-        # test the order by
         result = Model.formatted_read_group(
             domain=[],
             aggregates=["__count"],
@@ -3375,7 +3216,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
     def test_properties_field_web_read_group(self):
         self.messages.discussion = self.discussion_1
-        # search on text properties
         self.message_1.attributes = [
             {
                 "name": "mychar",
@@ -3388,9 +3228,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.message_3.attributes = {"mychar": "boum"}
 
         Model = self.env["test_orm.message"]
-        with self.assertQueryCount(
-            9
-        ):  # 3 for formatted_read_group + 1 per group opened + get_property_definition
+        with self.assertQueryCount(9):
             result = Model.web_read_group(
                 domain=[],
                 aggregates=["__count"],
@@ -3402,7 +3240,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
         self.assertEqual(len(groups), 3)
 
-        # check counts
         count_by_values = {
             value["attributes.mychar"]: value["__count"] for value in groups
         }
@@ -3410,7 +3247,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(count_by_values["qsd"], 2)
         self.assertEqual(count_by_values[False], 1)
 
-        # check domains
         domain_by_values = {
             value["attributes.mychar"]: value["__extra_domain"] for value in groups
         }
@@ -3418,14 +3254,11 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(domain_by_values["qsd"], [("attributes.mychar", "=", "qsd")])
         self._check_domains_count(groups)
 
-        # group boum
         self.assertEqual(groups[0]["__records"], [{"id": self.message_3.id}])
-        # group qsd
         self.assertEqual(
             groups[1]["__records"],
             [{"id": self.message_1.id}, {"id": self.message_2.id}],
         )
-        # group False
         self.assertEqual(groups[2]["__records"], [{"id": self.message_4.id}])
 
     def test_properties_tags_field_web_read_group(self):
@@ -3483,7 +3316,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(result, {"1337": {0: 2}, "5": {0: 1}, "False": {0: 1}})
 
     def _properties_field_read_group_date_prepare(self, date_type="date"):
-        # Format in database: 2023-03-29 09:30:16
         self.messages.discussion = self.discussion_1
         self.discussion_1.attributes_definition = [
             {
@@ -3492,9 +3324,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             }
         ]
         hour = " 13:05:34" if date_type == "datetime" else ""
-        # message 5 has a different year
-        # message 6 has a False value
-        # message 7 is in a different discussion
         self.message_5, self.message_6, self.message_7 = self.env[
             "test_orm.message"
         ].create(
@@ -3528,7 +3357,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
 
         self.assertEqual(len(result), 5)
-        # check values and count
         self.assertEqual(result[0]["__count"], 2)
         self.assertEqual(result[0]["attributes.mydate:day"], False)
         self.assertEqual(result[1]["__count"], 1)
@@ -3539,7 +3367,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(result[3]["attributes.mydate:day"][1], "03 Feb 2023")
         self.assertEqual(result[4]["__count"], 2)
         self.assertEqual(result[4]["attributes.mydate:day"][1], "02 Jan 2023")
-        # check domain
         self.assertEqual(
             Model.search(result[0]["__extra_domain"]),
             self.message_6 | self.message_7,
@@ -3553,8 +3380,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         self._check_domains_count(result)
 
-        # when the order is not specified, the ORM will generate one
-        # based on "attributes.mydate ASC", make sure it works
         result = Model.formatted_read_group(
             domain=[],
             aggregates=["__count"],
@@ -3578,14 +3403,12 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
 
         self.assertEqual(len(result), 3)
-        # check values and count
         self.assertEqual(result[0]["__count"], 2)
         self.assertEqual(result[0]["attributes.mydate:quarter"], False)
         self.assertEqual(result[1]["__count"], 1)
         self.assertEqual(result[1]["attributes.mydate:quarter"][1], "Q2 2077")
         self.assertEqual(result[2]["__count"], 4)
         self.assertEqual(result[2]["attributes.mydate:quarter"][1], "Q1 2023")
-        # check domain
         self.assertEqual(
             Model.search(result[0]["__extra_domain"]),
             self.message_6 | self.message_7,
@@ -3610,7 +3433,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
 
         self.assertEqual(len(result), 4)
-        # check values and count
         self.assertEqual(result[0]["__count"], 2)
         self.assertEqual(result[0]["attributes.mydate:month"], False)
         self.assertEqual(result[1]["__count"], 1)
@@ -3619,7 +3441,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(result[2]["attributes.mydate:month"][1], "February 2023")
         self.assertEqual(result[3]["__count"], 2)
         self.assertEqual(result[3]["attributes.mydate:month"][1], "January 2023")
-        # check domain
         self.assertEqual(
             Model.search(result[0]["__extra_domain"]),
             self.message_6 | self.message_7,
@@ -3651,7 +3472,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
 
         self.assertEqual(len(result), 5)
-        # check values and count
         self.assertEqual(result[0]["__count"], 2)
         self.assertEqual(result[0]["attributes.mydate:week"], False)
         self.assertEqual(result[1]["__count"], 1)
@@ -3661,19 +3481,13 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(result[3]["__count"], 1)
         self.assertEqual(result[3]["attributes.mydate:week"][1], "W5 2023")
         self.assertEqual(result[4]["__count"], 2)
-        # Babel issue mitigation
-        # https://github.com/python-babel/babel/pull/621 -- introduced a new bug
-        # https://github.com/python-babel/babel/pull/887 -- proposed a fix but finally closed
-        # https://sources.debian.org/patches/python-babel/2.10.3-1/ -- Debian reverted 621
-        # so this ugly fix is made to have the test working in patched and non patched versions of Babel
         babel_year = babel.dates.format_date(
             datetime.datetime(2023, 1, 1), "YYYY", "en_US"
-        )  # non patched: '2022' patched: '2023'
-        if babel_year == "2022":  # Broken unpatched babel
+        )
+        if babel_year == "2022":
             self.assertEqual(result[4]["attributes.mydate:week"][1], "W1 2022")
-        else:  # Patched babel
+        else:
             self.assertEqual(result[4]["attributes.mydate:week"][1], "W1 2023")
-        # check domain
         self.assertEqual(
             Model.search(result[0]["__extra_domain"]),
             self.message_6 | self.message_7,
@@ -3687,8 +3501,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         self._check_domains_count(result)
 
-        # test that the first day of the week in the domain care about the local
-        # (based on the lang, the first day of the week might change)
         for line in result[1:]:
             self.assertEqual(line["__extra_domain"][1][1], ">=")
             self.assertEqual(line["__extra_domain"][2][1], "<")
@@ -3697,7 +3509,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             self.assertEqual(start.weekday(), first_week_day)
             self.assertEqual(end.weekday(), first_week_day)
 
-        # now, first day of the week is "Wednesday"
         lang = (
             self.env["res.lang"]
             .with_context(active_test=False)
@@ -3736,14 +3547,12 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
 
         self.assertEqual(len(result), 3)
-        # check values and count
         self.assertEqual(result[0]["__count"], 2)
         self.assertEqual(result[0]["attributes.mydate:year"], False)
         self.assertEqual(result[1]["__count"], 1)
         self.assertEqual(result[1]["attributes.mydate:year"][1], "2077")
         self.assertEqual(result[2]["__count"], 4)
         self.assertEqual(result[2]["attributes.mydate:year"][1], "2023")
-        # check domain
         self.assertEqual(
             Model.search(result[0]["__extra_domain"]),
             self.message_6 | self.message_7,
@@ -3809,7 +3618,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         with self.assertRaises(ValueError), self.assertQueryCount(0):
             Model.formatted_read_group(
                 domain=[],
-                aggregates=["attributes.myinteger:sum"],  # Aggregate is not supported
+                aggregates=["attributes.myinteger:sum"],
             )
 
     @mute_logger("odoo.fields", "odoo.models.unlink")
@@ -3854,15 +3663,12 @@ class PropertiesGroupByCase(TestPropertiesMixin):
                 line["__extra_domain"],
                 [("attributes.mypartners", "in", [partner.id])],
             )
-            # only the fourth partner is in 2 messages
             self.assertEqual(line["__count"], 2 if partner == partners[3] else 1)
 
-        # message 4 is in a different discussion, so it's value is False
         self.assertEqual(Model.search(result[-1]["__extra_domain"]), self.message_4)
         self._check_many_falsy_group("mypartners", result)
         self._check_domains_count(result)
 
-        # now message 1 and 2 will also be in the falsy group
         partners[:8].unlink()
         with self.assertQueryCount(4):
             result = Model.formatted_read_group(
@@ -3879,7 +3685,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self._check_many_falsy_group("mypartners", result)
         self._check_domains_count(result)
 
-        # special case, no partner exists
         existing_partners.unlink()
         result = Model.formatted_read_group(
             domain=[("discussion", "!=", self.wrong_discussion_id)],
@@ -3891,7 +3696,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(result[0]["__count"], 4)
         self._check_domains_count(result)
 
-        # test an invalid model name (e.g. if we uninstalled the module of the model)
         for invalid_model_name in (
             "invalid_model_name",
             "test_orm.transient_model",
@@ -3904,7 +3708,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
                  WHERE id = %s
                 """,
                 [json.dumps(invalid_model_name), self.discussion_1.id],
-            )  # bypass the ORM to set an invalid model name
+            )
             definition = self._get_sql_definition(self.discussion_1)
             self.assertEqual(definition[0]["comodel"], invalid_model_name)
             error_message = f'You cannot use "Partners" because the linked "{invalid_model_name}" model doesn\'t exist or is invalid'
@@ -3919,7 +3723,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
     def test_properties_field_read_group_many2one(self):
         Model = self.env["test_orm.message"]
 
-        # group by many2one property
         self.message_1.attributes = [
             {
                 "name": "mypartner",
@@ -3931,9 +3734,8 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             }
         ]
         self.message_2.attributes = {"mypartner": self.partner.id}
-        self.message_4.attributes = {"mypartner": False}  # explicit False value
+        self.message_4.attributes = {"mypartner": False}
 
-        # this partner id doesn't exist
         unexisting_record_id = (
             self.env["test_orm.partner"].search([], order="id DESC", limit=1).id + 1
         )
@@ -3981,8 +3783,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             [("attributes.mypartner", "=", self.partner_2.id)],
         )
 
-        # falsy domain, automatically generated, contains the false value
-        # and the ids of the records that doesn't exist in the database
         self.assertEqual(result[2]["__count"], 2)
         self.assertEqual(result[2]["attributes.mypartner"], False)
         self.assertEqual(
@@ -3998,7 +3798,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             ],
         )
 
-        # when there's no "('property', '=', False)" domain, it should be created
         self.message_4.attributes = {"mypartner": self.partner.id}
         result = Model.formatted_read_group(
             domain=[],
@@ -4019,8 +3818,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             ],
         )
 
-        # test an invalid model name (e.g. if we uninstalled the module of the model)
-        # should have only one group with the value "False", and all records
         for invalid_model_name in (
             "invalid_model_name",
             "test_orm.transient_model",
@@ -4033,7 +3830,7 @@ class PropertiesGroupByCase(TestPropertiesMixin):
                  WHERE id = %s
                 """,
                 [json.dumps(invalid_model_name), self.discussion_1.id],
-            )  # bypass the ORM to set an invalid model name
+            )
             definition = self._get_sql_definition(self.discussion_1)
             self.assertEqual(definition[0]["comodel"], invalid_model_name)
             error_message = f'You cannot use "My Partner" because the linked "{invalid_model_name}" model doesn\'t exist or is invalid'
@@ -4048,7 +3845,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
     def test_properties_field_read_group_selection(self):
         Model = self.env["test_orm.message"]
 
-        # group by selection property
         self.message_1.attributes = [
             {
                 "name": "myselection",
@@ -4090,8 +3886,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         self.assertEqual(result[0]["attributes.myselection"], "optionA")
 
-        # check that the option that is not valid is included in the "False" domain
-        # the count should be updated as well
         self.assertEqual(result[1]["__count"], 3)
         self.assertEqual(
             result[1]["__extra_domain"],
@@ -4102,13 +3896,11 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             ],
         )
         self.assertEqual(result[1]["attributes.myselection"], False)
-        # double check that the returned domain filter the right record
         self.assertEqual(
             self.env["test_orm.message"].search(result[1]["__extra_domain"]),
             self.message_2 | self.message_3 | self.message_4,
         )
 
-        # special case, there's no option
         self.message_1.attributes = [
             {
                 "name": "myselection",
@@ -4135,7 +3927,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
             self.message_1 | self.message_2 | self.message_3
         ).discussion = self.discussion_1
 
-        # group by tags property
         self.message_1.attributes = [
             {
                 "name": "mytags",
@@ -4178,7 +3969,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
                 group["__extra_domain"],
                 [("attributes.mytags", "in", [tag])],
             )
-            # check that the value when we read the record match the value of the group
             property_values = [
                 next(pro["value"] for pro in values["attributes"])
                 for values in Model.search(group["__extra_domain"]).read(["attributes"])
@@ -4191,7 +3981,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self._check_many_falsy_group("mytags", result)
         self._check_domains_count(result)
 
-        # now message 3 has *only* invalid tags, so it should be in the falsy group
         self.env.cr.execute(
             """
             UPDATE test_orm_message
@@ -4215,7 +4004,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self._check_many_falsy_group("mytags", result)
         self._check_domains_count(result)
 
-        # special case, there's no tag
         for tags in ([], False, None):
             self.message_1.attributes = [
                 {
@@ -4285,7 +4073,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
 
         hour_min = " 00:00:00" if date_type == "datetime" else ""
 
-        # Initial web_read_group everything folded (list view)
         self.assertEqual(
             Model.web_read_group(
                 domain=[],
@@ -4335,7 +4122,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
                 "length": 3,
             },
         )
-        # Second web_read_group year 2077 unfolded
         self.assertEqual(
             Model.web_read_group(
                 domain=[],
@@ -4426,7 +4212,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         group1 = result["groups"]
 
-        # If no unfold specification is provided, only `id` is returned by default
         result = self.env["test_orm.message"].web_read_group(
             domain=[],
             aggregates=["__count"],
@@ -4436,7 +4221,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         )
         group2 = result["groups"]
 
-        # group user 1
         self.assertEqual(
             group1[0]["__records"],
             [
@@ -4453,7 +4237,6 @@ class PropertiesGroupByCase(TestPropertiesMixin):
                 {"id": self.message_4.id},
             ],
         )
-        # group user 2
         self.assertEqual(
             group1[1]["__records"],
             [{"id": self.message_2.id, "author": self.test_user.id}],
@@ -4461,7 +4244,9 @@ class PropertiesGroupByCase(TestPropertiesMixin):
         self.assertEqual(group2[1]["__records"], [{"id": self.message_2.id}])
 
 
-class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestPropertiesMixin):
+class PropertiesFilteredDomainParityCase(
+    TransactionExpressionCase, TestPropertiesMixin
+):
     """``filtered_domain`` / ``search`` parity regressions on properties.
 
     Two fixed divergences:
@@ -4482,8 +4267,6 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # restrict the universe to the mixin's messages so the complement
-        # checks of _search() cover exactly the records under test
         cls.messages = cls.message_1 | cls.message_2 | cls.message_3
         cls.env["test_orm.message"].search(
             [("id", "not in", cls.messages.ids)]
@@ -4495,9 +4278,6 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
             {
                 "name": "mypartner",
                 "type": "many2one",
-                # the mixin's partners are test_orm.partner records — the
-                # comodel must match or the read path's existence check
-                # nullifies the (dangling) values
                 "comodel": "test_orm.partner",
                 "value": self.partner.id,
                 "definition_changed": True,
@@ -4508,17 +4288,12 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
 
         Message = self.env["test_orm.message"]
 
-        # single id (the exact previously-dead shape)
         domain = [("attributes.mypartner", "in", [self.partner.id])]
         found = self._search(Message, domain)
         self.assertEqual(found, self.message_1)
-        # the direct filtered_domain call (regression: used to return empty)
         self.assertEqual(self.messages.filtered_domain(domain), self.message_1)
 
-        # multiple ids
-        domain = [
-            ("attributes.mypartner", "in", [self.partner.id, self.partner_2.id])
-        ]
+        domain = [("attributes.mypartner", "in", [self.partner.id, self.partner_2.id])]
         found = self._search(Message, domain)
         self.assertEqual(found, self.message_1 | self.message_2)
         self.assertEqual(
@@ -4526,14 +4301,12 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
             self.message_1 | self.message_2,
         )
 
-        # 'not in' (routed through the same branch with outside negation)
         domain = [("attributes.mypartner", "not in", [self.partner.id])]
         self.assertEqual(
             self.messages.filtered_domain(domain),
             self.message_2 | self.message_3,
         )
 
-        # empty recordset stays empty (records[:1] probe on no records)
         self.assertEqual(
             Message.browse().filtered_domain(
                 [("attributes.mypartner", "in", [self.partner.id])]
@@ -4556,7 +4329,6 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
 
         Message = self.env["test_orm.message"]
 
-        # ">= 0" must include the 0-valued record on both sides
         domain = [("attributes.myint", ">=", 0)]
         found = self._search(Message, domain)
         self.assertEqual(found, self.message_1 | self.message_2)
@@ -4565,7 +4337,6 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
             self.message_1 | self.message_2,
         )
 
-        # equality on 0
         domain = [("attributes.myint", "=", 0)]
         found = self._search(Message, domain)
         self.assertEqual(found, self.message_1)
@@ -4601,9 +4372,117 @@ class PropertiesFilteredDomainParityCase(TransactionExpressionCase, TestProperti
         self.assertNotIsInstance(values["myint"], bool)
         self.assertEqual(values["myfloat"], 0.0)
         self.assertNotIsInstance(values["myfloat"], bool)
-        # the empty string is deliberately collapsed at write time
         self.assertIs(values["mychar"], False)
 
-        # unset on a sibling record sharing the definition: still False
         self.message_2.discussion = self.discussion_1
         self.assertIs(self.message_2.attributes["myint"], False)
+
+
+class PropertiesRecordsetWriteCase(TestPropertiesMixin):
+    """A relational property must accept back what reading it returns.
+
+    ``Property.__getitem__`` returns a RECORDSET for a many2one/many2many
+    property -- that is its documented contract ("individual properties are
+    returned in their expected type"). But ``Properties.convert_to_cache``
+    accepts four input formats and only the dict one stored its values
+    verbatim: ``Property`` carries pre-normalized ``_values`` and the list
+    format goes through ``_list_to_dict``. So a plain dict carrying a recordset
+    reached the JSONB column unconverted and died inside psycopg with
+    ``TypeError: Object of type test_orm.partner is not JSON serializable`` --
+    at flush time, far from the assignment.
+
+    The stored form is type-dependent (many2one keeps a scalar id, many2many a
+    list), which the recordset cannot tell us: a one-record many2many is a list
+    of one id, not a scalar. The definition decides.
+    """
+
+    def _relational_definition(self):
+        return [
+            {
+                "name": "mym2o",
+                "type": "many2one",
+                "string": "M2O",
+                "comodel": "test_orm.partner",
+            },
+            {
+                "name": "mym2m",
+                "type": "many2many",
+                "string": "M2M",
+                "comodel": "test_orm.partner",
+            },
+        ]
+
+    def setUp(self):
+        super().setUp()
+        self.discussion_1.attributes_definition = self._relational_definition()
+        self.message_1.attributes = {
+            "mym2o": self.partner.id,
+            "mym2m": [self.partner.id, self.partner_2.id],
+        }
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+    def test_read_returns_recordsets(self):
+        """Premise: the record format hands back recordsets."""
+        self.assertEqual(self.message_1.attributes["mym2o"], self.partner)
+        self.assertEqual(
+            self.message_1.attributes["mym2m"], self.partner | self.partner_2
+        )
+
+    def test_partial_dict_write_accepts_a_recordset(self):
+        """``rec.attributes = {name: rec.attributes[name]}`` must round-trip."""
+        for name in ("mym2o", "mym2m"):
+            with self.subTest(property=name):
+                value = self.message_1.attributes[name]
+                self.message_1.attributes = {name: value}
+                self.env.flush_all()
+                self.env.invalidate_all()
+                self.assertEqual(self.message_1.attributes[name], value)
+
+    def test_whole_property_write_still_works(self):
+        """No regression on the format that already worked."""
+        values = self.message_1.attributes
+        self.message_1.attributes = values
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(self.message_1.attributes["mym2o"], self.partner)
+        self.assertEqual(
+            self.message_1.attributes["mym2m"], self.partner | self.partner_2
+        )
+
+    def test_single_record_many2many_stays_a_list(self):
+        """The length of the recordset must not decide the stored shape.
+
+        A one-record many2many is ``[id]``; storing a bare ``id`` makes the next
+        read return an empty recordset.
+        """
+        self.message_1.attributes = {"mym2m": self.partner}
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(self.message_1.attributes["mym2m"], self.partner)
+        stored = self.message_1.read(["attributes"])[0]["attributes"]
+        mym2m = next(p for p in stored if p["name"] == "mym2m")
+        self.assertIsInstance(mym2m["value"], list, mym2m)
+
+    def test_list_format_accepts_a_recordset_too(self):
+        """Every write format agrees: the list format used to raise ValueError."""
+        self.message_1.attributes = [
+            {
+                "name": "mym2o",
+                "type": "many2one",
+                "string": "M2O",
+                "comodel": "test_orm.partner",
+                "value": self.partner_2,
+            }
+        ]
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(self.message_1.attributes["mym2o"], self.partner_2)
+
+    def test_unresolvable_recordset_is_refused_by_name(self):
+        """With no definition to consult, refuse clearly instead of crashing."""
+        self.message_1.discussion = False
+        with self.assertRaises(ValueError) as capture:
+            self.message_1.attributes = {"mym2o": self.partner}
+            self.env.flush_all()
+        self.assertIn("mym2o", str(capture.exception))

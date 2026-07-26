@@ -5,7 +5,6 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestUnityRead(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -113,9 +112,7 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_many2one_query_count(self):
-        with self.assertQueryCount(
-            1 + 1  # 1 query for the search of the domain and read course fields
-        ):  # 1 query to read the data of the author
+        with self.assertQueryCount(1 + 1):
             self.course.web_search_read(
                 domain=(),
                 specification={
@@ -125,9 +122,6 @@ class TestUnityRead(TransactionCase):
             )
 
     def test_read_many2one_degrades_if_it_cannot_read_extra_fields(self):
-        # Fork policy (web-audit 134645d31b2): a m2o target the user cannot
-        # read degrades to False instead of aborting the WHOLE parent read
-        # with AccessError (upstream raised here).
         read = self.course.with_user(self.only_course_user).web_read(
             {
                 "display_name": {},
@@ -179,11 +173,6 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_read_many2one_hides_id_name_if_you_dont_have_access(self):
-        # Fork policy: upstream exposed {"id": ..., "display_name": "ged"} here
-        # via sudo even though the user cannot read the author at all — a
-        # record-rule/ACL name leak. The whole value now degrades to False.
-        # These assertions must keep failing if the sudo leak is reintroduced,
-        # in either web_read() or Many2one.convert_to_read().
         read = self.course.with_user(self.only_course_user).web_read(
             {"display_name": {}, "author_id": {"fields": {"display_name": {}}}}
         )
@@ -197,11 +186,8 @@ class TestUnityRead(TransactionCase):
                 },
             ],
         )
-        # classic read() (load='_classic_read') follows the same policy...
         values = self.course.with_user(self.only_course_user).read(["author_id"])
         self.assertEqual(values[0]["author_id"], False)
-        # ...while load=None still exposes the raw id — it is a column of a
-        # record the user CAN read (mirrors web_read's fields-less branch).
         values = self.course.with_user(self.only_course_user).read(
             ["author_id"], load=None
         )
@@ -235,7 +221,6 @@ class TestUnityRead(TransactionCase):
         values = {"author_id": {"id": self.author.id}}
         new_course = self.course.new(values, origin=self.course)
 
-        # new_course.author_id is a new record
         self.assertTrue(new_course.author_id)
         self.assertFalse(new_course.author_id.id)
 
@@ -277,12 +262,10 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_new_record_with_inherits(self):
-        # virtualize a record
         new_account = self.account.new(origin=self.account)
         self.assertTrue(new_account)
         self.assertFalse(new_account.id)
 
-        # read the virtualized record; field 'id' corresponds to record's origin
         result = new_account.web_read(
             {
                 "name": {},
@@ -300,7 +283,6 @@ class TestUnityRead(TransactionCase):
             ],
         )
 
-        # special case: read the many2one field of _inherits
         self.assertTrue(new_account.person_id)
         self.assertFalse(new_account.person_id.id)
         result = new_account.web_read(
@@ -346,13 +328,7 @@ class TestUnityRead(TransactionCase):
             }
         )
         self.env.invalidate_all()
-        with self.assertQueryCount(
-            1  # read the course with author id
-            + 1  # read the lessons of the course
-            + 1  # read the author name of course
-            + 1  # ids of the teachers of each lesson
-            + 1
-        ):  # read the teacher name of each lessons in one query
+        with self.assertQueryCount(1 + 1 + 1 + 1 + 1):
             course.web_read(
                 {
                     "display_name": {},
@@ -550,9 +526,7 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_read_many2many_gives_ids(self):
-        with self.assertQueryCount(
-            1 + 1 + 1  # 1 query for course  # 1 query for the lessons
-        ):  # 1 query for the attendees ids
+        with self.assertQueryCount(1 + 1 + 1):
             read = self.course.web_read(
                 {
                     "display_name": {},
@@ -730,7 +704,6 @@ class TestUnityRead(TransactionCase):
         )
 
     def test_many2many_limits_with_deleted_records(self):
-        # should we ignore this ? in the python we will not use the limits, and in the RPC we won't delete and read in the same transaction with limits
         pass
 
     def test_many2many_respects_order(self):
@@ -1197,17 +1170,12 @@ class TestUnityRead(TransactionCase):
                 "author": user.id,
             }
         )
-        # Flush to DB so everything is clean
         self.env.flush_all()
         author_name = user.name
         self.assertEqual(msg.name, f"[OrigName] {author_name}")
 
-        # Change the discussion name WITHOUT flushing.
-        # This marks message.name for recomputation in compute_engine,
-        # but the cache still holds the old value.
         disc.name = "NewName"
 
-        # read() must return the recomputed value, not the stale cache
         result = msg.read(["name"])
         self.assertEqual(
             result[0]["name"],
@@ -1228,8 +1196,6 @@ class TestUnityRead(TransactionCase):
         Message = self.env["test_orm.message"]
         user = self.env.user
 
-        # Create a discussion + message so the computed `name` field gets
-        # a real value (exercises PENDING → recompute → real value path)
         disc = Discussion.create(
             {
                 "name": "TestDisc",
@@ -1245,7 +1211,6 @@ class TestUnityRead(TransactionCase):
             }
         )
 
-        # Stored computed `name` should have been recomputed
         result = msg.read(["name", "body"])
         self.assertTrue(
             result[0]["name"],
@@ -1253,17 +1218,13 @@ class TestUnityRead(TransactionCase):
         )
         self.assertEqual(result[0]["body"], "content")
 
-        # Now test genuinely null: create message without discussion/author
-        # so `name` computes to an empty/falsy value
         msg2 = Message.with_context(active_test=False).create(
             {
                 "body": "orphan",
             }
         )
         result2 = msg2.read(["name", "body"])
-        # `name` compute: "[discussion_name] author_name" — both empty → falsy
         self.assertEqual(result2[0]["body"], "orphan")
-        # The key assertion: no crash, no PENDING sentinel leaked
         self.assertNotEqual(
             str(result2[0].get("name", "")),
             "Sentinel.PENDING",

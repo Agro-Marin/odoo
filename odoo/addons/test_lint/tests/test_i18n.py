@@ -41,7 +41,6 @@ class TestI18n(lint_case.LintCase):
             - Does not catch strings that do not start with a capital letter.
         """
         test_cases = [
-            # Multi-line test case
             (
                 """
             <Component
@@ -52,21 +51,18 @@ class TestI18n(lint_case.LintCase):
                     ("customProp=\"'Custom String'\""),
                 ],
             ),
-            # Exclude directives starting with t-
             (
                 """
             <Component t-title="'Some String'" t-esc="some_variable"/>
             """,
                 [],
             ),
-            # Doesn't catch .translate props
             (
                 """
             <Component title.translate="'Some String'" t-esc="some_variable"/>
             """,
                 [],
             ),
-            # Include valid cases
             (
                 """
             <Component title="'Another String'" t-esc="another_variable"/>
@@ -79,7 +75,6 @@ class TestI18n(lint_case.LintCase):
                     ("title=\"'String with an escaped single quote ' inside'\""),
                 ],
             ),
-            # Exclude attributes starting with t- in between valid attributes
             (
                 """
             <Component title="'Valid Title'" t-esc="some_variable" t-title="'Should not be caught'" customProp="'Valid Prop'"/>
@@ -88,7 +83,6 @@ class TestI18n(lint_case.LintCase):
                     ("customProp=\"'Valid Prop'\""),
                 ],
             ),
-            # Ensure it catches strings starting with capital letter and exclude others
             (
                 """
             <Component name="'singleword'" title="'SingleWord'" prop="'another String'"/>

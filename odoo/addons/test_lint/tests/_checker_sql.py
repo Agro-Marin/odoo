@@ -18,7 +18,6 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Cursor expression chains that indicate a cr.execute() call.
 CURSOR_EXPRESSIONS = frozenset(
     {
         "self.env.cr",
@@ -29,10 +28,8 @@ CURSOR_EXPRESSIONS = frozenset(
     }
 )
 
-# Attribute names (or chains) considered safe in SQL construction.
 ATTRIBUTE_WHITELIST = ("_table", "name", "lang", "id", "get_lang.code")
 
-# Function names whose return values are considered safe.
 FUNCTION_WHITELIST = frozenset(
     {
         "create",
@@ -81,7 +78,6 @@ class SqlInjectionChecker:
 
     filepath: str
 
-    # Per-file state: function defs and call sites for cross-function tracking.
     _function_defs: dict[str, list[ast.FunctionDef]] = field(
         default_factory=lambda: defaultdict(list),
         init=False,
@@ -93,13 +89,9 @@ class SqlInjectionChecker:
     _root_call: ast.Call | None = field(default=None, init=False)
     _const_def_cache: dict = field(default_factory=dict, init=False)
 
-    # ── Public API ──────────────────────────────────────────────────
-
     def check(self, tree: ast.Module) -> Iterator[Violation]:
         """Walk *tree* and yield SQL injection violations."""
         yield from self._walk(tree)
-
-    # ── AST Walking ─────────────────────────────────────────────────
 
     def _walk(self, node: ast.AST) -> Iterator[Violation]:
         """Depth-first walk, dispatching to visitors."""
@@ -131,8 +123,6 @@ class SqlInjectionChecker:
                     f"because it is used to build a query at {self.filepath}:{call.lineno}",
                 )
 
-    # ── SQL Injection Detection ─────────────────────────────────────
-
     def _check_sql_injection_risky(self, node: ast.Call) -> bool:
         """Return True if *node* is a risky SQL call."""
         if Path(self.filepath).name.startswith("test_"):
@@ -141,7 +131,6 @@ class SqlInjectionChecker:
         if not node.args:
             return False
 
-        # Check if this is a cursor.execute/SQL call
         match node.func:
             case ast.Attribute(attr=attr) if attr in (
                 "execute",
@@ -216,8 +205,6 @@ class SqlInjectionChecker:
                         return target_node.value
         return node
 
-    # ── Constant Expression Analysis ────────────────────────────────
-
     def _is_constexpr(
         self,
         node: ast.expr,
@@ -257,7 +244,6 @@ class SqlInjectionChecker:
 
             case ast.BinOp(op=op, left=left, right=right):
                 left_ok = self._is_constexpr(left, args_allowed=args_allowed)
-                # %d formatting is always safe (integer only)
                 if (
                     isinstance(op, ast.Mod)
                     and isinstance(left, ast.Constant)
@@ -340,8 +326,6 @@ class SqlInjectionChecker:
             for n in nodes
         )
 
-    # ── Name Resolution ─────────────────────────────────────────────
-
     def _check_name_constexpr(
         self,
         node: ast.Name,
@@ -359,11 +343,9 @@ class SqlInjectionChecker:
         for assign_node in self._find_assignments(scope, name):
             match assign_node:
                 case ast.FunctionDef() | ast.AsyncFunctionDef() | ast.arg():
-                    # Variable comes from function parameter
                     assigned_results.append(args_allowed)
 
                 case ast.Assign(value=value, targets=targets):
-                    # Check if the name is part of a tuple unpack
                     target_position = self._find_tuple_position(targets, name)
                     if target_position is not None:
                         assigned_results.append(
@@ -379,11 +361,6 @@ class SqlInjectionChecker:
                         )
 
                 case ast.AugAssign(value=value):
-                    # Only check the RHS value.  The target's base constness
-                    # is covered by the initial assignment(s) that
-                    # ``_find_assignments`` also yields.  Checking the target
-                    # here would recurse infinitely (the target name is the
-                    # same variable we are already evaluating).
                     assigned_results.append(
                         self._is_constexpr(value, args_allowed=args_allowed)
                     )
@@ -414,8 +391,6 @@ class SqlInjectionChecker:
                         return i
         return None
 
-    # ── Function Call Evaluation ────────────────────────────────────
-
     def _evaluate_function_call(
         self,
         node: ast.Call,
@@ -434,14 +409,12 @@ class SqlInjectionChecker:
 
         if name == "SQL":
             return True
-        # Recursive call to same function → assume safe to avoid infinite loop
         scope = self._find_enclosing_scope(node)
         if isinstance(scope, ast.FunctionDef) and name == scope.name:
             return True
 
         const_args = self._all_const(node.args, args_allowed=args_allowed)
 
-        # Record call site for later re-evaluation when function def is found
         if self._root_call is not None:
             self._callsites[name].append((position, const_args, self._root_call))
 
@@ -480,25 +453,20 @@ class SqlInjectionChecker:
         self._const_def_cache[cache_key] = result
         return result
 
-    # ── Allowability ────────────────────────────────────────────────
-
     def _allowable(self, node: ast.expr) -> bool:
         """Return True if *node* is safe to include in SQL construction."""
-        # Private functions are trusted
         scope = self._find_enclosing_scope(node)
         if isinstance(scope, ast.FunctionDef) and (
             scope.name.startswith("_") or scope.name == "init"
         ):
             return True
 
-        # Name-based psycopg check (replaces astroid safe_infer)
         if self._looks_like_psycopg(node):
             return True
 
         if self._is_constexpr(node):
             return True
 
-        # self._thing is always OK (mostly self._table)
         return (
             isinstance(node, ast.Attribute)
             and isinstance(node.value, ast.Name)
@@ -516,8 +484,6 @@ class SqlInjectionChecker:
             else:
                 break
         return False
-
-    # ── Helpers ──────────────────────────────────────────────────────
 
     @staticmethod
     def _get_attribute_chain(node: ast.expr) -> str:
@@ -565,7 +531,6 @@ class SqlInjectionChecker:
         Yields the **statement** node (Assign, AugAssign, For, etc.) or the
         FunctionDef/arg node if the name comes from parameters.
         """
-        # Check function parameters first
         if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for arg in scope.args.args + scope.args.kwonlyargs:
                 if arg.arg == name:

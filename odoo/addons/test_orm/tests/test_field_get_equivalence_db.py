@@ -26,21 +26,18 @@ from odoo.fields import Command
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
-    # one representative field per fast-path family on test_orm.mixed
-    # (group_user has model access, so a plain internal user hits the FIELD acl,
-    #  not a model-level one).  currency_id covers the Many2one relational path.
     _MIXED_FIELDS = (
-        "count",  # Integer  -> _make_scalar_get(v or 0)
-        "number",  # Float    -> _make_scalar_get(v or 0.0)
-        "amount",  # Monetary -> _make_scalar_get(v or 0.0)
-        "truth",  # Boolean  -> _make_scalar_get(False if None else v)
-        "lang",  # Selection -> _make_scalar_get(False if None else v)
-        "date",  # Date     -> _make_scalar_get(False if None else v)
-        "moment",  # Datetime -> _make_scalar_get(False if None else v)
-        "foo",  # Char     -> BaseString.__get__
-        "text",  # Text     -> BaseString.__get__
-        "comment0",  # Html -> Html.__get__
-        "currency_id",  # Many2one -> Many2one.__get__ / _Relational
+        "count",
+        "number",
+        "amount",
+        "truth",
+        "lang",
+        "date",
+        "moment",
+        "foo",
+        "text",
+        "comment0",
+        "currency_id",
     )
 
     @classmethod
@@ -59,8 +56,6 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
                 "comment0": "<p>hi</p>",
             }
         )
-        # a plain internal user: has test_orm.mixed access (base.group_user) but
-        # NOT base.group_system, so a field restricted to system is denied.
         cls.user = cls.env["res.users"].create(
             {
                 "name": "geteq user",
@@ -71,23 +66,19 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
 
     def test_real_field_acl_raises_denies_and_bypasses_per_fast_path_type(self):
         """Real ACL per fast-path field type: unauthorized read raises AccessError, sudo() bypasses, authorized reads normally."""
-        # this is the end-to-end form of the harness's spy-based preamble check
         self.assertFalse(self.user.has_group("base.group_system"))
-        rec_admin = self.rec  # env user is system in a TransactionCase
+        rec_admin = self.rec
         rec_user = self.rec.with_user(self.user)
         for fname in self._MIXED_FIELDS:
             field = type(self.rec)._fields[fname]
             with self.subTest(field=fname):
-                getattr(rec_user, fname)  # readable before restriction
+                getattr(rec_user, fname)
                 self.patch(field, "groups", "base.group_system")
-                # unauthorized -> AccessError from the inlined preamble
                 with self.assertRaises(AccessError):
                     getattr(rec_user, fname)
-                # su bypass -> same value as the authorized read
                 self.assertEqual(
                     getattr(rec_user.sudo(), fname), getattr(rec_admin, fname)
                 )
-                # authorized (system) user -> no raise
                 getattr(rec_admin, fname)
 
     def test_real_translate_true_per_language_matches_convert_to_record(self):
@@ -106,18 +97,15 @@ class TestFieldGetEquivalenceDB(odoo.tests.TransactionCase):
         for lang, expected in (("en_US", "Knife"), ("fr_FR", "Couteau")):
             r = rec.with_context(lang=lang)
             field = r._fields["name"]
-            got = r.name  # fast path (BaseString.__get__), warms the sub-cache
+            got = r.name
             self.assertEqual(got, expected)
             cache_val = field._get_cache(r.env)[r.id]
-            # oracle (6): fast-path result == convert_to_record(cache_value)
             self.assertEqual(got, field.convert_to_record(cache_val, r))
             seen[lang] = got
         self.assertNotEqual(seen["en_US"], seen["fr_FR"])
 
     def test_real_translate_true_new_record_falls_back_to_en_us(self):
         """Origin-less NEW record, translate=True field read in a non-en language returns the en_US value."""
-        # this is the fast path's documented divergence from canonical
-        # Field.__get__, which would return False and poison the language sub-cache
         self.env["res.lang"]._activate_lang("fr_FR")
         rec = (
             self.env["test_orm.related_translation_1"]

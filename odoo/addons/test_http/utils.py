@@ -6,8 +6,7 @@ import geoip2.models
 from odoo.http import FilesystemSessionStore
 from odoo.libs._vendor.sessions import SessionStore
 
-TEST_IP = "192.0.2.42"  # 192.0.2.0/24 are reserved for documentation,
-# they are like example.com for ip addresses
+TEST_IP = "192.0.2.42"
 TEST_IP_GEOIP_CITY = geoip2.models.City(
     ["en"],
     continent={
@@ -153,9 +152,6 @@ class MemorySessionStore(SessionStore):
         self.store.pop(session.sid, None)
 
     def delete_from_identifiers(self, identifiers, exclude_sid=None):
-        # Mirror FilesystemSessionStore's signature: ``delete_old_sessions``
-        # (delegated to below) passes ``exclude_sid=`` to keep the current
-        # session alive; without this parameter that path TypeErrors.
         sid_to_remove = [
             sid
             for sid in self.store
@@ -184,7 +180,6 @@ class MemorySessionStore(SessionStore):
         return
 
 
-# pylint: disable=W0223(abstract-method)
 class HtmlTokenizer(HTMLParser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -204,7 +199,6 @@ class HtmlTokenizer(HTMLParser):
         self.tokens.append(f"</{tag}>")
 
     def handle_startendtag(self, tag, attrs):
-        # HTML5 <img> instead of XHTML <img/>
         self.handle_starttag(tag, attrs)
 
     def handle_data(self, data):

@@ -34,7 +34,7 @@ class Test_PerformanceBase(models.Model):
 
     @api.depends_context("key")
     def _value_ctx(self):
-        self.env.cr.execute("SELECT 42")  # one dummy query per batch
+        self.env.cr.execute("SELECT 42")
         for record in self:
             record.value_ctx = self.env.context.get("key")
 

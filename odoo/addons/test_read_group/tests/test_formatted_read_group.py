@@ -47,7 +47,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # groupby on many2one, the order uses the order of the comodel (res.partner)
         self.assertEqual(
             Model.formatted_read_group(
                 [], groupby=["key", "partner_id"], aggregates=["value:sum"]
@@ -116,7 +115,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # force order on the aggregates, but keep the partner_id order after.
         self.assertEqual(
             Model.formatted_read_group(
                 [],
@@ -257,7 +255,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                     "partner_id:count_distinct",
                 ],
             )
-            # When there are no groupby, we always get one group
             self.assertEqual(
                 result,
                 [
@@ -345,7 +342,6 @@ class TestFormattedReadGroup(common.TransactionCase):
 
     def test_malformed_params(self):
         Model = self.env["test_read_group.order.line"]
-        # Test malformed groupby clause
         with self.assertRaises(ValueError):
             Model.formatted_read_group([], ["create_date:bad_granularity"])
 
@@ -353,7 +349,7 @@ class TestFormattedReadGroup(common.TransactionCase):
             Model.formatted_read_group([], ["Other stuff create_date:week"])
 
         with self.assertRaises(ValueError):
-            Model.formatted_read_group([], ["create_date"])  # No granularity
+            Model.formatted_read_group([], ["create_date"])
 
         with self.assertRaises(ValueError):
             Model.formatted_read_group([], ["'create_date:week"])
@@ -361,9 +357,8 @@ class TestFormattedReadGroup(common.TransactionCase):
         with self.assertRaises(ValueError):
             Model.formatted_read_group([], ["'create_date:unknown_number"])
 
-        # Test malformed aggregate clause
         with self.assertRaises(ValueError):
-            Model.formatted_read_group([], aggregates=["value"])  # No aggregate
+            Model.formatted_read_group([], aggregates=["value"])
 
         with self.assertRaises(ValueError):
             Model.formatted_read_group([], aggregates=["__count_"])
@@ -394,7 +389,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 [], aggregates=["value:sum", "not_another_field:sum"]
             )
 
-        # Test malformed order clause
         with self.assertRaises(ValueError):
             Model.formatted_read_group([], ["value"], order="__count DESC other")
 
@@ -407,14 +401,14 @@ class TestFormattedReadGroup(common.TransactionCase):
     def test_groupby_date(self):
         """Test what happens when grouping on date fields"""
         Model = self.env["test_read_group.fill_temporal"]
-        Model.create({})  # Falsy date
-        Model.create({"date": "2022-01-29"})  # Saturday (week of '2022-01-24')
-        Model.create({"date": "2022-01-29"})  # Same day
-        Model.create({"date": "2022-01-30"})  # Sunday
-        Model.create({"date": "2022-01-31"})  # Monday (other week)
-        Model.create({"date": "2022-02-01"})  # (other month)
-        Model.create({"date": "2022-05-29"})  # other quarter
-        Model.create({"date": "2023-01-29"})  # other year
+        Model.create({})
+        Model.create({"date": "2022-01-29"})
+        Model.create({"date": "2022-01-29"})
+        Model.create({"date": "2022-01-30"})
+        Model.create({"date": "2022-01-31"})
+        Model.create({"date": "2022-02-01"})
+        Model.create({"date": "2022-05-29"})
+        Model.create({"date": "2023-01-29"})
 
         result = Model.formatted_read_group([], ["date:day"], ["__count"])
         self.assertEqual(
@@ -646,7 +640,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 },
             ],
         )
-        # Reverse order
         result = Model.formatted_read_group(
             [], ["date:year"], ["__count"], order="date:year DESC"
         )
@@ -679,7 +672,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # order param not in the aggregate
         result = Model.formatted_read_group(
             [], ["date:year"], [], order="__count, date:year"
         )
@@ -718,7 +710,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # With 'UTC' timezone (the default one)
         Model = Model.with_context(tz="UTC")
 
         self.assertEqual(
@@ -800,7 +791,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # With 'Europe/Brussels' [+01:00 UTC | +02:00 UTC DST] timezone
         Model = Model.with_context(tz="Europe/Brussels")
         self.assertEqual(
             Model.formatted_read_group(
@@ -881,7 +871,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # With 'America/Anchorage' [-09:00 UTC | -08:00 UTC DST] timezone
         Model = Model.with_context(tz="America/Anchorage")
         self.assertEqual(
             Model.formatted_read_group(
@@ -913,7 +902,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 },
             ],
         )
-        # by hour
         self.assertEqual(
             Model.formatted_read_group(
                 [("id", "in", records.ids)], ["datetime:hour"], ["value:sum"]
@@ -957,17 +945,17 @@ class TestFormattedReadGroup(common.TransactionCase):
     def test_groupby_date_week_timezone(self):
         Model = self.env["test_read_group.fill_temporal"]
         records = Model.create(
-            [  # BE,  SY,  US
-                {"date": "2022-01-01"},  # W52, W01, W01
-                {"date": "2022-01-02"},  # W52, W01, W02
-                {"date": "2022-01-03"},  # W01, W01, W02
-                {"date": "2022-05-27"},  # W21, W21, W22
-                {"date": "2022-05-28"},  # W21, W22, W22
-                {"date": "2022-05-29"},  # W21, W22, W23
-                {"date": "2022-05-30"},  # W22, W22, W23
-                {"date": "2022-06-18"},  # W24, W25, W25
-                {"date": "2022-06-19"},  # W24, W25, W26
-                {"date": "2022-06-20"},  # W25, W25, W26
+            [
+                {"date": "2022-01-01"},
+                {"date": "2022-01-02"},
+                {"date": "2022-01-03"},
+                {"date": "2022-05-27"},
+                {"date": "2022-05-28"},
+                {"date": "2022-05-29"},
+                {"date": "2022-05-30"},
+                {"date": "2022-06-18"},
+                {"date": "2022-06-19"},
+                {"date": "2022-06-20"},
             ],
         )
 
@@ -1000,7 +988,7 @@ class TestFormattedReadGroup(common.TransactionCase):
         )
 
         excepted_results = {
-            "fr_BE": [  # same as ISO
+            "fr_BE": [
                 {
                     "date:week": ("2021-12-27", "W52 2021"),
                     "__extra_domain": [
@@ -1056,7 +1044,7 @@ class TestFormattedReadGroup(common.TransactionCase):
                     "__count": 1,
                 },
             ],
-            "ar_SY": [  # non-iso, start of week = sat
+            "ar_SY": [
                 {
                     "date:week": ("2022-01-01", "W1 2022"),
                     "__extra_domain": [
@@ -1094,7 +1082,7 @@ class TestFormattedReadGroup(common.TransactionCase):
                     "__count": 3,
                 },
             ],
-            "en_US": [  # non-iso, start of week = sun
+            "en_US": [
                 {
                     "date:week": ("2021-12-26", "W1 2022"),
                     "__extra_domain": [
@@ -1163,7 +1151,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 )
                 self.assertEqual(groups, excepted)
 
-                # verify grouping on datetime is identical to grouping on date
                 groups = Model.formatted_read_group(
                     [],
                     groupby=["datetime:week"],
@@ -1176,37 +1163,31 @@ class TestFormattedReadGroup(common.TransactionCase):
                 )
 
         excepted = [
-            # 2022-01-03
             {
                 "date:iso_week_number": 1,
                 "__extra_domain": [("date.iso_week_number", "=", 1)],
                 "__count": 1,
             },
-            # 2022-05-27, 2022-05-28, 2022-05-29
             {
                 "date:iso_week_number": 21,
                 "__extra_domain": [("date.iso_week_number", "=", 21)],
                 "__count": 3,
             },
-            # 2022-05-30
             {
                 "date:iso_week_number": 22,
                 "__extra_domain": [("date.iso_week_number", "=", 22)],
                 "__count": 1,
             },
-            # 2022-06-18 and 2022-06-19
             {
                 "date:iso_week_number": 24,
                 "__extra_domain": [("date.iso_week_number", "=", 24)],
                 "__count": 2,
             },
-            # 2022-06-20
             {
                 "date:iso_week_number": 25,
                 "__extra_domain": [("date.iso_week_number", "=", 25)],
                 "__count": 1,
             },
-            # 2022-01-01 and 2022-01-02 (W52 of 2021)
             {
                 "date:iso_week_number": 52,
                 "__extra_domain": [("date.iso_week_number", "=", 52)],
@@ -1216,7 +1197,6 @@ class TestFormattedReadGroup(common.TransactionCase):
 
         for timezone_key in ("fr_BE", "ar_SY", "en_US"):
             with self.subTest(f"groupby relative week with {timezone_key=}"):
-                # same test as above with week_number as aggregate
                 Model = set_context(timezone_key)
                 groups = Model.formatted_read_group(
                     [],
@@ -1228,28 +1208,14 @@ class TestFormattedReadGroup(common.TransactionCase):
     def test_groupby_date_part_number(self):
         """Test grouping by date part number (ex. month_number gives 1 for January)"""
         Model = self.env["test_read_group.fill_temporal"]
-        Model.create({})  # Falsy date
-        Model.create(
-            {"date": "2022-01-29", "datetime": "2022-01-29 13:55:12"}
-        )  # W4, M1, Q1
-        Model.create(
-            {"date": "2022-01-29", "datetime": "2022-01-29 15:55:13"}
-        )  # W4, M1, Q1
-        Model.create(
-            {"date": "2022-01-30", "datetime": "2022-01-30 13:54:14"}
-        )  # W4, M1, Q1
-        Model.create(
-            {"date": "2022-01-31", "datetime": "2022-01-31 15:55:14"}
-        )  # W5, M1, Q1
-        Model.create(
-            {"date": "2022-02-01", "datetime": "2022-02-01 14:54:13"}
-        )  # W5, M2, Q1
-        Model.create(
-            {"date": "2022-05-29", "datetime": "2022-05-29 14:55:13"}
-        )  # W21, M5, Q2
-        Model.create(
-            {"date": "2023-01-29", "datetime": "2023-01-29 15:55:13"}
-        )  # W4, M1, Q1
+        Model.create({})
+        Model.create({"date": "2022-01-29", "datetime": "2022-01-29 13:55:12"})
+        Model.create({"date": "2022-01-29", "datetime": "2022-01-29 15:55:13"})
+        Model.create({"date": "2022-01-30", "datetime": "2022-01-30 13:54:14"})
+        Model.create({"date": "2022-01-31", "datetime": "2022-01-31 15:55:14"})
+        Model.create({"date": "2022-02-01", "datetime": "2022-02-01 14:54:13"})
+        Model.create({"date": "2022-05-29", "datetime": "2022-05-29 14:55:13"})
+        Model.create({"date": "2023-01-29", "datetime": "2023-01-29 15:55:13"})
 
         result = Model.formatted_read_group([], ["datetime:second_number"], ["__count"])
         self.assertEqual(
@@ -1504,7 +1470,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Test datetime with quarter_number + DESC order
         result = Model.formatted_read_group(
             [],
             ["datetime:quarter_number"],
@@ -1557,11 +1522,8 @@ class TestFormattedReadGroup(common.TransactionCase):
     def test_groupby_datetime_part_with_timezone(self):
         Model = self.env["test_read_group.fill_temporal"]
         self.env["res.lang"]._activate_lang("NZ")
-        # Monday, it is the 5th week in UTC and the 6th in NZ
         Model.create({"value": 98, "datetime": "2023-02-05 23:55:00"})
-        result = Model.with_context(
-            {"tz": "Pacific/Auckland"}
-        ).formatted_read_group(  # GMT+12
+        result = Model.with_context({"tz": "Pacific/Auckland"}).formatted_read_group(
             [],
             aggregates=["__count", "value:sum"],
             groupby=["datetime:iso_week_number"],
@@ -1588,9 +1550,7 @@ class TestFormattedReadGroup(common.TransactionCase):
         Model.create({"value": 98, "date": "2023-02-05"})
         self.env["res.lang"]._activate_lang("NZ")
         self.env["res.lang"]._activate_lang("fr_BE")
-        result = Model.with_context(
-            {"tz": "fr_BE"}
-        ).formatted_read_group(  # GMT+1, first day of week is Monday
+        result = Model.with_context({"tz": "fr_BE"}).formatted_read_group(
             [],
             aggregates=["__count", "value:sum"],
             groupby=["date:day_of_week"],
@@ -1610,9 +1570,7 @@ class TestFormattedReadGroup(common.TransactionCase):
         self.assertEqual(len(res), 1)
         self.assertEqual(res.mapped("value"), [98])
 
-        result = Model.with_context(
-            {"tz": "NZ"}
-        ).formatted_read_group(  # GMT+12, first day of week is Sunday
+        result = Model.with_context({"tz": "NZ"}).formatted_read_group(
             [],
             aggregates=["__count", "value:sum"],
             groupby=["date:day_of_week"],
@@ -1637,8 +1595,8 @@ class TestFormattedReadGroup(common.TransactionCase):
         Model = self.env["test_read_group.fill_temporal"]
         Model.create(
             [
-                {"value": 98, "date": "2023-02-05"},  # Sunday
-                {"value": 99, "date": "2023-02-06"},  # Monday
+                {"value": 98, "date": "2023-02-05"},
+                {"value": 99, "date": "2023-02-06"},
             ]
         )
         self.env["res.lang"]._activate_lang("fr_BE")
@@ -1651,20 +1609,20 @@ class TestFormattedReadGroup(common.TransactionCase):
             result,
             [
                 {
-                    "date:day_of_week": 0,  # Sunday
+                    "date:day_of_week": 0,
                     "__count": 1,
                     "value:sum": 98,
                     "__extra_domain": [("date.day_of_week", "=", 0)],
                 },
                 {
-                    "date:day_of_week": 1,  # Monday
+                    "date:day_of_week": 1,
                     "__count": 1,
                     "value:sum": 99,
                     "__extra_domain": [("date.day_of_week", "=", 1)],
                 },
             ],
         )
-        Model = Model.with_context(lang="fr_BE")  # first day of week is Monday
+        Model = Model.with_context(lang="fr_BE")
         result = Model.formatted_read_group(
             [],
             aggregates=["__count", "value:sum"],
@@ -1674,13 +1632,13 @@ class TestFormattedReadGroup(common.TransactionCase):
             result,
             [
                 {
-                    "date:day_of_week": 1,  # Monday
+                    "date:day_of_week": 1,
                     "__count": 1,
                     "value:sum": 99,
                     "__extra_domain": [("date.day_of_week", "=", 1)],
                 },
                 {
-                    "date:day_of_week": 0,  # Sunday
+                    "date:day_of_week": 0,
                     "__count": 1,
                     "value:sum": 98,
                     "__extra_domain": [("date.day_of_week", "=", 0)],
@@ -1692,8 +1650,8 @@ class TestFormattedReadGroup(common.TransactionCase):
         Model = self.env["test_read_group.fill_temporal"]
         Model.create(
             [
-                {"value": 98, "date": "2023-02-05"},  # Sunday
-                {"value": 99, "date": "2023-02-06"},  # Monday
+                {"value": 98, "date": "2023-02-05"},
+                {"value": 99, "date": "2023-02-06"},
             ]
         )
         self.env["res.lang"]._activate_lang("fr_BE")
@@ -1707,20 +1665,20 @@ class TestFormattedReadGroup(common.TransactionCase):
             result,
             [
                 {
-                    "date:day_of_week": 1,  # Monday
+                    "date:day_of_week": 1,
                     "__count": 1,
                     "value:sum": 99,
                     "__extra_domain": [("date.day_of_week", "=", 1)],
                 },
                 {
-                    "date:day_of_week": 0,  # Sunday
+                    "date:day_of_week": 0,
                     "__count": 1,
                     "value:sum": 98,
                     "__extra_domain": [("date.day_of_week", "=", 0)],
                 },
             ],
         )
-        Model = Model.with_context(lang="fr_BE")  # first day of week is Monday
+        Model = Model.with_context(lang="fr_BE")
         result = Model.formatted_read_group(
             [],
             aggregates=["__count", "value:sum"],
@@ -1731,13 +1689,13 @@ class TestFormattedReadGroup(common.TransactionCase):
             result,
             [
                 {
-                    "date:day_of_week": 0,  # Sunday
+                    "date:day_of_week": 0,
                     "__count": 1,
                     "value:sum": 98,
                     "__extra_domain": [("date.day_of_week", "=", 0)],
                 },
                 {
-                    "date:day_of_week": 1,  # Monday
+                    "date:day_of_week": 1,
                     "__count": 1,
                     "value:sum": 99,
                     "__extra_domain": [("date.day_of_week", "=", 1)],
@@ -1750,26 +1708,24 @@ class TestFormattedReadGroup(common.TransactionCase):
         mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
         tasks = self.env["test_read_group.task"].create(
             [
-                {  # both users
+                {
                     "name": "Super Mario Bros.",
                     "user_ids": [Command.set((mario + luigi).ids)],
                 },
-                {  # mario only
+                {
                     "name": "Paper Mario",
                     "user_ids": [Command.set(mario.ids)],
                 },
-                {  # luigi only
+                {
                     "name": "Luigi's Mansion",
                     "user_ids": [Command.set(luigi.ids)],
                 },
-                {  # no user
+                {
                     "name": "Donkey Kong",
                 },
             ],
         )
 
-        # TODO: should we order by the relation and not by the id also for many2many
-        # (same as many2one) ? for public methods ?
         self.assertEqual(
             tasks.formatted_read_group(
                 [("id", "in", tasks.ids)],
@@ -1795,7 +1751,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Inverse the order, only inverse depending on id (see TODO above)
         self.assertEqual(
             tasks.formatted_read_group(
                 [("id", "in", tasks.ids)],
@@ -1822,7 +1777,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # group tasks with some ir.rule on users
         users_model = self.env["ir.model"]._get(mario._name)
         self.env["ir.rule"].create(
             {
@@ -1832,7 +1786,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             },
         )
 
-        # as demo user, ir.rule should apply
         tasks = tasks.with_user(self.base_user)
         result = tasks.formatted_read_group(
             [], groupby=["user_ids"], aggregates=["__count", "name:array_agg"]
@@ -1894,7 +1847,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # env.su => false
         RelatedBase = RelatedBase.with_user(self.base_user)
 
         field_info = RelatedBase.fields_get(
@@ -1948,7 +1900,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Same result for these 3 scenarios, except name of the group
         for fname in (
             "foo_id_bar_id_name",
             "foo_id_bar_name",
@@ -1981,7 +1932,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Cannot groupby on foo_names_sudo because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar.formatted_read_group([], ["foo_names_sudo"])
 
@@ -2007,7 +1957,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # env.su => false
         RelatedInherits = RelatedInherits.with_user(self.base_user)
 
         field_info = RelatedInherits.fields_get(
@@ -2072,7 +2021,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ],
         )
 
-        # Cannot groupby because foo_id_name is related_sudo=False
         with self.assertRaises(ValueError):
             RelatedInherits.formatted_read_group([], ["foo_id_name"])
 
@@ -2139,7 +2087,6 @@ class TestFormattedReadGroup(common.TransactionCase):
         field_info = RelatedFoo.fields_get(["bar_base_ids"], ["groupable"])
         self.assertTrue(field_info["bar_base_ids"]["groupable"])
 
-        # With ir.rule on the comodel of the many2many
         related_base_model = self.env["ir.model"]._get("test_read_group.related_base")
         self.env["ir.rule"].create(
             {
@@ -2171,7 +2118,6 @@ class TestFormattedReadGroup(common.TransactionCase):
         )
 
     def test_order_by_many2one_id_perf(self):
-        # ordering by a many2one ordered itself by id does not use useless join
         OrderLine = self.env["test_read_group.order.line"]
         expected_query = """
             SELECT "test_read_group_order_line"."order_id", COUNT(*)
@@ -2186,7 +2132,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 [], ["order_id"], ["__count"], order="order_id DESC"
             )
 
-        # a hack to check model order
         expected_query = """
             SELECT "test_read_group_order_line"."order_id", COUNT(*)
             FROM "test_read_group_order_line"
@@ -2241,7 +2186,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ]
         )
 
-        # warmup ormcache
         RelatedBase.formatted_read_group([], ["foo_id.bar_id"], ["__count"])
 
         expected_query = """
@@ -2291,10 +2235,8 @@ class TestFormattedReadGroup(common.TransactionCase):
                 RelatedBase.search_count(group["__extra_domain"]),
             )
 
-        # Test without sudo but without ir_rules
         RelatedBase = RelatedBase.with_user(self.base_user)
 
-        # warmup ormcache
         RelatedBase.formatted_read_group([], ["foo_id.bar_id"], ["__count"])
 
         with self.assertQueries([expected_query]):
@@ -2335,7 +2277,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                 RelatedBase.search_count(group["__extra_domain"]),
             )
 
-        # Test without sudo + ir_rules
         users_model = self.env["ir.model"]._get(RelatedFoo._name)
         self.env["ir.rule"].create(
             {
@@ -2346,11 +2287,12 @@ class TestFormattedReadGroup(common.TransactionCase):
         )
         RelatedBase = RelatedBase.with_user(self.base_user)
 
-        # warmup ormcache
         RelatedBase.formatted_read_group([], ["foo_id.bar_id"], ["__count"])
 
         alias_join = f"test_read_group_related_base__foo_id__{self.base_user.id}"
-        with self.assertQueries([f"""
+        with self.assertQueries(
+            [
+                f"""
             SELECT "{alias_join}"."bar_id",
                    COUNT(*)
             FROM "test_read_group_related_base"
@@ -2364,8 +2306,9 @@ class TestFormattedReadGroup(common.TransactionCase):
                 )
             GROUP BY "{alias_join}"."bar_id"
             ORDER BY "{alias_join}"."bar_id" ASC
-        """]):
-            # foos[0] not accessible, then foo_id.bar_id results in empty recordset
+        """
+            ]
+        ):
             result = RelatedBase.formatted_read_group(
                 [], ["foo_id.bar_id"], ["__count"]
             )
@@ -2434,10 +2377,8 @@ class TestFormattedReadGroup(common.TransactionCase):
             ]
         )
 
-        # Warmup ormcache
         RelatedBase.formatted_read_group([], ["foo_id.bar_id.name"], ["__count"])
 
-        # Same query generated by grouping foo_id.bar_id.name/foo_id.bar_name/foo_id.bar_name_sudo
         query_expected = """
             SELECT "test_read_group_related_base__foo_id__bar_id"."name",
                     COUNT(*)
@@ -2481,7 +2422,6 @@ class TestFormattedReadGroup(common.TransactionCase):
                         ("foo_id", "any", [("bar_name_sudo", "=", value)]),
                     ]
                 return [("foo_id", "any", [("bar_name_sudo", "=", value)])]
-            # foo_id.bar_name
             if not value:
                 return [
                     "|",
@@ -2524,17 +2464,13 @@ class TestFormattedReadGroup(common.TransactionCase):
                     RelatedBase.search_count(group["__extra_domain"]),
                 )
 
-        # Cannot groupby on foo_ids.name because it traverses One2many
         with self.assertRaises(ValueError):
             RelatedBar.formatted_read_group([], ["foo_ids.name"])
 
-        # Test without sudo but without ir_rules
         RelatedBase = RelatedBase.with_user(self.base_user)
 
-        # Warmup ormcache
         RelatedBase.formatted_read_group([], ["foo_id.bar_id.name"], ["__count"])
 
-        # Same query generated by grouping foo_id.bar_id.name/foo_id.bar_name_sudo
         expected_query = """
             SELECT "test_read_group_related_base__foo_id__bar_id"."name",
                     COUNT(*)
@@ -2576,11 +2512,9 @@ class TestFormattedReadGroup(common.TransactionCase):
                     RelatedBase.search_count(group["__extra_domain"]),
                 )
 
-        # Doesn't work since bar_name is unsudoed
         with self.assertRaises(ValueError):
             RelatedBase.formatted_read_group([], ["foo_id.bar_name"], ["__count"])
 
-        # Test without sudo + ir_rules
         users_model = self.env["ir.model"]._get(RelatedFoo._name)
         self.env["ir.rule"].create(
             {
@@ -2590,10 +2524,8 @@ class TestFormattedReadGroup(common.TransactionCase):
             }
         )
 
-        # Warmup ormcache
         RelatedBase.formatted_read_group([], ["foo_id.bar_id.name"], ["__count"])
 
-        # Same query generated by grouping foo_id.bar_id.name/foo_id.bar_name_sudo
         alias_join = f"test_read_group_related_base__foo_id__{self.base_user.id}"
         expected_query = f"""
             SELECT "{alias_join}__bar_id"."name",
@@ -2615,7 +2547,6 @@ class TestFormattedReadGroup(common.TransactionCase):
 
         for fname_sequence in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:
             with self.assertQueries([expected_query]):
-                # foos[0] not accessible, then bar_a only exists via foos[2]
                 result = RelatedBase.formatted_read_group(
                     [], [fname_sequence], ["__count"]
                 )
@@ -2669,7 +2600,6 @@ class TestFormattedReadGroup(common.TransactionCase):
             ]
         )
 
-        # With 'UTC' timezone (the default one)
         RelatedBase = RelatedBase.with_context(tz="UTC")
 
         result = RelatedBase.formatted_read_group(
@@ -2775,12 +2705,10 @@ class TestFormattedReadGroup(common.TransactionCase):
 
 
 class TestFormattedReadGroupMonetary(common.TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        # For Monetary Aggregates
         cls.usd = cls.env.ref("base.USD")
         cls.usd.active = True
         cls.eur = cls.env.ref("base.EUR")
@@ -2810,46 +2738,46 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 {
                     "name": "key1",
                     "currency_id": cls.usd.id,
-                    "total_in_currency_id": 1.00,  # 1 $
+                    "total_in_currency_id": 1.00,
                     "related_model_id": usd_parent.id,
-                    "total_in_related_stored_currency_id": 4.00,  # 4 $
+                    "total_in_related_stored_currency_id": 4.00,
                 },
                 {
                     "name": "key3",
                     "currency_id": cls.usd.id,
-                    "total_in_currency_id": 2.00,  # 2 $
+                    "total_in_currency_id": 2.00,
                     "related_model_id": eur_parent.id,
-                    "total_in_related_stored_currency_id": 1.00,  # 1 €
+                    "total_in_related_stored_currency_id": 1.00,
                 },
                 {
                     "name": "key1",
                     "currency_id": cls.eur.id,
-                    "total_in_currency_id": 1.00,  # 1 €
+                    "total_in_currency_id": 1.00,
                     "related_model_id": usd_parent.id,
-                    "total_in_related_stored_currency_id": 3.00,  # 3 $
+                    "total_in_related_stored_currency_id": 3.00,
                 },
                 {
                     "name": "key2",
                     "currency_id": cls.eur.id,
-                    "total_in_currency_id": 2.00,  # 2 €
+                    "total_in_currency_id": 2.00,
                     "related_model_id": eur_parent.id,
-                    "total_in_related_stored_currency_id": 3.00,  # 3 €
+                    "total_in_related_stored_currency_id": 3.00,
                 },
                 {
                     "name": "key1",
-                    "total_in_currency_id": 1.00,  # 1 (no currency)
+                    "total_in_currency_id": 1.00,
                     "total_in_related_stored_currency_id": 1.00,
                 },
                 {
                     "name": "key2",
                     "currency_id": cls.stn.id,
-                    "total_in_currency_id": 1.00,  # 1 Db (no active currency)
+                    "total_in_currency_id": 1.00,
                     "related_model_id": stn_parent.id,
-                    "total_in_related_stored_currency_id": 1.00,  # 1 Db (no active currency)
+                    "total_in_related_stored_currency_id": 1.00,
                 },
             ]
         )
-        cls.env["res.currency.rate"].search([]).unlink()  # Avoid demo data messing up tests
+        cls.env["res.currency.rate"].search([]).unlink()
 
     def test_monetary_fields_agg_in_fields_get(self):
         field_infos = self.MonetaryAgg.fields_get()
@@ -2871,26 +2799,26 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 {
                     "currency_id": self.eur.id,
                     "name": fields.Date.context_today(self),
-                    "rate": 0.8,  # 1 $ = 0.8 eur, 1 eur = 1.25 $
+                    "rate": 0.8,
                 },
                 {
                     "currency_id": self.stn.id,
                     "name": fields.Date.context_today(self),
-                    "rate": 20,  # 1 $ = 20 Db, 1 Db = 0.05 $
+                    "rate": 20,
                 },
             ]
         )
 
         aggregates = [
-            # The webclient should ask these 3 aggregates
             "total_in_currency_id:sum",
             "currency_id:array_agg_distinct",
             "total_in_currency_id:sum_currency",
         ]
-        # warmup
         self.MonetaryAgg.formatted_read_group([], [], aggregates)
 
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT
                 SUM("test_read_group_aggregate_monetary"."total_in_currency_id"),
                 (SELECT array_agg(v ORDER BY v) FROM (SELECT DISTINCT unnest(array_agg("test_read_group_aggregate_monetary"."currency_id")) AS v) sub),
@@ -2911,7 +2839,9 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 ) AS "test_read_group_aggregate_monetary__currency_id__rates" ON (
                     "test_read_group_aggregate_monetary"."currency_id" = "test_read_group_aggregate_monetary__currency_id__rates"."currency_id"
                 )
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 self.MonetaryAgg.formatted_read_group([], [], aggregates),
                 [
@@ -2921,7 +2851,6 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                             self.usd + self.eur + self.stn
                         ).ids
                         + [None],
-                        # 3 $ + 3 euro + 1 Db + 1 no currency = 7.8 $
                         "total_in_currency_id:sum_currency": 3 + 3 * 1.25 + 0.05 + 1,
                         "__extra_domain": [(1, "=", 1)],
                     },
@@ -2936,28 +2865,26 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                     "total_in_currency_id:sum": 3,
                     "currency_id:array_agg_distinct": (self.usd + self.eur).ids
                     + [None],
-                    "total_in_currency_id:sum_currency": 2 + 1.25,  # 2 $ + 1 euro
+                    "total_in_currency_id:sum_currency": 2 + 1.25,
                     "__extra_domain": [("name", "=", "key1")],
                 },
                 {
                     "name": "key2",
                     "total_in_currency_id:sum": 3,
                     "currency_id:array_agg_distinct": (self.eur + self.stn).ids,
-                    "total_in_currency_id:sum_currency": 0.05
-                    + 2 * 1.25,  # 1 Db + 2 eur
+                    "total_in_currency_id:sum_currency": 0.05 + 2 * 1.25,
                     "__extra_domain": [("name", "=", "key2")],
                 },
                 {
                     "name": "key3",
                     "total_in_currency_id:sum": 2,
                     "currency_id:array_agg_distinct": self.usd.ids,
-                    "total_in_currency_id:sum_currency": 2.0,  # 2 $
+                    "total_in_currency_id:sum_currency": 2.0,
                     "__extra_domain": [("name", "=", "key3")],
                 },
             ],
         )
 
-        # Test grouping_sets code path
         grouping_sets = [[], ["name"], ["currency_id"], ["name", "currency_id"]]
         self.assertEqual(
             self.MonetaryAgg.formatted_read_grouping_sets(
@@ -2976,24 +2903,25 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 {
                     "currency_id": self.usd.id,
                     "name": fields.Date.context_today(self),
-                    "rate": 1.25,  # 1 $ = 0.8 eur, 1 eur = 1.25 $
+                    "rate": 1.25,
                 },
                 {
                     "currency_id": self.stn.id,
                     "name": fields.Date.context_today(self),
-                    "rate": 25,  # 1 eur = 25 Db, 1 Db = 0.04 eur
+                    "rate": 25,
                 },
             ]
         )
 
         aggregates = [
-            # The webclient should ask these 3 aggregates
             "total_in_currency_id:sum",
             "currency_id:array_agg_distinct",
             "total_in_currency_id:sum_currency",
         ]
         self.MonetaryAgg.formatted_read_group([], [], aggregates)
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT
                 SUM("test_read_group_aggregate_monetary"."total_in_currency_id"),
                 (SELECT array_agg(v ORDER BY v) FROM (SELECT DISTINCT unnest(array_agg("test_read_group_aggregate_monetary"."currency_id")) AS v) sub),
@@ -3014,7 +2942,9 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 ) AS "test_read_group_aggregate_monetary__currency_id__rates" ON (
                     "test_read_group_aggregate_monetary"."currency_id" = "test_read_group_aggregate_monetary__currency_id__rates"."currency_id"
                 )
-        """]):
+        """
+            ]
+        ):
             self.assertEqual(
                 self.MonetaryAgg.formatted_read_group([], [], aggregates),
                 [
@@ -3024,12 +2954,10 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                             self.usd + self.eur + self.stn
                         ).ids
                         + [None],
-                        "total_in_currency_id:sum_currency":
-                        # 3 $ + 3 euro + 1 Db + 1 no currency = 6.44 euro
-                        (3 * 0.8)
+                        "total_in_currency_id:sum_currency": (3 * 0.8)
                         + 3
                         + (1 * 0.05 * 0.8)
-                        + 1,  # Do nothing, if no currency is set
+                        + 1,
                         "__extra_domain": [(1, "=", 1)],
                     }
                 ],
@@ -3041,12 +2969,12 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                 {
                     "currency_id": self.eur.id,
                     "name": fields.Date.context_today(self),
-                    "rate": 0.8,  # 1 $ = 0.8 eur, 1 eur = 1.25 $
+                    "rate": 0.8,
                 },
                 {
                     "currency_id": self.stn.id,
                     "name": fields.Date.context_today(self),
-                    "rate": 20,  # 1 $ = 20 Db, 1 Db = 0.05 $
+                    "rate": 20,
                 },
             ]
         )
@@ -3070,17 +2998,16 @@ class TestFormattedReadGroupMonetary(common.TransactionCase):
                         self.usd + self.eur + self.stn
                     ).ids
                     + [None],
-                    "total_in_currency_id:sum_currency":
-                    # 3 $ + 3 euro + 1 Db + 1 no currency = 7.8 euro
-                    3 + 3 * 1.25 + 0.05 + 1,  # Do nothing, if no currency is set
+                    "total_in_currency_id:sum_currency": 3 + 3 * 1.25 + 0.05 + 1,
                     "total_in_related_stored_currency_id:sum": 13.0,
                     "related_stored_currency_id:array_agg_distinct": (
                         self.usd + self.eur + self.stn
                     ).ids
                     + [None],
-                    "total_in_related_stored_currency_id:sum_currency":
-                    # 7 $ + 4 euro + 1 Db + 1 no currency = 13.05 euro
-                    7 + (4 * 1.25) + 0.05 + 1,  # Do nothing, if no currency is set
+                    "total_in_related_stored_currency_id:sum_currency": 7
+                    + (4 * 1.25)
+                    + 0.05
+                    + 1,
                     "__extra_domain": [(1, "=", 1)],
                 }
             ],

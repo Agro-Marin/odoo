@@ -81,7 +81,7 @@ class ResPartner(models.Model):
     currency_id = fields.Many2one(
         "res.currency", compute="_get_company_currency", readonly=True
     )
-    monetary = fields.Monetary()  # implicitly depends on currency_id as currency_field
+    monetary = fields.Monetary()
 
     def _get_company_currency(self):
         for partner in self:

@@ -33,7 +33,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             trigger: ".o_main_navbar",
         },
         {
-            // Add Stockable product
             isActive: ["desktop"],
             trigger:
                 ".o_menu_sections .dropdown-toggle span:contains('Products')",
@@ -117,7 +116,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
                 if (e) {
                     await actions.click(e);
                 } else {
-                    await actions.click(); // close dropdown
+                    await actions.click();
                 }
             },
         },
@@ -152,8 +151,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             trigger: ".o_form_editable",
         },
         {
-            // Add first component
-            // FIXME in mobile replace list by kanban + form
             trigger: ".o_field_x2many_list_row_add > a",
             content: _t("Click here to add some lines."),
             tooltipPosition: "bottom",
@@ -197,7 +194,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "edit the_flow.component1",
         },
         {
-            // Edit first component
             isActive: ["desktop"],
             trigger: ".o_selected_row .o_external_button",
             content: _t("Click here to edit your component"),
@@ -211,8 +207,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "click",
         },
         {
-            // FIXME WOWL: can't toggle boolean by clicking on label (only with tour helpers, only in dialog ???)
-            // trigger: '.o_field_widget[name=route_ids] .form-check > label:contains("Replenish on Order (MTO)")',
             trigger:
                 '.o_field_widget[name=route_ids] .form-check:contains("Replenish on Order (MTO)") input',
             content: _t("Check Replenish on Order (MTO)"),
@@ -358,13 +352,11 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             isActive: ["mobile"],
             trigger: ".o_field_widget[name=code] input",
             run: "edit Test",
-            // click somewhere else to exit cell focus
         },
         {
             isActive: ["desktop"],
             trigger: 'th:contains("Unit")',
             run: "click",
-            // click somewhere else to exit cell focus
         },
         {
             isActive: ["desktop"],
@@ -378,7 +370,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             trigger: ".o_breadcrumb .active:contains('the_flow.product')",
         },
         {
-            // Add second component
             isActive: ["desktop"],
             trigger: ".o_field_x2many_list_row_add > a",
             content: _t("Click here to add some lines."),
@@ -439,7 +430,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "click",
         },
         {
-            // Edit second component
             isActive: ["desktop"],
             trigger: ".o_selected_row .o_external_button",
             content: _t("Click here to edit your component"),
@@ -550,13 +540,11 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             isActive: ["mobile"],
             trigger: ".o_field_widget[name=code] input",
             run: "edit Test",
-            // click somewhere else to exit cell focus
         },
         {
             isActive: ["desktop"],
             trigger: 'th:contains("Unit")',
             run: "click",
-            // click somewhere else to exit cell focus
         },
         {
             trigger: ".o_back_button",
@@ -597,7 +585,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             trigger: ".o_kanban_view",
         },
         {
-            // Add service product
             trigger: ".o-kanban-button-new",
             content: _t("Let's create your second product."),
             tooltipPosition: "bottom",
@@ -630,7 +617,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
                 if (e) {
                     await actions.click(e);
                 } else {
-                    await actions.click(); // close dropdown
+                    await actions.click();
                 }
             },
         },
@@ -716,7 +703,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             tooltipPosition: "bottom",
             run: "click",
         },
-        // Create an opportunity
         ...stepUtils.toggleHomeMenu(),
         ...stepUtils.goToAppSteps(
             "crm.crm_menu_root",
@@ -807,7 +793,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             trigger:
-                ".o_kanban_quick_create .o_field_widget[name=partner_id] .o_external_button", // Wait name_create
+                ".o_kanban_quick_create .o_field_widget[name=partner_id] .o_external_button",
         },
         {
             trigger: ".o_kanban_quick_create .o_kanban_add",
@@ -858,7 +844,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             tooltipPosition: "bottom",
             run: "click",
         },
-        // Create a quotation
         ...stepUtils.statusbarButtonsSteps(
             "New Quotation",
             markup(_t("<p><b>Create a quotation</p>")),
@@ -879,11 +864,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "click",
         },
         {
-            /**
-             * We need both triggers because the "sale_product_configurator" module replaces the
-             * "product_id" field with a "product_template_id" field.
-             * This selector will still only ever select one element.
-             */
             isActive: ["desktop"],
             trigger:
                 ".o_field_widget[name=product_id] input, .o_field_widget[name=product_template_id] input",
@@ -935,7 +915,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             run: "click",
         },
         {
-            // check if the new record is displayed
             isActive: ["mobile"],
             trigger:
                 ".modal:not(.o_inactive_modal) .modal-footer .btn-primary:contains('Save & New'):enabled",
@@ -946,11 +925,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
                 ".o_field_widget[name=line_ids] .o_data_row:nth-child(2).o_selected_row",
         },
         {
-            /**
-             * We need both triggers because the "sale_product_configurator" module replaces the
-             * "product_id" field with a "product_template_id" field.
-             * This selector will still only ever select one element.
-             */
             isActive: ["desktop"],
             trigger:
                 ".o_field_widget[name=product_id] input, .o_field_widget[name=product_template_id] input",
@@ -1121,7 +1095,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             tooltipPosition: "bottom",
             run: "click",
         },
-        //Go to purchase:
         ...stepUtils.toggleHomeMenu(),
 
         ...stepUtils.goToAppSteps(
@@ -1383,7 +1356,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         },
         {
             isActive: ["desktop"],
-            trigger: "div:not(.o_form_editable)", // Waiting save
+            trigger: "div:not(.o_form_editable)",
         },
         {
             isActive: ["desktop"],
@@ -1443,7 +1416,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         stepUtils.goToAppSteps(
             "accountant.menu_accounting",
             _t("Go to Accounting"),
-        )[2], // 2 -> Ent only
+        )[2],
         {
             isActive: ["enterprise", "desktop"],
             trigger:
@@ -1520,7 +1493,6 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             content: _t("Select the newly created bank transaction"),
             run: "click",
         },
-        // exit reconciliation widget
         stepUtils.toggleHomeMenu()[0],
         {
             isActive: ["auto", "desktop", "enterprise"],

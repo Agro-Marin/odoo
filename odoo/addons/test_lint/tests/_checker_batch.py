@@ -23,7 +23,6 @@ import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-# ORM methods that execute a database query per call.
 _QUERY_METHODS = frozenset(
     {
         "search",
@@ -73,19 +72,14 @@ def _looks_like_orm_receiver(node: ast.expr) -> bool:
     - ``records.search(...)`` via attribute chain (``obj.field.search``)
     """
     match node:
-        # self.search() or self.env['model'].search()
         case ast.Name(id="self"):
             return True
-        # self.env[...].search(), self.sudo().search(), etc.
         case ast.Attribute():
             return _has_self_root(node)
-        # env['model'].search() via subscript
         case ast.Subscript():
             return _has_self_root(node)
-        # Model.search() — CamelCase class name
         case ast.Name(id=name) if name[0].isupper() and not name.isupper():
             return True
-        # Anything called on a function result: some_func().search()
         case ast.Call():
             return True
     return False
@@ -118,7 +112,6 @@ def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
 
     for node in ast.walk(tree):
         if isinstance(node, ast.For):
-            # Walk only the loop body, not the iterable expression
             for stmt in node.body:
                 yield from _walk_for_queries_in_subtree(stmt)
             for stmt in node.orelse:

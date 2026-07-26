@@ -4,10 +4,8 @@ from odoo.addons.base.tests.test_mimetypes import JPG, SVG
 
 
 class TestWebSave(TransactionCase):
-
     def test_web_save_create(self):
         """Test the web_save method on a new record."""
-        # Create a new record, without unity specification (it should return only the id)
         self.env["test_orm.person"].search([]).unlink()
         result = self.env["test_orm.person"].web_save({"name": "ged"}, {})
         person = self.env["test_orm.person"].search([])
@@ -16,7 +14,6 @@ class TestWebSave(TransactionCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result, [{"id": person.id}])
 
-        # Create a new record, with unity specification
         result = self.env["test_orm.person"].web_save(
             {"name": "ged"}, {"display_name": {}}
         )
@@ -29,13 +26,11 @@ class TestWebSave(TransactionCase):
 
         person = self.env["test_orm.person"].create({"name": "ged"})
 
-        # Modify an existing record, without unity specification (it should return only the id)
         result = person.web_save({"name": "aab"}, {})
         self.assertEqual(person.name, "aab")
         self.assertEqual(len(result), 1)
         self.assertEqual(result, [{"id": person.id}])
 
-        # Modify an existing record, with unity specification
         result = person.web_save({"name": "lpe"}, {"display_name": {}})
         self.assertEqual(result, [{"id": person.id, "display_name": "lpe"}])
 
@@ -44,37 +39,28 @@ class TestWebSave(TransactionCase):
             {"name": "test", "image_wo_attachment": SVG},
             {"image_wo_attachment": {}, "image_wo_attachment_related": {}},
         )
-        self.assertEqual(result["image_wo_attachment"], "400 bytes")  # From PostgreSQL
-        self.assertEqual(
-            result["image_wo_attachment_related"], b"400.00 bytes"
-        )  # From human_size
+        self.assertEqual(result["image_wo_attachment"], "400 bytes")
+        self.assertEqual(result["image_wo_attachment_related"], b"400.00 bytes")
 
-        # check cache values
         record = self.env["test_orm.binary_svg"].browse(result["id"])
         self.assertEqual(record.image_wo_attachment, SVG)
         self.assertEqual(record.image_wo_attachment, record.image_wo_attachment_related)
 
-        # check database values
         self.env.invalidate_all()
         self.assertEqual(record.image_wo_attachment, SVG)
         self.assertEqual(record.image_wo_attachment, record.image_wo_attachment_related)
 
-        # check web_save() on existing record
         self.env.invalidate_all()
         [result] = record.web_save(
             {"image_wo_attachment": JPG},
             {"image_wo_attachment": {}, "image_wo_attachment_related": {}},
         )
-        self.assertEqual(result["image_wo_attachment"], "727 bytes")  # From PostgreSQL
-        self.assertEqual(
-            result["image_wo_attachment_related"], b"727.00 bytes"
-        )  # From human_size
+        self.assertEqual(result["image_wo_attachment"], "727 bytes")
+        self.assertEqual(result["image_wo_attachment_related"], b"727.00 bytes")
 
-        # check cache values
         self.assertEqual(record.image_wo_attachment, JPG.encode())
         self.assertEqual(record.image_wo_attachment, record.image_wo_attachment_related)
 
-        # check database values
         self.env.invalidate_all()
         self.assertEqual(record.image_wo_attachment, JPG.encode())
         self.assertEqual(record.image_wo_attachment, record.image_wo_attachment_related)

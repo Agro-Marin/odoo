@@ -88,7 +88,6 @@ class TestHttpWebJson_2(TestHttpBase):
 
     def test_webjson2_bad_content_type(self):
         res = self.db_url_open(
-            # application/x-www-form-urlencoded
             "/json/2/res.users/search",
             data=r"bad content type",
             headers=self.bearer_header,
@@ -114,7 +113,6 @@ class TestHttpWebJson_2(TestHttpBase):
             data=r"not json",
             headers=CT_JSON | self.bearer_header,
         )
-        # orjson error message differs from stdlib json ("Expecting value" → "invalid literal")
         m = "could not parse the body as json: invalid literal: line 1 column 1 (char 0)"
         self.assertErrorLike(
             res,
@@ -307,7 +305,7 @@ class TestHttpWebJson_2(TestHttpBase):
                 f"/json/2/{url_model}/{method}",
                 headers=self.bearer_header,
                 json={
-                    "__model__": body_model,  # trick
+                    "__model__": body_model,
                     "__method__": method,
                     "domain": [("id", "=", 1)],
                 },

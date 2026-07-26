@@ -19,7 +19,6 @@ It will install some main apps and will try to execute the most important action
     "data": ["models/ir.model.access.csv"],
     "assets": {
         "web.assets_tests": [
-            # inside .
             "test_main_flows/static/tests/tours/*.js",
         ],
     },
