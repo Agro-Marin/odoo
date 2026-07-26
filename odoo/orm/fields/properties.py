@@ -327,7 +327,7 @@ class Properties(Field):
 
             for record in recs:
                 with contextlib.suppress(AccessError):
-                    record.display_name
+                    record.display_name  # noqa: B018
 
         return res_ids_per_model
 
@@ -857,7 +857,9 @@ class Properties(Field):
             combine_sql = SQL(" OR ") if operator == "in" else SQL(" AND ")
             return SQL("(%s)", combine_sql.join(sqls))
 
-        unaccent = lambda x: x
+        def unaccent(x):
+            return x
+
         if operator.endswith("like"):
             if operator.endswith("ilike"):
                 unaccent = model.env.registry.unaccent

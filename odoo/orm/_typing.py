@@ -19,8 +19,7 @@ if typing.TYPE_CHECKING:
     from .fields import Field
     from .models import BaseModel
     from .models.mixins._model_stubs import _ModelStubs
-    from .primitives import CommandValue
-    from .runtime import Environment, Registry
+    from .runtime import Environment
 
 type DomainType = Domain | list[str | tuple[str, str, typing.Any]]
 type ModelLike = BaseModel | _ModelStubs
@@ -29,6 +28,8 @@ ModelType = typing.TypeVar("ModelType", bound="BaseModel")
 __all__ = [
     "ContextType",
     "DomainType",
+    "Environment",
+    "Field",
     "IdType",
     "ModelLike",
     "ModelType",

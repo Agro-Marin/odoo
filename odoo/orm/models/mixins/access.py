@@ -166,7 +166,8 @@ class AccessMixin(_ModelStubs):
 
         """
         if not self.env.su and (result := self._check_access(operation)):
-            raise result[1]()
+            # RSE102 would strip the call: result[1] is a partial, not a class
+            raise result[1]()  # noqa: RSE102
 
     def has_access(self, operation: str) -> bool:
         """Return whether the current user is allowed to perform ``operation``

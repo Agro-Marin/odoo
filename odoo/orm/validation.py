@@ -7,7 +7,6 @@ import re
 
 from odoo.exceptions import AccessError, ValidationError
 
-
 regex_alphanumeric = re.compile(r"^[a-z0-9_]+\Z")
 regex_object_name = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)*\Z")
 regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*\Z")

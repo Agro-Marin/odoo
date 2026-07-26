@@ -266,7 +266,9 @@ class _Relational(Field["BaseModel"]):
         if (self.bypass_search_access or operator == "any!") and not records.env.su:
             expr_getter = getter
             sudo_env = records.sudo().with_context(filter_function_reset_sudo=True).env
-            getter = lambda rec: expr_getter(rec.with_env(sudo_env))
+
+            def getter(rec):
+                return expr_getter(rec.with_env(sudo_env))
 
         corecords = getter(records)
         if operator in ("any", "any!"):

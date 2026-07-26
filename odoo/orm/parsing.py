@@ -7,7 +7,6 @@ field paths. Widely shared (6+ consumers for parse_field_expr alone).
 import functools
 import re
 
-
 _FIX_DB_ID_RE = re.compile(r"([^/])\.id(?=/|\Z)")
 _FIX_EXTERNAL_ID_RE = re.compile(r"([^/]):id(?=/|\Z)")
 

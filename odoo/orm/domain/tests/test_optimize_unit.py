@@ -18,7 +18,6 @@ from datetime import date, datetime
 from unittest.mock import patch
 
 from odoo.libs.datetime import utc
-
 from odoo.orm.domain import optimizations
 from odoo.orm.domain.ast import (
     MAX_DOMAIN_NESTING,
