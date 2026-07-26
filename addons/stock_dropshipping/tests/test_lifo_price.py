@@ -2,9 +2,12 @@
 
 from unittest import skip
 
-from odoo import fields, tools
-from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import ValuationReconciliationTestCommon
-from odoo.tests import tagged, common, Form
+from odoo import fields
+from odoo.tests import Form, tagged
+
+from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import (
+    ValuationReconciliationTestCommon,
+)
 
 
 @tagged('-at_install', 'post_install')
