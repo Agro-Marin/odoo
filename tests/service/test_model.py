@@ -556,9 +556,11 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time") as mock_time, \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -579,9 +581,11 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time") as mock_time, \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -602,9 +606,11 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time") as mock_time, \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -620,9 +626,11 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time"), \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
@@ -637,9 +645,11 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time") as mock_time, \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             with suppress(psycopg.errors.SerializationFailure):
@@ -667,10 +677,14 @@ class TestRetrying:
 
         with patch("odoo.http") as mock_http:
             mock_http.request = None
-            with pytest.raises(ValidationError, match="The operation cannot be completed"):
+            with pytest.raises(
+                ValidationError, match="The operation cannot be completed"
+            ):
                 mod.retrying(func, mock_env)
 
-    def test_integrity_error_with_closed_connection_reraises(self, mod, mock_env) -> None:
+    def test_integrity_error_with_closed_connection_reraises(
+        self, mod, mock_env
+    ) -> None:
         """IntegrityError + closed cursor re-raises without ValidationError conversion.
 
         With ``closed=True`` the inner-except short-circuits at the unusable-cursor
@@ -741,16 +755,20 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time"), \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
 
-    def test_outer_except_resets_registry_on_non_retryable_error(self, mod, mock_env) -> None:
+    def test_outer_except_resets_registry_on_non_retryable_error(
+        self, mod, mock_env
+    ) -> None:
         """On a non-retryable exception, outer except runs transaction.reset and registry.reset_changes."""
         exc = ValueError("boom")
 
@@ -763,7 +781,9 @@ class TestRetrying:
         mock_env.transaction.reset.assert_called()
         mock_env.registry.reset_changes.assert_called()
 
-    def test_outer_except_skips_reset_when_connection_closed(self, mod, mock_env) -> None:
+    def test_outer_except_skips_reset_when_connection_closed(
+        self, mod, mock_env
+    ) -> None:
         """When connection is dead, outer except skips transaction.reset."""
         mock_env.cr.closed = True
         exc = ValueError("boom")
@@ -777,7 +797,9 @@ class TestRetrying:
         mock_env.transaction.reset.assert_not_called()
         mock_env.registry.reset_changes.assert_not_called()
 
-    def test_request_session_refreshed_and_files_rewound_on_retry(self, mod, mock_env) -> None:
+    def test_request_session_refreshed_and_files_rewound_on_retry(
+        self, mod, mock_env
+    ) -> None:
         """On a concurrency error with an active HTTP request, the session is refreshed
         and seekable uploaded files are rewound so the retry reads them from the start."""
         exc = psycopg.errors.SerializationFailure()
@@ -799,9 +821,11 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time"), \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = mock_request
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -810,7 +834,9 @@ class TestRetrying:
         assert mock_request.session is new_session
         mock_file.seek.assert_called_once_with(0)
 
-    def test_non_seekable_file_raises_runtime_error_on_retry(self, mod, mock_env) -> None:
+    def test_non_seekable_file_raises_runtime_error_on_retry(
+        self, mod, mock_env
+    ) -> None:
         """If an uploaded file cannot be seeked, retrying must raise RuntimeError
         rather than silently replaying a partially-consumed stream."""
         exc = psycopg.errors.SerializationFailure()
@@ -825,19 +851,25 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.service.transaction.time"), \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = mock_request
             mock_random.uniform.return_value = 0.0
-            with pytest.raises(RuntimeError, match="Cannot retry request on input file 'upload'"):
+            with pytest.raises(
+                RuntimeError, match="Cannot retry request on input file 'upload'"
+            ):
                 mod.retrying(func, mock_env)
 
     # -- commit-time failures: the final commit() runs in its own guarded
     # block, so a failure there (deferred constraint, post-commit hook) is
     # NOT retried but DOES get the same cleanup/translation as an in-loop one.
 
-    def test_commit_time_failure_runs_cleanup_without_retry(self, mod, mock_env) -> None:
+    def test_commit_time_failure_runs_cleanup_without_retry(
+        self, mod, mock_env
+    ) -> None:
         """A SerializationFailure raised by commit() (not by the in-loop flush)
         is NOT retried, but transaction.reset()/registry.reset_changes() still
         run and signal_changes() does not."""
@@ -880,7 +912,9 @@ class TestRetrying:
 
         with patch("odoo.http") as mock_http:
             mock_http.request = None
-            with pytest.raises(ValidationError, match="The operation cannot be completed"):
+            with pytest.raises(
+                ValidationError, match="The operation cannot be completed"
+            ):
                 mod.retrying(lambda: "ok", mock_env)
 
         mock_env.transaction.reset.assert_called()
@@ -980,10 +1014,12 @@ class TestRetryingRequestSideEffects:
             return "ok"
 
         request = self._request()
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind, \
-             patch("odoo.service.transaction.time"), \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = request
             mock_random.uniform.return_value = 0.0
             assert mod.retrying(func, mock_env) == "ok"
@@ -1010,8 +1046,10 @@ class TestRetryingRequestSideEffects:
             raise exc
 
         request = self._request()
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind,
+        ):
             mock_http.request = request
             with pytest.raises(ValidationError):
                 mod.retrying(func, mock_env)
@@ -1019,9 +1057,7 @@ class TestRetryingRequestSideEffects:
         request._get_session_and_dbname.assert_called()
         mock_rewind.assert_not_called()
 
-    def test_non_retryable_operational_error_skips_rewind(
-        self, mod, mock_env
-    ) -> None:
+    def test_non_retryable_operational_error_skips_rewind(self, mod, mock_env) -> None:
         exc = psycopg.OperationalError("connection reset")
         exc.sqlstate = None
 
@@ -1029,8 +1065,10 @@ class TestRetryingRequestSideEffects:
             raise exc
 
         request = self._request()
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind,
+        ):
             mock_http.request = request
             with pytest.raises(psycopg.OperationalError):
                 mod.retrying(func, mock_env)
@@ -1048,10 +1086,12 @@ class TestRetryingRequestSideEffects:
             raise exc
 
         request = self._request()
-        with patch("odoo.http") as mock_http, \
-             patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind, \
-             patch("odoo.service.transaction.time"), \
-             patch("odoo.service.transaction.random") as mock_random:
+        with (
+            patch("odoo.http") as mock_http,
+            patch("odoo.http.helpers.rewind_uploaded_files") as mock_rewind,
+            patch("odoo.service.transaction.time"),
+            patch("odoo.service.transaction.random") as mock_random,
+        ):
             mock_http.request = request
             mock_random.uniform.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
@@ -1146,8 +1186,10 @@ class TestDispatchValidation:
         def _must_not_run(*a, **kw):  # pragma: no cover - must not run
             raise AssertionError("Registry must not be built for an unexposed db")
 
-        with patch.dict(config.options, {"db_name": ["served_db"]}), \
-             patch.object(mod, "Registry", side_effect=_must_not_run):
+        with (
+            patch.dict(config.options, {"db_name": ["served_db"]}),
+            patch.object(mod, "Registry", side_effect=_must_not_run),
+        ):
             with pytest.raises(AccessDenied):
                 mod.dispatch(
                     "execute", ["other_db", 1, "pw", "res.partner", "read", [1]]
@@ -1173,15 +1215,17 @@ class TestDispatchValidation:
         from odoo.tools import config
 
         for options in ({"db_name": []}, {"db_name": ["served_db"]}):
-            with patch.dict(config.options, options), \
-                 patch.object(mod, "Registry", side_effect=RuntimeError("reached")):
+            with (
+                patch.dict(config.options, options),
+                patch.object(mod, "Registry", side_effect=RuntimeError("reached")),
+            ):
                 with pytest.raises(RuntimeError, match="reached"):
                     mod.dispatch(
                         "execute", ["served_db", 1, "pw", "res.partner", "read", [1]]
                     )
 
     def test_absent_database_answers_access_denied(self, mod):
-        """"Database does not exist" must be indistinguishable from bad creds.
+        """ "Database does not exist" must be indistinguishable from bad creds.
 
         ``/xmlrpc/2/object`` is ``auth="none"`` and the credential check runs
         INSIDE the registry's cursor, so an absent database answered with a
@@ -1201,11 +1245,18 @@ class TestDispatchValidation:
                     "execute", ["gone_db", 1, "pw", "res.partner", "read", [1]]
                 )
 
-    @pytest.mark.parametrize("exc_factory, match", [
-        (lambda: psycopg.OperationalError("PG is down"), "PG is down"),
-        (lambda: __import__("odoo.db", fromlist=["PoolError"]).PoolError("saturated"),
-         "saturated"),
-    ])
+    @pytest.mark.parametrize(
+        "exc_factory, match",
+        [
+            (lambda: psycopg.OperationalError("PG is down"), "PG is down"),
+            (
+                lambda: __import__("odoo.db", fromlist=["PoolError"]).PoolError(
+                    "saturated"
+                ),
+                "saturated",
+            ),
+        ],
+    )
     def test_real_outages_are_not_masked_as_access_denied(
         self, mod, exc_factory, match
     ):
@@ -1227,25 +1278,19 @@ class TestDispatchValidation:
         # int(True) == 1 would silently bind uid to admin; reject it with a
         # typed error. This fires before Registry(db), so no DB is needed.
         with pytest.raises(TypeError):
-            mod.dispatch(
-                "execute", ["db", True, "pw", "res.partner", "read", [1]]
-            )
+            mod.dispatch("execute", ["db", True, "pw", "res.partner", "read", [1]])
 
     def test_float_uid_rejected_before_registry(self, mod):
         # int(1.9) == 1 would silently truncate a float uid to admin; require an
         # exact int, like the bool guard above.  Fires before Registry(db).
         with pytest.raises(TypeError):
-            mod.dispatch(
-                "execute", ["db", 1.9, "pw", "res.partner", "read", [1]]
-            )
+            mod.dispatch("execute", ["db", 1.9, "pw", "res.partner", "read", [1]])
 
     def test_empty_password_raises_accessdenied(self, mod):
         from odoo.exceptions import AccessDenied  # noqa: PLC0415
 
         with pytest.raises(AccessDenied):
-            mod.dispatch(
-                "execute", ["db", 1, "", "res.partner", "read", [1]]
-            )
+            mod.dispatch("execute", ["db", 1, "", "res.partner", "read", [1]])
 
     def test_execute_kw_bad_arg_shape_raises_typeerror(self, mod):
         # execute_kw accepts (args, [kw]); 3 trailing positionals is malformed.

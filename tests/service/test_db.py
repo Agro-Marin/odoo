@@ -72,6 +72,7 @@ def zip_dump():
         tmp = f.name
     yield tmp
     import os  # noqa: PLC0415
+
     os.unlink(tmp)
 
 
@@ -84,8 +85,10 @@ class TestRestoreDbPreFlight:
     """``restore_db`` rejects a pre-existing database before touching anything."""
 
     def test_raises_when_db_already_exists(self, db_mod, bypass_db_mgmt):
-        with patch.object(db_mod, "exp_db_exist", return_value=True) as mock_exist, \
-             patch.object(db_mod, "_create_empty_database") as mock_create:
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=True) as mock_exist,
+            patch.object(db_mod, "_create_empty_database") as mock_create,
+        ):
             with pytest.raises(RuntimeError, match="already exists"):
                 db_mod.restore_db("already_there", "/dev/null")
 
@@ -114,26 +117,32 @@ class TestRestoreDbSubprocessFailure:
             "drop_database": patch.object(db_mod, "_drop_database"),
             "subprocess_run": patch(
                 "odoo.service.db.subprocess.run",
-                return_value=CompletedProcess(
-                    args=[], returncode=1, stderr=pg_stderr
-                ),
+                return_value=CompletedProcess(args=[], returncode=1, stderr=pg_stderr),
             ),
         }
 
     def test_error_message_includes_pg_stderr(self, db_mod, bypass_db_mgmt, zip_dump):
-        pg_msg = "FATAL: role \"odoo\" does not exist"
+        pg_msg = 'FATAL: role "odoo" does not exist'
         patches = self._make_patches(db_mod, pg_msg)
 
-        with patches["exp_db_exist"], patches["create_empty"], \
-             patches["drop_database"], patches["subprocess_run"]:
+        with (
+            patches["exp_db_exist"],
+            patches["create_empty"],
+            patches["drop_database"],
+            patches["subprocess_run"],
+        ):
             with pytest.raises(RuntimeError, match="FATAL: role"):
                 db_mod.restore_db("newdb", zip_dump)
 
     def test_empty_db_is_dropped_on_pg_failure(self, db_mod, bypass_db_mgmt, zip_dump):
         patches = self._make_patches(db_mod, "pg error detail")
 
-        with patches["exp_db_exist"], patches["create_empty"], \
-             patches["drop_database"] as mock_drop, patches["subprocess_run"]:
+        with (
+            patches["exp_db_exist"],
+            patches["create_empty"],
+            patches["drop_database"] as mock_drop,
+            patches["subprocess_run"],
+        ):
             with pytest.raises(RuntimeError):
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -144,11 +153,15 @@ class TestRestoreDbSubprocessFailure:
     ):
         """Regression: before the fix, RuntimeError only said 'Couldn't restore database'
         with no pg detail, making silent failures impossible to diagnose."""
-        pg_msg = "ERROR: column \"foo\" of relation \"bar\" does not exist"
+        pg_msg = 'ERROR: column "foo" of relation "bar" does not exist'
         patches = self._make_patches(db_mod, pg_msg)
 
-        with patches["exp_db_exist"], patches["create_empty"], \
-             patches["drop_database"], patches["subprocess_run"]:
+        with (
+            patches["exp_db_exist"],
+            patches["create_empty"],
+            patches["drop_database"],
+            patches["subprocess_run"],
+        ):
             with pytest.raises(RuntimeError) as exc_info:
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -159,8 +172,12 @@ class TestRestoreDbSubprocessFailure:
         discarded all pg output. Verify subprocess.run is called with stderr=PIPE."""
         patches = self._make_patches(db_mod, "any error")
 
-        with patches["exp_db_exist"], patches["create_empty"], \
-             patches["drop_database"], patches["subprocess_run"] as mock_run:
+        with (
+            patches["exp_db_exist"],
+            patches["create_empty"],
+            patches["drop_database"],
+            patches["subprocess_run"] as mock_run,
+        ):
             with pytest.raises(RuntimeError):
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -183,8 +200,12 @@ class TestRestoreDbSubprocessFailure:
         marking of unaccent, which the dump's expression indexes may need."""
         patches = self._make_patches(db_mod, "any error")
 
-        with patches["exp_db_exist"], patches["create_empty"] as mock_create, \
-             patches["drop_database"], patches["subprocess_run"]:
+        with (
+            patches["exp_db_exist"],
+            patches["create_empty"] as mock_create,
+            patches["drop_database"],
+            patches["subprocess_run"],
+        ):
             with pytest.raises(RuntimeError):
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -202,17 +223,17 @@ class TestRestoreDbCleanupOnAnyFailure:
     """The empty database is dropped even when the failure is not from the pg
     tool — e.g. the zip is unreadable or the registry load fails."""
 
-    def test_empty_db_dropped_when_zip_is_invalid(
-        self, db_mod, bypass_db_mgmt
-    ):
+    def test_empty_db_dropped_when_zip_is_invalid(self, db_mod, bypass_db_mgmt):
         with tempfile.NamedTemporaryFile(suffix=".zip") as f:
             f.write(b"not a zip file at all")
             f.flush()
             invalid_zip = f.name
 
-            with patch.object(db_mod, "exp_db_exist", return_value=False), \
-                 patch.object(db_mod, "_create_empty_database"), \
-                 patch.object(db_mod, "_drop_database") as mock_drop:
+            with (
+                patch.object(db_mod, "exp_db_exist", return_value=False),
+                patch.object(db_mod, "_create_empty_database"),
+                patch.object(db_mod, "_drop_database") as mock_drop,
+            ):
                 with pytest.raises(Exception):
                     db_mod.restore_db("newdb", invalid_zip)
 
@@ -221,17 +242,19 @@ class TestRestoreDbCleanupOnAnyFailure:
     def test_empty_db_dropped_when_registry_load_fails(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
-        with patch.object(db_mod, "exp_db_exist", return_value=False), \
-             patch.object(db_mod, "_create_empty_database"), \
-             patch.object(db_mod, "_drop_database") as mock_drop, \
-             patch(
-                 "odoo.service.db.subprocess.run",
-                 return_value=CompletedProcess(args=[], returncode=0, stderr=""),
-             ), \
-             patch(
-                 "odoo.modules.registry.Registry.new",
-                 side_effect=RuntimeError("registry boom"),
-             ):
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=False),
+            patch.object(db_mod, "_create_empty_database"),
+            patch.object(db_mod, "_drop_database") as mock_drop,
+            patch(
+                "odoo.service.db.subprocess.run",
+                return_value=CompletedProcess(args=[], returncode=0, stderr=""),
+            ),
+            patch(
+                "odoo.modules.registry.Registry.new",
+                side_effect=RuntimeError("registry boom"),
+            ),
+        ):
             with pytest.raises(RuntimeError, match="registry boom"):
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -252,28 +275,30 @@ class TestRestoreDbWallClockTimeout:
     def test_timeout_raises_runtimeerror_and_drops_db(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
-        with patch.object(db_mod, "exp_db_exist", return_value=False), \
-             patch.object(db_mod, "_create_empty_database"), \
-             patch.object(db_mod, "_drop_database") as mock_drop, \
-             patch(
-                 "odoo.service.db.subprocess.run",
-                 side_effect=subprocess.TimeoutExpired(cmd="psql", timeout=1.0),
-             ):
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=False),
+            patch.object(db_mod, "_create_empty_database"),
+            patch.object(db_mod, "_drop_database") as mock_drop,
+            patch(
+                "odoo.service.db.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="psql", timeout=1.0),
+            ),
+        ):
             with pytest.raises(RuntimeError, match="timeout"):
                 db_mod.restore_db("newdb", zip_dump)
 
         mock_drop.assert_called_once_with("newdb")
 
-    def test_timeout_kwarg_passed_to_subprocess(
-        self, db_mod, bypass_db_mgmt, zip_dump
-    ):
-        with patch.object(db_mod, "exp_db_exist", return_value=False), \
-             patch.object(db_mod, "_create_empty_database"), \
-             patch.object(db_mod, "_drop_database"), \
-             patch(
-                 "odoo.service.db.subprocess.run",
-                 return_value=CompletedProcess(args=[], returncode=1, stderr="x"),
-             ) as mock_run:
+    def test_timeout_kwarg_passed_to_subprocess(self, db_mod, bypass_db_mgmt, zip_dump):
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=False),
+            patch.object(db_mod, "_create_empty_database"),
+            patch.object(db_mod, "_drop_database"),
+            patch(
+                "odoo.service.db.subprocess.run",
+                return_value=CompletedProcess(args=[], returncode=1, stderr="x"),
+            ) as mock_run,
+        ):
             with pytest.raises(RuntimeError):
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -302,8 +327,10 @@ class TestDumpDbNameValidation:
     def test_rejects_flag_shaped_name_before_subprocess(
         self, db_mod, bypass_db_mgmt, bad_name
     ):
-        with patch("odoo.service.db.subprocess.run") as mock_run, \
-             patch.object(db_mod, "find_pg_tool") as mock_tool:
+        with (
+            patch("odoo.service.db.subprocess.run") as mock_run,
+            patch.object(db_mod, "find_pg_tool") as mock_tool,
+        ):
             with pytest.raises(ValueError):
                 db_mod.dump_db(bad_name, None, backup_format="dump")
         # Validation fails first: neither the tool lookup nor the subprocess runs.
@@ -317,9 +344,11 @@ class TestDumpDbNameValidation:
             captured["cmd"] = cmd
             return CompletedProcess(args=cmd, returncode=0, stderr=b"")
 
-        with patch("odoo.service.db.subprocess.run", side_effect=fake_run), \
-             patch.object(db_mod, "find_pg_tool", lambda n: f"/usr/bin/{n}"), \
-             patch.object(db_mod, "exec_pg_environ", dict):
+        with (
+            patch("odoo.service.db.subprocess.run", side_effect=fake_run),
+            patch.object(db_mod, "find_pg_tool", lambda n: f"/usr/bin/{n}"),
+            patch.object(db_mod, "exec_pg_environ", dict),
+        ):
             result = db_mod.dump_db("gooddb", None, backup_format="dump")
         if result is not None:
             result.close()
@@ -335,32 +364,40 @@ class TestDbNameValidation:
     """Database name validation is enforced at the service layer, not only the
     HTTP controller, so direct RPC callers are also protected."""
 
-    @pytest.mark.parametrize("bad_name", [
-        "bad name",     # space
-        "-badstart",    # starts with dash
-        ".badstart",    # starts with dot
-        "_badstart",    # starts with underscore
-        "",             # empty
-        "ab!cd",        # special character
-        "ab/cd",        # slash
-    ])
+    @pytest.mark.parametrize(
+        "bad_name",
+        [
+            "bad name",  # space
+            "-badstart",  # starts with dash
+            ".badstart",  # starts with dot
+            "_badstart",  # starts with underscore
+            "",  # empty
+            "ab!cd",  # special character
+            "ab/cd",  # slash
+        ],
+    )
     def test_create_rejects_invalid_names(self, db_mod, bypass_db_mgmt, bad_name):
         with patch.object(db_mod, "_create_empty_database") as mock_create:
             with pytest.raises(ValueError, match="Invalid database name"):
                 db_mod.exp_create_database(bad_name, False, "en_US")
         mock_create.assert_not_called()
 
-    @pytest.mark.parametrize("good_name", [
-        "mydb",
-        "my-db",
-        "my_db",
-        "my.db",
-        "My_DB-1.0",
-        "a1",
-    ])
+    @pytest.mark.parametrize(
+        "good_name",
+        [
+            "mydb",
+            "my-db",
+            "my_db",
+            "my.db",
+            "My_DB-1.0",
+            "a1",
+        ],
+    )
     def test_create_accepts_valid_names(self, db_mod, bypass_db_mgmt, good_name):
-        with patch.object(db_mod, "_create_empty_database"), \
-             patch("odoo.modules.db.initialize_db"):
+        with (
+            patch.object(db_mod, "_create_empty_database"),
+            patch("odoo.modules.db.initialize_db"),
+        ):
             db_mod.exp_create_database(good_name, False, "en_US")  # must not raise
 
     @pytest.mark.parametrize("bad_name", ["bad name", "-start", "has/slash"])
@@ -371,8 +408,11 @@ class TestDbNameValidation:
     def test_pattern_accepts_valid_names(self, db_mod):
         """DBNAME_PATTERN accepts all canonical valid names (spot-check)."""
         import re  # noqa: PLC0415
+
         for name in ["mydb", "my-db", "my_db", "my.db", "My_DB-1.0", "a1"]:
-            assert re.match(db_mod.DBNAME_PATTERN, name), f"{name!r} should match DBNAME_PATTERN"
+            assert re.match(db_mod.DBNAME_PATTERN, name), (
+                f"{name!r} should match DBNAME_PATTERN"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -426,13 +466,17 @@ class TestDumpDbZipStderr:
             patch.object(db_mod, "dump_db_manifest", return_value={"odoo_dump": "1"}),
             patch(
                 "odoo.service.db.subprocess.run",
-                return_value=CompletedProcess(args=[], returncode=returncode, stderr=stderr),
+                return_value=CompletedProcess(
+                    args=[], returncode=returncode, stderr=stderr
+                ),
             ),
         ]
 
     def test_failure_raises_runtime_error(self, db_mod, bypass_db_mgmt):
         with ExitStack() as stack:
-            for p in self._patches(db_mod, returncode=1, stderr=b"pg_dump: error: conn failed"):
+            for p in self._patches(
+                db_mod, returncode=1, stderr=b"pg_dump: error: conn failed"
+            ):
                 stack.enter_context(p)
             with pytest.raises(RuntimeError, match="pg_dump failed"):
                 db_mod.dump_db("testdb", None, "zip", with_filestore=False)
@@ -499,7 +543,9 @@ class TestDumpDbZipManifestBeforeFilestore:
             )
             # DB unreachable: the manifest step's db_connect raises.
             stack.enter_context(
-                patch("odoo.db.db_connect", side_effect=psycopg.OperationalError("down"))
+                patch(
+                    "odoo.db.db_connect", side_effect=psycopg.OperationalError("down")
+                )
             )
             copytree = stack.enter_context(patch("odoo.service.db.shutil.copytree"))
             with pytest.raises(psycopg.OperationalError):
@@ -556,7 +602,9 @@ class TestDumpDbWallClockTimeout:
             with pytest.raises(RuntimeError, match="wall-clock timeout"):
                 db_mod.dump_db("testdb", None, "zip", with_filestore=False)
 
-    def test_custom_nonstream_timeout_raises_runtime_error(self, db_mod, bypass_db_mgmt):
+    def test_custom_nonstream_timeout_raises_runtime_error(
+        self, db_mod, bypass_db_mgmt
+    ):
         timeout_exc = subprocess.TimeoutExpired(cmd=["pg_dump"], timeout=3600)
         with ExitStack() as stack:
             for p in self._patches(db_mod, run_side_effect=timeout_exc):
@@ -591,7 +639,11 @@ class TestDumpWaitTimeoutGuard:
         Exercises the real ``_run_pg_dump_streaming`` finally block with a
         trivial subprocess (no DB, no pg_dump needed).
         """
-        cmd = [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'dump-bytes')"]
+        cmd = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'dump-bytes')",
+        ]
         out = io.BytesIO()
         with patch.dict(os.environ, {"ODOO_PG_DUMP_WAIT_TIMEOUT": "not-a-number"}):
             db_mod._run_pg_dump_streaming(cmd, dict(os.environ), out)
@@ -809,53 +861,67 @@ class TestDumpDbDumpFormat:
 
     def test_stream_path_raises_on_nonzero_returncode(self, db_mod, bypass_db_mgmt):
         proc = self._make_mock_proc(b"pg_dump: error: boom", returncode=1)
-        with patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"), \
-             patch("odoo.service.db.exec_pg_environ", return_value={}), \
-             patch("odoo.service.db.subprocess.Popen", return_value=proc):
+        with (
+            patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch("odoo.service.db.exec_pg_environ", return_value={}),
+            patch("odoo.service.db.subprocess.Popen", return_value=proc),
+        ):
             with pytest.raises(RuntimeError, match="pg_dump failed"):
                 db_mod.dump_db("testdb", io.BytesIO(), "dump")
 
     def test_stream_path_stderr_in_error_message(self, db_mod, bypass_db_mgmt):
         pg_err = b"FATAL: authentication failed for user"
         proc = self._make_mock_proc(pg_err, returncode=1)
-        with patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"), \
-             patch("odoo.service.db.exec_pg_environ", return_value={}), \
-             patch("odoo.service.db.subprocess.Popen", return_value=proc):
+        with (
+            patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch("odoo.service.db.exec_pg_environ", return_value={}),
+            patch("odoo.service.db.subprocess.Popen", return_value=proc),
+        ):
             with pytest.raises(RuntimeError) as exc_info:
                 db_mod.dump_db("testdb", io.BytesIO(), "dump")
         assert "FATAL: authentication failed" in str(exc_info.value)
 
     def test_stream_path_success_returns_none(self, db_mod, bypass_db_mgmt):
         proc = self._make_mock_proc(b"", returncode=0)
-        with patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"), \
-             patch("odoo.service.db.exec_pg_environ", return_value={}), \
-             patch("odoo.service.db.subprocess.Popen", return_value=proc):
+        with (
+            patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch("odoo.service.db.exec_pg_environ", return_value={}),
+            patch("odoo.service.db.subprocess.Popen", return_value=proc),
+        ):
             result = db_mod.dump_db("testdb", io.BytesIO(), "dump")
         assert result is None
 
     # -- stream=None path --
 
     def test_no_stream_path_raises_on_nonzero_returncode(self, db_mod, bypass_db_mgmt):
-        with patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"), \
-             patch("odoo.service.db.exec_pg_environ", return_value={}), \
-             patch(
-                 "odoo.service.db.subprocess.run",
-                 return_value=CompletedProcess(args=[], returncode=1, stderr=b"pg error"),
-             ):
+        with (
+            patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch("odoo.service.db.exec_pg_environ", return_value={}),
+            patch(
+                "odoo.service.db.subprocess.run",
+                return_value=CompletedProcess(
+                    args=[], returncode=1, stderr=b"pg error"
+                ),
+            ),
+        ):
             with pytest.raises(RuntimeError, match="pg_dump failed"):
                 db_mod.dump_db("testdb", None, "dump")
 
     def test_no_stream_path_returns_seekable_tempfile(self, db_mod, bypass_db_mgmt):
         """Regression: the old code returned proc.stdout (a pipe), not a seekable file."""
-        with patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"), \
-             patch("odoo.service.db.exec_pg_environ", return_value={}), \
-             patch(
-                 "odoo.service.db.subprocess.run",
-                 return_value=CompletedProcess(args=[], returncode=0, stderr=b""),
-             ):
+        with (
+            patch("odoo.service.db.find_pg_tool", return_value="/usr/bin/pg_dump"),
+            patch("odoo.service.db.exec_pg_environ", return_value={}),
+            patch(
+                "odoo.service.db.subprocess.run",
+                return_value=CompletedProcess(args=[], returncode=0, stderr=b""),
+            ),
+        ):
             result = db_mod.dump_db("testdb", None, "dump")
         assert result is not None, "Must return a file object, not None or proc.stdout"
-        assert hasattr(result, "seek"), "Returned object must be seekable (TemporaryFile)"
+        assert hasattr(result, "seek"), (
+            "Returned object must be seekable (TemporaryFile)"
+        )
         result.close()
 
 
@@ -893,7 +959,9 @@ class TestCheckFaketimeMode:
 
         with (
             patch.dict("os.environ", {"ODOO_FAKETIME_TEST_MODE": "1"}),
-            patch.object(odoo.tools, "config", {"test_enable": False, "db_name": ["x"]}),
+            patch.object(
+                odoo.tools, "config", {"test_enable": False, "db_name": ["x"]}
+            ),
             patch("odoo.service.db.odoo.db.db_connect") as mock_connect,
             caplog.at_level("WARNING", logger="odoo.service.db"),
         ):
@@ -908,7 +976,9 @@ class TestCheckFaketimeMode:
 
         with (
             patch.dict("os.environ", {"ODOO_FAKETIME_TEST_MODE": "1"}),
-            patch.object(odoo.tools, "config", {"test_enable": True, "db_name": ["other"]}),
+            patch.object(
+                odoo.tools, "config", {"test_enable": True, "db_name": ["other"]}
+            ),
             patch("odoo.service.db.odoo.db.db_connect") as mock_connect,
         ):
             db_mod._check_faketime_mode("unlisted_db")
@@ -1053,10 +1123,12 @@ class TestRestoreDbZipSlip:
         namelist() check; ``_create_empty_database`` is stubbed so the guard
         is exercised before any DB/psql work, and ``_drop_database`` records
         that the half-built DB is rolled back."""
-        with patch.object(db_mod, "exp_db_exist", return_value=False), \
-             patch.object(db_mod, "_create_empty_database"), \
-             patch.object(db_mod, "_drop_database") as mock_drop, \
-             patch("odoo.service.db.subprocess.run") as mock_run:
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=False),
+            patch.object(db_mod, "_create_empty_database"),
+            patch.object(db_mod, "_drop_database") as mock_drop,
+            patch("odoo.service.db.subprocess.run") as mock_run,
+        ):
             with pytest.raises(RuntimeError, match="escapes the extraction directory"):
                 db_mod.restore_db("newdb", malicious_zip(escaping_name))
             # The guard must fire BEFORE psql is ever spawned.
@@ -1442,10 +1514,16 @@ class TestDropDatabaseRetry:
 
         with ExitStack() as stack:
             stack.enter_context(patch.object(db_mod, "list_dbs", return_value=["x"]))
-            stack.enter_context(patch.object(db_mod.odoo.modules.registry.Registry, "delete"))
+            stack.enter_context(
+                patch.object(db_mod.odoo.modules.registry.Registry, "delete")
+            )
             stack.enter_context(patch.object(db_mod.odoo.db, "close_db"))
-            stack.enter_context(patch("odoo.service.db.odoo.db.db_connect", return_value=fake_db))
-            stack.enter_context(patch("odoo.service.db.database_identifier", return_value=""))
+            stack.enter_context(
+                patch("odoo.service.db.odoo.db.db_connect", return_value=fake_db)
+            )
+            stack.enter_context(
+                patch("odoo.service.db.database_identifier", return_value="")
+            )
             stack.enter_context(patch("odoo.service.db.time.sleep"))
             # filestore() is a method on config, so patch just that attribute
             # leaving the rest of the config object intact.
@@ -1463,8 +1541,9 @@ class TestDropDatabaseRetry:
         result = db_mod._drop_database("x")
 
         assert result is True
-        drop_calls = [c for c in drop_env.execute.call_args_list
-                      if "DROP DATABASE" in str(c)]
+        drop_calls = [
+            c for c in drop_env.execute.call_args_list if "DROP DATABASE" in str(c)
+        ]
         assert len(drop_calls) == 1
 
     def test_retries_on_object_in_use_then_succeeds(self, db_mod, drop_env):
@@ -1524,7 +1603,9 @@ class TestDbnamePattern:
 
         assert re.match(db_mod.DBNAME_PATTERN, name), name
 
-    @pytest.mark.parametrize("name", ["", "_leading_underscore", ".dotfirst", "-dashfirst"])
+    @pytest.mark.parametrize(
+        "name", ["", "_leading_underscore", ".dotfirst", "-dashfirst"]
+    )
     def test_rejects_invalid_names(self, db_mod, name):
         import re  # noqa: PLC0415
 
@@ -1543,7 +1624,9 @@ class TestListDbIncompatibleDocstring:
         doc = db_mod.list_db_incompatible.__doc__
         assert doc is not None
         # No stray leading quote character after the triple-quote opener
-        assert not doc.lstrip().startswith('"'), f"stray leading quote in docstring: {doc[:40]!r}"
+        assert not doc.lstrip().startswith('"'), (
+            f"stray leading quote in docstring: {doc[:40]!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1703,13 +1786,15 @@ class TestDispatchInvariants:
         Either failure is a regression from the documented contract that the
         wizard's pre-DB pages reach these endpoints without credentials.
         """
-        public_methods = frozenset({
-            "db_exist",
-            "list",
-            "list_lang",
-            "server_version",
-            "list_countries",
-        })
+        public_methods = frozenset(
+            {
+                "db_exist",
+                "list",
+                "list_lang",
+                "server_version",
+                "list_countries",
+            }
+        )
         gated = public_methods & db_mod._REQUIRES_MASTER_PASSWORD
         assert not gated, (
             f"Public dispatch endpoints incorrectly listed in "
@@ -1726,8 +1811,10 @@ class TestDispatchInvariants:
         params raised ``ValueError: not enough values to unpack``.
         """
         mock_handler = MagicMock(return_value=[["MX", "Mexico"]])
-        with patch.object(db_mod, "check_super") as mock_check, \
-             patch.dict(db_mod._DISPATCH, {"list_countries": mock_handler}):
+        with (
+            patch.object(db_mod, "check_super") as mock_check,
+            patch.dict(db_mod._DISPATCH, {"list_countries": mock_handler}),
+        ):
             result = db_mod.dispatch("list_countries", [])
         mock_check.assert_not_called()
         mock_handler.assert_called_once_with()
@@ -1749,8 +1836,10 @@ class TestDispatchInvariants:
 
     def test_dispatch_calls_check_super_for_admin_method(self, db_mod):
         """End-to-end: dispatching an admin method must invoke ``check_super``."""
-        with patch.object(db_mod, "check_super") as mock_check, \
-             patch.object(db_mod, "exp_drop") as mock_drop:
+        with (
+            patch.object(db_mod, "check_super") as mock_check,
+            patch.object(db_mod, "exp_drop") as mock_drop,
+        ):
             # Place the patched mock_drop into _DISPATCH so dispatch finds it.
             with patch.dict(db_mod._DISPATCH, {"drop": mock_drop}):
                 db_mod.dispatch("drop", ["secret_password", "mydb"])
@@ -1767,8 +1856,10 @@ class TestDispatchInvariants:
         a missing database.
         """
         mock_handler = MagicMock(return_value=True)
-        with patch.object(db_mod, "check_super") as mock_check, \
-             patch.dict(db_mod._DISPATCH, {"db_exist": mock_handler}):
+        with (
+            patch.object(db_mod, "check_super") as mock_check,
+            patch.dict(db_mod._DISPATCH, {"db_exist": mock_handler}),
+        ):
             result = db_mod.dispatch("db_exist", ["mydb"])
         mock_check.assert_not_called()
         mock_handler.assert_called_once_with("mydb")
@@ -1778,11 +1869,13 @@ class TestDispatchInvariants:
     # target (or which take no DB name at all) — nothing to gate against the
     # exposed-databases allowlist. Every OTHER master-password handler acts on
     # an EXISTING database by name and MUST gate it.
-    _ALLOWLIST_EXEMPT = frozenset({
-        "create_database",  # target is a brand-new name
-        "restore",  # target is a brand-new name
-        "change_admin_password",  # takes no DB name
-    })
+    _ALLOWLIST_EXEMPT = frozenset(
+        {
+            "create_database",  # target is a brand-new name
+            "restore",  # target is a brand-new name
+            "change_admin_password",  # takes no DB name
+        }
+    )
 
     def test_db_name_handlers_gate_through_check_db_exposed(self, db_mod):
         """Every master-password handler acting on an EXISTING DB by name must
@@ -1870,8 +1963,12 @@ class TestExpDuplicateRollback:
             patch.dict(db_mod.odoo.tools.config.options, {"list_db": True})
         )
         stack.enter_context(patch.object(db_mod.odoo.db, "close_db"))
-        stack.enter_context(patch("odoo.service.db.odoo.db.db_connect", return_value=fake_db))
-        stack.enter_context(patch("odoo.service.db.database_identifier", return_value=""))
+        stack.enter_context(
+            patch("odoo.service.db.odoo.db.db_connect", return_value=fake_db)
+        )
+        stack.enter_context(
+            patch("odoo.service.db.database_identifier", return_value="")
+        )
         stack.enter_context(patch("odoo.service.db._drop_conn"))
         stack.enter_context(
             patch.object(
@@ -1890,18 +1987,25 @@ class TestExpDuplicateRollback:
         # which our MagicMock cursor is not.  We don't care about the env behavior
         # here; we only care that the failure path runs the cleanup.
         fake_registry = MagicMock()
-        fake_registry.cursor.return_value.__enter__ = MagicMock(return_value=MagicMock())
+        fake_registry.cursor.return_value.__enter__ = MagicMock(
+            return_value=MagicMock()
+        )
         fake_registry.cursor.return_value.__exit__ = MagicMock(return_value=False)
 
         with duplicate_env["stack"]:
-            with patch.object(
-                db_mod.odoo.modules.registry.Registry, "new", return_value=fake_registry
-            ), patch(
-                "odoo.service.db.odoo.api.Environment", return_value=MagicMock()
-            ), patch(
-                "odoo.service.db.shutil.copytree",
-                side_effect=OSError("disk full"),
-            ), patch.object(db_mod, "_drop_database") as mock_drop:
+            with (
+                patch.object(
+                    db_mod.odoo.modules.registry.Registry,
+                    "new",
+                    return_value=fake_registry,
+                ),
+                patch("odoo.service.db.odoo.api.Environment", return_value=MagicMock()),
+                patch(
+                    "odoo.service.db.shutil.copytree",
+                    side_effect=OSError("disk full"),
+                ),
+                patch.object(db_mod, "_drop_database") as mock_drop,
+            ):
                 with pytest.raises(OSError, match="disk full"):
                     db_mod._duplicate_database("source", "newdb")
 
@@ -1910,11 +2014,14 @@ class TestExpDuplicateRollback:
     def test_drops_db_when_registry_init_fails(self, db_mod, duplicate_env):
         """``Registry.new`` failure (any reason) must trigger rollback."""
         with duplicate_env["stack"]:
-            with patch.object(
-                db_mod.odoo.modules.registry.Registry,
-                "new",
-                side_effect=RuntimeError("registry boom"),
-            ), patch.object(db_mod, "_drop_database") as mock_drop:
+            with (
+                patch.object(
+                    db_mod.odoo.modules.registry.Registry,
+                    "new",
+                    side_effect=RuntimeError("registry boom"),
+                ),
+                patch.object(db_mod, "_drop_database") as mock_drop,
+            ):
                 with pytest.raises(RuntimeError, match="registry boom"):
                     db_mod._duplicate_database("source", "newdb")
 
@@ -1925,12 +2032,15 @@ class TestExpDuplicateRollback:
         (the rollback failure is suppressed).  The user/operator needs to know
         what went wrong before they can fix the orphan database."""
         with duplicate_env["stack"]:
-            with patch.object(
-                db_mod.odoo.modules.registry.Registry,
-                "new",
-                side_effect=RuntimeError("original error"),
-            ), patch.object(
-                db_mod, "_drop_database", side_effect=Exception("drop also failed")
+            with (
+                patch.object(
+                    db_mod.odoo.modules.registry.Registry,
+                    "new",
+                    side_effect=RuntimeError("original error"),
+                ),
+                patch.object(
+                    db_mod, "_drop_database", side_effect=Exception("drop also failed")
+                ),
             ):
                 with pytest.raises(RuntimeError, match="original error"):
                     db_mod._duplicate_database("source", "newdb")
@@ -1974,10 +2084,16 @@ class TestExpRenameRollback:
         stack.enter_context(
             patch.dict(db_mod.odoo.tools.config.options, {"list_db": True})
         )
-        stack.enter_context(patch.object(db_mod.odoo.modules.registry.Registry, "delete"))
+        stack.enter_context(
+            patch.object(db_mod.odoo.modules.registry.Registry, "delete")
+        )
         stack.enter_context(patch.object(db_mod.odoo.db, "close_db"))
-        stack.enter_context(patch("odoo.service.db.odoo.db.db_connect", return_value=fake_db))
-        stack.enter_context(patch("odoo.service.db.database_identifier", return_value=""))
+        stack.enter_context(
+            patch("odoo.service.db.odoo.db.db_connect", return_value=fake_db)
+        )
+        stack.enter_context(
+            patch("odoo.service.db.database_identifier", return_value="")
+        )
         stack.enter_context(patch("odoo.service.db._drop_conn"))
         stack.enter_context(
             patch.object(
@@ -2003,7 +2119,8 @@ class TestExpRenameRollback:
         # Two ALTER DATABASE RENAME calls expected: the original one, then
         # the rollback that swaps newname back to oldname.
         rename_calls = [
-            c for c in rename_env["cr"].execute.call_args_list
+            c
+            for c in rename_env["cr"].execute.call_args_list
             if "ALTER DATABASE" in str(c)
         ]
         assert len(rename_calls) == 2, (
@@ -2028,9 +2145,7 @@ class TestExpRenameRollback:
         rename_env["cr"].execute.side_effect = execute_side_effect
 
         with rename_env["stack"]:
-            with patch(
-                "odoo.service.db.shutil.move", side_effect=OSError("disk full")
-            ):
+            with patch("odoo.service.db.shutil.move", side_effect=OSError("disk full")):
                 with pytest.raises(RuntimeError, match="manual intervention required"):
                     db_mod._rename_database("oldname", "newname")
 
@@ -2057,7 +2172,10 @@ class TestDropDatabaseRetryBudget:
     def test_backoff_is_exponential(self, db_mod):
         """Each attempt waits longer than the previous one."""
         base = db_mod._DROP_DATABASE_BACKOFF_BASE
-        delays = [base * (2 ** (n - 1)) for n in range(1, db_mod._DROP_DATABASE_MAX_RETRIES + 1)]
+        delays = [
+            base * (2 ** (n - 1))
+            for n in range(1, db_mod._DROP_DATABASE_MAX_RETRIES + 1)
+        ]
         assert all(delays[i] < delays[i + 1] for i in range(len(delays) - 1)), (
             f"Backoff is not strictly increasing: {delays}"
         )
@@ -2119,7 +2237,9 @@ class TestDropConnLogging:
         import logging  # noqa: PLC0415
 
         fake_cr = MagicMock()
-        fake_cr.execute.side_effect = RuntimeError("permission denied for pg_signal_backend")
+        fake_cr.execute.side_effect = RuntimeError(
+            "permission denied for pg_signal_backend"
+        )
 
         # Force the underlying logger to DEBUG (pytest's caplog attaches a
         # handler but the logger's effective level may still filter records).
@@ -2133,9 +2253,12 @@ class TestDropConnLogging:
             target_logger.setLevel(prior_level)
 
         assert any(
-            "pg_terminate_backend failed" in r.message for r in caplog.records
+            "pg_terminate_backend failed" in r.message
+            for r in caplog.records
             if r.name == "odoo.service.db"
-        ), f"Expected debug log; got records: {[(r.name, r.message) for r in caplog.records]}"
+        ), (
+            f"Expected debug log; got records: {[(r.name, r.message) for r in caplog.records]}"
+        )
 
     def test_failure_does_not_propagate(self, db_mod):
         """Exceptions are still swallowed — termination is best-effort."""
@@ -2163,13 +2286,15 @@ class TestRestoreDbOnErrorStop:
     def test_psql_invocation_passes_on_error_stop(
         self, db_mod, bypass_db_mgmt, zip_dump
     ):
-        with patch.object(db_mod, "exp_db_exist", return_value=False), \
-             patch.object(db_mod, "_create_empty_database"), \
-             patch.object(db_mod, "_drop_database"), \
-             patch(
-                 "odoo.service.db.subprocess.run",
-                 return_value=CompletedProcess(args=[], returncode=1, stderr="x"),
-             ) as mock_run:
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=False),
+            patch.object(db_mod, "_create_empty_database"),
+            patch.object(db_mod, "_drop_database"),
+            patch(
+                "odoo.service.db.subprocess.run",
+                return_value=CompletedProcess(args=[], returncode=1, stderr="x"),
+            ) as mock_run,
+        ):
             with pytest.raises(RuntimeError):
                 db_mod.restore_db("newdb", zip_dump)
 
@@ -2195,11 +2320,11 @@ class TestRestoreDbNameValidation:
     it to 63 bytes — the footgun ``DBNAME_MAX_LENGTH`` exists to prevent.
     """
 
-    def test_rejects_overlong_name_before_any_side_effect(
-        self, db_mod, bypass_db_mgmt
-    ):
-        with patch.object(db_mod, "exp_db_exist") as mock_exist, \
-             patch.object(db_mod, "_create_empty_database") as mock_create:
+    def test_rejects_overlong_name_before_any_side_effect(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "exp_db_exist") as mock_exist,
+            patch.object(db_mod, "_create_empty_database") as mock_create,
+        ):
             with pytest.raises(ValueError, match="63 characters"):
                 db_mod.restore_db("a" * 70, "/dev/null")
         # validation happens first: neither the existence check nor the
@@ -2207,11 +2332,11 @@ class TestRestoreDbNameValidation:
         mock_exist.assert_not_called()
         mock_create.assert_not_called()
 
-    def test_rejects_invalid_shape_before_any_side_effect(
-        self, db_mod, bypass_db_mgmt
-    ):
-        with patch.object(db_mod, "exp_db_exist") as mock_exist, \
-             patch.object(db_mod, "_create_empty_database") as mock_create:
+    def test_rejects_invalid_shape_before_any_side_effect(self, db_mod, bypass_db_mgmt):
+        with (
+            patch.object(db_mod, "exp_db_exist") as mock_exist,
+            patch.object(db_mod, "_create_empty_database") as mock_create,
+        ):
             with pytest.raises(ValueError, match="must start with"):
                 db_mod.restore_db("../etc/passwd", "/dev/null")
         mock_exist.assert_not_called()
@@ -2220,8 +2345,10 @@ class TestRestoreDbNameValidation:
     def test_valid_name_passes_validation(self, db_mod, bypass_db_mgmt):
         """A well-formed name must NOT be rejected by the new check — the
         guard must reach the existing-DB pre-flight (which we stub to True)."""
-        with patch.object(db_mod, "exp_db_exist", return_value=True), \
-             patch.object(db_mod, "_create_empty_database"):
+        with (
+            patch.object(db_mod, "exp_db_exist", return_value=True),
+            patch.object(db_mod, "_create_empty_database"),
+        ):
             # raises 'already exists' (RuntimeError), NOT ValueError — proving
             # validation accepted the name and execution moved past it.
             with pytest.raises(RuntimeError, match="already exists"):
@@ -2244,8 +2371,10 @@ class TestRetryTerminateThenDdl:
     def test_returns_on_first_success(self, db_mod):
         cr = MagicMock()
         run = MagicMock()
-        with patch.object(db_mod, "_drop_conn") as drop_conn, \
-             patch("odoo.service.db.time.sleep"):
+        with (
+            patch.object(db_mod, "_drop_conn") as drop_conn,
+            patch("odoo.service.db.time.sleep"),
+        ):
             db_mod._retry_terminate_then_ddl(cr, "db", "OP: db", run)
         run.assert_called_once()
         drop_conn.assert_called_once_with(cr, "db")
@@ -2255,20 +2384,21 @@ class TestRetryTerminateThenDdl:
 
         cr = MagicMock()
         run = MagicMock(side_effect=[psycopg.errors.ObjectInUse("busy"), None])
-        with patch.object(db_mod, "_drop_conn") as drop_conn, \
-             patch("odoo.service.db.time.sleep") as sleep:
+        with (
+            patch.object(db_mod, "_drop_conn") as drop_conn,
+            patch("odoo.service.db.time.sleep") as sleep,
+        ):
             db_mod._retry_terminate_then_ddl(cr, "db", "OP: db", run)
         assert run.call_count == 2
         assert drop_conn.call_count == 2  # re-terminate before each attempt
-        sleep.assert_called_once()        # one backoff between the two attempts
+        sleep.assert_called_once()  # one backoff between the two attempts
 
     def test_exhaustion_raises_runtimeerror_with_last_error(self, db_mod):
         import psycopg  # noqa: PLC0415
 
         cr = MagicMock()
         run = MagicMock(side_effect=psycopg.errors.ObjectInUse("forever"))
-        with patch.object(db_mod, "_drop_conn"), \
-             patch("odoo.service.db.time.sleep"):
+        with patch.object(db_mod, "_drop_conn"), patch("odoo.service.db.time.sleep"):
             with pytest.raises(RuntimeError, match="forever"):
                 db_mod._retry_terminate_then_ddl(cr, "db", "OP: db", run)
         assert run.call_count == db_mod._DROP_DATABASE_MAX_RETRIES
@@ -2276,11 +2406,13 @@ class TestRetryTerminateThenDdl:
     def test_non_object_in_use_propagates_without_retry(self, db_mod):
         cr = MagicMock()
         run = MagicMock(side_effect=ValueError("hard fail"))
-        with patch.object(db_mod, "_drop_conn"), \
-             patch("odoo.service.db.time.sleep") as sleep:
+        with (
+            patch.object(db_mod, "_drop_conn"),
+            patch("odoo.service.db.time.sleep") as sleep,
+        ):
             with pytest.raises(ValueError, match="hard fail"):
                 db_mod._retry_terminate_then_ddl(cr, "db", "OP: db", run)
-        run.assert_called_once()   # no retry on a non-ObjectInUse error
+        run.assert_called_once()  # no retry on a non-ObjectInUse error
         sleep.assert_not_called()
 
     def test_no_sleep_after_final_attempt(self, db_mod):
@@ -2294,8 +2426,10 @@ class TestRetryTerminateThenDdl:
 
         cr = MagicMock()
         run = MagicMock(side_effect=psycopg.errors.ObjectInUse("forever"))
-        with patch.object(db_mod, "_drop_conn"), \
-             patch("odoo.service.db.time.sleep") as sleep:
+        with (
+            patch.object(db_mod, "_drop_conn"),
+            patch("odoo.service.db.time.sleep") as sleep,
+        ):
             with pytest.raises(RuntimeError):
                 db_mod._retry_terminate_then_ddl(cr, "db", "OP: db", run)
         assert run.call_count == db_mod._DROP_DATABASE_MAX_RETRIES
@@ -2317,36 +2451,40 @@ class TestDumpSqlMetaCommandScanner:
     """
 
     # -- must be caught: commands psql would interpret --
-    @pytest.mark.parametrize("sql", [
-        "\\! touch /tmp/pwn\n",                       # whole-line shell
-        "SELECT 1;\\! id\n",                          # same-line after ';'
-        "SELECT 1;\n\\i /etc/passwd\n",               # include a file
-        "SELECT 1 \\gexec\n",                         # run query output as SQL
-        "\\connect postgres\n",                       # switch connection/host
-        "\\o /tmp/out\nSELECT 1;\n",                  # redirect output to a file
-        "COPY t FROM stdin;\n1\ta\n\\.\n\\! id\n",    # command AFTER a COPY block
-    ])
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "\\! touch /tmp/pwn\n",  # whole-line shell
+            "SELECT 1;\\! id\n",  # same-line after ';'
+            "SELECT 1;\n\\i /etc/passwd\n",  # include a file
+            "SELECT 1 \\gexec\n",  # run query output as SQL
+            "\\connect postgres\n",  # switch connection/host
+            "\\o /tmp/out\nSELECT 1;\n",  # redirect output to a file
+            "COPY t FROM stdin;\n1\ta\n\\.\n\\! id\n",  # command AFTER a COPY block
+        ],
+    )
     def test_flags_interpreted_meta_commands(self, db_mod, sql):
         assert db_mod._find_disallowed_psql_meta_command(sql) is not None
 
     # -- must NOT be caught: content psql treats as data/text --
-    @pytest.mark.parametrize("sql", [
-        "SELECT 1;\n",
-        "\\restrict TOK\nSELECT 1;\n\\unrestrict TOK\n",           # pg_dump wrapper
-        "COPY t FROM stdin;\n1\tdata\\x\\.more\n\\.\nSELECT 1;\n",  # backslashes IN copy data
-        "CREATE FUNCTION f() AS $$ BEGIN RETURN 'x; \\y'; END; $$ LANGUAGE plpgsql;\n",
-        "SELECT E'a\\nb\\\\c';\n",                                  # escape string
-        "-- a comment with \\! and \\i\nSELECT 1;\n",              # line comment
-        "/* block \\! comment ; \\i */\nSELECT 1;\n",             # block comment
-        "SELECT 'literal ; \\! not a command';\n",                # single-quoted literal
-    ])
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT 1;\n",
+            "\\restrict TOK\nSELECT 1;\n\\unrestrict TOK\n",  # pg_dump wrapper
+            "COPY t FROM stdin;\n1\tdata\\x\\.more\n\\.\nSELECT 1;\n",  # backslashes IN copy data
+            "CREATE FUNCTION f() AS $$ BEGIN RETURN 'x; \\y'; END; $$ LANGUAGE plpgsql;\n",
+            "SELECT E'a\\nb\\\\c';\n",  # escape string
+            "-- a comment with \\! and \\i\nSELECT 1;\n",  # line comment
+            "/* block \\! comment ; \\i */\nSELECT 1;\n",  # block comment
+            "SELECT 'literal ; \\! not a command';\n",  # single-quoted literal
+        ],
+    )
     def test_allows_data_and_pg_dump_commands(self, db_mod, sql):
         assert db_mod._find_disallowed_psql_meta_command(sql) is None
 
     def test_assert_dump_sql_safe_raises_on_evil_file(self, db_mod):
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".sql", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as f:
             f.write("\\! touch /tmp/pwn\nSELECT 1;\n")
             path = f.name
         try:
@@ -2356,9 +2494,7 @@ class TestDumpSqlMetaCommandScanner:
             os.unlink(path)
 
     def test_assert_dump_sql_safe_passes_clean_file(self, db_mod):
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".sql", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as f:
             f.write("\\restrict TOK\nCREATE TABLE t (id int);\n\\unrestrict TOK\n")
             path = f.name
         try:
@@ -2391,19 +2527,22 @@ class TestDumpSqlMetaCommandArguments:
     """
 
     # -- allowed verb, argument no pg_dump would ever emit --
-    @pytest.mark.parametrize("sql", [
-        "\\restrict `touch /tmp/pwn`\n",              # shell via backtick expansion
-        "\\unrestrict `touch /tmp/pwn`\n",            # ... same on the closing verb
-        "\\restrict /*\n\\unrestrict /*\n\\! id\n",   # block-comment desync
-        "\\restrict $$\n\\unrestrict $$\n\\! id\n",   # dollar-quote desync
-        "\\restrict '\n\\! id\n",                     # single-quote desync
-        "\\restrict \"\n\\! id\n",                    # double-quote desync
-        "\\unrestrict /*\n\\! id\n",
-        "\\. /*\n\\! id\n",                           # \. is argument-less
-        "\\. `touch /tmp/pwn`\n",
-        "\\restrict\n",                               # key is required
-        "\\restrict k1 extra\n",                      # only one key, nothing after
-    ])
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "\\restrict `touch /tmp/pwn`\n",  # shell via backtick expansion
+            "\\unrestrict `touch /tmp/pwn`\n",  # ... same on the closing verb
+            "\\restrict /*\n\\unrestrict /*\n\\! id\n",  # block-comment desync
+            "\\restrict $$\n\\unrestrict $$\n\\! id\n",  # dollar-quote desync
+            "\\restrict '\n\\! id\n",  # single-quote desync
+            '\\restrict "\n\\! id\n',  # double-quote desync
+            "\\unrestrict /*\n\\! id\n",
+            "\\. /*\n\\! id\n",  # \. is argument-less
+            "\\. `touch /tmp/pwn`\n",
+            "\\restrict\n",  # key is required
+            "\\restrict k1 extra\n",  # only one key, nothing after
+        ],
+    )
     def test_flags_malformed_meta_command_arguments(self, db_mod, sql):
         assert db_mod._find_disallowed_psql_meta_command(sql) is not None
 
@@ -2415,14 +2554,17 @@ class TestDumpSqlMetaCommandArguments:
         assert "`id`" in hit[1]
 
     # -- the shapes a real pg_dump emits must still pass --
-    @pytest.mark.parametrize("sql", [
-        "\\restrict abc123\nSELECT 1;\n\\unrestrict abc123\n",
-        # the real key measured on a 75k-line pg_dump: 63 base62 characters
-        "\\restrict tH7nmJAc12qRGNgZNXhGPXxv78E3UN0d5YagNMhRvb9i2u49YBGiEpyi0gW9RHO\n",
-        "\\restrict abc123\r\n",                      # CRLF dump
-        "\\restrict abc123",                          # no trailing newline (EOF)
-        "COPY t (a) FROM stdin;\n1\n\\.\nSELECT 1;\n",  # \. alone on its line
-    ])
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "\\restrict abc123\nSELECT 1;\n\\unrestrict abc123\n",
+            # the real key measured on a 75k-line pg_dump: 63 base62 characters
+            "\\restrict tH7nmJAc12qRGNgZNXhGPXxv78E3UN0d5YagNMhRvb9i2u49YBGiEpyi0gW9RHO\n",
+            "\\restrict abc123\r\n",  # CRLF dump
+            "\\restrict abc123",  # no trailing newline (EOF)
+            "COPY t (a) FROM stdin;\n1\n\\.\nSELECT 1;\n",  # \. alone on its line
+        ],
+    )
     def test_allows_real_pg_dump_shapes(self, db_mod, sql):
         assert db_mod._find_disallowed_psql_meta_command(sql) is None
 
@@ -2484,7 +2626,6 @@ class TestDumpSqlScannerLineBound:
         path = self._write(tmp_path, "SELECT 1;\n")
         db_mod._assert_dump_sql_safe(path)  # must not raise
 
-
     def test_overlong_copy_data_line_is_accepted(self, db_mod, tmp_path, monkeypatch):
         """The cap applies to SQL-context lines only.  A COPY-DATA line over the
         cap — e.g. an in-database ``ir.attachment.db_datas`` row — is bulk data
@@ -2540,9 +2681,7 @@ class TestRestoreArchiveExpansionBound:
                     fh.write(blob)
         return path
 
-    def test_budget_scales_with_compressed_size_but_has_a_floor(
-        self, db_mod, tmp_path
-    ):
+    def test_budget_scales_with_compressed_size_but_has_a_floor(self, db_mod, tmp_path):
         small = tmp_path / "small.zip"
         small.write_bytes(b"x" * 1024)
         assert db_mod._unpack_budget(str(small)) == db_mod._RESTORE_MIN_UNPACKED_BYTES
@@ -2562,9 +2701,7 @@ class TestRestoreArchiveExpansionBound:
                     z, ["dump.sql"], str(dest), 8 * 1024 * 1024
                 )
 
-    def test_counts_bytes_produced_not_the_declared_header_size(
-        self, db_mod, tmp_path
-    ):
+    def test_counts_bytes_produced_not_the_declared_header_size(self, db_mod, tmp_path):
         """A member whose header under-reports its size must buy nothing: the
         budget is spent against the bytes actually written."""
         path = self._bomb(tmp_path, 40)
@@ -2618,9 +2755,7 @@ class TestDumpSqlScannerLexerDivergence:
     # a table by that literal name.  Reading ``$b$`` as a dollar-quote delimiter
     # opened a body whose closing tag never comes.
     @pytest.mark.parametrize("ident", ["a$b$c", "money$usd$x", "éx$q$z", "_a$t$b"])
-    def test_dollar_inside_identifier_does_not_open_a_quoted_body(
-        self, db_mod, ident
-    ):
+    def test_dollar_inside_identifier_does_not_open_a_quoted_body(self, db_mod, ident):
         sql = f"CREATE TABLE {ident} (x int);\n\\! touch /tmp/pwn\n"
         assert db_mod._find_disallowed_psql_meta_command(sql) is not None
 
@@ -2633,11 +2768,11 @@ class TestDumpSqlScannerLexerDivergence:
     @pytest.mark.parametrize(
         "expr",
         [
-            "SELECT 1 AS 9a$b$c",       # digit-led run, identifier restarts at 'a'
-            "SELECT 1 AS a1$t$",        # identifier-led run containing a digit
-            "SELECT 1 AS 0fooE$t$x",    # digit, then identifier, then '$'
-            "SELECT 1 AS ÿ$_$",         # high-bit char is an identifier-start char
-            "SELECT 1 AS +9fooE$$z",    # run restarts after a non-identifier char
+            "SELECT 1 AS 9a$b$c",  # digit-led run, identifier restarts at 'a'
+            "SELECT 1 AS a1$t$",  # identifier-led run containing a digit
+            "SELECT 1 AS 0fooE$t$x",  # digit, then identifier, then '$'
+            "SELECT 1 AS ÿ$_$",  # high-bit char is an identifier-start char
+            "SELECT 1 AS +9fooE$$z",  # run restarts after a non-identifier char
         ],
     )
     def test_digit_led_run_restarts_at_the_identifier(self, db_mod, expr):
@@ -2682,9 +2817,7 @@ class TestDumpSqlScannerLexerDivergence:
     # (its terminating ``;``), not when the word COPY is read.  Without the
     # semicolon the statement just sits in psql's buffer and meta-commands are
     # still interpreted.
-    def test_copy_from_stdin_without_semicolon_does_not_enter_data_mode(
-        self, db_mod
-    ):
+    def test_copy_from_stdin_without_semicolon_does_not_enter_data_mode(self, db_mod):
         sql = "COPY nosuchtable FROM stdin\n\\! touch /tmp/pwn\n"
         assert db_mod._find_disallowed_psql_meta_command(sql) is not None
 
@@ -2700,9 +2833,7 @@ class TestDumpSqlScannerLexerDivergence:
         sql = "COPY t (a,b) FROM stdin;\n1\tdata\\x\\.more\n\\.\nSELECT 1;\n"
         assert db_mod._find_disallowed_psql_meta_command(sql) is None
 
-    def test_semicolon_inside_copy_options_does_not_arm_data_mode_early(
-        self, db_mod
-    ):
+    def test_semicolon_inside_copy_options_does_not_arm_data_mode_early(self, db_mod):
         """A ``;`` inside a string literal is not the statement terminator."""
         sql = "COPY t FROM stdin WITH (DELIMITER ';');\n1\n\\.\nSELECT 1;\n"
         assert db_mod._find_disallowed_psql_meta_command(sql) is None
@@ -2856,8 +2987,9 @@ class TestCreateEmptyDatabaseHardening:
         )
         # ``database_identifier`` quoting is covered separately; stub it so the
         # mock connection needn't satisfy psycopg's real ``as_string`` context.
-        with cm as db_connect_mock, patch.object(
-            db_mod, "database_identifier", return_value=SQL("x")
+        with (
+            cm as db_connect_mock,
+            patch.object(db_mod, "database_identifier", return_value=SQL("x")),
         ):
             with pytest.raises(db_mod.DatabaseExists):
                 db_mod._create_empty_database(
@@ -2904,9 +3036,11 @@ class TestRpcDbExistGate:
         """
         import odoo.tools  # noqa: PLC0415
 
-        with patch.object(odoo.tools, "config", self._cfg(list_db=False)), \
-             patch.object(db_mod, "list_dbs", return_value=["served"]), \
-             patch.object(db_mod, "exp_db_exist", return_value=True) as inner:
+        with (
+            patch.object(odoo.tools, "config", self._cfg(list_db=False)),
+            patch.object(db_mod, "list_dbs", return_value=["served"]),
+            patch.object(db_mod, "exp_db_exist", return_value=True) as inner,
+        ):
             assert db_mod._rpc_db_exist("served") is False
             assert db_mod._rpc_db_exist("nope") is False
         inner.assert_not_called()  # never connects, so never creates a pool
@@ -2914,18 +3048,22 @@ class TestRpcDbExistGate:
     def test_unexposed_existing_db_answers_false_without_connecting(self, db_mod):
         import odoo.tools  # noqa: PLC0415
 
-        with patch.object(odoo.tools, "config", self._cfg()), \
-             patch.object(db_mod, "list_dbs", return_value=["served"]), \
-             patch.object(db_mod, "exp_db_exist") as inner:
+        with (
+            patch.object(odoo.tools, "config", self._cfg()),
+            patch.object(db_mod, "list_dbs", return_value=["served"]),
+            patch.object(db_mod, "exp_db_exist") as inner,
+        ):
             assert db_mod._rpc_db_exist("other_tenant_db") is False
         inner.assert_not_called()  # no connection opened, so no pool created
 
     def test_exposed_db_is_answered(self, db_mod):
         import odoo.tools  # noqa: PLC0415
 
-        with patch.object(odoo.tools, "config", self._cfg()), \
-             patch.object(db_mod, "list_dbs", return_value=["served"]), \
-             patch.object(db_mod, "exp_db_exist", return_value=True) as inner:
+        with (
+            patch.object(odoo.tools, "config", self._cfg()),
+            patch.object(db_mod, "list_dbs", return_value=["served"]),
+            patch.object(db_mod, "exp_db_exist", return_value=True) as inner,
+        ):
             assert db_mod._rpc_db_exist("served") is True
         inner.assert_called_once_with("served")
 
@@ -2935,9 +3073,11 @@ class TestRpcDbExistGate:
         floor ``http.helpers.db_filter`` applies), so never disclosed."""
         import odoo.tools  # noqa: PLC0415
 
-        with patch.object(odoo.tools, "config", self._cfg()), \
-             patch.object(db_mod, "list_dbs", return_value=[name]), \
-             patch.object(db_mod, "exp_db_exist") as inner:
+        with (
+            patch.object(odoo.tools, "config", self._cfg()),
+            patch.object(db_mod, "list_dbs", return_value=[name]),
+            patch.object(db_mod, "exp_db_exist") as inner,
+        ):
             assert db_mod._rpc_db_exist(name) is False
         inner.assert_not_called()
 
@@ -2945,9 +3085,11 @@ class TestRpcDbExistGate:
     def test_malformed_names_are_rejected_before_pg(self, db_mod, name):
         import odoo.tools  # noqa: PLC0415
 
-        with patch.object(odoo.tools, "config", self._cfg()), \
-             patch.object(db_mod, "list_dbs") as listed, \
-             patch.object(db_mod, "exp_db_exist") as inner:
+        with (
+            patch.object(odoo.tools, "config", self._cfg()),
+            patch.object(db_mod, "list_dbs") as listed,
+            patch.object(db_mod, "exp_db_exist") as inner,
+        ):
             assert db_mod._rpc_db_exist(name) is False
         listed.assert_not_called()
         inner.assert_not_called()
