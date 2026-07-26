@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class MrpProduction(models.Model):
@@ -43,6 +42,6 @@ class MrpProduction(models.Model):
         for production in self:
             if production.sale_line_id:
                 production.move_finished_ids.filtered(
-                    lambda m: m.product_id == production.product_id
+                    lambda m, production=production: m.product_id == production.product_id
                 ).sale_line_id = production.sale_line_id
         return res

@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import time
-
+from odoo import Command
 from odoo.tests import Form, TransactionCase
 from odoo.tools import mute_logger
-from odoo import Command
 
 
 class TestSaleMrpProcurement(TransactionCase):

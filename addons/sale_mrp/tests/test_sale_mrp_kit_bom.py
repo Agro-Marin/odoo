@@ -2,9 +2,9 @@
 
 from unittest import skip
 
+from odoo import Command
 from odoo.tests import Form, tagged
 
-from odoo import Command
 from odoo.addons.base.tests.common import BaseCommon
 
 

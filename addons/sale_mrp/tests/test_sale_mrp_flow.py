@@ -6,7 +6,7 @@ from unittest import skip
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, common
-from odoo.tools import float_compare, mute_logger
+from odoo.tools import mute_logger
 
 from odoo.addons.sale.tests.common import TestSaleCommon
 from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import (
@@ -166,7 +166,7 @@ class TestSaleMrpFlowCommon(ValuationReconciliationTestCommon, TestSaleCommon):
                 product_id: qty
             }
         """
-        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process.keys())
+        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process)
         for move in moves_to_process:
             move.write({
                 'quantity': quantities_to_process[move.product_id],
@@ -180,7 +180,7 @@ class TestSaleMrpFlowCommon(ValuationReconciliationTestCommon, TestSaleCommon):
                 ...
             }
         """
-        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process.keys())
+        moves_to_process = moves.filtered(lambda m: m.product_id in quantities_to_process)
         for move in moves_to_process:
             self.assertEqual(move.product_qty, quantities_to_process[move.product_id])
 
@@ -1237,7 +1237,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
 
         # Check that the quantities on the picking are the one expected for each components
         for move in move_ids:
-            corr_bom_line = bom_kit_uom_1.bom_line_ids.filtered(lambda b: b.product_id.id == move.product_id.id)
+            corr_bom_line = bom_kit_uom_1.bom_line_ids.filtered(lambda b, move=move: b.product_id.id == move.product_id.id)
             computed_qty = move.product_uom_id._compute_quantity(move.product_qty, corr_bom_line.product_uom_id)
             self.assertEqual(computed_qty, line_ids.product_qty * corr_bom_line.product_qty)
 
@@ -1557,7 +1557,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         })
 
         # Create bom for finish product
-        bom = self.env['mrp.bom'].create({
+        self.env['mrp.bom'].create({
             'product_id': finished_product.id,
             'product_tmpl_id': finished_product.product_tmpl_id.id,
             'product_uom_id': self.env.ref('uom.product_uom_unit').id,
@@ -1605,7 +1605,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         })
 
         # Create bom for finish product
-        bom = self.env['mrp.bom'].create({
+        self.env['mrp.bom'].create({
             'product_id': finished_product.id,
             'product_tmpl_id': finished_product.product_tmpl_id.id,
             'product_uom_id': self.env.ref('uom.product_uom_unit').id,
@@ -1659,7 +1659,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         })
 
         # Create bom for finish product
-        bom = self.env['mrp.bom'].create({
+        self.env['mrp.bom'].create({
             'product_id': finished_product.id,
             'product_tmpl_id': finished_product.product_tmpl_id.id,
             'product_uom_id': self.env.ref('uom.product_uom_unit').id,
