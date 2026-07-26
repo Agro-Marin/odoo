@@ -20,6 +20,7 @@ test("default state", () => {
         ],
         db: "test",
         debug: "",
+        disallowedAncestorCompanies: [],
         groupId: 11,
         lang: "en",
         multiLang: false,
