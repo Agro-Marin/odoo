@@ -1,9 +1,8 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { Popover } from "@web/libs/bootstrap";
-import { registry } from "@web/core/registry";
-
 import { parseDate } from "@web/core/l10n/dates";
+import { registry } from "@web/core/registry";
+import { Popover } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
 export class ProjectRatingImage extends Interaction {
     static selector = ".o_portal_project_rating .o_rating_image";
@@ -14,7 +13,9 @@ export class ProjectRatingImage extends Interaction {
             trigger: "hover",
             html: true,
             content: () => {
-                const ratingEl = document.querySelector("#rating_" + this.el.dataset.id);
+                const ratingEl = document.querySelector(
+                    "#rating_" + this.el.dataset.id,
+                );
                 if (!ratingEl) {
                     return "";
                 }

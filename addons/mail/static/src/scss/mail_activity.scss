@@ -24,13 +24,14 @@
 }
 
 /* Kanban View */
-.o_kanban_record{
+.o_kanban_record {
     .o_kanban_inline_block {
         display: inline-block;
     }
 }
 
-.o_kanban_record, .o_view_controller{
+.o_kanban_record,
+.o_view_controller {
     .o_mail_activity {
         .o_activity_btn {
             span.fa {
@@ -64,13 +65,16 @@
                         opacity: 0.5;
                     }
 
-                    &:hover .o_edit_button{
+                    &:hover .o_edit_button {
                         opacity: 1;
                     }
 
                     .o_activity_link_kanban {
                         font-size: 1.5em;
-                        @include o-hover-text-color($text-muted, map-get($theme-colors, 'success'));
+                        @include o-hover-text-color(
+                            $text-muted,
+                            map-get($theme-colors, "success")
+                        );
                         @include o-hover-opacity(0.5, 1);
                     }
 

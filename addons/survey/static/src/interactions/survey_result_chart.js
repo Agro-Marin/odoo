@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 // The given colors are the same as those used by D3
 const D3_COLORS = [
@@ -284,7 +284,7 @@ export class SurveyResultChart extends Interaction {
                 data.push(
                     (sectionGraphData[section][resultKey] /
                         sectionGraphData[section]["question_count"]) *
-                        100
+                        100,
                 );
             }
             datasets.push({
@@ -314,7 +314,8 @@ export class SurveyResultChart extends Interaction {
                         callbacks: {
                             label: (tooltipItem) => {
                                 const xLabel = tooltipItem.label;
-                                const roundedValue = Math.round(tooltipItem.parsed.y * 100) / 100;
+                                const roundedValue =
+                                    Math.round(tooltipItem.parsed.y * 100) / 100;
                                 return `${xLabel}: ${roundedValue}%`;
                             },
                         },
@@ -361,7 +362,9 @@ export class SurveyResultChart extends Interaction {
      * @param  value.text The original text of the answer
      */
     markIfCorrect(value) {
-        return value.text + (this.rightAnswers.indexOf(value.text) >= 0 ? " \u2713" : "");
+        return (
+            value.text + (this.rightAnswers.indexOf(value.text) >= 0 ? " \u2713" : "")
+        );
     }
 
     /**
@@ -376,4 +379,6 @@ export class SurveyResultChart extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("survey.survey_result_chart", SurveyResultChart);
+registry
+    .category("public.interactions")
+    .add("survey.survey_result_chart", SurveyResultChart);

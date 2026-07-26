@@ -1,23 +1,26 @@
 .o_purchase_product_kanban_catalog_view .o_suggest_feature {
     .o_select_menu .o_input {
-        border: 0 !important
+        border: 0 !important;
     }
 
-    .o_select_menu,.o_input_dropdown,.o_PurchaseSuggestInput {
+    .o_select_menu,
+    .o_input_dropdown,
+    .o_PurchaseSuggestInput {
         background-color: $o-view-background-color;
-        font-size: .75rem;
+        font-size: 0.75rem;
         border: 0;
         box-shadow: none;
-        padding: .25rem .25rem;
-        margin: 0 .25rem;
+        padding: 0.25rem 0.25rem;
+        margin: 0 0.25rem;
         border-bottom: $border-width solid $o-black !important;
         border-radius: 0;
         color: $o-black;
         background-position: right 0 center;
-        background-size: .5rem;
+        background-size: 0.5rem;
     }
 
-    .o_select_menu,.o_input_dropdown {
+    .o_select_menu,
+    .o_input_dropdown {
         width: 7rem;
     }
 

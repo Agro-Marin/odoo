@@ -37,7 +37,8 @@
     }
 
     @include media-only(print) {
-        .bg-100, .text-bg-100 {
+        .bg-100,
+        .text-bg-100 {
             --background-color: transparent;
         }
     }

@@ -42,7 +42,7 @@
 }
 
 .o-discuss-Call-layoutActions button {
-    --o-mail-ActionList-Button-opacity: .75;
+    --o-mail-ActionList-Button-opacity: 0.75;
 }
 
 .o-discuss-Call-sidebar {
@@ -84,13 +84,12 @@
 // ------------------------------------------------------------------
 
 .o-discuss-Call-sidebar {
-
     &::-webkit-scrollbar {
-        background: map-get($grays, '900');
+        background: map-get($grays, "900");
     }
 
     &::-webkit-scrollbar-thumb {
-        background: map-get($grays, '700');
+        background: map-get($grays, "700");
     }
 }
 

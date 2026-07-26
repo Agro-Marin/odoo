@@ -922,9 +922,7 @@ class TestProjectSubtasks(TestProjectCommon):
         subtask_1 = task.child_ids.filtered(
             lambda c: c.project_id == self.project_goats
         )
-        subtask_2 = task.child_ids.filtered(
-            lambda c: c.project_id == self.project_pigs
-        )
+        subtask_2 = task.child_ids.filtered(lambda c: c.project_id == self.project_pigs)
 
         self.assertFalse(subtask_1.display_in_project)
         self.assertTrue(subtask_2.display_in_project)

@@ -3,7 +3,6 @@
 // Those will affect how bootstrap is generated in the backend only
 //=============================================================================
 
-
 // Function used to retrieve a text color prioritizing our fine-tuned ones.
 // ----------------------------------------------------------------------------
 @function o-text-color($key) {
@@ -25,9 +24,17 @@
         @include o-print-color($-color, color, text-opacity);
     }
 
-    a#{$-parent}, button#{$-parent} {
-        &:hover, &:focus, &:active, &.active {
-            @include o-print-color(shift-color($-color, $link-shade-percentage), color, text-opacity);
+    a#{$-parent},
+    button#{$-parent} {
+        &:hover,
+        &:focus,
+        &:active,
+        &.active {
+            @include o-print-color(
+                shift-color($-color, $link-shade-percentage),
+                color,
+                text-opacity
+            );
         }
     }
 }

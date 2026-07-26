@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
-import { startUrl, router } from "@web/core/browser/router";
+import { router, startUrl } from "@web/core/browser/router";
 import { patch } from "@web/core/utils/patch";
 
 patch(router, {
@@ -16,7 +16,7 @@ patch(router, {
         const { pathname } = urlObj;
         urlObj.pathname = pathname.replace(
             /\/my\/projects\/([1234567890]+)\/project_sharing/,
-            "/odoo/project.project/$1/project_sharing"
+            "/odoo/project.project/$1/project_sharing",
         );
         const state = super.urlToState(urlObj);
         if (state.actionStack?.length) {

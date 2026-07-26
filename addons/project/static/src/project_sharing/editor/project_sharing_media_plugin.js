@@ -10,9 +10,9 @@ export class ProjectSharingMediaPlugin extends MediaPlugin {
     resources = {
         ...this.resources,
         toolbar_items: this.resources.toolbar_items.filter(
-            item => item.id !== "replace_image"
+            (item) => item.id !== "replace_image",
         ),
-    }
+    };
 }
 
 export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
@@ -45,7 +45,7 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
             this.services.notification.add(
                 attachment?.error ||
                     _t("The image could not be uploaded (HTTP %s).", response.status),
-                { type: "danger" }
+                { type: "danger" },
             );
             el.remove();
             // Abort: the base saveB64Image treats a falsy return as "no

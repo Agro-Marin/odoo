@@ -60,7 +60,9 @@
     }
 
     // Set snapping behaviors
-    .o_bottom_sheet_dismiss, .o_bottom_sheet_spacer, .o_bottom_sheet_sheet {
+    .o_bottom_sheet_dismiss,
+    .o_bottom_sheet_spacer,
+    .o_bottom_sheet_sheet {
         scroll-snap-align: start;
         scroll-snap-stop: always;
     }
@@ -119,13 +121,21 @@
     // States
     // =============================================
     @keyframes bottom-sheet-in {
-        from { transform: translateY(100%) translateZ(0); }
-        to { transform: translateY(0) translateZ(0); }
+        from {
+            transform: translateY(100%) translateZ(0);
+        }
+        to {
+            transform: translateY(0) translateZ(0);
+        }
     }
 
     @keyframes bottom-sheet-out {
-        from { transform: translateY(0) translateZ(0); }
-        to { transform: translateY(100%) translateZ(0); }
+        from {
+            transform: translateY(0) translateZ(0);
+        }
+        to {
+            transform: translateY(100%) translateZ(0);
+        }
     }
 
     // BottomSheet is ready to be rendered on screen
@@ -133,7 +143,8 @@
         opacity: 1;
 
         .o_bottom_sheet_sheet {
-            animation: var(--BottomSheet-slideIn-duration, 500ms) bottom-sheet-in var(--BottomSheet-slideIn-easing, ease-out) forwards;
+            animation: var(--BottomSheet-slideIn-duration, 500ms) bottom-sheet-in
+                var(--BottomSheet-slideIn-easing, ease-out) forwards;
             @media (prefers-reduced-motion: reduce) {
                 animation: none;
             }
@@ -141,7 +152,7 @@
 
         .o_bottom_sheet_backdrop {
             opacity: MAX(var(--BottomSheet-progress, 0), 0.2);
-            backdrop-filter: blur(.5px) grayscale(50%);
+            backdrop-filter: blur(0.5px) grayscale(50%);
         }
     }
 
@@ -164,7 +175,8 @@
             max-width: map-get($grid-breakpoints, sm) - ($border-width * 2);
             background: $offcanvas-bg-color;
             z-index: $zindex-offcanvas;
-            transform: translateY(calc((1 - var(--BottomSheet-progress)) * 150%)) translateX(-50%);
+            transform: translateY(calc((1 - var(--BottomSheet-progress)) * 150%))
+                translateX(-50%);
             content: "";
         }
 
@@ -178,7 +190,8 @@
     // Dismissing the sheet
     &.o_bottom_sheet_dismissing {
         .o_bottom_sheet_sheet {
-            animation: var(--BottomSheet-slideOut-duration, 300ms) bottom-sheet-out var(--BottomSheet-slideOut-easing, ease-in) forwards;
+            animation: var(--BottomSheet-slideOut-duration, 300ms) bottom-sheet-out
+                var(--BottomSheet-slideOut-easing, ease-in) forwards;
             @media (prefers-reduced-motion: reduce) {
                 animation: none;
             }
@@ -187,7 +200,8 @@
         .o_bottom_sheet_backdrop {
             opacity: 0;
             backdrop-filter: blur(0) grayscale(0%);
-            transition: all var(--BottomSheet-slideOut-duration, 300ms) var(--BottomSheet-slideOut-easing, ease-in);
+            transition: all var(--BottomSheet-slideOut-duration, 300ms)
+                var(--BottomSheet-slideOut-easing, ease-in);
             @media (prefers-reduced-motion: reduce) {
                 transition: none;
             }
@@ -199,9 +213,10 @@
         overflow: hidden;
 
         // Scale down the main content
-        .o_navbar, .o_action_manager {
+        .o_navbar,
+        .o_action_manager {
             transition: transform $o_BottomSheet_slideIn_duration ease;
-            transform: scale(.95) translateZ(0);
+            transform: scale(0.95) translateZ(0);
             transform-origin: center top;
             @media (prefers-reduced-motion: reduce) {
                 transition: none;
@@ -210,11 +225,14 @@
 
         // Avoid blank on the side
         &:not(.o_home_menu_background) .o_main_navbar {
-            box-shadow: 20px 0 0 $o-navbar-background, -20px 0 0 $o-navbar-background;
+            box-shadow:
+                20px 0 0 $o-navbar-background,
+                -20px 0 0 $o-navbar-background;
         }
 
         &:not(.bottom-sheet-open-multiple):has(.o_bottom_sheet_dismissing) {
-            .o_navbar, .o_action_manager {
+            .o_navbar,
+            .o_action_manager {
                 transition: transform $o_BottomSheet_slideOut_duration ease;
                 transform: scale(1) translateZ(0);
                 @media (prefers-reduced-motion: reduce) {
@@ -235,10 +253,16 @@
         position: relative;
         border: $border-width solid $list-group-active-border-color;
         border-radius: $border-radius-lg;
-        color: var(--BottomSheetStatusBar__entry-color--active, #{color-contrast($component-active-bg)});
+        color: var(
+            --BottomSheetStatusBar__entry-color--active,
+            #{color-contrast($component-active-bg)}
+        );
 
         &:not(.focus) {
-            background: var(--BottomSheetStatusBar__entry-background--active, #{rgba($component-active-bg, .5)});
+            background: var(
+                --BottomSheetStatusBar__entry-background--active,
+                #{rgba($component-active-bg, 0.5)}
+            );
         }
 
         &::before {
@@ -263,10 +287,11 @@
     // Dropdown
     .dropdown-divider {
         --dropdown-divider-bg: #{$border-color};
-        margin: map-get($spacers, 2) ($offcanvas-padding-x * .5);
+        margin: map-get($spacers, 2) ($offcanvas-padding-x * 0.5);
     }
 
-    .dropdown-item, .dropdown-header {
+    .dropdown-item,
+    .dropdown-header {
         --dropdown-item-padding-y: #{map-get($spacers, 3)};
         --dropdown-item-padding-x: var(--BottomSheet-Entry-paddingX);
         --dropdown-header-padding-y: var(--dropdown-item-padding-y);
@@ -284,7 +309,8 @@
     .o_bottom_sheet_body:not(.o_custom_bottom_sheet) {
         // Dropdown
         .dropdown-item {
-            &.active, &.selected {
+            &.active,
+            &.selected {
                 @extend %BottomSheet-Entry-active;
             }
         }
@@ -296,7 +322,10 @@
             border: unset;
             transform: unset;
 
-            @include o-position-absolute(var(--dropdown-item-padding-y), $list-group-item-padding-x);
+            @include o-position-absolute(
+                var(--dropdown-item-padding-y),
+                $list-group-item-padding-x
+            );
             padding-block: map-get($spacers, 2);
             // .fa
             text-rendering: auto;
@@ -311,7 +340,8 @@
     }
 
     .o_kanban_card_manage_settings:has(.o_colorlist) {
-        &, > div:last-child {
+        &,
+        > div:last-child {
             padding: 0;
         }
     }

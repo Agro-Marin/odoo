@@ -1,10 +1,10 @@
 /** @odoo-module native */
+import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
+import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { MainComponentsContainer } from "@web/components/main_components_container";
 import { useOwnDebugContext } from "@web/services/debug/debug_context";
 import { ActionContainer } from "@web/webclient/actions/action_container";
-import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 
 export class ProjectSharingWebClient extends Component {
     static props = {};
@@ -61,7 +61,8 @@ export class ProjectSharingWebClient extends Component {
             (ev.ctrlKey || ev.metaKey) &&
             !ev.target.isContentEditable &&
             ((ev.target instanceof HTMLAnchorElement && ev.target.href) ||
-                (ev.target instanceof HTMLElement && ev.target.closest("a[href]:not([href=''])")))
+                (ev.target instanceof HTMLElement &&
+                    ev.target.closest("a[href]:not([href=''])")))
         ) {
             ev.stopImmediatePropagation();
             return;

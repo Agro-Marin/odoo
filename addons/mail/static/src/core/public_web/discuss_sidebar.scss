@@ -36,7 +36,9 @@
     .o-mail-DiscussSidebar.o-compact & {
         opacity: 75%;
 
-        &.o-unread, &.o-active, &:hover {
+        &.o-unread,
+        &.o-active,
+        &:hover {
             opacity: 100%;
         }
     }
@@ -47,11 +49,18 @@
     }
 
     &.o-active {
-        background-color: var(--mail-DiscussSidebar-itemActiveBgColor, mix($o-view-background-color, $o-action, 90%)) !important;
-        outline-color: var(--mail-DiscussSidebar-itemActiveOutlineColor, mix($o-view-background-color, $o-action, 50%)) !important;
+        background-color: var(
+            --mail-DiscussSidebar-itemActiveBgColor,
+            mix($o-view-background-color, $o-action, 90%)
+        ) !important;
+        outline-color: var(
+            --mail-DiscussSidebar-itemActiveOutlineColor,
+            mix($o-view-background-color, $o-action, 50%)
+        ) !important;
     }
 
-    &.o-active, &:hover {
+    &.o-active,
+    &:hover {
         .o-mail-DiscussSidebarChannel-itemName {
             filter: brightness(1.1);
         }

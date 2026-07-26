@@ -54,7 +54,9 @@
 @mixin o-hover-opacity($default-opacity: 0.5, $hover-opacity: 1) {
     opacity: $default-opacity;
 
-    &:hover, &:focus, &.focus {
+    &:hover,
+    &:focus,
+    &.focus {
         opacity: $hover-opacity;
     }
 }
@@ -64,7 +66,8 @@
 //------------------------------------------------------------------------------
 
 @function luma($color) {
-    @return ((red($color) * .299) + (green($color) * .587) + (blue($color) * .114)) / 255 * 100%;
+    @return ((red($color) * 0.299) + (green($color) * 0.587) + (blue($color) * 0.114)) /
+        255 * 100%;
 }
 
 // Extend placeholder which adds a chess-like background below the color and
@@ -79,7 +82,7 @@
         content: "";
         @include o-position-absolute(0, 0, 0, 0);
         z-index: -1;
-        background-image: url('/web/static/img/transparent.png');
+        background-image: url("/web/static/img/transparent.png");
         background-size: var(--PreviewAlphaBg-background-size, 10px) auto;
         border-radius: inherit;
     }
@@ -96,7 +99,12 @@
 // This function checks if the color ($color) has enough contrast to be visible
 // on a background with the color ($background-color). If not, it is replaced
 // with $light (if too dark) or $dark (if too light).
-@function adjust-color-to-background($color, $background-color, $light: $color-contrast-light, $dark: $color-contrast-dark) {
+@function adjust-color-to-background(
+    $color,
+    $background-color,
+    $light: $color-contrast-light,
+    $dark: $color-contrast-dark
+) {
     @return if(
         color-contrast($color) == $color-contrast-dark,
         color-contrast($background-color, $color, $dark),
@@ -107,7 +115,12 @@
 // ------------------------------------------------------------------
 // Padding
 // ------------------------------------------------------------------
-@mixin o-webclient-padding($top: 0px, $right: $o-horizontal-padding, $bottom: 0px, $left: $o-horizontal-padding) {
+@mixin o-webclient-padding(
+    $top: 0px,
+    $right: $o-horizontal-padding,
+    $bottom: 0px,
+    $left: $o-horizontal-padding
+) {
     padding-top: $top;
     padding-right: $right;
     padding-bottom: $bottom;
@@ -117,28 +130,40 @@
 // ------------------------------------------------------------------
 // Caret
 // ------------------------------------------------------------------
-@mixin o-caret-down($caret-width: $caret-width, $caret-color: var(--o-caret-color, currentColor)) {
+@mixin o-caret-down(
+    $caret-width: $caret-width,
+    $caret-color: var(--o-caret-color, currentColor)
+) {
     @include utils-caret-boilerplate;
     border-bottom: 0;
     border-left: $caret-width solid transparent;
     border-right: $caret-width solid transparent;
     border-top: $caret-width solid $caret-color;
 }
-@mixin o-caret-up($caret-width: $caret-width, $caret-color: var(--o-input-border-color, currentColor)) {
+@mixin o-caret-up(
+    $caret-width: $caret-width,
+    $caret-color: var(--o-input-border-color, currentColor)
+) {
     @include utils-caret-boilerplate;
     border-bottom: $caret-width solid $caret-color;
     border-left: $caret-width solid transparent;
     border-right: $caret-width solid transparent;
     border-top: 0;
 }
-@mixin o-caret-left($caret-width: $caret-width, $caret-color: var(--o-input-border-color, currentColor)) {
+@mixin o-caret-left(
+    $caret-width: $caret-width,
+    $caret-color: var(--o-input-border-color, currentColor)
+) {
     @include utils-caret-boilerplate;
     border-bottom: $caret-width solid transparent;
     border-left: 0;
     border-right: $caret-width solid $caret-color;
     border-top: $caret-width solid transparent;
 }
-@mixin o-caret-right($caret-width: $caret-width, $caret-color: var(--o-input-border-color, currentColor)) {
+@mixin o-caret-right(
+    $caret-width: $caret-width,
+    $caret-color: var(--o-input-border-color, currentColor)
+) {
     @include utils-caret-boilerplate;
     border-bottom: $caret-width solid transparent;
     border-left: $caret-width solid $caret-color;
@@ -158,11 +183,13 @@
 
 @mixin o-field-pointer() {
     // Force `pointer`cursor on  inputs and labels
-    .form-check-input:not(:disabled), .form-check-input:not(:disabled) + label {
+    .form-check-input:not(:disabled),
+    .form-check-input:not(:disabled) + label {
         cursor: pointer;
     }
 
-    &:hover, &:hover .form-check-input:not(:disabled) {
+    &:hover,
+    &:hover .form-check-input:not(:disabled) {
         border-color: $form-check-input-checked-border-color;
     }
 }
@@ -173,7 +200,9 @@
 @mixin o-hover-text-color($default-color: $body-color, $hover-color: $link-color) {
     color: $default-color;
 
-    &:hover, &:focus, &.focus {
+    &:hover,
+    &:focus,
+    &.focus {
         color: $hover-color;
     }
 }
@@ -185,7 +214,11 @@
     text-transform: none;
     @include o-hover-text-color($default-color: $color, $hover-color: $color-active);
 
-    &, &:hover, &:focus, &:active, &.active {
+    &,
+    &:hover,
+    &:focus,
+    &:active,
+    &.active {
         border-color: transparent !important;
         background-color: transparent !important;
     }
@@ -195,8 +228,12 @@
         outline: none;
     }
 
-    &.text-muted, .text-muted {
-        @include o-hover-text-color($default-color: $text-muted, $hover-color: $color-active);
+    &.text-muted,
+    .text-muted {
+        @include o-hover-text-color(
+            $default-color: $text-muted,
+            $hover-color: $color-active
+        );
     }
 }
 
@@ -213,7 +250,11 @@
     @for $i from 1 through length($font) {
         $-part: nth($font, $i);
         @if $i == $index or $-part == serif or $-part == sans-serif {
-            $-with-support-font: append($-with-support-font, 'Odoo Unicode Support Noto', $separator: comma);
+            $-with-support-font: append(
+                $-with-support-font,
+                "Odoo Unicode Support Noto",
+                $separator: comma
+            );
         }
         $-with-support-font: append($-with-support-font, $-part, $separator: comma);
     }
@@ -226,9 +267,12 @@
     $-map: ();
     @each $key, $value in $map {
         @if $value != null {
-            $-map: map-merge($-map, (
-                $key: $value,
-            ));
+            $-map: map-merge(
+                $-map,
+                (
+                    $key: $value,
+                )
+            );
         }
     }
     @return $-map;
@@ -346,16 +390,15 @@
 @mixin print-variable($key, $value) {
     @if $value != null {
         $-type: type-of($value);
-        @if $-type == 'string' and str-index($value, 'var(') != 1 {
-            --#{$key}: '#{$value}';
-        } @else if $-type == 'list' {
+        @if $-type == "string" and str-index($value, "var(") != 1 {
+            --#{$key}: "#{$value}";
+        } @else if $-type == "list" {
             --#{$key}: #{inspect($value)};
         } @else {
             --#{$key}: #{$value};
         }
     }
 }
-
 
 // ----------------------------------------------------------------------------
 // Media Type
@@ -367,7 +410,7 @@
 // 2. Reduces CSS footprint by only compiling styles that match the current `$o-webclient-media`.
 
 @mixin media-only($-media) {
-    @if ($-media != null and type-of($-media) == 'string') {
+    @if ($-media != null and type-of($-media) == "string") {
         @if $-media == $o-webclient-media {
             @content;
         }
@@ -376,17 +419,21 @@
     }
 }
 
-
 // ----------------------------------------------------------------------------
 // Webkit Search Cancel Button
 // ----------------------------------------------------------------------------
 // Define the webkit cancel button used for search inputs to match bootstrap
 // btn-close style with a color parameter to allow contextual override.
 
-@mixin o-search-cancel-button($search-cancel-button-color, $button-height: $font-size-sm) {
+@mixin o-search-cancel-button(
+    $search-cancel-button-color,
+    $button-height: $font-size-sm
+) {
     &::-webkit-search-cancel-button {
         -webkit-appearance: none;
-        content: escape-svg(url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#{$search-cancel-button-color}'><path d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/></svg>"));
+        content: escape-svg(
+            url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#{$search-cancel-button-color}'><path d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/></svg>")
+        );
         height: $button-height;
         cursor: pointer;
     }
@@ -405,16 +452,20 @@
     }
 
     // => Firefox
-    input[type=number] {
+    input[type="number"] {
         -moz-appearance: textfield;
     }
-};
+}
 
 // ----------------------------------------------------------------------------
 // Focus Ring
 // ----------------------------------------------------------------------------
 
-@mixin o-focus-ring($color: $o-ring-color, $width: $o-ring-width, $offset: $o-ring-offset) {
+@mixin o-focus-ring(
+    $color: $o-ring-color,
+    $width: $o-ring-width,
+    $offset: $o-ring-offset
+) {
     outline: $width solid $color;
     outline-offset: $offset;
 }
@@ -459,7 +510,12 @@
     width: $width;
     height: $height;
     border-radius: $radius;
-    background: linear-gradient(90deg, $o-gray-300 25%, $o-gray-200 50%, $o-gray-300 75%);
+    background: linear-gradient(
+        90deg,
+        $o-gray-300 25%,
+        $o-gray-200 50%,
+        $o-gray-300 75%
+    );
     background-size: 200% 100%;
     animation: o-shimmer 1.5s ease-in-out infinite;
 }

@@ -57,9 +57,7 @@ function makeList({ resIds = [], limit = 2, deleted = new Set() } = {}) {
         evalContextWithVirtualIds: {},
         _isEvalContextReady: true,
     };
-    const data = resIds
-        .filter((id) => !deleted.has(id))
-        .map((id) => SERVER_ROWS[id]);
+    const data = resIds.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]);
     const list = new StaticList(model, config, data, {
         parent,
         onUpdate: async () => {},
@@ -70,7 +68,11 @@ function makeList({ resIds = [], limit = 2, deleted = new Set() } = {}) {
 describe("StaticList._load partial server response", () => {
     test("a concurrently-deleted id is dropped, not left as an undefined hole", async () => {
         // Page 1 = [1, 2]; ids 3 and 99 are on page 2.
-        const { list } = makeList({ resIds: [1, 2, 3, 99], limit: 2, deleted: new Set([99]) });
+        const { list } = makeList({
+            resIds: [1, 2, 3, 99],
+            limit: 2,
+            deleted: new Set([99]),
+        });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
 
         // Navigate to page 2: the load returns only [3] (99 was unlinked).

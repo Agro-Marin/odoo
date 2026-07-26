@@ -8,12 +8,12 @@ $o-navbar-background: $o-brand-odoo !default;
 $o-navbar-border-bottom: 1px solid darken($o-brand-odoo, 10%) !default;
 
 $o-navbar-entry-margin-h: 0 !default;
-$o-navbar-entry-padding-h: .63em !default;
+$o-navbar-entry-padding-h: 0.63em !default;
 $o-navbar-entry-border-radius: $o-border-radius-sm !default;
-$o-navbar-entry-color: rgba($o-white, .9) !default;
+$o-navbar-entry-color: rgba($o-white, 0.9) !default;
 $o-navbar-entry-color--hover: $o-white !default;
 $o-navbar-entry-font-size: 1em !default;
-$o-navbar-entry-bg--hover: rgba($o-black, .08) !default;
+$o-navbar-entry-bg--hover: rgba($o-black, 0.08) !default;
 
 $o-navbar-entry-color--active: $o-navbar-entry-color--hover !default;
 $o-navbar-entry-bg--active: $o-navbar-entry-bg--hover !default;
@@ -25,7 +25,7 @@ $o-navbar-badge-size: 11px !default;
 $o-navbar-badge-padding: 4px !default;
 $o-navbar-badge-bg: $o-success !default;
 $o-navbar-badge-color: inherit !default;
-$o-navbar-badge-text-shadow: 1px 1px 0 rgba($o-black, .3) !default;
+$o-navbar-badge-text-shadow: 1px 1px 0 rgba($o-black, 0.3) !default;
 
 // = % PseudoClasses
 //

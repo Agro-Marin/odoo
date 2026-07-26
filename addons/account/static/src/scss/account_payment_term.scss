@@ -1,6 +1,6 @@
 .o_example_note {
-    padding-left: $spacer * .5;
-    padding-right: $spacer * .5;
+    padding-left: $spacer * 0.5;
+    padding-right: $spacer * 0.5;
 
     div.o_draggable {
         display: none;
@@ -10,7 +10,7 @@
         padding-left: 0px;
 
         &:not(:focus) {
-            border-color: #B9B9B9;
+            border-color: #b9b9b9;
         }
     }
 

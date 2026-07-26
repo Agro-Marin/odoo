@@ -15,7 +15,8 @@ html:has(.o_layout, .o_basic_theme) {
     }
 
     body {
-        &.o_mass_mailing_iframe_fullscreen, &.o_mass_mailing_iframe_mobile {
+        &.o_mass_mailing_iframe_fullscreen,
+        &.o_mass_mailing_iframe_mobile {
             .note-editable {
                 overflow: auto;
                 height: 100%;

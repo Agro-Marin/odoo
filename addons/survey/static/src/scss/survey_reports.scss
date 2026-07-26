@@ -28,7 +28,7 @@
 }
 
 #o_survey_certification.certification-wrapper {
-    background-color: #875A7B;
+    background-color: #875a7b;
     position: relative;
     display: flex;
     margin-left: -4mm;
@@ -43,22 +43,22 @@
     }
 
     .test-entry {
-         position: absolute;
-         top: 0;
-         left: 0;
-         width: 100%;
-         height: 100%;
-         background: url(/survey/static/src/img/watermark.png);
-         background-size: 20%;
-         background-position: center;
-         z-index: 4;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: url(/survey/static/src/img/watermark.png);
+        background-size: 20%;
+        background-position: center;
+        z-index: 4;
     }
 
     .certification {
         position: relative;
         text-align: center;
 
-        .certification-failed p{
+        .certification-failed p {
             margin-top: 30mm;
         }
 
@@ -75,7 +75,7 @@
 
                 span {
                     font-size: 20pt;
-                   }
+                }
             }
         }
 
@@ -135,14 +135,14 @@
         }
     }
 
-// Classic Template
+    // Classic Template
     &.classic {
-
         &.blue .certification {
             color: #263e86;
 
             .certification-top {
-                &:before, &:after {
+                &:before,
+                &:after {
                     background-image: url("/survey/static/src/img/classic-ornament-blue.svg");
                 }
             }
@@ -156,7 +156,8 @@
             color: #d7a520;
 
             .certification-top {
-                &:before, &:after{
+                &:before,
+                &:after {
                     background-image: url("/survey/static/src/img/classic-ornament-gold.svg");
                 }
             }
@@ -173,13 +174,14 @@
             width: 295mm;
             height: 208mm;
             margin: 1mm;
-            color: #875A7B;
+            color: #875a7b;
 
             .certification-top {
                 padding-top: 10mm;
 
-                &:before, &:after {
-                    content: '';
+                &:before,
+                &:after {
+                    content: "";
                     display: block;
                     width: 108mm;
                     height: 16mm;
@@ -202,7 +204,7 @@
                 margin-bottom: 10mm;
 
                 p .certification-name {
-                    color: #875A7B;
+                    color: #875a7b;
                 }
             }
 
@@ -218,14 +220,13 @@
                     span {
                         font-size: 18pt;
                     }
-
                 }
 
                 .certification-seal {
                     top: 50%;
                     left: 50%;
-                    -webkit-transform: translate(-50% , -50%);
-                    transform: translate(-50% , -50%);
+                    -webkit-transform: translate(-50%, -50%);
+                    transform: translate(-50%, -50%);
                     width: 24mm;
                     height: 24mm;
                     background: url(/survey/static/src/img/classic-seal.png) no-repeat;
@@ -236,7 +237,7 @@
                     right: 35mm;
                 }
             }
-            
+
             .certification-number {
                 width: 40mm;
                 bottom: 5mm;
@@ -247,7 +248,7 @@
         }
     }
 
-// Modern Template
+    // Modern Template
     &.modern {
         background-image: url("/survey/static/src/img/certification_bg_modern.svg");
         background-repeat: no-repeat;
@@ -304,7 +305,6 @@
                         font-size: 14pt;
                         color: #6b6d70;
                     }
-
                 }
 
                 .certification-company {
@@ -314,7 +314,7 @@
 
             .certification-number {
                 bottom: -6mm;
-                right:0;
+                right: 0;
                 text-align: right;
             }
         }

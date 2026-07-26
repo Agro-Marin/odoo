@@ -16,4 +16,6 @@ export const predecessorIdsOne2ManyField = {
     component: PredecessorIdsOne2ManyField,
 };
 
-registry.category("fields").add("predecessor_ids_one2many", predecessorIdsOne2ManyField);
+registry
+    .category("fields")
+    .add("predecessor_ids_one2many", predecessorIdsOne2ManyField);

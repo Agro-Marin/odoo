@@ -1,10 +1,12 @@
-.o_field_CopyClipboardURL, .o_field_CopyClipboardChar {
+.o_field_CopyClipboardURL,
+.o_field_CopyClipboardChar {
     > div {
         grid-template-columns: auto min-content;
         .o_clipboard_button {
             border: none;
         }
-        > span:first-child, a {
+        > span:first-child,
+        a {
             margin-left: 4px;
             margin-right: 4px;
             align-self: center;
@@ -16,7 +18,8 @@
     }
 }
 
-.o_field_CopyClipboardURL, .o_field_CopyClipboardChar {
+.o_field_CopyClipboardURL,
+.o_field_CopyClipboardChar {
     &.o_readonly_modifier > div {
         border: 1px solid #e6e6e6;
         > span {
@@ -25,7 +28,8 @@
     }
 }
 
-body:not(.o_touch_device) .o_field_CopyClipboardURL, .o_field_CopyClipboardChar {
+body:not(.o_touch_device) .o_field_CopyClipboardURL,
+.o_field_CopyClipboardChar {
     &:not(.o_readonly_modifier) {
         &:not(:hover):not(:focus-within) button {
             opacity: 0 !important;

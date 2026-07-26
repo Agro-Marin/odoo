@@ -43,13 +43,15 @@ class DropzonePlugin extends Plugin {
                 selector:
                     ".note-editable > div:not(.o_layout), .note-editable .oe_structure > *, .oe_snippet_body",
                 exclude: this.noOptionsSelector,
-                dropNear: "[data-oe-field='body_html']:not(:has(.o_layout)) > *, .oe_structure > *",
+                dropNear:
+                    "[data-oe-field='body_html']:not(:has(.o_layout)) > *, .oe_structure > *",
                 dropIn: "[data-oe-field='body_html']:not(:has(.o_layout)), .oe_structure",
             },
             {
                 // sizing_x
                 selector: ".row > div",
-                exclude: ".o_mail_no_options, .s_col_no_resize.row > div, .s_col_no_resize",
+                exclude:
+                    ".o_mail_no_options, .s_col_no_resize.row > div, .s_col_no_resize",
                 dropNear: ".row:not(.s_col_no_resize) > div",
             },
         ],

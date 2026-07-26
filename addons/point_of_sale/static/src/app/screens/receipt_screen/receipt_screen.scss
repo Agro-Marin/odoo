@@ -2,7 +2,7 @@
     direction: ltr;
 
     > div {
-        background-color: #FFFFFF;
+        background-color: #ffffff;
         color: #000000;
     }
 }
@@ -31,7 +31,8 @@
         contain: paint;
         background-color: transparent;
     }
-    .pos, .pos * {
+    .pos,
+    .pos * {
         position: static !important;
     }
     .render-container .pos-receipt * {
@@ -51,7 +52,7 @@
         top: 10px;
         left: 10px;
     }
-    .o-main-components-container  {
+    .o-main-components-container {
         position: absolute !important;
         top: 0;
         left: 0;

@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
-import { SnippetVisibilityOption } from "../options/snippet_visibility_option.js";
-import { withSequence } from "@html_editor/utils/resource";
-import { effect } from "@web/core/utils/reactive";
 import { DataAttributeAction } from "@html_builder/core/core_builder_action_plugin";
+import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
+import { registry } from "@web/core/registry";
+import { effect } from "@web/core/utils/reactive";
+
+import { SnippetVisibilityOption } from "../options/snippet_visibility_option.js";
 
 class DataAttributeChangeAction extends DataAttributeAction {
     static id = "dataAttributeChangeAction";
@@ -35,7 +36,7 @@ class SnippetVisibilityPlugin extends Plugin {
                     this.resetFilterDomains();
                 }
             },
-            [this.config.record]
+            [this.config.record],
         );
     }
 
@@ -50,4 +51,6 @@ class SnippetVisibilityPlugin extends Plugin {
     }
 }
 
-registry.category("mass_mailing-plugins").add(SnippetVisibilityPlugin.id, SnippetVisibilityPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(SnippetVisibilityPlugin.id, SnippetVisibilityPlugin);

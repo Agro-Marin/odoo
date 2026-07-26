@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class SurveyResultSegments extends Interaction {
     static selector = ".o_survey_segment_charts";
@@ -20,18 +20,18 @@ export class SurveyResultSegments extends Interaction {
         this.renderDoughnut(
             this.el.querySelector(".o_survey_segment_score_canvas"),
             data.score_bands,
-            ["#dc3545", "#ffc107", "#17a2b8", "#28a745"]
+            ["#dc3545", "#ffc107", "#17a2b8", "#28a745"],
         );
         this.renderDoughnut(
             this.el.querySelector(".o_survey_segment_quality_canvas"),
             data.quality_tiers,
-            ["#dc3545", "#ffc107", "#28a745"]
+            ["#dc3545", "#ffc107", "#28a745"],
         );
         if (data.duration_buckets.length) {
             this.renderDoughnut(
                 this.el.querySelector(".o_survey_segment_duration_canvas"),
                 data.duration_buckets,
-                ["#6f42c1", "#0d6efd", "#20c997", "#fd7e14"]
+                ["#6f42c1", "#0d6efd", "#20c997", "#fd7e14"],
             );
         }
     }
@@ -40,15 +40,17 @@ export class SurveyResultSegments extends Interaction {
         if (!canvas || !segments.length) {
             return;
         }
-        // eslint-disable-next-line no-undef
+
         const chart = new Chart(canvas, {
             type: "doughnut",
             data: {
                 labels: segments.map((s) => s.label),
-                datasets: [{
-                    data: segments.map((s) => s.count),
-                    backgroundColor: colors,
-                }],
+                datasets: [
+                    {
+                        data: segments.map((s) => s.count),
+                        backgroundColor: colors,
+                    },
+                ],
             },
             options: {
                 responsive: true,
@@ -69,4 +71,6 @@ export class SurveyResultSegments extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("survey.result_segments", SurveyResultSegments);
+registry
+    .category("public.interactions")
+    .add("survey.result_segments", SurveyResultSegments);

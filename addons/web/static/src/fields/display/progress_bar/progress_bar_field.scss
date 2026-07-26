@@ -10,7 +10,7 @@
         // Prevent the input to grow and deteriorate the visibility
         width: 45px;
         min-width: 45px;
-        transition: width .2s;
+        transition: width 0.2s;
     }
 }
 
@@ -37,7 +37,7 @@
             span {
                 min-width: 1.5rem;
             }
-            span:last-child{
+            span:last-child {
                 text-align: left;
             }
         }

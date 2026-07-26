@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { FormController } from "@web/views/form/form_controller";
 
 export class AnalyticAccountFormController extends FormController {
@@ -20,7 +20,7 @@ export class AnalyticAccountFormController extends FormController {
                             projectList: projects
                                 .map((project) => `\t- ${project.name}`)
                                 .join(`\n`),
-                        }
+                        },
                     ),
                     confirmLabel: _t("Archive Account"),
                     cancelLabel: _t("Discard"),

@@ -51,22 +51,28 @@
     z-index: $zindex-tooltip;
     max-width: 270px;
     border: var(--TourPointer__border-width) solid transparent;
-    transform: translate(var(--TourPointer__translate-x), var(--TourPointer__translate-y));
-    transition: width var(--TourPointer__expand-duration),
+    transform: translate(
+        var(--TourPointer__translate-x),
+        var(--TourPointer__translate-y)
+    );
+    transition:
+        width var(--TourPointer__expand-duration),
         height var(--TourPointer__expand-duration);
 
     &.o_bouncing {
         &.o_left,
         &.o_right {
-            animation: o-tour-pointer-bounce-horizontal var(--TourPointer__animation-duration)
+            animation:
+                o-tour-pointer-bounce-horizontal var(--TourPointer__animation-duration)
                     ease-in infinite alternate,
                 var(--TourPointer__reveal-animation);
         }
 
         &.o_top,
         &.o_bottom {
-            animation: o-tour-pointer-bounce-vertical var(--TourPointer__animation-duration) ease-in
-                    infinite alternate,
+            animation:
+                o-tour-pointer-bounce-vertical var(--TourPointer__animation-duration)
+                    ease-in infinite alternate,
                 var(--TourPointer__reveal-animation);
         }
     }

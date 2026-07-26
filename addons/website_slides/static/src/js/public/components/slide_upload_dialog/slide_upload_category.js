@@ -144,7 +144,6 @@ export class SlideUploadCategory extends Component {
             return;
         }
         const isImage = /^image\/.*/.test(file.type);
-        let loaded = false;
         this.file.name = file.name;
         this.file.type = file.type;
         if (!isImage && this.file.type !== "application/pdf") {
@@ -199,10 +198,6 @@ export class SlideUploadCategory extends Component {
                 viewport: viewport,
             }).promise;
             this.state.form.slideImage = canvas.toDataURL();
-            if (loaded) {
-                this.canSubmitForm = true;
-            }
-            loaded = true;
             this.state.preview.show = true;
         }
 

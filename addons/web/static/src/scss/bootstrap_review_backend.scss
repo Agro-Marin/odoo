@@ -2,7 +2,6 @@
 /// This file regroups the CSS rules made to fix/extend bootstrap in the backend
 /// ==============================================================================
 
-
 // Buttons
 // ============================================================================
 // Generating bootstrap color buttons was disabled (see import_bootstrap.scss).
@@ -11,11 +10,12 @@
 .btn {
     --#{$variable-prefix}btn-disabled-border-color: transparent;
     font-weight: $o-font-weight-medium;
-    transition: color $o-duration-fast $o-easing-standard,
-                background-color $o-duration-fast $o-easing-standard,
-                border-color $o-duration-fast $o-easing-standard,
-                box-shadow $o-duration-fast $o-easing-standard,
-                transform $o-duration-fast $o-easing-standard;
+    transition:
+        color $o-duration-fast $o-easing-standard,
+        background-color $o-duration-fast $o-easing-standard,
+        border-color $o-duration-fast $o-easing-standard,
+        box-shadow $o-duration-fast $o-easing-standard,
+        transform $o-duration-fast $o-easing-standard;
 
     &:focus-visible {
         @include o-focus-ring();
@@ -51,7 +51,7 @@
             o-safe-get($-value, hover-color),
             o-safe-get($-value, active-background),
             o-safe-get($-value, active-border),
-            o-safe-get($-value, active-color),
+            o-safe-get($-value, active-color)
         );
     }
 }
@@ -67,7 +67,7 @@
             o-safe-get($-value, hover-color),
             o-safe-get($-value, active-background),
             o-safe-get($-value, active-border),
-            o-safe-get($-value, active-color),
+            o-safe-get($-value, active-color)
         );
     }
 }
@@ -83,7 +83,7 @@
             o-safe-get($-value, hover-color),
             o-safe-get($-value, active-background),
             o-safe-get($-value, active-border),
-            o-safe-get($-value, active-color),
+            o-safe-get($-value, active-color)
         );
     }
 }
@@ -148,9 +148,13 @@ $-o-theme-text-colors: map-merge($theme-colors, $o-theme-text-colors);
 .btn-link {
     font-weight: $btn-font-weight;
 
-    @each $-name, $-color in $-o-theme-text-colors{
-        &.btn-#{$-name}, &.text-#{$-name} {
-            @include o-btn-link-variant($o-gray-600!important, o-text-color($-name) or $-color!important);
+    @each $-name, $-color in $-o-theme-text-colors {
+        &.btn-#{$-name},
+        &.text-#{$-name} {
+            @include o-btn-link-variant(
+                $o-gray-600!important,
+                o-text-color($-name) or $-color!important
+            );
         }
     }
 }
@@ -170,7 +174,6 @@ $-o-theme-text-colors: null;
         @include o-print-color($-color, background-color, bg-opacity);
     }
 }
-
 
 // Bootstrap black/white text-x and bg-x classes + legacy opacity ones
 // ============================================================================
@@ -210,7 +213,7 @@ $-o-theme-text-colors: null;
     @extend %-bg-black;
 }
 
-.bg-transparent{
+.bg-transparent {
     --bg-opacity: 0;
     @extend %-bg-black;
 }
@@ -247,7 +250,6 @@ $-o-grayscale-opacities: map-remove($o-opacities, 0, 100);
 // 3. Cleanup temporary map
 $-o-grayscale-opacities: null;
 
-
 // Odoo custom text/bg colors classes generation
 // ============================================================================
 
@@ -264,7 +266,8 @@ $-o-bg-colors-custom: map-merge($o-bg-colors-custom, $o-grays);
 
 // 3. Generate custom 'bg-x' and 'text-bg-x' contextual classes
 @each $-name, $-color in map-merge($-o-bg-colors-custom, $o-grays) {
-    .bg-#{$-name}, .text-bg-#{$-name}  {
+    .bg-#{$-name},
+    .text-bg-#{$-name} {
         @include o-print-color($-color, background-color, bg-opacity);
     }
 
@@ -283,9 +286,13 @@ $-o-bg-colors-custom: null;
 //    Note: the same is done above for the '$theme-colors'. Here on the
 //    '$o-text-colors-custom' because we don't want it to apply on the '$o-grays'.
 .btn-link {
-    @each $-name, $-color in $o-text-colors-custom{
-        &.btn-#{$-name}, &.text-#{$-name} {
-            @include o-btn-link-variant($o-gray-600!important, o-text-color($-name) or $-color!important);
+    @each $-name, $-color in $o-text-colors-custom {
+        &.btn-#{$-name},
+        &.text-#{$-name} {
+            @include o-btn-link-variant(
+                $o-gray-600!important,
+                o-text-color($-name) or $-color!important
+            );
         }
     }
 }
@@ -324,21 +331,28 @@ $-o-bg-colors-custom: null;
     // The 'o_switch_toggle' class should be use in addition to the default
     // 'form-switch' Bootstrap class.
     &.o_switch_toggle {
-        .form-check-input, .form-check-input:checked {
+        .form-check-input,
+        .form-check-input:checked {
             border-color: $o-action;
             background-color: $o-view-background-color;
-            
-            &, &:focus, &:checked {
-                background-image: escape-svg(url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$o-action}'/></svg>"));
+
+            &,
+            &:focus,
+            &:checked {
+                background-image: escape-svg(
+                    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$o-action}'/></svg>")
+                );
             }
         }
-        
+
         &:hover .form-check-input:not(:disabled) {
             border-color: $o-action;
         }
     }
 
-    &:disabled, &.disabled, &[disabled] {
+    &:disabled,
+    &.disabled,
+    &[disabled] {
         opacity: $o-opacity-disabled;
     }
 }

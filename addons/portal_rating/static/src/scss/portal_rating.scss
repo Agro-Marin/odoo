@@ -1,9 +1,9 @@
 /* static stars */
 // portal_rating
-$o-w-rating-star-color: #FACC2E;
+$o-w-rating-star-color: #facc2e;
 
 .o_website_rating_static {
-    color: var(--WebsiteRating__star-color,  #{$o-w-rating-star-color});
+    color: var(--WebsiteRating__star-color, #{$o-w-rating-star-color});
 }
 
 // website_sale
@@ -12,9 +12,8 @@ $o-w-rating-star-color: #FACC2E;
 }
 
 .o_website_rating_card_container {
-
     .o_message_counter {
-        color: map-get($grays, '700');
+        color: map-get($grays, "700");
     }
 
     /* progress bars */
@@ -26,14 +25,14 @@ $o-w-rating-star-color: #FACC2E;
             min-width: 50px;
             white-space: nowrap;
         }
-        .o_website_rating_table_progress{
+        .o_website_rating_table_progress {
             min-width: 120px;
             > .progress {
                 margin-bottom: 2px;
                 margin-left: 5px;
                 margin-right: 5px;
             }
-            .o_rating_progressbar{
+            .o_rating_progressbar {
                 background-color: $o-w-rating-star-color;
             }
         }
@@ -57,18 +56,17 @@ $o-w-rating-star-color: #FACC2E;
 }
 
 /* Star Widget */
-.o-mail-Composer-starCard{
+.o-mail-Composer-starCard {
     width: max-content;
     .o-mail-Composer-stars {
         display: inline-flex;
-        color: #FACC2E;
+        color: #facc2e;
         margin-right: 15px;
     }
 }
 
 /* Rating Popup Composer */
 .o_rating_popup_composer {
-
     .o_rating_clickable {
         cursor: pointer;
     }

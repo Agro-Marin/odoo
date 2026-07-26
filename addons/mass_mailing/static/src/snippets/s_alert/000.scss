@@ -1,6 +1,6 @@
-.o_mail_snippet_general .s_mail_alert [class^="col-md"]{
-    padding-left: 0!important;
-    padding-right: 0!important;
+.o_mail_snippet_general .s_mail_alert [class^="col-md"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 
 .s_mail_alert {
@@ -12,7 +12,9 @@
         border-width: $alert-border-width;
         border-style: solid;
         border-radius: $alert-border-radius;
-        p, ul, ol {
+        p,
+        ul,
+        ol {
             &:last-child {
                 margin-bottom: 0;
             }

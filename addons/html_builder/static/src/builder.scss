@@ -11,13 +11,15 @@
     height: 46px;
 
     .o_rtl & {
-        .fa-undo, .fa-arrow-rotate-right {
+        .fa-undo,
+        .fa-arrow-rotate-right {
             transform: scaleX(-1);
         }
     }
 }
 
-.o-snippets-top-actions, .o-snippets-tabs {
+.o-snippets-top-actions,
+.o-snippets-tabs {
     .o-hb-btn {
         --btn-font-size: #{$o-we-font-size};
         --btn-padding-x: #{map-get($spacers, 2)};
@@ -30,24 +32,27 @@
     .o-snippets-tabs-highlighter {
         --x: -50%;
         --border-color: #{$o-we-color-accent};
-        --bg-color: #{rgba($o-we-color-accent, .15)};
+        --bg-color: #{rgba($o-we-color-accent, 0.15)};
 
         width: calc(100% / 3);
-        transition: all .5s, transform .25s;
-        border-bottom: #{$o-we-sidebar-tabs-active-border-width} solid var(--border-color);
+        transition:
+            all 0.5s,
+            transform 0.25s;
+        border-bottom: #{$o-we-sidebar-tabs-active-border-width} solid
+            var(--border-color);
         background-color: var(--bg-color);
         transform: translateX(var(--x));
 
         &.o-highlight-blocks {
             --x: -150%;
             --border-color: #{$o-we-color-success};
-            --bg-color: #{rgba($o-we-color-success, .15)};
+            --bg-color: #{rgba($o-we-color-success, 0.15)};
         }
 
         &.o-highlight-theme {
             --x: 50%;
             --border-color: #{$o-we-color-global};
-            --bg-color: #{rgba($o-we-color-global, .15)};
+            --bg-color: #{rgba($o-we-color-global, 0.15)};
         }
 
         .o_rtl & {
@@ -70,29 +75,31 @@
         --nav-underline-link-active-color: #{$o-we-fg-light};
 
         .nav-item {
-            width:  calc(100% / 3);
+            width: calc(100% / 3);
         }
 
         .nav-link {
             transition: none;
         }
 
-        .nav-link[data-name="blocks"]{
+        .nav-link[data-name="blocks"] {
             --o-snippets-tabs-accent-color: #{$o-we-color-success};
-            --o-snippets-tabs-border-color-hover: #{rgba($o-we-color-success, .5)};
+            --o-snippets-tabs-border-color-hover: #{rgba($o-we-color-success, 0.5)};
         }
 
         .nav-link[data-name="customize"] {
             --o-snippets-tabs-accent-color: #{$o-we-color-accent};
-            --o-snippets-tabs-border-color-hover: #{rgba($o-we-color-accent, .5)};
+            --o-snippets-tabs-border-color-hover: #{rgba($o-we-color-accent, 0.5)};
         }
 
         .nav-link[data-name="theme"] {
             --o-snippets-tabs-accent-color: #{$o-we-color-global};
-            --o-snippets-tabs-border-color-hover: #{rgba($o-we-color-global, .5)};
+            --o-snippets-tabs-border-color-hover: #{rgba($o-we-color-global, 0.5)};
         }
 
-        .nav-link.active, .nav-link:hover, & .show > .nav-link {
+        .nav-link.active,
+        .nav-link:hover,
+        & .show > .nav-link {
             border-bottom-color: var(--o-snippets-tabs-border-color-hover);
         }
 
@@ -139,8 +146,10 @@
         box-shadow: $o-we-sidebar-content-field-colorpicker-shadow;
     }
 
-    &:active, &:focus-visible {
-        outline: #{$o-we-border-width} solid  var(--o-hb-btn-active-color, #{$o-we-color-accent});
+    &:active,
+    &:focus-visible {
+        outline: #{$o-we-border-width} solid
+            var(--o-hb-btn-active-color, #{$o-we-color-accent});
     }
 }
 
@@ -161,7 +170,8 @@
     }
 
     .o_we_invisible_entry {
-        padding: $o-we-sidebar-content-field-spacing $o-we-sidebar-content-field-clickable-spacing;
+        padding: $o-we-sidebar-content-field-spacing
+            $o-we-sidebar-content-field-clickable-spacing;
         cursor: pointer;
 
         &:hover {
@@ -178,7 +188,7 @@
 
 %o_we_sublevel > div.o_title::before {
     content: "└"; // TODO The size and look of this depends on the
-                  // browser default font, we should use a SVG instead.
+    // browser default font, we should use a SVG instead.
     display: inline-block;
     margin-right: 0.4em;
 

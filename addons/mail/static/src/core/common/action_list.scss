@@ -22,7 +22,11 @@
                 &:where(.rounded-circle) {
                     aspect-ratio: 1;
                 }
-                &:hover, &:focus, &:active, &.active, &:focus-visible {
+                &:hover,
+                &:focus,
+                &:active,
+                &.active,
+                &:focus-visible {
                     color: var(--o-mail-ActionList-Button-color--hover);
                     opacity: var(--o-mail-ActionList-Button-opacity--hover);
                 }
@@ -48,7 +52,8 @@
             color: white !important;
         }
 
-        &.o-tag-JOIN_LEAVE_CALL.o-dropdown-item, .o-mail-ChatWindow &.o-tag-JOIN_LEAVE_CALL {
+        &.o-tag-JOIN_LEAVE_CALL.o-dropdown-item,
+        .o-mail-ChatWindow &.o-tag-JOIN_LEAVE_CALL {
             i {
                 opacity: 100%;
                 background: var(--btn-bg);
@@ -61,7 +66,8 @@
                 box-sizing: content-box;
             }
 
-            &:hover, &:focus-visible {
+            &:hover,
+            &:focus-visible {
                 i {
                     background: var(--btn-hover-bg);
                     color: var(--btn-hover-color);
@@ -77,23 +83,24 @@
         .o-mail-ChatWindow &.o-tag-JOIN_LEAVE_CALL i {
             font-size: 0.9em !important;
             &.fa-phone::before {
-                transform: translateY(.5px);
+                transform: translateY(0.5px);
             }
         }
 
-        @each $status, $color in (danger: $danger, success: $success, primary: $primary) {
+        @each $status, $color in (danger: $danger, success: $success, primary: $primary)
+        {
             &.o-dropdown-item.btn-#{$status}:not(.o-tag-JOIN_LEAVE_CALL) {
                 &.focus {
                     background-color: rgba($color, 0.75);
                     color: white;
                 }
                 &.o-tag-PRIMARY {
-                    background-color: rgba($color, .9);
+                    background-color: rgba($color, 0.9);
                 }
                 &:not(.focus) {
                     color: var(--o-mail-ActionList-#{$status}NoBgColor, #{$color});
                     &.o-tag-PRIMARY {
-                        background-color: rgba($color, .35);
+                        background-color: rgba($color, 0.35);
                     }
                 }
             }

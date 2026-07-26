@@ -60,9 +60,7 @@ class ProjectForecastWizard(models.TransientModel):
         """Run the Monte Carlo simulation and display results."""
         self.ensure_one()
         if self.simulation_count < 1:
-            raise UserError(
-                self.env._("The number of simulations must be at least 1.")
-            )
+            raise UserError(self.env._("The number of simulations must be at least 1."))
         # Cap iterations so a huge user-entered value can't stall the request.
         sim_count = min(self.simulation_count, 100_000)
         if not self.remaining_items or self.remaining_items <= 0:

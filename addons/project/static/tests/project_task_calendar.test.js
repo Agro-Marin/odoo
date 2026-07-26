@@ -1,12 +1,11 @@
-import { luxon } from "@web/core/l10n/luxon";
-import { expect, test, beforeEach, describe } from "@odoo/hoot";
-import { mockDate, animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { click, queryAllTexts, queryFirst, queryOne, waitFor } from "@odoo/hoot-dom";
-
+import { animationFrame, mockDate, runAllTimers } from "@odoo/hoot-mock";
 import { contains, mountView, onRpc } from "@web/../tests/web_test_helpers";
+import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 
 import { defineProjectModels, ProjectTask } from "./project_models.js";
-import { serializeDateTime } from "@web/core/l10n/dates";
 
 describe.current.tags("desktop");
 defineProjectModels();
@@ -80,7 +79,9 @@ test("test Project Task Calendar Popover with task_step_with_state_selection wid
     // There is a timeout set in the useCalendarPopover.
     await runAllTimers();
 
-    expect(queryOne(".o_field_task_step_with_state_selection > div").childElementCount).toBe(2);
+    expect(
+        queryOne(".o_field_task_step_with_state_selection > div").childElementCount,
+    ).toBe(2);
 });
 
 test("test task_step_with_state_selection widget with non-editable state", async () => {
@@ -203,8 +204,10 @@ test("tasks to plan should be visible in the sidebar when `default_project_id` i
     });
     expect(".o_calendar_view").toHaveCount(1);
     expect(".o_task_to_plan_draggable").toHaveCount(2);
-    expect(queryAllTexts(".o_task_to_plan_draggable")).toEqual(['Task-10', 'Task-11']);
-    expect(".o_calendar_view .o_calendar_sidebar h5").toHaveText("Drag Tasks to Schedule");
+    expect(queryAllTexts(".o_task_to_plan_draggable")).toEqual(["Task-10", "Task-11"]);
+    expect(".o_calendar_view .o_calendar_sidebar h5").toHaveText(
+        "Drag Tasks to Schedule",
+    );
     expect.verifySteps(["search_read", "fetch tasks to schedule"]);
 });
 
@@ -219,12 +222,14 @@ test("search domain should be taken into account in Tasks to Schedule", async ()
     await mountView({
         ...calendarMountParams,
         context: { default_project_id: 1 },
-        domain: [['is_closed', '=', false]],
+        domain: [["is_closed", "=", false]],
     });
     expect(".o_calendar_view").toHaveCount(1);
     expect(".o_task_to_plan_draggable").toHaveCount(1);
-    expect(".o_task_to_plan_draggable").toHaveText('Task-10');
-    expect(".o_calendar_view .o_calendar_sidebar h5").toHaveText("Drag Tasks to Schedule");
+    expect(".o_task_to_plan_draggable").toHaveText("Task-10");
+    expect(".o_calendar_view .o_calendar_sidebar h5").toHaveText(
+        "Drag Tasks to Schedule",
+    );
     expect.verifySteps(["search_read", "fetch tasks to schedule"]);
 });
 
@@ -239,12 +244,18 @@ test("planned dates used in search domain should not be taken into account in Ta
     await mountView({
         ...calendarMountParams,
         context: { default_project_id: 1 },
-        domain: [['is_closed', '=', false], ['date_end', '!=', false], ['planned_date_begin', '!=', false]],
+        domain: [
+            ["is_closed", "=", false],
+            ["date_end", "!=", false],
+            ["planned_date_begin", "!=", false],
+        ],
     });
     expect(".o_calendar_view").toHaveCount(1);
     expect(".o_task_to_plan_draggable").toHaveCount(1);
-    expect(".o_task_to_plan_draggable").toHaveText('Task-10');
-    expect(".o_calendar_view .o_calendar_sidebar h5").toHaveText("Drag Tasks to Schedule");
+    expect(".o_task_to_plan_draggable").toHaveText("Task-10");
+    expect(".o_calendar_view .o_calendar_sidebar h5").toHaveText(
+        "Drag Tasks to Schedule",
+    );
     expect.verifySteps(["search_read", "fetch tasks to schedule"]);
 });
 
@@ -278,7 +289,12 @@ test("test drag and drop a task to schedule in calendar view in month scale", as
     await moveTo(dateCell);
     expect(dateCell).toHaveClass("o-highlight");
     await drop();
-    expect.verifySteps(["search_read", "fetch tasks to schedule", "plan task", "search_read"]);
+    expect.verifySteps([
+        "search_read",
+        "fetch tasks to schedule",
+        "plan task",
+        "search_read",
+    ]);
     expect(".o_task_to_plan_draggable").toHaveCount(1);
     expect(".o_task_to_plan_draggable").toHaveText("Task-11");
 });
@@ -289,7 +305,7 @@ test("project.task (calendar): toggle sub-tasks", async () => {
             id: 1,
             project_id: 1,
             name: "Task 1",
-            step_id:  1,
+            step_id: 1,
             display_in_project: true,
             date_end: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
@@ -298,11 +314,11 @@ test("project.task (calendar): toggle sub-tasks", async () => {
             id: 2,
             project_id: 1,
             name: "Task 2",
-            step_id:  1,
+            step_id: 1,
             display_in_project: false,
             date_end: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
-        }
+        },
     ];
     await mountView(calendarMountParams);
     expect(".o_event").toHaveCount(1);

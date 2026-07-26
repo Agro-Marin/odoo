@@ -5,12 +5,17 @@ $o-wblog-loader-size: 50px;
 // ======= ANIMATIONS =======
 // Generic fade-in
 @keyframes o-wblog-fade-In {
-    0%   { opacity: 0; }
-    100% { opacity: 1; }
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
 }
 
 @keyframes o-wblog-loader {
-    0%, 100% {
+    0%,
+    100% {
         animation-timing-function: cubic-bezier(0.5, 0, 1, 0.5);
     }
     0% {
@@ -25,17 +30,33 @@ $o-wblog-loader-size: 50px;
     }
 }
 
-
 // ======== MIXINS =========
 // Create easing-linear-gradients. Compared to the standards liner-gradients
 // these are smoother and blends into their context increasing readability when
 // acts as background for text placed over images.
 // based on: https://css-tricks.com/easing-linear-gradients/
 @mixin o-wbblog-scrim-gradient($colorFrom, $colorTo) {
-    $scrimStops: 0% 0%, 26.2% 19%, 45.9% 34%, 61.8% 47%, 72.2% 56.5%, 80.6% 65%, 87.4% 73%, 92.5% 80.2%, 95.8% 86.1%, 97.9% 91%, 99.2% 95.2%, 99.8% 98.2%, 100% 100%;
+    $scrimStops:
+        0% 0%,
+        26.2% 19%,
+        45.9% 34%,
+        61.8% 47%,
+        72.2% 56.5%,
+        80.6% 65%,
+        87.4% 73%,
+        92.5% 80.2%,
+        95.8% 86.1%,
+        97.9% 91%,
+        99.2% 95.2%,
+        99.8% 98.2%,
+        100% 100%;
     $stops: ();
     @each $scrimStop in $scrimStops {
-        $stops: append($stops, mix($colorTo, $colorFrom, nth($scrimStop, 1)) nth($scrimStop, 2), comma)
+        $stops: append(
+            $stops,
+            mix($colorTo, $colorFrom, nth($scrimStop, 1)) nth($scrimStop, 2),
+            comma
+        );
     }
 
     background-image: linear-gradient(#{$stops});
@@ -45,7 +66,6 @@ $o-wblog-loader-size: 50px;
 // Website Blog
 //------------------------------------------------------------------------------
 .website_blog {
-
     .o_wblog_page_cards_bg {
         // To be applied to the main container when 'card design' option is
         // enabled. Provide a slight darker bg that will blend the background
@@ -104,7 +124,8 @@ $o-wblog-loader-size: 50px;
         }
     }
 
-    #o_wblog_post_content, .blog_header {
+    #o_wblog_post_content,
+    .blog_header {
         // Remove the '/' separators from breadcrumbs on small devices, as only
         // the blog category is displayed on small screens.
         @include media-breakpoint-down(lg) {
@@ -163,7 +184,7 @@ $o-wblog-loader-size: 50px;
             .o_record_cover_image:after {
                 content: "";
                 display: block;
-                @include o-position-absolute(0,0,50%,0);
+                @include o-position-absolute(0, 0, 50%, 0);
                 @include o-wbblog-scrim-gradient(rgba(black, 0.5), transparent);
             }
 
@@ -177,7 +198,6 @@ $o-wblog-loader-size: 50px;
                 }
             }
         }
-
     }
 
     // Blog Post Specific
@@ -206,7 +226,7 @@ $o-wblog-loader-size: 50px;
     .o_wblog_post_page_cover_footer {
         min-height: 33vh;
         // Emulate native jQuery 'swing' easing to match js code
-        transition: all 0.3s cubic-bezier(.02, .01, .47, 1);
+        transition: all 0.3s cubic-bezier(0.02, 0.01, 0.47, 1);
     }
 
     #o_wblog_next_container {
@@ -234,7 +254,7 @@ $o-wblog-loader-size: 50px;
     }
 
     #o_wblog_post_main.o_wblog_post_main_transition {
-        animation: o-wblog-fade-In 1s cubic-bezier(.02, .01, .47, 1);
+        animation: o-wblog-fade-In 1s cubic-bezier(0.02, 0.01, 0.47, 1);
     }
 
     // Blog Index Pages
@@ -244,10 +264,10 @@ $o-wblog-loader-size: 50px;
             box-shadow: inset 0 0 0 1px rgba(white, 0.3);
 
             padding-top: 33%;
-            height: auto!important;
+            height: auto !important;
             // This is mandatory as we do not want the CoverProperties
             // sizing classes to be applied here
-            min-height: auto!important;
+            min-height: auto !important;
 
             &:hover .o_record_cover_image {
                 opacity: 0.8;
@@ -279,7 +299,6 @@ $o-wblog-loader-size: 50px;
                 }
             }
         }
-
     }
 
     > nav > .container {

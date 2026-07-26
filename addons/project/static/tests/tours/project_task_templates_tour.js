@@ -15,7 +15,8 @@ registry.category("web_tour.tours").add("project_task_templates_tour", {
             content: "Navigate to the project with a task template",
         },
         {
-            trigger: 'div.o_last_breadcrumb_item span:contains("Project with Task Template")',
+            trigger:
+                'div.o_last_breadcrumb_item span:contains("Project with Task Template")',
             content: "Wait for the kanban view to load",
         },
         {
@@ -40,8 +41,10 @@ registry.category("web_tour.tours").add("project_task_templates_tour", {
             trigger: ".o_form_readonly, .o_form_saved",
         },
         {
-            trigger: 'div.note-editable.odoo-editor-editable:contains("Template description")',
-            content: "Check that the created task has copied the description of the template",
+            trigger:
+                'div.note-editable.odoo-editor-editable:contains("Template description")',
+            content:
+                "Check that the created task has copied the description of the template",
         },
     ],
 });

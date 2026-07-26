@@ -4,14 +4,24 @@
 /// Regroup functions that can be used at any stage of the compilation process.
 ///============================================================================
 
-
 /// Map of unit strings to their 1-unit reference values, used by o-strip-unit()
 /// to divide out the unit in a Dart Sass calc()-compatible way.
 $-unit-references: (
-    'px': 1px, 'rem': 1rem, 'em': 1em, '%': 1%,
-    'vh': 1vh, 'vw': 1vw, 'vmin': 1vmin, 'vmax': 1vmax,
-    'cm': 1cm, 'mm': 1mm, 'in': 1in, 'pt': 1pt, 'pc': 1pc,
-    'ex': 1ex, 'ch': 1ch,
+    "px": 1px,
+    "rem": 1rem,
+    "em": 1em,
+    "%": 1%,
+    "vh": 1vh,
+    "vw": 1vw,
+    "vmin": 1vmin,
+    "vmax": 1vmax,
+    "cm": 1cm,
+    "mm": 1mm,
+    "in": 1in,
+    "pt": 1pt,
+    "pc": 1pc,
+    "ex": 1ex,
+    "ch": 1ch,
 );
 
 /// Remove the unit of a length
@@ -21,7 +31,7 @@ $-unit-references: (
 /// @return {$-value}
 ///     Unitless number
 @function o-strip-unit($-value) {
-    @if type-of($-value) == 'number' and not unitless($-value) {
+    @if type-of($-value) == "number" and not unitless($-value) {
         $-ref: map-get($-unit-references, unit($-value));
         @if $-ref != null {
             @return calc($-value / $-ref);
@@ -42,7 +52,6 @@ $-unit-references: (
 @function o-to-rem($-px-value, $-base: 16) {
     @return calc(o-strip-unit($-px-value) / o-strip-unit($-base) * 1rem);
 }
-
 
 /// Mixins
 /// ===========================================================================

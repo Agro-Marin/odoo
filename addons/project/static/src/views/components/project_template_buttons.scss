@@ -1,10 +1,12 @@
-.o-project-template, .o-task-template {
+.o-project-template,
+.o-task-template {
     @include media-breakpoint-up(sm) {
         .o_template_icon_group {
             visibility: hidden;
         }
 
-        &:hover, &.focus {
+        &:hover,
+        &.focus {
             .o_template_icon_group {
                 visibility: visible;
 

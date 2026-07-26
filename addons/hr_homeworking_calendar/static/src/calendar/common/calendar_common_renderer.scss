@@ -2,8 +2,9 @@
     min-height: o-to-rem(20px);
     margin-top: 1em;
     color: var(--body-color);
-    .o_worklocation_text, .o_worklocation_line {
-        box-shadow: 0 1px 0 rgba(0,0,0, 0.3)
+    .o_worklocation_text,
+    .o_worklocation_line {
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
     }
 }
 
@@ -19,7 +20,7 @@
         font-size: var(--o-homework-icon-size, 1.2rem);
 
         &.fa-building:before {
-            transform: scale(.8);
+            transform: scale(0.8);
         }
     }
 }
@@ -32,7 +33,6 @@
 }
 
 @include media-breakpoint-down(md) {
-
     .location_xs_hide {
         display: none !important;
     }
@@ -46,7 +46,7 @@
     }
 
     .fc-dayGridMonth-view .o_homework_multi {
-        --o-homework-icon-size: .75rem;
+        --o-homework-icon-size: 0.75rem;
 
         > span {
             display: none !important;
@@ -62,7 +62,7 @@
         .wl_color_#{$-i - 1} {
             color: shade-color($-color, 10%);
             background-color: $-color-subtle;
-            border-color:  $-color-subtle !important;
+            border-color: $-color-subtle !important;
         }
     }
     .o_homework_single {

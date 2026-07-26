@@ -1,4 +1,3 @@
-
 .o_we_crop_widget {
     background-color: rgba(128, 128, 128, 0.5);
     @include o-position-absolute(0, 0, 0, 0);
@@ -10,7 +9,7 @@
         position: absolute;
 
         .cropper-face.cropper-move {
-            opacity: .2;
+            opacity: 0.2;
         }
     }
 
@@ -20,7 +19,7 @@
         flex-wrap: wrap;
         bottom: 1rem;
 
-        input[type=radio] {
+        input[type="radio"] {
             // Hide radios visually but keep them focusable for keyboard
             // navigation.
             position: absolute;
@@ -33,7 +32,8 @@
             margin: 0.1rem;
         }
 
-        button, label {
+        button,
+        label {
             cursor: pointer !important;
             padding: 0.2rem 0.3rem;
         }
@@ -47,7 +47,9 @@
             }
         }
 
-        button:not(.btn), label, label:active {
+        button:not(.btn),
+        label,
+        label:active {
             margin: 0;
             border: none;
             border-right: 1px solid $o-we-bg;
@@ -66,7 +68,8 @@
             }
         }
 
-        button:focus-visible, label:focus-within {
+        button:focus-visible,
+        label:focus-within {
             box-shadow: unset;
             outline: 1px solid $o-we-color;
             z-index: 1;

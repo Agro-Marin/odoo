@@ -329,8 +329,10 @@ class TestWebPerfRegression(TransactionCase):
         # verified 2026-07-23 on pristine base+web+test_orm). Those extra queries
         # are legitimate for that install set, so instead of failing falsely the
         # strict pin only runs on DBs without framework test modules.
-        if self.env["ir.module.module"].sudo().search_count(
-            [("name", "=like", r"test\_%"), ("state", "=", "installed")]
+        if (
+            self.env["ir.module.module"]
+            .sudo()
+            .search_count([("name", "=like", r"test\_%"), ("state", "=", "installed")])
         ):
             self.skipTest(
                 "query pin calibrated for base+web; framework test modules "

@@ -20,7 +20,8 @@
         opacity: 65%;
     }
 
-    &:hover, &.o-isActive {
+    &:hover,
+    &.o-isActive {
         i {
             opacity: 100%;
         }

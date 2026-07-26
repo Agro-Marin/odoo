@@ -4,8 +4,11 @@
     }
 
     &:not([data-columns="2"]) .o_category_container {
-        @include media-breakpoint-between(md,lg) {
-            grid-template-columns: repeat(calc(var(--DynamicCategory-columns) - 1), 1fr);
+        @include media-breakpoint-between(md, lg) {
+            grid-template-columns: repeat(
+                calc(var(--DynamicCategory-columns) - 1),
+                1fr
+            );
         }
     }
 
@@ -25,7 +28,8 @@
         }
     }
 
-    .s_dynamic_category_item, .s_dynamic_category_wrapper_demo {
+    .s_dynamic_category_item,
+    .s_dynamic_category_wrapper_demo {
         border-radius: inherit;
         box-shadow: inherit;
     }
@@ -42,7 +46,7 @@
             }
 
             .s_dynamic_category_arrow {
-                transition: transform .2s ease-in-out; // $transition-base duration & bezier
+                transition: transform 0.2s ease-in-out; // $transition-base duration & bezier
             }
 
             &:hover .s_dynamic_category_arrow {

@@ -13,19 +13,21 @@
 
     .o_select_start,
     .o_select_end {
-        --selected-day-color: #{mix(lighten($o-component-active-border, 10%), $o-component-active-bg, 15%)};
+        --selected-day-color: #{mix(
+                lighten($o-component-active-border, 10%),
+                $o-component-active-bg,
+                15%
+            )};
         --percent: calc(100% / sqrt(2));
-        background:
-            #{$o-component-active-bg}
+        background: #{$o-component-active-bg}
             radial-gradient(
                 circle,
                 var(--selected-day-color) 0% var(--percent),
                 transparent var(--percent) 100%
-            )
-        ;
+            );
     }
 
-    .o_select_start{
+    .o_select_start {
         border-top-left-radius: 50%;
         border-bottom-left-radius: 50%;
     }
@@ -71,16 +73,18 @@
         aspect-ratio: 1;
         position: relative;
 
-        &:hover, &:focus {
+        &:hover,
+        &:focus {
             --DateTimePicker__date-cell-border-color-hover: #{$o-component-active-border};
         }
 
         &:not([disabled])::before {
-            @include o-position-absolute(0,0,0,0);
+            @include o-position-absolute(0, 0, 0, 0);
 
-            content: '';
+            content: "";
             aspect-ratio: 1;
-            border: $border-width solid var(--DateTimePicker__date-cell-border-color-hover);
+            border: $border-width solid
+                var(--DateTimePicker__date-cell-border-color-hover);
             border-radius: $border-radius-pill;
             pointer-events: none;
         }

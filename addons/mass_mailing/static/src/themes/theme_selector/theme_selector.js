@@ -17,10 +17,15 @@ export class ThemeSelector extends Component {
         this.favoriteTemplates = useState([]);
         onWillStart(async () => {
             const themeServicePromise = this.themeService.load();
-            const favoritePromise = this.orm.call("mailing.mailing", "action_fetch_favorites", [
-                this.favoriteDomain,
+            const favoritePromise = this.orm.call(
+                "mailing.mailing",
+                "action_fetch_favorites",
+                [this.favoriteDomain],
+            );
+            const [favoriteTemplates] = await Promise.all([
+                favoritePromise,
+                themeServicePromise,
             ]);
-            const [favoriteTemplates] = await Promise.all([favoritePromise, themeServicePromise]);
             Object.assign(
                 this.favoriteTemplates,
                 favoriteTemplates.map((favorite) => ({
@@ -33,7 +38,7 @@ export class ThemeSelector extends Component {
                     subject: favorite.subject,
                     userId: favorite.user_id[0],
                     userName: favorite.user_id[1],
-                }))
+                })),
             );
         });
     }
@@ -52,7 +57,7 @@ export class ThemeSelector extends Component {
         const notificationAction = await this.orm.call(
             "mailing.mailing",
             "action_remove_favorite",
-            [favorite.id]
+            [favorite.id],
         );
         this.favoriteTemplates.splice(index, 1);
         this.action.doAction(notificationAction);

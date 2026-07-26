@@ -6,7 +6,8 @@
             border: $border-width solid $border-color;
         }
 
-        &:hover, :focus {
+        &:hover,
+        :focus {
             img {
                 border-color: inherit;
             }

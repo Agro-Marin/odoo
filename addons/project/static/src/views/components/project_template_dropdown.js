@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useService } from "@web/core/utils/hooks";
 
 import { ProjectTemplateButtons } from "./project_template_buttons.js";
 
@@ -62,7 +62,11 @@ export class ProjectTemplateDropdown extends Component {
                     }
                 },
             })
-            .searchRead("project.project", this.projectTemplatesDomain, this.readFields);
+            .searchRead(
+                "project.project",
+                this.projectTemplatesDomain,
+                this.readFields,
+            );
     }
 
     contextPreprocess() {
@@ -85,7 +89,7 @@ export class ProjectTemplateDropdown extends Component {
                     template_id: templateId,
                     template_name: templateName,
                 },
-            }
+            },
         );
         this.action.doAction(action);
     }

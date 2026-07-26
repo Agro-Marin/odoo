@@ -3,8 +3,10 @@
     // Common: left semi-trophy icon for certifications
     .o_survey_kanban_card_certification {
         background-image:
-            linear-gradient(rgba($o-view-background-color,.75),
-                            rgba($o-view-background-color,.75)),
+            linear-gradient(
+                rgba($o-view-background-color, 0.75),
+                rgba($o-view-background-color, 0.75)
+            ),
             url(/survey/static/src/img/trophy-solid.svg);
         background-repeat: no-repeat;
         background-position: bottom 6px left -45px;
@@ -55,7 +57,7 @@
     &.o_kanban_ungrouped {
         // Set a minimal height otherwise display may have different card sized
         .o_survey_kanban_card > div.row {
-                min-height: 60px;
+            min-height: 60px;
         }
 
         // Left semi-trophy icon for certifications: tweak display for list view
@@ -96,9 +98,9 @@
 // FORM view
 .o_survey_form table.o_section_list_view tr.o_data_row.o_is_section {
     font-weight: bold;
-    background-color: var(--SurveyForm__section-background-color, #DDD);
-    border-top: 1px solid #BBB;
-    border-bottom: 1px solid #BBB;
+    background-color: var(--SurveyForm__section-background-color, #ddd);
+    border-top: 1px solid #bbb;
+    border-bottom: 1px solid #bbb;
 
     > td {
         background: transparent;
@@ -124,7 +126,7 @@
     background: var(--SurveySampleCard-background-hover, #{$o-gray-200});
 }
 
-.o_form_label.o_form_label_readonly.o_survey_label_survey_start_url{
+.o_form_label.o_form_label_readonly.o_survey_label_survey_start_url {
     opacity: 100;
     font-weight: 500;
 }

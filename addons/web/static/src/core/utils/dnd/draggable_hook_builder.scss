@@ -3,7 +3,7 @@
         transform: scale(1);
     }
     60% {
-        transform: scale(.95);
+        transform: scale(0.95);
     }
     100% {
         transform: scale(1);
@@ -20,6 +20,6 @@
 }
 
 .o_touch_bounce {
-    animation: o-draggable-bounce .4s forwards;
+    animation: o-draggable-bounce 0.4s forwards;
     user-select: none;
 }

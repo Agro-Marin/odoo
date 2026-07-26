@@ -44,7 +44,9 @@ class ProjectTaskRecurrence(models.Model):
         if self.filtered(lambda t: t.repeat_type == "until" and not t.repeat_until):
             raise ValidationError(_("The end date is required for 'Until' recurrence."))
         if self.filtered(
-            lambda t: t.repeat_type == "until" and t.repeat_until and t.repeat_until < today
+            lambda t: (
+                t.repeat_type == "until" and t.repeat_until and t.repeat_until < today
+            )
         ):
             raise ValidationError(_("The end date should be in the future"))
 

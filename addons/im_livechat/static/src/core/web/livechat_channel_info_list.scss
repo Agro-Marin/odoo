@@ -6,9 +6,18 @@
     --list-group-border-radius: var(--border-radius);
 
     @keyframes shakeX {
-        from, to {transform: translate3d(0, 0, 0);}
-        20%, 60% {transform: translate3d(-.15em, 0, 0);}
-        40%, 80% {transform: translate3d(.15em, 0, 0);}
+        from,
+        to {
+            transform: translate3d(0, 0, 0);
+        }
+        20%,
+        60% {
+            transform: translate3d(-0.15em, 0, 0);
+        }
+        40%,
+        80% {
+            transform: translate3d(0.15em, 0, 0);
+        }
     }
 
     button:where(:not(.active)) .o-livechat-LivechatStatusLabel {
@@ -31,12 +40,12 @@
             transform: none;
         }
         &.o-help {
-            animation: shakeX .5s;
+            animation: shakeX 0.5s;
         }
     }
 
-    button.active.o-inProgress  {
-        --list-group-active-bg: #{rgba($success, .2)};
+    button.active.o-inProgress {
+        --list-group-active-bg: #{rgba($success, 0.2)};
         --list-group-active-color: #{$success};
         --list-group-active-border-color: #{$success};
 
@@ -54,10 +63,9 @@
     }
 
     button.active.o-need-help {
-        --list-group-active-bg: #{rgba($purple, .1)};
+        --list-group-active-bg: #{rgba($purple, 0.1)};
         --list-group-active-color: var(--body-color);
         --list-group-active-border-color: var(--purple);
-
 
         &.o-livechat-LivechatStatusLabel-icon {
             color: var(--purple);
@@ -71,11 +79,11 @@
 
     button.active.o-waiting {
         --list-group-active-color: var(--body-color);
-        --list-group-active-border-color: map-get($o-theme-text-colors, 'warning');
+        --list-group-active-border-color: map-get($o-theme-text-colors, "warning");
 
         .form-check-input {
-            background-color: map-get($o-theme-text-colors, 'warning');
-            border-color: map-get($o-theme-text-colors, 'warning');
+            background-color: map-get($o-theme-text-colors, "warning");
+            border-color: map-get($o-theme-text-colors, "warning");
         }
     }
 
@@ -96,6 +104,6 @@
 }
 
 .o_country_flag {
-    width:24px;
+    width: 24px;
     height: 16px;
 }

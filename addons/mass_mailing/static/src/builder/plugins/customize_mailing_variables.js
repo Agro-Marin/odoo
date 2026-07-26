@@ -81,60 +81,88 @@ export const CUSTOMIZE_MAILING_VARIABLES = Object.assign(
                 generateSimpleMailingVariables(
                     prefix,
                     [prefix],
-                    [...textProperties, ...textContainerProperties]
-                )
+                    [...textProperties, ...textContainerProperties],
+                ),
             );
         }
         return variables;
     })(),
-    generateSimpleMailingVariables("text", [`.${BASE_CONTAINER_CLASS}`, "p", "li"], textProperties),
-    generateSimpleMailingVariables("text-container", ["p", "ul"], textContainerProperties),
+    generateSimpleMailingVariables(
+        "text",
+        [`.${BASE_CONTAINER_CLASS}`, "p", "li"],
+        textProperties,
+    ),
+    generateSimpleMailingVariables(
+        "text-container",
+        ["p", "ul"],
+        textContainerProperties,
+    ),
     generateSimpleMailingVariables(
         "link",
         ["a:not(.btn):not(:has(.fa, img))", "a.btn.btn-link"],
-        textProperties
+        textProperties,
     ),
     generateSimpleMailingVariables(
         "btn-primary",
         ["a.btn.btn-fill-primary", "a.btn.btn-outline-primary", "a.btn.btn-primary"],
-        buttonProperties
+        buttonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-secondary",
-        ["a.btn.btn-fill-secondary", "a.btn.btn-outline-secondary", "a.btn.btn-secondary"],
-        buttonProperties
+        [
+            "a.btn.btn-fill-secondary",
+            "a.btn.btn-outline-secondary",
+            "a.btn.btn-secondary",
+        ],
+        buttonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-primary-lg",
-        ["a.btn.btn-fill-primary.btn-lg", "a.btn.btn-outline-primary.btn-lg", "a.btn.btn-primary.btn-lg"],
-        sizedButtonProperties
+        [
+            "a.btn.btn-fill-primary.btn-lg",
+            "a.btn.btn-outline-primary.btn-lg",
+            "a.btn.btn-primary.btn-lg",
+        ],
+        sizedButtonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-primary-sm",
-        ["a.btn.btn-fill-primary.btn-sm", "a.btn.btn-outline-primary.btn-sm", "a.btn.btn-primary.btn-sm"],
-        sizedButtonProperties
+        [
+            "a.btn.btn-fill-primary.btn-sm",
+            "a.btn.btn-outline-primary.btn-sm",
+            "a.btn.btn-primary.btn-sm",
+        ],
+        sizedButtonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-secondary-lg",
-        ["a.btn.btn-fill-secondary.btn-lg", "a.btn.btn-outline-secondary.btn-lg", "a.btn.btn-secondary.btn-lg"],
-        sizedButtonProperties
+        [
+            "a.btn.btn-fill-secondary.btn-lg",
+            "a.btn.btn-outline-secondary.btn-lg",
+            "a.btn.btn-secondary.btn-lg",
+        ],
+        sizedButtonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-secondary-sm",
-        ["a.btn.btn-fill-secondary.btn-sm", "a.btn.btn-outline-secondary.btn-sm", "a.btn.btn-secondary.btn-sm"],
-        sizedButtonProperties
+        [
+            "a.btn.btn-fill-secondary.btn-sm",
+            "a.btn.btn-outline-secondary.btn-sm",
+            "a.btn.btn-secondary.btn-sm",
+        ],
+        sizedButtonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-primary-outline",
         ["a.btn.btn-outline-primary"],
-        outlinedButtonProperties
+        outlinedButtonProperties,
     ),
     generateSimpleMailingVariables(
         "btn-secondary-outline",
         ["a.btn.btn-outline-secondary"],
-        outlinedButtonProperties
+        outlinedButtonProperties,
     ),
-    generateSimpleMailingVariables("separator", ["hr"], separatorProperties)
+    generateSimpleMailingVariables("separator", ["hr"], separatorProperties),
 );
 
 export const CUSTOMIZE_MAILING_VARIABLES_DEFAULTS = {

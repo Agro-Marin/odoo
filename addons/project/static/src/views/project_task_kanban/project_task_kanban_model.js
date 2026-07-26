@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { makeActiveField } from "@web/model/relational_model/utils";
+
 import { ProjectTaskRelationalModel } from "../project_task_relational_model.js";
 
 // NB: step-column deletion (unlink wizard + manager gating) lives in
@@ -16,7 +17,8 @@ export class ProjectTaskRecord extends RelationalRecord {
     }
 
     async toggleSubtasksList() {
-        const { display_name, project_id, state, user_ids, sequence } = this.config.fields;
+        const { display_name, project_id, state, user_ids, sequence } =
+            this.config.fields;
         const activeField = makeActiveField({ onChange: true });
         activeField.related = {
             activeFields: {

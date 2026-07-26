@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { BaseAddProductOption } from "@html_builder/plugins/add_product_option";
+import { BEGIN } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { BEGIN } from "@html_builder/utils/option_sequence";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
 
 export class MassMailingScheduleAddProductOption extends BaseAddProductOption {
     static selector = ".s_schedule:has(table)";
@@ -19,4 +19,6 @@ export class ScheduleOptionPlugin extends Plugin {
     };
 }
 
-registry.category("mass_mailing-plugins").add(ScheduleOptionPlugin.id, ScheduleOptionPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(ScheduleOptionPlugin.id, ScheduleOptionPlugin);

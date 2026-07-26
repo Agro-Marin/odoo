@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { patch } from "@web/core/utils/patch";
 import { router } from "@web/core/browser/router";
+import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 import { View } from "@web/views/view";
 

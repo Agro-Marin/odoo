@@ -18,7 +18,8 @@
         }
 
         @include media-breakpoint-up(lg) {
-            .o_control_panel_breadcrumbs, .o_control_panel_navigation {
+            .o_control_panel_breadcrumbs,
+            .o_control_panel_navigation {
                 flex: 1;
             }
 
@@ -34,7 +35,9 @@
         }
 
         .o_cp_switch_buttons {
-            .btn, .btn:focus, .btn.active {
+            .btn,
+            .btn:focus,
+            .btn.active {
                 // Boostrap plays around with the z-index of buttons, but this is not needed here
                 // It was causing issues with the hotkey overlay
                 z-index: 0;
@@ -54,7 +57,8 @@
         padding: 0 0 map-get($spacers, 2) !important; // The @page margin will be used instead.
         margin-bottom: 1rem;
 
-        &, .o_facet_value {
+        &,
+        .o_facet_value {
             font-weight: bold;
         }
 
@@ -88,7 +92,8 @@
             }
         }
 
-        .o_back_button a, .o_last_breadcrumb_item {
+        .o_back_button a,
+        .o_last_breadcrumb_item {
             font-weight: bold !important;
             font-size: $font-size-base !important;
             padding-left: $breadcrumb-item-padding-x;
@@ -131,17 +136,17 @@
 
 /* Simple button place-holder */
 %-custom-button {
-    $-value: map-get($o-btns-bs-override, 'secondary');
+    $-value: map-get($o-btns-bs-override, "secondary");
     @include button-variant(
-            o-safe-get($-value, background),
-            o-safe-get($-value, border),
-            o-safe-get($-value, color),
-            o-safe-get($-value, hover-background),
-            o-safe-get($-value, hover-border),
-            o-safe-get($-value, hover-color),
-            o-safe-get($-value, active-background),
-            o-safe-get($-value, active-border),
-            o-safe-get($-value, active-color),
+        o-safe-get($-value, background),
+        o-safe-get($-value, border),
+        o-safe-get($-value, color),
+        o-safe-get($-value, hover-background),
+        o-safe-get($-value, hover-border),
+        o-safe-get($-value, hover-color),
+        o-safe-get($-value, active-background),
+        o-safe-get($-value, active-border),
+        o-safe-get($-value, active-color)
     );
     --#{$prefix}btn-border-width: var(--border-width);
     --#{$prefix}btn-border-radius: #{$btn-border-radius};

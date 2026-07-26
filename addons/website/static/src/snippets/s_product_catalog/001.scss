@@ -1,4 +1,4 @@
-.s_product_catalog[data-vcss='001'] {
+.s_product_catalog[data-vcss="001"] {
     .s_product_catalog_dish {
         // Title
         .s_product_catalog_dish_title {
@@ -19,7 +19,7 @@
             flex-grow: 1;
             align-items: center;
             &::after {
-                content: '';
+                content: "";
                 margin-left: calc($spacer / 2);
                 flex: 1 0 auto;
                 border-bottom: 1px dotted;

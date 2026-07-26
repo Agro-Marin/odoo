@@ -1,9 +1,14 @@
 .o_report_layout_bubble {
     #informations {
         margin: 0;
-        border: $border-width * 2 solid var(--co-secondary, $o-default-report-secondary-color);
+        border: $border-width * 2 solid
+            var(--co-secondary, $o-default-report-secondary-color);
         border-radius: $border-radius-lg;
-        background-color: color-mix(in srgb, white 92%, var(--co-secondary, $o-default-report-secondary-color));
+        background-color: color-mix(
+            in srgb,
+            white 92%,
+            var(--co-secondary, $o-default-report-secondary-color)
+        );
         padding: map-get($spacers, 2) $table-cell-padding-y;
 
         // In pdf it overlaps with existing margin, set to 0 to replicate in HTML

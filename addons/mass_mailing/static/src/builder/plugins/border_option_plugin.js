@@ -49,4 +49,6 @@ export class BorderOptionPlugin extends Plugin {
     };
 }
 
-registry.category("mass_mailing-plugins").add(BorderOptionPlugin.id, BorderOptionPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(BorderOptionPlugin.id, BorderOptionPlugin);

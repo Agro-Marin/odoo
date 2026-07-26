@@ -6,18 +6,20 @@
 }
 
 .odoo-editor-editable {
-    &[contenteditable=true], [contenteditable=true] {
-        &.btn, .btn {
+    &[contenteditable="true"],
+    [contenteditable="true"] {
+        &.btn,
+        .btn {
             user-select: auto;
             cursor: text;
         }
     }
 
-    [contenteditable=false] .btn {
+    [contenteditable="false"] .btn {
         cursor: pointer;
     }
 
-    // Unset the font size and family applied by `.btn` 
+    // Unset the font size and family applied by `.btn`
     // if inside `FONT_SIZE_CLASSES`.
     span[class$="-fs"],
     span.small,

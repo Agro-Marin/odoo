@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { GraphModel } from "@web/views/graph/graph_model";
 import { sortBy } from "@web/core/utils/collections/arrays";
+import { GraphModel } from "@web/views/graph/graph_model";
 
 export class BurndownChartModel extends GraphModel {
     /**
@@ -21,12 +21,16 @@ export class BurndownChartModel extends GraphModel {
         const searchDomain = context.active_id
             ? [["project_ids", "in", context.active_id]]
             : [];
-        const data = await this.orm.webSearchRead("project.workflow.step", searchDomain, {
-            specification: {
-                name: {},
-                sequence: {},
+        const data = await this.orm.webSearchRead(
+            "project.workflow.step",
+            searchDomain,
+            {
+                specification: {
+                    name: {},
+                    sequence: {},
+                },
             },
-        });
+        );
         const stageSeqAndNamePerId = {};
         for (const { id, name, sequence } of data.records) {
             stageSeqAndNamePerId[id] = { name, sequence };

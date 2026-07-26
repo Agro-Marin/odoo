@@ -13,21 +13,25 @@
             $hover-background: $o-we-item-clickable-hover-bg,
             $hover-border: transparent,
             $hover-color: $o-we-item-clickable-color,
-            $active-background: mix($o-we-item-clickable-hover-bg, rgba($o-we-color-accent, 0.4)),
+            $active-background: mix(
+                    $o-we-item-clickable-hover-bg,
+                    rgba($o-we-color-accent, 0.4)
+                ),
             $active-border: transparent,
             $active-color: $o-we-fg-lighter,
             $disabled-background: rgba($o-we-item-clickable-hover-bg, 0.5),
             $disabled-border: transparent,
-            $disabled-color: $o-we-item-clickable-color,
+            $disabled-color: $o-we-item-clickable-color
         );
     }
 
     &:has(span:hover .btn:not(:disabled)) > span:not(:hover) .btn:not(:disabled) {
-        @include o-hover-opacity(.6);
+        @include o-hover-opacity(0.6);
     }
 
     button {
-        &.fa, &.oi {
+        &.fa,
+        &.oi {
             min-width: min-content;
         }
     }
@@ -36,7 +40,8 @@
         cursor: move;
     }
 
-    button.o_send_back, button.o_bring_front {
+    button.o_send_back,
+    button.o_bring_front {
         background-position: center;
         background-repeat: no-repeat;
 
@@ -47,10 +52,10 @@
     }
 
     button.o_send_back {
-        background-image: url('/html_builder/static/img/options/bring-backward.svg');
+        background-image: url("/html_builder/static/img/options/bring-backward.svg");
     }
 
     button.o_bring_front {
-        background-image: url('/html_builder/static/img/options/bring-forward.svg');
+        background-image: url("/html_builder/static/img/options/bring-forward.svg");
     }
 }

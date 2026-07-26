@@ -1,7 +1,8 @@
-.s_showcase[data-vcss='001'] {
+.s_showcase[data-vcss="001"] {
     @include media-breakpoint-up(lg) {
         // Left-right separator
-        .container, .container-fluid {
+        .container,
+        .container-fluid {
             position: relative;
 
             &:before {
@@ -9,7 +10,7 @@
                 display: block;
                 @include o-position-absolute($left: 50%);
                 height: 100%;
-                border-right: 1px solid map-get($grays, '200');
+                border-right: 1px solid map-get($grays, "200");
             }
         }
         // Features
@@ -18,7 +19,8 @@
             &:nth-child(odd) {
                 text-align: right;
 
-                .s_showcase_icon, p {
+                .s_showcase_icon,
+                p {
                     float: right;
                 }
 
@@ -31,7 +33,8 @@
             &:nth-child(even) {
                 text-align: left;
 
-                .s_showcase_icon, p {
+                .s_showcase_icon,
+                p {
                     float: left;
                 }
             }

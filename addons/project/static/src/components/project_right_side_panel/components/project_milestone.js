@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
+import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { formatDate } from "@web/core/l10n/dates";
-import { useService } from '@web/core/utils/hooks';
-import { Component, useState, onWillUpdateProps } from "@odoo/owl";
+import { luxon } from "@web/core/l10n/luxon";
+import { useService } from "@web/core/utils/hooks";
 
 const { DateTime } = luxon;
 
@@ -14,7 +14,7 @@ export class ProjectMilestone extends Component {
     static template = "project.ProjectMilestone";
 
     setup() {
-        this.orm = useService('orm');
+        this.orm = useService("orm");
         this.dialog = useService("dialog");
         // Own reactive copy: updates below use Object.assign to mutate this
         // proxy in place. Reassigning this.milestone to a plain object (as the
@@ -25,7 +25,7 @@ export class ProjectMilestone extends Component {
     }
 
     get resModel() {
-        return 'project.milestone';
+        return "project.milestone";
     }
 
     get deadline() {
@@ -38,7 +38,8 @@ export class ProjectMilestone extends Component {
     // Derived from the reactive milestone copy: plain getters re-evaluate on
     // render, so no manual resynchronization is needed.
     get colorClass() {
-        return this.milestone.is_deadline_exceeded && !this.milestone.can_be_marked_as_done
+        return this.milestone.is_deadline_exceeded &&
+            !this.milestone.can_be_marked_as_done
             ? "text-danger"
             : this.milestone.can_be_marked_as_done
               ? "text-success"
@@ -46,7 +47,9 @@ export class ProjectMilestone extends Component {
     }
 
     get checkboxIcon() {
-        return this.milestone.is_reached ? "fa-solid fa-square-check" : "fa-regular fa-square";
+        return this.milestone.is_reached
+            ? "fa-solid fa-square-check"
+            : "fa-regular fa-square";
     }
 
     onWillUpdateProps(nextProps) {
@@ -59,11 +62,13 @@ export class ProjectMilestone extends Component {
         if (!this.write_mutex) {
             this.write_mutex = true;
             try {
-                Object.assign(this.milestone, await this.orm.call(
-                    this.resModel,
-                    'toggle_is_reached',
-                    [[this.milestone.id], !this.milestone.is_reached],
-                ));
+                Object.assign(
+                    this.milestone,
+                    await this.orm.call(this.resModel, "toggle_is_reached", [
+                        [this.milestone.id],
+                        !this.milestone.is_reached,
+                    ]),
+                );
             } finally {
                 // Always release the lock, even if the RPC rejects, otherwise a
                 // single transient failure permanently disables the checkbox.

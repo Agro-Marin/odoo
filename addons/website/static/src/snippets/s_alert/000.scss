@@ -1,9 +1,10 @@
-
 .s_alert:not([data-vcss]) {
     margin: calc($grid-gutter-width / 2) 0;
     border: $alert-border-width solid;
     border-radius: $alert-border-radius;
-    p, ul, ol {
+    p,
+    ul,
+    ol {
         &:last-child {
             margin-bottom: 0;
         }

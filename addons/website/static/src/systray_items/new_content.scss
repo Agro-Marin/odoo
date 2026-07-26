@@ -1,5 +1,10 @@
 .o-website-btn-custo-secondary {
-    @include button-variant(darken($o-navbar-background, 5%), darken($o-navbar-background, 5%), $o-navbar-entry-color, darken($o-navbar-background, 10%));
+    @include button-variant(
+        darken($o-navbar-background, 5%),
+        darken($o-navbar-background, 5%),
+        $o-navbar-entry-color,
+        darken($o-navbar-background, 10%)
+    );
 }
 
 .o_new_content_menu_choices {

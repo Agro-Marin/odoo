@@ -6,7 +6,8 @@
 // to be displayed with a bottom border even when not hovered (e.g. added
 // by mobile detection, in several specific places such as spreadsheet or
 // knowledge sidebars, settings view, kanban quick create (not a form view), etc.)
-.o_field_highlight .o_field_widget .o_input, .o_field_highlight.o_field_widget .o_input {
+.o_field_highlight .o_field_widget .o_input,
+.o_field_highlight.o_field_widget .o_input {
     border-color: var(--o-input-border-color);
 }
 
@@ -14,7 +15,10 @@
 // but bootstrap contextual classes do not work on input/textarea, so we have to
 // explicitely set their color to the one of their parent
 .o_field_widget {
-    input, textarea, select, button.o_input {
+    input,
+    textarea,
+    select,
+    button.o_input {
         color: inherit;
     }
 }
@@ -39,8 +43,8 @@
 }
 
 .o_field_invalid {
-    @include print-variable(o-input-border-color, map-get($theme-colors, 'danger'));
-    @include print-variable(o-caret-color, map-get($theme-colors, 'danger'));
+    @include print-variable(o-input-border-color, map-get($theme-colors, "danger"));
+    @include print-variable(o-caret-color, map-get($theme-colors, "danger"));
 }
 
 //------------------------------------------------------------------------------
@@ -48,11 +52,13 @@
 //------------------------------------------------------------------------------
 
 .o_input {
-    border:$input-border-width solid var(--o-input-border-color);
+    border: $input-border-width solid var(--o-input-border-color);
     border-width: 0 0 $input-border-width 0;
     padding: $o-input-padding-y $o-input-padding-x;
     background-color: var(--o-input-background-color, #{$input-bg});
-    transition: border-color $o-duration-fast $o-easing-standard, box-shadow $o-duration-fast $o-easing-standard;
+    transition:
+        border-color $o-duration-fast $o-easing-standard,
+        box-shadow $o-duration-fast $o-easing-standard;
 
     &:focus {
         border-color: $o-brand-primary;
@@ -71,8 +77,10 @@
 
 // Invalid
 .o_field_invalid:not(:focus-within) {
-    &.o_input, > .o_input, &.o_form_label {
-        color: o-text-color('danger');
+    &.o_input,
+    > .o_input,
+    &.o_form_label {
+        color: o-text-color("danger");
     }
 
     &:not(.o_form_label) {
@@ -107,13 +115,20 @@
     }
 
     // Dropdowns inputs
-    .o_input_dropdown, .o_datepicker {
-        .o_input, > input {
+    .o_input_dropdown,
+    .o_datepicker {
+        .o_input,
+        > input {
             padding-right: ($caret-width * 2.5) + $o-input-padding-x;
         }
 
-        .o_dropdown_button, .o_datepicker_button {
-            @include o-position-absolute($o-input-padding-y, $o-input-padding-x, $input-border-width);
+        .o_dropdown_button,
+        .o_datepicker_button {
+            @include o-position-absolute(
+                $o-input-padding-y,
+                $o-input-padding-x,
+                $input-border-width
+            );
             pointer-events: none;
 
             &:after {
@@ -123,14 +138,25 @@
     }
 
     // Block fields
-    &.note-editor, &.o_field_html, &.oe_form_field_text, &.o_field_domain, &.o_graph_linechart, &.o_graph_barchart {
+    &.note-editor,
+    &.o_field_html,
+    &.oe_form_field_text,
+    &.o_field_domain,
+    &.o_graph_linechart,
+    &.o_graph_barchart {
         display: block;
     }
 
     // Flex fields (inline)
-    &.o_field_many2one, &.o_field_radio, &.o_field_percent_pie, &.o_field_monetary, &.o_field_binary_file, &.o_field_float_percentage {
+    &.o_field_many2one,
+    &.o_field_radio,
+    &.o_field_percent_pie,
+    &.o_field_monetary,
+    &.o_field_binary_file,
+    &.o_field_float_percentage {
         display: inline-flex;
-        > span, > button {
+        > span,
+        > button {
             flex: 0 0 auto;
         }
     }
@@ -151,13 +177,15 @@
     }
 
     // Text
-    &.o_field_text, &.oe_form_field_text .oe_form_text_content {
+    &.o_field_text,
+    &.oe_form_field_text .oe_form_text_content {
         width: 100%;
         white-space: pre-wrap;
     }
 
     // Monetary
-    &.o_field_monetary, &.o_field_float_percentage {
+    &.o_field_monetary,
+    &.o_field_float_percentage {
         &.o_input {
             align-items: baseline;
 
@@ -236,7 +264,8 @@
     }
 
     // Image
-    &.o_field_image, &.o_field_image_url {
+    &.o_field_image,
+    &.o_field_image_url {
         position: relative;
 
         .o_form_image_controls {
@@ -261,19 +290,19 @@
             }
         }
         @include media-breakpoint-down(sm) {
-            .o_form_image_controls{
+            .o_form_image_controls {
                 position: initial;
                 opacity: 1;
-                > .fa{
+                > .fa {
                     width: 50%;
                     padding: 6px;
                     margin: 0px;
                     text-align: center;
-                    &.o_select_file_button{
+                    &.o_select_file_button {
                         background: $o-brand-primary;
                     }
-                    &.o_clear_file_button{
-                        background: map-get($theme-colors, 'danger');
+                    &.o_clear_file_button {
+                        background: map-get($theme-colors, "danger");
                     }
                 }
             }
@@ -284,12 +313,13 @@
         }
 
         &.o_field_invalid > img {
-            border: 1px solid map-get($theme-colors, 'danger');
+            border: 1px solid map-get($theme-colors, "danger");
         }
     }
 
     // Input loading/file
-    .o_form_binary_progress, .o_hidden_input_file .o_input_file {
+    .o_form_binary_progress,
+    .o_hidden_input_file .o_input_file {
         display: none;
     }
 
@@ -309,7 +339,8 @@
     }
 
     // PDF Viewer
-    &.o_field_pdfviewer, &.o_field_pdf_viewer .o_pdfview_iframe {
+    &.o_field_pdfviewer,
+    &.o_field_pdf_viewer .o_pdfview_iframe {
         width: 100%;
         height: 450px;
         border: 0;
@@ -353,7 +384,6 @@
         margin: 0 5px 0 0;
         display: inline-block;
     }
-
 }
 
 span.o_field_copy:empty {
@@ -367,5 +397,5 @@ button.o_field_float_toggle {
 
 // Selection fields
 select.o_field_widget.o_input {
-    padding: 1px;  // Other inputs get a 1px padding automatically added by the browsers but selects do not
+    padding: 1px; // Other inputs get a 1px padding automatically added by the browsers but selects do not
 }

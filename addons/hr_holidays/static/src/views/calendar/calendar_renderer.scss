@@ -10,8 +10,13 @@
             }
         }
 
-        > .fc-view-container > .fc-dayGridYear-view .hr_mandatory_day:not(.fc-day-disabled):not(.fc-day-today) .fc-daygrid-day-top:not(:hover),
-        > .fc-view-harness > .fc-dayGridMonth-view .hr_mandatory_day:not(.fc-day-disabled):not(.fc-day-today) {
+        > .fc-view-container
+            > .fc-dayGridYear-view
+            .hr_mandatory_day:not(.fc-day-disabled):not(.fc-day-today)
+            .fc-daygrid-day-top:not(:hover),
+        > .fc-view-harness
+            > .fc-dayGridMonth-view
+            .hr_mandatory_day:not(.fc-day-disabled):not(.fc-day-today) {
             .fc-daygrid-day-number {
                 color: var(--mandatory-day-color) !important;
             }
@@ -32,11 +37,11 @@
         }
 
         .o_event_half_left {
-          clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
+            clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
         }
 
         .o_event_half_right {
-          clip-path: polygon(100% 0, 50% 0, 50% 100%, 100% 100%);
+            clip-path: polygon(100% 0, 50% 0, 50% 100%, 100% 100%);
         }
     }
 }

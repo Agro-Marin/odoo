@@ -1,5 +1,4 @@
 .o_payment_form .o_outline {
-
     &:hover {
         border-color: $primary;
     }
@@ -13,8 +12,7 @@
     .o_payment_option_label:before {
         position: absolute;
         inset: 0;
-        content: '';
+        content: "";
         cursor: pointer;
     }
-
 }

@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class SurveyResultComparison extends Interaction {
     static selector = ".o_survey_comparison_form";
@@ -22,23 +22,42 @@ export class SurveyResultComparison extends Interaction {
     }
 
     renderResults(data) {
-        const container = this.el.closest(".o_survey_comparison")
+        const container = this.el
+            .closest(".o_survey_comparison")
             .querySelector(".o_survey_comparison_results");
 
         const delta = (val) => {
-            if (val === null || val === undefined) return "";
+            if (val === null || val === undefined) {
+                return "";
+            }
             const sign = val > 0 ? "+" : "";
-            const color = val > 0 ? "text-success" : val < 0 ? "text-danger" : "text-muted";
+            const color =
+                val > 0 ? "text-success" : val < 0 ? "text-danger" : "text-muted";
             return `<span class="${color} fw-bold">${sign}${val}</span>`;
         };
 
         const rows = [
             ["Responses", data.period_a.count, data.period_b.count, data.deltas.count],
-            ["Avg Score (%)", data.period_a.avg_score, data.period_b.avg_score, data.deltas.avg_score],
-            ["Avg Quality", data.period_a.avg_quality, data.period_b.avg_quality, data.deltas.avg_quality],
+            [
+                "Avg Score (%)",
+                data.period_a.avg_score,
+                data.period_b.avg_score,
+                data.deltas.avg_score,
+            ],
+            [
+                "Avg Quality",
+                data.period_a.avg_quality,
+                data.period_b.avg_quality,
+                data.deltas.avg_quality,
+            ],
         ];
         if (data.period_a.success_rate !== null) {
-            rows.push(["Success Rate (%)", data.period_a.success_rate, data.period_b.success_rate, data.deltas.success_rate]);
+            rows.push([
+                "Success Rate (%)",
+                data.period_a.success_rate,
+                data.period_b.success_rate,
+                data.deltas.success_rate,
+            ]);
         }
 
         container.innerHTML = `
@@ -47,13 +66,19 @@ export class SurveyResultComparison extends Interaction {
                     <tr><th>Metric</th><th>Period A</th><th>Period B</th><th>Delta</th></tr>
                 </thead>
                 <tbody>
-                    ${rows.map(([label, a, b, d]) => `
+                    ${rows
+                        .map(
+                            ([label, a, b, d]) => `
                         <tr><td>${label}</td><td>${a}</td><td>${b}</td><td>${delta(d)}</td></tr>
-                    `).join("")}
+                    `,
+                        )
+                        .join("")}
                 </tbody>
             </table>
         `;
     }
 }
 
-registry.category("public.interactions").add("survey.result_comparison", SurveyResultComparison);
+registry
+    .category("public.interactions")
+    .add("survey.result_comparison", SurveyResultComparison);

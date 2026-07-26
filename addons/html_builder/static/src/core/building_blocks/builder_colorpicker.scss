@@ -6,7 +6,9 @@
 .o_custom_gradient_button {
     border: 1px solid $o-we-item-clickable-color;
 
-    &, &:hover, &:focus {
+    &,
+    &:hover,
+    &:focus {
         color: #000000;
     }
 
@@ -16,14 +18,17 @@
 }
 
 .o-hb-colorpicker {
-    --o-color-picker-active-color: var(--o-hb-select-item-active-color, #{$o-we-sidebar-content-field-toggle-active-bg});
+    --o-color-picker-active-color: var(
+        --o-hb-select-item-active-color,
+        #{$o-we-sidebar-content-field-toggle-active-bg}
+    );
 
     --bg: #{$o-we-item-clickable-bg};
 
     background-color: $o-we-item-clickable-bg;
     color: $white;
 
-    &:has(.theme-tab){
+    &:has(.theme-tab) {
         width: 250px;
     }
 
@@ -41,12 +46,15 @@
                 $hover-background: $o-we-item-clickable-hover-bg,
                 $hover-border: transparent,
                 $hover-color: $o-we-item-clickable-color,
-                $active-background: rgba($o-we-color-accent, .15),
-                $active-border: var(--o-hb-select-item-active-color, $o-we-sidebar-content-field-toggle-active-bg),
+                $active-background: rgba($o-we-color-accent, 0.15),
+                $active-border: var(
+                        --o-hb-select-item-active-color,
+                        $o-we-sidebar-content-field-toggle-active-bg
+                    ),
                 $active-color: $o-we-fg-lighter,
                 $disabled-background: rgba($o-we-item-clickable-hover-bg, 0.5),
                 $disabled-border: transparent,
-                $disabled-color: $o-we-item-clickable-color,
+                $disabled-color: $o-we-item-clickable-color
             );
 
             &:hover {
@@ -55,7 +63,7 @@
         }
     }
 
-    .btn[title=Reset] {
+    .btn[title="Reset"] {
         @include button-variant(
             $background: $o-we-bg-light,
             $border: transparent,
@@ -68,7 +76,7 @@
             $active-color: $o-we-fg-lighter,
             $disabled-background: rgba($o-we-item-clickable-hover-bg, 0.5),
             $disabled-border: transparent,
-            $disabled-color: $o-we-item-clickable-color,
+            $disabled-color: $o-we-item-clickable-color
         );
     }
     .btn-tab {
@@ -79,12 +87,15 @@
             $hover-background: $o-we-bg-light,
             $hover-border: transparent,
             $hover-color: $o-we-item-clickable-color,
-            $active-background: rgba($o-we-color-accent, .15),
-            $active-border: var(--o-hb-select-item-active-color, $o-we-sidebar-content-field-toggle-active-bg),
+            $active-background: rgba($o-we-color-accent, 0.15),
+            $active-border: var(
+                    --o-hb-select-item-active-color,
+                    $o-we-sidebar-content-field-toggle-active-bg
+                ),
             $active-color: $o-we-fg-lighter,
             $disabled-background: rgba($o-we-item-clickable-hover-bg, 0.5),
             $disabled-border: transparent,
-            $disabled-color: $o-we-item-clickable-color,
+            $disabled-color: $o-we-item-clickable-color
         );
     }
 
@@ -122,7 +133,8 @@
         background-color: $white;
     }
 
-    .o_color_picker_inputs, .o_color_gradient_input {
+    .o_color_picker_inputs,
+    .o_color_gradient_input {
         color: $o-we-item-clickable-color;
 
         & input {

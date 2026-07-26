@@ -313,7 +313,7 @@ class SurveyCase(common.TransactionCase):
             self.env["survey.question"]._fields["question_type"].selection
         ):
             kwargs = {}
-            if question_type in ("multiple_choice",):
+            if question_type == "multiple_choice":
                 kwargs["labels"] = [{"value": "MChoice0"}, {"value": "MChoice1"}]
             elif question_type in ("simple_choice", "dropdown"):
                 kwargs["labels"] = [{"value": "SChoice0"}, {"value": "SChoice1"}]

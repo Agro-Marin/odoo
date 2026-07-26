@@ -26,7 +26,7 @@
         border-radius: calc($popup-close-size / 2);
         right: 0px;
         top: 0px;
-        box-shadow: rgba(0,0,0,0.8) 0 0 5px;
+        box-shadow: rgba(0, 0, 0, 0.8) 0 0 5px;
         cursor: pointer;
         text-align: center;
         z-index: 1;
@@ -93,7 +93,6 @@
                 margin: 10px;
                 background: none;
             }
-
         }
     }
 }

@@ -3,7 +3,7 @@
     --ecomm-categories-showcase-width: 85%;
     --ecomm-categories-showcase-row-height: 100%;
     --ecomm-categories-showcase-flex-base: 1;
-    --ecomm-categories-showcase-edge-spacing: #{$container-padding-x * .5};
+    --ecomm-categories-showcase-edge-spacing: #{$container-padding-x * 0.5};
 
     .s_ecomm_categories_showcase_wrapper {
         flex-wrap: nowrap;
@@ -74,12 +74,15 @@
         }
 
         .s_ecomm_categories_showcase_wrapper:hover .s_ecomm_categories_showcase_block,
-        .s_ecomm_categories_showcase_wrapper:focus-within .s_ecomm_categories_showcase_block:not(:focus-within) {
+        .s_ecomm_categories_showcase_wrapper:focus-within
+            .s_ecomm_categories_showcase_block:not(:focus-within) {
             flex: var(--ecomm-categories-showcase-flex-base);
         }
 
-        .s_ecomm_categories_showcase_wrapper:hover .s_ecomm_categories_showcase_block:hover,
-        .s_ecomm_categories_showcase_wrapper .s_ecomm_categories_showcase_block:focus-within {
+        .s_ecomm_categories_showcase_wrapper:hover
+            .s_ecomm_categories_showcase_block:hover,
+        .s_ecomm_categories_showcase_wrapper
+            .s_ecomm_categories_showcase_block:focus-within {
             flex: 3;
         }
 

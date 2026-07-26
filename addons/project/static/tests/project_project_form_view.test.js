@@ -1,13 +1,13 @@
-import { expect, test, beforeEach } from "@odoo/hoot";
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import {
-    mountView,
-    contains,
-    onRpc,
-    toggleMenuItem,
-    toggleActionMenu,
     clickSave,
+    contains,
     mockService,
+    mountView,
+    onRpc,
+    toggleActionMenu,
+    toggleMenuItem,
 } from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels, ProjectProject } from "./project_models.js";
@@ -81,7 +81,9 @@ test("project.project (form) hide archive action for project user", async () => 
     onRpc("has_group", ({ args }) => args[1] === "project.group_project_user");
     await mountView(formViewParams);
     await toggleActionMenu();
-    expect(`.o-dropdown--menu span:contains(Archive)`).toHaveCount(0, { message: "Archive action should not be visible" });
+    expect(`.o-dropdown--menu span:contains(Archive)`).toHaveCount(0, {
+        message: "Archive action should not be visible",
+    });
     expect.verifySteps(["check_features_enabled"]);
 });
 
@@ -89,11 +91,15 @@ test("project.project (form) show archive action for project manager", async () 
     onRpc("has_group", () => true);
     await mountView(formViewParams);
     await toggleActionMenu();
-    expect(`.o-dropdown--menu span:contains(Archive)`).toHaveCount(1, { message: "Arhive action should be visible" });
+    expect(`.o-dropdown--menu span:contains(Archive)`).toHaveCount(1, {
+        message: "Arhive action should be visible",
+    });
     await toggleMenuItem("Archive");
     await contains(`.modal-footer .btn-primary`).click();
     await toggleActionMenu();
-    expect(`.o-dropdown--menu span:contains(Unarchive)`).toHaveCount(1, { message: "Unarchive action should be visible" });
+    expect(`.o-dropdown--menu span:contains(Unarchive)`).toHaveCount(1, {
+        message: "Unarchive action should be visible",
+    });
     await toggleMenuItem("UnArchive");
     expect.verifySteps(["check_features_enabled"]);
 });
@@ -122,7 +128,11 @@ test("do not reload the page when allow_milestones is enabled and there already 
     await clickSave();
 
     // No reload should be triggered
-    expect.verifySteps(["check_features_enabled", "web_save", "check_features_enabled"]);
+    expect.verifySteps([
+        "check_features_enabled",
+        "web_save",
+        "check_features_enabled",
+    ]);
 });
 
 test("reload the page when allow_milestones is disabled on all projects", async () => {
@@ -165,7 +175,11 @@ test("do not reload the page when allow_dependencies is enabled and there alread
     await clickSave();
 
     // No reload should be triggered
-    expect.verifySteps(["check_features_enabled", "web_save", "check_features_enabled"]);
+    expect.verifySteps([
+        "check_features_enabled",
+        "web_save",
+        "check_features_enabled",
+    ]);
 });
 
 test("reload the page when allow_dependencies is disabled on all projects", async () => {
@@ -208,7 +222,11 @@ test("do not reload the page when allow_recurring_tasks is enabled and there alr
     await clickSave();
 
     // No reload should be triggered
-    expect.verifySteps(["check_features_enabled", "web_save", "check_features_enabled"]);
+    expect.verifySteps([
+        "check_features_enabled",
+        "web_save",
+        "check_features_enabled",
+    ]);
 });
 
 test("reload the page when allow_recurring_tasks is disabled on all projects", async () => {

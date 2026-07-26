@@ -112,10 +112,10 @@ sent mails with personal token for the invitation of the survey.
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    'esm': {
-        'bundles': [
-            'survey.survey_assets',
-            'survey.survey_user_input_session_assets',
+    "esm": {
+        "bundles": [
+            "survey.survey_assets",
+            "survey.survey_user_input_session_assets",
         ],
     },
 }

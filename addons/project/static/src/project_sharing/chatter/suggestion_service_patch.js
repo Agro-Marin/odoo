@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { SuggestionService } from "@mail/core/common/suggestion_service";
-
 import { patch } from "@web/core/utils/patch";
 
 patch(SuggestionService.prototype, {
@@ -12,8 +11,8 @@ patch(SuggestionService.prototype, {
                     "get_mention_suggestions",
                     [thread.id],
                     { search: term },
-                    { abortSignal }
-                )
+                    { abortSignal },
+                ),
             );
             return;
         }

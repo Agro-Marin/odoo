@@ -74,7 +74,10 @@ $o-btn-border-colors: () !default;
 }
 @each $color, $value in $theme-colors {
     $-bg-color: map-get($o-btn-bg-colors, $color) or $value;
-    $-border-color: increase-contrast(map-get($o-btn-border-colors, $color) or $-bg-color, $body-bg);
+    $-border-color: increase-contrast(
+        map-get($o-btn-border-colors, $color) or $-bg-color,
+        $body-bg
+    );
     .btn-outline-#{$color} {
         @include button-outline-variant($-border-color);
     }
@@ -155,8 +158,9 @@ $o-navbar-nav-pills-link-border-radius: $nav-pills-border-radius !default;
 
 // Ensure the readability of numbers when there are many (>3) and
 // they overflow the circle.
-.page-link.active, .active > .page-link {
-    text-shadow: 0 0 .1em var(--pagination-active-bg);
+.page-link.active,
+.active > .page-link {
+    text-shadow: 0 0 0.1em var(--pagination-active-bg);
 }
 
 // Show the page content behind the offcanvas < sm, fallback at 400px above.
@@ -199,7 +203,7 @@ $o-navbar-nav-pills-link-border-radius: $nav-pills-border-radius !default;
             @if ($form-select-bg == $body-bg) {
                 .form-select {
                     background-color: $modal-content-bg;
-                    color: color-contrast($modal-content-bg);;
+                    color: color-contrast($modal-content-bg);
                 }
             }
             @if $form-check-input-bg == $body-bg {
@@ -210,7 +214,12 @@ $o-navbar-nav-pills-link-border-radius: $nav-pills-border-radius !default;
         }
     }
     .text-muted {
-        color: adjust-color-to-background($text-muted, $modal-content-bg, mute-color($color-contrast-light), mute-color($color-contrast-dark)) !important;
+        color: adjust-color-to-background(
+            $text-muted,
+            $modal-content-bg,
+            mute-color($color-contrast-light),
+            mute-color($color-contrast-dark)
+        ) !important;
     }
 }
 
@@ -255,13 +264,16 @@ $-color-for-gray-200-bg: adjust-color-to-background($body-color, $gray-200);
 // Input group text (e.g. Date time picker)
 .input-group-text {
     // Adapt only if the variables have their default values.
-    @if ($input-group-addon-bg == $gray-200) and ($input-group-addon-color == $body-color) {
+    @if ($input-group-addon-bg == $gray-200) and
+        ($input-group-addon-color == $body-color)
+    {
         color: $-color-for-gray-200-bg;
     }
 }
 // File upload button
 .form-control::file-selector-button {
-    @if ($form-file-button-bg == $gray-200) and ($form-file-button-color == $body-color) {
+    @if ($form-file-button-bg == $gray-200) and ($form-file-button-color == $body-color)
+    {
         color: $-color-for-gray-200-bg;
     }
 }
@@ -295,7 +307,8 @@ $-color-for-gray-200-bg: adjust-color-to-background($body-color, $gray-200);
 
 // Button within input-group (e.g., "search bar")
 .input-group {
-    .btn:first-child, .btn:last-child {
+    .btn:first-child,
+    .btn:last-child {
         @include border-radius($input-border-radius, 0);
     }
 }
@@ -303,7 +316,12 @@ $-color-for-gray-200-bg: adjust-color-to-background($body-color, $gray-200);
 // Dropdown
 .dropdown-menu {
     .text-muted {
-        color: adjust-color-to-background($text-muted, $dropdown-bg, mute-color($color-contrast-light), mute-color($color-contrast-dark)) !important;
+        color: adjust-color-to-background(
+            $text-muted,
+            $dropdown-bg,
+            mute-color($color-contrast-light),
+            mute-color($color-contrast-dark)
+        ) !important;
     }
 
     // Since we define the $dropdown-link-active-bg variable, we need to
@@ -327,12 +345,17 @@ $-color-for-gray-200-bg: adjust-color-to-background($body-color, $gray-200);
     background-clip: padding-box;
 
     &:disabled:not([multiple]):where(:not([size]), [size="1"]) {
-        background-image: str-replace($form-select-indicator, #{$form-select-indicator-color}, str-replace(#{$form-select-disabled-color}, "#", "%23"));
+        background-image: str-replace(
+            $form-select-indicator,
+            #{$form-select-indicator-color},
+            str-replace(#{$form-select-disabled-color}, "#", "%23")
+        );
     }
 }
 
 .form-control {
-    &:disabled, &[readonly] {
+    &:disabled,
+    &[readonly] {
         color: $form-select-disabled-color;
     }
 }
@@ -341,7 +364,9 @@ $-color-for-gray-200-bg: adjust-color-to-background($body-color, $gray-200);
     background-color: $input-disabled-bg;
 
     .form-switch & {
-        background-image: escape-svg(url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$form-select-disabled-color}'/></svg>"));
+        background-image: escape-svg(
+            url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$form-select-disabled-color}'/></svg>")
+        );
     }
 }
 

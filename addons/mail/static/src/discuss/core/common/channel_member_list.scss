@@ -1,5 +1,4 @@
 .o-discuss-ChannelMember {
-
     &.o-offline {
         opacity: 33%;
 
@@ -9,7 +8,10 @@
     }
 
     &.cursor-pointer:hover {
-        background-color: var(--discuss-ChannelMember-hoverBg, mix($gray-100, $gray-200));
+        background-color: var(
+            --discuss-ChannelMember-hoverBg,
+            mix($gray-100, $gray-200)
+        );
     }
 }
 

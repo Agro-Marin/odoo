@@ -4,15 +4,12 @@ label.o_wbooth_category_unavailable {
 }
 
 #o_wbooth_contact_details_form {
-
     .col-form-label {
         width: 200px;
     }
-
 }
 
 .o_wbooth_registration_form label {
-
     position: relative;
 
     & > input {
@@ -25,7 +22,7 @@ label.o_wbooth_category_unavailable {
     }
 
     &:not(.o_wbooth_category_unavailable):hover > input + div {
-        opacity: .8;
+        opacity: 0.8;
     }
 
     & > input:checked + div,
@@ -38,10 +35,9 @@ label.o_wbooth_category_unavailable {
     & img {
         min-height: 250px;
     }
-
 }
 
-.o_wbooth_booths .form-check{
+.o_wbooth_booths .form-check {
     position: relative;
     padding-left: 0;
 
@@ -62,7 +58,7 @@ label.o_wbooth_category_unavailable {
     &:hover > input:checked + label {
         --o-border-color: #{$primary};
 
-            box-shadow: 0 0 0 ($border-width) $primary;
+        box-shadow: 0 0 0 ($border-width) $primary;
     }
 }
 

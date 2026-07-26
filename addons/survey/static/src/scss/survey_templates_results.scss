@@ -33,7 +33,8 @@
             page-break-inside: avoid;
         }
         .o_survey_results_question_wrapper {
-            .o_survey_results_question_header, .o_survey_question_description {
+            .o_survey_results_question_header,
+            .o_survey_question_description {
                 page-break-inside: avoid;
                 page-break-after: avoid;
             }
@@ -51,7 +52,7 @@
             }
             tbody {
                 tr {
-                  break-inside: avoid;  
+                    break-inside: avoid;
                 }
             }
         }
@@ -59,7 +60,6 @@
 }
 
 .o_survey_results_topbar {
-
     .nav-item.dropdown a {
         min-width: 13em;
     }
@@ -67,15 +67,16 @@
         // Dropdown adapted from event templates to get a coherent styling
         .dropdown-toggle {
             text-align: left;
-            &:hover, &:focus {
+            &:hover,
+            &:focus {
                 text-decoration: none;
             }
             &:after {
-                float:right;
-                margin-top: .5em;
+                float: right;
+                margin-top: 0.5em;
             }
             .fa {
-                margin-right: .4em;
+                margin-right: 0.4em;
             }
         }
         .dropdown-menu {
@@ -85,15 +86,16 @@
             overflow-y: auto;
         }
         .dropdown-item {
-            &.active .badge { // Invert badge display when the item is active
-                background-color: color-contrast(map-get($theme-colors, 'primary'));
-                color: map-get($theme-colors, 'primary');
+            &.active .badge {
+                // Invert badge display when the item is active
+                background-color: color-contrast(map-get($theme-colors, "primary"));
+                color: map-get($theme-colors, "primary");
             }
         }
     }
     .o_survey_results_topbar_answer_filters {
         .btn.filter-remove-answer {
-            border-color: #DEE2E6;
+            border-color: #dee2e6;
             background-color: transparent;
             white-space: normal;
             text-align: left;
@@ -131,7 +133,7 @@
             border-radius: 2em 0 0 2em;
         }
     }
-    .o_survey_answer_image{
+    .o_survey_answer_image {
         cursor: zoom-in;
         &:hover {
             box-sizing: border-box;
@@ -139,12 +141,12 @@
         }
     }
     .o_survey_answer i {
-        padding:3px;
-        cursor:pointer;
+        padding: 3px;
+        cursor: pointer;
 
         &.o_survey_answer_matrix_whitespace {
             padding-right: 16px;
-            cursor:default;
+            cursor: default;
         }
     }
     .collapse:not(.show) {
@@ -152,7 +154,7 @@
     }
     .nav-tabs .nav-link.active {
         background-color: transparent;
-        border-color: #DEE2E6;
+        border-color: #dee2e6;
         font-weight: bold;
     }
     table {

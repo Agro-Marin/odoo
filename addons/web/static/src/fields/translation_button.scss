@@ -1,4 +1,3 @@
-
 .btn.o_field_translate {
     position: absolute;
     right: 5px;
@@ -7,7 +6,8 @@
     text-align: right;
     visibility: hidden;
 
-    &, .o_web_client.o_touch_device & {
+    &,
+    .o_web_client.o_touch_device & {
         padding: 0;
     }
 }
@@ -20,8 +20,10 @@
         }
     }
 
-    input, textarea {
-        &.o_field_translate, &.o_field_placeholder {
+    input,
+    textarea {
+        &.o_field_translate,
+        &.o_field_placeholder {
             padding-right: $o-field-translate-padding;
         }
         &.o_field_translate.o_field_placeholder {

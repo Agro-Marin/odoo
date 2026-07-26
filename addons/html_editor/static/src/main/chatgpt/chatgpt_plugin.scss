@@ -1,7 +1,12 @@
-
 @keyframes fade {
-    0%,100% { opacity: 0 }
-    30%,70% { opacity: 1 }
+    0%,
+    100% {
+        opacity: 0;
+    }
+    30%,
+    70% {
+        opacity: 1;
+    }
 }
 .o-chatgpt-content {
     position: absolute;

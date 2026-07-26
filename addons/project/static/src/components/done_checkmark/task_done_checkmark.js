@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { BooleanToggleField, booleanToggleField } from "@web/fields/basic/boolean_toggle/boolean_toggle_field";
+import {
+    BooleanToggleField,
+    booleanToggleField,
+} from "@web/fields/basic/boolean_toggle/boolean_toggle_field";
 
 export class TaskCheckMark extends BooleanToggleField {
     static template = "project.TaskCheckMark";
@@ -22,6 +25,6 @@ export class TaskCheckMark extends BooleanToggleField {
 export const taskCheckMark = {
     ...booleanToggleField,
     component: TaskCheckMark,
-}
+};
 
 registry.category("fields").add("task_done_checkmark", taskCheckMark);

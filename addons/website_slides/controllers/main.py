@@ -29,6 +29,7 @@ _logger = logging.getLogger(__name__)
 def handle_wslide_error(exception, **kwargs):
     if isinstance(exception, AccessError):
         return request.redirect("/slides?invite_error=no_rights", 302)
+    return None
 
 
 class WebsiteSlides(WebsiteProfile):
@@ -41,7 +42,7 @@ class WebsiteSlides(WebsiteProfile):
         "date": "create_date desc",
     }
 
-    def sitemap_slide(env, rule, qs):
+    def sitemap_slide(env, rule, qs):  # noqa: N805 -- sitemap callback, first arg is the env
         Channel = env["slide.channel"]
         dom = sitemap_qs2dom(qs=qs, route="/slides/", field=Channel._rec_name)
         dom &= env["website"].get_current_website().website_domain()
@@ -282,7 +283,7 @@ class WebsiteSlides(WebsiteProfile):
         slides = (
             request.env["slide.slide"].sudo().search([("channel_id", "=", channel.id)])
         )
-        channel_progress = dict((sid, dict()) for sid in slides.ids)
+        channel_progress = {sid: {} for sid in slides.ids}
         if not request.env.user._is_public() and channel.is_member:
             slide_partners = (
                 request.env["slide.slide.partner"]
@@ -1246,7 +1247,7 @@ class WebsiteSlides(WebsiteProfile):
             success = channel.sudo()._action_add_members(request.env.user.partner_id)
         else:
             success = channel._action_add_members(request.env.user.partner_id)
-        return {"error": "join_done"} if not success else success
+        return success or {"error": "join_done"}
 
     @http.route(["/slides/channel/leave"], type="jsonrpc", auth="user", website=True)
     def slide_channel_leave(self, channel_id):
@@ -1380,7 +1381,7 @@ class WebsiteSlides(WebsiteProfile):
     )
     def slide_view(self, slide, **kwargs):
         if not slide.channel_id.can_access_from_current_website() or not slide.active:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
         # redirection to channel's homepage for category slides
         if slide.is_category:
             return request.redirect(slide.channel_id.website_absolute_url)
@@ -1457,7 +1458,7 @@ class WebsiteSlides(WebsiteProfile):
         user_slide_authorization = self._get_user_slide_authorization(slide_id)
         status = user_slide_authorization["status"]
         if status == "not_found":
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         if status == "authorized":
             return request.redirect(
@@ -1523,7 +1524,7 @@ class WebsiteSlides(WebsiteProfile):
 
         slide = request.env["slide.slide"].search([("id", "=", int(slide_id))])
         if not slide:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         return (
             request.env["ir.binary"]
@@ -1830,6 +1831,7 @@ class WebsiteSlides(WebsiteProfile):
                 ("partner_id", "=", request.env.user.partner_id.id),
             ]
         ).write({"completed": False, "quiz_attempts_count": 0})
+        return None
 
     @http.route(
         "/slides/slide/quiz/submit", type="jsonrpc", auth="public", website=True
@@ -1851,7 +1853,9 @@ class WebsiteSlides(WebsiteProfile):
 
         # sudo: the backing survey is a slide implementation detail (see
         # _get_slide_quiz_data); members without survey groups must still submit.
-        all_questions = slide.survey_id.sudo().question_ids.filtered(lambda q: not q.is_page)
+        all_questions = slide.survey_id.sudo().question_ids.filtered(
+            lambda q: not q.is_page
+        )
         user_answers = (
             request.env["survey.question.answer"]
             .sudo()
@@ -1955,7 +1959,7 @@ class WebsiteSlides(WebsiteProfile):
         of slide list based on sequence."""
         channel = request.env["slide.channel"].browse(int(channel_id))
         if not channel.can_upload or not channel.can_publish:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
 
         request.env["slide.slide"].create(
             self._get_new_slide_category_values(channel, name)
@@ -2068,18 +2072,17 @@ class WebsiteSlides(WebsiteProfile):
             if (file_size / 1024.0 / 1024.0) > 25:
                 return {"error": _("File is too big. File size cannot exceed 25MB")}
 
-        values = dict(
-            (fname, post[fname])
+        values = {
+            fname: post[fname]
             for fname in self._get_valid_slide_post_values()
             if post.get(fname)
-        )
+        }
 
         # handle exception during creation of slide and sent error notification to the client
         # otherwise client slide create dialog box continue processing even server fail to create a slide
         try:
             channel = request.env["slide.channel"].browse(values["channel_id"])
             can_upload = channel.can_upload
-            can_publish = channel.can_publish
         except UserError as e:
             _logger.error(e)
             return {"error": e.args[0]}
@@ -2219,7 +2222,7 @@ class WebsiteSlides(WebsiteProfile):
         try:
             slide = request.env["slide.slide"].browse(slide_id)
             if not slide.exists() or not slide.sudo().active:
-                raise werkzeug.exceptions.NotFound()
+                raise werkzeug.exceptions.NotFound
             # redirection to channel's homepage for category slides
             if slide.sudo().is_category:
                 return request.redirect(slide.channel_id.website_url)
@@ -2294,7 +2297,7 @@ class WebsiteSlides(WebsiteProfile):
         )
         courses_completed = courses.filtered(lambda c: c.member_status == "completed")
         courses_ongoing = courses - courses_completed
-        values = {
+        return {
             "uid": request.env.user.id,
             "user": user,
             "main_object": user,
@@ -2304,7 +2307,6 @@ class WebsiteSlides(WebsiteProfile):
             "badge_category": "slides",
             "my_profile": request.env.user.id == user.id,
         }
-        return values
 
     def _prepare_user_profile_values(self, user, **post):
         values = super()._prepare_user_profile_values(user, **post)

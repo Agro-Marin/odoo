@@ -55,9 +55,12 @@
                 transform-origin: 0 0;
             }
 
-            &, iframe {
+            &,
+            iframe {
                 opacity: 0;
-                transition: height 300ms ease-in, opacity 300ms ease 300ms;
+                transition:
+                    height 300ms ease-in,
+                    opacity 300ms ease 300ms;
             }
         }
 
@@ -85,12 +88,14 @@
                 opacity: 0;
             }
 
-            .o_page_template_preview, iframe {
+            .o_page_template_preview,
+            iframe {
                 opacity: 1;
             }
 
-            &:hover, &:focus-within {
-                box-shadow: 0 .5rem 2rem rgba(0, 0, 0, 0.2);
+            &:hover,
+            &:focus-within {
+                box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.2);
 
                 .o_button_area {
                     opacity: 1;

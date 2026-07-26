@@ -1,5 +1,7 @@
-.o_record_selector, .o_multi_record_selector {
-    &:hover, &:focus-within {
+.o_record_selector,
+.o_multi_record_selector {
+    &:hover,
+    &:focus-within {
         .o_dropdown_button:after {
             @include o-caret-down;
         }
@@ -10,12 +12,13 @@
         min-width: 100%;
         position: relative;
 
-        &:hover, &:focus-within {
+        &:hover,
+        &:focus-within {
             &::after {
                 @include o-caret-down;
                 align-self: center;
                 position: absolute;
-                right: .5rem;
+                right: 0.5rem;
             }
         }
     }

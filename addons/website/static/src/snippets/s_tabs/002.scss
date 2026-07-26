@@ -4,7 +4,10 @@
     --tabs-link-color: #{$body-color};
 
     .s_tabs_content {
-        &.s_tabs_slide_up, &.s_tabs_slide_down, &.s_tabs_slide_left, &.s_tabs_slide_right {
+        &.s_tabs_slide_up,
+        &.s_tabs_slide_down,
+        &.s_tabs_slide_left,
+        &.s_tabs_slide_right {
             > .tab-pane.fade {
                 transition: all 0.2s;
             }
@@ -29,14 +32,15 @@
     .s_tabs_main {
         --card-cap-bg: initial;
 
-        .nav-tabs{
+        .nav-tabs {
             --nav-tabs-link-hover-border-color: transparent;
         }
 
-        .s_tabs_nav:has(.nav-tabs), .s_tabs_nav:has(.nav-buttons) {
+        .s_tabs_nav:has(.nav-tabs),
+        .s_tabs_nav:has(.nav-buttons) {
             background: var(--tabs-bg-color, $gray-100);
 
-            .nav .nav-item a.nav-link{
+            .nav .nav-item a.nav-link {
                 color: var(--tabs-link-color, $body-color);
             }
         }
@@ -51,7 +55,7 @@
             .nav-link {
                 margin-bottom: -1px;
                 color: inherit;
-                
+
                 &:not(.active) {
                     border: 0;
                 }
@@ -77,7 +81,8 @@
 
         .s_tabs_nav:has(.nav-buttons.nav-justified),
         .s_tabs_nav:has(.nav-buttons.nav-fill) {
-            &, .nav-buttons {
+            &,
+            .nav-buttons {
                 width: 100%;
             }
         }

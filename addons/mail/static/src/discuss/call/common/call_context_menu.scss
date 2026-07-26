@@ -2,7 +2,9 @@
     /* Visibility */
     visibility: hidden;
     opacity: 0;
-    transition: visibility 0s, opacity 0.2s ease-out;
+    transition:
+        visibility 0s,
+        opacity 0.2s ease-out;
 
     /* Positioning */
     position: absolute;
@@ -12,7 +14,7 @@
 
     /* Appearance */
     background-color: #212529;
-    color: #F9FAFB;
+    color: #f9fafb;
     padding: 4px 10px;
 
     &::after {

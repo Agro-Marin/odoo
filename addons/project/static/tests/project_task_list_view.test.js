@@ -59,16 +59,16 @@ test("project.task (list): toggle sub-tasks", async () => {
             id: 1,
             project_id: 1,
             name: "Task 1",
-            step_id:  1,
+            step_id: 1,
             display_in_project: true,
         },
         {
             id: 2,
             project_id: 1,
             name: "Task 2",
-            step_id:  1,
+            step_id: 1,
             display_in_project: false,
-        }
+        },
     ];
     await mountView({
         resModel: "project.task",

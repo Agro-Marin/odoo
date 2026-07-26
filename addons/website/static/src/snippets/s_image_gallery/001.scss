@@ -1,6 +1,6 @@
-
 .s_image_gallery[data-vcss="001"] {
-    &.o_grid, &.o_masonry {
+    &.o_grid,
+    &.o_masonry {
         .img {
             width: 100%;
         }
@@ -15,13 +15,13 @@
         }
 
         &.o_spc-small div.row > div {
-            margin-bottom: $grid-gutter-width * .5;
-            padding: 0 $grid-gutter-width * .25;
+            margin-bottom: $grid-gutter-width * 0.5;
+            padding: 0 $grid-gutter-width * 0.25;
         }
 
         &.o_spc-medium div.row > div {
             margin-bottom: $grid-gutter-width;
-            padding: 0 $grid-gutter-width * .5;
+            padding: 0 $grid-gutter-width * 0.5;
         }
 
         &.o_spc-big div.row > div {
@@ -38,25 +38,33 @@
     &.o_masonry {
         &.o_spc-none div.o_masonry_col {
             padding: 0;
-            > img, > a > img, > .media_iframe_video {
+            > img,
+            > a > img,
+            > .media_iframe_video {
                 margin: 0 !important;
             }
         }
         &.o_spc-small div.o_masonry_col {
-            padding: 0 ($spacer * .5);
-            > img, > a > img, > .media_iframe_video {
+            padding: 0 ($spacer * 0.5);
+            > img,
+            > a > img,
+            > .media_iframe_video {
                 margin-bottom: $spacer !important;
             }
         }
         &.o_spc-medium div.o_masonry_col {
             padding: 0 $spacer;
-            > img, > a > img, > .media_iframe_video {
+            > img,
+            > a > img,
+            > .media_iframe_video {
                 margin-bottom: $spacer * 2 !important;
             }
         }
         &.o_spc-big div.o_masonry_col {
             padding: 0 ($spacer * 1.5);
-            > img, > a > img, > .media_iframe_video {
+            > img,
+            > a > img,
+            > .media_iframe_video {
                 margin-bottom: $spacer * 3 !important;
             }
         }
@@ -67,8 +75,8 @@
             padding-bottom: 0;
         }
         &.o_spc-small .row > div {
-            padding-top: $spacer * .5;
-            padding-bottom: $spacer * .5;
+            padding-top: $spacer * 0.5;
+            padding-bottom: $spacer * 0.5;
         }
         &.o_spc-medium .row > div {
             padding-top: $spacer;
@@ -134,7 +142,9 @@
                 }
             }
         }
-        > .container, > .container-fluid, > .o_container_small {
+        > .container,
+        > .container-fluid,
+        > .o_container_small {
             height: 100%;
         }
         &.s_image_gallery_cover .carousel-item {
@@ -161,13 +171,15 @@
                 padding-bottom: 0px;
             }
         }
-        &.s_image_gallery_indicators_arrows_boxed, &.s_image_gallery_indicators_arrows_rounded {
+        &.s_image_gallery_indicators_arrows_boxed,
+        &.s_image_gallery_indicators_arrows_rounded {
             .carousel {
                 .carousel-control-prev,
                 .carousel-control-next {
                     // Directional icons replaced by oi but keeping fa here, it
                     // is still used by already dropped snippet
-                    .fa, .oi {
+                    .fa,
+                    .oi {
                         text-shadow: none;
                     }
                 }
@@ -179,7 +191,8 @@
                     .fa:before {
                         content: "\f104";
                     }
-                    .oi:before, .fa:before {
+                    .oi:before,
+                    .fa:before {
                         padding-right: 2px;
                     }
                 }
@@ -187,20 +200,22 @@
                     .fa:before {
                         content: "\f105";
                     }
-                    .oi:before, .fa:before {
+                    .oi:before,
+                    .fa:before {
                         padding-left: 2px;
                     }
                 }
                 .carousel-control-prev,
                 .carousel-control-next {
-                    .fa:before, .oi:before {
-                            display: block;
-                            width: 3rem;
-                            height: 3rem;
-                            line-height: 3rem;
-                            color: black;
-                            background: white;
-                            border: 1px solid $gray-500;
+                    .fa:before,
+                    .oi:before {
+                        display: block;
+                        width: 3rem;
+                        height: 3rem;
+                        line-height: 3rem;
+                        color: black;
+                        background: white;
+                        border: 1px solid $gray-500;
                     }
                     .fa:before {
                         @include font-size(1.25rem);
@@ -214,22 +229,31 @@
         &.s_image_gallery_indicators_arrows_rounded {
             .carousel {
                 .carousel-control-prev {
-                    .fa:before { content: "\f060"; }
-                    .oi:before { content: "\e842"; }
+                    .fa:before {
+                        content: "\f060";
+                    }
+                    .oi:before {
+                        content: "\e842";
+                    }
                 }
                 .carousel-control-next {
-                    .fa:before { content: "\f061"; }
-                    .oi:before { content: "\e843"; }
+                    .fa:before {
+                        content: "\f061";
+                    }
+                    .oi:before {
+                        content: "\e843";
+                    }
                 }
                 .carousel-control-prev,
                 .carousel-control-next {
-                    .fa:before, .oi:before {
-                            color: black;
-                            background: white;
-                            @include font-size(1.25rem);
-                            border-radius: 50%;
-                            padding: 1.25rem;
-                            border: 1px solid $gray-500;
+                    .fa:before,
+                    .oi:before {
+                        color: black;
+                        background: white;
+                        @include font-size(1.25rem);
+                        border-radius: 50%;
+                        padding: 1.25rem;
+                        border: 1px solid $gray-500;
                     }
                 }
             }
@@ -256,7 +280,7 @@
                         background-image: none !important;
 
                         &:not(.active) {
-                            opacity: .4;
+                            opacity: 0.4;
                         }
                     }
                 }
@@ -273,7 +297,7 @@
 .s_gallery_lightbox {
     .modal-dialog {
         height: 100%;
-        background-color: rgba(0,0,0,0.7);
+        background-color: rgba(0, 0, 0, 0.7);
     }
     @include media-breakpoint-up(sm) {
         .modal-dialog {
@@ -321,7 +345,8 @@
         }
         .carousel-control-next,
         .carousel-control-prev {
-             .fa, .oi {
+            .fa,
+            .oi {
                 text-shadow: 0px 0px 3px $gray-800;
             }
         }

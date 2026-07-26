@@ -13,14 +13,20 @@ export class CustomerTestimonialsBlockquote extends BaseOptionComponent {
 
 export class MassMailingLayoutColumnOption extends LayoutColumnOption {
     static selector = ".s_reviews_wall .container";
-    static applyTo = ":scope > .row:has(> .s_mail_blockquote), :scope > .row > .s_allow_columns";
+    static applyTo =
+        ":scope > .row:has(> .s_mail_blockquote), :scope > .row > .s_allow_columns";
 }
 
 class ReviewsWallOptionPlugin extends Plugin {
     static id = "mass_mailing.ReviewsWallOptionPlugin";
     resources = {
-        builder_options: [CustomerTestimonialsBlockquote, MassMailingLayoutColumnOption],
+        builder_options: [
+            CustomerTestimonialsBlockquote,
+            MassMailingLayoutColumnOption,
+        ],
     };
 }
 
-registry.category("mass_mailing-plugins").add(ReviewsWallOptionPlugin.id, ReviewsWallOptionPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(ReviewsWallOptionPlugin.id, ReviewsWallOptionPlugin);

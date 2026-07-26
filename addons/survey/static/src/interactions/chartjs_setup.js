@@ -16,7 +16,8 @@
  * session chart is imported directly by `survey_session_chart.js`.)
  */
 
-import { Chart } from "chart.js";
 import "chartjs-adapter-luxon";
+
+import { Chart } from "chart.js";
 
 globalThis.Chart = Chart;

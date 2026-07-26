@@ -1,5 +1,4 @@
 .o_project_kanban .o_kanban_renderer {
-
     .o_project_kanban_main {
         // Prevents the kanban settings menu from overflowing and creating a scrollbar.
         .o_kanban_card_manage_pane .o_kanban_card_manage_section a {
@@ -22,8 +21,8 @@
             margin: 0 5px;
 
             &:first-child {
-                 margin: 0 5px 0 0;
-             }
+                margin: 0 5px 0 0;
+            }
 
             .o_value {
                 font-weight: 800;

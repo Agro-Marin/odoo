@@ -2,7 +2,10 @@
     line-height: 1.75;
 
     &:not(.o-selfReacted):hover {
-        border-color: rgba($o-action, var(--mail-MessageReaction-selfReactedBorderOpacity, 1)) !important;
+        border-color: rgba(
+            $o-action,
+            var(--mail-MessageReaction-selfReactedBorderOpacity, 1)
+        ) !important;
     }
 
     &.o-selfReacted {
@@ -11,6 +14,7 @@
     }
 }
 
-.o-mail-MessageReactions:not(.o-emojiPickerOpen):not(:hover) .o-mail-MessageReactions-add:not(.o-mobile) {
+.o-mail-MessageReactions:not(.o-emojiPickerOpen):not(:hover)
+    .o-mail-MessageReactions-add:not(.o-mobile) {
     visibility: hidden;
 }

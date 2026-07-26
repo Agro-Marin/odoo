@@ -1,4 +1,4 @@
-.s_process_steps[data-vcss='002']  {
+.s_process_steps[data-vcss="002"] {
     $process-step-number-size: 5rem;
 
     .s_process_step {
@@ -47,7 +47,7 @@
     }
 
     .s_process_steps_arrow_head path {
-        fill: map-get($grays, '600');
+        fill: map-get($grays, "600");
         stroke: transparent;
     }
 

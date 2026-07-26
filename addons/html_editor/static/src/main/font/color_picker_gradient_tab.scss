@@ -2,7 +2,8 @@
     border-width: 0px;
     background: unset;
 
-    &:hover, &:focus {
+    &:hover,
+    &:focus {
         background: unset;
     }
 }
@@ -21,7 +22,7 @@
 // custom gradients
 .custom-gradient-configurator {
     .gradient-checkers {
-        background-image: url('/web/static/img/transparent.png');
+        background-image: url("/web/static/img/transparent.png");
         background-size: var(--PreviewAlphaBg-background-size, 10px) auto;
         padding: 10px 0;
         margin-bottom: -20px;
@@ -66,17 +67,23 @@
         border: 1px solid #666;
     }
 
-    input[type=range]:focus-visible {
+    input[type="range"]:focus-visible {
         outline: none;
 
         &::-webkit-slider-thumb {
-            box-shadow: 0 0 0 1px var(--bg, $white), 0 0 0 3px var(--o-color-picker-active-color, $o-enterprise-action-color);
+            box-shadow:
+                0 0 0 1px var(--bg, $white),
+                0 0 0 3px var(--o-color-picker-active-color, $o-enterprise-action-color);
         }
         &::-moz-range-thumb {
-            box-shadow: 0 0 0 1px var(--bg, $white), 0 0 0 3px var(--o-color-picker-active-color, $o-enterprise-action-color);
+            box-shadow:
+                0 0 0 1px var(--bg, $white),
+                0 0 0 3px var(--o-color-picker-active-color, $o-enterprise-action-color);
         }
         &::-ms-thumb {
-            box-shadow: 0 0 0 1px var(--bg, $white), 0 0 0 3px var(--o-color-picker-active-color, $o-enterprise-action-color);
+            box-shadow:
+                0 0 0 1px var(--bg, $white),
+                0 0 0 3px var(--o-color-picker-active-color, $o-enterprise-action-color);
         }
     }
 }

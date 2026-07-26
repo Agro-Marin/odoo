@@ -111,7 +111,10 @@ class SurveyQuestionAnswer(models.Model):
         """
         for answer in self:
             answer_label = answer.value_label
-            if not answer.question_id or answer.question_id.question_type in ("matrix", "likert"):
+            if not answer.question_id or answer.question_id.question_type in (
+                "matrix",
+                "likert",
+            ):
                 answer.display_name = answer_label
                 continue
             title = answer.question_id.title or _("[Question Title]")

@@ -1,7 +1,10 @@
 .o-mail-ChatHub-bubbles {
     width: $o-mail-ChatHub-bubblesWidth;
     z-index: $o-mail-NavigableList-zIndex - 1;
-    bottom: calc(#{var(--mail-ChatHub-bubbles-bottom, 0px)} + #{var(--mail-ChatHub-bubbles-bottomLift, 0px)});
+    bottom: calc(
+        #{var(--mail-ChatHub-bubbles-bottom, 0px)} +
+            #{var(--mail-ChatHub-bubbles-bottomLift, 0px)}
+    );
 
     &.o-liftUp {
         --mail-ChatHub-bubbles-bottomLift: 25px;
@@ -26,7 +29,7 @@
 }
 
 .o-mail-ChatHub-hiddenBtnIcon {
-    color: #FFFFFF!important;
+    color: #ffffff !important;
     background-color: mix($gray-400, $gray-500) !important;
     width: $o-mail-ChatBubble-sizeBig !important;
     height: $o-mail-ChatBubble-sizeBig !important;
@@ -60,11 +63,13 @@
     align-items: center;
     max-width: 225px;
 
-    &:hover:not(:has(.o-mail-ChatHub-hiddenClose:hover)), &.o-active {
+    &:hover:not(:has(.o-mail-ChatHub-hiddenClose:hover)),
+    &.o-active {
         background-color: $o-gray-300;
     }
 
-    &:hover, &.o-active {
+    &:hover,
+    &.o-active {
         cursor: pointer;
 
         .o-mail-ChatHub-hiddenClose {
@@ -78,7 +83,8 @@
 }
 
 .o-mail-ChatHub-option {
-    &:hover, &.o-active {
+    &:hover,
+    &.o-active {
         background-color: $o-gray-300;
         cursor: pointer;
     }
@@ -104,7 +110,8 @@
     &.show {
         border-color: mix($o-gray-300, $o-gray-400) !important;
     }
-    &:hover, &.show {
+    &:hover,
+    &.show {
         i {
             opacity: 100%;
         }

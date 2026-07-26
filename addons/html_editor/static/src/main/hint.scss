@@ -20,6 +20,6 @@
 
 div.o-we-hint[class*="col-"] {
     &:after {
-        left: calc(var(--gutter-x, 0)* .5);
+        left: calc(var(--gutter-x, 0) * 0.5);
     }
 }

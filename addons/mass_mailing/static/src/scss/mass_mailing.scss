@@ -1,7 +1,8 @@
 .o_form_view.o_mass_mailing_mailing_form .o_form_renderer {
     .o_notebook .tab-content .tab-pane .o_mail_body {
         // cancel the padding of the form_sheet
-        margin: -$o-sheet-cancel-hpadding calc(var(--formView-sheet-padding-x) * -1) -40px;
+        margin: -$o-sheet-cancel-hpadding
+            calc(var(--formView-sheet-padding-x) * -1) -40px;
     }
 
     .oe-toolbar {
@@ -46,7 +47,7 @@ body.editor_has_snippets .o_field_mass_mailing_html div.d-flex:has(iframe) {
         .o_mailing_filter_width {
             max-width: 25%;
         }
-        .o_readonly_modifier.o_mailing_filter_readonly_width ,
+        .o_readonly_modifier.o_mailing_filter_readonly_width,
         &.o_form_readonly .o_mailing_filter_readonly_width {
             max-width: 100%;
             white-space: nowrap;
@@ -76,7 +77,7 @@ body.editor_has_snippets .o_field_mass_mailing_html div.d-flex:has(iframe) {
 .o_kanban_mailing_list {
     .o_kanban_renderer {
         .o_kanban_group:not(.o_column_folded) {
-            flex-basis: 380px
+            flex-basis: 380px;
         }
         &.o_kanban_ungrouped {
             padding: 0;
@@ -164,7 +165,7 @@ body.editor_has_snippets .o_field_mass_mailing_html div.d-flex:has(iframe) {
 
 .o_form_view {
     // This will display the emoji widget in the right position after a text field with sms option.
-    .o_sms_container ~ .o_mail_add_emoji{
+    .o_sms_container ~ .o_mail_add_emoji {
         bottom: 55px;
     }
 }

@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { user } from "@web/services/user";
-import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander'
 import { useFocusTitle } from "@project/utils/project_utils";
+import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
+import { user } from "@web/services/user";
+
 import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 
 export class ProjectProjectFormController extends FormControllerWithHTMLExpander {
@@ -26,11 +27,13 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
     setup() {
         super.setup();
         onWillStart(async () => {
-            this.isProjectManager = await user.hasGroup('project.group_project_manager');
+            this.isProjectManager = await user.hasGroup(
+                "project.group_project_manager",
+            );
             this.featuresToObserve = await this.orm.call(
                 this.props.resModel,
                 "check_features_enabled",
-                []
+                [],
             );
         });
 
@@ -59,17 +62,17 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
     async onRecordSaved(record, changes) {
         await super.onRecordSaved(...arguments);
         const updatedFields = Object.keys(this.featuresToObserve).filter(
-            (fName) => fName in changes
+            (fName) => fName in changes,
         );
         if (updatedFields.length) {
             const updatedFeatures = await record.model.orm.call(
                 record.resModel,
                 "check_features_enabled",
-                [updatedFields]
+                [updatedFields],
             );
             if (
                 Object.entries(updatedFeatures).some(
-                    ([fName, value]) => value !== this.featuresToObserve[fName]
+                    ([fName, value]) => value !== this.featuresToObserve[fName],
                 )
             ) {
                 this.actionService.doAction("reload_context");

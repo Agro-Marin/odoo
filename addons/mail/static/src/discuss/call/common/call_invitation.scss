@@ -7,7 +7,7 @@ $expand-curve: cubic-bezier(0.22, 1, 0.36, 1);
     transition: width 0.45s $expand-curve;
 
     &.o-chat {
-    width: MIN(350px, 92vw);
+        width: MIN(350px, 92vw);
     }
 
     &.o-preview-open {

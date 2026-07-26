@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
-
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 
@@ -18,7 +17,8 @@ export class NotebookTaskListRenderer extends TaskListRenderer {
         super.setup();
         this.hideState = useState({
             hide:
-                browser.localStorage.getItem(this.constructor.hideClosedStorageKey) === "true",
+                browser.localStorage.getItem(this.constructor.hideClosedStorageKey) ===
+                "true",
         });
     }
 
@@ -31,7 +31,9 @@ export class NotebookTaskListRenderer extends TaskListRenderer {
     }
 
     get openLabel() {
-        return typeof this.closedX2MCount === "undefined" ? _t("Show closed tasks") : _t("%s closed tasks", this.closedX2MCount);
+        return typeof this.closedX2MCount === "undefined"
+            ? _t("Show closed tasks")
+            : _t("%s closed tasks", this.closedX2MCount);
     }
 
     get closeLabel() {
@@ -50,7 +52,10 @@ export class NotebookTaskListRenderer extends TaskListRenderer {
 
     toggleHideClosed() {
         this.hideState.hide = !this.hideState.hide;
-        browser.localStorage.setItem(this.constructor.hideClosedStorageKey, this.hideState.hide);
+        browser.localStorage.setItem(
+            this.constructor.hideClosedStorageKey,
+            this.hideState.hide,
+        );
         document.activeElement.blur();
     }
 }

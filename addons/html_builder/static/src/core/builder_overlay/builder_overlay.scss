@@ -42,7 +42,9 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     width: $o-we-handle-edge-size;
                 }
                 &.w {
-                    inset: $o-we-handles-offset-to-hide auto $o-we-handles-offset-to-hide * -1 $o-we-handle-border-width * 0.5;
+                    inset: $o-we-handles-offset-to-hide auto
+                        $o-we-handles-offset-to-hide * -1 $o-we-handle-border-width *
+                        0.5;
                     transform: translateX(-50%);
                     cursor: ew-resize;
 
@@ -51,7 +53,8 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     }
                 }
                 &.e {
-                    inset: $o-we-handles-offset-to-hide $o-we-handle-border-width * 0.5 $o-we-handles-offset-to-hide * -1 auto;
+                    inset: $o-we-handles-offset-to-hide $o-we-handle-border-width * 0.5
+                        $o-we-handles-offset-to-hide * -1 auto;
                     transform: translateX(50%);
                     cursor: ew-resize;
 
@@ -84,7 +87,11 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     }
                 }
                 &.ne {
-                    inset: ($o-we-handles-offset-to-hide + $o-we-handle-border-width * 0.5) $o-we-handle-border-width * 0.5 auto auto;
+                    inset: (
+                            $o-we-handles-offset-to-hide + $o-we-handle-border-width *
+                                0.5
+                        )
+                        $o-we-handle-border-width * 0.5 auto auto;
                     transform: translate(50%, -50%);
                     cursor: nesw-resize;
 
@@ -93,7 +100,12 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     }
                 }
                 &.se {
-                    inset: auto $o-we-handle-border-width * 0.5 ($o-we-handles-offset-to-hide * -1 + $o-we-handle-border-width * 0.5) auto;
+                    inset: auto $o-we-handle-border-width * 0.5
+                        (
+                            $o-we-handles-offset-to-hide * -1 +
+                                $o-we-handle-border-width * 0.5
+                        )
+                        auto;
                     transform: translate(50%, 50%);
                     cursor: nwse-resize;
 
@@ -102,7 +114,12 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     }
                 }
                 &.sw {
-                    inset: auto auto ($o-we-handles-offset-to-hide * -1 + $o-we-handle-border-width * 0.5) $o-we-handle-border-width * 0.5;
+                    inset: auto auto
+                        (
+                            $o-we-handles-offset-to-hide * -1 +
+                                $o-we-handle-border-width * 0.5
+                        )
+                        $o-we-handle-border-width * 0.5;
                     transform: translate(-50%, 50%);
                     cursor: nesw-resize;
 
@@ -111,7 +128,11 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     }
                 }
                 &.nw {
-                    inset: ($o-we-handles-offset-to-hide + $o-we-handle-border-width * 0.5) auto auto $o-we-handle-border-width * 0.5;
+                    inset: (
+                            $o-we-handles-offset-to-hide + $o-we-handle-border-width *
+                                0.5
+                        )
+                        auto auto $o-we-handle-border-width * 0.5;
                     transform: translate(-50%, -50%);
                     cursor: nwse-resize;
 
@@ -134,7 +155,7 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                     transition: $transition-base;
 
                     &::before {
-                        content: '';
+                        content: "";
                         position: absolute;
                         inset: $o-we-handles-btn-size * -0.5;
                         display: block;
@@ -143,15 +164,16 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                 }
 
                 &.o_column_handle.o_side_y {
-                    background-color: rgba($o-we-handles-accent-color, .1);
+                    background-color: rgba($o-we-handles-accent-color, 0.1);
 
                     &::after {
-                        content: '';
+                        content: "";
                         position: absolute;
                         height: $o-we-handles-btn-size;
                     }
                     &.n {
-                        border-bottom: dashed $o-we-handle-border-width * 0.5 rgba($o-we-handles-accent-color, 0.5);
+                        border-bottom: dashed $o-we-handle-border-width * 0.5
+                            rgba($o-we-handles-accent-color, 0.5);
 
                         &::after {
                             inset: 0 0 auto 0;
@@ -159,7 +181,8 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                         }
                     }
                     &.s {
-                        border-top: dashed $o-we-handle-border-width * 0.5 rgba($o-we-handles-accent-color, 0.5);
+                        border-top: dashed $o-we-handle-border-width * 0.5
+                            rgba($o-we-handles-accent-color, 0.5);
 
                         &::after {
                             inset: auto 0 0 0;
@@ -169,27 +192,24 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                 }
                 &.o_side {
                     &::before {
-                        content: '';
+                        content: "";
                         position: absolute;
                         inset: 0;
                         background: $o-we-handles-accent-color;
                     }
                     &.o_side_x {
-
                         &::before {
                             width: $o-we-handle-border-width;
                             margin: 0 auto;
                         }
                     }
                     &.o_side_y {
-
                         &::before {
                             height: $o-we-handle-border-width;
                             margin: auto 0;
                         }
                     }
                     &.o_column_handle {
-
                         &.n::before {
                             margin: 0 auto auto;
                         }
@@ -209,7 +229,8 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
                         background: none;
                     }
 
-                    &::after, .o_handle_indicator {
+                    &::after,
+                    .o_handle_indicator {
                         display: none;
                     }
                 }
@@ -219,32 +240,33 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
         // HANDLES - ACTIVE AND HOVER STATES
         // By using `o_handlers_idle` class, we can avoid hovering another
         // handle when we're already dragging another one.
-        &.o_handlers_idle .o_handle:hover, .o_handle:active {
-
+        &.o_handlers_idle .o_handle:hover,
+        .o_handle:active {
             .o_handle_indicator {
                 outline-color: $o-we-handles-accent-color;
             }
         }
 
-        &.o_handlers_idle .o_corner_handle:hover, .o_corner_handle:active {
-
+        &.o_handlers_idle .o_corner_handle:hover,
+        .o_corner_handle:active {
             .o_handle_indicator {
                 transform: scale(1.25);
             }
         }
 
-        &.o_handlers_idle .o_column_handle.o_side_y:hover, .o_column_handle.o_side_y:active {
+        &.o_handlers_idle .o_column_handle.o_side_y:hover,
+        .o_column_handle.o_side_y:active {
             background: repeating-linear-gradient(
-                            45deg,
-                            rgba($o-we-handles-accent-color, .1),
-                            rgba($o-we-handles-accent-color, .1) 5px,
-                            darken(rgba($o-we-handles-accent-color, .25), 5%) 5px,
-                            darken(rgba($o-we-handles-accent-color, .25), 5%) 10px
-                        );
+                45deg,
+                rgba($o-we-handles-accent-color, 0.1),
+                rgba($o-we-handles-accent-color, 0.1) 5px,
+                darken(rgba($o-we-handles-accent-color, 0.25), 5%) 5px,
+                darken(rgba($o-we-handles-accent-color, 0.25), 5%) 10px
+            );
         }
 
-        &.o_handlers_idle .o_side_x:hover, .o_side_x:active {
-
+        &.o_handlers_idle .o_side_x:hover,
+        .o_side_x:active {
             &::before {
                 width: $o-we-handle-border-width * 2;
             }
@@ -253,8 +275,8 @@ div[data-oe-local-overlay-id="builder-overlay-container"] {
             }
         }
 
-        &.o_handlers_idle .o_side_y:hover, .o_side_y:active {
-
+        &.o_handlers_idle .o_side_y:hover,
+        .o_side_y:active {
             &::before {
                 height: $o-we-handle-border-width * 2;
             }

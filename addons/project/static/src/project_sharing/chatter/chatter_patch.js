@@ -1,9 +1,8 @@
 /** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
-
 import { onWillUpdateProps, useSubEnv } from "@odoo/owl";
-import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
 
 patch(Chatter.prototype, {
     setup() {
@@ -31,7 +30,7 @@ patch(Chatter.prototype, {
         this.state.isFollower = await this.orm.call(
             this.props.threadModel,
             "project_sharing_toggle_is_follower",
-            [this.props.threadId]
+            [this.props.threadId],
         );
     },
     onPostCallback() {

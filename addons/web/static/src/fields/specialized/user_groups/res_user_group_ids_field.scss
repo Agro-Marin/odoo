@@ -1,7 +1,7 @@
 .o_field_res_user_group_ids {
     @include media-breakpoint-up(sm) {
         .o_extra_rights_group .o_inner_group {
-           grid-template-columns: fit-content(250px) minmax(0, 1fr);
+            grid-template-columns: fit-content(250px) minmax(0, 1fr);
         }
     }
 

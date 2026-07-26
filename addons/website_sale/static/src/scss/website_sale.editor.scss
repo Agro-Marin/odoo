@@ -5,7 +5,8 @@
 body.editor_enable {
     // Outline the category description box
     #category_header {
-        &:has(br:first-child:last-child), &:empty {
+        &:has(br:first-child:last-child),
+        &:empty {
             outline: $border-width dashed fade-currentColor(25%);
 
             &:hover {
@@ -16,7 +17,8 @@ body.editor_enable {
 
     // Outline product description boxes
     .oe_subdescription {
-        div:has(br:first-child:last-child):not(:hover), div:empty:not(:hover) {
+        div:has(br:first-child:last-child):not(:hover),
+        div:empty:not(:hover) {
             outline: $border-width dashed fade-currentColor(25%);
         }
     }
@@ -49,7 +51,7 @@ body.editor_enable:has(.o_wsale_edit_preview_enabled) {
         min-width: 0;
         max-width: 0;
         transform: translateX(-50%);
-        transition: all .2s;
+        transition: all 0.2s;
         opacity: 0;
     }
 
@@ -75,7 +77,7 @@ body.editor_enable:has(.o_wsale_edit_preview_enabled) {
         padding: 0;
         transform: translateY(-50%);
         opacity: 0;
-        transition: all .2s;
+        transition: all 0.2s;
     }
 
     .o_wsale_previewing_filmstrip {
@@ -105,13 +107,13 @@ body.editor_enable:has(.o_wsale_edit_preview_enabled) {
     // Descriptions
     .o_wsale_description_preview {
         opacity: 0;
-        transition: all .2s;
+        transition: all 0.2s;
 
         .placeholder {
             transform: translateY(-50%);
             min-height: 0em;
-            transition: all .2s;
-            opacity: .15;
+            transition: all 0.2s;
+            opacity: 0.15;
         }
     }
 
@@ -127,7 +129,7 @@ body.editor_enable:has(.o_wsale_edit_preview_enabled) {
 
             .placeholder {
                 transform: translateY(0);
-                min-height: .4em;
+                min-height: 0.4em;
             }
         }
     }
@@ -136,13 +138,13 @@ body.editor_enable:has(.o_wsale_edit_preview_enabled) {
     .o_wsale_floating_bar_preview {
         transform: translateY(100%);
         opacity: 0;
-        transition: all .2s;
+        transition: all 0.2s;
     }
 
     .products_header {
         max-height: 100px;
         overflow: hidden;
-        transition: all .2s;
+        transition: all 0.2s;
     }
 
     .o_wsale_previewing_floating_bar {

@@ -1,7 +1,6 @@
-import { expect, test, describe } from "@odoo/hoot";
-import { mockDate, runAllTimers } from "@odoo/hoot-mock";
+import { describe, expect, test } from "@odoo/hoot";
 import { click, queryAllTexts } from "@odoo/hoot-dom";
-
+import { mockDate, runAllTimers } from "@odoo/hoot-mock";
 import { mountView, onRpc } from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels } from "./project_models.js";
@@ -35,7 +34,11 @@ test("check 'Edit' and 'View Tasks' buttons are in Project Calendar Popover", as
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
     expect(".o_popover .card-footer .btn").toHaveCount(3);
-    expect(queryAllTexts(".o_popover .card-footer .btn")).toEqual(["Edit", "View Tasks", ""]);
+    expect(queryAllTexts(".o_popover .card-footer .btn")).toEqual([
+        "Edit",
+        "View Tasks",
+        "",
+    ]);
     expect(".o_popover .card-footer .btn.o_cw_popover_delete").toHaveCount(1);
 
     await click(".o_popover .card-footer a:contains(View Tasks)");

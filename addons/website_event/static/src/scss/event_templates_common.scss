@@ -1,11 +1,11 @@
 $o-wevent-bg-color-base: $gray-100;
 $o-wevent-bg-color-base-contrast: color-contrast($o-wevent-bg-color-base);
-$o-wevent-bg-color-light: mix($o-wevent-bg-color-base, #E9ECEF);
+$o-wevent-bg-color-light: mix($o-wevent-bg-color-base, #e9ecef);
 $o-wevent-bg-color-dark: mix($o-wevent-bg-color-base, #24363a);
 $o-wevent-color: $body-color;
 
-.o_wevent_index, .o_wevent_event {
-
+.o_wevent_index,
+.o_wevent_event {
     .event_track > div {
         border-top: $border-width * 3 solid var(--badge-border-color);
         background-color: var(--background-color);
@@ -39,7 +39,7 @@ $o-wevent-color: $body-color;
 
     .o_wevent_online {
         // unpublished badge: put opacity to distinguish form other badges
-        .o_wevent_online_badge_unpublished{
+        .o_wevent_online_badge_unpublished {
             opacity: 0.4;
         }
 
@@ -48,7 +48,6 @@ $o-wevent-color: $body-color;
         }
 
         .o_wevent_online_page_container {
-
             // Sponsor Avatar
             .o_wevent_online_page_avatar {
                 min-width: 64px;
@@ -65,7 +64,7 @@ $o-wevent-color: $body-color;
         transform: rotate(180deg);
     }
 
-    .o_wevent_cta  {
+    .o_wevent_cta {
         color: #fff;
         background-color: $o-enterprise-color;
         border: $o-enterprise-color;
@@ -87,7 +86,7 @@ $o-wevent-color: $body-color;
 }
 
 .o_wevent_badge {
-    padding: ($spacer * .5) $spacer;
+    padding: ($spacer * 0.5) $spacer;
     border-radius: 10rem;
     font-weight: $font-weight-normal;
 }

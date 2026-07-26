@@ -1,5 +1,4 @@
 .o_loyalty_kanban_inline {
-
     width: 100% !important;
 
     .o_kanban_renderer {
@@ -44,8 +43,8 @@
     }
 }
 
-.o_loyalty_program_list_view_view .o_list_renderer .o_view_nocontent{
-    @include media-breakpoint-down(lg){
+.o_loyalty_program_list_view_view .o_list_renderer .o_view_nocontent {
+    @include media-breakpoint-down(lg) {
         height: fit-content;
     }
 }

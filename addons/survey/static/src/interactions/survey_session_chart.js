@@ -1,9 +1,10 @@
 /** @odoo-module native */
 
-import ChartDataLabels from "chartjs-plugin-datalabels";
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+import ChartDataLabels from "chartjs-plugin-datalabels";
 
 export class SurveySessionChart extends Interaction {
     static selector = ".o_survey_session_chart";
@@ -19,7 +20,7 @@ export class SurveySessionChart extends Interaction {
         this.answersValidity = JSON.parse(sessionManageEl.dataset.answersValidity);
         this.hasCorrectAnswers = sessionManageEl.dataset.hasCorrectAnswers;
         this.questionStatistics = this.processQuestionStatistics(
-            JSON.parse(sessionManageEl.dataset.questionStatistics)
+            JSON.parse(sessionManageEl.dataset.questionStatistics),
         );
         this.showAnswers = false;
         this.showInputs = false;
@@ -67,7 +68,8 @@ export class SurveySessionChart extends Interaction {
      */
     updateChart(questionStatistics) {
         if (questionStatistics) {
-            this.questionStatistics = this.processQuestionStatistics(questionStatistics);
+            this.questionStatistics =
+                this.processQuestionStatistics(questionStatistics);
         }
         if (this.chart) {
             // only a single dataset for our bar charts
@@ -210,28 +212,32 @@ export class SurveySessionChart extends Interaction {
 
                         let charPerLine;
                         let fontRatio;
-                        charPerLineBreakpoints.forEach(([lowerBound, upperBound, value, ratio]) => {
-                            if (
-                                nbrCol >= lowerBound &&
-                                (upperBound === null || nbrCol <= upperBound)
-                            ) {
-                                charPerLine = value;
-                                fontRatio = ratio;
-                            }
-                        });
+                        charPerLineBreakpoints.forEach(
+                            ([lowerBound, upperBound, value, ratio]) => {
+                                if (
+                                    nbrCol >= lowerBound &&
+                                    (upperBound === null || nbrCol <= upperBound)
+                                ) {
+                                    charPerLine = value;
+                                    fontRatio = ratio;
+                                }
+                            },
+                        );
 
                         // Adapt font size if the number of characters per line is under the maximum
                         if (charPerLine < 35) {
-                            const allWords = chart.data.labels.reduce((accumulator, words) =>
-                                accumulator.concat(" ".concat(words))
+                            const allWords = chart.data.labels.reduce(
+                                (accumulator, words) =>
+                                    accumulator.concat(" ".concat(words)),
                             );
                             const maxWordLength = Math.max(
-                                ...allWords.split(" ").map((word) => word.length)
+                                ...allWords.split(" ").map((word) => word.length),
                             );
-                            fontRatio = maxWordLength > charPerLine ? minRatio : fontRatio;
+                            fontRatio =
+                                maxWordLength > charPerLine ? minRatio : fontRatio;
                             chart.options.scales.x.ticks.font.size = Math.min(
                                 parseInt(chart.options.scales.x.ticks.font.size),
-                                (chart.width * fontRatio) / nbrCol
+                                (chart.width * fontRatio) / nbrCol,
                             );
                         }
 
@@ -244,13 +250,16 @@ export class SurveySessionChart extends Interaction {
                                 // Chop down words that do not fit on a single line, add each part on its own line.
                                 let word = words[i];
                                 while (word.length > charPerLine) {
-                                    resultLines.push(word.slice(0, charPerLine - 1) + "-");
+                                    resultLines.push(
+                                        word.slice(0, charPerLine - 1) + "-",
+                                    );
                                     word = word.slice(charPerLine - 1);
                                 }
                                 currentLine.push(word);
 
                                 // Continue to add words in the line if there is enough space and if there is at least one more word to add
-                                const nextWord = i + 1 < words.length ? words[i + 1] : null;
+                                const nextWord =
+                                    i + 1 < words.length ? words[i + 1] : null;
                                 if (nextWord) {
                                     const nextLength =
                                         currentLine.join(" ").length + nextWord.length;
@@ -299,11 +308,14 @@ export class SurveySessionChart extends Interaction {
      */
     getBackgroundColor(metaData) {
         const opacity =
-            this.showAnswers && this.hasCorrectAnswers && !this.isValidAnswer(metaData.dataIndex)
+            this.showAnswers &&
+            this.hasCorrectAnswers &&
+            !this.isValidAnswer(metaData.dataIndex)
                 ? "0.2"
                 : "0.8";
         // If metaData.dataIndex is greater than SESSION_CHART_COLORS.length, it should start from the beginning
-        const rgb = SESSION_CHART_COLORS[metaData.dataIndex % SESSION_CHART_COLORS.length];
+        const rgb =
+            SESSION_CHART_COLORS[metaData.dataIndex % SESSION_CHART_COLORS.length];
         return `rgba(${rgb},${opacity})`;
     }
 
@@ -360,4 +372,6 @@ export class SurveySessionChart extends Interaction {
     }
 }
 
-registry.category("public.interactions").add("survey.survey_session_chart", SurveySessionChart);
+registry
+    .category("public.interactions")
+    .add("survey.survey_session_chart", SurveySessionChart);

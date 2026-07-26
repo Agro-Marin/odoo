@@ -1,4 +1,6 @@
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
+import { animationFrame, press, queryAll, queryOne } from "@odoo/hoot-dom";
 import {
     contains,
     defineModels,
@@ -8,8 +10,6 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
-import { animationFrame, press, queryAll, queryOne } from "@odoo/hoot-dom";
 
 class Survey extends models.Model {
     question_and_page_ids = fields.One2many({ relation: "survey_question" });
@@ -80,8 +80,13 @@ test("basic rendering", async () => {
     expect(rows[0]).toHaveClass("o_is_section fw-bold");
     expect(rows[0]).toHaveText("firstSectionTitle 4");
     expect(rows[1]).toHaveText("recordTitle 5");
-    expect(queryOne("td[name=title]", { root: rows[0] })).toHaveAttribute("colspan", "1");
-    expect(queryOne("td[name=title]", { root: rows[1] })).not.toHaveAttribute("colspan");
+    expect(queryOne("td[name=title]", { root: rows[0] })).toHaveAttribute(
+        "colspan",
+        "1",
+    );
+    expect(queryOne("td[name=title]", { root: rows[1] })).not.toHaveAttribute(
+        "colspan",
+    );
 });
 
 test("click on section behaves as usual in readonly mode", async () => {
@@ -186,9 +191,9 @@ test("A validation error from saving parent form notifies and prevents dialog fr
         throw error;
     });
     await contains(".o_data_row:nth-child(2) .o_data_cell").click();
-    await contains(".o_dialog:not(.o_inactive_modal) .modal-body [name='title'] input").edit(
-        "Invalid RecordTitle"
-    );
+    await contains(
+        ".o_dialog:not(.o_inactive_modal) .modal-body [name='title'] input",
+    ).edit("Invalid RecordTitle");
     await contains(".o_dialog:not(.o_inactive_modal) .o_form_button_save").click();
     expect.verifySteps(["save parent form"]);
     expect.verifyErrors(["This isn't right!"]);

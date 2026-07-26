@@ -3,7 +3,8 @@
         @extend %o-nocontent-init-image;
         width: 250px;
         height: 250px;
-        background: transparent url(/stock/static/img/barcode_scanner.png) no-repeat center;
+        background: transparent url(/stock/static/img/barcode_scanner.png) no-repeat
+            center;
         background-size: 250px 250px;
     }
 
@@ -13,7 +14,8 @@
         height: 300px;
         max-width: 500px;
         margin-bottom: 20px;
-        background: transparent url(/stock/static/img/replenishment.svg) no-repeat center / contain;;
+        background: transparent url(/stock/static/img/replenishment.svg) no-repeat
+            center / contain;
     }
 }
 

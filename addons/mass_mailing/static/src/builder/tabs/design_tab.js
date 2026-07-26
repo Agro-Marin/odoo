@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Component, useState } from "@odoo/owl";
-import { useOptionsSubEnv } from "@html_builder/utils/utils";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
+import { useOptionsSubEnv } from "@html_builder/utils/utils";
+import { Component, useState } from "@odoo/owl";
 
 export class DesignTab extends Component {
     static template = "mass_mailing.DesignTab";

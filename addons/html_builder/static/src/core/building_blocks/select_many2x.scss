@@ -18,9 +18,10 @@
     }
 
     .o_select_menu_toggler {
-        &, &.btn-light.bg-light {
+        &,
+        &.btn-light.bg-light {
             --border-color: #{$o-we-bg-light};
-            --btn-padding-x: #{map-get($spacers , 2)};
+            --btn-padding-x: #{map-get($spacers, 2)};
 
             @include button-variant(
                 $background: $o-we-item-clickable-bg,
@@ -29,12 +30,15 @@
                 $hover-background: $o-we-item-clickable-hover-bg,
                 $hover-border: $o-we-bg-light,
                 $hover-color: $o-we-item-clickable-color,
-                $active-background: var(--o-hb-btn-secondary-active-bg, RGBA(#{to-rgb($o-we-color-accent)}, 0.4)),
+                $active-background: var(
+                        --o-hb-btn-secondary-active-bg,
+                        RGBA(#{to-rgb($o-we-color-accent)}, 0.4)
+                    ),
                 $active-border: $o-we-bg-light,
                 $active-color: $o-we-fg-lighter,
                 $disabled-background: transparent,
                 $disabled-border: transparent,
-                $disabled-color: $o-we-fg-darker,
+                $disabled-color: $o-we-fg-darker
             );
 
             // Handle native o_select_menu_toggler_caret icon inconsistencies
@@ -44,7 +48,7 @@
             &:after {
                 @include o-position-absolute(50%, map-get($spacers, 1));
                 transform: translate(-50%, -50%);
-                font-size: .5rem;
+                font-size: 0.5rem;
                 content: "\f0d7";
                 font-family: "Font Awesome 7 Pro";
                 font-weight: 900;
@@ -53,13 +57,16 @@
             // Tweak `bg-light` to inherit btn values
             --background-color: var(--btn-bg);
 
-            &:hover, &:focus-visible {
+            &:hover,
+            &:focus-visible {
                 --background-color: var(--btn-hover-bg);
             }
-            &:active, &.active {
+            &:active,
+            &.active {
                 --background-color: var(--btn-active-bg);
             }
-            &[disabled], &.disabled {
+            &[disabled],
+            &.disabled {
                 --background-color: var(--btn-disabled-bg);
             }
 
@@ -68,7 +75,10 @@
                 --background-color: var(--btn-hover-bg);
 
                 color: var(--btn-active-color);
-                border-color: var(--o-hb-btn-active-color, $o-we-color-accent) !important;
+                border-color: var(
+                    --o-hb-btn-active-color,
+                    $o-we-color-accent
+                ) !important;
             }
         }
 
@@ -82,11 +92,16 @@
     .o_select_menu_searchbox {
         background-color: $o-we-sidebar-content-field-input-bg;
 
-        &:hover, &:focus-within {
+        &:hover,
+        &:focus-within {
             --o-hb-select-bg-hover: #{$o-we-sidebar-content-field-input-bg};
         }
         &:focus-within {
-            box-shadow: 0 0 $o-we-border-width $o-we-border-width inset var(--o-hb-input-active-border, $o-we-sidebar-content-field-input-border-color);
+            box-shadow: 0 0 $o-we-border-width $o-we-border-width inset
+                var(
+                    --o-hb-input-active-border,
+                    $o-we-sidebar-content-field-input-border-color
+                );
         }
 
         &::before {

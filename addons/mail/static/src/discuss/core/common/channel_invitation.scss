@@ -4,13 +4,13 @@
 
 .o-discuss-ChannelInvitation-selectable {
     &.o-odd {
-        background-color: $gray-100 !important;;
+        background-color: $gray-100 !important;
     }
     &:hover {
         background-color: mix($gray-100, $gray-200) !important;
     }
     &.o-selected {
-        background-color: mix($o-view-background-color, $o-action, 85%) !important;;
+        background-color: mix($o-view-background-color, $o-action, 85%) !important;
     }
 }
 

@@ -1,26 +1,25 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
+import { preloadBackground } from "@survey/js/survey_preload_image_mixin";
+import { fadeIn, fadeOut } from "@survey/utils";
 import { cookie } from "@web/core/browser/cookie";
-import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import {
     deserializeDate,
     deserializeDateTime,
-    parseDateTime,
     parseDate,
-    serializeDateTime,
+    parseDateTime,
     serializeDate,
+    serializeDateTime,
 } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { utils as uiUtils } from "@web/ui/block/ui_service";
 import { resizeTextArea } from "@web/core/utils/dom/autoresize";
-import { Interaction } from "@web/public/interaction";
-import { redirect } from "@web/core/utils/urls";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
-
-import { preloadBackground } from "@survey/js/survey_preload_image_mixin";
-import { fadeIn, fadeOut } from "@survey/utils";
+import { redirect } from "@web/core/utils/urls";
+import { Interaction } from "@web/public/interaction";
+import { utils as uiUtils } from "@web/ui/block/ui_service";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 const { DateTime } = luxon;
 
@@ -53,7 +52,9 @@ export class SurveyForm extends Interaction {
             "t-att-class": () => ({ "d-none": !this.showBreadcrumb }),
         },
         _background: {
-            "t-att-class": () => ({ o_survey_background_transition: this.background.transition }),
+            "t-att-class": () => ({
+                o_survey_background_transition: this.background.transition,
+            }),
             "t-att-style": () => {
                 if (this.background.shouldUpdate) {
                     return {
@@ -81,8 +82,12 @@ export class SurveyForm extends Interaction {
             hasAnswered: !!optionsData.hasAnswered,
             isPageDescription: !!optionsData.isPageDescription,
             questionsLayout: optionsData.questionsLayout,
-            triggeredQuestionsByAnswer: JSON.parse(optionsData.triggeredQuestionsByAnswer),
-            triggeringAnswersByQuestion: JSON.parse(optionsData.triggeringAnswersByQuestion),
+            triggeredQuestionsByAnswer: JSON.parse(
+                optionsData.triggeredQuestionsByAnswer,
+            ),
+            triggeringAnswersByQuestion: JSON.parse(
+                optionsData.triggeringAnswersByQuestion,
+            ),
             selectedAnswers: JSON.parse(optionsData.selectedAnswers),
             refreshBackground: !!optionsData.refreshBackground,
         };
@@ -113,7 +118,9 @@ export class SurveyForm extends Interaction {
             .querySelector("div.o_survey_background")
             .style.backgroundImage?.slice(4, -1)
             .replace(/['"]/g, "");
-        const language = document.querySelector(".o_survey_lang_selector option[selected]")?.value;
+        const language = document.querySelector(
+            ".o_survey_lang_selector option[selected]",
+        )?.value;
         if (languageChanged && backgroundUrl && language) {
             this.background.shouldUpdate = true;
             this.background.image = `/${language}/${backgroundUrl}`;
@@ -127,7 +134,7 @@ export class SurveyForm extends Interaction {
                 `survey_${this.options.surveyToken}`,
                 this.options.answerToken,
                 60 * 60 * 24,
-                "optional"
+                "optional",
             );
         }
         if (
@@ -146,8 +153,14 @@ export class SurveyForm extends Interaction {
         if (this.options.surveyToken && this.options.sessionInProgress) {
             busService.addChannel(this.options.surveyToken);
             await this.checkIsOnMainTab();
-            busService.subscribe("next_question", this.onNextQuestionNotification.bind(this));
-            busService.subscribe("end_session", this.onEndSessionNotification.bind(this));
+            busService.subscribe(
+                "next_question",
+                this.onNextQuestionNotification.bind(this),
+            );
+            busService.subscribe(
+                "end_session",
+                this.onEndSessionNotification.bind(this),
+            );
         }
         this.initChoiceItems();
         this.initTextArea();
@@ -158,7 +171,9 @@ export class SurveyForm extends Interaction {
     start() {
         // These elements are not children of this.el
         this.surveyProgressEl = document.querySelector(".o_survey_progress_wrapper");
-        this.surveyNavigationEl = document.querySelector(".o_survey_navigation_wrapper");
+        this.surveyNavigationEl = document.querySelector(
+            ".o_survey_navigation_wrapper",
+        );
         if (!this.options.isStartScreen && !this.readonly) {
             this.initTimer();
             this.initBreadcrumb();
@@ -180,7 +195,8 @@ export class SurveyForm extends Interaction {
     onKeyDown(ev) {
         const ctrlKeyClicked = ev.ctrlKey || ev.metaKey;
         const inputFocused =
-            document.activeElement.tagName.toLowerCase() === "input" && document.hasFocus();
+            document.activeElement.tagName.toLowerCase() === "input" &&
+            document.hasFocus();
 
         if (
             ["one_page", "page_per_section"].includes(this.options.questionsLayout) &&
@@ -204,11 +220,15 @@ export class SurveyForm extends Interaction {
         }
 
         const textareaFocused =
-            document.activeElement.tagName.toLowerCase() === "textarea" && document.hasFocus();
+            document.activeElement.tagName.toLowerCase() === "textarea" &&
+            document.hasFocus();
 
         // If user is answering a text input, do not handle keydown
         // CTRL+enter will force submission (meta key for Mac)
-        if ((textareaFocused || inputFocused) && (!ctrlKeyClicked || ev.key !== "Enter")) {
+        if (
+            (textareaFocused || inputFocused) &&
+            (!ctrlKeyClicked || ev.key !== "Enter")
+        ) {
             return;
         }
 
@@ -239,14 +259,16 @@ export class SurveyForm extends Interaction {
             // It's easier to actually click on the button (if in the DOM) as it contains necessary
             // data that are used in the event handler.
             // Again, global selector necessary since the navigation is outside of the form.
-            document.querySelector(".o_survey_navigation_submit[value='previous']")?.click();
+            document
+                .querySelector(".o_survey_navigation_submit[value='previous']")
+                ?.click();
             return;
         }
         if (this.showingCorrectAnswers || !ev.key.match(/[a-z]/i)) {
             return;
         }
         const choiceInputEl = this.el.querySelector(
-            `input[data-selection-key=${ev.key.toUpperCase()}]`
+            `input[data-selection-key=${ev.key.toUpperCase()}]`,
         );
         if (choiceInputEl) {
             choiceInputEl.checked = !choiceInputEl.checked;
@@ -278,23 +300,28 @@ export class SurveyForm extends Interaction {
 
         // Update survey button to "continue" if the current page/question is the last (without accounting for
         // its own conditional questions) but a selected answer is triggering a conditional question on a next page.
-        const surveyLastTriggeringAnswers = this.el.querySelector(".o_survey_form_content_data")
-            .dataset.surveyLastTriggeringAnswers;
+        const surveyLastTriggeringAnswers = this.el.querySelector(
+            ".o_survey_form_content_data",
+        ).dataset.surveyLastTriggeringAnswers;
         if (surveyLastTriggeringAnswers) {
             const checkedAnswers = Array.from(
                 this.el.querySelectorAll(`
                 .o_survey_form_choice[data-question-type='simple_choice_radio'] input:checked,
                 .o_survey_form_choice[data-question-type='multiple_choice'] input:checked
-            `)
+            `),
             ).map((input) => parseInt(input.value));
             const dropdownAnswers = Array.from(
-                this.el.querySelectorAll(".o_survey_form_choice[data-question-type='dropdown'] select")
-            ).filter((sel) => sel.value).map((sel) => parseInt(sel.value));
+                this.el.querySelectorAll(
+                    ".o_survey_form_choice[data-question-type='dropdown'] select",
+                ),
+            )
+                .filter((sel) => sel.value)
+                .map((sel) => parseInt(sel.value));
             const currentSelectedAnswers = [...checkedAnswers, ...dropdownAnswers];
             const submitButton = this.el.querySelector("button[type=submit]");
             if (
                 currentSelectedAnswers.some((answerId) =>
-                    surveyLastTriggeringAnswers.includes(answerId)
+                    surveyLastTriggeringAnswers.includes(answerId),
                 )
             ) {
                 // change to continue
@@ -311,7 +338,7 @@ export class SurveyForm extends Interaction {
         this.applyCommentAreaVisibility(questionEl);
         const isQuestionComplete = this.checkConditionalQuestionsConfiguration(
             targetEl,
-            questionEl
+            questionEl,
         );
 
         // if the question is complete, not the last and does not have a comment, we can automatically continue to the next one
@@ -397,7 +424,7 @@ export class SurveyForm extends Interaction {
         this.renderAt(
             "survey.survey_image_zoomer",
             { sourceImage: ev.currentTarget.src },
-            document.body
+            document.body,
         );
     }
 
@@ -406,14 +433,17 @@ export class SurveyForm extends Interaction {
         const surveyToken = linkEl.dataset.surveyToken;
         const answerToken = linkEl.dataset.answerToken;
         try {
-            const result = await rpc(`/survey/save_later/${surveyToken}/${answerToken}`);
+            const result = await rpc(
+                `/survey/save_later/${surveyToken}/${answerToken}`,
+            );
             if (result.success) {
                 linkEl.innerHTML = `<i class="fa-solid fa-check me-1"></i>Link sent to ${result.email}`;
                 linkEl.classList.replace("text-muted", "text-success");
             } else {
-                linkEl.textContent = result.error === "no_email"
-                    ? "No email address on file"
-                    : "Could not send link";
+                linkEl.textContent =
+                    result.error === "no_email"
+                        ? "No email address on file"
+                        : "Could not send link";
                 linkEl.classList.replace("text-muted", "text-danger");
             }
         } catch {
@@ -478,8 +508,8 @@ export class SurveyForm extends Interaction {
             this.el
                 .querySelector(
                     `input[type="radio"][name="${targetEl.getAttribute(
-                        "name"
-                    )}"].o_survey_form_choice_item_selected`
+                        "name",
+                    )}"].o_survey_form_choice_item_selected`,
                 )
                 ?.classList.remove("o_survey_form_choice_item_selected");
             targetEl.classList.add("o_survey_form_choice_item_selected");
@@ -490,7 +520,9 @@ export class SurveyForm extends Interaction {
         ev.preventDefault();
         const targetEl = ev.currentTarget;
         if (targetEl.value === "previous") {
-            this.submitForm({ previousPageId: parseInt(targetEl.dataset.previousPageId) });
+            this.submitForm({
+                previousPageId: parseInt(targetEl.dataset.previousPageId),
+            });
         } else if (targetEl.value === "next_skipped") {
             this.submitForm({ nextSkipped: true });
         } else if (targetEl.value === "finish" && !this.options.sessionInProgress) {
@@ -510,7 +542,9 @@ export class SurveyForm extends Interaction {
     }
 
     onBreadcrumbClick(ev) {
-        const previousPageId = Number(ev.currentTarget.closest(".breadcrumb-item").dataset.pageId);
+        const previousPageId = Number(
+            ev.currentTarget.closest(".breadcrumb-item").dataset.pageId,
+        );
         this.submitForm({ previousPageId });
     }
 
@@ -535,7 +569,8 @@ export class SurveyForm extends Interaction {
      * specified by the bus.
      */
     onNextQuestionNotification(notification) {
-        let serverDelayMS = (DateTime.now().toSeconds() - notification.question_start) * 1000;
+        let serverDelayMS =
+            (DateTime.now().toSeconds() - notification.question_start) * 1000;
         if (serverDelayMS < 0) {
             serverDelayMS = 0;
         } else if (serverDelayMS > 1000) {
@@ -562,7 +597,7 @@ export class SurveyForm extends Interaction {
 
     onLanguageChange() {
         const languageCode = this.el.querySelector(
-            ".o_survey_lang_selector[name='lang_code']"
+            ".o_survey_lang_selector[name='lang_code']",
         ).value;
         const pathName = document.location.pathname;
         const indexOfSurvey = pathName.indexOf("/survey/");
@@ -580,15 +615,20 @@ export class SurveyForm extends Interaction {
      * @param {boolean} isFinish Whether the survey is done or not
      */
     goToNextPage(isFinish = false) {
-        fadeOut(this.el.querySelectorAll(".o_survey_main_title, .o_lang_selector"), 400);
+        fadeOut(
+            this.el.querySelectorAll(".o_survey_main_title, .o_lang_selector"),
+            400,
+        );
         this.preventEnterSubmit = false;
         this.readonly = false;
         this.nextScreen(
-            rpc(`/survey/next_question/${this.options.surveyToken}/${this.options.answerToken}`),
+            rpc(
+                `/survey/next_question/${this.options.surveyToken}/${this.options.answerToken}`,
+            ),
             {
                 initTimer: true,
                 isFinish,
-            }
+            },
         );
     }
 
@@ -625,7 +665,7 @@ export class SurveyForm extends Interaction {
         let route = "/survey/submit";
         if (this.options.isStartScreen) {
             params.lang_code = this.el.querySelector(
-                ".o_survey_lang_selector[name='lang_code']"
+                ".o_survey_lang_selector[name='lang_code']",
             ).value;
             route = "/survey/begin";
             // Hide survey title in 'page_per_question' layout: it takes too much space
@@ -653,7 +693,7 @@ export class SurveyForm extends Interaction {
 
         const submitPromise = rpc(
             `${route}/${this.options.surveyToken}/${this.options.answerToken}`,
-            params
+            params,
         );
 
         if (
@@ -684,13 +724,18 @@ export class SurveyForm extends Interaction {
         const selectorsToFadeout = [".o_survey_form_content"];
         if (options.isFinish && !this.nextScreenResult?.has_skipped_questions) {
             // Fade out the top title
-            document.querySelector('.o_survey_main_title_fade')?.classList.replace("opacity-100", "opacity-0");
-            
+            document
+                .querySelector(".o_survey_main_title_fade")
+                ?.classList.replace("opacity-100", "opacity-0");
+
             selectorsToFadeout.push(".breadcrumb", ".o_survey_timer");
             cookie.delete(`survey_${this.options.surveyToken}`);
         }
         const fadeOutPromise = this.waitFor(
-            fadeOut(this.el.querySelectorAll(selectorsToFadeout.join(",")), this.fadeInOutDelay)
+            fadeOut(
+                this.el.querySelectorAll(selectorsToFadeout.join(",")),
+                this.fadeInOutDelay,
+            ),
         );
         if (this.options.refreshBackground) {
             this.background.transition = true;
@@ -706,7 +751,9 @@ export class SurveyForm extends Interaction {
             }
         })();
 
-        await this.waitFor(Promise.all([fadeOutPromise, nextScreenWithBackgroundPromise]));
+        await this.waitFor(
+            Promise.all([fadeOutPromise, nextScreenWithBackgroundPromise]),
+        );
         return this.onNextScreenDone(options);
     }
 
@@ -732,8 +779,8 @@ export class SurveyForm extends Interaction {
             this.notificationDestructors.push(
                 this.services.notification.add(
                     _t("There was an error during the validation of the survey."),
-                    { type: "danger", sticky: true }
-                )
+                    { type: "danger", sticky: true },
+                ),
             );
             return;
         }
@@ -765,8 +812,13 @@ export class SurveyForm extends Interaction {
         }
 
         // Force recompute the title's display condition and fade it in
-        if (this.options.isStartScreen && this.options.questionsLayout !== 'page_per_question') {
-            document.querySelector('.o_survey_main_title_fade')?.classList.replace("opacity-0", "opacity-100");
+        if (
+            this.options.isStartScreen &&
+            this.options.questionsLayout !== "page_per_question"
+        ) {
+            document
+                .querySelector(".o_survey_main_title_fade")
+                ?.classList.replace("opacity-0", "opacity-100");
         }
 
         if (this.options.isStartScreen || (options && options.initTimer)) {
@@ -838,7 +890,8 @@ export class SurveyForm extends Interaction {
             }
             const questionRequired = questionWrapperEl.hasAttribute("data-required");
             const constrErrorMsg = questionWrapperEl.dataset.constrErrorMsg || "";
-            const validationErrorMsg = questionWrapperEl.dataset.validationErrorMsg || "";
+            const validationErrorMsg =
+                questionWrapperEl.dataset.validationErrorMsg || "";
             const inputData = {
                 questionType: inputEl.dataset.questionType,
                 validationLengthMin: Number(inputEl.dataset.validationLengthMin),
@@ -928,7 +981,7 @@ export class SurveyForm extends Interaction {
                 case "matrix":
                     if (questionRequired) {
                         const subQuestionsIds = JSON.parse(
-                            inputEl.dataset.subQuestions
+                            inputEl.dataset.subQuestions,
                         );
                         // Highlight unanswered rows' header
                         const questionBodySelector = `div[id="${questionId}"] > .o_survey_question_matrix > tbody`;
@@ -937,7 +990,7 @@ export class SurveyForm extends Interaction {
                                 errors[questionId] = constrErrorMsg;
                                 this.el
                                     .querySelector(
-                                        `${questionBodySelector} > tr[id="${subQuestionId}"] > th`
+                                        `${questionBodySelector} > tr[id="${subQuestionId}"] > th`,
                                     )
                                     .classList.add("bg-danger");
                             }
@@ -1003,9 +1056,18 @@ export class SurveyForm extends Interaction {
                 case "dropdown": {
                     const selectEl = el.querySelector("select");
                     if (selectEl && selectEl.value) {
-                        params = this.prepareSubmitAnswer(params, el.dataset.name, selectEl.value);
+                        params = this.prepareSubmitAnswer(
+                            params,
+                            el.dataset.name,
+                            selectEl.value,
+                        );
                     }
-                    params = this.prepareSubmitComment(params, el, el.dataset.name, false);
+                    params = this.prepareSubmitComment(
+                        params,
+                        el,
+                        el.dataset.name,
+                        false,
+                    );
                     break;
                 }
                 case "matrix":
@@ -1041,14 +1103,14 @@ export class SurveyForm extends Interaction {
                 params,
                 matrixTable.dataset.name,
                 Number(el.dataset.rowId),
-                el.value
+                el.value,
             );
         }
         params = this.prepareSubmitComment(
             params,
             matrixTable.closest(".js_question-wrapper"),
             matrixTable.dataset.name,
-            true
+            true,
         );
         return params;
     }
@@ -1108,7 +1170,7 @@ export class SurveyForm extends Interaction {
                         questionId,
                         el.name,
                         el.value,
-                        true
+                        true,
                     );
                 } else {
                     params = this.prepareSubmitAnswer(params, questionId, value);
@@ -1131,7 +1193,9 @@ export class SurveyForm extends Interaction {
     }
 
     initChoiceItems() {
-        for (const el of this.el.querySelectorAll("input[type='radio'],input[type='checkbox']")) {
+        for (const el of this.el.querySelectorAll(
+            "input[type='radio'],input[type='checkbox']",
+        )) {
             const matrixButtonEl = el.closest(".o_survey_matrix_btn");
             if (el.checked) {
                 const targetEl = matrixButtonEl ? matrixButtonEl : el.closest("label");
@@ -1173,7 +1237,7 @@ export class SurveyForm extends Interaction {
                         currentPageId: parseInt(pageId),
                         ...this.breadcrumbData,
                     },
-                    this.breadcrumbEl
+                    this.breadcrumbEl,
                 );
             } else {
                 this.showBreadcrumb = false;
@@ -1194,10 +1258,16 @@ export class SurveyForm extends Interaction {
         if (!questionTimeLimitReached && !hasAnswered && timeLimitMinutes) {
             this.timerEl = document.createElement("span");
             this.timerEl.classList.add("o_survey_timer");
-            this.insert(this.timerEl, this.el.querySelector(".o_survey_timer_container"));
+            this.insert(
+                this.timerEl,
+                this.el.querySelector(".o_survey_timer_container"),
+            );
             this.addListener(this.timerEl, "time_up", async () => {
                 if (this.showingCorrectAnswers) {
-                    await this.nextScreen(this.nextScreenPromise, this.nextScreenOptions);
+                    await this.nextScreen(
+                        this.nextScreenPromise,
+                        this.nextScreenOptions,
+                    );
                 }
                 this.submitForm({
                     skipValidation: true,
@@ -1221,20 +1291,29 @@ export class SurveyForm extends Interaction {
         if (!choiceItemGroupEl) {
             return;
         }
-        const otherItemEl = choiceItemGroupEl.querySelector(".o_survey_js_form_other_comment");
+        const otherItemEl = choiceItemGroupEl.querySelector(
+            ".o_survey_js_form_other_comment",
+        );
         const commentInputEl = choiceItemGroupEl.querySelector("textarea[type='text']");
         if (!commentInputEl) {
             return;
         }
-        if (otherItemEl?.checked || commentInputEl.classList.contains("o_survey_comment")) {
+        if (
+            otherItemEl?.checked ||
+            commentInputEl.classList.contains("o_survey_comment")
+        ) {
             commentInputEl.disabled = false;
-            commentInputEl.closest(".o_survey_comment_container").classList.remove("d-none");
+            commentInputEl
+                .closest(".o_survey_comment_container")
+                .classList.remove("d-none");
             if (otherItemEl?.checked) {
                 commentInputEl.focus();
             }
         } else {
             commentInputEl.value = "";
-            commentInputEl.closest(".o_survey_comment_container").classList.add("d-none");
+            commentInputEl
+                .closest(".o_survey_comment_container")
+                .classList.add("d-none");
             commentInputEl.disabled = true;
         }
     }
@@ -1248,7 +1327,9 @@ export class SurveyForm extends Interaction {
         const inputEls =
             this.el
                 .querySelector(".js_question-wrapper")
-                ?.querySelectorAll("input[type='text'],input[type='number'],textarea") || [];
+                ?.querySelectorAll(
+                    "input[type='text'],input[type='number'],textarea",
+                ) || [];
         let firstTextInputEl = null;
         for (const inputEl of inputEls) {
             if (
@@ -1276,8 +1357,9 @@ export class SurveyForm extends Interaction {
             const checkAgain = () => this.waitForTimeout(() => check(true), 1000);
             this.dialog.add(ConfirmationDialog, {
                 title: _t("A problem has occurred"),
-                body: _t("To take this survey, please close all other tabs on %(hostname)s",
-                    { hostname: window.location.hostname }
+                body: _t(
+                    "To take this survey, please close all other tabs on %(hostname)s",
+                    { hostname: window.location.hostname },
                 ),
                 confirmLabel: _t("Continue here"),
                 confirm: checkAgain,
@@ -1303,7 +1385,8 @@ export class SurveyForm extends Interaction {
         const matrixButtonEl = targetEl.closest(".o_survey_matrix_btn");
         if (targetEl.type === "radio") {
             if (matrixButtonEl) {
-                for (const el of matrixButtonEl.closest("tr")?.querySelectorAll("td") || []) {
+                for (const el of matrixButtonEl.closest("tr")?.querySelectorAll("td") ||
+                    []) {
                     el.classList.remove("o_survey_selected");
                 }
                 if (targetEl.checked) {
@@ -1311,21 +1394,21 @@ export class SurveyForm extends Interaction {
                 }
                 if (this.options.questionsLayout === "page_per_question") {
                     const subQuestionsIds = JSON.parse(
-                        matrixButtonEl.closest("table").dataset.subQuestions
+                        matrixButtonEl.closest("table").dataset.subQuestions,
                     );
                     const completedQuestions = [];
                     for (const id of subQuestionsIds) {
-                        if (
-                            this.el.querySelector(`tr[id="${id}"] input:checked`)
-                        ) {
+                        if (this.el.querySelector(`tr[id="${id}"] input:checked`)) {
                             completedQuestions.push(id);
                         }
                     }
-                    isQuestionComplete = completedQuestions.length === subQuestionsIds.length;
+                    isQuestionComplete =
+                        completedQuestions.length === subQuestionsIds.length;
                 }
             } else {
-                const previouslySelectedAnswerEl =
-                    choiceItemGroupEl.querySelector("label.o_survey_selected");
+                const previouslySelectedAnswerEl = choiceItemGroupEl.querySelector(
+                    "label.o_survey_selected",
+                );
                 previouslySelectedAnswerEl?.classList.remove("o_survey_selected");
                 const previouslySelectedAnswerId =
                     previouslySelectedAnswerEl?.querySelector("input").value;
@@ -1334,17 +1417,21 @@ export class SurveyForm extends Interaction {
                     this.options.questionsLayout !== "page_per_question"
                 ) {
                     this.selectedAnswers.splice(
-                        this.selectedAnswers.indexOf(parseInt(previouslySelectedAnswerId)),
-                        1
+                        this.selectedAnswers.indexOf(
+                            parseInt(previouslySelectedAnswerId),
+                        ),
+                        1,
                     );
                 }
 
                 const newlySelectedAnswerEl = targetEl.closest("label");
                 const newlySelectedAnswerId = targetEl.value;
-                const isNewSelection = newlySelectedAnswerId !== previouslySelectedAnswerId;
+                const isNewSelection =
+                    newlySelectedAnswerId !== previouslySelectedAnswerId;
                 if (isNewSelection) {
                     newlySelectedAnswerEl.classList.add("o_survey_selected");
-                    isQuestionComplete = this.options.questionsLayout === "page_per_question";
+                    isQuestionComplete =
+                        this.options.questionsLayout === "page_per_question";
                     if (!isQuestionComplete) {
                         this.selectedAnswers.push(parseInt(newlySelectedAnswerId));
                     }
@@ -1352,11 +1439,19 @@ export class SurveyForm extends Interaction {
 
                 if (this.options.questionsLayout !== "page_per_question") {
                     const toRecompute = (
-                        this.options.triggeredQuestionsByAnswer[previouslySelectedAnswerId] || []
-                    ).concat(this.options.triggeredQuestionsByAnswer[newlySelectedAnswerId] || []);
-                    const conditionalQuestionsToRecomputeVisibility = new Set(toRecompute);
+                        this.options.triggeredQuestionsByAnswer[
+                            previouslySelectedAnswerId
+                        ] || []
+                    ).concat(
+                        this.options.triggeredQuestionsByAnswer[
+                            newlySelectedAnswerId
+                        ] || [],
+                    );
+                    const conditionalQuestionsToRecomputeVisibility = new Set(
+                        toRecompute,
+                    );
                     this.applyConditionalQuestionsVisibility(
-                        conditionalQuestionsToRecomputeVisibility
+                        conditionalQuestionsToRecomputeVisibility,
                     );
                 }
             }
@@ -1374,10 +1469,10 @@ export class SurveyForm extends Interaction {
                         ? this.selectedAnswers.push(parseInt(answerId))
                         : this.selectedAnswers.splice(
                               this.selectedAnswers.indexOf(parseInt(answerId)),
-                              1
+                              1,
                           );
                     this.applyConditionalQuestionsVisibility(
-                        this.options.triggeredQuestionsByAnswer[answerId]
+                        this.options.triggeredQuestionsByAnswer[answerId],
                     );
                 }
             }
@@ -1399,7 +1494,7 @@ export class SurveyForm extends Interaction {
         // Questions visibility
         for (const questionId of questionIds) {
             const dependingQuestionEl = this.el.querySelector(
-                `.js_question-wrapper[id="${questionId}"]`
+                `.js_question-wrapper[id="${questionId}"]`,
             );
             if (!dependingQuestionEl) {
                 // Could be on different page
@@ -1431,7 +1526,7 @@ export class SurveyForm extends Interaction {
             for (const section of sections) {
                 if (!section.querySelector(".o_survey_description")) {
                     const hasVisibleQuestions = !!section.querySelector(
-                        ".js_question-wrapper:not(.d-none)"
+                        ".js_question-wrapper:not(.d-none)",
                     );
                     section.classList.toggle("d-none", !hasVisibleQuestions);
                 }
@@ -1446,9 +1541,13 @@ export class SurveyForm extends Interaction {
     getInactiveConditionalQuestionIds() {
         const inactiveQuestionIds = [];
         for (const [questionId, answerIds] of Object.entries(
-            this.options.triggeringAnswersByQuestion || {}
+            this.options.triggeringAnswersByQuestion || {},
         )) {
-            if (!answerIds.some((answerId) => this.selectedAnswers.includes(parseInt(answerId)))) {
+            if (
+                !answerIds.some((answerId) =>
+                    this.selectedAnswers.includes(parseInt(answerId)),
+                )
+            ) {
                 inactiveQuestionIds.push(parseInt(questionId));
             }
         }
@@ -1488,10 +1587,15 @@ export class SurveyForm extends Interaction {
 
     showQuestionAnswer(correctAnswers, questionId) {
         const correctAnswer = correctAnswers[questionId];
-        const questionWrapperEl = this.el.querySelector(`.js_question-wrapper[id="${questionId}"]`);
-        const answerWrapperEl = questionWrapperEl.querySelector(".o_survey_answer_wrapper");
+        const questionWrapperEl = this.el.querySelector(
+            `.js_question-wrapper[id="${questionId}"]`,
+        );
+        const answerWrapperEl = questionWrapperEl.querySelector(
+            ".o_survey_answer_wrapper",
+        );
         const questionType =
-            questionWrapperEl.querySelector("[data-question-type]").dataset.questionType;
+            questionWrapperEl.querySelector("[data-question-type]").dataset
+                .questionType;
 
         // Only questions supporting correct answer are present here (ex.: scale question doesn't support it)
         if (["numerical_box", "date", "datetime"].includes(questionType)) {
@@ -1511,11 +1615,20 @@ export class SurveyForm extends Interaction {
                 isCorrect = inputEl.value === correctAnswer;
             }
             answerWrapperEl.classList.add(`bg-${isCorrect ? "success" : "danger"}`);
-        } else if (["simple_choice_radio", "dropdown", "multiple_choice"].includes(questionType)) {
-            for (const buttonEl of answerWrapperEl.querySelectorAll(".o_survey_choice_btn")) {
+        } else if (
+            ["simple_choice_radio", "dropdown", "multiple_choice"].includes(
+                questionType,
+            )
+        ) {
+            for (const buttonEl of answerWrapperEl.querySelectorAll(
+                ".o_survey_choice_btn",
+            )) {
                 const answerId = buttonEl.querySelector("input").value;
                 const isCorrect = correctAnswer.includes(parseInt(answerId));
-                buttonEl.classList.add(`bg-${isCorrect ? "success" : "danger"}`, "text-white");
+                buttonEl.classList.add(
+                    `bg-${isCorrect ? "success" : "danger"}`,
+                    "text-white",
+                );
                 // For the user incorrect answers, replace the empty check icon by a crossed check icon
                 if (!isCorrect && buttonEl.classList.contains("o_survey_selected")) {
                     let fromIcon = "fa-check-circle";
@@ -1524,7 +1637,9 @@ export class SurveyForm extends Interaction {
                         fromIcon = "fa-check-square";
                         toIcon = "fa-times-rectangle"; // fa-times-square doesn't exist in fontawesome 4.7
                     }
-                    buttonEl.querySelector(`i.${fromIcon}`)?.classList.replace(fromIcon, toIcon);
+                    buttonEl
+                        .querySelector(`i.${fromIcon}`)
+                        ?.classList.replace(fromIcon, toIcon);
                 }
             }
         }
@@ -1536,10 +1651,14 @@ export class SurveyForm extends Interaction {
     showErrors(errors) {
         const errorKeys = Object.keys(errors || {});
         for (const key of errorKeys) {
-            this.el.querySelector(`[id="${key}"] > .o_survey_question_error`).replaceChildren();
+            this.el
+                .querySelector(`[id="${key}"] > .o_survey_question_error`)
+                .replaceChildren();
         }
         for (const key of errorKeys) {
-            const errorEl = this.el.querySelector(`[id="${key}"] > .o_survey_question_error`);
+            const errorEl = this.el.querySelector(
+                `[id="${key}"] > .o_survey_question_error`,
+            );
             const textEl = document.createElement("span");
             textEl.textContent = errors[key];
             this.insert(textEl, errorEl);
@@ -1573,7 +1692,9 @@ export class SurveyForm extends Interaction {
             notificationDestructor();
         }
         this.notificationDestructors = [];
-        for (const rowEl of this.el.querySelectorAll(".o_survey_question_matrix th.bg-danger")) {
+        for (const rowEl of this.el.querySelectorAll(
+            ".o_survey_question_matrix th.bg-danger",
+        )) {
             rowEl.classList.remove("bg-danger");
         }
     }
@@ -1587,7 +1708,9 @@ export class SurveyForm extends Interaction {
     }
 
     enableSubmitButtons() {
-        for (const submitButtonEl of this.el.querySelectorAll("button[type='submit']")) {
+        for (const submitButtonEl of this.el.querySelectorAll(
+            "button[type='submit']",
+        )) {
             submitButtonEl.classList.remove("disabled");
         }
     }
@@ -1596,7 +1719,7 @@ export class SurveyForm extends Interaction {
         this.addListener(
             this.surveyNavigationEl.querySelectorAll(".o_survey_navigation_submit"),
             "click",
-            this.onSubmit
+            this.onSubmit,
         );
     }
 }

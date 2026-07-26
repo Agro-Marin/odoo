@@ -27,7 +27,8 @@
         width: 100% !important;
     }
 
-    th, td {
+    th,
+    td {
         // This fixes a bug that was hidding part of cell borders on Firefox.
         background-clip: padding-box;
     }
@@ -67,7 +68,9 @@
             }
         }
 
-        > thead, > tbody, > tfoot {
+        > thead,
+        > tbody,
+        > tfoot {
             > tr > :first-child {
                 padding-left: var(--ListRenderer-table-padding-x);
             }
@@ -105,12 +108,11 @@
             }
 
             .o_column_sortable {
-
                 .o_list_sortable_icon {
                     background: var(--ListRenderer-thead-bg-color);
                     position: absolute;
-                    right: .5rem;
-                    padding: 0 .2rem;
+                    right: 0.5rem;
+                    padding: 0 0.2rem;
                 }
 
                 .o_list_header_label_spacer {
@@ -130,13 +132,16 @@
         }
 
         tbody > tr > td:not(.o_list_record_selector) {
-            &:not(.o_handle_cell):not(.o_list_button):not(.o_list_record_remove):not(.o_list_record_open_form_view) {
+            &:not(.o_handle_cell):not(.o_list_button):not(.o_list_record_remove):not(
+                    .o_list_record_open_form_view
+                ) {
                 --fieldWidget-display: block; // Will affect inner components (see fields.scss)
 
                 display: table-cell;
                 @include text-truncate();
 
-                .o_field_priority .fa, .o_field_list_activity .fa {
+                .o_field_priority .fa,
+                .o_field_list_activity .fa {
                     line-height: $o-line-size;
                 }
 
@@ -149,7 +154,7 @@
                 /*rtl:ignore*/
                 text-align: right;
                 /*rtl:ignore*/
-                direction : ltr;
+                direction: ltr;
             }
             &.o_list_text {
                 word-wrap: break-word;
@@ -209,7 +214,7 @@
                 /*rtl:ignore*/
                 text-align: right;
                 /*rtl:ignore*/
-                direction : ltr;
+                direction: ltr;
             }
         }
 
@@ -220,11 +225,11 @@
         }
 
         .o_column_sortable:not(.o_handle_cell) {
-            user-select: none;  // Prevent unwanted selection while sorting
+            user-select: none; // Prevent unwanted selection while sorting
         }
 
         .o_list_record_selector {
-            width: 40px;  // Don't force to keep o_group_name width dynamic
+            width: 40px; // Don't force to keep o_group_name width dynamic
             vertical-align: middle;
 
             @include media-only(print) {
@@ -232,10 +237,11 @@
             }
         }
 
-        .o_list_record_remove, .o_handle_cell, .o_list_record_open_form_view {
-            width: 1px;  // to prevent the column to expand
+        .o_list_record_remove,
+        .o_handle_cell,
+        .o_list_record_open_form_view {
+            width: 1px; // to prevent the column to expand
         }
-
 
         .o_list_table_ungrouped {
             .o_list_controller {
@@ -243,7 +249,8 @@
             }
         }
 
-        .o_list_record_remove button, .o_list_record_open_form_view button {
+        .o_list_record_remove button,
+        .o_list_record_open_form_view button {
             padding: 0px;
             background: none;
             border-style: none;
@@ -252,7 +259,8 @@
         }
 
         .o_keyboard_navigation {
-            th:focus-within, td:focus-within {
+            th:focus-within,
+            td:focus-within {
                 --table-accent-bg: none;
                 background-color: $o-form-lightsecondary;
                 outline: none;
@@ -263,7 +271,8 @@
         // Otherwise, o_keyboard_navigation will override the background color
         // of the focused cell.
         .o_selected_row {
-            th:focus-within, td:focus-within {
+            th:focus-within,
+            td:focus-within {
                 --table-accent-bg: none;
                 background-color: $o-view-background-color;
             }
@@ -312,13 +321,14 @@
                 }
             }
             .o_group_caret {
-                margin-inline-start: calc(var(--o-list-group-level, 0) * #{map-get($spacers, 4)});
+                margin-inline-start: calc(
+                    var(--o-list-group-level, 0) * #{map-get($spacers, 4)}
+                );
             }
         }
         tbody + tbody {
             border-top: none; // Override bootstrap for grouped list views
         }
-
 
         .o_data_cell.o_text_overflow,
         .o_data_cell.o_invisible_modifier {
@@ -333,7 +343,7 @@
                 @include o-position-absolute($top: 0, $bottom: 0, $right: 0);
                 background-color: #{$border-color};
                 width: 4px;
-                content: '';
+                content: "";
             }
         }
 
@@ -351,7 +361,7 @@
 
         .o_list_open_form_view {
             width: 64px;
-            min-width: 64px
+            min-width: 64px;
         }
 
         .o_list_actions_header {
@@ -387,11 +397,13 @@
             .o_list_activity_cell,
             .o_list_number {
                 white-space: nowrap;
-                .o_field_widget:not(.o_row_handle):not(.o_field_handle):not(.o_field_badge) {
+                .o_field_widget:not(.o_row_handle):not(.o_field_handle):not(
+                        .o_field_badge
+                    ) {
                     display: inline;
-                    &.o_field_percent_pie{
+                    &.o_field_percent_pie {
                         @include o-text-overflow(inline-flex);
-                        span.o_pie_text{
+                        span.o_pie_text {
                             @include o-text-overflow(none);
                         }
                     }
@@ -455,7 +467,8 @@
                 textarea.o_field_translate {
                     padding-right: $o-field-translate-padding;
                 }
-                .o_field_input_buttons, .btn.o_field_translate {
+                .o_field_input_buttons,
+                .btn.o_field_translate {
                     visibility: visible;
                 }
             }
@@ -479,7 +492,8 @@
         }
     }
 
-    .o_data_row.o_selected_row > .o_data_cell.o_required_modifier:not(.o_readonly_modifier) {
+    .o_data_row.o_selected_row
+        > .o_data_cell.o_required_modifier:not(.o_readonly_modifier) {
         border-bottom: 1px solid $o-input-border-required;
     }
 
@@ -513,10 +527,16 @@
             }
 
             &:not(.o_selected_row):not(.o_data_row_selected):focus-within > * {
-                $-focus-bg: rgba(var(--#{$variable-prefix}emphasis-color-rgb), #{$table-hover-bg-factor * 2});
+                $-focus-bg: rgba(
+                    var(--#{$variable-prefix}emphasis-color-rgb),
+                    #{$table-hover-bg-factor * 2}
+                );
 
                 --#{$variable-prefix}table-accent-bg: #{$-focus-bg};
-                --#{$variable-prefix}table-striped-bg: var(--ListRenderer-data-row-focused-striped-bg, #{$-focus-bg});
+                --#{$variable-prefix}table-striped-bg: var(
+                    --ListRenderer-data-row-focused-striped-bg,
+                    #{$-focus-bg}
+                );
             }
         }
 

@@ -24,14 +24,15 @@
         border-radius: 2rem;
         // Width and height of phone.svg. Needed for the builder to recompute values
         // when switching to mobile preview, otherwise the width is 0 for a moment.
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15),
-                    16px 12px 32px rgba(0, 0, 0, 0.15),
-                    64px 0 64px rgba(0, 0, 0, 0.15);
+        box-shadow:
+            0 4px 20px rgba(0, 0, 0, 0.15),
+            16px 12px 32px rgba(0, 0, 0, 0.15),
+            64px 0 64px rgba(0, 0, 0, 0.15);
         iframe {
             min-height: 0;
         }
     }
-    .o-snippets-menu { 
+    .o-snippets-menu {
         .nav {
             background-color: inherit;
             padding: 0;

@@ -12,7 +12,9 @@ $o-we-zindex: $o-we-overlay-zindex + 1 !default;
     &.o_draggable_dragging {
         transform: rotate(-3deg) scale(1.2);
         box-shadow: 0 5px 25px -10px black;
-        transition: transform 0.3s, box-shadow 0.3s;
+        transition:
+            transform 0.3s,
+            box-shadow 0.3s;
     }
 
     .o_snippet_thumbnail {
@@ -30,11 +32,11 @@ $o-we-zindex: $o-we-overlay-zindex + 1 !default;
     }
 
     &:not(:hover):not(.o_disabled):not(.o_to_install) {
-        background-color: rgba($o-we-sidebar-blocks-content-snippet-bg, .9);
+        background-color: rgba($o-we-sidebar-blocks-content-snippet-bg, 0.9);
 
         .o_snippet_thumbnail {
-            filter: saturate(.7);
-            opacity: .9;
+            filter: saturate(0.7);
+            opacity: 0.9;
         }
     }
 }
@@ -45,8 +47,8 @@ $o-we-zindex: $o-we-overlay-zindex + 1 !default;
     height: 100%; // give enough space for tips pointing at snippets after a snippet search
     z-index: 1;
 
-
-    .o_snippets_container, .o_snippets_container_header {
+    .o_snippets_container,
+    .o_snippets_container_header {
         padding-bottom: $o-we-sidebar-blocks-content-spacing;
     }
 
@@ -114,12 +116,13 @@ $o-we-zindex: $o-we-overlay-zindex + 1 !default;
                 }
             }
 
-            &.o_disabled, &.o_to_install {
+            &.o_disabled,
+            &.o_to_install {
                 cursor: default;
-                background-color: rgba($o-we-sidebar-blocks-content-snippet-bg, .2);
+                background-color: rgba($o-we-sidebar-blocks-content-snippet-bg, 0.2);
 
                 .o_snippet_thumbnail_img {
-                    opacity: .4;
+                    opacity: 0.4;
                     filter: saturate(0) blur(1px);
                 }
             }
@@ -158,7 +161,8 @@ $o-we-zindex: $o-we-overlay-zindex + 1 !default;
             padding-right: $o-we-sidebar-content-field-button-group-button-spacing;
         }
 
-        &:not(:hover, :focus-within), &.o_disabled:hover {
+        &:not(:hover, :focus-within),
+        &.o_disabled:hover {
             .rename-delete-buttons button {
                 display: none;
             }

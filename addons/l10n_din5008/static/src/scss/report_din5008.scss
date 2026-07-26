@@ -1,14 +1,18 @@
 .din_page {
     font-size: 9pt;
 
-    .container-fluid & { // center the invoice in portal preview
-       margin-left: auto;
-       margin-right: auto;
+    .container-fluid & {
+        // center the invoice in portal preview
+        margin-left: auto;
+        margin-right: auto;
     }
     &.header {
         table {
             width: 100%;
-            img, div.h3, td, tr {
+            img,
+            div.h3,
+            td,
+            tr {
                 padding: 0;
                 margin: 0;
             }
@@ -26,13 +30,17 @@
     }
     &.invoice_note {
         tr {
-            .address, .information_block, .shipping_address, .invoice_address {
+            .address,
+            .information_block,
+            .shipping_address,
+            .invoice_address {
                 margin: 0;
             }
             .address {
                 height: 45mm;
             }
-            .address, .shipping_address {
+            .address,
+            .shipping_address {
                 width: 85mm;
                 padding-left: 5mm;
                 .company_invoice_line {
@@ -43,7 +51,8 @@
                 }
                 font-size: 0.8em;
             }
-            .information_block, .invoice_address {
+            .information_block,
+            .invoice_address {
                 width: 75mm;
                 min-height: 40mm;
                 margin-left: 20mm;
@@ -58,22 +67,27 @@
             margin-top: 8.46mm;
             color: $o-default-report-primary-color;
         }
-        > .pt-5 {  // hide hardcoded address from base.template.layout
+        > .pt-5 {
+            // hide hardcoded address from base.template.layout
             display: none;
         }
         .page {
             margin-left: 5mm;
             margin-right: 10mm;
-            > h2, h1, #informations, .mt-4 > h2 {
+            > h2,
+            h1,
+            #informations,
+            .mt-4 > h2 {
                 display: none;
             }
-            [name=invoice_line_table], [name=stock_move_table], .o_main_table {
+            [name="invoice_line_table"],
+            [name="stock_move_table"],
+            .o_main_table {
                 margin-top: 8.46mm;
                 th {
                     color: $o-default-report-secondary-color;
                 }
             }
-
         }
     }
     &.footer {
@@ -108,12 +122,12 @@
             }
         }
     }
-    table.o_main_table{
+    table.o_main_table {
         tr {
             &.o_line_section td {
-                background-color: rgba($gray-300, .5);
+                background-color: rgba($gray-300, 0.5);
             }
-    
+
             th {
                 font-weight: bolder;
             }

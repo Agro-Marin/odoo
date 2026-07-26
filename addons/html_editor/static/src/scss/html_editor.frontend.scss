@@ -6,7 +6,7 @@
 }
 .o_wysiwyg_loading {
     @include o-position-absolute($top: 50%, $left: 50%);
-    transform: translate(-50%, -50%)
+    transform: translate(-50%, -50%);
 }
 
 @include media-breakpoint-down(md) {
@@ -44,7 +44,11 @@
             &.o_grid_item_image {
                 // If the horizontal padding is set to 0px, keep it as 0px in
                 // mobile view, otherwise, force it to 15px.
-                --mobile-grid-item-padding-x: clamp(0px, calc(var(--grid-item-padding-x) * 100000), calc(0.5 * var(--gutter-x)));
+                --mobile-grid-item-padding-x: clamp(
+                    0px,
+                    calc(var(--grid-item-padding-x) * 100000),
+                    calc(0.5 * var(--gutter-x))
+                );
                 padding: var(--grid-item-padding-y) var(--mobile-grid-item-padding-x) !important;
 
                 > img {
@@ -55,11 +59,30 @@
 
         &.o_grid_item_image img {
             // See BORDER_VARIABLES_RULES_EXTENSION
-            border-radius:
-                calc(var(--box-border-top-left-radius, 0px) - max(var(--box-border-top-width, 0px), var(--box-border-left-width, 0px)))
-                calc(var(--box-border-top-right-radius, 0px) - max(var(--box-border-top-width, 0px), var(--box-border-right-width, 0px)))
-                calc(var(--box-border-bottom-right-radius, 0px) - max(var(--box-border-bottom-width, 0px), var(--box-border-right-width, 0px)))
-                calc(var(--box-border-bottom-left-radius, 0px) - max(var(--box-border-bottom-width, 0px), var(--box-border-left-width, 0px)));
+            border-radius: calc(
+                    var(--box-border-top-left-radius, 0px) - max(
+                            var(--box-border-top-width, 0px),
+                            var(--box-border-left-width, 0px)
+                        )
+                )
+                calc(
+                    var(--box-border-top-right-radius, 0px) - max(
+                            var(--box-border-top-width, 0px),
+                            var(--box-border-right-width, 0px)
+                        )
+                )
+                calc(
+                    var(--box-border-bottom-right-radius, 0px) - max(
+                            var(--box-border-bottom-width, 0px),
+                            var(--box-border-right-width, 0px)
+                        )
+                )
+                calc(
+                    var(--box-border-bottom-left-radius, 0px) - max(
+                            var(--box-border-bottom-width, 0px),
+                            var(--box-border-left-width, 0px)
+                        )
+                );
         }
 
         // Override the grid item z-index if it has an open dropdown, so
@@ -85,7 +108,11 @@
         // overflow).
         .o_grid_item > .row,
         .o_grid_item > .o_text_columns > .row {
-            --grid-inner-row-gutter-x: clamp(0px, 2 * var(--grid-item-padding-x), #{$grid-gutter-width});
+            --grid-inner-row-gutter-x: clamp(
+                0px,
+                2 * var(--grid-item-padding-x),
+                #{$grid-gutter-width}
+            );
             margin-left: calc(-0.5 * var(--grid-inner-row-gutter-x));
             margin-right: calc(-0.5 * var(--grid-inner-row-gutter-x));
         }
@@ -108,7 +135,8 @@
     }
 
     .o_grid_item_image {
-        img, .media_iframe_video {
+        img,
+        .media_iframe_video {
             width: 100% !important;
             height: 100% !important;
             object-fit: cover !important;
@@ -175,11 +203,8 @@ body.editor_enable:not(.o_basic_theme) .odoo-editor-editable {
     // in that case). Something to do with improving setStyle's understanding of
     // CSS_SHORTHANDS when it comes to CSS variables.
 
-    border-width:
-        var(--box-border-top-width)
-        var(--box-border-right-width)
-        var(--box-border-bottom-width)
-        var(--box-border-left-width) !important;
+    border-width: var(--box-border-top-width) var(--box-border-right-width)
+        var(--box-border-bottom-width) var(--box-border-left-width) !important;
 }
 // TODO this should probably be done for all bootstrap "border" *sizes* classes
 // like "rounded" classes below. At the moment, it was not done because builder
@@ -206,11 +231,8 @@ body.editor_enable:not(.o_basic_theme) .odoo-editor-editable {
     // in that case). Something to do with improving setStyle's understanding of
     // CSS_SHORTHANDS when it comes to CSS variables.
 
-    border-radius:
-        var(--box-border-top-left-radius)
-        var(--box-border-top-right-radius)
-        var(--box-border-bottom-right-radius)
-        var(--box-border-bottom-left-radius) !important;
+    border-radius: var(--box-border-top-left-radius) var(--box-border-top-right-radius)
+        var(--box-border-bottom-right-radius) var(--box-border-bottom-left-radius) !important;
 }
 // Note: we do not support partial border-radius classes using CSS variables
 // just yet. We could (at the cost of dividing the `%box-border-radius-rules`
@@ -219,7 +241,7 @@ body.editor_enable:not(.o_basic_theme) .odoo-editor-editable {
 // we do, we normally should always prefer to give the user full control over
 // the 4 directions, by switching to the `rounded` or a `rounded-{SIZE}` class.
 // See ROUNDED_SIZES_CLASSES_ONLY.
-@each $size, $value in map-get(map-get($utilities, 'rounded'), 'values') {
+@each $size, $value in map-get(map-get($utilities, "rounded"), "values") {
     $class-suffix: if($size == null, "", "-#{$size}");
     .rounded#{$class-suffix} {
         @extend %box-border-radius-rules;

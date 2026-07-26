@@ -1,5 +1,4 @@
 .o_field_analytic_distribution {
-
     height: auto;
 
     .analytic_distribution_placeholder {
@@ -64,11 +63,11 @@
         }
         .o_analytic_status_invalid {
             background-color: $o-danger;
-            margin-left:8px;
+            margin-left: 8px;
         }
         .o_analytic_status_ok {
             background-color: $o-success;
-            margin-left:8px;
+            margin-left: 8px;
         }
         tr:hover {
             outline: none !important;

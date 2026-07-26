@@ -542,13 +542,17 @@ class SurveyUser_Input(models.Model):
             except requests.RequestException:
                 _logger.warning(
                     "Survey webhook (%s) failed for input %s to %s",
-                    event, self.id, webhook_url,
+                    event,
+                    self.id,
+                    webhook_url,
                     exc_info=True,
                 )
 
         self.env.cr.postcommit.add(do_post)
 
-    def _prepare_webhook_payload(self, event: str = "survey_completed") -> dict[str, Any]:
+    def _prepare_webhook_payload(
+        self, event: str = "survey_completed"
+    ) -> dict[str, Any]:
         """Build the JSON payload for a webhook event."""
         self.ensure_one()
         answers = []
@@ -598,9 +602,17 @@ class SurveyUser_Input(models.Model):
 
     # Allowed names in calculated expressions (safe subset)
     _CALC_ALLOWED_NAMES = {
-        "min": min, "max": max, "abs": abs, "round": round,
-        "sum": sum, "len": len, "int": int, "float": float,
-        "True": True, "False": False, "None": None,
+        "min": min,
+        "max": max,
+        "abs": abs,
+        "round": round,
+        "sum": sum,
+        "len": len,
+        "int": int,
+        "float": float,
+        "True": True,
+        "False": False,
+        "None": None,
     }
 
     def _evaluate_calculated_fields(self) -> None:
@@ -648,7 +660,8 @@ class SurveyUser_Input(models.Model):
                 except Exception:
                     _logger.warning(
                         "Failed to evaluate calculated field %s (expression: %s)",
-                        question.id, expr,
+                        question.id,
+                        expr,
                     )
                     continue
 
@@ -1008,7 +1021,11 @@ class SurveyUser_Input(models.Model):
                         lambda answer: not answer.is_correct and answer.answer_score > 0
                     )
                 )
-            if question.question_type in ["simple_choice", "dropdown", "multiple_choice"]:
+            if question.question_type in [
+                "simple_choice",
+                "dropdown",
+                "multiple_choice",
+            ]:
                 question_correct_suggested_answers = (
                     question.suggested_answer_ids.filtered(
                         lambda answer: answer.is_correct
@@ -1220,7 +1237,9 @@ class SurveyUser_Input(models.Model):
         value-based triggers (``triggering_question_id`` + operator + value).
         A question with *both* trigger types is shown if *either* is satisfied.
         """
-        triggering_answers_by_question, _, selected_answers = (
+        # `_dummy` rather than `_`: this module imports odoo's `_` translation
+        # helper, and binding it here would shadow it for the rest of the method.
+        _dummy_triggering_answers, _dummy_triggered_questions, selected_answers = (
             self._get_conditional_values()
         )
 
@@ -1232,13 +1251,11 @@ class SurveyUser_Input(models.Model):
             if not has_answer_trigger and not has_value_trigger:
                 continue  # unconditional question — always shown
 
-            answer_trigger_met = (
-                has_answer_trigger
-                and bool(question.triggering_answer_ids & selected_answers)
+            answer_trigger_met = has_answer_trigger and bool(
+                question.triggering_answer_ids & selected_answers
             )
-            value_trigger_met = (
-                has_value_trigger
-                and self._evaluate_value_trigger(question)
+            value_trigger_met = has_value_trigger and self._evaluate_value_trigger(
+                question
             )
 
             # Question is inactive if ALL configured triggers are unmet
@@ -1274,7 +1291,13 @@ class SurveyUser_Input(models.Model):
             return op == "is_not_answered"
 
         # Numeric comparison for numeric-valued question types
-        if trigger_q.question_type in ("numerical_box", "slider", "scale", "nps", "rating"):
+        if trigger_q.question_type in (
+            "numerical_box",
+            "slider",
+            "scale",
+            "nps",
+            "rating",
+        ):
             try:
                 num_val = float(answer_value)
                 num_threshold = float(threshold)

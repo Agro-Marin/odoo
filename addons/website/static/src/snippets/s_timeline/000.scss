@@ -1,12 +1,12 @@
 .s_timeline:not([data-vcss]) {
-    --spacing: #{$grid-gutter-width * .5};
+    --spacing: #{$grid-gutter-width * 0.5};
 
     .s_timeline_line {
         position: relative;
-        border-color: map-get($grays, '800'); // For inheritance, not actual border
+        border-color: map-get($grays, "800"); // For inheritance, not actual border
 
         &:before {
-            content: '';
+            content: "";
             display: block !important; // override portal '#wrap .container' value
             position: absolute;
             width: 1px;

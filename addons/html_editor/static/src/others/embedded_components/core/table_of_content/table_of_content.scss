@@ -22,7 +22,6 @@ $embedded-toc-bg--active: #1ba1e4;
                 background-color: rgba($embedded-toc-bg--active, 0.2);
                 text-decoration: none;
             }
-
         }
 
         a.o_embedded_toc_link_depth_0 {
@@ -40,13 +39,17 @@ $embedded-toc-bg--active: #1ba1e4;
     & .o_embedded_toc_label {
         color: $o-gray-600;
     }
-
 }
 
 .o_field_html {
     .odoo-editor-editable,
     .o_readonly {
-        h1, h2, h3, h4, h5, h6 {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             transition: background-color 0.5s ease;
             &.o_embedded_toc_header_highlight {
                 border-radius: 0.25rem;

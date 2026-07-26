@@ -1,6 +1,10 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
-import { animationFrame, manuallyDispatchProgrammaticEvent, queryOne } from "@odoo/hoot-dom";
+import {
+    animationFrame,
+    manuallyDispatchProgrammaticEvent,
+    queryOne,
+} from "@odoo/hoot-dom";
 import {
     contains,
     defineModels,
@@ -12,7 +16,10 @@ import {
 
 class Survey extends models.Model {
     question_and_page_ids = fields.One2many({ relation: "survey_question" });
-    session_speed_rating = fields.Boolean({ string: "Speed Reward", onChange: () => {} });
+    session_speed_rating = fields.Boolean({
+        string: "Speed Reward",
+        onChange: () => {},
+    });
     session_speed_rating_time_limit = fields.Integer({
         string: "Speed Reward Time (s)",
         onChange: () => {},
@@ -110,12 +117,18 @@ test("Auto update of is_time_customized", async () => {
     await contains("tr.o_data_row > td.o_list_char").click();
     await contains("div[name='time_limit'] input").edit(20);
     // TODO: JUM (events concurrency)
-    await manuallyDispatchProgrammaticEvent(queryOne("div[name='time_limit'] input"), "change");
+    await manuallyDispatchProgrammaticEvent(
+        queryOne("div[name='time_limit'] input"),
+        "change",
+    );
     await animationFrame();
     expect("div[name='is_time_customized'] input").toBeChecked(); // widget-triggered update to `true` based on `time_limit`
     await contains("div[name='time_limit'] input").edit(30);
     // TODO: JUM (events concurrency)
-    await manuallyDispatchProgrammaticEvent(queryOne("div[name='time_limit'] input"), "change");
+    await manuallyDispatchProgrammaticEvent(
+        queryOne("div[name='time_limit'] input"),
+        "change",
+    );
     await animationFrame();
     expect("div[name='is_time_customized'] input").not.toBeChecked(); // widget-triggered update to `false` based on `time_limit`
     // set question "is_time_limited" => false

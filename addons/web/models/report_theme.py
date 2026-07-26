@@ -87,7 +87,9 @@ class ReportTheme(models.Model):
         the shared asset must be rebuilt to match.
         """
         in_use = bool(
-            self.env["res.company"].sudo().search_count([("report_theme_id", "in", self.ids)])
+            self.env["res.company"]
+            .sudo()
+            .search_count([("report_theme_id", "in", self.ids)])
         )
         res = super().unlink()
         if in_use:

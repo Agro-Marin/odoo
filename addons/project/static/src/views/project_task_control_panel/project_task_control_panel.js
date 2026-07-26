@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { getShowSubtasks, setShowSubtasks } from "@project/utils/project_utils";
 import { _t } from "@web/core/l10n/translation";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { getShowSubtasks, setShowSubtasks } from "@project/utils/project_utils";
 
 export class ProjectTaskControlPanel extends ControlPanel {
     static template = "project.ProjectTaskControlPanel";
@@ -13,7 +13,10 @@ export class ProjectTaskControlPanel extends ControlPanel {
 
     get showTaskOptions() {
         const context = this.env.searchModel.globalContext;
-        return !context.my_tasks && (!('show_task_options' in context) || context.show_task_options);
+        return (
+            !context.my_tasks &&
+            (!("show_task_options" in context) || context.show_task_options)
+        );
     }
 
     get taskOptionsTitle() {

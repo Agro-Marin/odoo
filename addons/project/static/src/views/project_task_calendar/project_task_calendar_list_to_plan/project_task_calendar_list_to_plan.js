@@ -9,7 +9,11 @@ export class ProjectTaskCalendarListToPlan extends Component {
     };
 
     get displayLoadMoreButton() {
-        return this.props.model.tasksToPlan && this.props.model.tasksToPlan.records.length < this.props.model.tasksToPlan.length;
+        return (
+            this.props.model.tasksToPlan &&
+            this.props.model.tasksToPlan.records.length <
+                this.props.model.tasksToPlan.length
+        );
     }
 
     openRecord(task) {

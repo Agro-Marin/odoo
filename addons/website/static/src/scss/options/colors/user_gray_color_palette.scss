@@ -1,4 +1,8 @@
-
-$o-user-gray-color-palette: map-merge($o-user-gray-color-palette, o-map-omit((
-    // -- hook --
-)));
+$o-user-gray-color-palette: map-merge(
+    $o-user-gray-color-palette,
+    o-map-omit(
+        (
+            // -- hook --
+        )
+    )
+);

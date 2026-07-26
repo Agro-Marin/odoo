@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { user } from "@web/services/user";
 import { Plugin } from "@html_editor/plugin";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
+import { registry } from "@web/core/registry";
+import { user } from "@web/services/user";
 
 export class MassMailingSignatureSnippetPlugin extends Plugin {
     static id = "mass_mailing.signatureSnippet";
@@ -32,7 +32,7 @@ export class MassMailingSignatureSnippetPlugin extends Plugin {
                 onClose: () => {
                     snippetEl.remove();
                 },
-            }
+            },
         );
     }
 }

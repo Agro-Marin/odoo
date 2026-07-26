@@ -14,19 +14,22 @@
             @extend %o-nocontent-init-image;
             width: 120px;
             height: 140px;
-            background: transparent url(/web/static/img/neutral_face.svg) no-repeat center;
+            background: transparent url(/web/static/img/neutral_face.svg) no-repeat
+                center;
         }
     }
 }
 
 .user-badge {
-    transition: transform 1s ease, box-shadow 1s ease;
+    transition:
+        transform 1s ease,
+        box-shadow 1s ease;
 }
 
 .user-badge-lift {
-  transform: translateY(-10px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-  border-radius: 4px;
+    transform: translateY(-10px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
 }
 
 .grant_badge_btn {

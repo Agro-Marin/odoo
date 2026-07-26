@@ -17,7 +17,7 @@
     margin: 16px 8px;
     padding: 10px 0px 0px;
     font-size: 1.2rem;
-    box-shadow: -3px 3px 9px 0px rgba(0,0,0,0.51);
+    box-shadow: -3px 3px 9px 0px rgba(0, 0, 0, 0.51);
     height: 138mm;
 
     .o_event_badge_font_faded {
@@ -25,7 +25,7 @@
     }
 
     .o_event_badge_font_small {
-        @include font-size(.8rem);
+        @include font-size(0.8rem);
     }
 
     .o_event_badge_logo {
@@ -45,14 +45,13 @@
 /* EVENT BADGE : A4 FOLDABLE (A4_french_fold) */
 
 .o_event_foldable_badge_container {
-
     .o_event_foldable_badge_left_quarter {
-        border-right: .75mm dotted lightgray;
+        border-right: 0.75mm dotted lightgray;
     }
 
     .o_event_foldable_badge_bottom_row {
-        border-top: .75mm dotted black;
-        margin-top: .25mm;
+        border-top: 0.75mm dotted black;
+        margin-top: 0.25mm;
         .o_event_foldable_badge_bottom_left {
             .o_event_foldable_badge_answer {
                 border-radius: 6px;

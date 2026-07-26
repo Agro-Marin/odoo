@@ -1,12 +1,15 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { HistoryDialog } from "@html_editor/components/history_dialog/history_dialog";
-import { useService } from '@web/core/utils/hooks';
+import {
+    getHtmlFieldMetadata,
+    setHtmlFieldMetadata,
+} from "@html_editor/fields/html_field";
 import { markup } from "@odoo/owl";
-import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander';
-import { getHtmlFieldMetadata, setHtmlFieldMetadata } from "@html_editor/fields/html_field";
 import { useFocusTitle } from "@project/utils/project_utils";
+import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
+import { _t } from "@web/core/l10n/translation";
+import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 
@@ -14,7 +17,7 @@ export const subTaskDeleteConfirmationMessage = _t(
     `Deleting a task will also delete its associated sub-tasks. \
 If you wish to preserve the sub-tasks, make sure to unlink them from their parent task beforehand.
 
-Are you sure you want to proceed?`
+Are you sure you want to proceed?`,
 );
 
 export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
@@ -68,52 +71,57 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
         return {
             ...deleteConfirmationDialogProps,
             body: subTaskDeleteConfirmationMessage,
-        }
+        };
     }
 
     async openHistoryDialog() {
         const record = this.model.root;
-        const versionedFieldName = 'description';
-        const historyMetadata = record.data["html_field_history_metadata"]?.[versionedFieldName];
+        const versionedFieldName = "description";
+        const historyMetadata =
+            record.data["html_field_history_metadata"]?.[versionedFieldName];
         if (!historyMetadata) {
             this.notifications.add(
                 _t(
-                    "The task description lacks any past content that could be restored at the moment."
-                )
+                    "The task description lacks any past content that could be restored at the moment.",
+                ),
             );
             return;
         }
 
-        this.dialogService.add(
-            HistoryDialog,
-            {
-                title: _t("Task Description History"),
-                noContentHelper: markup`
+        this.dialogService.add(HistoryDialog, {
+            title: _t("Task Description History"),
+            noContentHelper: markup`
                     <span class='text-muted fst-italic'>${_t(
-                        "The task description was empty at the time."
+                        "The task description was empty at the time.",
                     )}</span>`,
-                recordId: record.resId,
-                recordModel: this.props.resModel,
-                versionedFieldName,
-                historyMetadata,
-                restoreRequested: (html, close) => {
-                    this.dialogService.add(ConfirmationDialog, {
-                        title: _t("Are you sure you want to restore this version ?"),
-                        body: _t("Restoring will replace the current content with the selected version. Any unsaved changes will be lost."),
-                        confirm: async () => {
-                            const restoredData = {};
-                            const contentMetadata = getHtmlFieldMetadata(record.data[versionedFieldName]);
-                            restoredData[versionedFieldName] = setHtmlFieldMetadata(html, contentMetadata);
-                            // Await so a failed restore surfaces in this
-                            // dialog instead of as an unhandled rejection
-                            // after everything closed.
-                            await record.update(restoredData);
-                            close();
-                        },
-                        confirmLabel: _t("Restore"),
-                    });
-                },
+            recordId: record.resId,
+            recordModel: this.props.resModel,
+            versionedFieldName,
+            historyMetadata,
+            restoreRequested: (html, close) => {
+                this.dialogService.add(ConfirmationDialog, {
+                    title: _t("Are you sure you want to restore this version ?"),
+                    body: _t(
+                        "Restoring will replace the current content with the selected version. Any unsaved changes will be lost.",
+                    ),
+                    confirm: async () => {
+                        const restoredData = {};
+                        const contentMetadata = getHtmlFieldMetadata(
+                            record.data[versionedFieldName],
+                        );
+                        restoredData[versionedFieldName] = setHtmlFieldMetadata(
+                            html,
+                            contentMetadata,
+                        );
+                        // Await so a failed restore surfaces in this
+                        // dialog instead of as an unhandled rejection
+                        // after everything closed.
+                        await record.update(restoredData);
+                        close();
+                    },
+                    confirmLabel: _t("Restore"),
+                });
             },
-        );
+        });
     }
 }

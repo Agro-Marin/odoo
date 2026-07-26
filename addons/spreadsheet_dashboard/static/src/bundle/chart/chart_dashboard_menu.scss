@@ -8,11 +8,13 @@
         box-shadow: none;
     }
 
-    select, ::picker(select) {
+    select,
+    ::picker(select) {
         appearance: base-select;
     }
 
-    select:hover, select:open {
+    select:hover,
+    select:open {
         color: $black;
         opacity: 1 !important;
     }
@@ -32,7 +34,7 @@
     }
 
     option::checkmark {
-        font: 900 .7em/1em "Font Awesome 7 Pro";
+        font: 900 0.7em/1em "Font Awesome 7 Pro";
         color: $link-color;
         content: "\f00c";
     }

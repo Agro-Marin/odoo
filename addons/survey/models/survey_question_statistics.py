@@ -41,7 +41,13 @@ class SurveyQuestionStatistics(models.AbstractModel):
             all_lines = user_input_lines.filtered(
                 lambda line, q=question: line.question_id == q
             )
-            if question.question_type in ["simple_choice", "dropdown", "multiple_choice", "matrix", "likert"]:
+            if question.question_type in [
+                "simple_choice",
+                "dropdown",
+                "multiple_choice",
+                "matrix",
+                "likert",
+            ]:
                 answer_lines = all_lines.filtered(
                     lambda line, q=question: (
                         line.answer_type == "suggestion"
@@ -615,7 +621,9 @@ class SurveyQuestionStatistics(models.AbstractModel):
 
         # Simple and multiple choice
         choices_questions = self.filtered(
-            lambda q: q.question_type in ["simple_choice", "dropdown", "multiple_choice"]
+            lambda q: (
+                q.question_type in ["simple_choice", "dropdown", "multiple_choice"]
+            )
         )
         if choices_questions:
             suggested_answers_data = self.env["survey.question.answer"].search_read(

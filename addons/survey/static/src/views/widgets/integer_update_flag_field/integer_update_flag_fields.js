@@ -1,10 +1,8 @@
 /** @odoo-module native */
+import { useEffect, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { integerField, IntegerField } from "@web/fields/basic/integer/integer_field";
-
-import { useEffect, useRef } from "@odoo/owl";
-
+import { IntegerField, integerField } from "@web/fields/basic/integer/integer_field";
 
 /**
  * Update a second field when the widget's own field `value` changes.
@@ -19,11 +17,11 @@ import { useEffect, useRef } from "@odoo/owl";
  * See also `BooleanUpdateFlagField`.
  */
 export class IntegerUpdateFlagField extends IntegerField {
-    static props= {
+    static props = {
         ...IntegerField.props,
         flagFieldName: { type: String },
         referenceValue: { type: Number },
-    }
+    };
     /**
      * @override
      */
@@ -32,9 +30,10 @@ export class IntegerUpdateFlagField extends IntegerField {
         const inputRef = useRef("numpadDecimal");
         const onChange = async () => {
             await this.props.record._update({
-                [this.props.flagFieldName]: parseInt(this.formattedValue) !== this.props.referenceValue}
-            );
-        }
+                [this.props.flagFieldName]:
+                    parseInt(this.formattedValue) !== this.props.referenceValue,
+            });
+        };
         useEffect(
             (inputEl) => {
                 if (inputEl) {
@@ -44,7 +43,7 @@ export class IntegerUpdateFlagField extends IntegerField {
                     };
                 }
             },
-            () => [inputRef.el]
+            () => [inputRef.el],
         );
     }
 }
@@ -53,14 +52,13 @@ export const integerUpdateFlagField = {
     ...integerField,
     component: IntegerUpdateFlagField,
     displayName: _t("Integer updating comparison flag"),
-    extractProps ({ attrs, options }, { context: { referenceValue } }) {
+    extractProps({ attrs, options }, { context: { referenceValue } }) {
         return {
             ...integerField.extractProps(...arguments),
             flagFieldName: options.flagFieldName,
             referenceValue: referenceValue,
-        }
-    }
+        };
+    },
 };
 
-
-registry.category("fields").add("integer_update_flag", integerUpdateFlagField)
+registry.category("fields").add("integer_update_flag", integerUpdateFlagField);

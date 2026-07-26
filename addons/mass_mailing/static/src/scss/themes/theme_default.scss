@@ -61,15 +61,16 @@ div.col:not([align]) {
         margin-right: 0;
     }
 
-    a:not(.btn), .btn.btn-link {
-        border: none!important;
+    a:not(.btn),
+    .btn.btn-link {
+        border: none !important;
     }
 
     // Icons
     .fa {
         @mixin size($width, $height: $width) {
-          width: $width;
-          height: $height;
+            width: $width;
+            height: $height;
         }
     }
     // Background Images
@@ -93,19 +94,23 @@ div.col:not([align]) {
 }
 
 // ===== Snippets (specific) =====
-.o_mail_block_header_social, .o_mail_block_header_text_social, .o_mail_block_header_logo {
+.o_mail_block_header_social,
+.o_mail_block_header_text_social,
+.o_mail_block_header_logo {
     .o_mail_header_social {
-        a:not(.btn), .btn.btn-link {
+        a:not(.btn),
+        .btn.btn-link {
             display: inline-block;
         }
     }
-    div .col, div[class*="col-"] {
+    div .col,
+    div[class*="col-"] {
         align-self: center;
     }
 }
 
 .o_mail_block_footer_social {
-    .btn-link{
+    .btn-link {
         padding: 0;
     }
 }
@@ -114,13 +119,12 @@ div.col:not([align]) {
 
 .list-group .list-group-item {
     border-color: #d2d2d2;
-
 }
 
 // ===== Misc =====
 
 .o_mail_snippet_general .container {
-    border-collapse:separate;
+    border-collapse: separate;
 }
 
 // Compatibility: mb/mt classes on <td/> elements were interpreted as paddings
@@ -128,21 +132,22 @@ div.col:not([align]) {
 // classes may remain on clients' templates, <td/> are forced to 0 margin to
 // be sure (normally <td/> should not consider margin properties but some mail
 // clients might make the mistake to do so).
-div.col[class*="mb"], div.col[class*="mt"] {
-    margin: 0!important;
+div.col[class*="mb"],
+div.col[class*="mt"] {
+    margin: 0 !important;
 }
 
 // DEFAULT_CSS styles
 
 .o_mail_wrapper {
-    --h1-font-family: Arial,Helvetica Neue,Helvetica,sans-serif;
-    --h2-font-family: Arial,Helvetica Neue,Helvetica,sans-serif;
-    --h3-font-family: Arial,Helvetica Neue,Helvetica,sans-serif;
-    --text-font-family: Arial,Helvetica Neue,Helvetica,sans-serif;
-    --btn-primary-color: #FFFFFF;
+    --h1-font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
+    --h2-font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
+    --h3-font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
+    --text-font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
+    --btn-primary-color: #ffffff;
     --btn-primary-background-color: #35979c;
     --btn-primary-border-color: #35979c;
-    --btn-secondary-color: #FFFFFF;
+    --btn-secondary-color: #ffffff;
     --btn-secondary-background-color: #685563;
     --btn-secondary-border-color: #685563;
     --separator-border-color: #212529;

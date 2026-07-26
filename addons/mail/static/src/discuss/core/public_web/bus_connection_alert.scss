@@ -2,21 +2,21 @@ $o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
 
 .o-bus-ConnectionAlert {
     z-index: 1056;
-    animation: o-bus-ConnectionAlert-borderAnimation ease-in-out .5s forwards;
+    animation: o-bus-ConnectionAlert-borderAnimation ease-in-out 0.5s forwards;
     border: 2px solid $o-bus-ConnectionAlert-color;
 }
 
 .o-bus-ConnectionAlert-failure {
     width: fit-content;
-    animation: o-bus-ConnectionAlert-failureAnimation ease-in-out .5s forwards;
+    animation: o-bus-ConnectionAlert-failureAnimation ease-in-out 0.5s forwards;
     padding: map-get($spacers, 1);
     padding-bottom: map-get($spacers, 1) - 2px;
 }
 
 .o-bus-ConnectionAlert-icon {
-    animation: o-bus-ConnectionAlert-iconAnimation .5s;
+    animation: o-bus-ConnectionAlert-iconAnimation 0.5s;
     animation-direction: alternate;
-    animation-timing-function: cubic-bezier(.5, 0.95, 0, .5);
+    animation-timing-function: cubic-bezier(0.5, 0.95, 0, 0.5);
     animation-iteration-count: 9;
 }
 
@@ -37,7 +37,6 @@ $o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
 @keyframes o-bus-ConnectionAlert-borderAnimation {
     from {
         border-color: rgba($o-bus-ConnectionAlert-color, 0);
-
     }
 
     to {
@@ -48,7 +47,7 @@ $o-bus-ConnectionAlert-color: mix($white, $warning, 60%);
 @keyframes o-bus-ConnectionAlert-failureAnimation {
     from {
         opacity: 0%;
-        background-color: rgba($o-bus-ConnectionAlert-color, .5);
+        background-color: rgba($o-bus-ConnectionAlert-color, 0.5);
     }
 
     to {

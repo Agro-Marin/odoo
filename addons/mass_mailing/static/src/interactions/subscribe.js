@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
-import { renderToMarkup, renderToFragment } from "@web/core/utils/render";
 import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { renderToFragment, renderToMarkup } from "@web/core/utils/render";
+import { Interaction } from "@web/public/interaction";
 
 export class Subscribe extends Interaction {
     static selector = "#o_mailing_portal_subscription";
@@ -89,7 +89,9 @@ export class Subscribe extends Interaction {
     };
 
     setup() {
-        this.customerData = { ...document.getElementById("o_mailing_portal_subscription").dataset };
+        this.customerData = {
+            ...document.getElementById("o_mailing_portal_subscription").dataset,
+        };
         this.customerData.documentId = parseInt(this.customerData.documentId || 0);
         this.customerData.mailingId = parseInt(this.customerData.mailingId || 0);
         this.lastAction = this.customerData.lastAction;
@@ -110,14 +112,15 @@ export class Subscribe extends Interaction {
                 email: this.customerData.email,
                 hash_token: this.customerData.hashToken,
                 mailing_id: this.customerData.mailingId,
-            })
+            }),
         );
         this.protectSyncAfterAsync((result) => {
             if (result === true) {
                 this.customerData.isBlocklisted = true;
                 this.customerData.feedbackEnabled = true;
             }
-            this.changeSubscriptionStatus = result === true ? "blocklist_add" : "blocklist_error";
+            this.changeSubscriptionStatus =
+                result === true ? "blocklist_add" : "blocklist_error";
             this.onActionDone(result === true ? "blocklist_add" : result);
         })(result);
     }
@@ -133,7 +136,7 @@ export class Subscribe extends Interaction {
                 email: this.customerData.email,
                 hash_token: this.customerData.hashToken,
                 mailing_id: this.customerData.mailingId,
-            })
+            }),
         );
         this.protectSyncAfterAsync((result) => {
             if (result === true) {
@@ -152,7 +155,7 @@ export class Subscribe extends Interaction {
      */
     async onFormSend() {
         const formData = new FormData(
-            document.querySelector("div#o_mailing_subscription_form form")
+            document.querySelector("div#o_mailing_subscription_form form"),
         );
         const mailingListOptinIds = formData
             .getAll("mailing_list_ids")
@@ -165,7 +168,7 @@ export class Subscribe extends Interaction {
                 hash_token: this.customerData.hashToken,
                 lists_optin_ids: mailingListOptinIds,
                 mailing_id: this.customerData.mailingId,
-            })
+            }),
         );
         this.protectSyncAfterAsync((result) => {
             const has_error = ["error", "unauthorized"].includes(result);
@@ -174,7 +177,9 @@ export class Subscribe extends Interaction {
                 callKey = "error";
             } else {
                 callKey =
-                    parseInt(result) > 0 ? "subscription_updated_optout" : "subscription_updated";
+                    parseInt(result) > 0
+                        ? "subscription_updated_optout"
+                        : "subscription_updated";
                 this.updateDisplayForm(mailingListOptinIds);
             }
             this.changeSubscriptionStatus = has_error
@@ -194,7 +199,7 @@ export class Subscribe extends Interaction {
      */
     async onFeedbackClick() {
         const formData = new FormData(
-            document.querySelector("div#o_mailing_subscription_feedback form")
+            document.querySelector("div#o_mailing_subscription_feedback form"),
         );
         const optoutReasonId = parseInt(formData.get("opt_out_reason_id"));
         const result = await this.waitFor(
@@ -207,7 +212,7 @@ export class Subscribe extends Interaction {
                 last_action: this.lastAction,
                 mailing_id: this.customerData.mailingId,
                 opt_out_reason_id: optoutReasonId,
-            })
+            }),
         );
         this.protectSyncAfterAsync((result) => {
             if (result === true) {
@@ -224,7 +229,8 @@ export class Subscribe extends Interaction {
      */
     onOptOutReasonClick(ev) {
         this.showFeedbackTextbox = ev.target.dataset["isFeedback"];
-        document.querySelector("div#o_mailing_subscription_feedback textarea").value = "";
+        document.querySelector("div#o_mailing_subscription_feedback textarea").value =
+            "";
     }
 
     /**
@@ -233,17 +239,17 @@ export class Subscribe extends Interaction {
      * propagating it through various layers.
      */
     getListInfo() {
-        return [...document.querySelectorAll("#o_mailing_subscription_form_manage input")].map(
-            (node) => {
-                const listInfo = {
-                    id: parseInt(node.getAttribute("value")),
-                    member: node.dataset.member === "1",
-                    name: node.getAttribute("title"),
-                    opt_out: node.getAttribute("checked") !== "checked",
-                };
-                return listInfo;
-            }
-        );
+        return [
+            ...document.querySelectorAll("#o_mailing_subscription_form_manage input"),
+        ].map((node) => {
+            const listInfo = {
+                id: parseInt(node.getAttribute("value")),
+                member: node.dataset.member === "1",
+                name: node.getAttribute("title"),
+                opt_out: node.getAttribute("checked") !== "checked",
+            };
+            return listInfo;
+        });
     }
 
     onActionDone(callKey) {
@@ -252,7 +258,8 @@ export class Subscribe extends Interaction {
             this.askingFeedbackFor = callKey;
         }
         this.unsubscribeFeedbackStatus = "hidden";
-        document.querySelector("div#o_mailing_subscription_feedback textarea").value = "";
+        document.querySelector("div#o_mailing_subscription_feedback textarea").value =
+            "";
     }
 
     /*
@@ -271,16 +278,20 @@ export class Subscribe extends Interaction {
             listsMember: this.listInfo.filter((item) => item.member === true),
             listsProposal: this.listInfo.filter((item) => item.member === false),
         });
-        const manageForm = document.getElementById("o_mailing_subscription_form_manage");
+        const manageForm = document.getElementById(
+            "o_mailing_subscription_form_manage",
+        );
         manageForm.replaceChildren(formContent);
         /* update readonly display of customer's lists */
         const formReadonlyContent = renderToFragment(
             "mass_mailing.portal.list_form_content_readonly",
             {
                 listsOptin: this.listInfo.filter((item) => item.opt_out === false),
-            }
+            },
         );
-        const readonlyForm = document.getElementById("o_mailing_subscription_form_blocklisted");
+        const readonlyForm = document.getElementById(
+            "o_mailing_subscription_form_blocklisted",
+        );
         readonlyForm.replaceChildren(formReadonlyContent);
     }
 
@@ -292,7 +303,7 @@ export class Subscribe extends Interaction {
      * error while updating subscription.
      */
     get changeSubscriptionResultMessage() {
-        if (this.changeSubscriptionStatus == "hidden") {
+        if (this.changeSubscriptionStatus === "hidden") {
             return null;
         }
         return renderToMarkup(
@@ -301,7 +312,7 @@ export class Subscribe extends Interaction {
                 : "mass_mailing.portal.blocklist_update_info",
             {
                 infoKey: this.changeSubscriptionStatus,
-            }
+            },
         );
     }
 
@@ -312,7 +323,7 @@ export class Subscribe extends Interaction {
      * The possible situations are feedback received and error.
      */
     get unsubscribeFeedbackResultMessage() {
-        if (this.unsubscribeFeedbackStatus == "hidden") {
+        if (this.unsubscribeFeedbackStatus === "hidden") {
             return null;
         }
         return renderToMarkup("mass_mailing.portal.feedback_update_info", {

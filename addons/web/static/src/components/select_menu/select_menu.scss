@@ -16,7 +16,11 @@
     }
 
     .o_select_menu_caret {
-        @include o-position-absolute($o-input-padding-y, $o-input-padding-x, $input-border-width);
+        @include o-position-absolute(
+            $o-input-padding-y,
+            $o-input-padding-x,
+            $input-border-width
+        );
         visibility: hidden;
 
         &:after {
@@ -24,7 +28,8 @@
         }
     }
 
-    &:hover, &:focus-within {
+    &:hover,
+    &:focus-within {
         .o_select_menu_caret {
             visibility: visible;
         }

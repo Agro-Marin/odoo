@@ -1,9 +1,12 @@
-
 .o_layout * {
     box-sizing: border-box !important;
 }
 .o_layout {
-    font-family: Arial,Helvetica Neue,Helvetica,sans-serif;
+    font-family:
+        Arial,
+        Helvetica Neue,
+        Helvetica,
+        sans-serif;
 }
 /* Remove space around the email design. */
 html:has(.o_layout),
@@ -35,7 +38,9 @@ body:has(.o_layout) {
     .o_mail_snippet_general .container {
         width: 100% !important;
     }
-    .s_header_social table td, .s_header_text_social table td, .s_header_logo table td,
+    .s_header_social table td,
+    .s_header_text_social table td,
+    .s_header_logo table td,
     .o_mail_block_footer_social td,
     .s_showcase td,
     .s_mail_product_list td,
@@ -63,5 +68,5 @@ body:has(.o_layout) {
 // Redeclare CSS values that use color-mix()
 // to avoid issues with mail rendering engines
 :root {
-    --o-border-color: #{o-color('300')};
+    --o-border-color: #{o-color("300")};
 }

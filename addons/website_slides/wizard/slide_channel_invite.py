@@ -74,7 +74,6 @@ class SlideChannelInvite(models.TransientModel):
         if not self.partner_ids:
             raise UserError(_("Please select at least one recipient."))
 
-        mail_values = []
         attendees_to_reinvite = (
             self.env["slide.channel.partner"].search(
                 [
@@ -97,8 +96,10 @@ class SlideChannelInvite(models.TransientModel):
                 attendees_to_reinvite | channel_partners
             ).last_invitation_date = fields.Datetime.now()
 
-        for channel_partner in attendees_to_reinvite | channel_partners:
-            mail_values.append(self._prepare_mail_values(channel_partner))
+        mail_values = [
+            self._prepare_mail_values(channel_partner)
+            for channel_partner in attendees_to_reinvite | channel_partners
+        ]
         self.env["mail.mail"].sudo().create(mail_values)
 
         return {"type": "ir.actions.act_window_close"}

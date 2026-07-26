@@ -7,11 +7,14 @@
         border-radius: $border-radius;
         border-color: var(--o-cw-popover-color, #{$info});
         padding: 0 map-get($spacers, 1);
-        background: RGBA(var(--o-cw-popover-color--subtle, #{to-rgb($info)}), var(--o-bg-opacity));
+        background: RGBA(
+            var(--o-cw-popover-color--subtle, #{to-rgb($info)}),
+            var(--o-bg-opacity)
+        );
         font-weight: $font-weight-normal;
 
         &:hover {
-            --o-bg-opacity: .5 !important;
+            --o-bg-opacity: 0.5 !important;
         }
 
         &.o_event_dot {
@@ -23,9 +26,8 @@
                 font-weight: 900;
                 font-size: $o-font-size-base-smaller;
                 color: var(--o-cw-popover-color, #{$info});
-                content: '\f111';
+                content: "\f111";
             }
-
         }
     }
 

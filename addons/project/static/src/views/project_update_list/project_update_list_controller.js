@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { ListController } from '@web/views/list/list_controller';
-import { ProjectRightSidePanel } from '../../components/project_right_side_panel/project_right_side_panel.js';
+import { ListController } from "@web/views/list/list_controller";
+
+import { ProjectRightSidePanel } from "../../components/project_right_side_panel/project_right_side_panel.js";
 
 export class ProjectUpdateListController extends ListController {
     static template = "project.ProjectUpdateListView";
@@ -9,7 +10,6 @@ export class ProjectUpdateListController extends ListController {
         ProjectRightSidePanel,
     };
     get className() {
-        return super.className + ' o_controller_with_rightpanel';
+        return super.className + " o_controller_with_rightpanel";
     }
 }
-

@@ -1,6 +1,5 @@
 /** @odoo-module native */
-import { Component, useState, useRef } from "@odoo/owl";
-
+import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
 

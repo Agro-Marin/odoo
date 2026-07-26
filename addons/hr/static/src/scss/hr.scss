@@ -17,7 +17,7 @@
         align-items: center;
         margin-bottom: 5px;
         @include media-breakpoint-down(md) {
-            margin-left: 0!important;
+            margin-left: 0 !important;
         }
     }
     .o_employee_avatar {
@@ -46,10 +46,10 @@
     .oe_title {
         flex: 1;
     }
-    .o_employee_form_header_info{
+    .o_employee_form_header_info {
         flex: 5;
     }
-    .o_presence_status_pill_wrapper{
+    .o_presence_status_pill_wrapper {
         flex: 3;
     }
 }
@@ -65,8 +65,8 @@
 }
 
 .o_hr_narrow_field {
-    width: 8rem!important;
-    max-width: 8rem!important;
+    width: 8rem !important;
+    max-width: 8rem !important;
     * {
         max-width: 100%;
     }
@@ -82,20 +82,20 @@
 
 @for $size from 1 through 15 {
     .o_hr_narrow_field-#{$size} {
-        width: #{$size}rem!important;
-        max-width: #{$size}rem!important;
+        width: #{$size}rem !important;
+        max-width: #{$size}rem !important;
     }
 }
 
 @include media-breakpoint-up(lg) {
     .o_hr_column {
-        padding: 0 calc(var(--gutter-x) * 1)!important;
+        padding: 0 calc(var(--gutter-x) * 1) !important;
 
         &:first-child {
-            padding-left: calc(var(--gutter-x) * .5)!important;
+            padding-left: calc(var(--gutter-x) * 0.5) !important;
         }
         &:last-child {
-            padding-right: calc(var(--gutter-x) * .5)!important;
+            padding-right: calc(var(--gutter-x) * 0.5) !important;
         }
     }
 }

@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 import { RottingKanbanController } from "@mail/js/rotting_mixin/rotting_kanban_controller";
 
+import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 
 export class ProjectTaskKanbanController extends RottingKanbanController {
     static template = "project.ProjectTaskKanbanView";
@@ -9,5 +9,4 @@ export class ProjectTaskKanbanController extends RottingKanbanController {
         ...RottingKanbanController.components,
         ProjectTaskTemplateDropdown,
     };
-
 }

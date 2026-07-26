@@ -1,8 +1,10 @@
-
 #o_employee_org_chart {
     --treeEntry-padding-v: #{map-get($spacers, 2)};
-    --treeEntry--after-width: #{$o-hr-org-chart-entry-pic-small-size  * .25};
-    --treeEntry--before-top: calc(-2 * (var(--treeEntry-padding-v)) - (#{$o-hr-org-chart-entry-pic-small-size} * .5));
+    --treeEntry--after-width: #{$o-hr-org-chart-entry-pic-small-size * 0.25};
+    --treeEntry--before-top: calc(
+        -2 * (var(--treeEntry-padding-v)) -
+            (#{$o-hr-org-chart-entry-pic-small-size} * 0.5)
+    );
 
     .o_org_chart_entry {
         padding-top: var(--treeEntry-padding-v);
@@ -18,7 +20,10 @@
         }
 
         &:after {
-            top: calc(#{$o-hr-org-chart-entry-pic-small-size} * .5 + var(--treeEntry-padding-v));
+            top: calc(
+                #{$o-hr-org-chart-entry-pic-small-size} * 0.5 +
+                    var(--treeEntry-padding-v)
+            );
             width: var(--treeEntry--after-width);
         }
 
@@ -52,7 +57,7 @@
         .o_org_chart_entry {
             --treeEntry-padding-h: 0px;
             --treeEntry--after-display: none;
-            --treeEntry--beforeAfter-left: #{$o-hr-org-chart-entry-pic-small-size * .5};
+            --treeEntry--beforeAfter-left: #{$o-hr-org-chart-entry-pic-small-size * 0.5};
             --treeEntry--before-top: calc(var(--treeEntry-padding-v) * -1);
 
             &:before {
@@ -65,7 +70,8 @@
         }
     }
 
-    .o_org_chart_group_down .o_treeEntry, .o_org_chart_entry_self_container .o_treeEntry {
+    .o_org_chart_group_down .o_treeEntry,
+    .o_org_chart_entry_self_container .o_treeEntry {
         --treeEntry-padding-h: #{$o-hr-org-chart-entry-pic-size};
 
         padding-left: calc(var(--treeEntry-padding-h) - var(--treeEntry--after-width));
@@ -73,24 +79,34 @@
 
     .o_org_chart_entry_self_container {
         .o_treeEntry:after {
-            top: calc(#{$o-hr-org-chart-entry-pic-size} * .5 + var(--treeEntry-padding-v));
+            top: calc(
+                #{$o-hr-org-chart-entry-pic-size} * 0.5 + var(--treeEntry-padding-v)
+            );
         }
 
         &.o_org_chart_has_managers {
             .o_org_chart_entry_self {
                 --treeEntry-padding-h: #{$o-hr-org-chart-entry-pic-small-size};
 
-                padding-left: calc(var(--treeEntry-padding-h) - var(--treeEntry--after-width));
+                padding-left: calc(
+                    var(--treeEntry-padding-h) - var(--treeEntry--after-width)
+                );
             }
 
             & + .o_org_chart_group_down {
-                padding-left: calc(#{$o-hr-org-chart-entry-pic-small-size} - var(--treeEntry--after-width));
+                padding-left: calc(
+                    #{$o-hr-org-chart-entry-pic-small-size} - var(
+                            --treeEntry--after-width
+                        )
+                );
             }
         }
 
         & + .o_org_chart_group_down {
-            --treeEntry--after-width: #{$o-hr-org-chart-entry-pic-size * .25};
-            --treeEntry-padding-h: calc(#{$o-hr-org-chart-entry-pic-size} - var(--treeEntry--after-width));
+            --treeEntry--after-width: #{$o-hr-org-chart-entry-pic-size * 0.25};
+            --treeEntry-padding-h: calc(
+                #{$o-hr-org-chart-entry-pic-size} - var(--treeEntry--after-width)
+            );
         }
     }
 }

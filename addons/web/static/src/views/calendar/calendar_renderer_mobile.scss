@@ -1,7 +1,8 @@
 @include media-breakpoint-down(md) {
-
     .o_calendar_renderer {
-        .o_actionswiper, .o_actionswiper_overflow_container, .o_actionswiper_target_container {
+        .o_actionswiper,
+        .o_actionswiper_overflow_container,
+        .o_actionswiper_target_container {
             height: 100%;
         }
         .fc-view {
@@ -10,14 +11,15 @@
                     padding-left: 0;
                 }
             }
-            &.fc-timeGridDay-view, &.fc-timeGridWeek-view  {
+            &.fc-timeGridDay-view,
+            &.fc-timeGridWeek-view {
                 colgroup > col {
                     width: 5ch !important;
                 }
             }
 
             .fc-body > tr > .fc-widget-content {
-                border: 0
+                border: 0;
             }
 
             .fc-head-container.fc-widget-header {
@@ -30,5 +32,4 @@
             padding: 5px;
         }
     }
-
 }

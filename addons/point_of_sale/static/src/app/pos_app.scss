@@ -7,18 +7,18 @@
     background-color: #f0eeee;
     color: $o-gray-900;
     -webkit-user-select: none;
-       -moz-user-select: none;
-            user-select: none;
+    -moz-user-select: none;
+    user-select: none;
     text-shadow: none;
     touch-action: manipulation;
 }
 /*  ********* Generic element styling  ********* */
 
 .dvh-100 {
-  // we specify the 100vh as a fallback in case the browser does not
-  // know dvh
-  height: 100vh !important;
-  height: 100dvh !important;
+    // we specify the 100vh as a fallback in case the browser does not
+    // know dvh
+    height: 100vh !important;
+    height: 100dvh !important;
 }
 
 .pos a {
@@ -37,11 +37,11 @@ html {
     font-family: sans-serif;
 }
 
-.pos .oe_invisible{
+.pos .oe_invisible {
     visibility: hidden !important;
 }
 .pos .clearfix:after {
-    content:" ";
+    content: " ";
     display: block;
     visibility: hidden;
     line-height: 0;
@@ -56,16 +56,16 @@ html {
 }
 
 @media screen and (max-width: 575px) {
-    .pos .modal-dialog{
+    .pos .modal-dialog {
         margin: 0;
         max-height: 92dvh;
     }
-    .pos .modal-content{
+    .pos .modal-content {
         max-height: 92dvh;
         border-radius: 1rem 1rem 0 0;
         animation: popUp 0.2s ease-in-out forwards;
     }
-    .pos .modal-body{
+    .pos .modal-body {
         overflow: auto;
     }
     .pos .modal-dialog-centered {

@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class SurveyResultTrend extends Interaction {
     static selector = ".o_survey_trend_chart_container";
@@ -21,7 +21,9 @@ export class SurveyResultTrend extends Interaction {
     }
 
     async loadTrends(granularity) {
-        const data = await rpc(`/survey/results/${this.surveyId}/trends`, { granularity });
+        const data = await rpc(`/survey/results/${this.surveyId}/trends`, {
+            granularity,
+        });
         this.renderChart(data);
     }
 
@@ -76,7 +78,6 @@ export class SurveyResultTrend extends Interaction {
             };
         }
 
-        // eslint-disable-next-line no-undef
         this.chart = new Chart(canvas, {
             type: "line",
             data: { labels: data.labels, datasets },

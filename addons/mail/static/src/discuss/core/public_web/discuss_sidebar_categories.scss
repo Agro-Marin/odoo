@@ -1,11 +1,17 @@
-$o-mail-DiscussSidebarChannel-borderOpacity: .05;
+$o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
 
 .o-mail-DiscussSidebarChannel-container {
-    --border-opacity: var(--mail-DiscussSidebarChannel-borderOpacity, #{$o-mail-DiscussSidebarChannel-borderOpacity});
+    --border-opacity: var(
+        --mail-DiscussSidebarChannel-borderOpacity,
+        #{$o-mail-DiscussSidebarChannel-borderOpacity}
+    );
     gap: 1px;
 
     &.o-bordered {
-        background-color: var(---mail-DiscussSidebarChannel-borderedBgColor, mix($white, $dark, 98%)) !important;
+        background-color: var(
+            ---mail-DiscussSidebarChannel-borderedBgColor,
+            mix($white, $dark, 98%)
+        ) !important;
     }
 }
 
@@ -23,7 +29,7 @@ $o-mail-DiscussSidebarChannel-borderOpacity: .05;
 }
 
 .o-mail-DiscussSidebarChannel-actions button {
-    --border-opacity: .15;
+    --border-opacity: 0.15;
 
     &.rounded-circle {
         --oi-vertical-align: -5%;
@@ -36,7 +42,10 @@ $o-mail-DiscussSidebarChannel-borderOpacity: .05;
         }
     }
 
-    &:hover, &:active, &:focus-visible, &.o-showingActions {
+    &:hover,
+    &:active,
+    &:focus-visible,
+    &.o-showingActions {
         --border-opacity: 1;
         --border-color: #{$o-action};
     }
@@ -48,7 +57,7 @@ $o-mail-DiscussSidebarChannel-borderOpacity: .05;
 
 .o-mail-DiscussSidebarCategory-toggler {
     &.o-compact {
-        font-size: .65rem;
+        font-size: 0.65rem;
     }
     &:not(.o-compact) {
         line-height: 2.35; // so that same height as actions, so folding doesn't resize
@@ -75,17 +84,17 @@ $o-mail-DiscussSidebarChannel-borderOpacity: .05;
         background-color: mix($o-view-background-color, $o-action, 90%);
         outline-color: mix($o-view-background-color, $o-action, 50%);
     }
-    
+
     &:not(:hover) {
         .o-mail-DiscussSidebarCategory-actions {
             visibility: hidden;
         }
     }
-
 }
 
 .o-mail-DiscussSidebarCategory-actions button:not(:hover) {
-    .text-success, .text-danger {
+    .text-success,
+    .text-danger {
         --color: #{$btn-color};
     }
 }
@@ -118,8 +127,10 @@ $o-mail-DiscussSidebarChannel-borderOpacity: .05;
     .o-mail-DiscussSidebarChannel-container.o-bordered & {
         left: -1px; // compensate for border
 
-        &.o-mail-DiscussSidebarChannel, &.o-compact {
-            filter: drop-shadow(1px 2px 0px $white) drop-shadow(-1px 1px 0px $white) drop-shadow(1px -1px 0px $white) drop-shadow(-1px -2px 0px $white);
+        &.o-mail-DiscussSidebarChannel,
+        &.o-compact {
+            filter: drop-shadow(1px 2px 0px $white) drop-shadow(-1px 1px 0px $white)
+                drop-shadow(1px -1px 0px $white) drop-shadow(-1px -2px 0px $white);
         }
     }
 
@@ -129,7 +140,10 @@ $o-mail-DiscussSidebarChannel-borderOpacity: .05;
 }
 
 .o-mail-DiscussSidebarSubchannel svg {
-    color: var(--mail-DiscussSidebarSubchannel-svgColor, mix($gray-300, $gray-400, 75%));
+    color: var(
+        --mail-DiscussSidebarSubchannel-svgColor,
+        mix($gray-300, $gray-400, 75%)
+    );
     left: 22px;
     transform: scaleX(1) #{"/* rtl:scaleX(-1) */"};
 }

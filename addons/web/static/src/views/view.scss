@@ -26,14 +26,16 @@
             @extend %o-nocontent-init-image;
             width: 120px;
             height: 140px;
-            background: transparent url(/web/static/img/smiling_face.svg) no-repeat center;
+            background: transparent url(/web/static/img/smiling_face.svg) no-repeat
+                center;
         }
 
         .o_view_nocontent_neutral_face:before {
             @extend %o-nocontent-init-image;
             width: 120px;
             height: 140px;
-            background: transparent url(/web/static/img/neutral_face.svg) no-repeat center;
+            background: transparent url(/web/static/img/neutral_face.svg) no-repeat
+                center;
         }
 
         .o_view_nocontent_empty_folder:before {
@@ -45,7 +47,8 @@
             margin-left: calc($grid-gutter-width / -2);
             margin-top: calc($grid-gutter-width / -2);
             padding: 100px 0 0 137px;
-            background: transparent url(/web/static/img/graph_background.png) no-repeat 0 0;
+            background: transparent url(/web/static/img/graph_background.png) no-repeat
+                0 0;
         }
     }
 }
@@ -60,7 +63,7 @@
 
 // Invisible modifier (can be inside the view, the button area, ...)
 .o_invisible_modifier {
-    display: none!important;
+    display: none !important;
 }
 
 // Status
@@ -68,10 +71,10 @@
 // of `.o_field_widget` so it needs to be placed at an upper level.
 .o_status {
     border-radius: 50%;
-    background-color: map-get($grays, '200');
+    background-color: map-get($grays, "200");
     height: var(--Status-size, 12px);
     width: var(--Status-size, 12px);
-    box-shadow: inset 0 0 0 1px rgba($black, .2);
+    box-shadow: inset 0 0 0 1px rgba($black, 0.2);
 
     &.o_status_green {
         background-color: map-get($theme-colors, "success");
@@ -82,7 +85,7 @@
     }
 
     .dropdown-item > & {
-        margin-bottom: .2em;
+        margin-bottom: 0.2em;
         transform: translateX(-50%);
     }
 }

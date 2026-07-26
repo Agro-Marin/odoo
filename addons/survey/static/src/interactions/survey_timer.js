@@ -1,23 +1,27 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
-import { Interaction } from "@web/public/interaction";
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 const { DateTime } = luxon;
 
 export class SurveyTimer extends Interaction {
     static selector = ".o_survey_timer_container .o_survey_timer";
 
     start() {
-        const surveyFormContentEl = document.querySelector(".o_survey_form_content_data");
-        const surveySessionManageEl = document.querySelector(".o_survey_session_manage");
+        const surveyFormContentEl = document.querySelector(
+            ".o_survey_form_content_data",
+        );
+        const surveySessionManageEl = document.querySelector(
+            ".o_survey_session_manage",
+        );
         this.timeDifference = null;
         if (surveyFormContentEl) {
             // If the interaction is starting in a survey_form, the timer is
             // ready to start.
             if (surveyFormContentEl.dataset.serverTime) {
                 this.timeDifference = DateTime.utc().diff(
-                    deserializeDateTime(surveyFormContentEl.dataset.serverTime)
+                    deserializeDateTime(surveyFormContentEl.dataset.serverTime),
                 ).milliseconds;
             }
             this.startTimer(surveyFormContentEl.dataset);
@@ -52,9 +56,14 @@ export class SurveyTimer extends Interaction {
             minutes: this.timeLimitMinutes,
         });
         if (Math.abs(this.timeDifference) >= 500) {
-            this.countDownDate = this.countDownDate.plus({ milliseconds: this.timeDifference });
+            this.countDownDate = this.countDownDate.plus({
+                milliseconds: this.timeDifference,
+            });
         }
-        if (this.timeLimitMinutes <= 0 || this.countDownDate.diff(DateTime.utc()).seconds < 0) {
+        if (
+            this.timeLimitMinutes <= 0 ||
+            this.countDownDate.diff(DateTime.utc()).seconds < 0
+        ) {
             this.triggerTimeUp();
         } else {
             this.updateTimer();
@@ -79,13 +88,17 @@ export class SurveyTimer extends Interaction {
      * for our use case.
      */
     updateTimer() {
-        const timeLeft = Math.round(this.countDownDate.diff(DateTime.utc()).milliseconds / 1000);
+        const timeLeft = Math.round(
+            this.countDownDate.diff(DateTime.utc()).milliseconds / 1000,
+        );
 
         if (timeLeft >= 0) {
             const timeLeftMinutes = parseInt(timeLeft / 60);
             const timeLeftSeconds = timeLeft - timeLeftMinutes * 60;
             this.el.textContent =
-                this.formatTime(timeLeftMinutes) + ":" + this.formatTime(timeLeftSeconds);
+                this.formatTime(timeLeftMinutes) +
+                ":" +
+                this.formatTime(timeLeftSeconds);
         } else {
             if (this.surveyTimerInterval) {
                 clearInterval(this.surveyTimerInterval);

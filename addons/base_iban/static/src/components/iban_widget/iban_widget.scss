@@ -1,5 +1,4 @@
 .o_form_view {
-
     // Iban widget warning
     .o_iban {
         display: inline-flex;
@@ -9,7 +8,6 @@
         cursor: help;
     }
     input.o_input.o_iban_input_with_validator {
-        padding-right: 17px!important;
+        padding-right: 17px !important;
     }
-
 }

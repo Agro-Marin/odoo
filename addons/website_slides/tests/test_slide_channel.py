@@ -180,15 +180,15 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         all_channels.sudo()._action_add_members(all_users.partner_id)
         slide_slide_vals = []
         for slide in all_channels.slide_content_ids:
-            for user in self.user_officer | self.user_emp:
-                slide_slide_vals.append(
-                    {
-                        "slide_id": slide.id,
-                        "channel_id": self.channel.id,
-                        "partner_id": user.partner_id.id,
-                        "completed": True,
-                    }
-                )
+            slide_slide_vals.extend(
+                {
+                    "slide_id": slide.id,
+                    "channel_id": self.channel.id,
+                    "partner_id": user.partner_id.id,
+                    "completed": True,
+                }
+                for user in self.user_officer | self.user_emp
+            )
         self.env["slide.slide.partner"].create(slide_slide_vals)
         created_mails = self.env["mail.mail"].search([])
 

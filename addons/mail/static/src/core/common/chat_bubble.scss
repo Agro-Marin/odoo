@@ -1,4 +1,3 @@
-
 .o-mail-ChatBubble {
     height: auto !important;
     z-index: $o-mail-ChatBubble-zindex;
@@ -15,17 +14,17 @@
         }
     }
 
-    &:hover, &.o-active {
+    &:hover,
+    &.o-active {
         filter: brightness(1.1);
     }
 
     &.o-bouncing {
         animation: o-mail-ChatBubble-bouncing 0.25s;
         animation-direction: alternate;
-        animation-timing-function: cubic-bezier(.5, 0.95, 0, .5);
+        animation-timing-function: cubic-bezier(0.5, 0.95, 0, 0.5);
         animation-iteration-count: 16;
     }
-
 }
 
 .o-mail-ChatBubble-avatar {
@@ -75,7 +74,7 @@
     right: $o-mail-ChatHub-bubblesWidth;
     z-index: $o-mail-ChatBubble-zindex - 1;
     border-color: $o-gray-300 !important;
-    
+
     & + .popover-arrow {
         // puts arrow above preview border
         z-index: 1 !important;
@@ -98,16 +97,16 @@
 }
 
 .o-mail-ChatBubble-unreadIndicator {
-    font-size: .5rem;
+    font-size: 0.5rem;
     bottom: 40%;
     right: -10px;
 }
 
-@keyframes o-mail-ChatBubble-bouncing { 
-    from { 
-        transform: translate3d(0, 0, 0); 
-    } 
+@keyframes o-mail-ChatBubble-bouncing {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
     to {
-        transform: translate3d(0, -10px, 0); 
-    } 
-} 
+        transform: translate3d(0, -10px, 0);
+    }
+}

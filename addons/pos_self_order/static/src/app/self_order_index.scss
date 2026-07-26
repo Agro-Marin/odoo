@@ -3,7 +3,7 @@
     --secondary-active-border: #{$o-action};
 
     --btn-group-gap: 0;
-    --border-light-color:#e7e9ed;
+    --border-light-color: #e7e9ed;
 
     // Disable zoom
     touch-action: pan-x pan-y;
@@ -15,15 +15,14 @@
     }
 
     .bg-secondary {
-        --background-color: #F4F4F4;
+        --background-color: #f4f4f4;
     }
-
 }
 
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(10px) scale(.98);
+        transform: translateY(10px) scale(0.98);
     }
     to {
         opacity: 1;
@@ -33,17 +32,18 @@
 
 @keyframes selfOrderModalScale {
     from {
-        transform: scale(.8);
+        transform: scale(0.8);
     }
     to {
         transform: scale(1);
     }
 }
 
-html, body {
+html,
+body {
     height: 100%;
     overflow: hidden;
-    overscroll-behavior: none;  // disable swipe to go back
+    overscroll-behavior: none; // disable swipe to go back
 }
 
 body {
@@ -52,10 +52,11 @@ body {
 }
 
 small {
-    font-size: .875em;
+    font-size: 0.875em;
 }
 
-ul, ol {
+ul,
+ol {
     padding: 0;
     margin: 0;
 }
@@ -77,16 +78,17 @@ li {
 }
 
 .form-control:focus {
-  border-color: var(--primary) !important;
+    border-color: var(--primary) !important;
 }
 
 @include media-breakpoint-down(sm) {
-   .o_self_footer {
-       .btn-lg, .btn-group-lg > .btn {
-           padding: $input-btn-padding-y $input-btn-padding-x !important;
-           font-size: 1.1rem;
-       }
-   }
+    .o_self_footer {
+        .btn-lg,
+        .btn-group-lg > .btn {
+            padding: $input-btn-padding-y $input-btn-padding-x !important;
+            font-size: 1.1rem;
+        }
+    }
 }
 
 .o-so-tabular-nums {
@@ -94,10 +96,11 @@ li {
 }
 
 .o_self_fade {
-    animation: fadeIn 300ms cubic-bezier(.4, 0, .2, 1);
+    animation: fadeIn 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.numpad-button.active, .numpad-button:active {
+.numpad-button.active,
+.numpad-button:active {
     --btn-active-bg: #{$o-gray-300};
 }
 
@@ -140,22 +143,21 @@ li {
 }
 
 @include media-breakpoint-up(lg) {
-  .o_self_container {
-    max-width: 960px !important;
-  }
+    .o_self_container {
+        max-width: 960px !important;
+    }
 }
 
-@include o-kiosk{
+@include o-kiosk {
     @include generate-kiosk-utilities(kiosk);
 }
 
-
-@include o-kiosk-portrait{
+@include o-kiosk-portrait {
     &:root {
         --root-font-size: #{$o-so-font-size-kiosk};
     }
 
-     .o_self_container {
+    .o_self_container {
         width: 100% !important;
         max-width: 1100px !important;
         padding-left: 1.5rem !important;
@@ -163,59 +165,59 @@ li {
     }
 
     .kiosk-p-btn-lg {
-      padding: $input-btn-padding-y-lg $input-btn-padding-x-lg !important;
-      font-size: 1.25rem;
+        padding: $input-btn-padding-y-lg $input-btn-padding-x-lg !important;
+        font-size: 1.25rem;
     }
 
     @include generate-kiosk-utilities(kiosk-p);
 }
 
-@include o-kiosk-landscape{
+@include o-kiosk-landscape {
     @include generate-kiosk-utilities(kiosk-l);
 }
 
 $shadow-sizes: sm, md, lg, xl;
 
 @each $breakpoint, $value in $grid-breakpoints {
-  @include media-breakpoint-up($breakpoint) {
-    .shadow-#{$breakpoint}-none {
-      box-shadow: none !important;
-    }
+    @include media-breakpoint-up($breakpoint) {
+        .shadow-#{$breakpoint}-none {
+            box-shadow: none !important;
+        }
 
-    @each $size in $shadow-sizes {
-      .shadow-#{$breakpoint}-#{$size} {
-        box-shadow: var(--box-shadow-#{$size}) !important;
-      }
+        @each $size in $shadow-sizes {
+            .shadow-#{$breakpoint}-#{$size} {
+                box-shadow: var(--box-shadow-#{$size}) !important;
+            }
+        }
     }
-  }
 }
 
 .btn {
-   border-radius: $border-radius-xl;
+    border-radius: $border-radius-xl;
 }
 
 .modal-content {
-   border-radius: $border-radius-xl;
+    border-radius: $border-radius-xl;
 }
 
 @include media-breakpoint-down(sm) {
-   .btn {
-       border-radius: $border-radius-lg;
-   }
-  .modal-content {
-     border-radius: $border-radius-lg;
-  }
+    .btn {
+        border-radius: $border-radius-lg;
+    }
+    .modal-content {
+        border-radius: $border-radius-lg;
+    }
 }
 
 .modal-dialog {
-   transform: scale(0.8);
-   animation: selfOrderModalScale 120ms ease-out forwards;
+    transform: scale(0.8);
+    animation: selfOrderModalScale 120ms ease-out forwards;
 }
 
 .pos-receipt .info-list {
     padding-left: 2rem;
 }
 
-.border-light{
-   border-color: var(--border-light-color) !important;
+.border-light {
+    border-color: var(--border-light-color) !important;
 }

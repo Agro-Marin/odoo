@@ -9,7 +9,9 @@ import { renderToMarkup } from "@web/core/utils/render";
 
 function hasDataOption(element, attribute) {
     attribute = "data-" + attribute;
-    return element.hasAttribute(attribute) && element.getAttribute(attribute) !== "false";
+    return (
+        element.hasAttribute(attribute) && element.getAttribute(attribute) !== "false"
+    );
 }
 
 function getClassName(name) {
@@ -49,7 +51,7 @@ export class ThemeModel extends SignalStore {
             if (hasDataOption(theme, "images-info")) {
                 const imagesInfo = Object.assign(
                     { all: {} },
-                    JSON.parse(theme.dataset.imagesInfo || "{}")
+                    JSON.parse(theme.dataset.imagesInfo || "{}"),
                 );
                 for (const [key, info] of Object.entries(imagesInfo)) {
                     imagesInfo[key] = Object.assign(
@@ -58,13 +60,17 @@ export class ThemeModel extends SignalStore {
                             format: "jpg",
                         },
                         imagesInfo.all,
-                        info
+                        info,
                     );
                 }
-                themeOptions.getImageInfo = (filename) => imagesInfo[filename] || imagesInfo.all;
+                themeOptions.getImageInfo = (filename) =>
+                    imagesInfo[filename] || imagesInfo.all;
             }
             // Wrap the Theme `html` with a technical layout.
-            themeOptions.html = renderToMarkup("mass_mailing.ThemeLayout", themeOptions);
+            themeOptions.html = renderToMarkup(
+                "mass_mailing.ThemeLayout",
+                themeOptions,
+            );
             this.loadedThemes.set(themeOptions.name, themeOptions);
         }
     }
@@ -93,7 +99,7 @@ export class ThemeModel extends SignalStore {
                 "ir.ui.view",
                 "render_public_asset",
                 [asset, {}],
-                {}
+                {},
             );
             this.computeThemesTemplates(parseHTML(document, themesHTML));
             this.loadedAssets.add(asset);

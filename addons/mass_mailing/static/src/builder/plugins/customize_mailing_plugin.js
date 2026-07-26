@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { getCSSVariableValue } from "@html_editor/utils/formatting";
+import { splitSelectorAroundCommasOutsideParentheses } from "@mail/views/web/fields/html_mail_field/convert_inline";
+import { CUSTOMIZE_MAILING_VARIABLES } from "@mass_mailing/builder/plugins/customize_mailing_variables";
 import { registry } from "@web/core/registry";
 import { memoize } from "@web/core/utils/functions";
-import { CUSTOMIZE_MAILING_VARIABLES } from "@mass_mailing/builder/plugins/customize_mailing_variables";
+
 import { CUSTOMIZE_MAILING_VARIABLES_DEFAULTS } from "./customize_mailing_variables.js";
-import { splitSelectorAroundCommasOutsideParentheses } from "@mail/views/web/fields/html_mail_field/convert_inline";
-import { getCSSVariableValue } from "@html_editor/utils/formatting";
 
 const RE_SELECTOR_ENDS_WITH_GT_STAR = />\s*\*\s*$/;
 export const PRIORITY_STYLES = {
@@ -46,7 +47,10 @@ export class CustomizeMailingPlugin extends Plugin {
             styleEl.remove();
         }
         this.setupMailingVariables();
-        this.document.adoptedStyleSheets = [...this.document.adoptedStyleSheets, this.styleSheet];
+        this.document.adoptedStyleSheets = [
+            ...this.document.adoptedStyleSheets,
+            this.styleSheet,
+        ];
     }
 
     cleanForSave(clone) {
@@ -71,11 +75,14 @@ export class CustomizeMailingPlugin extends Plugin {
         const cssRules = this.styleSheet.cssRules;
         const newStyleSheet = new contentDocument.defaultView.CSSStyleSheet();
         for (const cssRule of cssRules) {
-            let previewRule = cssRule.cssText.replace(this.cssPrefix, ".o_add_snippets_preview");
+            let previewRule = cssRule.cssText.replace(
+                this.cssPrefix,
+                ".o_add_snippets_preview",
+            );
             if (previewRule.includes("> [data-snippet]")) {
                 previewRule = previewRule.replace(
                     "> [data-snippet]",
-                    ".o_snippet_preview_wrap [data-snippet]"
+                    ".o_snippet_preview_wrap [data-snippet]",
                 );
             }
             newStyleSheet.insertRule(previewRule);
@@ -88,7 +95,9 @@ export class CustomizeMailingPlugin extends Plugin {
         for (const variable of Object.keys(CUSTOMIZE_MAILING_VARIABLES)) {
             const currentValue = this.getVariableValue(variable);
             const defaultValue =
-                Object.values(CUSTOMIZE_MAILING_VARIABLES_DEFAULTS[variable] ?? {})[0] ?? "";
+                Object.values(
+                    CUSTOMIZE_MAILING_VARIABLES_DEFAULTS[variable] ?? {},
+                )[0] ?? "";
             if (currentValue === "" && defaultValue !== "") {
                 varRule.style.setProperty(variable, defaultValue);
             }
@@ -106,7 +115,9 @@ export class CustomizeMailingPlugin extends Plugin {
         for (const selector of options.selectors) {
             const rule = this.getRule(selector);
             for (const property of options.properties) {
-                const important = PRIORITY_STYLES[selector]?.has(property) ? "important" : "";
+                const important = PRIORITY_STYLES[selector]?.has(property)
+                    ? "important"
+                    : "";
                 rule.style.setProperty(property, value, important);
             }
         }
@@ -115,7 +126,9 @@ export class CustomizeMailingPlugin extends Plugin {
     parseDesignElement(styleEl) {
         const rules = [...styleEl.sheet.cssRules];
         for (const rule of rules) {
-            for (const selector of splitSelectorAroundCommasOutsideParentheses(rule.selectorText)) {
+            for (const selector of splitSelectorAroundCommasOutsideParentheses(
+                rule.selectorText,
+            )) {
                 for (const property of rule.style) {
                     const selectors =
                         property !== "font-family"
@@ -143,7 +156,9 @@ export class CustomizeMailingPlugin extends Plugin {
                 return rule;
             }
         }
-        return this.styleSheet.cssRules.item(this.styleSheet.insertRule(`${selector} { }`));
+        return this.styleSheet.cssRules.item(
+            this.styleSheet.insertRule(`${selector} { }`),
+        );
     }
 
     getVariableValue(variable) {
@@ -167,9 +182,14 @@ export class CustomizeMailingPlugin extends Plugin {
             return [selector];
         }
         if (!selector.endsWith("*")) {
-            return [`${selector.trim()}${FA_EXCLUDE}`, `${selector.trim()} *${FA_EXCLUDE}`];
+            return [
+                `${selector.trim()}${FA_EXCLUDE}`,
+                `${selector.trim()} *${FA_EXCLUDE}`,
+            ];
         } else if (RE_SELECTOR_ENDS_WITH_GT_STAR.test(selector)) {
-            return [`${selector.replace(RE_SELECTOR_ENDS_WITH_GT_STAR, "").trim()} *${FA_EXCLUDE}`];
+            return [
+                `${selector.replace(RE_SELECTOR_ENDS_WITH_GT_STAR, "").trim()} *${FA_EXCLUDE}`,
+            ];
         }
     }
 
@@ -184,7 +204,7 @@ export class CustomizeMailingPlugin extends Plugin {
         rule.style.setProperty(
             property,
             ruleStyle.getPropertyValue(property),
-            ruleStyle.getPropertyPriority(property)
+            ruleStyle.getPropertyPriority(property),
         );
     }
 }
@@ -206,16 +226,16 @@ export class CustomizeMailingVariable extends BuilderAction {
      * @param { string } params.property
      */
     getValue({ params }) {
-        const variable = this.dependencies["mass_mailing.CustomizeMailingPlugin"].getVariableValue(
-            params.variable
-        );
+        const variable = this.dependencies[
+            "mass_mailing.CustomizeMailingPlugin"
+        ].getVariableValue(params.variable);
         if (!params.variable.includes("color") || !/var\(/g.test(variable)) {
             return variable;
         }
         const match = variable.match(/var\(--([\w-]+)\)/)[1];
         return getCSSVariableValue(
             match,
-            this.window.getComputedStyle(this.document.documentElement)
+            this.window.getComputedStyle(this.document.documentElement),
         );
     }
     apply({ params, value }) {
@@ -224,13 +244,13 @@ export class CustomizeMailingVariable extends BuilderAction {
             apply: () => {
                 this.dependencies["mass_mailing.CustomizeMailingPlugin"].setVariable(
                     params.variable,
-                    value
+                    value,
                 );
             },
             revert: () => {
                 this.dependencies["mass_mailing.CustomizeMailingPlugin"].setVariable(
                     params.variable,
-                    oldValue
+                    oldValue,
                 );
             },
         });
@@ -241,17 +261,19 @@ export class CustomizeMailingVariable extends BuilderAction {
             apply: () => {
                 this.dependencies["mass_mailing.CustomizeMailingPlugin"].setVariable(
                     params.variable,
-                    params.clean ?? ""
+                    params.clean ?? "",
                 );
             },
             revert: () => {
                 this.dependencies["mass_mailing.CustomizeMailingPlugin"].setVariable(
                     params.variable,
-                    oldValue
+                    oldValue,
                 );
             },
         });
     }
 }
 
-registry.category("mass_mailing-plugins").add(CustomizeMailingPlugin.id, CustomizeMailingPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(CustomizeMailingPlugin.id, CustomizeMailingPlugin);

@@ -6,7 +6,11 @@ export class VersionControlPlugin extends Plugin {
     static id = "versionControl";
     static dependencies = ["builderOptions"];
     accessPerOutdatedEl = new WeakMap();
-    static shared = ["hasAccessToOutdatedEl", "giveAccessToOutdatedEl", "replaceWithNewVersion"];
+    static shared = [
+        "hasAccessToOutdatedEl",
+        "giveAccessToOutdatedEl",
+        "replaceWithNewVersion",
+    ];
 
     hasAccessToOutdatedEl(el) {
         if (!el.dataset.snippet) {
@@ -39,4 +43,6 @@ export class VersionControlPlugin extends Plugin {
     }
 }
 
-registry.category("mass_mailing-plugins").add(VersionControlPlugin.id, VersionControlPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(VersionControlPlugin.id, VersionControlPlugin);
