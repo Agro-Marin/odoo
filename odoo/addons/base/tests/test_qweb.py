@@ -2751,7 +2751,13 @@ class TestQWebBasic(TransactionCase):
         self.assertEqual(self.env["ir.qweb"]._render(view1.id).strip(), expected)
 
     def test_render_comments(self):
-        """Render comments with and without the preserve_comments option."""
+        """Render comments with and without the preserve_comments option.
+
+        No cache clear between the two renders: ``preserve_comments`` is read at
+        *compile* time, so it must be part of ``_get_template_cache_keys``.
+        Clearing the ``templates`` cache here (as this test used to) hid the
+        fact that it was not -- the first render of a template decided the
+        output for every later one."""
         comment = "<!-- Hello, world! -->"
         view = self.env["ir.ui.view"].create(
             {
@@ -2766,7 +2772,6 @@ class TestQWebBasic(TransactionCase):
             markupsafe.Markup("<p></p>"),
             "Should not have the comment",
         )
-        self.env.registry.clear_cache("templates")
         self.assertEqual(
             QWeb.with_context(preserve_comments=True)._render(view.id),
             markupsafe.Markup(f"<p>{comment}</p>"),
@@ -2789,7 +2794,6 @@ class TestQWebBasic(TransactionCase):
             markupsafe.Markup("<p></p>"),
             "Should not have the processing instruction",
         )
-        self.env.registry.clear_cache("templates")
         self.assertEqual(
             QWeb.with_context(preserve_comments=True)._render(view.id),
             markupsafe.Markup(f"<p>{p_instruction}</p>"),
@@ -3526,15 +3530,21 @@ class TestQWebHelpers(TransactionCase):
 
     def test_generated_code_contracts(self):
         """Pin two codegen contracts at the source level (not just via output):
-        the t-call slot is keyed by the integer 0, and ``*_last`` is reset for
-        lazy iterables (the leak fix)."""
+        the t-call slot is keyed by the *string* ``'0'``, and ``*_last`` is reset
+        for lazy iterables (the leak fix).
+
+        The slot key must match the one ``t-set`` writes. ``T_CALL_SLOT`` is the
+        string ``'0'``, but the codegen used to interpolate it unquoted, so the
+        reader emitted ``values.get(0, '')`` (an int) while ``t-set="0"`` wrote
+        ``values['0']`` -- and the documented slot override silently did
+        nothing."""
         View = self.env["ir.ui.view"]
         qweb = self.env["ir.qweb"]
 
         slot = View.create(
             {"name": "s", "type": "qweb", "arch_db": '<t t-name="s"><t t-out="0"/></t>'}
         )
-        self.assertIn("values.get(0, '')", qweb._generate_code(slot.id)[0])
+        self.assertIn("values.get('0', '')", qweb._generate_code(slot.id)[0])
 
         loop = View.create(
             {
@@ -3777,3 +3787,321 @@ class TestQWebImageDataUri(TransactionCase):
         self.assertEqual(uri, f"data:image/png;base64,{converted.datas.decode()}")
         with self.assertQueryCount(0):
             self.assertEqual(qweb._get_converted_image_data_uri(self.WEBP_B64), uri)
+
+
+class TestQWebCompileCacheKeys(TransactionCase):
+    """Every context key the *compiler* reads must be in
+    ``_get_template_cache_keys``. A missing key makes two different
+    compilations of one template collide in the ``templates`` ormcache, so the
+    first render of the process silently decides the output for every later
+    one -- and reversing the render order flips the result."""
+
+    def _view(self, key, arch):
+        return self.env["ir.ui.view"].create(
+            {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
+        )
+
+    def test_preserve_comments_is_part_of_the_cache_key(self):
+        view = self._view("pc_key", "<t><p><!-- C --><t t-out='1'/></p></t>")
+        qweb = self.env["ir.qweb"]
+        for first, second in ((False, True), (True, False)):
+            self.env.registry.clear_cache("templates")
+            self.assertEqual(
+                str(qweb.with_context(preserve_comments=first)._render(view.id)),
+                "<p><!-- C -->1</p>" if first else "<p>1</p>",
+            )
+            self.assertEqual(
+                str(qweb.with_context(preserve_comments=second)._render(view.id)),
+                "<p><!-- C -->1</p>" if second else "<p>1</p>",
+                f"compiled with preserve_comments={first}, reused for {second}",
+            )
+
+    def test_caller_nsmap_is_part_of_the_cache_key(self):
+        """A t-called template inherits the caller's nsmap and suppresses the
+        namespace declarations already in scope. Two callers with different
+        nsmaps therefore need two compilations; sharing one produced an
+        undeclared prefix -- XML that will not parse."""
+        self._view("ns_leaf", "<t><h:td xmlns:h='http://ex/t' t-out=\"'V'\"/></t>")
+        self._view(
+            "ns_inside",
+            "<t><h:table xmlns:h='http://ex/t'><t t-call='base.ns_leaf'/></h:table></t>",
+        )
+        self._view("ns_outside", "<t><root><t t-call='base.ns_leaf'/></root></t>")
+        qweb = self.env["ir.qweb"]
+        inside = '<h:table xmlns:h="http://ex/t"><h:td>V</h:td></h:table>'
+        outside = '<root><h:td xmlns:h="http://ex/t">V</h:td></root>'
+        for order in (("ns_inside", "ns_outside"), ("ns_outside", "ns_inside")):
+            self.env.registry.clear_cache("templates")
+            for name in order:
+                self.assertEqual(
+                    str(qweb._render(f"base.{name}")),
+                    inside if name == "ns_inside" else outside,
+                    f"render order {order} changed the output of {name}",
+                )
+        # the suppressed-declaration variant must still be well-formed XML
+        etree.fromstring(str(qweb._render("base.ns_outside")))
+
+    def test_signature_is_hashable_with_mapping_values(self):
+        """``nsmap`` is a mapping; the signature tuple must stay hashable and
+        order-independent so it can key both the ormcache and the render-local
+        memo."""
+        qweb = self.env["ir.qweb"]
+        a = qweb.with_context(nsmap={"h": "u1", None: "u2"})._template_cache_signature()
+        b = qweb.with_context(nsmap={None: "u2", "h": "u1"})._template_cache_signature()
+        self.assertEqual(hash(a), hash(b))
+        self.assertNotEqual(
+            a, qweb.with_context(nsmap={"h": "other"})._template_cache_signature()
+        )
+
+
+class TestQWebDirectiveContracts(TransactionCase):
+    """Directives whose documented behaviour did not match the generated code."""
+
+    def _view(self, key, arch):
+        return self.env["ir.ui.view"].create(
+            {"name": key, "type": "qweb", "key": f"base.{key}", "arch_db": arch}
+        )
+
+    def test_t_set_slot_overrides_the_t_call_content(self):
+        """``t-set="0"`` inside a t-call body replaces the slot handed to the
+        callee (the module docstring's "updatable via t-set")."""
+        self._view("slot_callee", "<t>[<t t-out='0'/>]</t>")
+        self._view(
+            "slot_caller",
+            "<t><t t-call='base.slot_callee'><t t-set='0'>OVERRIDE</t></t></t>",
+        )
+        self.assertEqual(
+            str(self.env["ir.qweb"]._render("base.slot_caller")), "[OVERRIDE]"
+        )
+
+    def test_t_call_body_still_reaches_the_slot(self):
+        self._view("slot_callee2", "<t>[<t t-out='0'/>]</t>")
+        self._view("slot_caller2", "<t><t t-call='base.slot_callee2'>BODY</t></t>")
+        self.assertEqual(
+            str(self.env["ir.qweb"]._render("base.slot_caller2")), "[BODY]"
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_qweb")
+    def test_deprecated_t_call_options_is_applied(self):
+        """``t-call-options`` used to be renamed to ``t-options`` from inside
+        ``_compile_directive_call`` -- after the ``options`` directive had
+        already been skipped -- so the dict was never built and the option was
+        silently dropped."""
+        self._view("co_leaf", "<t>[<!-- C --><t t-out='1'/>]</t>")
+        self._view("co_none", "<t><t t-call='base.co_leaf'/></t>")
+        self._view(
+            "co_old",
+            "<t><t t-call='base.co_leaf' t-call-options=\"{'preserve_comments': True}\"/></t>",
+        )
+        self._view(
+            "co_new",
+            "<t><t t-call='base.co_leaf' t-options=\"{'preserve_comments': True}\"/></t>",
+        )
+        qweb = self.env["ir.qweb"]
+        self.assertEqual(str(qweb._render("base.co_none")), "[1]")
+        self.assertEqual(str(qweb._render("base.co_new")), "[<!-- C -->1]")
+        self.assertEqual(
+            str(qweb._render("base.co_old")),
+            "[<!-- C -->1]",
+            "the deprecated spelling must behave like t-options",
+        )
+
+    def test_t_lang_does_not_duplicate_the_directive_walk(self):
+        """``t-lang`` used to re-enter ``_compile_node``, replacing
+        ``iter_directives`` while the caller still held the old iterator; the
+        already-consumed ``att`` directive was then compiled a second time."""
+        self._view("lang_leaf", "<t>L</t>")
+        plain = self._view("lang_plain", "<t><t t-call='base.lang_leaf'/></t>")
+        with_lang = self._view(
+            "lang_set", "<t><t t-call='base.lang_leaf' t-lang=\"'en_US'\"/></t>"
+        )
+        qweb = self.env["ir.qweb"]
+        marker = "attrs = values['__qweb_attrs__'] = {}"
+        self.assertEqual(
+            qweb._generate_code(with_lang.id)[0].count(marker),
+            qweb._generate_code(plain.id)[0].count(marker),
+        )
+        self.assertEqual(str(qweb._render(with_lang.id)), "L")
+
+    def test_t_set_beside_an_output_directive_is_a_syntax_error(self):
+        """Used to surface as a bare ``KeyError: 't-inner-content'``."""
+        view = self._view("set_out", "<t><t t-set='a' t-value='1' t-out='2'/></t>")
+        with self.assertRaises(QWebError) as cm:
+            self.env["ir.qweb"]._render(view.id)
+        self.assertIsInstance(cm.exception.__cause__, SyntaxError)
+        self.assertIn("t-set cannot share a node", str(cm.exception))
+
+    def test_t_options_does_not_mutate_the_caller_dict(self):
+        """``t-options="<expr>"`` assigned the caller's dict straight into
+        ``__qweb_options__``; the field/widget converters then wrote their
+        internal keys into it. The ``t-options-*`` spelling always copied."""
+        view = self._view("opt_alias", "<t><span t-out='v' t-options='opts'/></t>")
+        opts = {"widget": "float"}
+        self.env["ir.qweb"]._render(view.id, {"v": 1.5, "opts": opts})
+        self.assertEqual(opts, {"widget": "float"})
+
+
+class TestQWebExpressionFlattening(TransactionCase):
+    """``_compile_expr`` results are interpolated into indentation-sensitive
+    code templates, so they must be a single physical line. A newline in a
+    template attribute (XML normalises literal ones to spaces, but ``&#10;``
+    survives, and lxml *writes* ``&#10;`` when serialising a value containing
+    one) used to produce ``IndentationError`` at compile time."""
+
+    def _render(self, arch, values=None):
+        view = self.env["ir.ui.view"].create(
+            {"name": "nl", "type": "qweb", "arch_db": arch}
+        )
+        return str(self.env["ir.qweb"]._render(view.id, values or {}))
+
+    def test_newline_in_t_att_dict(self):
+        self.assertEqual(
+            self._render("<t><span t-att=\"{'a': 1,&#10;'b': 2}\">x</span></t>"),
+            '<span a="1" b="2">x</span>',
+        )
+
+    def test_newline_in_t_foreach(self):
+        self.assertEqual(
+            self._render(
+                "<t><t t-foreach='[1,&#10;2]' t-as='i'><t t-out='i'/></t></t>"
+            ),
+            "12",
+        )
+
+    def test_newline_in_t_args(self):
+        self.env["ir.ui.view"].create(
+            {
+                "name": "argleaf",
+                "type": "qweb",
+                "key": "base.argleaf",
+                "arch_db": "<t><t t-out='k'/><t t-out='j'/></t>",
+            }
+        )
+        self.assertEqual(
+            self._render(
+                "<t><t t-call='base.argleaf' t-args=\"{'k': 1,&#10;'j': 2}\"/></t>"
+            ),
+            "12",
+        )
+
+    def test_newline_survives_a_view_serialisation_round_trip(self):
+        """lxml writes a literal newline in an attribute as ``&#10;``, so a
+        programmatically built arch round-trips into a real newline on parse."""
+        el = etree.fromstring("<t><span t-att='x'/></t>")
+        el[0].set("t-att", "{'a': 1,\n'b': 2}")
+        arch = etree.tostring(el, encoding="unicode")
+        self.assertIn("&#10;", arch)
+        self.assertEqual(self._render(arch), '<span a="1" b="2"></span>')
+
+    def test_multiline_string_literal_is_preserved_not_corrupted(self):
+        """A newline inside a literal is significant, so the literal is
+        re-emitted in escaped source form (``'a\\nb'``) instead of being
+        flattened to a space. The rendered *value* keeps the real newline;
+        attribute escaping does not encode it."""
+        self.assertEqual(
+            self._render("<t><span t-att-title=\"'''a&#10;b'''\">x</span></t>"),
+            '<span title="a\nb">x</span>',
+        )
+
+
+class TestQWebStandaloneBodyContent(TransactionCase):
+    """The DB-less ``render()`` (used by the database manager) could not render
+    a ``t-call`` or ``t-set`` with body content: the mock loader reported
+    ``ref=None``, which ``_generate_code`` then stringified into the literal
+    template name ``'None'`` and handed back to ``load``."""
+
+    @staticmethod
+    def _load(templates):
+        def load(ref):
+            return (etree.fromstring(templates[ref]), ref)
+
+        return load
+
+    def test_t_call_with_body_content(self):
+        templates = {
+            "m": "<t><t t-call='s'>BODY</t></t>",
+            "s": "<t>[<t t-out='0'/>]</t>",
+        }
+        self.assertEqual(str(render("m", {}, self._load(templates))), "[BODY]")
+
+    def test_t_set_with_body_content(self):
+        templates = {"m": "<t><t t-set='a'>V</t><t t-out='a'/></t>"}
+        self.assertEqual(str(render("m", {}, self._load(templates))), "V")
+
+    def test_qweb_content_str_with_a_thread_dbname_set(self):
+        """``QwebContent.irQweb`` compares the thread dbname against
+        ``env.cr.dbname``; the mock cursor had no such attribute, and the
+        resulting ``AttributeError`` inside a property fell through to
+        ``__getattr__``, which re-entered ``__str__`` and recursed."""
+        templates = {
+            "m": "<t><t t-call='s'><t t-set='x' t-value='1'/>BODY</t></t>",
+            "s": "<t>[<t t-out='0'/>]</t>",
+        }
+        thread = threading.current_thread()
+        had = hasattr(thread, "dbname")
+        previous = getattr(thread, "dbname", None)
+        thread.dbname = "some_other_db"
+        try:
+            self.assertEqual(str(render("m", {}, self._load(templates))), "[BODY]")
+        finally:
+            if had:
+                thread.dbname = previous
+            else:
+                del thread.dbname
+
+    def test_qweb_content_does_not_render_on_a_dunder_probe(self):
+        """Delegating dunder lookups to ``Markup(self)`` forced a full render
+        just to answer a protocol probe -- and turned any internal
+        ``AttributeError`` into unbounded recursion."""
+        content = QwebContent(
+            self.env["ir.qweb"],
+            QwebCallParameters({}, "r", None, None, False, "t-set", None),
+        )
+        with self.assertRaises(AttributeError):
+            getattr(content, "__deepcopy__")  # noqa: B009
+        self.assertIsNone(content.html, "the snippet was rendered by a dunder probe")
+
+    def test_non_template_argument_is_rejected(self):
+        with self.assertRaises(TypeError):
+            self.env["ir.qweb"]._generate_code(object())
+
+
+class TestQWebStaticAttributes(TransactionCase):
+    """The static (compile-time) and dynamic (render-time) attribute paths must
+    hand ``_post_processing_att`` the same key spellings and escape their
+    output the same way."""
+
+    def _render(self, arch):
+        view = self.env["ir.ui.view"].create(
+            {"name": "sa", "type": "qweb", "arch_db": arch}
+        )
+        return str(self.env["ir.qweb"]._render(view.id))
+
+    def test_translate_suffix_is_stripped_before_post_processing(self):
+        seen = []
+        original = type(self.env["ir.qweb"])._post_processing_att
+
+        def spy(model, tagName, atts, *, is_static=False):
+            seen.append(dict(atts))
+            return original(model, tagName, atts, is_static=is_static)
+
+        with patch.object(type(self.env["ir.qweb"]), "_post_processing_att", spy):
+            out = self._render("<t><span title.translate='hi' class='c'>x</span></t>")
+        self.assertEqual(out, '<span title="hi" class="c">x</span>')
+        self.assertEqual(seen[0], {"title": "hi", "class": "c"})
+
+    def test_attribute_names_are_escaped_on_the_static_path(self):
+        """``_post_processing_att`` is an override point; a name it introduces
+        must not be able to break out of the attribute. The dynamic path always
+        escaped names, the static one interpolated them raw."""
+        original = type(self.env["ir.qweb"])._post_processing_att
+
+        def inject(model, tagName, atts, *, is_static=False):
+            atts = dict(atts)
+            atts['x" onload="alert(1)'] = "1"
+            return original(model, tagName, atts, is_static=is_static)
+
+        with patch.object(type(self.env["ir.qweb"]), "_post_processing_att", inject):
+            out = self._render("<t><span class='c'>x</span></t>")
+        self.assertNotIn(' onload="alert(1)"', out)
+        self.assertIn("&#34;", out)

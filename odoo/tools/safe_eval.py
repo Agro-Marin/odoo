@@ -599,8 +599,19 @@ def test_python_expr(expr: str, mode: str = "eval") -> str | typing.Literal[Fals
     return False
 
 
+_UNSEARCHABLE = (str, bytes, bytearray, int, float, complex, bool, type(None))
+_CONTAINERS = (dict, list, tuple, set, frozenset)
+
+
 def _check_module(value: object, seen: set[int] | None = None) -> None:
-    """Recursively check that no module is hidden in containers."""
+    """Recursively check that no module is hidden in containers.
+
+    Scalars short-circuit before the identity bookkeeping: this walks the whole
+    render/eval payload on every call, so on a data-heavy ``ir.qweb`` render the
+    leaves (a few hundred thousand strings and ints) are the entire cost.
+    """
+    if isinstance(value, _UNSEARCHABLE):
+        return
     if isinstance(value, types.ModuleType):
         raise TypeError(f"""Module {value} can not be used in evaluation contexts
 
@@ -612,6 +623,8 @@ whitelisting allowed attributes.
 
 Pre-wrapped modules are provided as attributes of `odoo.tools.safe_eval`.
 """)
+    if not isinstance(value, _CONTAINERS):
+        return
     if seen is None:
         seen = set()
     obj_id = id(value)
@@ -622,16 +635,22 @@ Pre-wrapped modules are provided as attributes of `odoo.tools.safe_eval`.
         for k, v in value.items():
             _check_module(k, seen)
             _check_module(v, seen)
-    elif isinstance(value, (list, tuple, set, frozenset)):
+    else:
         for v in value:
             _check_module(v, seen)
 
 
 def check_values(d: dict | None) -> dict | None:
+    """Reject module objects reachable from ``d``'s values.
+
+    One ``seen`` set is shared across the top-level values so a structure
+    referenced under several keys is walked once, not once per key.
+    """
     if not d:
         return d
+    seen: set[int] = set()
     for v in d.values():
-        _check_module(v)
+        _check_module(v, seen)
     return d
 
 
