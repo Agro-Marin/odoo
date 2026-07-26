@@ -2,9 +2,9 @@
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import api, fields, models, _
-from odoo.fields import Domain
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.tools import float_compare
 from odoo.tools.misc import get_lang
 
@@ -235,7 +235,7 @@ class SaleOrderLine(models.Model):
                 [
                   ('partner_id', '=', partner.id),
                   ('state', '=', 'draft'),
-                  ('company_id', '=', (company and company or self.env.company).id),
+                  ('company_id', '=', (company or self.env.company).id),
                 ],
                 self._get_additional_domain_for_purchase_order_line(),
             ]),
