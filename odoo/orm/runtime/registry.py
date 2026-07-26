@@ -254,7 +254,7 @@ class Registry(
         registry.ready = True
         registry.registry_invalidated = bool(update_module)
 
-        registry._field_triggers
+        registry._ensure_field_triggers()
 
         if update_module:
             from odoo.db import drain_all
@@ -555,7 +555,7 @@ class Registry(
             for model in env.values():
                 model._register_hook()
             self.__dict__.pop("_field_triggers", None)
-            self._field_triggers
+            self._ensure_field_triggers()
             env.flush_all()
 
     def post_init(self, func: Callable, *args, **kwargs) -> None:

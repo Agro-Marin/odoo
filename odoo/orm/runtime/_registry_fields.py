@@ -27,6 +27,16 @@ _schema = logging.getLogger("odoo.schema")
 class _RegistryFieldsMixin(_RegistryStubs):
     """Field-dependency graph: triggers, inverses, computed-field deps."""
 
+    def _ensure_field_triggers(self) -> dict:
+        """Return the trigger map, building and publishing it if needed.
+
+        Callers that only need the graph published into ``model_graph`` before
+        reading it discard the result; naming the barrier keeps that intent
+        readable, where the bare ``self._field_triggers`` it replaces looked
+        like dead code.
+        """
+        return self._field_triggers
+
     @property
     def field_depends(self) -> typing.Any:
         """Field dependencies — delegates to model_graph (single source of truth)."""
@@ -98,7 +108,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
         ``select`` is called on each field to choose which fields to keep in the
         tree nodes. Delegates to ``model_graph``.
         """
-        self._field_triggers
+        self._ensure_field_triggers()
         return self.model_graph.get_trigger_tree(fields, select)
 
     def get_dependent_fields(self, field: Field) -> Iterator[Field]:
@@ -106,7 +116,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
         Delegates to ``model_graph``.
         """
-        self._field_triggers
+        self._ensure_field_triggers()
         return self.model_graph.get_dependent_fields(field)
 
     @locked
@@ -140,7 +150,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
         self.model_graph.end_invalidation()
         self.__dict__.pop("_field_triggers", None)
-        self._field_triggers
+        self._ensure_field_triggers()
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:
         """Return a field's trigger tree (transitive closure of field triggers).
@@ -148,7 +158,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
         Delegates to ``model_graph``, which handles the closure, path
         simplification (m2o→o2m cancellation), and caching.
         """
-        self._field_triggers
+        self._ensure_field_triggers()
         return self.model_graph.get_field_trigger_tree(field)
 
     @functools.cached_property
@@ -202,5 +212,5 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
         Delegates to ``model_graph``.
         """
-        self._field_triggers
+        self._ensure_field_triggers()
         return self.model_graph.is_modifying_relations(field)

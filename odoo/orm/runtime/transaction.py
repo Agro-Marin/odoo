@@ -129,7 +129,7 @@ class Transaction:
         registry = self.registry
         if registry is None:
             return None
-        registry._field_triggers
+        registry._ensure_field_triggers()
         model_graph = getattr(registry, "model_graph", None)
         return model_graph.recompute_order if model_graph is not None else None
 

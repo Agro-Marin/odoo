@@ -190,7 +190,7 @@ def audit_registry(
         a stored computed field with no dependencies is still computed on
         create, so it is wrong-but-not-invisible, and several are intentional.
     """
-    registry._field_triggers
+    registry._ensure_field_triggers()
     for model_class in registry.models.values():
         if model_class._abstract:
             continue
