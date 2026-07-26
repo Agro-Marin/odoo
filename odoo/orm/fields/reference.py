@@ -221,15 +221,25 @@ class Many2oneReference(Integer):
 
     @override
     def _update_inverses(self, records: BaseModel, value: typing.Any) -> None:
-        """Add `records` to the cached values of the inverse fields of `self`."""
+        """Add `records` to the cached values of the inverse fields of `self`.
+
+        Only the inverse fields whose model actually appears in ``records`` are
+        visited. A reference field is the inverse of one field per model that
+        points at it -- 136 of them for ``mail.message.res_id`` -- while a given
+        batch names one or two models, so indexing the (default)dict per inverse
+        field built an empty entry and a throwaway recordset for every other
+        one: 13600 browses per ``create()`` of 100 partners, 28ms of the 48ms
+        spent here.
+        """
         if not value:
             return
         model_ids = self._record_ids_per_res_model(records)
 
         for invf in records.pool.field_inverses[self]:
-            recs = records.browse(model_ids[invf.model_name])
-            if not recs:
+            ids = model_ids.get(invf.model_name)
+            if not ids:
                 continue
+            recs = records.browse(ids)
             corecord = records.env[invf.model_name].browse(value)
             recs = recs.filtered_domain(invf.get_comodel_domain(corecord))
             if not recs:

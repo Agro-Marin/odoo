@@ -3,6 +3,8 @@
 import functools
 import logging
 import typing
+from collections import defaultdict
+from operator import itemgetter
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
@@ -16,7 +18,7 @@ from ...primitives import NO_ACCESS
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Collection
+    from collections.abc import Callable, Collection, Iterator
 
     from ...fields import Field
 
@@ -268,6 +270,79 @@ class AccessMixin(_ModelStubs):
             return Domain("company_id", "in", unquote(f"{companies} + [False]"))
         return Domain("company_id", "in", to_record_ids(companies) + [False])
 
+    def _check_company_candidates(
+        self, regular_fields: list[str], property_fields: list[str]
+    ) -> dict[tuple, list[tuple]]:
+        """Group the ``(record, field, corecords)`` triples to check.
+
+        The key is ``(field_name, allowed company ids)``: everything a
+        :meth:`_check_company_domain` result depends on. Grouping lets
+        :meth:`_check_company_violations` build and evaluate one domain per
+        group instead of one per record, which is what made the check scale
+        with the recordset (2200 domain optimizations for 100 partners).
+
+        The rank in each entry is the position the triple has in the
+        record-major order the error message is built from.
+        """
+        groups: dict[tuple, list[tuple]] = defaultdict(list)
+        property_company = self.env.company
+        width = len(regular_fields) + len(property_fields)
+        scopes = [(regular_fields, None), (property_fields, property_company)]
+
+        for record_index, record_su in enumerate(self.sudo()):
+            record = record_su.sudo(self.env.su)
+            offset = 0
+            for names, fixed_companies in scopes:
+                if fixed_companies is None and names:
+                    companies = (
+                        record
+                        if self._name == "res.company"
+                        else record.company_id
+                        if "company_id" in self
+                        else record.company_ids
+                    )
+                else:
+                    companies = fixed_companies
+                for position, name in enumerate(names):
+                    corecords = record_su[name]
+                    if corecords:
+                        groups[(name, tuple(companies.ids))].append(
+                            (
+                                record_index * width + offset + position,
+                                record,
+                                corecords,
+                                companies,
+                            )
+                        )
+                offset += len(names)
+        return groups
+
+    def _check_company_violations(
+        self, groups: dict[tuple, list[tuple]]
+    ) -> Iterator[tuple[int, Self, str, Self]]:
+        """Yield ``(rank, record, field_name, corecords)`` for each violation.
+
+        One domain and one ``filtered_domain`` per group. Evaluating the union
+        of a group's corecords is equivalent to evaluating each separately --
+        the domain compiles to a per-record predicate -- and a ``Query``-valued
+        condition is even resolved in a single query instead of one per record.
+        """
+        for (name, _companies_ids), entries in groups.items():
+            companies = entries[0][3]
+            comodel = entries[0][2].browse()
+            all_corecords = comodel.union(*(entry[2] for entry in entries))
+            domain = all_corecords._check_company_domain(companies)
+            if not domain:
+                continue
+            allowed = set(
+                all_corecords.with_context(active_test=False)
+                .filtered_domain(domain)
+                ._ids
+            )
+            for rank, record, corecords, _companies in entries:
+                if not allowed.issuperset(corecords._ids):
+                    yield rank, record, name, corecords
+
     def _check_company(self, fnames: Collection[str] | None = None) -> None:
         """Check the companies of the values of the given field names.
 
@@ -299,42 +374,28 @@ class AccessMixin(_ModelStubs):
         if not (regular_fields or property_fields):
             return
 
-        inconsistencies = []
-        property_company = self.env.company
-        for record in self:
-            record_su = record.sudo()
-            if regular_fields:
-                if self._name == "res.company":
-                    companies = record
-                elif "company_id" in self:
-                    companies = record.company_id
-                elif "company_ids" in self:
-                    companies = record.company_ids
-                else:
-                    _logger.warning(
-                        "Skipping a company check for model %s. Its fields %s "
-                        "are set as company-dependent, but the model doesn't "
-                        "have a `company_id` or `company_ids` field!",
-                        self._name,
-                        regular_fields,
-                    )
-                    continue
-                for name in regular_fields:
-                    corecords = record_su[name]
-                    if corecords:
-                        domain = corecords._check_company_domain(companies)
-                        if domain and corecords != corecords.with_context(
-                            active_test=False
-                        ).filtered_domain(domain):
-                            inconsistencies.append((record, name, corecords))
-            for name in property_fields:
-                corecords = record_su[name]
-                if corecords:
-                    domain = corecords._check_company_domain(property_company)
-                    if domain and corecords != corecords.with_context(
-                        active_test=False
-                    ).filtered_domain(domain):
-                        inconsistencies.append((record, name, corecords))
+        if regular_fields and not (
+            self._name == "res.company" or "company_id" in self or "company_ids" in self
+        ):
+            _logger.warning(
+                "Skipping a company check for model %s. Its fields %s "
+                "are set as company-dependent, but the model doesn't "
+                "have a `company_id` or `company_ids` field!",
+                self._name,
+                regular_fields,
+            )
+            # the company-dependent fields are skipped too, as before the
+            # grouping: they do not depend on the record's own company, so this
+            # is a pre-existing over-reach kept out of a performance change
+            return
+
+        candidates = self._check_company_candidates(regular_fields, property_fields)
+        inconsistencies = [
+            (record, name, corecords)
+            for _rank, record, name, corecords in sorted(
+                self._check_company_violations(candidates), key=itemgetter(0)
+            )
+        ]
 
         if inconsistencies:
             lines = [_("Uh-oh! You've got some company inconsistencies here:")]

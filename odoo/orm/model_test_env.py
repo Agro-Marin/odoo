@@ -24,6 +24,7 @@ from odoo.db import BaseCursor
 from odoo.libs.collections.misc import Collector
 from odoo.tools import OrderedSet
 
+from . import decorators as api
 from . import registration
 from .components.model_graph import ModelGraph
 from .components.storage import DictBackend
@@ -116,6 +117,28 @@ class _TestResUsers(Model):
     login = Char()
     active = Boolean(default=True)
     company_id = Many2one("res.company")
+
+    def _get_company_ids(self):
+        """Companies this user may act for.
+
+        ``Environment.company`` / ``companies`` call this to authorize an
+        ``allowed_company_ids`` context on a non-superuser environment, so
+        without it the harness could only exercise superuser environments.
+        The real ``res.users`` unions ``company_ids``; the stub has no such
+        field and reports the main company alone.
+        """
+        return self.company_id.ids
+
+    @api.model
+    def context_get(self):
+        """User context used by the translation machinery.
+
+        ``odoo.tools.translate`` falls back to this when it cannot infer a
+        language from the frame, which every ``_()`` call reached from model
+        code eventually does.  Without it a DB-free test could not exercise any
+        code path that builds a translated ``UserError``/``ValidationError``.
+        """
+        return {"lang": "en_US", "tz": False, "uid": self.env.uid}
 
 
 class _TestResCompany(Model):
