@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from unittest.mock import patch, DEFAULT
+from unittest.mock import DEFAULT, patch
+
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import Form
@@ -280,12 +281,11 @@ class TestCarrierPropagation(TransactionCase):
             def _throw_error_on_chosen_picking(self):
                 if self == pick:
                     raise UserError("Something went wrong, parcel not returned from Sendcloud: {'weight': ['The weight must be less than 10.001 kg']}")
-                else:
-                    return DEFAULT
+                return DEFAULT
             return _throw_error_on_chosen_picking
 
         sale_orders.action_confirm()
-        for i in range(0, len(sale_orders)):
+        for i in range(len(sale_orders)):
             # check that a delivery was created for the associated carrier
             self.assertEqual(sale_orders[i].picking_ids.carrier_id.id, sale_orders[i].carrier_id.id)
         pickings = sale_orders.picking_ids

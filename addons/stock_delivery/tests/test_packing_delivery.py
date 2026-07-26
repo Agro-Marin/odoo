@@ -1,17 +1,19 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from unittest.mock import patch
+
 from odoo import Command
-from odoo.addons.stock.tests.test_packing import TestPackingCommon
 from odoo.exceptions import UserError
 from odoo.tests import Form
-from unittest.mock import patch
+
+from odoo.addons.stock.tests.test_packing import TestPackingCommon
 
 
 class TestPacking(TestPackingCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestPacking, cls).setUpClass()
+        super().setUpClass()
         cls.uom_kg = cls.env.ref('uom.product_uom_kgm')
         cls.product_aw = cls.env['product.product'].create({
             'name': 'Product AW',
