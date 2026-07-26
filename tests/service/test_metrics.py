@@ -24,6 +24,24 @@ def mod():
     return m
 
 
+@pytest.fixture()
+def pooled_db():
+    """Return ``odoo.db``, skipping if it cannot report pool health yet.
+
+    The pool half of the exposition reads :func:`odoo.db.pool_health`.  Skipping
+    rather than faking it with ``create=True``: a mock conjured onto a module
+    that does not export the function would assert the renderer works against an
+    interface this checkout does not have, and pass while the real thing was
+    missing.  ``render_prometheus`` already degrades to an empty pool section in
+    that case, which the never-raise test covers without needing the attribute.
+    """
+    from odoo import db
+
+    if not hasattr(db, "pool_health"):
+        pytest.skip("odoo.db.pool_health is not present in this checkout")
+    return db
+
+
 METRIC_NAME = re.compile(r"^[a-zA-Z_:][a-zA-Z0-9_:]*$")
 SAMPLE = re.compile(
     r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{.*\})? (-?[0-9.eE+]+|NaN|\+Inf|-Inf)$"
@@ -135,7 +153,7 @@ class TestPrometheusExposition:
         assert not errors, errors
         assert "odoo_up" in declared
 
-    def test_pool_counters_are_typed_as_counters(self, mod):
+    def test_pool_counters_are_typed_as_counters(self, mod, pooled_db):
         health = {
             "read_write": {
                 "mode": "read/write",
@@ -153,9 +171,7 @@ class TestPrometheusExposition:
                 "per_database": {"prod": {"pool_size": 5, "requests_waiting": 0}},
             }
         }
-        from odoo import db
-
-        with patch.object(db, "pool_health", return_value=health):
+        with patch.object(pooled_db, "pool_health", return_value=health):
             text = mod.render_prometheus()
         declared, errors = parse_exposition(text)
         assert not errors, errors
@@ -171,7 +187,7 @@ class TestPrometheusExposition:
             in text
         )
 
-    def test_database_names_are_escaped_in_labels(self, mod):
+    def test_database_names_are_escaped_in_labels(self, mod, pooled_db):
         """A label value is attacker-influenced: database names are user-chosen."""
         health = {
             "read_write": {
@@ -179,9 +195,7 @@ class TestPrometheusExposition:
                 "per_database": {'we"ird\\name': {"pool_size": 1}},
             }
         }
-        from odoo import db
-
-        with patch.object(db, "pool_health", return_value=health):
+        with patch.object(pooled_db, "pool_health", return_value=health):
             text = mod.render_prometheus()
         _, errors = parse_exposition(text)
         assert not errors, errors
@@ -204,7 +218,7 @@ class TestPrometheusExposition:
         _, errors = parse_exposition(text)
         assert not errors, errors
 
-    def test_every_series_carries_the_serving_pid(self, mod):
+    def test_every_series_carries_the_serving_pid(self, mod, pooled_db):
         """Under prefork a scrape lands on whichever worker won ``accept(2)``.
 
         Each worker owns its own pools and counters, so without a ``pid`` label
@@ -213,9 +227,7 @@ class TestPrometheusExposition:
         Prometheus as a process restart.
         """
         health = {"read_write": {"pool": {"borrows": 3}, "per_database": {}}}
-        from odoo import db
-
-        with patch.object(db, "pool_health", return_value=health):
+        with patch.object(pooled_db, "pool_health", return_value=health):
             text = mod.render_prometheus()
         samples = [
             line for line in text.splitlines() if line and not line.startswith("#")
@@ -225,12 +237,12 @@ class TestPrometheusExposition:
         unlabelled = [line for line in samples if expected not in line]
         assert not unlabelled, unlabelled
 
-    def test_render_survives_a_failing_subsystem(self, mod):
+    def test_render_survives_a_failing_subsystem(self, mod, pooled_db):
         """A scrape that raises is a monitoring outage stacked on the incident."""
-        from odoo import db
-
         with (
-            patch.object(db, "pool_health", side_effect=RuntimeError("pool is gone")),
+            patch.object(
+                pooled_db, "pool_health", side_effect=RuntimeError("pool is gone")
+            ),
             patch.object(mod, "service_metrics", side_effect=RuntimeError("no server")),
         ):
             text = mod.render_prometheus()
