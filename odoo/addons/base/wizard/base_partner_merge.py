@@ -335,7 +335,18 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                         with mute_logger("odoo.db"), self.env.cr.savepoint():
                             rec.sudo().write({record.name: new_value})
                             rec.env.flush_all()
-                    except psycopg.Error:
+                    except psycopg.Error as error:
+                        _logger.warning(
+                            "Merging %s into %s: re-pointing %s.%s failed (%s), "
+                            "deleting %s#%s to keep the reference consistent",
+                            src_records.ids,
+                            dst_record.id,
+                            record.model,
+                            record.name,
+                            error.__class__.__name__,
+                            rec._name,
+                            rec.id,
+                        )
                         rec.sudo().unlink()
         for field in self.env.registry.many2one_company_dependents[dst_record._name]:
             self.env.cr.execute(

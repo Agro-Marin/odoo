@@ -281,9 +281,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
          long as the cursor itself does and proactively cleared when the
          cursor is closed.
 
-         This cache should *only* be used to store repeatable reads as it
-         ignores rollbacks and savepoints, it should not be used to store
-         *any* data which may be modified during the life of the cursor.
+         Whether it survives a rollback depends on a layer above: an attached
+         :class:`~odoo.orm.runtime.transaction.Transaction` clears it from
+         ``Transaction.clear()``, which runs on both ``rollback()`` and
+         ``ROLLBACK TO SAVEPOINT``; a bare cursor with no transaction keeps its
+         entries across both. Do not rely on either -- store only repeatable
+         reads here, and never data that changes during the life of the cursor.
+         A writer that must cache mutable state (``res.currency``'s rate
+         history, say) owns invalidating its own key on every mutation.
 
     """
 

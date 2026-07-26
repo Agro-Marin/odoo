@@ -555,7 +555,7 @@ class IrSequence(models.Model):
                 ("code", "=", sequence_code),
                 ("company_id", "in", [company_id, False]),
             ],
-            order="company_id",
+            order="company_id, id",
         )
         if not seq_ids:
             _logger.debug(

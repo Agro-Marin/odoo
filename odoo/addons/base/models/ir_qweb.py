@@ -3087,9 +3087,14 @@ class IrQweb(models.AbstractModel):
         return code
 
     def _debug_trace(self, debugger: str, values: dict[str, Any]) -> None:
-        """Method called at running time to load debugger."""
+        """Method called at running time to load debugger.
+
+        The ``breakpoint()`` below is the feature, not debug residue: it is what
+        the ``t-debug`` template directive exists to reach, honouring whatever
+        ``PYTHONBREAKPOINT`` names.
+        """
         if not debugger:
-            breakpoint()
+            breakpoint()  # noqa: T100
         elif debugger in SUPPORTED_DEBUGGER:
             warnings.warn(
                 "Using t-debug with an explicit debugger is deprecated "
