@@ -1115,6 +1115,7 @@ class DomainCondition(Domain):
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
+                model._check_field_access(field, "read")
                 if field.type == "boolean":
                     for opt in _OPTIMIZATIONS_FOR[level].get("boolean", ()):
                         collapsed = opt(self, model)

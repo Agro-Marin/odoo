@@ -8,6 +8,7 @@ from . import (
     test_domain_evaluator_parity,
     test_env_operations,
     test_field_get_equivalence_db,
+    test_field_groups_sql,
     test_fields,
     test_hotpath_contracts,
     test_index_method,

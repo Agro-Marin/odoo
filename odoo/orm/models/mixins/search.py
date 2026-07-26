@@ -548,6 +548,18 @@ class SearchMixin(_ModelStubs):
 
         The query object is necessary for inherited fields, many2one fields and
         properties fields, where joins are added to the query.
+
+        A non-stored *related* field is resolved by recursing onto its target,
+        so the access check below applies to the target, never to the related
+        field's own ``groups``.  Do not "fix" that by checking here first: this
+        runs for ORDER BY too, on a **model-level (empty) recordset**, and
+        ``_has_field_access`` may be record-sensitive -- ``res.users`` grants
+        ``SELF_READABLE_FIELDS`` only when ``self._origin == self.env.user``, so
+        an empty recordset fails closed and a user can no longer sort, or open
+        the preferences form for, their own record.  Disclosure is blocked at
+        the entry points that actually return values instead: domain conditions
+        (``DomainCondition._optimize_step``) and read_group
+        (``_read_group_select`` / ``_read_group_groupby``).
         """
         fname, property_name = parse_field_expr(field_expr)
         field = self._fields.get(fname)
