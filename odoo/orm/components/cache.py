@@ -6,10 +6,11 @@ with pure Python. Keyed by field objects (any hashable) and record IDs.
 """
 
 from collections import ChainMap, defaultdict
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator, Mapping
+    from collections.abc import Collection, Iterable, Mapping
 
 _MISSING = object()
 
@@ -138,11 +139,16 @@ class FieldCache:
     def invalidate(
         self,
         field: Any,
-        ids: Collection | None = None,
+        ids: Iterable | None = None,
         *,
         context_dependent: bool,
     ) -> None:
-        """Invalidate cached values for *field* (all if *ids* is ``None``)."""
+        """Invalidate cached values for *field* (all if *ids* is ``None``).
+
+        The context-dependent branch walks *ids* once per sub-cache, so a
+        one-shot iterator is materialized first; without that it invalidates
+        nothing and reports no error.
+        """
         field_cache = self._data.get(field)
         if not field_cache:
             return
@@ -160,6 +166,8 @@ class FieldCache:
                 else:
                     del field_cache[key]
             return
+        if isinstance(ids, Iterator):
+            ids = tuple(ids)
         for id_ in ids:
             field_cache.pop(id_, None)
         for key, sub_cache in field_cache.items():
@@ -186,6 +194,20 @@ class FieldCache:
             subs = [v for k, v in field_cache.items() if isinstance(k, tuple)]
             return ChainMap(*subs) if subs else {}
         return field_cache
+
+    def iter_context_caches(self, field: Any) -> Iterator[tuple[tuple, dict]]:
+        """Yield ``(context_key, sub_cache)`` for a context-dependent *field*.
+
+        The counterpart of :meth:`all_cached_ids` for callers that need the
+        context key as well as the ids, and it applies the same tuple-key
+        filter, so both agree on which entries are per-context sub-caches.
+        """
+        field_cache = self._data.get(field)
+        if not field_cache:
+            return
+        for key, sub_cache in field_cache.items():
+            if isinstance(key, tuple):
+                yield key, sub_cache
 
     def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
         """Invalidate cached values for *field*, probing the cache shape.
