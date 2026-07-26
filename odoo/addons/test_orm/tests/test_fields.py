@@ -775,38 +775,30 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
 
     def test_13_inverse_with_unlink(self):
         """test x2many delete command combined with an inverse field"""
-
-        country1 = self.env["res.country"].create(
-            {"name": "test country", "code": "ZV"}
-        )
-        country2 = self.env["res.country"].create(
-            {"name": "other country", "code": "ZX"}
-        )
-        company = self.env["res.company"].create(
+        parent = self.env["test_orm.inverse.with.unlink"].create(
             {
-                "name": "test company",
+                "name": "parent",
                 "child_ids": [
-                    (0, 0, {"name": "Child Company 1"}),
-                    (0, 0, {"name": "Child Company 2"}),
+                    (0, 0, {"name": "Child 1"}),
+                    (0, 0, {"name": "Child 2"}),
                 ],
             }
         )
-        child_company = company.child_ids[0]
+        child = parent.child_ids[0]
 
-        field = type(company).country_id
+        field = type(parent).tag
         self.assertFalse(field.store)
         self.assertTrue(field.inverse)
 
-        company.write({"country_id": country1.id})
-        self.assertEqual(company.country_id, country1)
+        parent.write({"tag": "first"})
+        self.assertEqual(parent.tag, "first")
 
-        company.write(
-            {
-                "country_id": country2.id,
-                "child_ids": [(2, child_company.id)],
-            }
-        )
-        self.assertEqual(company.country_id, country2)
+        # deleting a child flushes inside One2many.write_real; the inversed
+        # field written in the same call must survive that flush
+        parent.write({"tag": "second", "child_ids": [(2, child.id)]})
+        self.assertEqual(parent.tag, "second")
+        self.assertEqual(parent.stored_tag, "second")
+        self.assertEqual(parent.child_ids.mapped("name"), ["Child 2"])
 
     def test_14_search(self):
         """test search on computed fields"""
@@ -1293,13 +1285,19 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
 
         demo_env = self.env(user=demo)
         self.assertNotEqual(demo_env, self.env)
+        self.assertEqual(demo_env, self.env(user=demo))
 
         self.assertEqual(message.env, self.env)
         self.assertEqual(message.discussion.env, self.env)
 
+        # `with_user` is overridable — `mail` extends it to drop the guest from
+        # the context — so compare what the ORM guarantees (the target user, and
+        # that traversing a relation keeps the environment) rather than the
+        # identity of an environment built by a different route.
         demo_message = message.with_user(demo)
-        self.assertEqual(demo_message.env, demo_env)
-        self.assertEqual(demo_message.discussion.env, demo_env)
+        self.assertEqual(demo_message.env.uid, demo.id)
+        self.assertFalse(demo_message.env.su)
+        self.assertEqual(demo_message.discussion.env, demo_message.env)
 
         self.env.invalidate_all()
 
@@ -1743,6 +1741,12 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                     )
                     if company_dependent_column_not_null:
                         with self.subTest(domain=domain, default=default):
+                            # assertQueriesContain flushes before it counts,
+                            # and a pending precommit hook there drops the
+                            # ormcaches; drain it first, then warm, so the
+                            # reference run and the asserted run start alike
+                            self.env.flush_all()
+                            self.env.cr.flush()
                             Model.search([("id", "in", records.ids)] + domain)
                             current_thread.query_count = 0
                             current_thread.query_time = 0
