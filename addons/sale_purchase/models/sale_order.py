@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 
 class SaleOrder(models.Model):
@@ -18,7 +17,7 @@ class SaleOrder(models.Model):
             order.purchase_order_count = len(order._get_purchase_orders())
 
     def _action_confirm(self):
-        result = super(SaleOrder, self)._action_confirm()
+        result = super()._action_confirm()
         for order in self:
             order.line_ids.sudo()._purchase_service_generation()
         return result
