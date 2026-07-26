@@ -1,5 +1,4 @@
-from odoo import models, api, fields
-
+from odoo import api, fields, models
 from odoo.tools import date_utils
 
 
@@ -17,7 +16,7 @@ class ResCompany(models.Model):
         existing_companies.fetch(["fiscalyear_last_day", "fiscalyear_last_month"])
         results = []
 
-        for data, company in zip(payload, companies):
+        for data, company in zip(payload, companies, strict=True):
             if company not in existing_companies:
                 results.append(False)
                 continue
