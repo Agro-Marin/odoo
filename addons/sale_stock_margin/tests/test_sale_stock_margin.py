@@ -338,7 +338,8 @@ class TestSaleStockMargin(TestStockValuationCommon):
         having its `purchase_price` and `margin` + `margin_percent` fields correctly calculated.
         """
         products = [self._create_product() for _ in range(2)]
-        for product, cost, price in zip(products, [20, 10], [25, 20]):
+        # products, costs and prices are three 2-element sequences built together
+        for product, cost, price in zip(products, [20, 10], [25, 20], strict=True):
             product.categ_id.property_cost_method = 'standard'
             product.write({
                 'standard_price': cost,
