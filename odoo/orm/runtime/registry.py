@@ -74,6 +74,35 @@ _SIGNALING_TABLES = tuple(
     f"orm_signaling_{cache_name}" for cache_name in ["registry", *_CACHES_BY_KEY]
 )
 
+_ASSERTION_REPORTS: dict[str, typing.Any] = {}
+"""``{db_name: OdooTestResult}`` — the test report belongs to a database, not to
+a :class:`Registry` instance.
+
+``odoo.service.lifecycle.preload_registries`` derives the ``odoo-bin
+--test-enable`` exit code from ``registry._assertion_report.wasSuccessful()`` on
+whichever registry is published in :attr:`Registry.registries`.  Per-instance,
+any test that reloads the registry (``Registry.new``, as
+``base/tests/test_uninstall.py`` does) published an empty report and discarded
+every failure recorded before it, so the run logged its failures and still
+exited 0.  Verified by A/B on identical databases: exit 0 per-instance, exit 1
+per-database, same one failing test."""
+
+
+def _get_assertion_report(db_name: str) -> typing.Any:
+    """Return the per-database test report, or ``None`` outside test mode.
+
+    The single owner of the report's lifetime; see :data:`_ASSERTION_REPORTS`
+    for why it is not per-:class:`Registry`.
+    """
+    if not config["test_enable"]:
+        return None
+    from odoo.tests.result import OdooTestResult
+
+    report = _ASSERTION_REPORTS.get(db_name)
+    if report is None:
+        report = _ASSERTION_REPORTS[db_name] = OdooTestResult()
+    return report
+
 
 class _RegistryCaches:
     """Owns a registry's ormcache LRU stores and their bulk-clear logic.
@@ -273,12 +302,7 @@ class Registry(
         self.models: dict[str, type[BaseModel]] = {}
         self._database_translated_fields: dict[str, str] = {}
         self._database_company_dependent_fields: set[str] = set()
-        if config["test_enable"]:
-            from odoo.tests.result import OdooTestResult
-
-            self._assertion_report: OdooTestResult | None = OdooTestResult()
-        else:
-            self._assertion_report = None
+        self._assertion_report = _get_assertion_report(db_name)
         self._ordinary_tables: set[str] | None = None
         self._constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]] = {}
         self._caches = _RegistryCaches()
