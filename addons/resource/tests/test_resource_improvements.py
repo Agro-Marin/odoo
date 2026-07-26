@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 
 import pytz
 
+from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -874,3 +875,85 @@ class TestDurationHoursRecompute(TransactionCase):
         self.assertEqual(attendance.duration_hours, 0)
         attendance.day_period = "full_day"
         self.assertEqual(attendance.duration_hours, 8)
+
+
+@tagged("post_install", "-at_install")
+class TestDurationDaysDepends(TransactionCase):
+    """duration_days must recompute when its inputs change, not only day_period."""
+
+    # duration_days is a stored, manually-overridable field derived from
+    # duration_hours and calendar_id.hours_per_day; both legs must retrigger it.
+
+    def test_duration_days_recomputes_on_hours_change(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Duration-days depends", "tz": "UTC"}
+        )
+        attendance = self.env["resource.calendar.attendance"].create(
+            {
+                "name": "Sat AM",
+                "calendar_id": calendar.id,
+                "dayofweek": "5",
+                "hour_from": 8,
+                "hour_to": 10,  # duration_hours = 2 -> well below half-day
+                "day_period": "morning",
+            }
+        )
+        self.assertEqual(attendance.duration_days, 0.5)
+
+        # Widen the span far past the half-day threshold; day_period unchanged.
+        attendance.hour_to = 18  # duration_hours = 10
+
+        self.assertEqual(
+            attendance.duration_days,
+            1.0,
+            "duration_days must follow duration_hours, not stay stale.",
+        )
+
+    def test_duration_days_recomputes_on_calendar_hours_change(self):
+        # The calendar_id.hours_per_day leg: editing a sibling attendance shifts
+        # the calendar average and must recompute duration_days here, even though
+        # this attendance's own hours never change. Pass attendance_ids in create
+        # to override the default full-week template, so hours_per_day is a clean
+        # 8h over a single day.
+        calendar = self.env["resource.calendar"].create(
+            {
+                "name": "hours-per-day leg",
+                "tz": "UTC",
+                "attendance_ids": [
+                    Command.create(
+                        {
+                            "name": "Mon AM",
+                            "dayofweek": "0",
+                            "hour_from": 8,
+                            "hour_to": 14,  # duration_hours = 6, never changed
+                            "day_period": "morning",
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "name": "Mon PM",
+                            "dayofweek": "0",
+                            "hour_from": 14,
+                            "hour_to": 16,  # Mon total 8h/1day -> hours_per_day 8
+                            "day_period": "afternoon",
+                        }
+                    ),
+                ],
+            }
+        )
+        target = calendar.attendance_ids.filtered(lambda a: a.name == "Mon AM")
+        filler = calendar.attendance_ids.filtered(lambda a: a.name == "Mon PM")
+        # threshold = hours_per_day * 3/4 = 6; duration_hours 6 <= 6 -> half day
+        self.assertEqual(calendar.hours_per_day, 8)
+        self.assertEqual(target.duration_days, 0.5)
+
+        # Shrink only the sibling: Mon total 7h -> hours_per_day 7 -> threshold
+        # 5.25. target's own hours are untouched but it must flip to a full day.
+        filler.hour_to = 15
+
+        self.assertEqual(calendar.hours_per_day, 7)
+        self.assertEqual(
+            target.duration_days,
+            1.0,
+            "duration_days must follow calendar_id.hours_per_day, not only its own hours.",
+        )

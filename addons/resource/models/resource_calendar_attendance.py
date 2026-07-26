@@ -181,7 +181,7 @@ class ResourceCalendarAttendance(models.Model):
                     attendance.hour_to = 12 + attendance.duration_hours
                     attendance.hour_from = 12
 
-    @api.depends("day_period")
+    @api.depends("day_period", "duration_hours", "calendar_id.hours_per_day")
     def _compute_duration_days(self):
         for attendance in self:
             if attendance.day_period == "lunch":
