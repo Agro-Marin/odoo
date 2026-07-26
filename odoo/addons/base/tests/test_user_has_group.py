@@ -318,12 +318,21 @@ class TestHasGroup(TransactionCase):
     def test_implied_groups(self):
         """Adding implied ids works for normal and portal users; for a portal
         user it must raise if a group would grant 'group_user' rights.
+
+        The expected sets are written against ``all_implied_ids`` — the
+        reflexive closure this very field is supposed to produce — rather than
+        against a snapshot of what ``group_user`` happens to imply.  Optional
+        feature groups join that closure as soon as the corresponding setting
+        is switched on (enabling Multi-Currencies makes ``group_user`` imply
+        ``group_multi_currency``), which used to break the test on any database
+        where an administrator had done so.
         """
         U = self.env["res.users"]
         G = self.env["res.groups"]
         group_user = self.env.ref("base.group_user")
         group_portal = self.env.ref("base.group_portal")
-        group_no_one = self.env.ref("base.group_no_one")
+        implied_by_user = group_user.all_implied_ids
+        implied_by_portal = group_portal.all_implied_ids
 
         group_A = G.create({"name": "A"})
         group_AA = G.create({"name": "AA", "implied_ids": [Command.set([group_A.id])]})
@@ -339,7 +348,7 @@ class TestHasGroup(TransactionCase):
         )
         self.assertEqual(
             user_a.all_group_ids,
-            (group_AA + group_A + group_user + group_no_one),
+            (group_AA + group_A + implied_by_user),
         )
         self.assertEqual(user_a.group_ids, (group_AA + group_user))
 
@@ -350,17 +359,17 @@ class TestHasGroup(TransactionCase):
                 "group_ids": [Command.set([group_portal.id, group_AA.id])],
             }
         )
-        self.assertEqual(user_b.all_group_ids, (group_AA + group_A + group_portal))
+        self.assertEqual(user_b.all_group_ids, (group_AA + group_A + implied_by_portal))
         self.assertEqual(user_b.group_ids, (group_AA + group_portal))
 
         (user_a + user_b).write({"group_ids": [Command.link(group_BB.id)]})
         self.assertEqual(
             user_a.all_group_ids,
-            (group_AA + group_A + group_BB + group_B + group_user + group_no_one),
+            (group_AA + group_A + group_BB + group_B + implied_by_user),
         )
         self.assertEqual(
             user_b.all_group_ids,
-            (group_AA + group_A + group_BB + group_B + group_portal),
+            (group_AA + group_A + group_BB + group_B + implied_by_portal),
         )
         self.assertEqual(user_a.group_ids, (group_AA + group_BB + group_user))
         self.assertEqual(user_b.group_ids, (group_AA + group_BB + group_portal))
@@ -370,15 +379,7 @@ class TestHasGroup(TransactionCase):
         user_a.write({"group_ids": [Command.link(group_C.id)]})
         self.assertEqual(
             user_a.all_group_ids,
-            (
-                group_AA
-                + group_A
-                + group_BB
-                + group_B
-                + group_C
-                + group_user
-                + group_no_one
-            ),
+            (group_AA + group_A + group_BB + group_B + group_C + implied_by_user),
         )
         self.assertEqual(user_a.group_ids, (group_AA + group_BB + group_C + group_user))
 

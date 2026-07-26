@@ -558,6 +558,18 @@ class TestGroupsObject(common.BaseCase):
 
 @common.tagged("at_install", "groups")
 class TestGroupsOdoo(common.TransactionCase):
+    """Exercise the group algebra against the database's real group graph.
+
+    The assertions below only hold for a known graph, so the two shapes they
+    need — a group implying ``group_user`` and a group implying nothing and
+    implied by nothing — are created here rather than borrowed from the addon
+    data.  ``base.group_multi_currency`` used to play the second role, but it
+    is an optional *feature* group: switching Multi-Currencies on makes
+    ``group_user`` imply it, at which point every expression mentioning it
+    legitimately simplifies away and a dozen assertions fail on a database
+    whose only sin is having the setting enabled.
+    """
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -573,6 +585,15 @@ class TestGroupsOdoo(common.TransactionCase):
                 "name": "base_test_group",
                 "model": "res.groups",
                 "res_id": cls.test_group.id,
+            }
+        )
+        cls.standalone_group = cls.env["res.groups"].create({"name": "test standalone"})
+        cls.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "base_test_standalone_group",
+                "model": "res.groups",
+                "res_id": cls.standalone_group.id,
             }
         )
         cls.definitions = cls.env["res.groups"]._get_group_definitions()
@@ -630,8 +651,8 @@ class TestGroupsOdoo(common.TransactionCase):
             "'base.group_system'",
         )
         self.assertEqual(
-            str(parse("base.group_system") & parse("base.group_multi_currency")),
-            "'base.group_system' & 'base.group_multi_currency'",
+            str(parse("base.group_system") & parse("base.base_test_standalone_group")),
+            "'base.group_system' & 'base.base_test_standalone_group'",
         )
         self.assertEqual(
             str(parse("base.group_user") | parse("base.group_user")),
@@ -750,10 +771,10 @@ class TestGroupsOdoo(common.TransactionCase):
         )
         self.assertEqual(
             str(
-                parse("!base.group_user,base.group_multi_currency")
-                & parse("base.group_multi_currency,!base.group_system")
+                parse("!base.group_user,base.base_test_standalone_group")
+                & parse("base.base_test_standalone_group,!base.group_system")
             ),
-            "~'base.group_user' & 'base.group_multi_currency'",
+            "~'base.group_user' & 'base.base_test_standalone_group'",
         )
         self.assertEqual(
             str(
@@ -829,9 +850,9 @@ class TestGroupsOdoo(common.TransactionCase):
         self.assertEqual(
             str(
                 parse("base.group_user,base.group_system")
-                & parse("base.group_multi_currency")
+                & parse("base.base_test_standalone_group")
             ),
-            "'base.group_user' & 'base.group_multi_currency'",
+            "'base.group_user' & 'base.base_test_standalone_group'",
         )
         self.assertEqual(
             str(
@@ -922,13 +943,13 @@ class TestGroupsOdoo(common.TransactionCase):
             True,
         )
         self.assertEqual(
-            parse("base.group_system,!base.group_multi_currency")
+            parse("base.group_system,!base.base_test_standalone_group")
             <= parse("base.group_system"),
             True,
         )
         self.assertEqual(
             parse("base.group_system")
-            <= parse("base.group_system,!base.group_multi_currency"),
+            <= parse("base.group_system,!base.base_test_standalone_group"),
             False,
         )
         self.assertEqual(
@@ -945,8 +966,10 @@ class TestGroupsOdoo(common.TransactionCase):
             True,
         )
         self.assertEqual(
-            parse("base.group_user,!base.group_multi_currency")
-            <= parse("base.group_user,!base.group_system,!base.group_multi_currency"),
+            parse("base.group_user,!base.base_test_standalone_group")
+            <= parse(
+                "base.group_user,!base.group_system,!base.base_test_standalone_group"
+            ),
             False,
         )
         self.assertEqual(
@@ -1005,10 +1028,10 @@ class TestGroupsOdoo(common.TransactionCase):
         )
         self.assertEqual(
             str(
-                parse("base.group_system & base.group_multi_currency")
+                parse("base.group_system & base.base_test_standalone_group")
                 & parse("base.group_portal | base.group_system")
             ),
-            "'base.group_system' & 'base.group_multi_currency'",
+            "'base.group_system' & 'base.base_test_standalone_group'",
         )
         self.assertEqual(
             str(
@@ -1018,7 +1041,7 @@ class TestGroupsOdoo(common.TransactionCase):
             "'base.group_erp_manager'",
         )
         self.assertEqual(
-            parse("base.group_system & base.group_multi_currency")
+            parse("base.group_system & base.base_test_standalone_group")
             < parse("base.group_system"),
             True,
         )
@@ -1035,13 +1058,13 @@ class TestGroupsOdoo(common.TransactionCase):
             True,
         )
         self.assertEqual(
-            parse("base.group_public & base.group_multi_currency")
+            parse("base.group_public & base.base_test_standalone_group")
             <= parse("base.group_public"),
             True,
         )
         self.assertEqual(
             parse("base.group_public")
-            <= parse("base.group_public & base.group_multi_currency"),
+            <= parse("base.group_public & base.base_test_standalone_group"),
             False,
         )
         self.assertEqual(
@@ -1063,7 +1086,7 @@ class TestGroupsOdoo(common.TransactionCase):
             True,
         )
         self.assertEqual(
-            parse("base.group_public & base.group_multi_currency")
+            parse("base.group_public & base.base_test_standalone_group")
             <= parse("~base.group_public"),
             False,
         )
@@ -1110,17 +1133,21 @@ class TestGroupsOdoo(common.TransactionCase):
             False,
         )
         self.assertEqual(
-            parse("base.group_user & base.group_multi_currency")
-            <= parse("base.group_user & base.group_system & base.group_multi_currency"),
+            parse("base.group_user & base.base_test_standalone_group")
+            <= parse(
+                "base.group_user & base.group_system & base.base_test_standalone_group"
+            ),
             False,
         )
         self.assertEqual(
-            parse("base.group_system & base.group_multi_currency")
-            <= parse("base.group_user & base.group_system & base.group_multi_currency"),
+            parse("base.group_system & base.base_test_standalone_group")
+            <= parse(
+                "base.group_user & base.group_system & base.base_test_standalone_group"
+            ),
             True,
         )
         self.assertEqual(
-            parse("base.group_system & base.group_multi_currency")
+            parse("base.group_system & base.base_test_standalone_group")
             <= parse("base.group_system"),
             True,
         )
@@ -1139,12 +1166,12 @@ class TestGroupsOdoo(common.TransactionCase):
             True,
         )
         self.assertEqual(
-            parse("base.group_system & base.group_multi_currency")
+            parse("base.group_system & base.base_test_standalone_group")
             >= parse("base.group_system"),
             False,
         )
         self.assertEqual(
-            parse("base.group_system & base.group_multi_currency")
+            parse("base.group_system & base.base_test_standalone_group")
             > parse("base.group_system"),
             False,
         )
@@ -1173,7 +1200,7 @@ class TestGroupsOdoo(common.TransactionCase):
                 True,
             ),
             (
-                "base.group_public,base.group_multi_currency",
+                "base.group_public,base.base_test_standalone_group",
                 "base.group_user | base.group_public",
                 True,
             ),
@@ -1236,22 +1263,22 @@ class TestGroupsOdoo(common.TransactionCase):
             ),
             (
                 "base.group_user",
-                "base.group_user & base.group_sanitize_override & base.group_multi_currency",
+                "base.group_user & base.group_sanitize_override & base.base_test_standalone_group",
                 False,
             ),
             (
                 "base.group_system",
-                "base.group_user & base.group_sanitize_override & base.group_multi_currency",
+                "base.group_user & base.group_sanitize_override & base.base_test_standalone_group",
                 False,
             ),
             (
-                "base.group_system,base.group_multi_currency",
-                "base.group_user & base.group_sanitize_override & base.group_multi_currency",
+                "base.group_system,base.base_test_standalone_group",
+                "base.group_user & base.group_sanitize_override & base.base_test_standalone_group",
                 True,
             ),
             (
-                "base.group_user,base.group_sanitize_override,base.group_multi_currency",
-                "base.group_user & base.group_sanitize_override & base.group_multi_currency",
+                "base.group_user,base.group_sanitize_override,base.base_test_standalone_group",
+                "base.group_user & base.group_sanitize_override & base.base_test_standalone_group",
                 True,
             ),
             (

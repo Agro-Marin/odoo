@@ -377,6 +377,13 @@ class TestResCurrency(TransactionCase):
     def test_rate_date_and_company_change_invalidate_currency_cache(self):
         """RCUR-C1: changing a rate's date or company within a transaction must
         refresh the currency's cached rate/rate_string, not only inverse_rate.
+
+        The newest rate is picked by sorting rather than by ``rate_ids[0]``:
+        records created through an inline command stay in the field's cache in
+        creation order until something flushes and re-reads them, so the
+        ``_order`` of ``res.currency.rate`` ("name desc") does not apply yet.
+        Whether a flush happens in between depends on unrelated state, which
+        made this test pass or fail by accident.
         """
         currency = self.env["res.currency"].create(
             {
@@ -389,7 +396,7 @@ class TestResCurrency(TransactionCase):
             }
         )
         currency = currency.with_context(date="2020-06-06")
-        newest = currency.rate_ids[0]
+        newest = currency.rate_ids.sorted("name", reverse=True)[0]
         self.assertEqual(str(newest.name), "2020-03-01")
         rate_before = currency.rate
         newest.name = "2020-12-31"

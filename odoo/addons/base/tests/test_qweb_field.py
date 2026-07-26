@@ -321,15 +321,23 @@ class TestQwebFieldMany2Many(common.TransactionCase):
         self.assertFalse(self.value_to_html(user.group_ids))
 
     def test_many2many_with_values(self):
-        user = self.env["res.users"].create(
-            {
-                "name": "User2",
-                "login": "user2@example.com",
-            }
+        """The renderer joins the records' display names, in recordset order.
+
+        The value is built here rather than taken from a user's ``all_group_ids``:
+        that set depends on which optional feature groups the database has
+        switched on (enabling Multi-Currencies, say, adds one to every internal
+        user), so the assertion used to break on perfectly ordinary databases.
+        """
+        groups = self.env["res.groups"].create(
+            [{"name": "Zeta Group"}, {"name": "Alpha Group"}]
         )
         self.assertEqual(
-            self.value_to_html(user.all_group_ids[:2].sorted()),
-            "Role / User, Technical Features",
+            self.value_to_html(groups),
+            "Zeta Group, Alpha Group",
+        )
+        self.assertEqual(
+            self.value_to_html(groups.sorted("name")),
+            "Alpha Group, Zeta Group",
         )
 
 
