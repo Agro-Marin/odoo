@@ -4,22 +4,25 @@
         border: none;
     }
 
-    &.btn-secondary, &.btn-outline-secondary {
-        transition: background-color .2s ease-in-out, border-color .2s ease-in-out;
+    &.btn-secondary,
+    &.btn-outline-secondary {
+        transition:
+            background-color 0.2s ease-in-out,
+            border-color 0.2s ease-in-out;
 
         &.show {
-            $-value: map-get($o-btns-bs-outline-override, 'secondary');
-            color: map-get($-value, 'active-color');
-            background-color: map-get($-value, 'active-background');
-            border-color: map-get($-value, 'active-border');
+            $-value: map-get($o-btns-bs-outline-override, "secondary");
+            color: map-get($-value, "active-color");
+            background-color: map-get($-value, "active-background");
+            border-color: map-get($-value, "active-border");
         }
     }
 
     /*!rtl:begin:ignore*/
-    &.dropup>.o-dropdown--menu,
-    &.dropdown>.o-dropdown--menu,
-    &.dropstart>.o-dropdown--menu,
-    &.dropend>.o-dropdown--menu {
+    &.dropup > .o-dropdown--menu,
+    &.dropdown > .o-dropdown--menu,
+    &.dropstart > .o-dropdown--menu,
+    &.dropend > .o-dropdown--menu {
         // Also makes sure that left/right stuffs are not polluted
         // by bootstrap rules processed by rtlcss
         left: auto;
@@ -47,7 +50,7 @@
             margin-left: auto;
 
             transform: rotate(0deg);
-            transition: .25s ease-in-out;
+            transition: 0.25s ease-in-out;
         }
 
         &.show:after {
@@ -104,17 +107,18 @@
         }
     }
 
-    &.o-dropdown--menu-submenu {      // the value comes from bootstrap's ".dropdown-menu" padding and border style
-        --o-dropdown--submenu-margin: calc(-.5rem - 1px);
+    &.o-dropdown--menu-submenu {
+        // the value comes from bootstrap's ".dropdown-menu" padding and border style
+        --o-dropdown--submenu-margin: calc(-0.5rem - 1px);
         margin-top: var(--o-dropdown--submenu-margin);
         margin-bottom: var(--o-dropdown--submenu-margin);
     }
 
     .dropdown-item:not(.disabled):not(:disabled) {
-
         // Needed 'cause <DropdownItem> generate <span> html tags that for
         // browsers are normally not clickable.
-        &, label {
+        &,
+        label {
             cursor: pointer;
         }
     }
@@ -126,8 +130,11 @@
 
 // Unstyle buttons so they behave like regular dropdown-item
 .o-dropdown-item-unstyled-button {
-    &, .o_web_client.o_touch_device & {
-        button, button:hover, button:disabled {
+    &,
+    .o_web_client.o_touch_device & {
+        button,
+        button:hover,
+        button:disabled {
             all: unset;
             display: inline-block;
             width: 100%;

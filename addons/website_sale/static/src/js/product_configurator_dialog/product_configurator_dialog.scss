@@ -14,7 +14,10 @@
             --product-configurator-img-size-sm: 4rem;
         }
 
-        width: var(--product-configurator-img-size-sm, var(--product-configurator-img-size-lg));
+        width: var(
+            --product-configurator-img-size-sm,
+            var(--product-configurator-img-size-lg)
+        );
     }
 
     .text-muted {

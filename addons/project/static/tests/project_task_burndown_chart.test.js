@@ -117,12 +117,11 @@ function checkGroupByOrder() {
 
 test("burndown.chart: check that the sort buttons are invisible", async () => {
     await mountView(mountViewParams);
-    expect(".o_cp_bottom_left:has(.btn-group[role=toolbar][aria-label='Sort graph'])").toHaveCount(
-        0,
-        {
-            message: "The sort buttons shouldn't be rendered",
-        }
-    );
+    expect(
+        ".o_cp_bottom_left:has(.btn-group[role=toolbar][aria-label='Sort graph'])",
+    ).toHaveCount(0, {
+        message: "The sort buttons shouldn't be rendered",
+    });
 });
 
 test("burndown.chart: check that removing the group by 'Date: Month > Step' in the search bar triggers a notification", async () => {

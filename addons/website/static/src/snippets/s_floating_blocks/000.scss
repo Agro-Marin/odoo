@@ -22,18 +22,27 @@
         top: 0;
         opacity: 0;
 
-        transition: opacity .2s;
+        transition: opacity 0.2s;
         will-change: transform;
         transform-origin: center top;
         contain: layout paint;
         backface-visibility: hidden;
 
-        padding-left: var(--floating-boxes-box-padding-x, var(--floating-boxes-box-padding-x-sm));
-        padding-right: var(--floating-boxes-box-padding-x, var(--floating-boxes-box-padding-x-sm));
+        padding-left: var(
+            --floating-boxes-box-padding-x,
+            var(--floating-boxes-box-padding-x-sm)
+        );
+        padding-right: var(
+            --floating-boxes-box-padding-x,
+            var(--floating-boxes-box-padding-x-sm)
+        );
 
         // Cards must have all the same height in order to perform the "floating
         // effect" correctly.
-        aspect-ratio: var(--floating-boxes-box-ratio, var(--floating-boxes-box-ratio-sm));
+        aspect-ratio: var(
+            --floating-boxes-box-ratio,
+            var(--floating-boxes-box-ratio-sm)
+        );
 
         // Ensure that cards will never overflow the viewport, regardless by the
         // aspect-ratio and the viewport size.
@@ -42,12 +51,15 @@
     }
 
     @include media-breakpoint-up(lg) {
-        > .container, > .container-fluid {
+        > .container,
+        > .container-fluid {
             --floating-boxes-box-ratio: var(--floating-boxes-box-ratio-lg);
             --floating-boxes-box-padding-x: var(--floating-boxes-box-padding-x-lg);
         }
         > .o_container_small {
-            --floating-boxes-box-ratio: var(--floating-boxes-box-ratio-lg-container-small);
+            --floating-boxes-box-ratio: var(
+                --floating-boxes-box-ratio-lg-container-small
+            );
         }
         > .container-fluid > div {
             padding-left: map-get($spacers, 5);
@@ -55,7 +67,9 @@
         }
 
         .s_floating_blocks_block {
-            > .container, > .container-fluid, > .o_container_small {
+            > .container,
+            > .container-fluid,
+            > .o_container_small {
                 // Inconsistency between card sizes at different breakpoints would
                 // lead to edition usability issues. For example when elements are
                 // positioned at the bottom of a card in XXL they may disappear in
@@ -69,7 +83,8 @@
     }
 
     @include media-breakpoint-up(xl) {
-        > .container, > .container-fluid {
+        > .container,
+        > .container-fluid {
             --floating-boxes-box-ratio: var(--floating-boxes-box-ratio-xl);
         }
 
@@ -88,6 +103,6 @@
 
     // Options
     .s_floating_blocks_wrapper.s_floating_blocks_wrapper_shadow {
-        box-shadow: 0px 1vh 2vh rgba($black, .175);
+        box-shadow: 0px 1vh 2vh rgba($black, 0.175);
     }
 }

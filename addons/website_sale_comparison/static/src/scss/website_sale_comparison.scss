@@ -1,7 +1,10 @@
 .oe_website_sale {
     .o_add_compare_dyn.btn-lg {
         aspect-ratio: 1/1;
-        height: calc(#{$btn-padding-y-lg} * 2 + #{$btn-font-size-lg} * #{$btn-line-height} + #{$btn-border-width} * 2);
+        height: calc(
+            #{$btn-padding-y-lg} * 2 + #{$btn-font-size-lg} * #{$btn-line-height} +
+                #{$btn-border-width} * 2
+        );
     }
 }
 
@@ -29,7 +32,11 @@
     }
 
     .o_wsale_compare_table_column {
-        --o-website-sale-comparison-table-column-width: #{map-get($container-max-widths, 'sm') * .5};
+        --o-website-sale-comparison-table-column-width: #{map-get(
+                $container-max-widths,
+                "sm"
+            ) *
+            0.5};
 
         @include media-breakpoint-up(xl) {
             --o-website-sale-comparison-table-column-width: 25%;
@@ -53,12 +60,11 @@
         }
     }
 
-
     // Mini sticky comparison overview
     .o_wsale_comparison_mini_sticky {
         transform: translateY(-100%);
-        transition: transform .4s ease-in-out;
-        box-shadow: 0px 3px 3px rgba($black, .1);
+        transition: transform 0.4s ease-in-out;
+        box-shadow: 0px 3px 3px rgba($black, 0.1);
         z-index: $zindex-fixed - 1;
 
         &.show {
@@ -91,7 +97,7 @@
 
 // Specifications
 #product_full_spec {
-    border-top: 1px solid map-get($grays, '400');
+    border-top: 1px solid map-get($grays, "400");
 
     .o_add_compare_dyn {
         @include font-size(1.1rem);
@@ -101,7 +107,7 @@
 .o_wsale_comparison_bottom_bar {
     z-index: $zindex-modal;
 
-    box-shadow: 0px -12px 32px rgba($black, .175);
+    box-shadow: 0px -12px 32px rgba($black, 0.175);
 
     .btn[data-bs-toggle="collapse"] {
         .oi-chevron-up {
@@ -121,7 +127,9 @@
         --badge-bg: var(--btn-color);
     }
 
-    div[name="product_comparison_bottom_bar_row"]:where(:has(button[aria-label="Remove product from comparison"]:hover)) {
+    div[name="product_comparison_bottom_bar_row"]:where(
+            :has(button[aria-label="Remove product from comparison"]:hover)
+        ) {
         background: $light;
     }
 
@@ -141,6 +149,8 @@
 
     // Offset floating bar when comparison bar is visible
     #o_wsale_floating_bar {
-        bottom: calc(var(--_container-gap) + var(--o-wsale-comparison-bottom-bar-height)) !important;
+        bottom: calc(
+            var(--_container-gap) + var(--o-wsale-comparison-bottom-bar-height)
+        ) !important;
     }
 }

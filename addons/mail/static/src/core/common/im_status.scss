@@ -1,12 +1,10 @@
-
 .o-mail-ImStatus {
-
     i {
         padding-left: 1px;
         padding-right: 1px;
 
         &.fa-heart {
-            transform: scale(.8); // Deviation: handle icon inconsistent size
+            transform: scale(0.8); // Deviation: handle icon inconsistent size
         }
     }
 

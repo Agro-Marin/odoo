@@ -36,14 +36,16 @@
             color: inherit;
         }
 
-        .o_badge_text, .o_tag_badge_text {
+        .o_badge_text,
+        .o_tag_badge_text {
             @include o-text-overflow(inline-block);
             max-width: var(--Tag-max-width, 200px);
         }
     }
 }
 
-.o_field_widget.o_field_many2many_tags, .o_field_widget.o_field_many2many_tags_avatar {
+.o_field_widget.o_field_many2many_tags,
+.o_field_widget.o_field_many2many_tags_avatar {
     .o_field_many2many_selection .o_input {
         --o-input-background-color: transparent;
     }
@@ -61,7 +63,8 @@
 }
 
 .o_form_view {
-    .o_group, .o_inner_group {
+    .o_group,
+    .o_inner_group {
         .o_field_tags {
             width: 100%;
         }
@@ -73,7 +76,8 @@
                 visibility: hidden;
             }
 
-            &:hover, &:focus-within {
+            &:hover,
+            &:focus-within {
                 .o_dropdown_button {
                     visibility: visible;
                 }

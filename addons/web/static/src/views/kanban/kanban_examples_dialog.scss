@@ -2,7 +2,7 @@
 .o_kanban_examples_dialog {
     .modal-body {
         padding: 0;
-        background: map-get($theme-colors, 'light');
+        background: map-get($theme-colors, "light");
     }
 
     .o_notebook {
@@ -15,7 +15,10 @@
             $o-btn-primary-theme-colors: map-get($o-btns-bs-override, "primary");
             background-color: map-get($o-btn-primary-theme-colors, "background");
             color: map-get($o-btn-primary-theme-colors, "color");
-            &, &:hover, &:focus, &:active {
+            &,
+            &:hover,
+            &:focus,
+            &:active {
                 border-right-color: var(--Notebook__link-border-color--active);
             }
         }

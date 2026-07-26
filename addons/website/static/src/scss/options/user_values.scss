@@ -2,6 +2,11 @@
 // contains should not be renamed otherwise it would break existing customers
 // customizations.
 
-$o-user-website-values: map-merge($o-user-website-values, o-map-omit((
-    // -- hook --
-)));
+$o-user-website-values: map-merge(
+    $o-user-website-values,
+    o-map-omit(
+        (
+            // -- hook --
+        )
+    )
+);

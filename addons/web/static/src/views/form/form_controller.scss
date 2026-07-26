@@ -2,13 +2,13 @@
 @mixin o-form-sheet-inner-left-padding {
     padding-left: $o-horizontal-padding;
     @include media-breakpoint-up(lg) {
-        padding-left: $o-horizontal-padding*2;
+        padding-left: $o-horizontal-padding * 2;
     }
 }
 @mixin o-form-sheet-inner-right-padding {
     padding-right: $o-horizontal-padding;
     @include media-breakpoint-up(lg) {
-        padding-right: $o-horizontal-padding*2;
+        padding-right: $o-horizontal-padding * 2;
     }
 }
 
@@ -27,7 +27,7 @@
         }
 
         .o_field_widget {
-            &:not(.o_field_boolean){
+            &:not(.o_field_boolean) {
                 width: 100%;
             }
 
@@ -40,13 +40,12 @@
             width: auto;
             max-width: 100%;
         }
-
     }
 }
 
-
 @mixin editable-form-break-table() {
-    .o_address_type, .o_address_format {
+    .o_address_type,
+    .o_address_format {
         --fieldWidget-margin-bottom: #{$o-form-spacing-unit * 2};
     }
 }
@@ -62,11 +61,12 @@
     }
 
     // Utility classes
-    .oe_inline, .o_field_widget.oe_inline > * {
-        width: auto!important;
+    .oe_inline,
+    .o_field_widget.oe_inline > * {
+        width: auto !important;
     }
     @for $i from 2 through 13 {
-        .o_field_widget.o_input_#{$i}ch input{
+        .o_field_widget.o_input_#{$i}ch input {
             width: 1ch * $i !important;
         }
     }
@@ -76,18 +76,27 @@
     }
 
     .o_row {
-        &, &.o_field_widget { // Some field may want to use o_row as root and these rules must prevalue
+        &,
+        &.o_field_widget {
+            // Some field may want to use o_row as root and these rules must prevalue
             display: flex;
-            width: auto!important;
+            width: auto !important;
         }
 
         align-items: baseline;
         min-width: 50px;
         margin: 0 calc($o-form-spacing-unit / -2);
 
-        > div, > span, > button, > label, > a, > input, > select { // > * did not add a level of priority to the rule
+        > div,
+        > span,
+        > button,
+        > label,
+        > a,
+        > input,
+        > select {
+            // > * did not add a level of priority to the rule
             flex: 0 1 auto;
-            width: auto!important;
+            width: auto !important;
             margin-right: calc($o-form-spacing-unit / 2);
             margin-left: calc($o-form-spacing-unit / 2);
         }
@@ -109,11 +118,12 @@
     // Readonly specific rules
     .o_form_readonly {
         .oe_edit_only {
-            display: none!important;
+            display: none !important;
         }
 
         .o_row:not(.o_row_readonly) {
-            &, & > div {
+            &,
+            & > div {
                 display: inline-block;
             }
         }
@@ -139,7 +149,7 @@
     // Editable specific rules
     .o_form_editable {
         .oe_read_only {
-            display: none!important;
+            display: none !important;
         }
 
         .oe_title {
@@ -153,13 +163,16 @@
         }
 
         .o_row {
-            > .o_field_widget, > div {
+            > .o_field_widget,
+            > div {
                 flex: 1 1 auto;
-                width: 0!important; // 3rd flex argument does not work with input (must be auto and real width 0)
+                width: 0 !important; // 3rd flex argument does not work with input (must be auto and real width 0)
 
-                &.o_field_boolean, &.o_field_boolean_toggle, &.o_priority {
+                &.o_field_boolean,
+                &.o_field_boolean_toggle,
+                &.o_priority {
                     flex: 0 0 auto;
-                    width: auto!important;
+                    width: auto !important;
                 }
             }
             .o_many2one {
@@ -168,7 +181,8 @@
         }
     }
 
-    &, & .o_form_editable {
+    &,
+    & .o_form_editable {
         // FIXME: those specific rules shouldn't be necessary but require a more
         // global cleanup of the fields + .o_row styling to be removed in master.
         .o_field_reference .o_row > * {
@@ -184,7 +198,9 @@
         flex: 1 1 auto;
     }
 
-    &:not(.o_field_highlight) .o_field_widget:not(.o_field_invalid):not(.o_field_highlight) .o_input:not(:hover):not(:focus) {
+    &:not(.o_field_highlight)
+        .o_field_widget:not(.o_field_invalid):not(.o_field_highlight)
+        .o_input:not(:hover):not(:focus) {
         --o-input-border-color: transparent;
     }
 
@@ -193,7 +209,8 @@
             visibility: hidden;
         }
 
-        &:hover, &:focus-within {
+        &:hover,
+        &:focus-within {
             .o_datepicker_button {
                 visibility: visible;
             }
@@ -205,7 +222,8 @@
     }
 
     // No sheet
-    &.o_form_nosheet, .o_form_nosheet {
+    &.o_form_nosheet,
+    .o_form_nosheet {
         // Since 16.3 the `o_form_nosheet` element acts as a sheet filling the
         // entire available room. To define its properties we use sheet's CSS
         // variables in order to keep consistency and ease inner components
@@ -234,7 +252,10 @@
         }
 
         padding-left: var(--formView-sheetBg-padding-x);
-        padding-right: var(--formView-sheetBg-padding-right, var(--formView-sheetBg-padding-x));
+        padding-right: var(
+            --formView-sheetBg-padding-right,
+            var(--formView-sheetBg-padding-x)
+        );
         width: 100%;
         max-width: $o-form-view-sheet-max-width;
         margin-right: auto; // Always align to le left
@@ -249,7 +270,8 @@
         --formView-sheet-padding-y: #{map-get($spacers, 3)};
         --formView-sheet-padding-x: #{map-get($spacers, 3)};
 
-        margin: 0 var(--formView-sheet-margin-x, calc(var(--formView-sheetBg-padding-x) * -1));
+        margin: 0
+            var(--formView-sheet-margin-x, calc(var(--formView-sheetBg-padding-x) * -1));
         padding: var(--formView-sheet-padding-y) var(--formView-sheet-padding-x);
         border-style: solid;
         border-color: $o-gray-200;
@@ -259,20 +281,41 @@
         box-shadow: $o-shadow-sm;
 
         @include media-breakpoint-up(md) {
-            --formView-sheet-padding-y: var(--formView-sheet-padding-y-md, #{map-get($spacers, 3)});
+            --formView-sheet-padding-y: var(
+                --formView-sheet-padding-y-md,
+                #{map-get($spacers, 3)}
+            );
             --formView-sheet-margin-x: var(--formView-sheet-margin-x-md, 0);
-            --formView-sheet-border-width: var(--formView-sheet-border-width-md, #{$border-width});
-            --formView-sheet-border-radius: var(--formView-sheet-border-radius-md, #{$o-border-radius-xl});
+            --formView-sheet-border-width: var(
+                --formView-sheet-border-width-md,
+                #{$border-width}
+            );
+            --formView-sheet-border-radius: var(
+                --formView-sheet-border-radius-md,
+                #{$o-border-radius-xl}
+            );
         }
 
         @include media-breakpoint-up(lg) {
-            --formView-sheet-padding-y: var(--formView-sheet-padding-y-lg, #{map-get($spacers, 4)});
-            --formView-sheet-padding-x: var(--formView-sheet-padding-x-lg, #{map-get($spacers, 4)});
+            --formView-sheet-padding-y: var(
+                --formView-sheet-padding-y-lg,
+                #{map-get($spacers, 4)}
+            );
+            --formView-sheet-padding-x: var(
+                --formView-sheet-padding-x-lg,
+                #{map-get($spacers, 4)}
+            );
         }
 
         @include media-breakpoint-up(xxl) {
-            --formView-sheet-padding-y: var(--formView-sheet-padding-y-xxl, #{map-get($spacers, 3)});
-            --formView-sheet-padding-x: var(--formView-sheet-padding-x-xxl, #{map-get($spacers, 3)});
+            --formView-sheet-padding-y: var(
+                --formView-sheet-padding-y-xxl,
+                #{map-get($spacers, 3)}
+            );
+            --formView-sheet-padding-x: var(
+                --formView-sheet-padding-x-xxl,
+                #{map-get($spacers, 3)}
+            );
         }
 
         // Selection
@@ -285,7 +328,8 @@
     .alert {
         --alert-padding-y: #{map-get($spacers, 2)};
 
-        .o_field_widget, .o_field_widget p {
+        .o_field_widget,
+        .o_field_widget p {
             margin-bottom: 0;
         }
     }
@@ -302,8 +346,16 @@
     .o_form_statusbar {
         position: relative;
         z-index: 0;
-        margin-inline: calc(-1 * var(--formView-sheetBg-padding-x)) calc(-1 * var(--formView-sheetBg-padding-right, var(--formView-sheetBg-padding-x)));
-        padding-inline: var(--formView-sheetBg-padding-x) var(--formView-sheetBg-padding-right, var(--formView-sheetBg-padding-x));
+        margin-inline: calc(-1 * var(--formView-sheetBg-padding-x))
+            calc(
+                -1 *
+                    var(
+                        --formView-sheetBg-padding-right,
+                        var(--formView-sheetBg-padding-x)
+                    )
+            );
+        padding-inline: var(--formView-sheetBg-padding-x)
+            var(--formView-sheetBg-padding-right, var(--formView-sheetBg-padding-x));
         border-radius: 0;
         background-color: rgba($o-view-background-color, 0.8);
         backdrop-filter: blur(10px);
@@ -345,7 +397,9 @@
             max-width: 75%;
         }
 
-        > h1, > h2, > h3 {
+        > h1,
+        > h2,
+        > h3 {
             width: 100%; // Needed because inline-block when is a hx.o_row
             margin-top: 0;
             margin-bottom: 0;
@@ -381,7 +435,9 @@
 
         @include media-breakpoint-down(sm) {
             + .oe_title {
-                max-width: calc(100% - #{$o-form-picture-size} - #{map-get($spacers, 2)});
+                max-width: calc(
+                    100% - #{$o-form-picture-size} - #{map-get($spacers, 2)}
+                );
             }
         }
     }
@@ -410,8 +466,8 @@
         @include media-breakpoint-up(sm) {
             .o_field_widget {
                 &.o_text_overflow {
-                    width: 1px!important; // hack to make the table layout believe it is a small element (so that the table does not grow too much) ...
-                    min-width: 100%;      // ... but in fact it takes the whole table space
+                    width: 1px !important; // hack to make the table layout believe it is a small element (so that the table does not grow too much) ...
+                    min-width: 100%; // ... but in fact it takes the whole table space
                 }
             }
 
@@ -442,7 +498,10 @@
         gap: var(--inner-group-row-gap, map-get($spacers, 2)) $o-horizontal-padding;
         margin-bottom: map-get($spacers, 2);
 
-        span, .o_field_boolean, .oe_avatar, .o_form_uri {
+        span,
+        .o_field_boolean,
+        .oe_avatar,
+        .o_form_uri {
             &.o_field_widget {
                 width: auto;
             }
@@ -471,7 +530,8 @@
         }
     }
 
-    .o_group, .o_inner_group {
+    .o_group,
+    .o_inner_group {
         .o_field_widget {
             width: 100%;
         }
@@ -534,7 +594,8 @@
                 > .o_field_html .note-editable {
                     min-height: 180px;
                     overflow-y: hidden;
-                    &:hover, &:focus {
+                    &:hover,
+                    &:focus {
                         border-color: transparent;
                     }
                 }
@@ -549,7 +610,8 @@
                             border: none;
                         }
 
-                        .note-editing-area, .o_readonly {
+                        .note-editing-area,
+                        .o_readonly {
                             padding: $card-spacer-y $card-spacer-x;
                             @include o-form-sheet-inner-left-padding;
                             @include o-form-sheet-inner-right-padding;
@@ -562,27 +624,32 @@
                         // If immediatly followed by an .clearfix element, the note-editor it's the 'only'
                         // tab's element. Reset margins to push the bar at the bottom.
                         + .clearfix:last-child {
-                            margin-bottom: -$o-horizontal-padding - $o-sheet-vpadding - $o-form-spacing-unit;
+                            margin-bottom: -$o-horizontal-padding - $o-sheet-vpadding -
+                                $o-form-spacing-unit;
                         }
                     }
 
                     // Full width on first x2many or on second x2many if first is invisible
-                    &:not(.o_group), &.o_invisible_modifier {
+                    &:not(.o_group),
+                    &.o_invisible_modifier {
                         .o_field_x2many.o_field_x2many_list .o_list_renderer {
                             @include media-only(screen) {
                                 --ListRenderer-margin-x: var(--Notebook-margin-x);
-                                --ListRenderer-table-padding-x: var(--Notebook-padding-x);
+                                --ListRenderer-table-padding-x: var(
+                                    --Notebook-padding-x
+                                );
 
                                 margin-top: -$o-horizontal-padding;
                             }
 
                             @include media-only(print) {
                                 --ListRenderer-margin-x: 0;
-                                --ListRenderer-table-padding-x: var(--Notebook-padding-x);
+                                --ListRenderer-table-padding-x: var(
+                                    --Notebook-padding-x
+                                );
 
                                 margin-top: -$o-horizontal-padding * 0.5;
                             }
-
 
                             // use original padding-left for handle cell in editable list
                             tr > :first-child.o_handle_cell {
@@ -609,7 +676,9 @@
             font-size: $o-font-size-base-touch;
         }
 
-        &.o_form_label_empty, &.o_form_label_false, &.o_form_label_readonly {
+        &.o_form_label_empty,
+        &.o_form_label_false,
+        &.o_form_label_readonly {
             opacity: 0.66;
             font-weight: $font-weight-normal;
         }
@@ -628,7 +697,7 @@
                 > tfoot > tr {
                     box-shadow: inset 0 1px 0 $border-color;
                     > td {
-                        border:none;
+                        border: none;
 
                         &:empty {
                             padding: 0;
@@ -644,10 +713,14 @@
 
         &.o_field_many2many_tags_avatar {
             --fieldWidget-display: inline-flex;
-            min-height: calc(var(--Avatar-size, #{$o-avatar-size}) + #{$o-input-padding-y} * 2 + #{$input-border-width});
+            min-height: calc(
+                var(--Avatar-size, #{$o-avatar-size}) + #{$o-input-padding-y} * 2 +
+                    #{$input-border-width}
+            );
         }
     }
-    .o_field_widget, .btn {
+    .o_field_widget,
+    .btn {
         .o_field_widget {
             --fieldWidget-margin-bottom: 0;
         }
@@ -673,7 +746,7 @@
 
             // force the the translate button to EN
             &:after {
-                content: 'EN';
+                content: "EN";
                 visibility: visible;
             }
         }
@@ -686,46 +759,52 @@
 
     // Text field with oe_inline class
     .o_field_text.oe_inline {
-        width: 100%!important;
+        width: 100% !important;
         @include media-breakpoint-up(sm) {
-            width: 45%!important;
+            width: 45% !important;
         }
     }
 
     span.o_list_monetary {
-        display: block
+        display: block;
     }
 
     .o_field_monetary {
         /*rtl:ignore*/
-        direction : ltr;
+        direction: ltr;
     }
 
     .o_list_monetary {
         /*rtl:ignore*/
         text-align: right;
         /*rtl:ignore*/
-        direction : ltr;
+        direction: ltr;
     }
 
-    .o_field_float, .o_field_date, .o_field_monetary {
+    .o_field_float,
+    .o_field_date,
+    .o_field_monetary {
         &.oe_inline {
-            &, input {
+            &,
+            input {
                 max-width: inherit;
             }
         }
     }
 
-    .o_field_float_time, .o_field_percentage {
+    .o_field_float_time,
+    .o_field_percentage {
         &.oe_inline {
-            &, input {
+            &,
+            input {
                 max-width: 7ch;
             }
         }
     }
 
     .o_field_integer.oe_inline {
-        &, input {
+        &,
+        input {
             max-width: 7rem;
         }
     }
@@ -736,7 +815,8 @@
 
     // One2Many, Many2Many outside of group
     .o_field_widget {
-        &.o_field_one2many, &.o_field_many2many {
+        &.o_field_one2many,
+        &.o_field_many2many {
             width: 100%;
             > div {
                 width: 100%;
@@ -791,7 +871,8 @@
 
     .o_address_format {
         width: 100%;
-        .o_address_street, .o_address_country {
+        .o_address_street,
+        .o_address_country {
             display: flex;
         }
 
@@ -888,7 +969,8 @@
             td {
                 border: 1px solid $table-border-color;
             }
-            th, td {
+            th,
+            td {
                 padding: 0.75rem 0 0.75rem 0;
             }
             .o_recurrent_weekday_label {
@@ -1010,7 +1092,6 @@
         .oe_inline.o_field_widget.o_field_many2one {
             width: 100% !important;
         }
-
     }
 }
 
@@ -1082,7 +1163,8 @@
     .modal {
         &.o_modal_full .modal-content {
             .modal-body .o_form_view .o_form_sheet_bg {
-                &, & > .o_form_sheet {
+                &,
+                & > .o_form_sheet {
                     border-bottom: 0;
                     border-top: 0;
                 }
@@ -1092,7 +1174,8 @@
 }
 
 @media print {
-    .oe_button_box, .o_form_statusbar {
+    .oe_button_box,
+    .o_form_statusbar {
         display: none !important;
     }
 
@@ -1120,7 +1203,6 @@
     .o_group {
         .o_inner_group {
             margin-bottom: $o-form-spacing-unit * 4;
-
         }
 
         .o_form_label {
@@ -1149,7 +1231,8 @@
     padding: 0;
     margin: auto 0 auto 0;
 
-    .o_form_label.o_light_label, .o_light_label .o_form_label {
+    .o_form_label.o_light_label,
+    .o_light_label .o_form_label {
         font-weight: $font-weight-normal;
     }
 }

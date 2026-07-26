@@ -2,7 +2,7 @@
     @include caret();
 
     &.open {
-        @include caret('up');
+        @include caret("up");
     }
 
     &::after {

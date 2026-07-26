@@ -36,7 +36,8 @@
         display: none;
     }
 
-    .s_website_form_submit, .s_website_form_recaptcha {
+    .s_website_form_submit,
+    .s_website_form_recaptcha {
         .s_website_form_label {
             float: left;
             height: 1px;
@@ -84,14 +85,15 @@
         }
     }
     @include media-breakpoint-down(md) {
-        .datetimepicker-input{
+        .datetimepicker-input {
             caret-color: transparent;
         }
     }
 }
 
 body:not(.editor_enable) .s_website_form[data-vcss="001"] {
-    .s_website_form_date, .s_website_form_datetime {
+    .s_website_form_date,
+    .s_website_form_datetime {
         &:not(.s_website_form_datepicker_initialized) {
             [value] {
                 color: transparent;

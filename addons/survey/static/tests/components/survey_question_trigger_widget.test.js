@@ -1,7 +1,13 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
-import { contains, defineModels, fields, models, mountView } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    mountView,
+} from "@web/../tests/web_test_helpers";
 
 class Survey extends models.Model {
     question_and_page_ids = fields.One2many({ relation: "survey_question" });
@@ -111,11 +117,16 @@ test("dynamic rendering of surveyQuestionTriggerError rows", async () => {
     expect(`${q2TriggerDiv} button i`).toHaveAttribute(
         "data-tooltip",
         'Displayed if "Question 1: Answer 1".',
-        { message: "Trigger tooltip should be 'Displayed if \"Question 1: Answer 1\".'." }
+        {
+            message:
+                "Trigger tooltip should be 'Displayed if \"Question 1: Answer 1\".'.",
+        },
     );
 
     // drag and drop Question 2 (triggered) before Question 1 (trigger)
-    await contains("tbody tr:nth-child(2) .o_handle_cell").dragAndDrop("tbody tr:nth-child(1)");
+    await contains("tbody tr:nth-child(2) .o_handle_cell").dragAndDrop(
+        "tbody tr:nth-child(1)",
+    );
     await animationFrame();
 
     expect(firstDataRow).toHaveText("Question 2");
@@ -124,11 +135,16 @@ test("dynamic rendering of surveyQuestionTriggerError rows", async () => {
     expect(`${q1TriggerDiv} button i`).toHaveAttribute(
         "data-tooltip",
         '⚠ Triggers based on the following questions will not work because they are positioned after this question:\n"Question 1".',
-        { message: "Trigger tooltip should have been changed to misplacement error message." }
+        {
+            message:
+                "Trigger tooltip should have been changed to misplacement error message.",
+        },
     );
 
     // drag and drop Question 1 (trigger) back before Question 2 (triggered)
-    await contains("tbody tr:nth-child(2) .o_handle_cell").dragAndDrop("tbody tr:nth-child(1)");
+    await contains("tbody tr:nth-child(2) .o_handle_cell").dragAndDrop(
+        "tbody tr:nth-child(1)",
+    );
     await animationFrame();
 
     expect(".o_data_row:eq(1)").toHaveText("Question 2");
@@ -136,6 +152,9 @@ test("dynamic rendering of surveyQuestionTriggerError rows", async () => {
     expect(`${q2TriggerDiv} button i`).toHaveAttribute(
         "data-tooltip",
         'Displayed if "Question 1: Answer 1".',
-        { message: "Trigger tooltip should be back to 'Displayed if \"Question 1: Answer 1\".'." }
+        {
+            message:
+                "Trigger tooltip should be back to 'Displayed if \"Question 1: Answer 1\".'.",
+        },
     );
 });

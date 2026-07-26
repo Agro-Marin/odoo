@@ -8,18 +8,22 @@ export class OptionsContainerWithSnippetVersionControl extends OptionsContainer 
         super.setup();
         this.versionState = useState({
             isUpToDate: this.env.editor.shared.versionControl.hasAccessToOutdatedEl(
-                this.props.editingElement
+                this.props.editingElement,
             ),
         });
     }
     // Version control
     replaceElementWithNewVersion() {
         this.callOperation(() => {
-            this.env.editor.shared.versionControl.replaceWithNewVersion(this.props.editingElement);
+            this.env.editor.shared.versionControl.replaceWithNewVersion(
+                this.props.editingElement,
+            );
         });
     }
     accessOutdated() {
-        this.env.editor.shared.versionControl.giveAccessToOutdatedEl(this.props.editingElement);
+        this.env.editor.shared.versionControl.giveAccessToOutdatedEl(
+            this.props.editingElement,
+        );
         this.versionState.isUpToDate = true;
     }
 }

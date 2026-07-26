@@ -1,5 +1,6 @@
 :not(.dropstart) > .dropdown-item {
-    &.active, &.selected {
+    &.active,
+    &.selected {
         &:not(.dropdown-item_active_noarrow)::before {
             display: unset;
             top: 50%;
@@ -38,13 +39,13 @@
         &:after {
             @include o-position-absolute(50%, map-get($spacers, 1));
             transform: translate(-50%, -50%);
-            font-size: .5rem;
+            font-size: 0.5rem;
         }
     }
 
     &:first-child:last-child {
         .o-hb-select-toggle {
-            --btn-padding-x: #{map-get($spacers , 2)};
+            --btn-padding-x: #{map-get($spacers, 2)};
         }
     }
 }
@@ -64,7 +65,8 @@
 }
 
 // Image format badge.
-.o-hb-select-toggle.dropdown-toggle, .o-hb-select-dropdown-item {
+.o-hb-select-toggle.dropdown-toggle,
+.o-hb-select-dropdown-item {
     > div > .badge {
         color: $o-we-item-clickable-color;
         background-color: $o-we-bg-darker;
@@ -103,7 +105,10 @@
         }
 
         &::before {
-            color: var(--o-hb-select-item-active-color, $o-we-sidebar-content-field-toggle-active-bg) !important;
+            color: var(
+                --o-hb-select-item-active-color,
+                $o-we-sidebar-content-field-toggle-active-bg
+            ) !important;
         }
     }
 
@@ -118,7 +123,7 @@
 }
 
 .o_builder_open {
-    &:has(.o-snippets-tabs [data-name='theme'].active) {
+    &:has(.o-snippets-tabs [data-name="theme"].active) {
         .o-hb-select-dropdown {
             --o-hb-select-item-active-color: #{$o-we-color-global};
         }

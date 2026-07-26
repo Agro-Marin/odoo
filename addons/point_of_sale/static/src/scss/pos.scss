@@ -1,7 +1,7 @@
 /* --- Fonts --- */
 
-@font-face{
-    font-family: 'Inconsolata';
+@font-face {
+    font-family: "Inconsolata";
     src: url(../fonts/Inconsolata.otf);
 }
 
@@ -14,7 +14,8 @@ select > option {
 }
 
 .navbar-menu {
-    :not(.btn-check) + .btn:active, .btn:first-child:active{
+    :not(.btn-check) + .btn:active,
+    .btn:first-child:active {
         --btn-active-border-color: transparent;
     }
 }
@@ -28,22 +29,29 @@ select > option {
 }
 
 .btn-secondary {
-    --btn-bg: #F4F4F4;
+    --btn-bg: #f4f4f4;
     --btn-border-color: #cccccc;
     --btn-color: #{$o-gray-900};
     --btn-disabled-bg: var(--btn-bg);
     --btn-disabled-color: #{$o-gray-700};
     --btn-disabled-border-color: var(--btn-border-color);
-    &:disabled, &.disabled {
+    &:disabled,
+    &.disabled {
         filter: saturate(0);
     }
 }
 
 .bg-secondary {
-    --background-color: #F4F4F4;
+    --background-color: #f4f4f4;
 }
 
-[type="text"], [type="password"], [type="number"], [type="email"], [type="tel"], textarea, select {
+[type="text"],
+[type="password"],
+[type="number"],
+[type="email"],
+[type="tel"],
+textarea,
+select {
     width: 100%;
     display: block;
     outline: none;
@@ -79,7 +87,6 @@ select > option {
     }
 }
 
-
 @media screen and (max-width: 992px) {
     .order,
     .leftpane {
@@ -108,40 +115,41 @@ select > option {
 
 /*  ********* The Webkit Scrollbar  ********* */
 
-.pos.big-scrollbars *::-webkit-scrollbar{
-    width:  40px;
+.pos.big-scrollbars *::-webkit-scrollbar {
+    width: 40px;
     height: 40px;
 }
-.pos.big-scrollbars *::-webkit-scrollbar-track{
+.pos.big-scrollbars *::-webkit-scrollbar-track {
     background: $gray-200;
     border-left: none;
 }
-.pos.big-scrollbars *::-webkit-scrollbar-thumb{
-    background: rgb(168,168,168);
+.pos.big-scrollbars *::-webkit-scrollbar-thumb {
+    background: rgb(168, 168, 168);
     min-height: 40px;
     border-radius: 3px;
 }
-.pos.big-scrollbars *::-webkit-scrollbar-button{
-    width:  40px;
+.pos.big-scrollbars *::-webkit-scrollbar-button {
+    width: 40px;
     height: 40px;
     border-radius: 3px;
-    background: rgb(210,210,210);
+    background: rgb(210, 210, 210);
     background-size: cover;
 }
-.pos.big-scrollbars *::-webkit-scrollbar-button:decrement{
-    background-image: url('../img/scroll-up.png');
+.pos.big-scrollbars *::-webkit-scrollbar-button:decrement {
+    background-image: url("../img/scroll-up.png");
 }
-.pos.big-scrollbars *::-webkit-scrollbar-button:increment{
-    background-image: url('../img/scroll-down.png');
+.pos.big-scrollbars *::-webkit-scrollbar-button:increment {
+    background-image: url("../img/scroll-down.png");
 }
 
 /* Fade */
 
 .o-fade {
-    transition: opacity .2s;
+    transition: opacity 0.2s;
 }
 
-.o-fade-enter, .o-fade-leave {
+.o-fade-enter,
+.o-fade-leave {
     opacity: 0;
 }
 
@@ -176,16 +184,32 @@ select > option {
 // Set all the colors but the "no-color" one
 @for $size from 2 through length($o-colors) {
     .o_colorlist_item_color_transparent_#{$size - 1} {
-        $-border-color: adjust-color(nth($o-colors, $size), $lightness: 15%, $saturation: 5%);
-        $-background-color: adjust-color(nth($o-colors, $size), $lightness: 25%, $saturation: 5%);
+        $-border-color: adjust-color(
+            nth($o-colors, $size),
+            $lightness: 15%,
+            $saturation: 5%
+        );
+        $-background-color: adjust-color(
+            nth($o-colors, $size),
+            $lightness: 25%,
+            $saturation: 5%
+        );
         --bg: #{$-background-color};
         --hover-bg: #{darken($-background-color, 5%)};
         --border-color: #{$-border-color};
     }
 
     .o_colorlist_item_numpad_color_#{$size - 1} {
-        $-border-color: adjust-color(nth($o-colors, $size), $lightness: 15%, $saturation: 5%);
-        $-background-color: adjust-color(nth($o-colors, $size), $lightness: 25%, $saturation: 5%);
+        $-border-color: adjust-color(
+            nth($o-colors, $size),
+            $lightness: 15%,
+            $saturation: 5%
+        );
+        $-background-color: adjust-color(
+            nth($o-colors, $size),
+            $lightness: 25%,
+            $saturation: 5%
+        );
         --bg: #{$-background-color};
         --border-color: #{$-border-color};
         --hover-bg: #{darken($-background-color, 5%)};
@@ -193,7 +217,11 @@ select > option {
 
     .o_colorlist_item_color_#{$size - 1} {
         $-bg: adjust-color(nth($o-colors, $size), $lightness: 25%, $saturation: 15%);
-        $-color: adjust-color(nth($o-colors, $size), $lightness: -40%, $saturation: -15%);
+        $-color: adjust-color(
+            nth($o-colors, $size),
+            $lightness: -40%,
+            $saturation: -15%
+        );
         @include o-print-color($-bg, background-color, bg-opacity);
         @include o-print-color($-color, color, text-opacity);
         border-color: #{darken(nth($o-colors, $size), 20%)};
@@ -204,7 +232,11 @@ select > option {
 
     .o_colorlist_item_wo_border_color_#{$size - 1} {
         $-bg: adjust-color(nth($o-colors, $size), $lightness: 25%, $saturation: 15%);
-        $-color: adjust-color(nth($o-colors, $size), $lightness: -40%, $saturation: -15%);
+        $-color: adjust-color(
+            nth($o-colors, $size),
+            $lightness: -40%,
+            $saturation: -15%
+        );
         @include o-print-color($-bg, background-color, bg-opacity);
         @include o-print-color($-color, color, text-opacity);
     }

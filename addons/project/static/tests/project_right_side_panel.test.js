@@ -1,11 +1,8 @@
-import { expect, test, describe } from "@odoo/hoot";
-import { queryAll } from "@odoo/hoot-dom";
-
-import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
-
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
-
+import { describe, expect, test } from "@odoo/hoot";
+import { queryAll } from "@odoo/hoot-dom";
 import { ProjectRightSidePanel } from "@project/components/project_right_side_panel/project_right_side_panel";
+import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 
 defineMailModels();
 describe.current.tags("desktop");
@@ -107,9 +104,7 @@ test("Right side panel will be not rendered if settings are turned off but does 
 });
 
 test("Right side panel will be rendered if both setting is turned on and does have data", async () => {
-    onRpc(() => {
-        return { ...FAKE_DATA };
-    });
+    onRpc(() => ({ ...FAKE_DATA }));
 
     await mountWithCleanup(ProjectRightSidePanel, {
         props: {

@@ -1,7 +1,8 @@
-
-.s_alert[data-vcss='001'] {
+.s_alert[data-vcss="001"] {
     margin: calc($grid-gutter-width / 2) 0;
-    p, ul, ol {
+    p,
+    ul,
+    ol {
         &:last-child {
             margin-bottom: 0;
         }

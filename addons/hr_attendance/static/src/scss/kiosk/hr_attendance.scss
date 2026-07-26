@@ -56,16 +56,15 @@
     height: calc(100dvh - var(--kiosk-searchBar-height));
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
     grid-template-rows: max-content;
-    
+
     img {
-        width:4rem;
+        width: 4rem;
     }
 
     @include media-breakpoint-down(md) {
         height: calc(100dvh - var(--kiosk-searchBar-height--mobile));
     }
 }
-
 
 .o_hr_attendance_kiosk_card {
     min-width: 75%;
@@ -83,21 +82,24 @@
     }
 }
 
-.o_hr_kiosk_url_media{
-    a{
+.o_hr_kiosk_url_media {
+    a {
         width: 100% !important;
     }
 }
-.o_attendance_form .o_content{
+.o_attendance_form .o_content {
     overflow: hidden !important;
 }
 // Shared with web client and login screen
-.o_attendance_background{
+.o_attendance_background {
     background: {
         size: cover;
         attachment: fixed;
         color: var(--homeMenu-bg-color, #{$o-gray-200});
-        image: var(--homeMenu-bg-image, url("/hr_attendance/static/img/background-light.svg"));
+        image: var(
+            --homeMenu-bg-image,
+            url("/hr_attendance/static/img/background-light.svg")
+        );
     }
 }
 
@@ -106,11 +108,11 @@
     overflow: hidden;
 }
 
-.o_select_employee{
+.o_select_employee {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    @include media-breakpoint-down(sm){
+    @include media-breakpoint-down(sm) {
         flex-direction: column;
         align-items: stretch;
     }
@@ -157,10 +159,10 @@
 
     .o-autocomplete--dropdown-menu {
         position: absolute !important;
-        width:110%;
-        left:-5% !important;
-        top:42px !important;
-        max-height: 300px!important;
+        width: 110%;
+        left: -5% !important;
+        top: 42px !important;
+        max-height: 300px !important;
         overflow-y: auto;
         .dropdown-item {
             padding: map-get($spacers, 2);
@@ -168,7 +170,7 @@
         }
     }
 
-    .o-autocomplete--dropdown-item a[aria-selected="true"]{
+    .o-autocomplete--dropdown-item a[aria-selected="true"] {
         background-color: #f0f0f0 !important;
     }
 

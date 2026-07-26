@@ -1,4 +1,3 @@
-
 // Styles for section and note lines on sale order and invoice.
 
 table.o_section_and_note_list_view {
@@ -10,11 +9,12 @@ table.o_section_and_note_list_view {
             font-style: italic;
         }
 
-        &.o_is_line_section, &.o_is_line_subsection {
+        &.o_is_line_section,
+        &.o_is_line_subsection {
             --table-striped-bg: var(--table-bg-type);
 
             .o_list_section_options {
-                width: 1px;  // prevent the column from expanding
+                width: 1px; // prevent the column from expanding
             }
 
             .o_field_product_label_section_and_note_cell .o_input {
@@ -23,8 +23,8 @@ table.o_section_and_note_list_view {
         }
 
         &.o_is_line_section {
-            --table-hover-bg: #{rgba($body-emphasis-color, .08)};
-            --table-bg-type: #{rgba($body-emphasis-color, .06)};
+            --table-hover-bg: #{rgba($body-emphasis-color, 0.08)};
+            --table-bg-type: #{rgba($body-emphasis-color, 0.06)};
             --ListRenderer-data-row-focused-striped-bg: var(--table-bg-type);
 
             font-weight: $font-weight-bolder;
@@ -41,8 +41,8 @@ table.o_section_and_note_list_view {
         }
 
         &.o_is_line_subsection {
-            --table-hover-bg: #{rgba($body-emphasis-color, .05)};
-            --table-bg-type: #{rgba($body-emphasis-color, .03)};
+            --table-hover-bg: #{rgba($body-emphasis-color, 0.05)};
+            --table-bg-type: #{rgba($body-emphasis-color, 0.03)};
 
             font-weight: $font-weight-bold;
 
@@ -62,14 +62,19 @@ table.o_section_and_note_list_view {
         }
 
         // Check if next sibling is a section to apply a border-color.
-        &:where(:not(.o_dragged):has(+ .o_is_line_section:not(.o_dragged, .d-table-row))) {
+        &:where(
+            :not(.o_dragged):has(+ .o_is_line_section:not(.o_dragged, .d-table-row))
+        ) {
             border-color: var(--o-SectionAndNote-border-color);
         }
     }
 
     // Check if first tr in the table is a section to apply a border-color on
     // the <th> els.
-    &:where(:has(tbody > tr:first-child.o_is_line_section:not(.o_dragged, .d-table-row))) th {
+    &:where(
+            :has(tbody > tr:first-child.o_is_line_section:not(.o_dragged, .d-table-row))
+        )
+        th {
         border-color: var(--o-SectionAndNote-border-color);
     }
 }

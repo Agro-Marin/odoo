@@ -10,7 +10,9 @@
         padding: $o-navbar-padding-v 0;
     }
 
-    .o_nav_entry, .o_menu_systray_item > a, .o_menu_systray_item > button {
+    .o_nav_entry,
+    .o_menu_systray_item > a,
+    .o_menu_systray_item > button {
         height: auto;
         margin-top: -$o-navbar-padding-v;
         margin-bottom: -$o-navbar-padding-v;

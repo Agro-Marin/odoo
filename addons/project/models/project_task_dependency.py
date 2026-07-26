@@ -100,7 +100,9 @@ class ProjectTaskDependency(models.Model):
         # depends_on_id -> [task_id, ...]: "tasks that depend on this one".
         # Raw read bypasses ORM auto-flush, so flush the endpoints first.
         self.flush_model(["task_id", "depends_on_id"])
-        self.env.cr.execute("SELECT depends_on_id, task_id FROM project_task_dependency")
+        self.env.cr.execute(
+            "SELECT depends_on_id, task_id FROM project_task_dependency"
+        )
         downstream: dict[int, list[int]] = defaultdict(list)
         for depends_on_id, task_id in self.env.cr.fetchall():
             downstream[depends_on_id].append(task_id)
@@ -137,9 +139,7 @@ class ProjectTaskDependency(models.Model):
         blocked-state computation would track the wrong predecessor.
         """
         remap = "task_id" in vals or "depends_on_id" in vals
-        old_pairs = (
-            [(dep.task_id, dep.depends_on_id) for dep in self] if remap else []
-        )
+        old_pairs = [(dep.task_id, dep.depends_on_id) for dep in self] if remap else []
         res = super().write(vals)
         if remap:
             for (old_task, old_pred), dep in zip(old_pairs, self, strict=True):
@@ -175,6 +175,4 @@ class ProjectTaskDependency(models.Model):
             if dep.depends_on_id not in dep.task_id.predecessor_ids:
                 preds_by_task[dep.task_id] |= dep.depends_on_id
         for task, preds in preds_by_task.items():
-            task.write(
-                {"predecessor_ids": [fields.Command.link(p.id) for p in preds]}
-            )
+            task.write({"predecessor_ids": [fields.Command.link(p.id) for p in preds]})

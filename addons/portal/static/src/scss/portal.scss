@@ -61,7 +61,7 @@ header {
     margin-bottom: 0;
     .nav.navbar-nav.float-end {
         @include media-breakpoint-down(md) {
-            float: none!important;
+            float: none !important;
         }
     }
 }
@@ -75,7 +75,8 @@ ul.flex-column > li > a {
 }
 
 // Link without text but an icon
-a, .btn-link {
+a,
+.btn-link {
     &.fa:hover {
         text-decoration: $o-theme-btn-icon-hover-decoration;
     }
@@ -97,7 +98,8 @@ li > p {
     padding-left: 0;
 }
 .container {
-    .container, .container-fluid {
+    .container,
+    .container-fluid {
         @extend %o-double-container-no-padding;
     }
 }
@@ -105,12 +107,14 @@ li > p {
     @extend %o-double-container-no-padding;
 }
 #wrap {
-    .container, .container-fluid {
+    .container,
+    .container-fluid {
         // BS3 used to do this on all containers so that margins and floats are
         // cleared inside containers. As lots of current odoo layouts may rely
         // on this for some alignments, this is restored (at least for a while)
         // here only for main containers of the frontend.
-        &::before, &::after {
+        &::before,
+        &::after {
             content: "";
             display: table;
             clear: both;
@@ -119,7 +123,8 @@ li > p {
     .navbar %container-flex-properties {
         // Bootstrap set-up flex alignment to "space-between" here. The hack
         // made above to restore the BS3 protection has to be disabled.
-        &::before, &::after {
+        &::before,
+        &::after {
             display: none;
         }
     }
@@ -130,7 +135,14 @@ li > p {
 // TODO this was added a compatibility layer for old layouts when we switched
 // to Bootstrap 4. It should be removed at some point, to not have to support
 // invalid-feedback with that awful :where selector.
-.input-group:where(:not(:has(.was-validated :invalid ~ .invalid-feedback, .is-invalid ~ .invalid-feedback))) {
+.input-group:where(
+    :not(
+        :has(
+            .was-validated :invalid ~ .invalid-feedback,
+            .is-invalid ~ .invalid-feedback
+        )
+    )
+) {
     flex-flow: row nowrap;
 }
 
@@ -155,7 +167,9 @@ li > p {
 }
 
 // Images spacing
-img, .media_iframe_video, .o_image {
+img,
+.media_iframe_video,
+.o_image {
     &.float-end {
         margin-left: calc($grid-gutter-width / 2);
     }
@@ -205,7 +219,7 @@ img, .media_iframe_video, .o_image {
     color: white;
 }
 .oe_green {
-    background-color: #169C78;
+    background-color: #169c78;
     color: white;
     .text-muted {
         color: #ddd !important;
@@ -237,20 +251,20 @@ img, .media_iframe_video, .o_image {
     }
 }
 .oe_red {
-    background-color: #9C1b31;
+    background-color: #9c1b31;
     color: white;
     .text-muted {
         color: #ddd !important;
     }
 }
 .oe_none {
-    background-color: #FFFFFF;
+    background-color: #ffffff;
 }
 .oe_yellow {
-    background-color: #A2A51B;
+    background-color: #a2a51b;
 }
 .oe_green {
-    background-color: #149F2C;
+    background-color: #149f2c;
 }
 
 .o_portal {
@@ -277,7 +291,9 @@ img, .media_iframe_video, .o_image {
 
         & + .o_portal_index_card {
             padding-left: 0; //padding-right - g-2
-            padding-right: calc(var(--gutter-x) + var(--gutter-x) * .5); //padding-right + g-2
+            padding-right: calc(
+                var(--gutter-x) + var(--gutter-x) * 0.5
+            ); //padding-right + g-2
         }
     }
 
@@ -300,10 +316,10 @@ img, .media_iframe_video, .o_image {
             padding-top: $o-portal-table-td-pt;
             padding-bottom: $o-portal-table-td-pb;
             max-width: 10rem;
-
         }
 
-        td, th {
+        td,
+        th {
             vertical-align: middle;
             white-space: nowrap;
             overflow: hidden;
@@ -350,7 +366,8 @@ img, .media_iframe_video, .o_image {
             line-height: $line-height-base;
             color: $o-gray-500;
 
-            + span, + div {
+            + span,
+            + div {
                 display: block;
             }
         }
@@ -393,7 +410,7 @@ img, .media_iframe_video, .o_image {
 .o_portal_chatter {
     padding: 10px;
 
-    .o_portal_chatter_avatar{
+    .o_portal_chatter_avatar {
         --Avatar-size: 45px;
     }
 
@@ -428,8 +445,6 @@ img, .media_iframe_video, .o_image {
     .o_portal_chatter_pager {
         text-align: center;
     }
-
-
 }
 
 // Readonly / Composer mix display
@@ -473,13 +488,14 @@ img, .media_iframe_video, .o_image {
             max-width: initial;
             margin: initial;
         }
-        label, button {
+        label,
+        button {
             white-space: nowrap;
         }
     }
     section[name="portal_deactivate_account"] {
         label {
-            white-space: normal!important;
+            white-space: normal !important;
         }
     }
 }
@@ -497,7 +513,6 @@ img, .media_iframe_video, .o_image {
 }
 
 .oe_clear_stucture {
-
     > .oe_structure {
         clear: both;
     }

@@ -26,21 +26,25 @@ class TestAuditFixes(TestProjectCommon):
         project = self.project_pigs
         now = fields.Datetime.now()
         # Task closed on time: closed before its deadline.
-        self.env["project.task"].create({
-            "name": "On time",
-            "project_id": project.id,
-            "state": "done",
-            "date_closed": now - timedelta(days=2),
-            "date_end": now - timedelta(days=1),
-        })
+        self.env["project.task"].create(
+            {
+                "name": "On time",
+                "project_id": project.id,
+                "state": "done",
+                "date_closed": now - timedelta(days=2),
+                "date_end": now - timedelta(days=1),
+            }
+        )
         # Task closed late: closed after its deadline.
-        self.env["project.task"].create({
-            "name": "Late",
-            "project_id": project.id,
-            "state": "done",
-            "date_closed": now,
-            "date_end": now - timedelta(days=1),
-        })
+        self.env["project.task"].create(
+            {
+                "name": "Late",
+                "project_id": project.id,
+                "state": "done",
+                "date_closed": now,
+                "date_end": now - timedelta(days=1),
+            }
+        )
         project.invalidate_recordset(["deadline_compliance_pct"])
         self.assertEqual(
             project.deadline_compliance_pct,
@@ -57,20 +61,24 @@ class TestAuditFixes(TestProjectCommon):
         # (throughput keys off closure date, not deadline). 4 / 4.0 weeks = 1.0,
         # an exact value that avoids the field's 1-decimal rounding.
         for i in range(4):
-            self.env["project.task"].create({
-                "name": f"Closed recently, old deadline {i}",
-                "project_id": project.id,
-                "state": "done",
-                "date_closed": now - timedelta(days=1),
-                "date_end": now - timedelta(days=365),
-            })
+            self.env["project.task"].create(
+                {
+                    "name": f"Closed recently, old deadline {i}",
+                    "project_id": project.id,
+                    "state": "done",
+                    "date_closed": now - timedelta(days=1),
+                    "date_end": now - timedelta(days=365),
+                }
+            )
         # Not closed, deadline in the recent window: MUST NOT be counted.
-        self.env["project.task"].create({
-            "name": "Open, recent deadline",
-            "project_id": project.id,
-            "state": "in_progress",
-            "date_end": now - timedelta(days=1),
-        })
+        self.env["project.task"].create(
+            {
+                "name": "Open, recent deadline",
+                "project_id": project.id,
+                "state": "in_progress",
+                "date_end": now - timedelta(days=1),
+            }
+        )
         project.invalidate_recordset(["throughput_week"])
         # Under the old (buggy) code these keyed off date_end (365d ago) → 0.0.
         self.assertEqual(project.throughput_week, 1.0)
@@ -82,28 +90,36 @@ class TestAuditFixes(TestProjectCommon):
         Bug: it wrote ``date_end`` — a field mail.activity does not have — so the
         cron raised ValueError on every run and no reminder was ever created.
         """
-        review = fields.Date.context_today(self.env["project.benefit"]) - timedelta(days=1)
-        benefit = self.env["project.benefit"].create({
-            "name": "Cut fuel cost",
-            "project_id": self.project_pigs.id,
-            "accountable_id": self.user_projectmanager.id,
-            "review_date": review,
-            "state": "tracking",
-        })
+        review = fields.Date.context_today(self.env["project.benefit"]) - timedelta(
+            days=1
+        )
+        benefit = self.env["project.benefit"].create(
+            {
+                "name": "Cut fuel cost",
+                "project_id": self.project_pigs.id,
+                "accountable_id": self.user_projectmanager.id,
+                "review_date": review,
+                "state": "tracking",
+            }
+        )
         self.env["project.benefit"]._cron_check_review_dates()
-        activity = self.env["mail.activity"].search([
-            ("res_model", "=", "project.benefit"),
-            ("res_id", "=", benefit.id),
-        ])
+        activity = self.env["mail.activity"].search(
+            [
+                ("res_model", "=", "project.benefit"),
+                ("res_id", "=", benefit.id),
+            ]
+        )
         self.assertEqual(len(activity), 1, "Cron must schedule exactly one activity")
         self.assertEqual(activity.date_deadline, review)
         # Idempotent: a second run must not duplicate the activity.
         self.env["project.benefit"]._cron_check_review_dates()
         self.assertEqual(
-            self.env["mail.activity"].search_count([
-                ("res_model", "=", "project.benefit"),
-                ("res_id", "=", benefit.id),
-            ]),
+            self.env["mail.activity"].search_count(
+                [
+                    ("res_model", "=", "project.benefit"),
+                    ("res_id", "=", benefit.id),
+                ]
+            ),
             1,
             "Cron must be idempotent",
         )
@@ -116,15 +132,19 @@ class TestAuditFixes(TestProjectCommon):
             Recurrence.create({"repeat_type": "until"})  # no repeat_until
         today = fields.Date.today()
         with self.assertRaises(ValidationError):
-            Recurrence.create({
-                "repeat_type": "until",
-                "repeat_until": today - timedelta(days=1),
-            })
+            Recurrence.create(
+                {
+                    "repeat_type": "until",
+                    "repeat_until": today - timedelta(days=1),
+                }
+            )
         # A valid future date must succeed.
-        rec = Recurrence.create({
-            "repeat_type": "until",
-            "repeat_until": today + timedelta(days=30),
-        })
+        rec = Recurrence.create(
+            {
+                "repeat_type": "until",
+                "repeat_until": today + timedelta(days=30),
+            }
+        )
         self.assertTrue(rec)
 
     def test_copy_data_preserves_defaults_across_batch(self) -> None:
@@ -136,19 +156,25 @@ class TestAuditFixes(TestProjectCommon):
         silently lost the passed defaults (e.g. name).
         """
         project = self.project_pigs
-        parent = self.env["project.task"].create({
-            "name": "Parent with child",
-            "project_id": project.id,
-        })
-        self.env["project.task"].create({
-            "name": "Child",
-            "project_id": project.id,
-            "parent_id": parent.id,
-        })
-        sibling = self.env["project.task"].create({
-            "name": "Sibling",
-            "project_id": project.id,
-        })
+        parent = self.env["project.task"].create(
+            {
+                "name": "Parent with child",
+                "project_id": project.id,
+            }
+        )
+        self.env["project.task"].create(
+            {
+                "name": "Child",
+                "project_id": project.id,
+                "parent_id": parent.id,
+            }
+        )
+        sibling = self.env["project.task"].create(
+            {
+                "name": "Sibling",
+                "project_id": project.id,
+            }
+        )
         self.assertGreater(sibling.id, parent.id, "parent must be processed first")
         copies = (parent + sibling).copy({"name": "RenamedCopy"})
         self.assertEqual(
@@ -162,18 +188,30 @@ class TestAuditFixes(TestProjectCommon):
     def test_multi_project_copy_isolates_milestones(self) -> None:
         """Copying several projects at once must give each copy only its own
         milestones, not the union of every source project's milestones."""
-        project_a = self.env["project.project"].create({
-            "name": "Alpha", "allow_milestones": True,
-        })
-        project_b = self.env["project.project"].create({
-            "name": "Beta", "allow_milestones": True,
-        })
-        self.env["project.milestone"].create({
-            "name": "A-M1", "project_id": project_a.id,
-        })
-        self.env["project.milestone"].create({
-            "name": "B-M1", "project_id": project_b.id,
-        })
+        project_a = self.env["project.project"].create(
+            {
+                "name": "Alpha",
+                "allow_milestones": True,
+            }
+        )
+        project_b = self.env["project.project"].create(
+            {
+                "name": "Beta",
+                "allow_milestones": True,
+            }
+        )
+        self.env["project.milestone"].create(
+            {
+                "name": "A-M1",
+                "project_id": project_a.id,
+            }
+        )
+        self.env["project.milestone"].create(
+            {
+                "name": "B-M1",
+                "project_id": project_b.id,
+            }
+        )
         copies = (project_a + project_b).copy()
         self.assertEqual(len(copies[0].milestone_ids), 1)
         self.assertEqual(len(copies[1].milestone_ids), 1)
@@ -187,15 +225,25 @@ class TestAuditFixes(TestProjectCommon):
         Cycles are normally blocked by @api.constrains, so we inject the reverse
         edge with raw SQL to simulate a constraint-bypassed / drifted graph.
         """
-        project = self.env["project.project"].create({
-            "name": "CycleProj", "allow_dependencies": True,
-        })
-        task_a = self.env["project.task"].create({"name": "A", "project_id": project.id})
-        task_b = self.env["project.task"].create({"name": "B", "project_id": project.id})
+        project = self.env["project.project"].create(
+            {
+                "name": "CycleProj",
+                "allow_dependencies": True,
+            }
+        )
+        task_a = self.env["project.task"].create(
+            {"name": "A", "project_id": project.id}
+        )
+        task_b = self.env["project.task"].create(
+            {"name": "B", "project_id": project.id}
+        )
         # A -> B via the ORM (valid, no cycle yet).
-        self.env["project.task.dependency"].create({
-            "task_id": task_b.id, "depends_on_id": task_a.id,
-        })
+        self.env["project.task.dependency"].create(
+            {
+                "task_id": task_b.id,
+                "depends_on_id": task_a.id,
+            }
+        )
         # B -> A injected directly, bypassing the cycle constraint.
         self.env.cr.execute(
             """INSERT INTO project_task_dependency
@@ -453,9 +501,7 @@ class TestAuditFixesBatchB(TestProjectCommon):
         )
         current.action_carry_forward()
         current.action_carry_forward()
-        self.assertEqual(
-            len(current.action_ids), 1, "carry-forward must be idempotent"
-        )
+        self.assertEqual(len(current.action_ids), 1, "carry-forward must be idempotent")
 
 
 @tagged("-at_install", "post_install")
@@ -469,7 +515,8 @@ class TestAuditFixesBatchC(TestProjectCommon):
     def test_duplicate_current_baseline(self) -> None:
         """C2: copying the current baseline must not hit the partial unique index."""
         baseline = self.env["project.baseline"].create(
-            {"project_id": self.project_pigs.id, "name": "B1"})
+            {"project_id": self.project_pigs.id, "name": "B1"}
+        )
         baseline.action_set_current()
         baseline.flush_recordset()
         copy = baseline.copy()  # must not raise IntegrityError
@@ -481,21 +528,31 @@ class TestAuditFixesBatchC(TestProjectCommon):
         project must not see that project's risks (mirrors the task rule),
         but must still see risks of an employees-visible project."""
         Risk = self.env["project.risk"]
-        secret = Risk.create({
-            "project_id": self.project_goats.id,  # privacy_visibility='followers'
-            "name": "SECRET", "probability": "5", "impact": "5",
-        })
-        visible = Risk.create({
-            "project_id": self.project_pigs.id,  # privacy_visibility='employees'
-            "name": "OPEN", "probability": "1", "impact": "1",
-        })
+        secret = Risk.create(
+            {
+                "project_id": self.project_goats.id,  # privacy_visibility='followers'
+                "name": "SECRET",
+                "probability": "5",
+                "impact": "5",
+            }
+        )
+        visible = Risk.create(
+            {
+                "project_id": self.project_pigs.id,  # privacy_visibility='employees'
+                "name": "OPEN",
+                "probability": "1",
+                "impact": "1",
+            }
+        )
         as_user = Risk.with_user(self.user_projectuser)
         self.assertNotIn(
-            secret, as_user.search([("project_id", "=", self.project_goats.id)]),
+            secret,
+            as_user.search([("project_id", "=", self.project_goats.id)]),
             "follower-only project's risk must be hidden from non-follower user",
         )
         self.assertIn(
-            visible, as_user.search([("project_id", "=", self.project_pigs.id)]),
+            visible,
+            as_user.search([("project_id", "=", self.project_pigs.id)]),
             "employees-visible project's risk must remain readable",
         )
 
@@ -503,17 +560,19 @@ class TestAuditFixesBatchC(TestProjectCommon):
         """D1: editing a typed dependency's predecessor must re-sync the backing
         predecessor_ids M2M."""
         self.project_pigs.allow_dependencies = True
-        a, b, c = self.env["project.task"].create([
-            {"name": n, "project_id": self.project_pigs.id} for n in ("A", "B", "C")
-        ])
+        a, b, c = self.env["project.task"].create(
+            [{"name": n, "project_id": self.project_pigs.id} for n in ("A", "B", "C")]
+        )
         dep = self.env["project.task.dependency"].create(
-            {"task_id": b.id, "depends_on_id": a.id, "dependency_type": "fs"})
+            {"task_id": b.id, "depends_on_id": a.id, "dependency_type": "fs"}
+        )
         b.invalidate_recordset(["predecessor_ids"])
         self.assertEqual(b.predecessor_ids, a)
         dep.depends_on_id = c.id
         b.invalidate_recordset(["predecessor_ids"])
         self.assertEqual(
-            b.predecessor_ids, c,
+            b.predecessor_ids,
+            c,
             "editing the dependency must move the M2M link from A to C",
         )
 
@@ -522,40 +581,50 @@ class TestAuditFixesBatchC(TestProjectCommon):
         the onchange (NewId) computation."""
         self.project_pigs.allow_milestones = True
         saved = self.env["project.milestone"].create(
-            {"project_id": self.project_pigs.id, "name": "M"})
+            {"project_id": self.project_pigs.id, "name": "M"}
+        )
         saved.invalidate_recordset(["can_be_marked_as_done"])
         new_rec = self.env["project.milestone"].new(
-            {"project_id": self.project_pigs.id, "name": "Mnew"})
+            {"project_id": self.project_pigs.id, "name": "Mnew"}
+        )
         self.assertFalse(saved.can_be_marked_as_done)
         self.assertEqual(
-            saved.can_be_marked_as_done, new_rec.can_be_marked_as_done,
+            saved.can_be_marked_as_done,
+            new_rec.can_be_marked_as_done,
             "saved and onchange computation must agree for an empty milestone",
         )
 
     def test_resolved_risk_excluded_from_counts(self) -> None:
         """H1: a resolved risk no longer counts toward risk_count / health."""
-        risk = self.env["project.risk"].create({
-            "project_id": self.project_pigs.id, "name": "R",
-            "probability": "5", "impact": "5",
-        })
+        risk = self.env["project.risk"].create(
+            {
+                "project_id": self.project_pigs.id,
+                "name": "R",
+                "probability": "5",
+                "impact": "5",
+            }
+        )
         self.project_pigs.invalidate_recordset(["risk_count"])
         self.assertEqual(self.project_pigs.risk_count, 1)
         risk.state = "resolved"
         self.project_pigs.invalidate_recordset(["risk_count"])
         self.assertEqual(
-            self.project_pigs.risk_count, 0,
+            self.project_pigs.risk_count,
+            0,
             "resolved risks must be excluded from the open-risk count",
         )
 
     def test_canceled_task_not_counted_as_throughput(self) -> None:
         """F1: canceled tasks are not delivered work — excluded from throughput."""
         task = self.env["project.task"].create(
-            {"name": "X", "project_id": self.project_pigs.id})
+            {"name": "X", "project_id": self.project_pigs.id}
+        )
         task.state = "canceled"
         task.date_closed = fields.Datetime.now()
         self.project_pigs.invalidate_recordset(["throughput_week"])
         self.assertEqual(
-            self.project_pigs.throughput_week, 0.0,
+            self.project_pigs.throughput_week,
+            0.0,
             "a canceled task must not count as delivered throughput",
         )
 
@@ -563,13 +632,18 @@ class TestAuditFixesBatchC(TestProjectCommon):
         """DM: deadline_met distinguishes 'no deadline / not closed' (empty) from
         'missed' — a Boolean collapsed both to False."""
         no_deadline = self.env["project.task"].create(
-            {"name": "no dl", "project_id": self.project_pigs.id})
+            {"name": "no dl", "project_id": self.project_pigs.id}
+        )
         now = fields.Datetime.now()
-        missed = self.env["project.task"].create({
-            "name": "missed", "project_id": self.project_pigs.id,
-            "date_end": now - timedelta(days=1), "state": "done",
-            "date_closed": now,
-        })
+        missed = self.env["project.task"].create(
+            {
+                "name": "missed",
+                "project_id": self.project_pigs.id,
+                "date_end": now - timedelta(days=1),
+                "state": "done",
+                "date_closed": now,
+            }
+        )
         (no_deadline + missed).invalidate_recordset(["deadline_met"])
         self.assertFalse(no_deadline.deadline_met, "no deadline → empty")
         self.assertEqual(missed.deadline_met, "missed", "closed late → 'missed'")
@@ -578,37 +652,45 @@ class TestAuditFixesBatchC(TestProjectCommon):
         """A personal triage bucket cannot be assigned to a different user's
         task-triage entry (only the UI domain guarded this before)."""
         bucket = self.env["project.triage"].create(
-            {"name": "Inbox", "user_id": self.user_projectuser.id})
+            {"name": "Inbox", "user_id": self.user_projectuser.id}
+        )
         with self.assertRaises(ValidationError):
-            self.env["project.task.triage"].create({
-                "task_id": self.task_1.id,
-                "user_id": self.user_projectmanager.id,  # different user
-                "triage_id": bucket.id,
-            })
+            self.env["project.task.triage"].create(
+                {
+                    "task_id": self.task_1.id,
+                    "user_id": self.user_projectmanager.id,  # different user
+                    "triage_id": bucket.id,
+                }
+            )
 
     def test_forecast_wizard_rejects_non_positive_sims(self) -> None:
         """The Monte Carlo wizard must not IndexError on simulation_count <= 0."""
-        wizard = self.env["project.forecast.wizard"].create({
-            "project_id": self.project_pigs.id,
-            "simulation_count": 0,
-        })
+        wizard = self.env["project.forecast.wizard"].create(
+            {
+                "project_id": self.project_pigs.id,
+                "simulation_count": 0,
+            }
+        )
         with self.assertRaises(UserError):
             wizard.action_run_forecast()
 
     def test_rating_deadline_is_seeded_and_stable(self) -> None:
         """rating_request_deadline is a plain field: seeded on enabling periodic
         rating and NOT reset to now()+period by an unrelated recompute."""
-        step = self.env["project.workflow.step"].create({
-            "name": "Periodic",
-            "rating_active": True,
-            "rating_status": "periodic",
-            "rating_status_period": "weekly",
-        })
+        step = self.env["project.workflow.step"].create(
+            {
+                "name": "Periodic",
+                "rating_active": True,
+                "rating_status": "periodic",
+                "rating_status_period": "weekly",
+            }
+        )
         seeded = step.rating_request_deadline
         self.assertTrue(seeded, "deadline must be seeded when periodic rating on")
         step.invalidate_recordset(["rating_request_deadline"])
         self.assertEqual(
-            step.rating_request_deadline, seeded,
+            step.rating_request_deadline,
+            seeded,
             "deadline must survive recompute (no now()-based reset)",
         )
 
@@ -617,15 +699,16 @@ class TestAuditFixesBatchC(TestProjectCommon):
         task closure), not the snapshot date."""
         start = fields.Date.today() - timedelta(days=100)
         project = self.env["project.project"].create(
-            {"name": "HistProj", "date_start": start})
-        task = self.env["project.task"].create(
-            {"name": "T", "project_id": project.id})
+            {"name": "HistProj", "date_start": start}
+        )
+        task = self.env["project.task"].create({"name": "T", "project_id": project.id})
         # Completed 90 days after start (10 days before "today").
         task.write({"state": "done"})
         task.date_closed = fields.Datetime.to_datetime(start) + timedelta(days=90)
         hist = self.env["project.history"].create_from_project(project)
         self.assertEqual(
-            hist.actual_duration_days, 90,
+            hist.actual_duration_days,
+            90,
             "duration must be start→last-closure (90d), not start→today (100d)",
         )
         self.assertEqual(hist.date_completed, (start + timedelta(days=90)))
@@ -637,12 +720,17 @@ class TestAuditFixesBatchC(TestProjectCommon):
         2h of float. Pins the values so the iterative rewrite can't drift.
         """
         project = self.env["project.project"].create(
-            {"name": "CPM", "allow_dependencies": True})
+            {"name": "CPM", "allow_dependencies": True}
+        )
 
         def mk(name, hours):
-            return self.env["project.task"].create({
-                "name": name, "project_id": project.id, "allocated_hours": hours,
-            })
+            return self.env["project.task"].create(
+                {
+                    "name": name,
+                    "project_id": project.id,
+                    "allocated_hours": hours,
+                }
+            )
 
         a, b, c, d = mk("A", 8), mk("B", 4), mk("C", 2), mk("D", 2)
         b.predecessor_ids = a
@@ -650,7 +738,9 @@ class TestAuditFixesBatchC(TestProjectCommon):
         d.predecessor_ids = b + c
         project.action_compute_critical_path()
         (a + b + c + d).invalidate_recordset(["total_float", "is_critical_path"])
-        self.assertTrue(a.is_critical_path and b.is_critical_path and d.is_critical_path)
+        self.assertTrue(
+            a.is_critical_path and b.is_critical_path and d.is_critical_path
+        )
         self.assertFalse(c.is_critical_path)
         self.assertAlmostEqual(c.total_float, 2.0, places=2)
         for t in (a, b, d):
@@ -660,12 +750,19 @@ class TestAuditFixesBatchC(TestProjectCommon):
         """A dependency chain deeper than the Python recursion limit must not
         raise RecursionError (the passes are iterative)."""
         project = self.env["project.project"].create(
-            {"name": "DeepCPM", "allow_dependencies": True})
+            {"name": "DeepCPM", "allow_dependencies": True}
+        )
         depth = 1200  # > default recursionlimit (1000)
-        tasks = self.env["project.task"].create([
-            {"name": f"T{i}", "project_id": project.id, "allocated_hours": 1.0}
-            for i in range(depth)
-        ]).sorted("id")
+        tasks = (
+            self.env["project.task"]
+            .create(
+                [
+                    {"name": f"T{i}", "project_id": project.id, "allocated_hours": 1.0}
+                    for i in range(depth)
+                ]
+            )
+            .sorted("id")
+        )
         for i in range(1, depth):
             tasks[i].predecessor_ids = tasks[i - 1]
         project.action_compute_critical_path()  # must not raise
@@ -678,23 +775,28 @@ class TestAuditFixesBatchC(TestProjectCommon):
         early in a negative-offset tz."""
         self.env.user.tz = "Etc/GMT+6"  # UTC-6, no DST
         step = self.env["project.workflow.step"].create(
-            {"name": "S", "project_ids": [(4, self.project_pigs.id)]})
+            {"name": "S", "project_ids": [(4, self.project_pigs.id)]}
+        )
         until = fields.Date.today() + timedelta(days=30)
-        rec = self.env["project.task.recurrence"].create({
-            "repeat_type": "until",
-            "repeat_unit": "day",
-            "repeat_interval": 1,
-            "repeat_until": until,
-        })
+        rec = self.env["project.task.recurrence"].create(
+            {
+                "repeat_type": "until",
+                "repeat_unit": "day",
+                "repeat_interval": 1,
+                "repeat_until": until,
+            }
+        )
         # date_end + 1 day = until+1 @ 03:00 UTC = until @ 21:00 local (UTC-6).
         # UTC .date() would be until+1 → skipped; local date is until → created.
-        task = self.env["project.task"].create({
-            "name": "Recur",
-            "project_id": self.project_pigs.id,
-            "step_id": step.id,
-            "recurrence_id": rec.id,
-            "date_end": datetime.combine(until, time(3, 0)),
-        })
+        task = self.env["project.task"].create(
+            {
+                "name": "Recur",
+                "project_id": self.project_pigs.id,
+                "step_id": step.id,
+                "recurrence_id": rec.id,
+                "date_end": datetime.combine(until, time(3, 0)),
+            }
+        )
         created = self.env["project.task.recurrence"]._create_next_occurrences(task)
         self.assertTrue(
             created,
@@ -705,16 +807,28 @@ class TestAuditFixesBatchC(TestProjectCommon):
         """Throughput forecasting must count delivered (done) work only — a
         canceled task is not delivery."""
         now = fields.Datetime.now()
-        self.env["project.task"].create({
-            "name": "done", "project_id": self.project_pigs.id,
-            "state": "done", "date_closed": now - timedelta(days=3)})
-        self.env["project.task"].create({
-            "name": "canceled", "project_id": self.project_pigs.id,
-            "state": "canceled", "date_closed": now - timedelta(days=3)})
+        self.env["project.task"].create(
+            {
+                "name": "done",
+                "project_id": self.project_pigs.id,
+                "state": "done",
+                "date_closed": now - timedelta(days=3),
+            }
+        )
+        self.env["project.task"].create(
+            {
+                "name": "canceled",
+                "project_id": self.project_pigs.id,
+                "state": "canceled",
+                "date_closed": now - timedelta(days=3),
+            }
+        )
         wizard = self.env["project.forecast.wizard"].create(
-            {"project_id": self.project_pigs.id, "weeks_of_history": 8})
+            {"project_id": self.project_pigs.id, "weeks_of_history": 8}
+        )
         self.assertEqual(
-            sum(wizard._get_weekly_throughput()), 1,
+            sum(wizard._get_weekly_throughput()),
+            1,
             "only the done task counts toward throughput",
         )
 
@@ -722,7 +836,8 @@ class TestAuditFixesBatchC(TestProjectCommon):
         """The raw-SQL throughput query must not leak a project the user cannot
         read (record rules don't apply to raw SQL — an explicit check does)."""
         wizard = self.env["project.forecast.wizard"].create(
-            {"project_id": self.project_goats.id, "weeks_of_history": 8})
+            {"project_id": self.project_goats.id, "weeks_of_history": 8}
+        )
         # project_goats is follower-only; user_projectuser is not a follower.
         with self.assertRaises(AccessError):
             wizard.with_user(self.user_projectuser)._get_weekly_throughput()
@@ -767,7 +882,11 @@ class TestAuditFixesBatchD(TestProjectCommon):
             {"name": "existing", "project_id": project.id}
         )
         new_task = self.env["project.task"].new(
-            {"name": "new", "project_id": project.id, "successor_ids": [(4, existing.id)]}
+            {
+                "name": "new",
+                "project_id": project.id,
+                "successor_ids": [(4, existing.id)],
+            }
         )
         # Reading the count on an unsaved record must not raise.
         self.assertEqual(new_task.successor_count, 1)
@@ -899,13 +1018,15 @@ class TestAuditFixesBatchE(TestProjectCommon):
         re-arms only when review_date moves forward."""
         Benefit = self.env["project.benefit"]
         today = fields.Date.context_today(Benefit)
-        benefit = Benefit.create({
-            "name": "Reduce cost",
-            "project_id": self.project_pigs.id,
-            "accountable_id": self.user_projectmanager.id,
-            "review_date": today - timedelta(days=5),
-            "state": "tracking",
-        })
+        benefit = Benefit.create(
+            {
+                "name": "Reduce cost",
+                "project_id": self.project_pigs.id,
+                "accountable_id": self.user_projectmanager.id,
+                "review_date": today - timedelta(days=5),
+                "state": "tracking",
+            }
+        )
         Benefit._cron_check_review_dates()
         acts = self.env["mail.activity"].search(
             [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
@@ -955,12 +1076,14 @@ class TestAuditFixesBatchE(TestProjectCommon):
         project = self.env["project.project"].create(
             {"name": "AddF", "partner_id": self.partner_1.id}
         )
-        closed = self.env["project.task"].create({
-            "name": "closed",
-            "project_id": project.id,
-            "partner_id": self.partner_1.id,
-            "state": "done",
-        })
+        closed = self.env["project.task"].create(
+            {
+                "name": "closed",
+                "project_id": project.id,
+                "partner_id": self.partner_1.id,
+                "state": "done",
+            }
+        )
         self.assertTrue(closed.is_closed)
         project._add_followers(self.partner_1)
         self.assertIn(
@@ -978,11 +1101,13 @@ class TestAuditFixesBatchE(TestProjectCommon):
         a, b, c, d = self.env["project.task"].create(
             [{"name": n, "project_id": project.id} for n in ("A", "B", "C", "D")]
         )
-        self.env["project.task.dependency"].create([
-            {"task_id": b.id, "depends_on_id": a.id},
-            {"task_id": c.id, "depends_on_id": a.id},
-            {"task_id": d.id, "depends_on_id": b.id},
-        ])
+        self.env["project.task.dependency"].create(
+            [
+                {"task_id": b.id, "depends_on_id": a.id},
+                {"task_id": c.id, "depends_on_id": a.id},
+                {"task_id": d.id, "depends_on_id": b.id},
+            ]
+        )
         (b + c + d).invalidate_recordset(["predecessor_ids"])
         self.assertEqual(b.predecessor_ids, a)
         self.assertEqual(c.predecessor_ids, a)
@@ -992,20 +1117,24 @@ class TestAuditFixesBatchE(TestProjectCommon):
         """Batch-creating tasks with different assignees must give each
         (task, user) a triage bucket (batched _populate_missing_triages)."""
         project = self.env["project.project"].create({"name": "TriageBatch"})
-        tasks = self.env["project.task"].create([
-            {
-                "name": "t1",
-                "project_id": project.id,
-                "user_ids": [(6, 0, self.user_projectuser.ids)],
-            },
-            {
-                "name": "t2",
-                "project_id": project.id,
-                "user_ids": [(6, 0, self.user_projectmanager.ids)],
-            },
-        ])
-        rows = self.env["project.task.triage"].sudo().search(
-            [("task_id", "in", tasks.ids)]
+        tasks = self.env["project.task"].create(
+            [
+                {
+                    "name": "t1",
+                    "project_id": project.id,
+                    "user_ids": [(6, 0, self.user_projectuser.ids)],
+                },
+                {
+                    "name": "t2",
+                    "project_id": project.id,
+                    "user_ids": [(6, 0, self.user_projectmanager.ids)],
+                },
+            ]
+        )
+        rows = (
+            self.env["project.task.triage"]
+            .sudo()
+            .search([("task_id", "in", tasks.ids)])
         )
         self.assertEqual(len(rows), 2, "each assignee gets a triage row")
         self.assertTrue(
@@ -1027,11 +1156,13 @@ class TestAuditFixesBatchF(TestProjectCommon):
         phase = self.env["project.phase"].create(
             {"name": "Planning", "company_id": company_a.id}
         )
-        self.env["project.project"].create({
-            "name": "In phase",
-            "phase_id": phase.id,
-            "company_id": company_a.id,
-        })
+        self.env["project.project"].create(
+            {
+                "name": "In phase",
+                "phase_id": phase.id,
+                "company_id": company_a.id,
+            }
+        )
         with self.assertRaises(UserError):
             phase.company_id = company_b.id
         # No conflicting project → the switch is allowed.
@@ -1088,22 +1219,26 @@ class TestAuditFixesBatchF(TestProjectCommon):
             {"name": "Other", "project_id": self.project_goats.id}
         )
         with self.assertRaises(ValidationError):
-            self.env["project.gate"].create({
-                "name": "BadGate",
-                "project_id": self.project_pigs.id,
-                "milestone_id": other_ms.id,
-            })
+            self.env["project.gate"].create(
+                {
+                    "name": "BadGate",
+                    "project_id": self.project_pigs.id,
+                    "milestone_id": other_ms.id,
+                }
+            )
 
     def test_send_rating_all_advances_deadline(self) -> None:
         """The rating cron must process an overdue periodic step and push its
         rating_request_deadline into the future (idempotent per day)."""
-        step = self.env["project.workflow.step"].create({
-            "name": "Periodic",
-            "project_ids": [(4, self.project_pigs.id)],
-            "rating_active": True,
-            "rating_status": "periodic",
-            "rating_status_period": "weekly",
-        })
+        step = self.env["project.workflow.step"].create(
+            {
+                "name": "Periodic",
+                "project_ids": [(4, self.project_pigs.id)],
+                "rating_active": True,
+                "rating_status": "periodic",
+                "rating_status_period": "weekly",
+            }
+        )
         # Force the step overdue.
         step.rating_request_deadline = fields.Datetime.now() - timedelta(days=1)
         # The cron commits per step for idempotency; neutralise commit inside the

@@ -9,7 +9,9 @@ export class MassMailingContenteditablePlugin extends Plugin {
     };
 
     setup() {
-        const layoutEditable = this.editable.querySelector(".o_layout .o_mail_no_options");
+        const layoutEditable = this.editable.querySelector(
+            ".o_layout .o_mail_no_options",
+        );
         if (layoutEditable) {
             this.editable.setAttribute("contenteditable", "false");
             layoutEditable.setAttribute("contenteditable", "true");
@@ -17,7 +19,9 @@ export class MassMailingContenteditablePlugin extends Plugin {
     }
 
     cleanForSave({ root: clone }) {
-        clone.querySelector(".o_layout .o_mail_no_options")?.removeAttribute("contenteditable");
+        clone
+            .querySelector(".o_layout .o_mail_no_options")
+            ?.removeAttribute("contenteditable");
     }
 }
 

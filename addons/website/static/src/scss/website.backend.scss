@@ -53,13 +53,15 @@
         }
     }
     .o_dashboard_visits {
-
         .o_demo_background {
-
             margin-top: 16px;
             height: 300px;
             background-size: 100% !important;
-            background: var(--Dashboard__demoBackground, url("/website/static/src/img/website_dashboard_visit_demo.png")) no-repeat;
+            background: var(
+                    --Dashboard__demoBackground,
+                    url("/website/static/src/img/website_dashboard_visit_demo.png")
+                )
+                no-repeat;
             position: relative;
 
             .o_buttons {
@@ -67,7 +69,7 @@
             }
 
             .o_layer {
-                background-color: rgba($o-view-background-color,.3);
+                background-color: rgba($o-view-background-color, 0.3);
                 position: absolute;
                 top: 0;
                 left: 0;
@@ -96,9 +98,10 @@
     // when switching to mobile preview, otherwise the width is 0 for a moment.
     aspect-ratio: 368 / 763;
     transform: translate(-50%, -50%);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15),
-                16px 12px 32px rgba(0, 0, 0, 0.15),
-                64px 0 64px rgba(0, 0, 0, 0.15);
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.15),
+        16px 12px 32px rgba(0, 0, 0, 0.15),
+        64px 0 64px rgba(0, 0, 0, 0.15);
     border-radius: 3.5vh;
     background-color: white;
 
@@ -129,8 +132,8 @@
 .o_view_form_theme_preview_controller {
     div.o_form_nosheet {
         padding: 0px;
-        height:100%;
-        width:100%;
+        height: 100%;
+        width: 100%;
     }
 
     .o_field_iframe {

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
-import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
+import { user } from "@web/services/user";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 
 /**
@@ -28,7 +28,9 @@ export class ProjectGroupConfigMenu extends GroupConfigMenu {
         this.isProjectManager = false;
         onWillStart(async () => {
             if (this.isStageGroup) {
-                this.isProjectManager = await user.hasGroup("project.group_project_manager");
+                this.isProjectManager = await user.hasGroup(
+                    "project.group_project_manager",
+                );
             }
         });
     }
@@ -48,9 +50,14 @@ export class ProjectGroupConfigMenu extends GroupConfigMenu {
             return super.deleteGroup();
         }
         const { context, groupByField, value } = this.group;
-        const action = await this.orm.call(groupByField.relation, "unlink_wizard", [[value]], {
-            context,
-        });
+        const action = await this.orm.call(
+            groupByField.relation,
+            "unlink_wizard",
+            [[value]],
+            {
+                context,
+            },
+        );
         this.action.doAction(action, {
             onClose: (infos) => {
                 // `infos` is only provided when the wizard confirmed

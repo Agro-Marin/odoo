@@ -1,8 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-
-import { WebClient } from "@web/webclient/webclient";
-import { clickOnDataset, setupChartJsForTests } from "@web/../tests/views/graph/graph_test_helpers";
+import {
+    clickOnDataset,
+    setupChartJsForTests,
+} from "@web/../tests/views/graph/graph_test_helpers";
 import {
     contains,
     fields,
@@ -11,6 +12,7 @@ import {
     models,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { WebClient } from "@web/webclient/webclient";
 
 import { defineProjectModels, projectModels } from "./project_models.js";
 
@@ -107,7 +109,13 @@ test("report.project.task.user: fix the domain, in case field is not present in 
     mockService("action", {
         doAction({ domain, res_model }) {
             if (res_model === "project.task") {
-                expect(domain).toEqual(["&", ["display_in_project", "=", true], "&", [1, "=", 1], ["id", "=", 1]]);
+                expect(domain).toEqual([
+                    "&",
+                    ["display_in_project", "=", true],
+                    "&",
+                    [1, "=", 1],
+                    ["id", "=", 1],
+                ]);
             }
             return super.doAction(...arguments);
         },
@@ -123,7 +131,7 @@ test("report.project.task.user: fix the domain, in case field is not present in 
                 <field name="task_id"/>
                 <field name="nbr"/>
             </graph>
-        `
+        `,
     };
 
     const view = await mountView("graph", { group_by: ["task_id", "nbr"] });

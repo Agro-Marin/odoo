@@ -16,10 +16,13 @@ export class EmptyNotEditableElementsPlugin extends Plugin {
      */
     normalize(element) {
         const potentiallyEmptyElements = element.querySelectorAll(
-            ".o_not_editable [data-oe-zws-empty-inline]"
+            ".o_not_editable [data-oe-zws-empty-inline]",
         );
         potentiallyEmptyElements.forEach((emptyElement) => {
-            const emptyNonEditableBlock = closestElement(emptyElement, ".o_not_editable");
+            const emptyNonEditableBlock = closestElement(
+                emptyElement,
+                ".o_not_editable",
+            );
             if (isEmptyBlock(emptyNonEditableBlock)) {
                 emptyNonEditableBlock.remove();
             }

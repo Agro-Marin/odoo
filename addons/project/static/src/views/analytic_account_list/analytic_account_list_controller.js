@@ -14,8 +14,13 @@ export class AnalyticAccountListController extends ListController {
             // With a domain selection ("Select all N"), off-page records are
             // archived too and cannot be inspected client-side: show the
             // cautious message.
-            if (this.model.root.isDomainSelected && !analyticAccountWithProjects.length) {
-                analyticAccountWithProjects.push(_t("(and/or records not visible on this page)"));
+            if (
+                this.model.root.isDomainSelected &&
+                !analyticAccountWithProjects.length
+            ) {
+                analyticAccountWithProjects.push(
+                    _t("(and/or records not visible on this page)"),
+                );
             }
             if (analyticAccountWithProjects.length) {
                 dialogProps = {
@@ -26,7 +31,7 @@ export class AnalyticAccountListController extends ListController {
                             accountList: analyticAccountWithProjects
                                 .map((name) => `\t- ${name}`)
                                 .join("\n"),
-                        }
+                        },
                     ),
                     confirmLabel: _t("Archive Accounts"),
                     cancelLabel: _t("Discard"),

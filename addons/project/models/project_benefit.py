@@ -100,9 +100,7 @@ class ProjectBenefit(models.Model):
         # reminded for their current review_date. This survives the user
         # completing (deleting) the activity, so the cron no longer re-creates
         # the reminder every single day. (A domain cannot compare two fields.)
-        benefits = benefits.filtered(
-            lambda b: b.review_reminder_date != b.review_date
-        )
+        benefits = benefits.filtered(lambda b: b.review_reminder_date != b.review_date)
         if not benefits:
             return
 

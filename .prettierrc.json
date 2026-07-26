@@ -3,5 +3,10 @@
     "semi": true,
     "singleQuote": false,
     "printWidth": 88,
-    "endOfLine": "auto"
+    "endOfLine": "lf",
+    "trailingComma": "all",
+    "quoteProps": "as-needed",
+    "arrowParens": "always",
+    "bracketSpacing": true,
+    "objectWrap": "preserve"
 }

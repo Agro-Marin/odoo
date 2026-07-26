@@ -1,4 +1,3 @@
-
 // TODO remove in master
 // Themes scss have to use bg-variant and text-emphasis-variant mixins of BS4
 // to properly work. That use was introduced as a fix in 12.0... but the BS4
@@ -11,7 +10,8 @@
     }
     a#{$parent},
     button#{$parent} {
-        &:hover, &:focus {
+        &:hover,
+        &:focus {
             background-color: darken($color, 10%) !important;
         }
     }
@@ -21,7 +21,8 @@
         color: $color !important;
     }
     a#{$parent} {
-        &:hover, &:focus {
+        &:hover,
+        &:focus {
             color: darken($color, 10%) !important;
         }
     }
@@ -41,7 +42,8 @@
             margin-bottom: 0px;
         }
 
-        ul, ol {
+        ul,
+        ol {
             margin: 0;
         }
     }

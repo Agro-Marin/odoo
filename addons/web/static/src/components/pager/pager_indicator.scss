@@ -10,7 +10,8 @@
         background-color: $o-gray-100;
     }
 
-    &.o-fade-leave, &.o-fade-enter {
+    &.o-fade-leave,
+    &.o-fade-enter {
         opacity: 0;
     }
 }

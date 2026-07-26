@@ -2,11 +2,10 @@
 
 import base64
 import logging
-import unittest
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import http, tests
+from odoo import tests
 from odoo.fields import Command, Datetime
 from odoo.tools import mute_logger
 from odoo.tools.misc import file_open

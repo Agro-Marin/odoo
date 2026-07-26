@@ -2,7 +2,8 @@
     animation: o_mail_Typing_animation 1.5s linear infinite;
     background-color: $gray-500;
 
-    .o-mail-ImStatus &, .o-mail-ThreadIcon & {
+    .o-mail-ImStatus &,
+    .o-mail-ThreadIcon & {
         background-color: #fff;
     }
 
@@ -30,7 +31,9 @@
 }
 
 @keyframes o_mail_Typing_animation {
-    0%, 40%, 100% {
+    0%,
+    40%,
+    100% {
         opacity: initial;
     }
     20% {

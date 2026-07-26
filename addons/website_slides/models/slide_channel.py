@@ -433,16 +433,15 @@ class SlideChannel(models.Model):
         "channel_partner_all_ids.active",
     )
     def _compute_partners(self):
-        data = {
-            slide_channel: partner_ids
-            for slide_channel, partner_ids in self.env["slide.channel.partner"]
+        data = dict(
+            self.env["slide.channel.partner"]
             .sudo()
             ._read_group(
                 [("channel_id", "in", self.ids), ("member_status", "!=", "invited")],
                 ["channel_id"],
                 aggregates=["partner_id:array_agg"],
             )
-        }
+        )
         for slide_channel in self:
             slide_channel.partner_ids = data.get(slide_channel, [])
 
@@ -529,9 +528,8 @@ class SlideChannel(models.Model):
             self.is_member = False
             self.is_member_invited = False
             return
-        data = {
-            member_status: channel_ids
-            for member_status, channel_ids in self.env["slide.channel.partner"]
+        data = dict(
+            self.env["slide.channel.partner"]
             .sudo()
             ._read_group(
                 [
@@ -542,7 +540,7 @@ class SlideChannel(models.Model):
                 ["member_status"],
                 ["channel_id:array_agg"],
             )
-        }
+        )
         active_channels_ids = (
             data.get("joined", []) + data.get("ongoing", []) + data.get("completed", [])
         )
@@ -594,16 +592,21 @@ class SlideChannel(models.Model):
         "slide_ids.active",
     )
     def _compute_slides_statistics(self):
-        default_vals = dict(total_views=0, total_votes=0, total_time=0, total_slides=0)
+        default_vals = {
+            "total_views": 0,
+            "total_votes": 0,
+            "total_time": 0,
+            "total_slides": 0,
+        }
         keys = [
             "nbr_%s" % slide_category
             for slide_category in self.env["slide.slide"]
             ._fields["slide_category"]
             .get_values(self.env)
         ]
-        default_vals.update(dict((key, 0) for key in keys))
+        default_vals.update(dict.fromkeys(keys, 0))
 
-        result = dict((cid, dict(default_vals)) for cid in self.ids)
+        result = {cid: dict(default_vals) for cid in self.ids}
         read_group_res = self.env["slide.slide"]._read_group(
             [
                 ("active", "=", True),
@@ -665,13 +668,13 @@ class SlideChannel(models.Model):
                 ]
             )
         )
-        mapped_data = dict(
-            (
-                info.channel_id.id,
-                (info.member_status == "completed", info.completed_slides_count),
+        mapped_data = {
+            info.channel_id.id: (
+                info.member_status == "completed",
+                info.completed_slides_count,
             )
             for info in current_user_info
-        )
+        }
         for record in self:
             completed, completed_slides_count = mapped_data.get(record.id, (False, 0))
             record.completed = completed
@@ -753,7 +756,7 @@ class SlideChannel(models.Model):
         )
         for channel in self:
             new_slides = new_published_slides.filtered(
-                lambda slide: slide.channel_id == channel
+                lambda slide, channel=channel: slide.channel_id == channel
             )
             channel.partner_has_new_content = any(
                 slide not in slide_partner_completed for slide in new_slides
@@ -868,7 +871,7 @@ class SlideChannel(models.Model):
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
-        for channel, vals in zip(self, vals_list):
+        for channel, vals in zip(self, vals_list, strict=True):
             if "name" not in default:
                 vals["name"] = f"{channel.name} ({_('copy')})"
             if "enroll" not in default and channel.visibility == "members":
@@ -1142,14 +1145,14 @@ class SlideChannel(models.Model):
                 to_update_as_joined += channel_partners.filtered(
                     lambda cp: cp.member_status == "invited"
                 )
-            for partner in target_partners - channel_partners.partner_id:
-                to_create_channel_partners_values.append(
-                    dict(
-                        channel_id=channel.id,
-                        partner_id=partner.id,
-                        member_status=member_status,
-                    )
-                )
+            to_create_channel_partners_values.extend(
+                {
+                    "channel_id": channel.id,
+                    "partner_id": partner.id,
+                    "member_status": member_status,
+                }
+                for partner in target_partners - channel_partners.partner_id
+            )
 
         new_slide_channel_partners = SlideChannelPartnerSudo.create(
             to_create_channel_partners_values
@@ -1457,7 +1460,7 @@ class SlideChannel(models.Model):
         # Prepare all categories by natural order
         for category in all_categories:
             category_slides = all_slides.filtered(
-                lambda slide: slide.category_id == category
+                lambda slide, category=category: slide.category_id == category
             )
             if not category_slides and not force_void:
                 continue
@@ -1583,8 +1586,10 @@ class SlideChannel(models.Model):
                 tags = ChannelTag
             # Group by group_id
             # OR inside a group, AND between groups.
-            for tags_ in tags.grouped("group_id").values():
-                domain.append([("tag_ids", "in", tags_.ids)])
+            domain.extend(
+                [("tag_ids", "in", tags_.ids)]
+                for tags_ in tags.grouped("group_id").values()
+            )
         if slide_category and "nbr_%s" % slide_category in self:
             domain.append([("nbr_%s" % slide_category, ">", 0)])
         search_fields = ["name"]

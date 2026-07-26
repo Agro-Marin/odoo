@@ -210,7 +210,8 @@ class SurveySurvey(models.Model):
     survey_url = fields.Char("Survey URL", compute="_compute_survey_url")
     survey_qr_url = fields.Char("QR Code URL", compute="_compute_survey_url")
     survey_embed_code = fields.Text(
-        "Embed Code", compute="_compute_survey_embed_code",
+        "Embed Code",
+        compute="_compute_survey_embed_code",
         help="HTML iframe snippet for embedding this survey on an external website.",
     )
     # -- follow-up rules
@@ -237,7 +238,8 @@ class SurveySurvey(models.Model):
     )
     # -- theme customization
     theme_color = fields.Char(
-        "Primary Color", default="#714B67",
+        "Primary Color",
+        default="#714B67",
         help="Primary color for buttons and accents (hex code, e.g. #714B67).",
     )
     theme_font = fields.Selection(
@@ -543,9 +545,7 @@ class SurveySurvey(models.Model):
             # that would drag down the metrics.
             done = survey_stats["answer_done_count"] or 1
             survey_stats["answer_score_avg"] = avg_total / done
-            survey_stats["success_ratio"] = (
-                survey_stats["success_count"] / done
-            ) * 100
+            survey_stats["success_ratio"] = (survey_stats["success_count"] / done) * 100
 
         for survey in self:
             survey.update(stat.get(survey._origin.id, default_vals))
@@ -1243,14 +1243,18 @@ class SurveySurvey(models.Model):
             "triggering_answer_ids"
         ).sorted():
             # If question also has a valid value-based trigger, it's valid
-            if question.triggering_question_id and question.triggering_question_id not in invalid_questions:
+            if (
+                question.triggering_question_id
+                and question.triggering_question_id not in invalid_questions
+            ):
                 continue
 
             for trigger in question.triggering_question_ids:
                 if (
                     trigger not in invalid_questions
                     and not trigger.is_page
-                    and trigger.question_type in ["simple_choice", "dropdown", "multiple_choice"]
+                    and trigger.question_type
+                    in ["simple_choice", "dropdown", "multiple_choice"]
                     and (
                         trigger.sequence < question.sequence
                         or (
@@ -1887,24 +1891,30 @@ class SurveySurvey(models.Model):
         """
         now = fields.Datetime.now()
         # Activate surveys whose open date has passed
-        to_open = self.search([
-            ("date_open", "<=", now),
-            ("active", "=", False),
-            ("date_close", "=", False),
-        ]) | self.search([
-            ("date_open", "<=", now),
-            ("active", "=", False),
-            ("date_close", ">", now),
-        ])
+        to_open = self.search(
+            [
+                ("date_open", "<=", now),
+                ("active", "=", False),
+                ("date_close", "=", False),
+            ]
+        ) | self.search(
+            [
+                ("date_open", "<=", now),
+                ("active", "=", False),
+                ("date_close", ">", now),
+            ]
+        )
         if to_open:
             to_open.write({"active": True})
             _logger.info("Activated %d scheduled surveys", len(to_open))
 
         # Deactivate surveys whose close date has passed
-        to_close = self.search([
-            ("date_close", "<=", now),
-            ("active", "=", True),
-        ])
+        to_close = self.search(
+            [
+                ("date_close", "<=", now),
+                ("active", "=", True),
+            ]
+        )
         if to_close:
             to_close.action_archive()
             _logger.info("Deactivated %d expired surveys", len(to_close))

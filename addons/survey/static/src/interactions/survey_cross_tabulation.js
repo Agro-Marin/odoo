@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class SurveyCrossTabulation extends Interaction {
     static selector = ".o_survey_cross_tabulation";
@@ -30,10 +30,10 @@ export class SurveyCrossTabulation extends Interaction {
         btn.innerHTML = '<i class="fa fa-spinner fa-spin"/> Loading...';
 
         try {
-            const data = await rpc(
-                `/survey/results/${surveyId}/cross_tabulation`,
-                { question_row_id: rowId, question_col_id: colId }
-            );
+            const data = await rpc(`/survey/results/${surveyId}/cross_tabulation`, {
+                question_row_id: rowId,
+                question_col_id: colId,
+            });
 
             if (data.error) {
                 container.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;

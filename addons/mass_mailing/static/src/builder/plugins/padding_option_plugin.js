@@ -22,7 +22,9 @@ class PaddingOptionPlugin extends Plugin {
     static id = "horizontalPaddingOption";
     selector = HorizontalPaddingOption.selector;
     resources = {
-        mark_color_level_selector_params: [{ selector: HorizontalPaddingOption.selector }],
+        mark_color_level_selector_params: [
+            { selector: HorizontalPaddingOption.selector },
+        ],
         builder_options: [
             withSequence(after(VERTICAL_ALIGNMENT), HorizontalPaddingOption),
             withSequence(after(VERTICAL_ALIGNMENT), VerticalPaddingOption),
@@ -30,4 +32,6 @@ class PaddingOptionPlugin extends Plugin {
     };
 }
 
-registry.category("mass_mailing-plugins").add(PaddingOptionPlugin.id, PaddingOptionPlugin);
+registry
+    .category("mass_mailing-plugins")
+    .add(PaddingOptionPlugin.id, PaddingOptionPlugin);

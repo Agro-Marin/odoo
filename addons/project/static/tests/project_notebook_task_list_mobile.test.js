@@ -1,4 +1,4 @@
-import { beforeEach, expect, describe, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click } from "@odoo/hoot-dom";
 import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { WebClient } from "@web/webclient/webclient";
@@ -144,7 +144,9 @@ test("test open subtask in form view instead of form view dialog", async () => {
     });
 
     expect("div[name='name'] input").toHaveValue("task one");
-    expect("div[name='child_ids'] .o_kanban_record:not(.o_kanban_ghost,.o-kanban-button-new)").toHaveCount(4, {
+    expect(
+        "div[name='child_ids'] .o_kanban_record:not(.o_kanban_ghost,.o-kanban-button-new)",
+    ).toHaveCount(4, {
         message:
             "The subtasks list should display all subtasks by default, thus we are looking for 4 in total",
     });
@@ -167,7 +169,9 @@ test("test open task dependencies in form view instead of form view dialog", asy
     });
 
     expect("div[name='name'] input").toHaveValue("task one");
-    expect("div[name='predecessor_ids'] .o_kanban_record:not(.o_kanban_ghost,.o-kanban-button-new)").toHaveCount(2, {
+    expect(
+        "div[name='predecessor_ids'] .o_kanban_record:not(.o_kanban_ghost,.o-kanban-button-new)",
+    ).toHaveCount(2, {
         message:
             "The depend on tasks list should display all blocking tasks by default, thus we are looking for 2 in total",
     });

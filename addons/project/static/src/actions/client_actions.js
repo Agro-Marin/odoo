@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 export function showTemplateUndoNotification(
     env,
@@ -12,7 +12,7 @@ export function showTemplateUndoNotification(
         undoMethod = "action_undo_convert_to_template",
         actionType = "success",
         undoCallback,
-    }
+    },
 ) {
     // `message` is already translated by every caller (literal `_t(...)` at the
     // call sites) or is a server-provided string — do not re-wrap in _t() here
@@ -32,9 +32,15 @@ export function showTemplateUndoNotification(
                         return;
                     }
                     undoing = true;
-                    const res = await env.services.orm.call(model, undoMethod, [recordId]);
+                    const res = await env.services.orm.call(model, undoMethod, [
+                        recordId,
+                    ]);
                     if (undoCallback) {
-                        await env.services.orm.call(model, undoCallback.method, undoCallback.args);
+                        await env.services.orm.call(
+                            model,
+                            undoCallback.method,
+                            undoCallback.args,
+                        );
                     }
                     if (res && undoMethod !== "unlink") {
                         env.services.action.doAction(res);
@@ -71,7 +77,7 @@ export function showTemplateUndoConfirmationDialog(
         confirmLabel,
         undoMethod = "action_undo_convert_to_template",
         confirmationCallback,
-    }
+    },
 ) {
     env.services.dialog.add(ConfirmationDialog, {
         body: bodyMessage,
@@ -85,7 +91,7 @@ export function showTemplateUndoConfirmationDialog(
                 await env.services.orm.call(
                     model,
                     confirmationCallback.method,
-                    confirmationCallback.args
+                    confirmationCallback.args,
                 );
             }
         },
@@ -96,7 +102,7 @@ export function showTemplateUndoConfirmationDialog(
 
 export async function showTemplateFormView(
     env,
-    { model, recordId, method = "action_create_template_from_project" }
+    { model, recordId, method = "action_create_template_from_project" },
 ) {
     const action = await env.services.orm.call(model, method, [recordId]);
     await env.services.action.doAction({
@@ -109,15 +115,17 @@ export async function showTemplateFormView(
 }
 
 // Task → Template Notification
-registry.category("actions").add("project_show_template_notification", (env, action) => {
-    const params = action.params || {};
-    showTemplateUndoNotification(env, {
-        model: "project.task",
-        recordId: params.task_id,
-        message: _t("Task converted to template"),
+registry
+    .category("actions")
+    .add("project_show_template_notification", (env, action) => {
+        const params = action.params || {};
+        showTemplateUndoNotification(env, {
+            model: "project.task",
+            recordId: params.task_id,
+            message: _t("Task converted to template"),
+        });
+        return params.next;
     });
-    return params.next;
-});
 
 // Task → Template Undo Confirmation Dialog
 registry
@@ -128,7 +136,7 @@ registry
             model: "project.task",
             recordId: params.task_id,
             bodyMessage: _t(
-                "This task is currently a template. Would you like to convert it back into a regular task?"
+                "This task is currently a template. Would you like to convert it back into a regular task?",
             ),
             confirmLabel: _t("Convert to Task"),
         });
@@ -136,26 +144,30 @@ registry
     });
 
 // Project → Template Create Redirection
-registry.category("actions").add("project_to_template_redirection_action", (env, action) => {
-    const params = action.params || {};
-    return showTemplateFormView(env, {
-        model: "project.project",
-        recordId: params.project_id,
+registry
+    .category("actions")
+    .add("project_to_template_redirection_action", (env, action) => {
+        const params = action.params || {};
+        return showTemplateFormView(env, {
+            model: "project.project",
+            recordId: params.project_id,
+        });
     });
-});
 
 // Project → Template Notification
-registry.category("actions").add("project_template_show_notification", (env, action) => {
-    const params = action.params || {};
-    showTemplateUndoNotification(env, {
-        model: "project.project",
-        recordId: params.project_id,
-        message: params.message || _t("Project converted to template."),
-        undoMethod: params.undo_method,
-        undoCallback: params.callback_data || null,
+registry
+    .category("actions")
+    .add("project_template_show_notification", (env, action) => {
+        const params = action.params || {};
+        showTemplateUndoNotification(env, {
+            model: "project.project",
+            recordId: params.project_id,
+            message: params.message || _t("Project converted to template."),
+            undoMethod: params.undo_method,
+            undoCallback: params.callback_data || null,
+        });
+        return params.next;
     });
-    return params.next;
-});
 
 // Project → Template Undo Confirmation Dialog
 registry

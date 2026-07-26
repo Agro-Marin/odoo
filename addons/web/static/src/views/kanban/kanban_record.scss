@@ -2,7 +2,7 @@
     --fieldWidget-display: block;
     --Tag-max-width: 100%;
     --Tag-font-size: #{$o-font-size-base-smaller};
-    --Tags-margin: calc(1em - var(--Tag-font-size, .75rem)) 0;
+    --Tags-margin: calc(1em - var(--Tag-font-size, 0.75rem)) 0;
 
     position: relative;
     display: flex;
@@ -36,7 +36,9 @@
         border-radius: $o-border-radius-lg;
         background-color: $o-view-background-color;
         box-shadow: $o-shadow-xs;
-        transition: box-shadow $o-duration-fast $o-easing-standard, transform $o-duration-fast $o-easing-standard;
+        transition:
+            box-shadow $o-duration-fast $o-easing-standard,
+            transform $o-duration-fast $o-easing-standard;
 
         @media (hover: hover) {
             &:hover {
@@ -79,13 +81,14 @@
         }
     }
 
-    > footer, > main > footer {
+    > footer,
+    > main > footer {
         display: flex;
         align-items: center;
         column-gap: var(--Card-Footer-gap, #{map-get($spacers, 2)});
         margin-top: auto;
         padding-top: var(--KanbanRecord-padding-v);
-        font-size: var(--Card-Footer-font-size, .875rem);
+        font-size: var(--Card-Footer-font-size, 0.875rem);
     }
 
     aside {
@@ -107,7 +110,10 @@
 
             .o_kanban_image_fill {
                 min-height: var(--KanbanRecord__image-fill-width);
-                max-height: var(--KanbanRecord__image-max-height, $o-kanban-image-fill-width * 1.5);
+                max-height: var(
+                    --KanbanRecord__image-max-height,
+                    $o-kanban-image-fill-width * 1.5
+                );
 
                 @include media-only(print) {
                     height: auto;
@@ -116,10 +122,10 @@
 
             > * {
                 @include media-breakpoint-up(md) {
-                    height: calc(100% + var(--KanbanRecord-padding-v)* 2);
-                    margin-top: calc(var(--KanbanRecord-padding-v)* -1);
-                    margin-bottom: calc(var(--KanbanRecord-padding-v)* -1);
-                    margin-left: calc(var(--KanbanRecord-padding-h)* -1);
+                    height: calc(100% + var(--KanbanRecord-padding-v) * 2);
+                    margin-top: calc(var(--KanbanRecord-padding-v) * -1);
+                    margin-bottom: calc(var(--KanbanRecord-padding-v) * -1);
+                    margin-left: calc(var(--KanbanRecord-padding-h) * -1);
                 }
 
                 @include media-only(print) {
@@ -170,7 +176,8 @@
         text-align: center;
         justify-content: center;
 
-        &:focus-within, &:hover {
+        &:focus-within,
+        &:hover {
             background-color: $gray-100;
         }
     }
@@ -180,12 +187,14 @@
     }
 }
 
-.o_kanban_record:focus-visible, .o_kanban_selection_active .o_kanban_record:focus {
+.o_kanban_record:focus-visible,
+.o_kanban_selection_active .o_kanban_record:focus {
     outline: none;
     box-shadow: inset 0 0px 0px 3px var(--KanbanColumn__highlight-selected-border);
 }
 
-.o_kanban_ungrouped .o_kanban_record:focus-visible, .o_kanban_selection_active .o_kanban_ungrouped .o_kanban_record:focus {
+.o_kanban_ungrouped .o_kanban_record:focus-visible,
+.o_kanban_selection_active .o_kanban_ungrouped .o_kanban_record:focus {
     @include media-breakpoint-up(md) {
         outline: 3px solid var(--KanbanColumn__highlight-selected-border);
         box-shadow: none;
@@ -194,7 +203,7 @@
 
 .o_kanban_selection_available .o_kanban_record.o_record_selection_available {
     &::after {
-        content: '';
+        content: "";
         position: absolute;
         inset: 0;
         background-color: rgba(0, 0, 0, 0.1);
@@ -214,7 +223,8 @@
 }
 
 @include media-breakpoint-down(md) {
-    .o_field_x2many_kanban.o_kanban_mobile .o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new) {
+    .o_field_x2many_kanban.o_kanban_mobile
+        .o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new) {
         border: none;
 
         &:not(:last-of-type) {

@@ -18,7 +18,7 @@
                     display: none;
 
                     // Preserve Firefox from chromium adaptations
-                    @media screen and (min--moz-device-pixel-ratio:0) {
+                    @media screen and (min--moz-device-pixel-ratio: 0) {
                         display: block;
                     }
                 }

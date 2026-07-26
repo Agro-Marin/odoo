@@ -13,7 +13,8 @@
         a {
             margin: 3px 0;
             display: block;
-            .o_delay, .o_query {
+            .o_delay,
+            .o_query {
                 font-size: 0.8em;
                 display: inline-block;
                 color: $body-color;
@@ -37,7 +38,8 @@
     }
     .ace_editor {
         overflow: visible;
-        .ace_qweb, .ace_tag-name {
+        .ace_qweb,
+        .ace_tag-name {
             cursor: default;
             pointer-events: all;
             position: relative;
@@ -46,7 +48,8 @@
                 left: 8px;
                 top: 14px;
                 width: 100px;
-                .o_delay span, .o_query span {
+                .o_delay span,
+                .o_query span {
                     text-align: left;
                     display: inline-block;
                     width: 40px;
@@ -97,7 +100,8 @@
                         padding-right: 10px;
                         white-space: nowrap;
                     }
-                    tr th:last-child, tr td:last-child {
+                    tr th:last-child,
+                    tr td:last-child {
                         padding-left: 10px;
                     }
                 }
@@ -108,7 +112,8 @@
                     }
                 }
             }
-            .o_delay, .o_query {
+            .o_delay,
+            .o_query {
                 display: block;
                 float: left;
                 margin-right: 10px;

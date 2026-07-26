@@ -2,23 +2,26 @@
     #jobs_grid {
         .o_job_infos {
             .fa {
-                color: theme-color('secondary');
-                margin-right: .5rem;
+                color: theme-color("secondary");
+                margin-right: 0.5rem;
             }
         }
 
         .card {
-            &, * {
-                transition: all .1s;
+            &,
+            * {
+                transition: all 0.1s;
             }
 
             &:hover {
-                box-shadow: 0 6px 10px 0 rgba(0, 0, 0, 0.1), 0 2px 2px 0 rgba(0, 0, 0, 0.05);
+                box-shadow:
+                    0 6px 10px 0 rgba(0, 0, 0, 0.1),
+                    0 2px 2px 0 rgba(0, 0, 0, 0.05);
             }
         }
 
         .o_jobs_unpublished {
-            opacity: .6;
+            opacity: 0.6;
         }
     }
 
@@ -47,7 +50,7 @@
     align-items: center;
     height: 38px;
     width: 38px;
-    margin: 0!important;
+    margin: 0 !important;
     border-radius: 0.4rem 0 0 0.4rem;
     color: #fcf9f2;
     background-color: #0a66c2;
@@ -70,7 +73,7 @@
 }
 
 %o_website_hr_recruitment_hover {
-    transition: .5s;
+    transition: 0.5s;
 
     &:hover {
         transform: scale(1.01, 1.01);
@@ -80,7 +83,8 @@
 .o_jobs_image_gallery.s_image_gallery img {
     @extend %o_website_hr_recruitment_hover;
 }
-#jobs_section, #jobs_thankyou {
+#jobs_section,
+#jobs_thankyou {
     .s_company_team .o_jobs_hr_recruiter {
         @extend %o_website_hr_recruitment_hover;
     }

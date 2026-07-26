@@ -6,7 +6,7 @@
     height: 297mm;
     break-before: page;
     &.o_label_dymo {
-        font-size:90%;
+        font-size: 90%;
         width: 57mm;
         height: 32mm;
     }
@@ -29,18 +29,18 @@
     }
     div.o_label_left_column {
         float: left;
-        font-size: .6em;
-        overflow:hidden;
+        font-size: 0.6em;
+        overflow: hidden;
         width: 40%;
         &.o_label_full_with {
-            width: 100%
+            width: 100%;
         }
     }
     div.o_label_right_column {
         float: right;
     }
     div.o_label_small_barcode {
-        font-size: .6em;
+        font-size: 0.6em;
         padding: 0 4px;
         line-height: normal;
     }
@@ -73,11 +73,11 @@
 
     // generic 4x12 label w/ all same size font
     div.o_label_4x12 {
-        padding:0;
-        line-height:1;
-        font-size:55%;
-        overflow:hidden;
-        white-space:nowrap;
+        padding: 0;
+        line-height: 1;
+        font-size: 55%;
+        overflow: hidden;
+        white-space: nowrap;
         text-overflow: ellipsis;
     }
 }

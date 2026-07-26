@@ -3,10 +3,14 @@
     top: var(--o-hb-row-sublevel-top, 0);
     bottom: 0;
     left: $_level-left - $o-we-border-width;
-    border: $o-we-border-width solid var(--o-hb-row-sublevel-color, #{mix($o-we-bg-lighter, $o-we-fg-light)});
+    border: $o-we-border-width solid
+        var(--o-hb-row-sublevel-color, #{mix($o-we-bg-lighter, $o-we-fg-light)});
     border-width: 0 0 $o-we-border-width $o-we-border-width;
     pointer-events: none;
-    transform: translate(0, ($o-hb-row-min-height + $o-hb-row-spacing) * -0.5 + $o-we-border-width);
+    transform: translate(
+        0,
+        ($o-hb-row-min-height + $o-hb-row-spacing) * -0.5 + $o-we-border-width
+    );
     content: "";
 }
 
@@ -15,10 +19,19 @@
 
     .popover & {
         --o-hb-row-bg-color: var(--o-hb-row-bg-color-popover, #{$o-we-fg-lighter});
-        --o-hb-row-active-bg-color: var(--o-hb-row-active-bg-color-popover, #{mix($o-we-color-accent, $o-we-fg-lighter, 20%)});
+        --o-hb-row-active-bg-color: var(
+            --o-hb-row-active-bg-color-popover,
+            #{mix($o-we-color-accent, $o-we-fg-lighter, 20%)}
+        );
         --o-hb-row-color: var(--o-hb-row-color-popover, #{$o-we-bg-lightest});
-        --o-hb-row-color-active: var(--o-hb-row-color-active-popover, #{$o-we-bg-darkest});
-        --o-hb-row-sublevel-color: var(--o-hb-row-sublevel-color-popover, #{mix($o-we-bg-lighter, $o-we-fg-light)});
+        --o-hb-row-color-active: var(
+            --o-hb-row-color-active-popover,
+            #{$o-we-bg-darkest}
+        );
+        --o-hb-row-sublevel-color: var(
+            --o-hb-row-sublevel-color-popover,
+            #{mix($o-we-bg-lighter, $o-we-fg-light)}
+        );
         .hb-row-content:has(button.fa-trash) {
             align-items: stretch;
         }
@@ -55,7 +68,8 @@
         flex: 0 0 44%;
         z-index: $_z-index;
         background-color: var(--o-hb-row-bg-color, #{$o-we-bg-lighter});
-        padding: $o-hb-row-spacing $o-hb-row-spacing $o-hb-row-spacing $o-hb-row-padding-left;
+        padding: $o-hb-row-spacing $o-hb-row-spacing $o-hb-row-spacing
+            $o-hb-row-padding-left;
         align-self: baseline;
     }
 
@@ -100,7 +114,8 @@
     }
 
     // ==== States
-    &:hover, &.active {
+    &:hover,
+    &.active {
         .hb-row-content {
             color: var(--o-hb-row-color-active, #{$o-we-fg-lighter});
         }
@@ -115,7 +130,10 @@
     }
 
     &.active {
-        background-color: var(--o-hb-row-active-bg-color, #{mix($o-we-color-accent, $o-we-bg-dark, 20%)});
+        background-color: var(
+            --o-hb-row-active-bg-color,
+            #{mix($o-we-color-accent, $o-we-bg-dark, 20%)}
+        );
 
         .hb-row-label {
             background-color: inherit;
@@ -141,7 +159,8 @@
         $_level-left: $_level-padding - $_level-width - $o-we-border-width;
 
         &.hb-row-sublevel-#{$_level} {
-            .hb-row-label, & > .hb-row-label::after {
+            .hb-row-label,
+            & > .hb-row-label::after {
                 z-index: $_z-index - $_level;
             }
 
@@ -155,7 +174,9 @@
             }
         }
 
-        &[data-label=" "]:not(.hb-row-sublevel):has(+ .hb-row-sublevel-#{$_level})::after {
+        &[data-label=" "]:not(.hb-row-sublevel):has(
+                + .hb-row-sublevel-#{$_level}
+            )::after {
             @include sublevel-line($_level-left);
             z-index: $_z-index - $_level;
         }

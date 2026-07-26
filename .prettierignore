@@ -2,11 +2,20 @@
 # and `eslint` (which runs prettier via the prettier/prettier rule) agree on
 # exactly which files they format. Keep the two lists in sync when either moves.
 #
-# NB: prettier's own formatting options live in .prettierrc.json and mirror the
-# `prettier/prettier` rule options in eslint.config.mjs. Without that file the
-# CLI silently fell back to its defaults (2-space, 80 cols), disagreed with
+# NB: prettier's own formatting options live in .prettierrc.json, which is now
+# the SINGLE source of truth — eslint.config.mjs passes no options to the
+# `prettier/prettier` rule, so the plugin resolves that same file. Without it
+# the CLI silently fell back to its defaults (2-space, 80 cols), disagreed with
 # eslint on ~60 point_of_sale files alone, and reformatting with it produced
 # pure churn that contradicted the repo style.
+
+# Asset-pipeline test fixtures. These are deliberately odd *inputs* to the
+# SCSS/CSS compiler, so normalising them defeats their purpose: test_error.scss
+# is invalid on purpose (`.rule1 ()){`) to exercise the compile-error path, and
+# test_split_marker.scss carries a `/*! <hex> */` loud comment of the exact
+# shape that once broke rx_css_split. A formatter must not reshape the syntax
+# these exist to guard.
+odoo/addons/test_assetsbundle/static/**
 
 # Vendored third-party libraries (not our code). By convention vendored code
 # lives under <module>/static/lib and nowhere else.
@@ -15,6 +24,24 @@
 !addons/web/static/lib/hoot/**
 # Vendored bundle that predates the convention.
 addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js
+# Vendored from the "content-disposition" npm package; it carries a file-level
+# `/* eslint-disable */` instead of living under static/lib, and eslint honours
+# that comment while the prettier CLI cannot see it. Without this line the two
+# gates disagree: `eslint` exits 0 while `prettier --check` exits 1.
+addons/web/static/src/core/network/content_disposition.js
+# Same mismatch, but first-party: this file carries a mid-file
+# `/* eslint-disable */` (line 33) to keep its property lists hand-formatted
+# one entry per line, which eslint honours and the CLI cannot see. Listed so
+# the two gates agree. Unlike the vendored cases above, the blanket disable
+# here is worth revisiting -- it silences every rule for the rest of the file
+# just to pin formatting.
+addons/mass_mailing/static/src/builder/plugins/customize_mailing_variables.js
+# Generated emoji table (~546 KB, one enormous array literal). The prettier CLI
+# cannot format it at all -- it dies with "RangeError: Maximum call stack size
+# exceeded" walking the AST, which made `prettier --check addons/web` exit 2
+# regardless of any option. eslint's prettier/prettier rule still covers it, so
+# this only spares the CLI a crash it cannot recover from.
+addons/web/static/src/components/emoji_picker/emoji_data.js
 
 # Legacy code (only top-level adapters are linted)
 addons/web/static/src/legacy/**
@@ -47,4 +74,10 @@ web_map/static/tests/legacy/**
 # into valid JS but invalid JSON, which silently breaks that test (it did once
 # already). The file's own header says DO NOT EDIT BY HAND; this makes the
 # formatter honour it too. Mirrored in eslint.config.mjs.
+#
+# A .prettierrc.json `overrides` entry pinning quoteProps/trailingComma was
+# tried and rejected: it does keep the body valid JSON, but prettier still
+# collapses the generator's one-entry-per-line arrays (17 lines), so every
+# regeneration would re-expand them and fail `prettier --check`. Ignoring the
+# file is the stable choice for a generated artifact.
 addons/mail/static/tests/mock_server/contract/store_shapes.js

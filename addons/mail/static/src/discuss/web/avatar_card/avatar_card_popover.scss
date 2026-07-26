@@ -18,7 +18,7 @@
     --card-border-color: #{$popover-border-color};
 
     max-width: 380px;
-    @media screen  and (max-width: 480px) {
+    @media screen and (max-width: 480px) {
         max-width: 90vw;
     }
 }

@@ -226,7 +226,7 @@ class SlideChannelPartner(models.Model):
 
     def _send_completed_mail(self):
         """Send an email to the attendee when they have successfully completed a course."""
-        template_to_records = dict()
+        template_to_records = {}
         for record in self:
             template = record.channel_id.completed_template_id
             if template:

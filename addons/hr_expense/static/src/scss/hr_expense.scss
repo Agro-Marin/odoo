@@ -1,6 +1,7 @@
 .hr_expense {
     @include media-breakpoint-up(md) {
-        &.o_list_renderer, &.o_kanban_renderer {
+        &.o_list_renderer,
+        &.o_kanban_renderer {
             min-height: 100% !important;
         }
     }
@@ -12,7 +13,8 @@
             @extend %o-nocontent-init-image;
             width: 300px;
             height: 230px;
-            background: transparent url(/hr_expense/static/img/nocontent.png) no-repeat center;
+            background: transparent url(/hr_expense/static/img/nocontent.png) no-repeat
+                center;
             background-size: 300px 230px;
             margin: 0.65rem auto;
         }
@@ -48,7 +50,8 @@
     }
 }
 
-.o_graph_view, .o_pivot_view {
+.o_graph_view,
+.o_pivot_view {
     .o_view_nocontent {
         h2:first-of-type {
             visibility: hidden;
@@ -84,15 +87,15 @@
     width: 100%;
     height: 100%;
     position: absolute;
-    background-color: #AAAA;
+    background-color: #aaaa;
     z-index: 2;
     left: 0;
     top: 0;
     i {
-      justify-content: center;
-      display: flex;
-      align-items: center;
-      height: 100%;
+        justify-content: center;
+        display: flex;
+        align-items: center;
+        height: 100%;
     }
 }
 
@@ -107,11 +110,11 @@
     .o_header {
         vertical-align: middle;
         .col-6 {
-            .row:first-child{
+            .row:first-child {
                 padding-top: 15px;
             }
 
-            .row:last-child{
+            .row:last-child {
                 padding-bottom: 15px;
             }
         }
@@ -137,7 +140,7 @@
 ***************/
 
 .o_expense_button_mail {
-    background-color: #9E588B;
+    background-color: #9e588b;
     margin-top: 10px;
     padding: 10px;
     text-decoration: none;

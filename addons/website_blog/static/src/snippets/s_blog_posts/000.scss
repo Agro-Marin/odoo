@@ -4,13 +4,12 @@
     }
 
     .s_blog_posts_post_teaser {
-
         @include media-breakpoint-up(md) {
             --lines-clamp: 4;
         }
     }
 
-    &.s_blog_post_list:not(:has(.s_dynamic_snippet_title_aside)){
+    &.s_blog_post_list:not(:has(.s_dynamic_snippet_title_aside)) {
         .s_dynamic_snippet_content {
             margin-top: map-get($spacers, 4);
         }
@@ -36,19 +35,21 @@
         }
 
         &:not([class*="s_blog_posts_effect"]) .s_blog_post_big_picture_infos {
-                display: flex;
-                flex-direction: column;
-                justify-content: space-around;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
         }
 
-        &.s_blog_posts_effect_marley, &.s_blog_posts_effect_chico {
+        &.s_blog_posts_effect_marley,
+        &.s_blog_posts_effect_chico {
             .s_dynamic_snippet_content {
                 text-align: center;
             }
         }
 
-        &.s_blog_posts_effect_marley, &.s_blog_posts_effect_dexter, &.s_blog_posts_effect_chico {
-
+        &.s_blog_posts_effect_marley,
+        &.s_blog_posts_effect_dexter,
+        &.s_blog_posts_effect_chico {
             // Define shared animations for effects, to be triggered under specific circumstances
             // (eg. screen breakpoint, image size...).
             @mixin -big-picture-animate-compact() {
@@ -86,29 +87,33 @@
             }
 
             // Base design applicable to all types of effects.
-            .s_blog_posts_post_cover_header, .s_blog_posts_post_cover_hidden {
+            .s_blog_posts_post_cover_header,
+            .s_blog_posts_post_cover_hidden {
                 height: 50%;
             }
 
-            .s_blog_post_big_picture_title, .s_blog_posts_post_cover_hidden {
+            .s_blog_post_big_picture_title,
+            .s_blog_posts_post_cover_hidden {
                 transform: translateY(50%);
                 transition: $transition-base;
             }
 
             .s_blog_post_big_picture_infos::before {
                 @include o-position-absolute(0, 0, 0, 0);
-                background-color: rgba($black, .3);
+                background-color: rgba($black, 0.3);
                 transition: $transition-fade;
                 opacity: 0;
                 content: "";
             }
 
-            .s_blog_posts_post_cover_hidden, .s_blog_post_big_picture_infos::before {
+            .s_blog_posts_post_cover_hidden,
+            .s_blog_post_big_picture_infos::before {
                 opacity: 0;
             }
 
             .s_blog_posts_post:hover {
-                .s_blog_posts_post_cover_hidden, .s_blog_post_big_picture_infos:before {
+                .s_blog_posts_post_cover_hidden,
+                .s_blog_post_big_picture_infos:before {
                     opacity: 1;
                 }
             }
@@ -147,7 +152,8 @@
         }
 
         &.s_blog_posts_effect_chico {
-            .s_blog_posts_post::before, .o_record_cover_image {
+            .s_blog_posts_post::before,
+            .o_record_cover_image {
                 transition: $transition-base;
                 transform: scale3d(1.12, 1.12, 1.12);
             }
@@ -163,7 +169,8 @@
             }
 
             .s_blog_posts_post:hover {
-                .o_record_cover_image, &::before {
+                .o_record_cover_image,
+                &::before {
                     opacity: 1;
                     transform: scale3d(1, 1, 1);
                 }

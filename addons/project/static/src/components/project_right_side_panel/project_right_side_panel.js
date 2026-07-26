@@ -1,15 +1,15 @@
 /** @odoo-module native */
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/fields/formatters";
-import { ViewButton } from '@web/views/view_button/view_button';
-
-import { ProjectRightSidePanelSection } from './components/project_right_side_panel_section.js';
-import { ProjectMilestone } from './components/project_milestone.js';
-import { ProjectProfitability } from './components/project_profitability.js';
-import { formatCurrency } from '@web/services/currency';
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { formatCurrency } from "@web/services/currency";
 import { SIZES } from "@web/ui/block/ui_service";
+import { ViewButton } from "@web/views/view_button/view_button";
+
+import { ProjectMilestone } from "./components/project_milestone.js";
+import { ProjectProfitability } from "./components/project_profitability.js";
+import { ProjectRightSidePanelSection } from "./components/project_right_side_panel_section.js";
 
 export class ProjectRightSidePanel extends Component {
     static components = {
@@ -25,11 +25,11 @@ export class ProjectRightSidePanel extends Component {
     };
 
     setup() {
-        this.orm = useService('orm');
-        this.actionService = useService('action');
-        this.dialog = useService('dialog');
+        this.orm = useService("orm");
+        this.actionService = useService("action");
+        this.dialog = useService("dialog");
         this.uiService = useService("ui");
-        useBus(this.uiService.bus, "resize", this.updateGridTemplateColumns)
+        useBus(this.uiService.bus, "resize", this.updateGridTemplateColumns);
         this.state = useState({
             data: {
                 milestones: {
@@ -66,7 +66,10 @@ export class ProjectRightSidePanel extends Component {
     }
 
     get panelVisible() {
-        return this.state.data.show_milestones || this.state.data.show_project_profitability_helper;
+        return (
+            this.state.data.show_milestones ||
+            this.state.data.show_project_profitability_helper
+        );
     }
 
     get context() {
@@ -87,8 +90,8 @@ export class ProjectRightSidePanel extends Component {
 
     get sectionNames() {
         return {
-            'milestones': _t('Milestones'),
-            'profitability': _t('Profitability'),
+            milestones: _t("Milestones"),
+            profitability: _t("Profitability"),
         };
     }
 
@@ -104,16 +107,20 @@ export class ProjectRightSidePanel extends Component {
     formatMonetary(value, options = {}) {
         // formatCurrency owns symbol lookup/position; keep the panel's
         // 0-decimals display.
-        return formatCurrency(value, this.currencyId, { digits: [false, 0], ...options });
+        return formatCurrency(value, this.currencyId, {
+            digits: [false, 0],
+            ...options,
+        });
     }
 
     async loadData() {
-        if (!this.projectId) { // If this is called from notif, multiples updates but no specific project
+        if (!this.projectId) {
+            // If this is called from notif, multiples updates but no specific project
             return {};
         }
         const data = await this.orm.call(
-            'project.project',
-            'get_panel_data',
+            "project.project",
+            "get_panel_data",
             [[this.projectId]],
             { context: this.context },
         );
@@ -141,10 +148,10 @@ export class ProjectRightSidePanel extends Component {
 
     async onProjectActionClick(params) {
         this.actionService.doActionButton({
-            type: 'action',
+            type: "action",
             resId: this.projectId,
             context: this.context,
-            resModel: 'project.project',
+            resModel: "project.project",
             ...params,
         });
     }
@@ -153,7 +160,7 @@ export class ProjectRightSidePanel extends Component {
         return {
             type: statButton.action_type,
             name: statButton.action,
-            context: statButton.additional_context || '{}',
+            context: statButton.additional_context || "{}",
         };
     }
 
@@ -161,7 +168,7 @@ export class ProjectRightSidePanel extends Component {
         return {
             resId: this.projectId,
             context: this.context,
-            resModel: 'project.project',
+            resModel: "project.project",
         };
     }
 }

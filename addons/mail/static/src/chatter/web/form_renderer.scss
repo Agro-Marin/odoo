@@ -2,7 +2,8 @@
 // Layout
 // ------------------------------------------------------------------
 
-.o-mail-ChatterContainer, .o-mail-Form-chatter {
+.o-mail-ChatterContainer,
+.o-mail-Form-chatter {
     background-color: $o-webclient-background-color;
     --Chatter-asideExtraWidth: 0px; // to take into account more items, e.g. "close" chatter feature
     &.o-aside {
@@ -85,7 +86,8 @@
 // Style
 // ------------------------------------------------------------------
 
-.o-mail-ChatterContainer, .o-mail-Form-chatter {
+.o-mail-ChatterContainer,
+.o-mail-Form-chatter {
     display: flex;
     margin: 0 auto;
     padding-bottom: map-get($spacers, 5);

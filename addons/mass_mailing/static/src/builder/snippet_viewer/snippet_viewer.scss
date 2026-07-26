@@ -6,7 +6,8 @@
     }
 
     .o_mail_footer_links {
-        a:not(.btn), a.btn.btn-link {
+        a:not(.btn),
+        a.btn.btn-link {
             padding: 0;
         }
     }

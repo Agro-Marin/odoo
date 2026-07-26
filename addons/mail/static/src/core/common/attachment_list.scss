@@ -3,7 +3,8 @@
         min-width: 13em;
         min-height: 10em;
     }
-    &:not(.o-inMessage.o-isImage),&.o-inChatter.o-inMessage.o-isImage {
+    &:not(.o-inMessage.o-isImage),
+    &.o-inChatter.o-inMessage.o-isImage {
         width: 13em;
         height: 10em;
     }
@@ -14,13 +15,14 @@
     }
 }
 
-.o-mail-AttachmentCard-image, .o-mail-Attachment-hover-image {
+.o-mail-AttachmentCard-image,
+.o-mail-Attachment-hover-image {
     width: 1.4em;
     height: 1.4em;
 }
 
 .o-mail-AttachmentButtons button:hover {
-    filter: brightness(.95);
+    filter: brightness(0.95);
 }
 
 .o-mail-Attachment-hover {

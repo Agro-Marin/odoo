@@ -6,42 +6,42 @@
     }
     .o_activity_summary_cell {
         .o-mail-ActivityCell-counter {
-            color: map-get($theme-colors, 'dark');
+            color: map-get($theme-colors, "dark");
         }
         &.planned {
-            background-color: map-get($theme-colors, 'success');
-            color: map-get($theme-colors, 'light');
+            background-color: map-get($theme-colors, "success");
+            color: map-get($theme-colors, "light");
             a {
-                color: map-get($theme-colors, 'light');
+                color: map-get($theme-colors, "light");
                 &:hover {
                     text-decoration: underline;
                 }
             }
         }
         &.overdue {
-            background-color: map-get($theme-colors, 'danger');
-            color: map-get($theme-colors, 'light');
+            background-color: map-get($theme-colors, "danger");
+            color: map-get($theme-colors, "light");
             a {
-                color: map-get($theme-colors, 'light');
+                color: map-get($theme-colors, "light");
                 &:hover {
                     text-decoration: underline;
                 }
             }
         }
         &.today {
-            background-color: map-get($theme-colors, 'warning');
-            color: map-get($theme-colors, 'light');
+            background-color: map-get($theme-colors, "warning");
+            color: map-get($theme-colors, "light");
             a {
-                color: map-get($theme-colors, 'light');
+                color: map-get($theme-colors, "light");
                 &:hover {
                     text-decoration: underline;
                 }
             }
         }
         &.done {
-            background-color: map-get($theme-colors, 'secondary');
+            background-color: map-get($theme-colors, "secondary");
             a {
-                color: map-get($theme-colors, 'dark');
+                color: map-get($theme-colors, "dark");
                 &:hover {
                     text-decoration: underline;
                 }
@@ -78,14 +78,16 @@
             }
         }
 
-        .o_m2o_avatar > img, > img {
+        .o_m2o_avatar > img,
+        > img {
             object-fit: cover;
             width: 32px;
             height: 32px;
             max-height: 32px;
         }
 
-        .o_m2m_avatar, .o_m2m_avatar_empty {
+        .o_m2m_avatar,
+        .o_m2m_avatar_empty {
             width: 32px !important;
             height: 32px !important;
         }
@@ -115,26 +117,38 @@
     }
 
     .o_activity_filter_planned {
-        background-color: mix(map-get($theme-colors, 'success'), $o-webclient-background-color, 5%);
+        background-color: mix(
+            map-get($theme-colors, "success"),
+            $o-webclient-background-color,
+            5%
+        );
     }
     .o_activity_filter_today {
-        background-color: mix(map-get($theme-colors, 'warning'), $o-webclient-background-color, 5%);
+        background-color: mix(
+            map-get($theme-colors, "warning"),
+            $o-webclient-background-color,
+            5%
+        );
     }
     .o_activity_filter_overdue {
-        background-color: mix(map-get($theme-colors, 'danger'), $o-webclient-background-color, 5%);
+        background-color: mix(
+            map-get($theme-colors, "danger"),
+            $o-webclient-background-color,
+            5%
+        );
     }
     .o_activity_type_cell {
-        min-width:100px;
+        min-width: 100px;
         .oi-ellipsis-v {
             cursor: pointer;
         }
 
         .o_template_element {
             white-space: nowrap;
-            padding:5px;
+            padding: 5px;
             cursor: pointer;
             &:hover {
-                color: o-text-color('success');
+                color: o-text-color("success");
             }
         }
         .o_activity_counter {
@@ -148,7 +162,7 @@
         }
     }
     .o_activity_view_table_footer {
-        background-color: map-get($grays, '100' );
+        background-color: map-get($grays, "100");
     }
 }
 

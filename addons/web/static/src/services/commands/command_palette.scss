@@ -12,7 +12,7 @@
 
         .o_command {
             &.focused {
-                background: rgba($o-component-active-bg, .65);
+                background: rgba($o-component-active-bg, 0.65);
             }
 
             &_hotkey {
@@ -27,7 +27,6 @@
                 color: inherit;
             }
         }
-
     }
 
     .o_favorite {
@@ -38,7 +37,7 @@
         height: $-app-icon-size;
         width: $-app-icon-size;
     }
-    .o_command{
+    .o_command {
         cursor: pointer;
         .text-ellipsis {
             text-overflow: ellipsis;

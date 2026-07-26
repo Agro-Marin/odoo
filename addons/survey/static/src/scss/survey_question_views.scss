@@ -1,5 +1,4 @@
 .o_survey_question_view_form .o_form_renderer {
-
     .o_preview_questions {
         border: 3px solid $gray-400;
         width: auto;
@@ -12,11 +11,11 @@
     }
 
     .o_preview_questions .o_matrix_head {
-        border-bottom: 1px solid #D8D7D7;
+        border-bottom: 1px solid #d8d7d7;
     }
 
     .o_preview_questions .o_matrix_row {
-        border-top: 1px solid #D8D7D7;
+        border-top: 1px solid #d8d7d7;
     }
 
     .o_preview_questions_choice {
@@ -24,7 +23,8 @@
     }
 
     .o_survey_question_validation_parameters {
-        > div, input.o_survey_question_validation_inline {
+        > div,
+        input.o_survey_question_validation_inline {
             width: 45% !important;
         }
     }

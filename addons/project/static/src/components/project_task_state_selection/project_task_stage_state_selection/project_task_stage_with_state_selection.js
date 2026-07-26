@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
@@ -62,4 +61,6 @@ export const taskStageWithStateSelection = {
     },
 };
 
-registry.category("fields").add("task_step_with_state_selection", taskStageWithStateSelection);
+registry
+    .category("fields")
+    .add("task_step_with_state_selection", taskStageWithStateSelection);

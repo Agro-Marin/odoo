@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { append, createElement, setAttributes } from "@web/core/utils/dom/xml";
 import { registry } from "@web/core/registry";
-import { SIZES } from "@web/ui/block/ui_service";
+import { append, createElement, setAttributes } from "@web/core/utils/dom/xml";
 import { patch } from "@web/core/utils/patch";
+import { SIZES } from "@web/ui/block/ui_service";
 import { FormCompiler } from "@web/views/form/form_compiler";
 
 /**
@@ -22,7 +22,10 @@ function compileChatter(node, params) {
         displayFollowButton: params.displayFollowButton,
     });
     const chatterContainerHookXml = createElement("div");
-    chatterContainerHookXml.classList.add("o-mail-ChatterContainer", "o-mail-Form-chatter");
+    chatterContainerHookXml.classList.add(
+        "o-mail-ChatterContainer",
+        "o-mail-Form-chatter",
+    );
     setAttributes(chatterContainerHookXml, { "t-if": "!__comp__.env.inDialog" });
     append(chatterContainerHookXml, chatterContainerXml);
     return chatterContainerHookXml;

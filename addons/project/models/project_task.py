@@ -1048,11 +1048,7 @@ class ProjectTask(models.Model):
         # normalise a local copy for the type check only — the original value is
         # what the sub-domain expects — else `for v in value` raises on an int.
         values = value if isinstance(value, (list, tuple)) else [value]
-        field_name = (
-            "display_name"
-            if any(isinstance(v, str) for v in values)
-            else "id"
-        )
+        field_name = "display_name" if any(isinstance(v, str) for v in values) else "id"
         domain = Domain(field_name, operator, value) & Domain(
             "user_id", "=", self.env.uid
         )
@@ -1148,7 +1144,9 @@ class ProjectTask(models.Model):
         # setdefault keeps the first bucket per user in _order (matches the old
         # search(limit=1) semantics).
         bucket_by_user = {}
-        for bucket in Triage.search([("user_id", "in", [u.id for u in triage_by_user])]):
+        for bucket in Triage.search(
+            [("user_id", "in", [u.id for u in triage_by_user])]
+        ):
             bucket_by_user.setdefault(bucket.user_id.id, bucket)
 
         # Group junction writes by target bucket to minimise write() calls.

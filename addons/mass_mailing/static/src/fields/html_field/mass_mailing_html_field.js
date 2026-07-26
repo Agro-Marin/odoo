@@ -1,21 +1,24 @@
 /** @odoo-module native */
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
-import { htmlField, HtmlField } from "@html_editor/fields/html_field";
+import { HtmlField, htmlField } from "@html_editor/fields/html_field";
 import { LocalOverlayContainer } from "@html_editor/local_overlay_container";
+import { PowerButtonsPlugin } from "@html_editor/main/power_buttons_plugin";
 import { MAIN_PLUGINS as MAIN_EDITOR_PLUGINS } from "@html_editor/plugin_sets";
 import { normalizeHTML, parseHTML } from "@html_editor/utils/html";
+import {
+    getCSSRules,
+    toInline,
+} from "@mail/views/web/fields/html_mail_field/convert_inline";
 import { MassMailingIframe } from "@mass_mailing/iframe/mass_mailing_iframe";
 import { ThemeSelector } from "@mass_mailing/themes/theme_selector/theme_selector";
-import { getCSSRules, toInline } from "@mail/views/web/fields/html_mail_field/convert_inline";
 import { onWillUpdateProps, status, toRaw, useEffect, useRef } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
-import { effect } from "@web/core/utils/reactive";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
-import { PowerButtonsPlugin } from "@html_editor/main/power_buttons_plugin";
 
 export class MassMailingHtmlField extends HtmlField {
     static template = "mass_mailing.HtmlField";
@@ -100,7 +103,7 @@ export class MassMailingHtmlField extends HtmlField {
                     currentKey = state.key;
                 }
             }),
-            [this.state]
+            [this.state],
         );
 
         useEffect(
@@ -109,9 +112,10 @@ export class MassMailingHtmlField extends HtmlField {
                     return;
                 }
                 // Set the initial textArea height.
-                this.codeViewRef.el.style.height = this.codeViewRef.el.scrollHeight + "px";
+                this.codeViewRef.el.style.height =
+                    this.codeViewRef.el.scrollHeight + "px";
             },
-            () => [this.codeViewRef.el]
+            () => [this.codeViewRef.el],
         );
     }
 
@@ -281,11 +285,12 @@ export class MassMailingHtmlField extends HtmlField {
                             [this.props.name]: html,
                             [this.props.inlineField]: "",
                         })
-                        .catch(() => {})
+                        .catch(() => {}),
                 ),
             filterTemplates: this.props.filterTemplates,
             mailingModelId: this.props.record.data.mailing_model_id.id,
-            mailingModelName: this.props.record.data.mailing_model_id.display_name || "",
+            mailingModelName:
+                this.props.record.data.mailing_model_id.display_name || "",
         };
     }
 
@@ -306,7 +311,11 @@ export class MassMailingHtmlField extends HtmlField {
             !this.editor.isDestroyed &&
             this.props.record.data[this.props.inlineField].toString() === ""
         ) {
-            if ((await this.ensureIframeLoaded()) && this.editor && !this.editor.isDestroyed) {
+            if (
+                (await this.ensureIframeLoaded()) &&
+                this.editor &&
+                !this.editor.isDestroyed
+            ) {
                 this.isDirty = true;
                 this.lastValue = undefined;
             } else {
@@ -345,7 +354,7 @@ export class MassMailingHtmlField extends HtmlField {
         const processingEl = this.iframeRef.el.contentDocument.createElement("DIV");
         processingEl.append(parseHTML(this.iframeRef.el.contentDocument, value));
         const processingContainer = this.iframeRef.el.contentDocument.querySelector(
-            ".o_mass_mailing_processing_container"
+            ".o_mass_mailing_processing_container",
         );
         bundleControls["mass_mailing.assets_inside_builder_iframe"]?.toggle(false);
         processingContainer.append(processingEl);

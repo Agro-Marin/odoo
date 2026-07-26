@@ -7,7 +7,8 @@
     top: $pos-navbar-height + map-get($spacers, 2);
 }
 
-.table-selector-small, .table-selector {
+.table-selector-small,
+.table-selector {
     .input {
         flex: 0 0 10%;
     }

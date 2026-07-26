@@ -8,7 +8,6 @@
     -webkit-line-clamp: 2;
 }
 
-
 .tip-screen .pos-receipt-container {
     display: none;
     position: fixed;
@@ -25,7 +24,6 @@
         visibility: visible;
     }
 }
-
 
 .pos-receipt .tip-form > div {
     margin-top: 1rem;
@@ -63,6 +61,10 @@
     margin-right: 50px;
 }
 
-.submit-order, .set-table, .new-tab, .assign-button, .plan-button {
+.submit-order,
+.set-table,
+.new-tab,
+.assign-button,
+.plan-button {
     min-height: 70px;
 }

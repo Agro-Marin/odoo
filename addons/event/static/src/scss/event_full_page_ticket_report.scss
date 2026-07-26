@@ -1,6 +1,6 @@
 .o_event_full_page_ticket_footer {
     .o_event_full_page_ticket_powered_by {
-        @include font-size(.8rem);
+        @include font-size(0.8rem);
         line-height: 1rem;
     }
 }
@@ -19,7 +19,7 @@
         border: solid 1px #939393;
         margin: 0px 8px;
         padding: 10px 3px;
-        box-shadow: -3px 3px 9px 0px rgba(0,0,0,0.51);
+        box-shadow: -3px 3px 9px 0px rgba(0, 0, 0, 0.51);
     }
 
     .o_event_full_page_ticket_barcode {
@@ -30,14 +30,13 @@
     }
 
     .o_event_full_page_ticket_answer {
-        font-size: .875rem;
+        font-size: 0.875rem;
     }
 }
 
 /* FULL PAGE TICKET - PDF REPORT */
 
 .o_event_full_page_ticket {
-
     .o_event_full_page_left_details {
         width: 78%;
         .o_event_full_page_left_details_top {
@@ -68,7 +67,7 @@
     .o_event_full_page_extra_instructions {
         width: 100%;
         p {
-            margin: 0px;  // to match editor style (.o_field_html p)
+            margin: 0px; // to match editor style (.o_field_html p)
         }
     }
 }

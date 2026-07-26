@@ -4,12 +4,14 @@
 }
 
 .o-mail-DiscussSearch-inputContainer {
-    &, & input {
+    &,
+    & input {
         background-color: $o-view-background-color !important;
     }
 
     &:has(.o-mail-DiscussSearch-inputClickable:hover) {
-        &, & input {
+        &,
+        & input {
             background-color: mix($gray-100, $gray-200) !important;
         }
     }

@@ -1,5 +1,4 @@
 .o_field_image {
-
     > div {
         height: 100%;
         width: 100%;
@@ -27,7 +26,7 @@
     }
 
     &.o_field_invalid img {
-        border: 1px solid map-get($theme-colors, 'danger');
+        border: 1px solid map-get($theme-colors, "danger");
     }
 }
 

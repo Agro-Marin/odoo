@@ -10,7 +10,9 @@
 .o-mail-VoiceRecorder-elapsed {
     width: max-content;
     &.o-active {
-        transition: max-width 2s ease-in-out, width 1s ease-in-out;
+        transition:
+            max-width 2s ease-in-out,
+            width 1s ease-in-out;
         max-width: 500px;
     }
     &:not(.o-active) {

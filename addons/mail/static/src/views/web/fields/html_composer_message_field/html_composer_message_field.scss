@@ -14,7 +14,7 @@
             padding-left: $movenode-horizontal-padding;
             padding-right: $movenode-horizontal-padding;
         }
-    } 
+    }
     .o_mail_composer_form_view {
         .o_form_renderer.o_form_nosheet.o_form_editable {
             padding-left: $movenode-horizontal-padding;
@@ -27,7 +27,8 @@
                 padding-right: 0;
 
                 &:not(.o_field_highlight) {
-                    &:hover, &:focus {
+                    &:hover,
+                    &:focus {
                         --o-input-border-color: transparent;
                     }
                 }

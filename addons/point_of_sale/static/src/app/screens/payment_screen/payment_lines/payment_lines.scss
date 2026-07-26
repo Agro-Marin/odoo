@@ -11,8 +11,8 @@
     margin-right: 10px;
     /* make the name of the payment line to be truncated with ellipsis */
     white-space: nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding: map-get($spacers, 3);
 }
 

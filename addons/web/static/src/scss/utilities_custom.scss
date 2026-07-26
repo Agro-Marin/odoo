@@ -52,53 +52,56 @@ $order-array: (
     last: $grid-columns + 1,
 ) !default;
 @for $i from 0 through $grid-columns {
-    $order-array: map-merge(
-        $order-array,
-        (#{$i}: $i)
-    );
+    $order-array: map-merge($order-array, (#{$i}: $i));
 }
-
 
 $utilities: () !default;
 $utilities: map-merge(
     $utilities,
     (
         "display": map-merge(
-            map-get($utilities, "display"),
-            (
-                values: join(map-get(map-get($utilities, "display"), "values"), contents),
+                map-get($utilities, "display"),
+                (
+                    values: join(
+                            map-get(map-get($utilities, "display"), "values"),
+                            contents
+                        ),
+                )
             ),
-        ),
         "white-space": map-merge(
-            map-get($utilities, "white-space"),
-            (
-                values: map-merge(
-                    map-get(map-get($utilities, "white-space"), "values"),
-                    ("prewrap": pre-wrap),
-                ),
+                map-get($utilities, "white-space"),
+                (
+                    values: map-merge(
+                            map-get(map-get($utilities, "white-space"), "values"),
+                            (
+                                "prewrap": pre-wrap,
+                            )
+                        ),
+                )
             ),
-        ),
         "position": map-merge(
-            map-get($utilities, "position"),
-            (
-                responsive: true,
+                map-get($utilities, "position"),
+                (
+                    responsive: true,
+                )
             ),
-        ),
         "opacity": map-merge(
-            map-get($utilities, "opacity"),
-            (
-                values: $utilities-opacity,
+                map-get($utilities, "opacity"),
+                (
+                    values: $utilities-opacity,
+                )
             ),
-        ),
-        "border-color":  map-merge(
-            map-get($utilities, "border-color"),
-            (
-                values: map-merge(
-                    map-get(map-get($utilities, "border-color"), "values"),
-                    ("transparent": transparent),
-                ),
+        "border-color": map-merge(
+                map-get($utilities, "border-color"),
+                (
+                    values: map-merge(
+                            map-get(map-get($utilities, "border-color"), "values"),
+                            (
+                                "transparent": transparent,
+                            )
+                        ),
+                )
             ),
-        ),
         "rounded-top": (
             property: border-top-left-radius border-top-right-radius,
             class: rounded-top,
@@ -120,49 +123,51 @@ $utilities: map-merge(
             values: $rounded-sizes,
         ),
         "width": map-merge(
-            map-get($utilities, "width"),
-            (
-                responsive: true,
-                values: $utilities-sizes,
+                map-get($utilities, "width"),
+                (
+                    responsive: true,
+                    values: $utilities-sizes,
+                )
             ),
-        ),
         "height": map-merge(
-            map-get($utilities, "height"),
-            (
-                responsive: true,
-                values: $utilities-sizes,
+                map-get($utilities, "height"),
+                (
+                    responsive: true,
+                    values: $utilities-sizes,
+                )
             ),
-        ),
         "max-width": map-merge(
-            map-get($utilities, "max-width"),
-            (
-                responsive: true,
-                values: $utilities-sizes,
+                map-get($utilities, "max-width"),
+                (
+                    responsive: true,
+                    values: $utilities-sizes,
+                )
             ),
-        ),
         "max-height": map-merge(
-            map-get($utilities, "max-height"),
-            (
-                responsive: true,
-                values: $utilities-sizes,
+                map-get($utilities, "max-height"),
+                (
+                    responsive: true,
+                    values: $utilities-sizes,
+                )
             ),
-        ),
-        "font-family":  map-merge(
-            map-get($utilities, "font-family"),
-            (
-                values: map-merge(
-                    map-get(map-get($utilities, "font-family"), "values"),
-                    (sans-serif: var(--#{$variable-prefix}font-sans-serif)),
-                ),
+        "font-family": map-merge(
+                map-get($utilities, "font-family"),
+                (
+                    values: map-merge(
+                            map-get(map-get($utilities, "font-family"), "values"),
+                            (
+                                sans-serif: var(--#{$variable-prefix}font-sans-serif),
+                            )
+                        ),
+                )
             ),
-        ),
         "order": map-merge(
-            map-get($utilities, "order"),
-            (
-                values: $order-array,
+                map-get($utilities, "order"),
+                (
+                    values: $order-array,
+                )
             ),
-        ),
-    ),
+    )
 );
 
 // Odoo Custom Utility Classes
@@ -199,7 +204,6 @@ $utilities: map-merge(
     )
 );
 
-
 @layer app {
     // Define opacity:hover classes while defining the triggerer behavior.
     // Use'.opacity-trigger-hover' class to allow hovered parents to
@@ -210,7 +214,7 @@ $utilities: map-merge(
             &:focus-visible,
             .opacity-trigger-hover:hover &,
             .opacity-trigger-hover:focus-visible & {
-                opacity: $-opacity-level!important;
+                opacity: $-opacity-level !important;
             }
         }
     }

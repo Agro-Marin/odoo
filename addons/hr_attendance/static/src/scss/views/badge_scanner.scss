@@ -36,7 +36,7 @@
         }
     }
     @include media-breakpoint-down(md) {
-        padding: 0 1em 1em .75em;
+        padding: 0 1em 1em 0.75em;
     }
     @include media-breakpoint-up(md) {
         flex: 0 0 auto;
@@ -46,6 +46,6 @@
         -moz-border-radius: 10px;
         box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.6);
         font-size: 1.2em;
-        padding: 0 1em 1em .75em;
+        padding: 0 1em 1em 0.75em;
     }
 }

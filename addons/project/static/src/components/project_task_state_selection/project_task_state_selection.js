@@ -1,14 +1,13 @@
 /** @odoo-module native */
+import { useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { registry } from "@web/core/registry";
+import { formatSelection } from "@web/fields/formatters";
 import {
     StateSelectionField,
     stateSelectionField,
 } from "@web/fields/selection/state_selection/state_selection_field";
 import { useCommand } from "@web/services/commands/command_hook";
-import { formatSelection } from "@web/fields/formatters";
-
-import { registry } from "@web/core/registry";
-import { useState } from "@odoo/owl";
 
 export class ProjectTaskStateSelection extends StateSelectionField {
     static template = "project.ProjectTaskStateSelection";
@@ -29,59 +28,57 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         // The Hoot test in tests/project_task_state_selection.test.js asserts the
         // dropdown still includes "To Do" — it is the primary safeguard.
         this.icons = {
-            "todo": "o_status o_status_todo",
-            "in_progress": "o_status",
-            "approved": "o_status o_status_green",
-            "changes_requested": "fa-solid fa-exclamation-circle fa-lg",
-            "done": "fa-solid fa-check-circle fa-lg",
-            "canceled": "fa-solid fa-times-circle fa-lg",
-            "blocked": "fa-solid fa-hourglass fa-lg",
+            todo: "o_status o_status_todo",
+            in_progress: "o_status",
+            approved: "o_status o_status_green",
+            changes_requested: "fa-solid fa-exclamation-circle fa-lg",
+            done: "fa-solid fa-check-circle fa-lg",
+            canceled: "fa-solid fa-times-circle fa-lg",
+            blocked: "fa-solid fa-hourglass fa-lg",
         };
         this.colorIcons = {
-            "todo": "",
-            "in_progress": "",
-            "approved": "text-success",
-            "changes_requested": "o_status_changes_requested",
-            "done": "text-success",
-            "canceled": "text-danger",
-            "blocked": "btn-outline-info",
+            todo: "",
+            in_progress: "",
+            approved: "text-success",
+            changes_requested: "o_status_changes_requested",
+            done: "text-success",
+            canceled: "text-danger",
+            blocked: "btn-outline-info",
         };
         this.colorButton = {
-            "todo": "btn-outline-info",
-            "in_progress": "btn-outline-secondary",
-            "approved": "btn-outline-success",
-            "changes_requested": "btn-outline-warning",
-            "done": "btn-outline-success",
-            "canceled": "btn-outline-danger",
-            "blocked": "btn-outline-info",
+            todo: "btn-outline-info",
+            in_progress: "btn-outline-secondary",
+            approved: "btn-outline-success",
+            changes_requested: "btn-outline-warning",
+            done: "btn-outline-success",
+            canceled: "btn-outline-danger",
+            blocked: "btn-outline-info",
         };
-        if (this.props.viewType != 'form') {
+        if (this.props.viewType !== "form") {
             super.setup();
         } else {
             const commandName = _t("Set state as...");
             useCommand(
                 commandName,
-                () => {
-                    return {
-                        placeholder: commandName,
-                        providers: [
-                            {
-                                provide: () =>
-                                    this.options.map(subarr => ({
-                                        name: subarr[1],
-                                        action: () => {
-                                            this.updateRecord(subarr[0]);
-                                        },
-                                    })),
-                            },
-                        ],
-                    };
-                },
+                () => ({
+                    placeholder: commandName,
+                    providers: [
+                        {
+                            provide: () =>
+                                this.options.map((subarr) => ({
+                                    name: subarr[1],
+                                    action: () => {
+                                        this.updateRecord(subarr[0]);
+                                    },
+                                })),
+                        },
+                    ],
+                }),
                 {
                     category: "smart_action",
                     hotkey: "alt+f",
                     isAvailable: () => !this.props.readonly,
-                }
+                },
             );
         }
     }
@@ -90,7 +87,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         const labels = new Map(super.options);
         const states = ["canceled", "done"];
         const currentState = this.props.record.data[this.props.name];
-        if (currentState != "blocked") {
+        if (currentState !== "blocked") {
             states.unshift("todo", "in_progress", "changes_requested", "approved");
         }
         return states.map((state) => [state, labels.get(state)]);
@@ -129,22 +126,28 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     }
 
     async toggleState() {
-        const toggleVal = this.currentValue == "done" ? "in_progress" : "done";
+        const toggleVal = this.currentValue === "done" ? "in_progress" : "done";
         await this.updateRecord(toggleVal);
     }
 
     getDropdownPosition() {
-        if (this.isView(['activity', 'kanban', 'list', 'calendar']) || this.env.isSmall) {
-            return '';
+        if (
+            this.isView(["activity", "kanban", "list", "calendar"]) ||
+            this.env.isSmall
+        ) {
+            return "";
         }
-        return 'bottom-end';
+        return "bottom-end";
     }
 
     getTogglerClass(currentValue) {
-        if (this.isView(['activity', 'kanban', 'list', 'calendar']) || this.env.isSmall) {
-            return 'btn btn-link d-flex p-0';
+        if (
+            this.isView(["activity", "kanban", "list", "calendar"]) ||
+            this.env.isSmall
+        ) {
+            return "btn btn-link d-flex p-0";
         }
-        return 'o_state_button btn rounded-pill ' + this.colorButton[currentValue];
+        return "o_state_button btn rounded-pill " + this.colorButton[currentValue];
     }
 
     async updateRecord(value) {
@@ -168,11 +171,12 @@ export const projectTaskStateSelection = {
     component: ProjectTaskStateSelection,
     fieldDependencies: [{ name: "project_id", type: "many2one" }],
     supportedOptions: [
-        ...stateSelectionField.supportedOptions, {
+        ...stateSelectionField.supportedOptions,
+        {
             label: _t("Is toggle mode"),
             name: "is_toggle_mode",
-            type: "boolean"
-        }
+            type: "boolean",
+        },
     ],
     extractProps({ options, viewType }) {
         const props = stateSelectionField.extractProps(...arguments);
@@ -180,6 +184,8 @@ export const projectTaskStateSelection = {
         props.viewType = viewType;
         return props;
     },
-}
+};
 
-registry.category("fields").add("project_task_state_selection", projectTaskStateSelection);
+registry
+    .category("fields")
+    .add("project_task_state_selection", projectTaskStateSelection);

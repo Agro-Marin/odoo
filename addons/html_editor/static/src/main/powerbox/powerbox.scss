@@ -1,6 +1,5 @@
 .o-we-powerbox {
     box-shadow: $box-shadow;
-
 }
 
 .o-we-category {
@@ -10,7 +9,7 @@
 
 .o-we-command {
     &.active {
-        background: rgba($o-component-active-bg, .65);
+        background: rgba($o-component-active-bg, 0.65);
     }
 }
 

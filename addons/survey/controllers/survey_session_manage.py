@@ -243,7 +243,10 @@ class UserInputSession(http.Controller):
 
         # 3. Try short access token prefix (first N chars of UUID)
         survey = SurveySudo.search(
-            [("access_token", "=like", f"{escape_psql(session_code)}%"), ("active", "=", True)],
+            [
+                ("access_token", "=like", f"{escape_psql(session_code)}%"),
+                ("active", "=", True),
+            ],
             limit=1,
         )
         if survey:

@@ -1,6 +1,11 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, hover } from "@odoo/hoot-dom";
-import { contains, mockService, mountView, onRpc } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    mockService,
+    mountView,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels, ProjectTask } from "./project_models.js";
 
@@ -23,7 +28,7 @@ function addTemplateTasks() {
             step_id: 1,
             state: "in_progress",
             is_template: true,
-        }
+        },
     );
 }
 
@@ -69,7 +74,8 @@ for (const [viewType, newButtonClass] of [
             message: "The “New” button should be displayed",
         });
         expect(newButtonClass).not.toHaveClass("dropdown-toggle", {
-            message: "The “New” button should not be a dropdown since there is no template",
+            message:
+                "The “New” button should not be a dropdown since there is no template",
         });
 
         // Test that we can create a new record without errors
@@ -130,7 +136,6 @@ for (const [viewType, newButtonClass] of [
         await animationFrame();
         await contains(".o_template_icon_group:first > i.fa-pencil").click();
         expect.verifySteps(["task template opened"]);
-
     });
 }
 

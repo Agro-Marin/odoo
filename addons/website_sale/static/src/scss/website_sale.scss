@@ -1,7 +1,6 @@
 // Website Sale
 // =============================================================================
 
-
 // ==== Products list Pages (/shop, /category, /search) ========================
 // =============================================================================
 :where(#o_wsale_container) {
@@ -18,19 +17,25 @@
         max-width: var(--o-wsale-sidebar-maxwidth, 15rem);
 
         // == Guess the distance with the navbar
-        $-container-top-gap: calc($grid-gutter-width / 2); // = o_wsale_products_main_row
+        $-container-top-gap: calc(
+            $grid-gutter-width / 2
+        ); // = o_wsale_products_main_row
 
         // == Guess the distance with the viewport's top.
         // Defined using CSS variables to ease custom-headers overrides.
-        --o_ws_sidebar_top_gap: calc(#{$navbar-padding-y * 2} + #{$btn-padding-y-lg * 2} + #{$-container-top-gap});
+        --o_ws_sidebar_top_gap: calc(
+            #{$navbar-padding-y * 2} + #{$btn-padding-y-lg * 2} + #{$-container-top-gap}
+        );
 
-        @if (o-website-value('header-scroll-effect') == null) or (o-website-value('header-scroll-effect') == 'fixed') {
+        @if (o-website-value("header-scroll-effect") == null) or
+            (o-website-value("header-scroll-effect") == "fixed")
+        {
             top: var(--o_ws_sidebar_top_gap);
         } @else {
             top: $-container-top-gap;
         }
 
-        .o_wsale_products_grid_before_rail{
+        .o_wsale_products_grid_before_rail {
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
@@ -50,7 +55,6 @@
             }
         }
     }
-
 
     // === Content (Right) =====================================================
     // == Main content wrapper
@@ -129,7 +133,8 @@
         // Hide empty dropzones when no dropzone are dragged.
         @at-root body:where(:not(.oe_dropzone_active)) {
             #oe_structure_products_header_shop {
-                &:has(> br:first-child:last-child), &:empty {
+                &:has(> br:first-child:last-child),
+                &:empty {
                     display: none;
                 }
             }
@@ -139,7 +144,8 @@
     // == Filmstrip
     &.o_wsale_page_contained {
         .o_wsale_filmstrip_container {
-            &.o_wsale_filmstrip_grid, &.o_wsale_filmstrip_tabs {
+            &.o_wsale_filmstrip_grid,
+            &.o_wsale_filmstrip_tabs {
                 margin-left: calc(var(--o-wsale-topbar-padding-left) * -1);
 
                 .o_wsale_filmstrip {
@@ -161,7 +167,11 @@
             --o-wsale-filmstrip-item-color: #{color-contrast($light)};
             --o-wsale-filmstrip-item-span-height: 2.5rem;
 
-            --o-wsale-filmstrip-item-bg-hover: #{if(lightness($light) > .5, darken($light, 8%), lighten($light, 8%))};
+            --o-wsale-filmstrip-item-bg-hover: #{if(
+                    lightness($light) > 0.5,
+                    darken($light, 8%),
+                    lighten($light, 8%)
+                )};
         }
 
         &.o_wsale_filmstrip_bordered {
@@ -170,7 +180,11 @@
             --o-wsale-filmstrip-item-image-bg: #{$gray-100};
             --o-wsale-filmstrip-item-span-height: 2.5rem;
 
-            --o-wsale-filmstrip-item-border-color-hover: color-mix(in srgb, var(--o-border-color), black 30%);
+            --o-wsale-filmstrip-item-border-color-hover: color-mix(
+                in srgb,
+                var(--o-border-color),
+                black 30%
+            );
         }
 
         &.o_wsale_filmstrip_tabs {
@@ -189,7 +203,8 @@
 
             --o-wsale-filmstrip-item-border-color-hover: #{$primary};
             --o-wsale-filmstrip-item-color-hover: #{$primary};
-            --o-wsale-filmstrip-item-box-shadow-hover: inset 0 #{$border-width * -1} 0 #{$primary};
+            --o-wsale-filmstrip-item-box-shadow-hover: inset 0 #{$border-width * -1} 0
+                #{$primary};
 
             --o-wsale-filmstrip-item-border-width-active: 0 0 #{$border-width * 2} 0;
             --o-wsale-filmstrip-item-bg-active: transparent;
@@ -252,7 +267,8 @@
         }
 
         &.o_wsale_filmstrip_grid {
-            --o-wsale-filmstrip-wrapper-border-width: #{$border-width} 0 #{$border-width} 0;
+            --o-wsale-filmstrip-wrapper-border-width: #{$border-width} 0
+                #{$border-width} 0;
             --o-wsale-filmstrip-wrapper-padding-bottom: 0;
 
             --o-wsale-filmstrip-gap: 0;
@@ -300,7 +316,8 @@
                 --o-wsale-filmstrip-item-border-width: 0;
             }
 
-            .o_wsale_filmstrip_link:is(:hover, :focus) .o_wsale_filmstrip_item:not(.active) {
+            .o_wsale_filmstrip_link:is(:hover, :focus)
+                .o_wsale_filmstrip_item:not(.active) {
                 .o_wsale_filmstrip_image {
                     transform: scale(1.06);
                     overflow: hidden;
@@ -359,20 +376,33 @@
             }
 
             .o_wsale_filmstrip_image {
-                margin: calc(var(--o-wsale-filmstrip-item-padding-y) * -1) calc(var(--o-wsale-filmstrip-item-padding-x) * -1);
+                margin: calc(var(--o-wsale-filmstrip-item-padding-y) * -1)
+                    calc(var(--o-wsale-filmstrip-item-padding-x) * -1);
 
                 &::before {
                     content: "";
                     display: block;
                     @include o-position-absolute(0, 0, 0, 0);
-                    background: var(--o-wsale-filmstrip-overlay-bg, linear-gradient(200deg, rgba(0, 0, 0, .15) 0%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, .6) 100%));
+                    background: var(
+                        --o-wsale-filmstrip-overlay-bg,
+                        linear-gradient(
+                            200deg,
+                            rgba(0, 0, 0, 0.15) 0%,
+                            rgba(0, 0, 0, 0) 50%,
+                            rgba(0, 0, 0, 0.6) 100%
+                        )
+                    );
                     border-radius: $border-radius;
-                    opacity: .8;
-                    transition: opacity .2s ease-in-out;
+                    opacity: 0.8;
+                    transition: opacity 0.2s ease-in-out;
                 }
 
                 &.o_wsale_filmstrip_no_image {
-                    --o-wsale-filmstrip-overlay-bg: linear-gradient(90deg, rgba(0, 0, 0, .4) 0%, rgba(0, 0, 0, .1) 100%);
+                    --o-wsale-filmstrip-overlay-bg: linear-gradient(
+                        90deg,
+                        rgba(0, 0, 0, 0.4) 0%,
+                        rgba(0, 0, 0, 0.1) 100%
+                    );
                 }
             }
 
@@ -380,7 +410,8 @@
                 z-index: 1;
             }
 
-            .o_wsale_filmstrip_link:is(:hover, :focus) .o_wsale_filmstrip_item:not(.active) {
+            .o_wsale_filmstrip_link:is(:hover, :focus)
+                .o_wsale_filmstrip_item:not(.active) {
                 .o_wsale_filmstrip_image {
                     transform: scale(1.02);
 
@@ -397,12 +428,15 @@
             border-width: var(--o-wsale-filmstrip-wrapper-border-width, 0);
             border-style: solid;
             border-color: $border-color;
-            padding-bottom: var(--o-wsale-filmstrip-wrapper-padding-bottom, #{map-get($spacers, 1)});
+            padding-bottom: var(
+                --o-wsale-filmstrip-wrapper-padding-bottom,
+                #{map-get($spacers, 1)}
+            );
             cursor: grab;
             scroll-snap-type: x mandatory;
 
             // Firefox only scrollbar style
-            @supports (-moz-appearance:none) {
+            @supports (-moz-appearance: none) {
                 scrollbar-width: thin;
                 scrollbar-color: currentColor transparent;
             }
@@ -415,7 +449,7 @@
                     width: var(--o-wsale-filmstrip-item-width, auto);
                     aspect-ratio: var(--o-wsale-filmstrip-item-aspect-ratio, unset);
 
-                    @include media-breakpoint-down (md) {
+                    @include media-breakpoint-down(md) {
                         scroll-snap-align: start;
                     }
                 }
@@ -427,33 +461,49 @@
                     gap: var(--o-wsale-filmstrip-item-gap, #{map-get($spacers, 3)});
                     border-width: var(--o-wsale-filmstrip-item-border-width, 0);
                     border-style: solid;
-                    border-color: var(--o-wsale-filmstrip-item-border-color, #{$border-color});
-                    border-radius: var(--o-wsale-filmstrip-item-border-radius, #{$btn-border-radius});
-                    padding: var(--o-wsale-filmstrip-item-padding-y, #{map-get($spacers, 2)})
-                            var(--o-wsale-filmstrip-item-padding-x, #{map-get($spacers, 3)})
-                            var(--o-wsale-filmstrip-item-padding-y, #{map-get($spacers, 2)})
-                            var(--o-wsale-filmstrip-item-padding-x, #{map-get($spacers, 2)});
+                    border-color: var(
+                        --o-wsale-filmstrip-item-border-color,
+                        #{$border-color}
+                    );
+                    border-radius: var(
+                        --o-wsale-filmstrip-item-border-radius,
+                        #{$btn-border-radius}
+                    );
+                    padding: var(
+                            --o-wsale-filmstrip-item-padding-y,
+                            #{map-get($spacers, 2)}
+                        )
+                        var(--o-wsale-filmstrip-item-padding-x, #{map-get($spacers, 3)})
+                        var(--o-wsale-filmstrip-item-padding-y, #{map-get($spacers, 2)})
+                        var(--o-wsale-filmstrip-item-padding-x, #{map-get($spacers, 2)});
                     font-size: var(--o-wsale-filmstrip-item-font-size);
                     font-weight: var(--o-wsale-filmstrip-item-font-weight);
                     text-align: var(--o-wsale-filmstrip-item-text-align);
                     text-wrap: var(--o-wsale-filmstrip-item-text-wrap);
                     color: var(--o-wsale-filmstrip-item-color, #{$body-color});
                     background-color: var(--o-wsale-filmstrip-item-bg, #{$light});
-                    transition: all .15s ease-in-out;
+                    transition: all 0.15s ease-in-out;
 
                     .o_wsale_filmstrip_image {
                         display: var(--o-wsale-filmstrip-item-image-display);
                         position: var(--o-wsale-filmstrip-item-image-position);
                         width: var(--o-wsale-filmstrip-item-image-width, 2.5rem);
                         height: var(--o-wsale-filmstrip-item-image-height);
-                        background-color: var(--o-wsale-filmstrip-item-image-bg, #{$body-bg});
+                        background-color: var(
+                            --o-wsale-filmstrip-item-image-bg,
+                            #{$body-bg}
+                        );
                         aspect-ratio: 1/1;
-                        transition: all .15s ease-in-out;
+                        transition: all 0.15s ease-in-out;
                         overflow: hidden;
 
                         &.o_wsale_filmstrip_placeholder {
-                            display: var(--o-wsale-filmstrip-item-placeholder-display, none);
-                            background: url('/website_sale/static/src/img/categories/placeholder_thumbnail.png') no-repeat center center / cover;
+                            display: var(
+                                --o-wsale-filmstrip-item-placeholder-display,
+                                none
+                            );
+                            background: url("/website_sale/static/src/img/categories/placeholder_thumbnail.png")
+                                no-repeat center center / cover;
                         }
                     }
 
@@ -468,25 +518,56 @@
                     }
 
                     &:has(.o_wsale_filmstrip_placeholder) {
-                        padding: var(--o-wsale-filmstrip-item-padding-y, #{$btn-padding-y}) var(--o-wsale-filmstrip-item-padding-x, #{map-get($spacers, 3)});
+                        padding: var(
+                                --o-wsale-filmstrip-item-padding-y,
+                                #{$btn-padding-y}
+                            )
+                            var(
+                                --o-wsale-filmstrip-item-padding-x,
+                                #{map-get($spacers, 3)}
+                            );
                     }
 
                     &.active {
-                        border-color: var(--o-wsale-filmstrip-item-border-color-active, #{$primary});
-                        border-width: var(--o-wsale-filmstrip-item-border-width-active, var(--o-wsale-filmstrip-item-border-width, #{$border-width}));
-                        background-color: var(--o-wsale-filmstrip-item-bg-active, #{$light});
+                        border-color: var(
+                            --o-wsale-filmstrip-item-border-color-active,
+                            #{$primary}
+                        );
+                        border-width: var(
+                            --o-wsale-filmstrip-item-border-width-active,
+                            var(--o-wsale-filmstrip-item-border-width, #{$border-width})
+                        );
+                        background-color: var(
+                            --o-wsale-filmstrip-item-bg-active,
+                            #{$light}
+                        );
 
                         span {
-                            color: var(--o-wsale-filmstrip-item-color-active, #{$primary});
-                            text-decoration: var(--o-wsale-filmstrip-item-text-decoration-active);
+                            color: var(
+                                --o-wsale-filmstrip-item-color-active,
+                                #{$primary}
+                            );
+                            text-decoration: var(
+                                --o-wsale-filmstrip-item-text-decoration-active
+                            );
                         }
                     }
                 }
 
-                .o_wsale_filmstrip_link:is(:hover, :focus) .o_wsale_filmstrip_item:not(.active) {
-                    border-color: var(--o-wsale-filmstrip-item-border-color-hover, var(--o-wsale-filmstrip-item-border-color, #{$border-color}));
-                    background-color: var(--o-wsale-filmstrip-item-bg-hover, var(--o-wsale-filmstrip-item-bg, transparent));
-                    color: var(--o-wsale-filmstrip-item-color-hover, var(--o-wsale-filmstrip-item-color, inherit));
+                .o_wsale_filmstrip_link:is(:hover, :focus)
+                    .o_wsale_filmstrip_item:not(.active) {
+                    border-color: var(
+                        --o-wsale-filmstrip-item-border-color-hover,
+                        var(--o-wsale-filmstrip-item-border-color, #{$border-color})
+                    );
+                    background-color: var(
+                        --o-wsale-filmstrip-item-bg-hover,
+                        var(--o-wsale-filmstrip-item-bg, transparent)
+                    );
+                    color: var(
+                        --o-wsale-filmstrip-item-color-hover,
+                        var(--o-wsale-filmstrip-item-color, inherit)
+                    );
                     box-shadow: var(--o-wsale-filmstrip-item-box-shadow-hover, none);
                 }
             }
@@ -532,7 +613,9 @@
         }
 
         body:has(.o-livechat-root.o-livechat-LivechatButton-isVisible) & {
-            transition: right .3s, bottom .3s;
+            transition:
+                right 0.3s,
+                bottom 0.3s;
 
             #o_wsale_floating_bar {
                 bottom: 10px;
@@ -545,7 +628,7 @@
             }
 
             @include media-breakpoint-up(sm) {
-                --_offset: calc(calc(100vw - 100%) * .5);
+                --_offset: calc(calc(100vw - 100%) * 0.5);
                 --_livechat-gap: calc(3vw + 80px);
 
                 right: calc(0px - calc(var(--_offset) - var(--_livechat-gap)));
@@ -554,11 +637,9 @@
     }
 }
 
-
 // ==== Products list Pages - Options ==========================================
 // =============================================================================
 :where(#o_wsale_container) {
-
     // === Option: "5 Products Per Row"
     &[data-ppr="5"] {
         // Bootstrap uses a 12 columns grid system by default.
@@ -601,7 +682,8 @@
             --o-wsale-topbar-border-width: 0 0 #{$border-width} 0;
 
             @include media-breakpoint-up(sm) {
-                --o-wsale-topbar-border-width: 0 #{$border-width} #{$border-width} #{$border-width};
+                --o-wsale-topbar-border-width: 0 #{$border-width} #{$border-width}
+                    #{$border-width};
             }
 
             &:where(:not(.o_wsale_has_sidebar)) {
@@ -612,7 +694,8 @@
                     }
                 }
                 @include media-breakpoint-up(lg) {
-                    --o-wsale-topbar-border-width: 0 #{$border-width} #{$border-width} #{$border-width};
+                    --o-wsale-topbar-border-width: 0 #{$border-width} #{$border-width}
+                        #{$border-width};
                 }
             }
 
@@ -640,7 +723,8 @@
                 border-left: #{$border-width} solid #{$border-color};
             }
 
-            &.o_wsale_has_sidebar.o_wsale_products_opt_layout_catalog #o_wsale_products_grid {
+            &.o_wsale_has_sidebar.o_wsale_products_opt_layout_catalog
+                #o_wsale_products_grid {
                 @include media-breakpoint-down(lg) {
                     border-left: #{$border-width} solid #{$border-color};
                 }
@@ -694,14 +778,18 @@
             // Prevent grid gutter to be higher that bootstrap gutter width to make sure
             // the negative margin layout does not overflow on elements. This prevents the
             // use of an ugly overflow: hidden which would break box-shadows.
-            $o-wsale-products-layout-grid-gutter-width: calc($grid-gutter-width / 2) !default;
-            $o-wsale-products-layout-grid-gutter-width: min(calc($grid-gutter-width / 2), $o-wsale-products-layout-grid-gutter-width) !default;
+            $o-wsale-products-layout-grid-gutter-width: calc(
+                $grid-gutter-width / 2
+            ) !default;
+            $o-wsale-products-layout-grid-gutter-width: min(
+                calc($grid-gutter-width / 2),
+                $o-wsale-products-layout-grid-gutter-width
+            ) !default;
 
             // .o_wsale_products_grid_table
             // Necessary just to ensure that a product with custom height behaves
             // correctly when rendered into the last row.
             grid-auto-rows: minmax(160px, auto);
-
 
             .oe_product {
                 --o-wsale-card-price-flex-basis: 100%;
@@ -716,9 +804,12 @@
                 --o-wsale-card-flex-align-items: start;
                 --o-wsale-card-info-padding: 0 #{map-get($spacers, 3)};
                 --o-wsale-card-thumb-size: calc(
-                    calc(100cqw / var(--o-wsale-ppr)) - calc(var(--o-wsale-products-grid-gap) / 2)
+                    calc(100cqw / var(--o-wsale-ppr)) - calc(
+                            var(--o-wsale-products-grid-gap) / 2
+                        )
                 );
-                --o-wsale-card-padding: #{0 0 $o-wsale-products-layout-grid-gutter-width};
+                --o-wsale-card-padding: #{0 0
+                    $o-wsale-products-layout-grid-gutter-width};
                 --o-wsale-card-attribute-previewer-padding: 0;
 
                 .oe_subdescription div {
@@ -727,7 +818,8 @@
                 }
             }
 
-            &:not(.o_wsale_products_opt_thumb_cover) .oe_product.oe_product_size_stretch {
+            &:not(.o_wsale_products_opt_thumb_cover)
+                .oe_product.oe_product_size_stretch {
                 .oe_product_image img {
                     object-position: top left;
                 }
@@ -740,7 +832,8 @@
                     height: 100%;
                 }
 
-                .oe_product_image, .oe_product_image_link {
+                .oe_product_image,
+                .oe_product_image_link {
                     height: 100%;
                     max-width: 100%;
                     padding: 0;
@@ -755,7 +848,8 @@
 
             &.o_wsale_products_opt_design_grid .oe_product.oe_product_size_stretch {
                 --o-wsale-card-padding: 0;
-                --o-wsale-card-info-padding: #{map-get($spacers, 2)} #{map-get($spacers, 3)};
+                --o-wsale-card-info-padding: #{map-get($spacers, 2)}
+                    #{map-get($spacers, 3)};
 
                 &[data-colspan="4"] {
                     --o-wsale-card-thumb-size: 50cqw;
@@ -763,9 +857,11 @@
             }
 
             .oe_product.oe_product_custom_portrait {
-                .oe_product_image, .oe_product_image_link {
+                .oe_product_image,
+                .oe_product_image_link {
                     min-height: calc(
-                        calc(90cqw / var(--o-wsale-ppr)) * var(--o-wsale-card-thumb-aspect-ratio)
+                        calc(90cqw / var(--o-wsale-ppr)) *
+                            var(--o-wsale-card-thumb-aspect-ratio)
                     );
                     height: 100%;
                 }
@@ -801,11 +897,11 @@
         }
 
         .product_price {
-            > span, > del {
+            > span,
+            > del {
                 display: block;
                 text-align: end;
             }
-
         }
 
         .o_wsale_product_btn_catalog {
@@ -818,7 +914,8 @@
 
         &:where(:has(#o_wsale_products_grid.o_wsale_products_opt_design_grid)) {
             &.o_wsale_page_contained .oe_product_cart {
-                --o-wsale-card-border-width: 0 #{$border-width $border-width $border-width};
+                --o-wsale-card-border-width: 0 #{$border-width $border-width
+                    $border-width};
 
                 @include media-breakpoint-up(lg) {
                     --o-wsale-card-border-width: 0 #{$border-width $border-width} 0;
@@ -827,7 +924,9 @@
 
             &.o_wsale_page_fluid .oe_product_cart {
                 --o-wsale-card-border-width: 0 0 #{$border-width};
-                --o-wsale-card-padding: calc(var(--o-wsale-products-grid-gap-y) * 0.5) 0 calc(var(--o-wsale-products-grid-gap-y) * 0.5) calc(var(--o-wsale-products-grid-gap, 16px) * 0.5);
+                --o-wsale-card-padding: calc(var(--o-wsale-products-grid-gap-y) * 0.5) 0
+                    calc(var(--o-wsale-products-grid-gap-y) * 0.5)
+                    calc(var(--o-wsale-products-grid-gap, 16px) * 0.5);
             }
 
             &[style*="--o-wsale-products-grid-gap: 0px"] .oe_product_image_link,
@@ -841,14 +940,18 @@
 
             .oe_product_cart {
                 --o-wsale-card-flex-align-items: stretch;
-                --o-wsale-card-info-padding: #{map-get($spacers, 2) ($container-padding-x * 0.5) map-get($spacers, 2) map-get($spacers, 2)};
+                --o-wsale-card-info-padding: #{map-get($spacers, 2)
+                    ($container-padding-x * 0.5) map-get($spacers, 2)
+                    map-get($spacers, 2)};
                 --o-wsale-card-info-marign: 0;
                 --o-wsale-card-sub-wrap: nowrap;
                 --o-wsale-card-sub-align-items: start;
                 --o-wsale-card-info-flex-align-items: auto;
 
                 @include media-breakpoint-up(md) {
-                    --o-wsale-card-thumb-size: calc(126px * var(--o-wsale-card-thumb-aspect-ratio, 1));
+                    --o-wsale-card-thumb-size: calc(
+                        126px * var(--o-wsale-card-thumb-aspect-ratio, 1)
+                    );
                     --o-wsale-card-info-padding: 0 #{$container-padding-x * 0.5};
                     --o-wsale-card-sub-align-items: center;
 
@@ -868,12 +971,14 @@
                     }
 
                     .product_price {
-                        > span, > del {
+                        > span,
+                        > del {
                             text-align: center;
                         }
                     }
 
-                    .product_price, .o_wsale_product_btn {
+                    .product_price,
+                    .o_wsale_product_btn {
                         --_line-gap: #{map-get($spacers, 3)};
 
                         padding-left: var(--_line-gap);
@@ -936,7 +1041,8 @@
         padding-bottom: map-get($spacers, 2);
     }
 
-    .o_pricelist_dropdown, .o_sortby_dropdown {
+    .o_pricelist_dropdown,
+    .o_sortby_dropdown {
         //truncates the dropdown pricelist > 8rem
         .o_pricelist_dropdown_span {
             max-width: $o-wsale-dropdown-width-overflow;
@@ -973,7 +1079,8 @@
     margin: auto;
 }
 
-.o_wsale_products_searchbar_form, #o_wsale_search_modal {
+.o_wsale_products_searchbar_form,
+#o_wsale_search_modal {
     .oe_search_found {
         display: none;
     }
@@ -995,35 +1102,34 @@ a.no-decoration {
     text-decoration: none !important;
 }
 
-
 // ==== Product Page View ======================================================
 // =============================================================================
 
 // ==== Utilities ==============================================================
 $-product-ratios-map: (
-    'auto': auto,
-    '21_9': 21/9,
-    '16_9': 16/9,
-     '4_3': 4/3,
-     '6_5': 6/5,
-     '1_1': 1/1,
-     '4_5': 4/5,
-     '2_3': 2/3,
+    "auto": auto,
+    "21_9": 21/9,
+    "16_9": 16/9,
+    "4_3": 4/3,
+    "6_5": 6/5,
+    "1_1": 1/1,
+    "4_5": 4/5,
+    "2_3": 2/3,
 );
 
 @each $-ratio-name, $-ratio-value in $-product-ratios-map {
     .o_wsale_image_viewer_ratio_#{$-ratio-name},
     .o_wsale_product_page_opt_image_ratio_#{$-ratio-name} {
         --o-wsale-product-image-ratio: #{$-ratio-value};
-        @if($-ratio-name == 'auto') {
+        @if ($-ratio-name == "auto") {
             & img {
-                object-fit: contain !important; 
+                object-fit: contain !important;
             }
         }
     }
 }
 @each $-ratio-name, $-ratio-value in $-product-ratios-map {
-    @if($-ratio-name != 'auto') {
+    @if ($-ratio-name != "auto") {
         .o_wsale_product_page_opt_image_ratio_mobile_#{$-ratio-name} {
             @include media-breakpoint-down(md) {
                 --o-wsale-product-image-ratio: #{$-ratio-value};
@@ -1033,10 +1139,10 @@ $-product-ratios-map: (
 }
 
 $-product-radius-map: (
-    'none': 0,
-    'small': var(--border-radius-sm),
-    'medium': var(--border-radius),
-    'big': var(--border-radius-lg),
+    "none": 0,
+    "small": var(--border-radius-sm),
+    "medium": var(--border-radius),
+    "big": var(--border-radius-lg),
 );
 
 @each $-name, $-value in $-product-radius-map {
@@ -1062,8 +1168,14 @@ $-product-radius-map: (
     flex: 0 0 auto;
     width: var(--o-wsale-product-col-details-width, 100%);
     padding-top: map-get($spacers, 3);
-    padding-left: var(--o-wsale-product-col-details-padding-left, calc(var(--gutter-x) * .5));
-    padding-right: var(--o-wsale-product-col-details-padding-right, calc(var(--gutter-x) * .5));
+    padding-left: var(
+        --o-wsale-product-col-details-padding-left,
+        calc(var(--gutter-x) * 0.5)
+    );
+    padding-right: var(
+        --o-wsale-product-col-details-padding-right,
+        calc(var(--gutter-x) * 0.5)
+    );
     background-color: $body-bg;
     container: product-details / inline-size;
     z-index: 0;
@@ -1071,7 +1183,7 @@ $-product-radius-map: (
     &:has(.s_popup) {
         z-index: 2;
     }
-    
+
     @include media-breakpoint-up(lg) {
         padding-top: var(--o-wsale-product-col-details-padding-top-lg, 0px);
     }
@@ -1130,8 +1242,14 @@ $-product-radius-map: (
     }
 }
 #product_detail_main:where(.flex-lg-row-reverse) #product_details {
-    padding-left: var(--o-wsale-product-col-details-padding-right, calc(var(--gutter-x) * .5));
-    padding-right: var(--o-wsale-product-col-details-padding-left, calc(var(--gutter-x) * .5));
+    padding-left: var(
+        --o-wsale-product-col-details-padding-right,
+        calc(var(--gutter-x) * 0.5)
+    );
+    padding-right: var(
+        --o-wsale-product-col-details-padding-left,
+        calc(var(--gutter-x) * 0.5)
+    );
 }
 
 // ==== Image Area Width =======================================================
@@ -1143,7 +1261,7 @@ $-product-radius-map: (
 .o_wsale_product_page_opt_image_width_50_pc,
 .o_wsale_product_page_opt_image_width_66_pc {
     @include media-breakpoint-up(lg) {
-        --o-wsale-product-col-details-padding-left: #{$grid-gutter-width * .5};
+        --o-wsale-product-col-details-padding-left: #{$grid-gutter-width * 0.5};
         --o-wsale-product-col-details-padding-right: 0;
     }
     @include media-breakpoint-up(xl) {
@@ -1155,7 +1273,7 @@ $-product-radius-map: (
 }
 .o_wsale_product_page_opt_image_width_66_pc {
     @include media-breakpoint-up(xl) {
-        --o-wsale-product-col-details-padding-left: #{$grid-gutter-width };
+        --o-wsale-product-col-details-padding-left: #{$grid-gutter-width};
     }
 }
 
@@ -1229,29 +1347,37 @@ $-product-radius-map: (
     // - Uses CSS container queries for element-based responsive design
     @mixin o-product-details-trig-two-cols($_infos_max: null, $_spacer_max: null) {
         $_sizes_min: (
-            'infos': 412px,
-            'spacer': $grid-gutter-width * 0.5,
-            'cta': 300px,
+            "infos": 412px,
+            "spacer": $grid-gutter-width * 0.5,
+            "cta": 300px,
         );
         $_sizes_max: (
-            'infos': if($_infos_max != null, $_infos_max, 520px),
-            'spacer': if($_spacer_max != null, $_spacer_max, $grid-gutter-width),
-            'cta': 400px,
+            "infos": if($_infos_max != null, $_infos_max, 520px),
+            "spacer": if($_spacer_max != null, $_spacer_max, $grid-gutter-width),
+            "cta": 400px,
         );
-        $_min_width: map-get($_sizes_min, 'infos') + map-get($_sizes_min, 'spacer') + map-get($_sizes_min, 'cta');
-        $_max_width: map-get($_sizes_max, 'infos') + map-get($_sizes_max, 'spacer') + map-get($_sizes_max, 'cta');
+        $_min_width: map-get($_sizes_min, "infos") + map-get($_sizes_min, "spacer") +
+            map-get($_sizes_min, "cta");
+        $_max_width: map-get($_sizes_max, "infos") + map-get($_sizes_max, "spacer") +
+            map-get($_sizes_max, "cta");
 
         @container product-details (min-width: #{$_min_width}) {
             width: 100%;
-            max-width: var(--o-wsale-product-details-content-max-width, #{$_max_width}) !important;
+            max-width: var(
+                --o-wsale-product-details-content-max-width,
+                #{$_max_width}
+            ) !important;
             margin: 0;
 
             form {
                 display: grid;
                 grid-template-columns:
-                    minmax(map-get($_sizes_min, 'infos'), map-get($_sizes_max, 'infos'))
-                    minmax(map-get($_sizes_min, 'spacer'), map-get($_sizes_max, 'spacer'))
-                    minmax(map-get($_sizes_min, 'cta'), map-get($_sizes_max, 'cta'));
+                    minmax(map-get($_sizes_min, "infos"), map-get($_sizes_max, "infos"))
+                    minmax(
+                        map-get($_sizes_min, "spacer"),
+                        map-get($_sizes_max, "spacer")
+                    )
+                    minmax(map-get($_sizes_min, "cta"), map-get($_sizes_max, "cta"));
                 grid-auto-rows: auto;
                 align-items: start;
 
@@ -1277,12 +1403,17 @@ $-product-radius-map: (
             --o-wsale-product-details-content-max-width: 100%;
             --o-wsale-product-details-content-section-max-width: 640px;
 
-            @include o-product-details-trig-two-cols($_infos_max: 640px, $_spacer_max: 10000px);
+            @include o-product-details-trig-two-cols(
+                $_infos_max: 640px,
+                $_spacer_max: 10000px
+            );
         }
     }
     .o_wsale_product_page_opt_image_width_33_pc & {
         @include media-breakpoint-up(lg) {
-            @include o-product-details-trig-two-cols($_spacer_max: var(--o-wsale-product-col-details-padding-left));
+            @include o-product-details-trig-two-cols(
+                $_spacer_max: var(--o-wsale-product-col-details-padding-left)
+            );
         }
     }
 
@@ -1294,11 +1425,12 @@ $-product-radius-map: (
     .o_wsale_product_details_content_section_attributes {
         display: none;
 
-        &:where(:has(li.variant_attribute:not(.d-none))), &:where(:has(li:not(.variant_attribute) li.o_variant_pills:not(.d-none))) {
+        &:where(:has(li.variant_attribute:not(.d-none))),
+        &:where(:has(li:not(.variant_attribute) li.o_variant_pills:not(.d-none))) {
             display: block;
         }
 
-        .o_wsale_product_page_variants.d-none + .o_wsale_product_page_variants{
+        .o_wsale_product_page_variants.d-none + .o_wsale_product_page_variants {
             margin-top: 0 !important;
         }
     }
@@ -1307,15 +1439,26 @@ $-product-radius-map: (
 // ==== Separators
 .o_wsale_product_page_opt_separators {
     .o_wsale_product_details_content_section {
-        &:where(:not(
-            .o_wsale_product_details_content_section_title,
-            .o_wsale_product_details_content_section_price,
-            .o_wsale_product_details_content_section_accordion
-        )) {
-            border-top: var(--o-wsale-product-details-section-border-width, #{$border-width}) solid $border-color;
-            padding-top: var(--o-wsale-product-details-section-padding-top, #{map-get($spacers, 4)});
+        &:where(
+            :not(
+                .o_wsale_product_details_content_section_title,
+                .o_wsale_product_details_content_section_price,
+                .o_wsale_product_details_content_section_accordion
+            )
+        ) {
+            border-top: var(
+                    --o-wsale-product-details-section-border-width,
+                    #{$border-width}
+                )
+                solid $border-color;
+            padding-top: var(
+                --o-wsale-product-details-section-padding-top,
+                #{map-get($spacers, 4)}
+            );
         }
-        &:where(.o_wsale_product_details_content_section_cta:has(.o_wsale_cta_wrapper_boxed)) {
+        &:where(
+            .o_wsale_product_details_content_section_cta:has(.o_wsale_cta_wrapper_boxed)
+        ) {
             --o-wsale-product-details-section-border-width: 0;
             --o-wsale-product-details-section-padding-top: #{map-get($spacers, 2)};
         }
@@ -1374,7 +1517,9 @@ $-product-radius-map: (
         --o-wsale-grid-product-col-display: contents;
 
         @include media-breakpoint-up(lg) {
-            .o_wsale_product_page_grid_column, .o_product_detail_img_wrapper, .product_detail_img {
+            .o_wsale_product_page_grid_column,
+            .o_product_detail_img_wrapper,
+            .product_detail_img {
                 border-radius: var(--o-wsale-product-image-radius);
             }
         }
@@ -1382,7 +1527,6 @@ $-product-radius-map: (
 
     // ==== Multi-item grid styles
     &:where(:not(.o_grid_solo)) {
-
         // ==== Mobile specific styles
         @include media-breakpoint-down(lg) {
             $_max_height: 60vh;
@@ -1397,24 +1541,24 @@ $-product-radius-map: (
                 overflow-y: scroll;
                 overflow-x: hidden;
                 scroll-snap-type: y mandatory;
-                scrollbar-color: currentColor rgba($body-bg, .5);
-                padding-bottom: $grid-gutter-width * .5 !important;
+                scrollbar-color: currentColor rgba($body-bg, 0.5);
+                padding-bottom: $grid-gutter-width * 0.5 !important;
                 box-sizing: content-box;
-                transition: height .2s ease-out;
+                transition: height 0.2s ease-out;
 
                 &:not(.gap-0) {
                     --_lastBlock_margin_bottom: #{$grid-gutter-width * -0.75};
 
                     // Normalize desktop values for mobile
-                    gap: $grid-gutter-width * .25 0 !important;
-                    padding-right: $grid-gutter-width * .5 !important;
-                    padding-bottom: $grid-gutter-width * .75 !important;
+                    gap: $grid-gutter-width * 0.25 0 !important;
+                    padding-right: $grid-gutter-width * 0.5 !important;
+                    padding-bottom: $grid-gutter-width * 0.75 !important;
                 }
             }
 
             &:has(.o_wsale_product_page_grid_row:not(.gap-0)) {
                 // Handle ribbon
-                padding-left: $grid-gutter-width * .5 !important;
+                padding-left: $grid-gutter-width * 0.5 !important;
             }
 
             .o_product_detail_img_wrapper {
@@ -1425,7 +1569,7 @@ $-product-radius-map: (
                 width: 100%;
 
                 &.o_product_detail_img_wrapper_last {
-                    margin-bottom: var( --_lastBlock_margin_bottom);
+                    margin-bottom: var(--_lastBlock_margin_bottom);
                 }
             }
 
@@ -1434,11 +1578,16 @@ $-product-radius-map: (
                 // height in js according to the tallest image. Perform a "loading"
                 // animation during this process.
                 @keyframes o-produt-grid-loading {
-                    0% { opacity: .25; }
-                    100% { opacity: .5; }
+                    0% {
+                        opacity: 0.25;
+                    }
+                    100% {
+                        opacity: 0.5;
+                    }
                 }
                 .o_product_detail_img_wrapper {
-                    animation: o-produt-grid-loading 2s ease-in-out var(--o-wsale-grid-product-images-animation-count, infinite);
+                    animation: o-produt-grid-loading 2s ease-in-out
+                        var(--o-wsale-grid-product-images-animation-count, infinite);
                 }
                 &.o_grid_product_ready {
                     --o-wsale-grid-product-images-animation-count: 1;
@@ -1446,13 +1595,14 @@ $-product-radius-map: (
             }
         }
 
-
         .o_wsale_product_page_grid_column {
             gap: inherit;
         }
 
         .o_wsale_product_page_grid_row:where(:not(.gap-0)) {
-            .o_wsale_product_page_grid_column, .o_product_detail_img_wrapper, .product_detail_img {
+            .o_wsale_product_page_grid_column,
+            .o_product_detail_img_wrapper,
+            .product_detail_img {
                 border-radius: var(--o-wsale-product-image-radius);
             }
         }
@@ -1572,7 +1722,10 @@ $-product-radius-map: (
                     &,
                     & > div,
                     & > div > img {
-                        border-radius: MIN(var(--o-wsale-product-image-radius), var(--border-radius));
+                        border-radius: MIN(
+                            var(--o-wsale-product-image-radius),
+                            var(--border-radius)
+                        );
                         aspect-ratio: var(--o-wsale-product-image-ratio);
                     }
 
@@ -1582,11 +1735,11 @@ $-product-radius-map: (
                     }
 
                     &.active {
-                        border-color: map-get($theme-colors, 'primary');
+                        border-color: map-get($theme-colors, "primary");
                     }
 
                     &:where(:not(:hover)) {
-                        opacity: .75;
+                        opacity: 0.75;
                     }
 
                     &:hover,
@@ -1612,11 +1765,11 @@ $-product-radius-map: (
                 height: 8px;
                 min-width: 8px;
                 border-radius: 50%;
-                border: 2px solid map-get($grays, '400');
+                border: 2px solid map-get($grays, "400");
 
                 &.active {
-                    border-color: map-get($theme-colors, 'primary');
-                    background-color: map-get($theme-colors, 'primary');
+                    border-color: map-get($theme-colors, "primary");
+                    background-color: map-get($theme-colors, "primary");
                 }
                 > div {
                     display: none;
@@ -1648,17 +1801,20 @@ $-product-radius-map: (
 
     // Indicator Positioning
     @include media-breakpoint-up(lg) {
-        .o_wsale_product_page_opt_image_width_100_pc &:not(.o_carousel_product_left_indicators) {
+        .o_wsale_product_page_opt_image_width_100_pc
+            &:not(.o_carousel_product_left_indicators) {
             .o_carousel_product_indicators {
-                @include o-position-absolute(auto, 0, .75rem, 0);
+                @include o-position-absolute(auto, 0, 0.75rem, 0);
             }
         }
     }
 }
 
 // ==== Carousel Controls (shared between carousel and image viewer) ===========
-#o-carousel-product, .o_wsale_image_viewer {
-    .carousel-control-prev, .carousel-control-next {
+#o-carousel-product,
+.o_wsale_image_viewer {
+    .carousel-control-prev,
+    .carousel-control-next {
         top: auto;
         bottom: auto;
         opacity: 0.5;
@@ -1718,15 +1874,15 @@ $-product-radius-map: (
 }
 
 .o_red_highlight {
-    --badge-bg: #{map-get($theme-colors, 'danger')} !important;
+    --badge-bg: #{map-get($theme-colors, "danger")} !important;
     --badge-border-color: var(--badge-bg);
 
-    box-shadow: 0 0 0 0 rgba(240,8,0,0.4);
+    box-shadow: 0 0 0 0 rgba(240, 8, 0, 0.4);
     transition: all 0.5s linear;
 }
 
 .o_shadow_animation {
-    box-shadow: 0 0 5px 10px rgba(240,8,0,0.4)!important;
+    box-shadow: 0 0 5px 10px rgba(240, 8, 0, 0.4) !important;
 }
 
 .o_mycart_zoom_animation {
@@ -1761,7 +1917,7 @@ $-product-radius-map: (
         transition: top 200ms;
     }
     .o_portal_chatter_messages > .o_portal_chatter_message {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
         padding: 1rem 0;
         margin-bottom: 1rem;
     }
@@ -1784,7 +1940,8 @@ $-product-radius-map: (
         flex-direction: column;
     }
 
-    #cart_products, .o_wsale_quick_reorder_line_group {
+    #cart_products,
+    .o_wsale_quick_reorder_line_group {
         --cart-product-img-size-lg: 6rem;
 
         .o_cart_product_image {
@@ -1813,9 +1970,9 @@ $-product-radius-map: (
     }
 
     .o_mobile_summary {
-        margin-left: -$grid-gutter-width * .5;
-        margin-right: -$grid-gutter-width * .5;
-        padding: $spacer $grid-gutter-width * .5;
+        margin-left: -$grid-gutter-width * 0.5;
+        margin-right: -$grid-gutter-width * 0.5;
+        padding: $spacer $grid-gutter-width * 0.5;
 
         @include media-breakpoint-down(lg) {
             box-shadow: $box-shadow-lg;
@@ -1928,10 +2085,13 @@ $-product-radius-map: (
         background-image: escape-svg($accordion-button-icon);
     }
 
-    #product_accordion, #wsale_products_attributes_collapse h6, #o_wsale_price_range_option h6, #o_wsale_total_accordion .accordion-header {
+    #product_accordion,
+    #wsale_products_attributes_collapse h6,
+    #o_wsale_price_range_option h6,
+    #o_wsale_total_accordion .accordion-header {
         --accordion-active-bg: inherit;
         --accordion-active-color: var(--accordion-btn-color);
-        --accordion-btn-padding-x : 0;
+        --accordion-btn-padding-x: 0;
         --accordion-body-padding-x: 0;
 
         .accordion-item {
@@ -2000,7 +2160,7 @@ body.modal-open:has(.js_sale.o_wsale_product_page) {
 }
 
 // Product Ribbon Classes
-.oe_website_sale{
+.oe_website_sale {
     @mixin o-ribbon-tag() {
         margin: 0;
         @include font-size(0.8rem);
@@ -2031,22 +2191,29 @@ body.modal-open:has(.js_sale.o_wsale_product_page) {
         // 0.708 is 1 - cos(45deg)
         // Transforms are applied right-to-left
         // Cannot use matrix because of the use of % values.
-        transform: translateX(calc(-0.708 * (100% - #{2 * $ribbon-padding}))) rotate(45deg) translateX(calc(100% - #{$ribbon-padding}));
+        transform: translateX(calc(-0.708 * (100% - #{2 * $ribbon-padding})))
+            rotate(45deg) translateX(calc(100% - #{$ribbon-padding}));
     }
 
-    .o_wsale_ribbon.o_left{
+    .o_wsale_ribbon.o_left {
         @include o-position-absolute($top: 0, $left: 0);
-        transform: translateX(calc(0.708 * (100% - #{2 * $ribbon-padding}) - 100%)) rotate(-45deg) translateX($ribbon-padding);
+        transform: translateX(calc(0.708 * (100% - #{2 * $ribbon-padding}) - 100%))
+            rotate(-45deg) translateX($ribbon-padding);
     }
 
     .o_wsale_badge.o_left {
-        @include o-position-absolute($top: map-get($spacers, 2), $left: var(--o-wsale-ribbon-badge-offset-x, map-get($spacers, 2)));
+        @include o-position-absolute(
+            $top: map-get($spacers, 2),
+            $left: var(--o-wsale-ribbon-badge-offset-x, map-get($spacers, 2))
+        );
     }
 
     .o_wsale_badge.o_right {
-        @include o-position-absolute($top: map-get($spacers, 2), $right: var(--o-wsale-ribbon-badge-offset-x, map-get($spacers, 2)));
+        @include o-position-absolute(
+            $top: map-get($spacers, 2),
+            $right: var(--o-wsale-ribbon-badge-offset-x, map-get($spacers, 2))
+        );
     }
-
 }
 
 .o_wsale_alternative_products:not(:has(.s_dynamic_snippet_row)) {

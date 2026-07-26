@@ -1,7 +1,6 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-
 import { mountView, onRpc } from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels, ProjectProject } from "./project_models.js";
@@ -55,7 +54,7 @@ test("Check is_favorite field is readonly if the field is readonly", async () =>
 
     ProjectProject._views["kanban"] = ProjectProject._views["kanban"].replace(
         'widget="project_is_favorite"',
-        'widget="project_is_favorite" readonly="1"'
+        'widget="project_is_favorite" readonly="1"',
     );
 
     await mountView({

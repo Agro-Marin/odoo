@@ -1,7 +1,6 @@
-import { expect, test, describe } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 import { click, queryAllTexts } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-
 import { mountView } from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels, ProjectTask } from "./project_models.js";
@@ -25,7 +24,8 @@ test("project.task (kanban): check task state widget", async () => {
     });
 
     expect(".o-dropdown--menu").toHaveCount(0, {
-        message: "If the state button has not been pressed yet, no dropdown should be displayed",
+        message:
+            "If the state button has not been pressed yet, no dropdown should be displayed",
     });
     await click("div[name='state']:first-child button.dropdown-toggle");
     await animationFrame();
@@ -35,7 +35,9 @@ test("project.task (kanban): check task state widget", async () => {
 
     await click(".o-dropdown--menu span.text-danger");
     await animationFrame();
-    expect("div[name='state']:first-child button.dropdown-toggle i.fa-times-circle").toBeVisible({
+    expect(
+        "div[name='state']:first-child button.dropdown-toggle i.fa-times-circle",
+    ).toBeVisible({
         message:
             "If the canceled state as been selected, the fa-times-circle icon should be displayed",
     });
@@ -43,7 +45,8 @@ test("project.task (kanban): check task state widget", async () => {
     await click("div[name='state'] i.fa-hourglass");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
-        message: "When trying to click on the waiting icon, no dropdown menu should display",
+        message:
+            "When trying to click on the waiting icon, no dropdown menu should display",
     });
 });
 

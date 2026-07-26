@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { CharField, charField } from "@web/fields/basic/char/char_field";
-import { registry } from "@web/core/registry";
 import { useEffect, useRef } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { CharField, charField } from "@web/fields/basic/char/char_field";
 
 class DescriptionPageField extends CharField {
     static template = "survey.DescriptionPageField";
@@ -14,7 +14,7 @@ class DescriptionPageField extends CharField {
                     input.classList.add("col");
                 }
             },
-            () => [inputRef.el]
+            () => [inputRef.el],
         );
     }
     onExternalBtnClick() {

@@ -19,7 +19,7 @@
             position: relative;
             transition: border-color 200ms;
             display: inline-block;
-            border: 2px solid map-get($grays, '400');
+            border: 2px solid map-get($grays, "400");
 
             > img {
                 width: 70px;
@@ -28,7 +28,8 @@
                 cursor: pointer;
             }
 
-            &:hover, &:focus-visible {
+            &:hover,
+            &:focus-visible {
                 border-color: $o-brand-primary;
             }
 
@@ -37,7 +38,7 @@
 
                 &:before {
                     @include o-position-absolute($right: 0);
-                    content: '';
+                    content: "";
                     border: 16px solid rgba($o-brand-primary, 0.8);
                     border-left-color: transparent;
                     border-bottom-color: transparent;
@@ -57,7 +58,7 @@
             .o-custom-label {
                 @include o-position-absolute($bottom: 0px);
                 cursor: pointer;
-                background: rgba(map-get($grays, '800'), 0.6);
+                background: rgba(map-get($grays, "800"), 0.6);
                 font-size: 12px;
             }
         }
@@ -67,11 +68,12 @@
             transition: 200ms;
             display: inline-block;
             padding: 23px 27px;
-            border: 3px dashed lighten(map-get($grays, '700'), 30%);
+            border: 3px dashed lighten(map-get($grays, "700"), 30%);
             vertical-align: top;
-            color: lighten(map-get($grays, '600'), 30%);
+            color: lighten(map-get($grays, "600"), 30%);
 
-            &:hover, &:focus-visible {
+            &:hover,
+            &:focus-visible {
                 border-color: $o-brand-primary;
                 color: $o-brand-primary;
             }
@@ -89,7 +91,7 @@
 
         .o_seo_preview_r {
             cursor: pointer;
-            color:var(--seo__preview-title-color);
+            color: var(--seo__preview-title-color);
             font-size: 20px;
             line-height: 32px;
             overflow: hidden;
@@ -114,7 +116,7 @@
 
         .o_seo_preview_g {
             overflow: hidden;
-            background-color: rgba(0,0,0,0.05);
+            background-color: rgba(0, 0, 0, 0.05);
             border-radius: 8px;
             width: 92px;
             height: 92px;
@@ -151,13 +153,13 @@
         width: 30px;
     }
     .o_seo_keyword_row {
-        border-bottom: 1px dotted map-get($grays, '300');
+        border-bottom: 1px dotted map-get($grays, "300");
     }
     .o-img-thumbnail {
         width: 70px;
         height: 70px;
         object-fit: cover;
-        border: 1px solid map-get($grays, '300');
+        border: 1px solid map-get($grays, "300");
     }
 
     // We don't use a specific class here to highlight the fact that the

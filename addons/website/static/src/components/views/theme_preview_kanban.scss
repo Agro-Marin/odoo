@@ -25,7 +25,6 @@
     }
 
     .o_kanban_record {
-
         &:has(.o_theme_installed) {
             order: -1;
         }
@@ -37,8 +36,9 @@
         }
 
         .o_theme_preview_top {
-
-            .o_theme_cover, .o_theme_logo, .o_theme_screenshot {
+            .o_theme_cover,
+            .o_theme_logo,
+            .o_theme_screenshot {
                 width: 100%;
                 padding-bottom: 127%;
                 background-repeat: no-repeat;
@@ -67,11 +67,11 @@
                 25% {
                     background-position: center top;
                 }
-                75%, 100% {
+                75%,
+                100% {
                     background-position: center bottom;
                 }
             }
-
         }
     }
 
@@ -89,7 +89,8 @@
                     color: $body-color;
                 }
 
-                &:hover, &.show {
+                &:hover,
+                &.show {
                     .o_group_config {
                         display: none;
                     }
@@ -103,7 +104,8 @@
             &:nth-child(even) {
                 background-color: darken($o-theme-kanban-gray, 4%);
 
-                .o_theme_cover, .o_theme_logo {
+                .o_theme_cover,
+                .o_theme_logo {
                     background-color: white;
                 }
             }
@@ -115,7 +117,8 @@
             margin-right: 0;
 
             .o_theme_preview_top {
-                .o_theme_cover, .o_theme_logo {
+                .o_theme_cover,
+                .o_theme_logo {
                     padding-bottom: 50%;
                     background-size: 32% 62%;
                 }

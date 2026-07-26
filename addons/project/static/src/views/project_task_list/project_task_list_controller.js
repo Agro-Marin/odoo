@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { ListController } from "@web/views/list/list_controller";
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
+import { ListController } from "@web/views/list/list_controller";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 
@@ -27,6 +27,6 @@ export class ProjectTaskListController extends ListController {
         return {
             ...deleteConfirmationDialogProps,
             body: subTaskDeleteConfirmationMessage,
-        }
+        };
     }
 }

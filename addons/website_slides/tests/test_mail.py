@@ -118,7 +118,7 @@ class TestSlidesMail(SlidesCase):
             "auto subscribe => only slide's user_id is subscribed + notified",
         ]
         for channel_or_slide, template, expected_value, error_message in zip(
-            values, templates, expected_values, error_messages
+            values, templates, expected_values, error_messages, strict=True
         ):
             with self.subTest(
                 channel_or_slide=channel_or_slide,

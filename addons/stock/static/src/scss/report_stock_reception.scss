@@ -1,5 +1,4 @@
 .o_report_reception {
-
     .o_priority {
         &.o_priority_star {
             font-size: 1.35em;
@@ -19,14 +18,18 @@
         }
     }
     & .badge {
-        line-height: .75;
+        line-height: 0.75;
     }
 
     @each $-name, $-bg-color in $theme-colors {
         $-safe-text-color: color-contrast(mix($-bg-color, $o-view-background-color));
-        @include bg-variant(".bg-#{$-name}-light", rgba(map-get($theme-colors, $-name), 0.5), $-safe-text-color);
+        @include bg-variant(
+            ".bg-#{$-name}-light",
+            rgba(map-get($theme-colors, $-name), 0.5),
+            $-safe-text-color
+        );
     }
-    & thead{
+    & thead {
         display: table-row-group;
     }
 }
@@ -43,10 +46,11 @@
     padding: 1mm 0mm 0mm;
 
     &.o_label_dymo {
-        font-size:80%;
+        font-size: 80%;
         width: 57mm;
         height: 32mm;
-        & span, div {
+        & span,
+        div {
             line-height: 1;
             white-space: nowrap;
         }

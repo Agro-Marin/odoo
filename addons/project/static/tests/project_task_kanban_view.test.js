@@ -1,6 +1,5 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, waitFor } from "@odoo/hoot-dom";
-
 import { mountView, onRpc } from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels, ProjectTask } from "./project_models.js";
@@ -70,16 +69,16 @@ test("project.task (kanban): toggle sub-tasks", async () => {
             id: 1,
             project_id: 1,
             name: "Task 1",
-            step_id:  1,
+            step_id: 1,
             display_in_project: true,
         },
         {
             id: 2,
             project_id: 1,
             name: "Task 2",
-            step_id:  1,
+            step_id: 1,
             display_in_project: false,
-        }
+        },
     ];
     await mountView(viewParams);
     expect(".o_kanban_record").toHaveCount(1);

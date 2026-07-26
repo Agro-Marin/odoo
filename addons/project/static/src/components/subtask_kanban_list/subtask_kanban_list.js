@@ -1,12 +1,11 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-
-import { useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
-
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { Field, getPropertyFieldInfo } from "@web/fields/field";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+
 import { SubtaskCreate } from "./subtask_kanban_create/subtask_kanban_create.js";
 
 export class SubtaskKanbanList extends Component {
@@ -39,7 +38,7 @@ export class SubtaskKanbanList extends Component {
         // now-closed subtask in the open list. `records`/`data.state` are
         // reactive, so OWL re-renders when a child's state changes.
         return this.list.records.filter(
-            (subtask) => !["done", "canceled"].includes(subtask.data.state)
+            (subtask) => !["done", "canceled"].includes(subtask.data.state),
         );
     }
 
@@ -98,17 +97,19 @@ export class SubtaskKanbanList extends Component {
     }
 
     async _createSubtask(name) {
-        const sequences = this.list.records.map(r => r.data.sequence);
+        const sequences = this.list.records.map((r) => r.data.sequence);
         const nextSequence = (sequences.length ? Math.max(...sequences) : 0) + 1;
 
-        await this.orm.create("project.task", [{
-            display_name: name,
-            parent_id: this.props.record.resId,
-            // Private parent task: project_id is false, not a record.
-            project_id: this.props.record.data.project_id?.id ?? false,
-            user_ids: this.props.record.data.user_ids.resIds,
-            sequence: nextSequence,
-        }]);
+        await this.orm.create("project.task", [
+            {
+                display_name: name,
+                parent_id: this.props.record.resId,
+                // Private parent task: project_id is false, not a record.
+                project_id: this.props.record.data.project_id?.id ?? false,
+                user_ids: this.props.record.data.user_ids.resIds,
+                sequence: nextSequence,
+            },
+        ]);
         this.subtaskCreate.open = false;
         this.subtaskCreate.name = "";
         await this.props.record.load();

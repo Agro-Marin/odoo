@@ -1,8 +1,8 @@
-import { expect, test } from "@odoo/hoot";
 import {
     CUSTOMIZE_MAILING_VARIABLES,
     CUSTOMIZE_MAILING_VARIABLES_DEFAULTS,
 } from "@mass_mailing/builder/plugins/customize_mailing_variables";
+import { expect, test } from "@odoo/hoot";
 
 // A variable with no CUSTOMIZE_MAILING_VARIABLES_DEFAULTS entry silently falls
 // back to "" in customize_mailing_plugin.js (`Object.values(DEFAULTS[variable]
@@ -29,7 +29,7 @@ test("every CUSTOMIZE_MAILING_VARIABLES key has a matching CUSTOMIZE_MAILING_VAR
     const missing = Object.keys(CUSTOMIZE_MAILING_VARIABLES).filter(
         (key) =>
             !(key in CUSTOMIZE_MAILING_VARIABLES_DEFAULTS) &&
-            !KNOWN_INTENTIONAL_GAPS.includes(key)
+            !KNOWN_INTENTIONAL_GAPS.includes(key),
     );
     expect(missing).toEqual([]);
 });

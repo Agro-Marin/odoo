@@ -12,7 +12,7 @@
         &:where(.product:not(:has(.product-img))) {
             min-height: 6rem;
 
-            @include media-breakpoint-up(lg){
+            @include media-breakpoint-up(lg) {
                 min-height: 5rem;
             }
         }
@@ -31,9 +31,7 @@
     }
 }
 
-
 .product-name {
-
     box-sizing: border-box;
     display: -webkit-box;
     -webkit-box-orient: vertical;

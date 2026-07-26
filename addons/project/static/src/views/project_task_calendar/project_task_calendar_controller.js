@@ -1,13 +1,12 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
-
-import { _t } from "@web/core/l10n/translation";
-import { DateTime } from "@web/core/l10n/luxon";
-import { CalendarController } from "@web/views/calendar/calendar_controller";
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
+import { DateTime } from "@web/core/l10n/luxon";
+import { _t } from "@web/core/l10n/translation";
+import { CalendarController } from "@web/views/calendar/calendar_controller";
 
-import { ProjectTaskCalendarSidePanel } from "./side_panel/project_task_calendar_side_panel.js";
 import { useCalendarTaskToPlanDraggable } from "./hooks/project_task_calendar_task_to_plan_draggable.js";
+import { ProjectTaskCalendarSidePanel } from "./side_panel/project_task_calendar_side_panel.js";
 
 export class ProjectTaskCalendarController extends CalendarController {
     static components = {
@@ -31,7 +30,7 @@ export class ProjectTaskCalendarController extends CalendarController {
                 },
                 onDrop: (params) => {
                     this.dropTaskToPlan(params);
-                }
+                },
             });
         }
     }
@@ -40,7 +39,7 @@ export class ProjectTaskCalendarController extends CalendarController {
         return {
             ...super.modelParams,
             showTasksToPlan: this.canDragAndDropRecord,
-        }
+        };
     }
 
     get editRecordDefaultDisplayText() {
@@ -63,15 +62,17 @@ export class ProjectTaskCalendarController extends CalendarController {
     }
 
     deleteConfirmationDialogProps(record) {
-        const deleteConfirmationDialogProps = super.deleteConfirmationDialogProps(record);
-        if  (!record.rawRecord.subtask_count) {
+        const deleteConfirmationDialogProps = super.deleteConfirmationDialogProps(
+            record,
+        );
+        if (!record.rawRecord.subtask_count) {
             return deleteConfirmationDialogProps;
         }
 
         return {
             ...deleteConfirmationDialogProps,
             body: subTaskDeleteConfirmationMessage,
-        }
+        };
     }
 
     async dropTaskToPlan(params) {

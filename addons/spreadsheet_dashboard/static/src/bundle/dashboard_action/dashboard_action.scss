@@ -26,7 +26,9 @@
             padding: 0;
             visibility: hidden;
             opacity: 0;
-            transition: visibility 0.2s, opacity 0.2s ease-in-out;
+            transition:
+                visibility 0.2s,
+                opacity 0.2s ease-in-out;
         }
     }
 
@@ -74,10 +76,10 @@
     }
 
     /* In mobile */
-    @media (max-width: 768px){
+    @media (max-width: 768px) {
         .o_control_panel {
             /* We don't want the control panel to disappear when scrolling */
-            top: 0px !important
+            top: 0px !important;
         }
         .o_control_panel_main {
             /* We don't want a gap before the DashboardMobileSearchPanel */

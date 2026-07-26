@@ -38,7 +38,8 @@ registry.category("web_tour.tours").add("mailing_portal_unsubscribe_from_my", {
             trigger: "div#o_mailing_portal_subscription:not(fieldset)",
         },
         {
-            content: "Feedback area is not displayed (nothing done, no feedback required)",
+            content:
+                "Feedback area is not displayed (nothing done, no feedback required)",
             trigger: "div#o_mailing_portal_subscription:not(textarea)",
             run: "click",
         },
@@ -49,7 +50,8 @@ registry.category("web_tour.tours").add("mailing_portal_unsubscribe_from_my", {
         },
         {
             content: "List2: join (opt-in, not already member)",
-            trigger: "ul#o_mailing_subscription_form_lists_additional input[title='List2']",
+            trigger:
+                "ul#o_mailing_subscription_form_lists_additional input[title='List2']",
             run: "click",
         },
         {
@@ -64,7 +66,8 @@ registry.category("web_tour.tours").add("mailing_portal_unsubscribe_from_my", {
         },
         {
             content: "Confirmation changes are done",
-            trigger: "div#o_mailing_subscription_update_info span:contains('Membership updated')",
+            trigger:
+                "div#o_mailing_subscription_update_info span:contains('Membership updated')",
             run: "click",
         },
         {
@@ -77,7 +80,8 @@ registry.category("web_tour.tours").add("mailing_portal_unsubscribe_from_my", {
             run: "click",
         },
         {
-            content: "Choose first reason, which should not display feedback (see data)",
+            content:
+                "Choose first reason, which should not display feedback (see data)",
             trigger: "fieldset input.o_mailing_subscription_opt_out_reason:first",
             run: "click",
         },
@@ -130,8 +134,10 @@ registry.category("web_tour.tours").add("mailing_portal_unsubscribe_from_my", {
             run: "click",
         },
         {
-            content: "This should disable the 'Update my subscriptions' (Apply changes) button",
-            trigger: "div#o_mailing_subscription_blocklist:not(button#button_form_send)",
+            content:
+                "This should disable the 'Update my subscriptions' (Apply changes) button",
+            trigger:
+                "div#o_mailing_subscription_blocklist:not(button#button_form_send)",
         },
         {
             content: "This should enabled Feedback again",
@@ -144,11 +150,13 @@ registry.category("web_tour.tours").add("mailing_portal_unsubscribe_from_my", {
             run: "click",
         },
         {
-            trigger: "div#o_mailing_subscription_form_blocklisted li strong:contains('List3')",
+            trigger:
+                "div#o_mailing_subscription_form_blocklisted li strong:contains('List3')",
         },
         {
             content: "Warning should contain reference to memberships",
-            trigger: "div#o_mailing_subscription_form_blocklisted li strong:contains('List2')",
+            trigger:
+                "div#o_mailing_subscription_form_blocklisted li strong:contains('List2')",
             run: "click",
         },
         {

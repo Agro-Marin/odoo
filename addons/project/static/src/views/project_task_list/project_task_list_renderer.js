@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { ListRenderer } from "@web/views/list/list_renderer";
 import { getRawValue } from "@web/views/kanban/kanban_record";
+import { ListRenderer } from "@web/views/list/list_renderer";
+
 import { ProjectTaskGroupConfigMenu } from "../project_task_kanban/project_task_group_config_menu.js";
 
 export class ProjectTaskListRenderer extends ListRenderer {
@@ -27,7 +28,7 @@ export class ProjectTaskListRenderer extends ListRenderer {
             const selection = this.props.list.selection;
             const value = selection.length && getRawValue(selection[0], field);
             this._sameFieldCache[field] = selection.every(
-                (task) => getRawValue(task, field) === value
+                (task) => getRawValue(task, field) === value,
             );
             Promise.resolve().then(() => {
                 delete this._sameFieldCache;
@@ -38,7 +39,7 @@ export class ProjectTaskListRenderer extends ListRenderer {
     isCellReadonly(column, record) {
         let readonly = false;
         if (column.name === "step_id") {
-            readonly = !this.haveAllSelectedTasksSameField('project_id');
+            readonly = !this.haveAllSelectedTasksSameField("project_id");
         }
         return readonly || super.isCellReadonly(column, record);
     }

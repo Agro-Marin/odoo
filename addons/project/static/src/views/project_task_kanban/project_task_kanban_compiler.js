@@ -9,8 +9,14 @@ export class ProjectTaskKanbanCompiler extends KanbanCompiler {
             component: false,
         };
         this.compilers.unshift(
-            { selector: 'widget[name="subtask_counter"]', fn: this.compileSubtaskListButton },
-            { selector: 'widget[name="subtask_kanban_list"]', fn: this.compileSubtaskListComponent },
+            {
+                selector: 'widget[name="subtask_counter"]',
+                fn: this.compileSubtaskListButton,
+            },
+            {
+                selector: 'widget[name="subtask_kanban_list"]',
+                fn: this.compileSubtaskListComponent,
+            },
         );
     }
 
@@ -37,9 +43,14 @@ export class ProjectTaskKanbanCompiler extends KanbanCompiler {
      */
     compile(key, params = {}) {
         const newRoot = super.compile(key, params);
-        if (this.subtaskListComponentCompiled.component !== this.subtaskListComponentCompiled.button) {
+        if (
+            this.subtaskListComponentCompiled.component !==
+            this.subtaskListComponentCompiled.button
+        ) {
             // Error since one of them is not compiled
-            throw new Error("The subtask list component cannot be rendered if the button and the component are not in the view definition.");
+            throw new Error(
+                "The subtask list component cannot be rendered if the button and the component are not in the view definition.",
+            );
         }
         return newRoot;
     }

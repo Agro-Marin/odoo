@@ -8,7 +8,8 @@
     }
 
     i {
-        &.fa-bell,&.fa-bell-o {
+        &.fa-bell,
+        &.fa-bell-o {
             color: $o-gray-600;
             -webkit-text-stroke-color: $o-gray-600;
         }
@@ -19,7 +20,7 @@
  * AGENDA
  */
 
- .o_weagenda_index {
+.o_weagenda_index {
     hr {
         border-color: lighten($o-wevent-bg-color-base-contrast, 50%);
     }
@@ -42,7 +43,7 @@
     table {
         border-collapse: separate;
         border-spacing: 0em 0em;
-        font-size: .9em;
+        font-size: 0.9em;
 
         tr {
             height: 15px;
@@ -55,7 +56,8 @@
                 }
             }
         }
-        th.active, td:not(.active) {
+        th.active,
+        td:not(.active) {
             border: 0px;
             border-right: $-events-spacing solid $body-bg;
             vertical-align: middle;
@@ -63,7 +65,8 @@
                 word-break: break-word;
             }
         }
-        th:not(.active), td.active {
+        th:not(.active),
+        td.active {
             width: 100px;
         }
         th.position-sticky {
@@ -94,7 +97,8 @@
             }
             div.o_we_agenda_card_content {
                 height: 100%;
-                .o_we_agenda_card_title, small {
+                .o_we_agenda_card_title,
+                small {
                     word-break: break-word;
                 }
                 .badge:hover {
@@ -106,12 +110,13 @@
                 padding: $btn-padding-y $btn-padding-x;
                 cursor: pointer;
             }
-            
+
             &.invisible {
                 visibility: visible !important;
                 opacity: 0.3;
             }
-            &.o_we_agenda_time_slot_main, &.o_we_agenda_time_slot_half {
+            &.o_we_agenda_time_slot_main,
+            &.o_we_agenda_time_slot_half {
                 padding: 0;
                 position: relative;
                 > div {
@@ -144,7 +149,8 @@
                     width: 100%;
                     position: absolute;
                     bottom: 0;
-                    border-bottom: 1px solid lighten($o-wevent-bg-color-base-contrast, 50%);
+                    border-bottom: 1px solid
+                        lighten($o-wevent-bg-color-base-contrast, 50%);
                     margin-bottom: -1px;
                     z-index: 1;
                 }
@@ -152,11 +158,11 @@
                     padding: 0.3em;
                 }
                 // For unpublished tracks, opacity is already reduced
-                [data-publish='off'] .o_weagenda_track_badges > .o_wevent_online_badge_unpublished {
+                [data-publish="off"]
+                    .o_weagenda_track_badges
+                    > .o_wevent_online_badge_unpublished {
                     opacity: unset;
                 }
-
-
             }
         }
     }
@@ -169,9 +175,14 @@
 
     .o_we_online_agenda_overlay {
         @include o-position-absolute(0, 0, 63px);
-        background-image: linear-gradient(90deg, rgba($body-color, 0), rgba($body-color, 0.1), rgba($body-color, 0.3));
+        background-image: linear-gradient(
+            90deg,
+            rgba($body-color, 0),
+            rgba($body-color, 0.1),
+            rgba($body-color, 0.3)
+        );
         opacity: 0;
-        transition: opacity .1s ease;
+        transition: opacity 0.1s ease;
     }
 
     .o_we_online_agenda_has_scroll {
@@ -180,12 +191,12 @@
 
     .o_we_online_agenda_has_content_hidden + .o_we_online_agenda_overlay {
         opacity: 1;
-        transition: opacity .5s ease;
+        transition: opacity 0.5s ease;
     }
 
-
-    .o_we_online_agenda_has_scroll.o_we_online_agenda_is_scrolling + .o_we_online_agenda_overlay {
-        opacity: .5;
+    .o_we_online_agenda_has_scroll.o_we_online_agenda_is_scrolling
+        + .o_we_online_agenda_overlay {
+        opacity: 0.5;
     }
 }
 

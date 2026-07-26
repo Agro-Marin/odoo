@@ -1,14 +1,14 @@
 /** @odoo-module native */
-import { describe, expect, test } from "@odoo/hoot";
 import {
-    STREAK_HOT_DAYS,
-    STREAK_WARM_DAYS,
     getBadgeLevelClass,
     getNotificationIcon,
     getRarityBadgeClass,
     getStreakIcon,
     getTrendIcon,
+    STREAK_HOT_DAYS,
+    STREAK_WARM_DAYS,
 } from "@gamification/dashboard/gamification_dashboard_utils";
+import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 

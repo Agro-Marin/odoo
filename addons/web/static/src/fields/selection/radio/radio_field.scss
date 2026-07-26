@@ -1,5 +1,6 @@
 .o_field_radio {
-    > span, > button {
+    > span,
+    > button {
         flex: 0 0 auto;
     }
     @include media-breakpoint-down(md) {

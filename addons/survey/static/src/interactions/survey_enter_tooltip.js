@@ -37,23 +37,27 @@ export class SurveyEnterTooltip extends Interaction {
         this.updateTooltip(
             document.hasFocus() &&
                 activeEl.tagName.toLowerCase() === "textarea" &&
-                activeEl.classList.contains("form-control")
+                activeEl.classList.contains("form-control"),
         );
         this.updateContent();
     }
 
     updateEnterButtonText(ev) {
         const targetEl = ev.target;
-        const isTextbox = ev.type === "focusin" && targetEl.tagName.toLowerCase() === "textarea";
+        const isTextbox =
+            ev.type === "focusin" && targetEl.tagName.toLowerCase() === "textarea";
         this.updateTooltip(isTextbox);
     }
 
     updateTooltip(isTextbox) {
         this.enterTooltipText =
-            isTextbox || ["one_page", "page_per_section"].includes(this.surveyQuestionsLayout)
+            isTextbox ||
+            ["one_page", "page_per_section"].includes(this.surveyQuestionsLayout)
                 ? this.otherText
                 : this.defaultText;
     }
 }
 
-registry.category("public.interactions").add("survey.SurveyEnterTooltip", SurveyEnterTooltip);
+registry
+    .category("public.interactions")
+    .add("survey.SurveyEnterTooltip", SurveyEnterTooltip);

@@ -68,7 +68,10 @@ class ProjectProject(models.Model):
         # with active ones) report 0.
         active_projects = self.filtered("active")
         tasks_count_by_project = {}
-        for subset, active_test in ((active_projects, True), (self - active_projects, False)):
+        for subset, active_test in (
+            (active_projects, True),
+            (self - active_projects, False),
+        ):
             if not subset:
                 continue
             domain = Domain("project_id", "in", subset.ids) & base_domain
@@ -998,7 +1001,8 @@ class ProjectProject(models.Model):
                     new_end = (
                         calendar.plan_hours(task.allocated_hours, new_start)
                         if calendar
-                        else new_start + (task.planned_date_end - task.planned_date_start)
+                        else new_start
+                        + (task.planned_date_end - task.planned_date_start)
                     )
                     # Update slot tracking
                     user_slots[user.id] = [s for s in slots if s[3] != task.id] + [
@@ -1055,8 +1059,15 @@ class ProjectProject(models.Model):
         # the ORM will not auto-flush pending task/milestone/risk writes first.
         # Flush explicitly, else the metrics read stale pre-write rows.
         self.env["project.task"].flush_model(
-            ["project_id", "state", "date_end", "date_last_status_change",
-             "create_date", "is_template", "active"]
+            [
+                "project_id",
+                "state",
+                "date_end",
+                "date_last_status_change",
+                "create_date",
+                "is_template",
+                "active",
+            ]
         )
         self.env["project.milestone"].flush_model(
             ["project_id", "is_reached", "deadline"]
@@ -1170,9 +1181,7 @@ class ProjectProject(models.Model):
             else:
                 project.health_status = "critical"
 
-    @api.depends(
-        "risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state"
-    )
+    @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state")
     def _compute_risk_count(self) -> None:
         """Count open risks and high/critical risks per project.
 
@@ -1228,8 +1237,16 @@ class ProjectProject(models.Model):
 
         # No @api.depends here, so flush pending task writes before the raw SQL.
         self.env["project.task"].flush_model(
-            ["project_id", "state", "date_closed", "date_end",
-             "lead_time_hours", "cycle_time_hours", "is_template", "active"]
+            [
+                "project_id",
+                "state",
+                "date_closed",
+                "date_end",
+                "lead_time_hours",
+                "cycle_time_hours",
+                "is_template",
+                "active",
+            ]
         )
 
         self.env.cr.execute(
@@ -2008,9 +2025,7 @@ class ProjectProject(models.Model):
                 # open-only task_ids). Batch the subscribe per distinct partner
                 # set instead of one write per task (N+1).
                 partner_set = set(partner_ids)
-                tasks_by_partners = defaultdict(
-                    lambda: self.env["project.task"]
-                )
+                tasks_by_partners = defaultdict(lambda: self.env["project.task"])
                 for task in self.tasks:
                     partners = frozenset(task.message_partner_ids.ids) & partner_set
                     if partners:

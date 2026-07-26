@@ -13,7 +13,10 @@
 }
 
 .o-we-linkpopover {
-    .custom-fill-color, .custom-text-color, .custom-border, .input-group {
+    .custom-fill-color,
+    .custom-text-color,
+    .custom-border,
+    .input-group {
         label {
             width: 70px;
         }
@@ -23,9 +26,12 @@
         --border-color: var(--#{$prefix}dark-border-subtle) !important;
     }
 
-    .form-control:focus, .form-select:focus, .form-check-input:focus {
+    .form-control:focus,
+    .form-select:focus,
+    .form-check-input:focus {
         border-color: $input-focus-border-color !important;
-        box-shadow: 0 0 0 $focus-ring-width rgba($input-focus-border-color, $focus-ring-opacity);
+        box-shadow: 0 0 0 $focus-ring-width
+            rgba($input-focus-border-color, $focus-ring-opacity);
     }
 
     .o_link_popover_container {
@@ -37,7 +43,8 @@
     padding-left: 20px;
     position: relative;
 
-    &::before, &::after {
+    &::before,
+    &::after {
         content: "";
         position: absolute;
         left: 6px;

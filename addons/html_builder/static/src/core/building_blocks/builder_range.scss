@@ -1,6 +1,9 @@
 .o-hb-range {
     .popover & {
-        --o-hb-range-thumb-color: var(--o-hb-range-thumb-color-popover, #{$o-we-bg-darkest});
+        --o-hb-range-thumb-color: var(
+            --o-hb-range-thumb-color-popover,
+            #{$o-we-bg-darkest}
+        );
     }
     &:has(output) {
         .o-hb-rangeInput {
@@ -22,19 +25,31 @@
         &:focus {
             outline: none;
 
-            &::-webkit-slider-thumb { box-shadow: none; }
-            &::-moz-range-thumb     { box-shadow: none; }
-            &::-ms-thumb            { box-shadow: none; }
+            &::-webkit-slider-thumb {
+                box-shadow: none;
+            }
+            &::-moz-range-thumb {
+                box-shadow: none;
+            }
+            &::-ms-thumb {
+                box-shadow: none;
+            }
         }
         &:focus-visible {
             &::-webkit-slider-thumb {
-                box-shadow: 0 0 0 1px $o-we-bg-dark, 0 0 0 3px $o-we-sidebar-content-field-progress-active-color;
+                box-shadow:
+                    0 0 0 1px $o-we-bg-dark,
+                    0 0 0 3px $o-we-sidebar-content-field-progress-active-color;
             }
             &::-moz-range-thumb {
-                box-shadow: 0 0 0 1px $o-we-bg-dark, 0 0 0 3px $o-we-sidebar-content-field-progress-active-color;
+                box-shadow:
+                    0 0 0 1px $o-we-bg-dark,
+                    0 0 0 3px $o-we-sidebar-content-field-progress-active-color;
             }
             &::-ms-thumb {
-                box-shadow: 0 0 0 1px $o-we-bg-dark, 0 0 0 3px $o-we-sidebar-content-field-progress-active-color;
+                box-shadow:
+                    0 0 0 1px $o-we-bg-dark,
+                    0 0 0 3px $o-we-sidebar-content-field-progress-active-color;
             }
         }
         &::-moz-focus-outer {
@@ -43,7 +58,11 @@
         &::-webkit-slider-thumb {
             width: $o-we-sidebar-content-field-progress-control-height;
             height: $o-we-sidebar-content-field-progress-control-height;
-            margin-top: ($o-we-sidebar-content-field-progress-height - $o-we-sidebar-content-field-progress-control-height) / 2;
+            margin-top: (
+                    $o-we-sidebar-content-field-progress-height -
+                        $o-we-sidebar-content-field-progress-control-height
+                ) /
+                2;
             border: none;
             border-radius: 10rem;
             background-color: var(--o-hb-range-thumb-color, #{$o-we-fg-lighter});

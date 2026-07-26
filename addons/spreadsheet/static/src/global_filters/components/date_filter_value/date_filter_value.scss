@@ -14,7 +14,8 @@
         margin-right: 16px;
     }
 
-    .btn-previous, .btn-next {
+    .btn-previous,
+    .btn-next {
         background: inherit;
         border: var(--border-width) solid transparent;
         border-width: 0 0 var(--border-width) 0;
@@ -41,12 +42,13 @@
 
 .o-date-filter-input {
     cursor: pointer;
-    &:focus, &:hover {
+    &:focus,
+    &:hover {
         outline: none;
     }
 }
 
-.o_bottom_sheet .o-date-filter-dropdown  :last-child {
+.o_bottom_sheet .o-date-filter-dropdown :last-child {
     /* Make space for the check icon of the active item */
     margin-right: 12px;
 }

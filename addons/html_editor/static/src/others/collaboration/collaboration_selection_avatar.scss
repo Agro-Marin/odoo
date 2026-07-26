@@ -3,7 +3,10 @@
     height: 1.5rem;
     width: 1.5rem;
     border-radius: 50%;
-    transition: top 0.5s, left 0.5s, opacity 0.2s;
+    transition:
+        top 0.5s,
+        left 0.5s,
+        opacity 0.2s;
 
     > img {
         position: absolute;

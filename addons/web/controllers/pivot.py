@@ -43,7 +43,7 @@ def _clamp_int(value, hi):
     """
     try:
         return max(0, min(int(value), hi))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 

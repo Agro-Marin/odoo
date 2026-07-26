@@ -19,9 +19,10 @@
         .o_snippet_preview_wrap {
             min-height: 100px;
             box-shadow: 0 0 6rem rgba(0, 0, 0, 0.16);
-            margin: map-get($spacers, 5) (map-get($spacers, 5) * .5) (map-get($spacers, 3) * 4);
+            margin: map-get($spacers, 5) (map-get($spacers, 5) * 0.5)
+                (map-get($spacers, 3) * 4);
             background-color: var(--body-bg);
-            transform: scale(.98);
+            transform: scale(0.98);
             cursor: pointer;
 
             [data-snippet="s_carousel"],
@@ -30,7 +31,8 @@
             [data-snippet="s_quotes_carousel_minimal"],
             [data-snippet="s_quotes_carousel"],
             [data-snippet="s_quotes_carousel_compact"] {
-                .carousel-inner, .carousel-inner > .carousel-item {
+                .carousel-inner,
+                .carousel-inner > .carousel-item {
                     height: fit-content;
                 }
             }
@@ -52,7 +54,8 @@
                 transform: none !important;
                 inset: 0 !important;
             }
-            .o_full_screen_height, .o_half_screen_height {
+            .o_full_screen_height,
+            .o_half_screen_height {
                 height: unset !important;
                 min-height: unset !important;
             }
@@ -89,10 +92,16 @@
 
                 // Force visibility on root snippets if desktop/mobile invisible
                 // and on conditionally visible elements
-                &.o_snippet_desktop_invisible, &.o_snippet_mobile_invisible, &.o_conditional_hidden, & .o_conditional_hidden {
+                &.o_snippet_desktop_invisible,
+                &.o_snippet_mobile_invisible,
+                &.o_conditional_hidden,
+                & .o_conditional_hidden {
                     display: block !important;
 
-                    &.d-lg-flex, &.d-md-flex, &.o_half_screen_height, &.o_full_screen_height {
+                    &.d-lg-flex,
+                    &.d-md-flex,
+                    &.o_half_screen_height,
+                    &.o_full_screen_height {
                         display: flex !important;
                     }
                 }
@@ -117,7 +126,8 @@
                 pointer-events: none;
                 z-index: 1;
             }
-            &:hover, &:focus-visible {
+            &:hover,
+            &:focus-visible {
                 box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.2);
                 &::after {
                     outline: 6px solid $o-we-handles-accent-color;
@@ -127,14 +137,15 @@
                 .s_dialog_preview_image {
                     filter: saturate(0) blur(5px);
                 }
-                &:hover, &:focus-within {
+                &:hover,
+                &:focus-within {
                     .s_dialog_preview_image {
                         opacity: 1;
                         filter: saturate(0) brightness(0.6) blur(5px);
                     }
-                     > .o_snippet_preview_install_btn {
+                    > .o_snippet_preview_install_btn {
                         opacity: 1;
-                     }
+                    }
                 }
 
                 &:focus-within > .o_snippet_preview_install_btn {

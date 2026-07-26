@@ -6,7 +6,7 @@ a mail template to send when the condition is met after survey completion.
 
 import logging
 
-from odoo import _, api, fields, models
+from odoo import fields, models
 
 _logger = logging.getLogger(__name__)
 
@@ -88,15 +88,18 @@ class SurveyFollowupRule(models.Model):
             return
         try:
             self.mail_template_id.send_mail(
-                user_input.id, force_send=False,
+                user_input.id,
+                force_send=False,
             )
             _logger.info(
                 "Follow-up rule '%s' fired for input %s",
-                self.name, user_input.id,
+                self.name,
+                user_input.id,
             )
         except Exception:
             _logger.warning(
                 "Follow-up rule '%s' failed for input %s",
-                self.name, user_input.id,
+                self.name,
+                user_input.id,
                 exc_info=True,
             )

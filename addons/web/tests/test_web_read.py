@@ -177,8 +177,10 @@ class TestWebReadFieldContext(common.TransactionCase):
         # "with_context() got multiple values for keyword argument 'active_test'".
         parent = self.env["res.partner"].create({"name": "Parent"})
         self.env["res.partner"].create(
-            [{"name": "C1", "parent_id": parent.id},
-             {"name": "C2", "parent_id": parent.id}]
+            [
+                {"name": "C1", "parent_id": parent.id},
+                {"name": "C2", "parent_id": parent.id},
+            ]
         )
         self.env.flush_all()
         res = parent.with_context(active_test=False).web_read(

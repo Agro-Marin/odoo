@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { preloadBackground } from "@survey/js/survey_preload_image_mixin";
-import { Tooltip, Popover } from "@web/libs/bootstrap";
+import { fadeIn, fadeOut } from "@survey/utils";
+import { browser } from "@web/core/browser/browser";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { browser } from "@web/core/browser/browser";
-import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
-import { fadeIn, fadeOut } from "@survey/utils";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { Popover, Tooltip } from "@web/libs/bootstrap";
+import { Interaction } from "@web/public/interaction";
 
 const nextPageTooltips = {
     closingWords: _t("End of Survey"),
@@ -39,7 +39,9 @@ export class SurveySessionManage extends Interaction {
         },
         ".o_survey_session_navigation_previous": {
             "t-on-click.prevent": this.onBack,
-            "t-att-class": () => ({ "d-none": this.isFirstQuestion || this.isSessionClosed }),
+            "t-att-class": () => ({
+                "d-none": this.isFirstQuestion || this.isSessionClosed,
+            }),
         },
         ".o_survey_session_close": {
             "t-on-click.prevent": this.onEndSessionClick,
@@ -52,7 +54,10 @@ export class SurveySessionManage extends Interaction {
         },
         ".o_survey_session_results": {
             "t-att-class": () => ({
-                "d-none": this.isSessionClosed || this.leaderboardIsFadingOut || this.hideResults,
+                "d-none":
+                    this.isSessionClosed ||
+                    this.leaderboardIsFadingOut ||
+                    this.hideResults,
             }),
             "t-on-setDisplayNone": () => {
                 // The leaderboard interaction will send a setDisplayNone event
@@ -80,20 +85,25 @@ export class SurveySessionManage extends Interaction {
         // Elements related to other interactions
         this.chartEl = this.el.querySelector(".o_survey_session_chart");
         this.leaderboardEl = this.el.querySelector(".o_survey_session_leaderboard");
-        this.timerEl = this.el.querySelector(".o_survey_timer_container .o_survey_timer");
-        this.textAnswersEl = this.el.querySelector(".o_survey_session_text_answers_container");
+        this.timerEl = this.el.querySelector(
+            ".o_survey_timer_container .o_survey_timer",
+        );
+        this.textAnswersEl = this.el.querySelector(
+            ".o_survey_session_text_answers_container",
+        );
         // General survey props
         this.surveyId = parseInt(this.el.dataset.surveyId);
         this.attendeesCount = this.el.dataset.attendeesCount
             ? parseInt(this.el.dataset.attendeesCount, 10)
             : 0;
-        this.surveyHasConditionalQuestions = this.el.dataset.surveyHasConditionalQuestions;
+        this.surveyHasConditionalQuestions =
+            this.el.dataset.surveyHasConditionalQuestions;
         this.surveyAccessToken = this.el.dataset.surveyAccessToken;
         this.isStartScreen = this.el.dataset.isStartScreen;
         this.isFirstQuestion = this.el.dataset.isFirstQuestion;
         this.isLastQuestion = this.el.dataset.isLastQuestion;
         this.surveyLastTriggeringAnswers = JSON.parse(
-            this.el.dataset.surveyLastTriggeringAnswers || "[]"
+            this.el.dataset.surveyLastTriggeringAnswers || "[]",
         );
         // Scoring props
         this.isScoredQuestion = this.el.dataset.isScoredQuestion;
@@ -116,7 +126,7 @@ export class SurveySessionManage extends Interaction {
                 trigger: "hover",
                 offset: "0, 3",
                 delay: 0,
-            }
+            },
         );
         this.registerCleanup(() => {
             this.copyBtnPopover?.dispose();
@@ -139,7 +149,10 @@ export class SurveySessionManage extends Interaction {
             const chartPromise = new Promise(function (resolve) {
                 resolveChartPromise = resolve;
             });
-            this.env.bus.addEventListener("SURVEY:CHART_INTERACTION_STARTED", resolveChartPromise);
+            this.env.bus.addEventListener(
+                "SURVEY:CHART_INTERACTION_STARTED",
+                resolveChartPromise,
+            );
             await chartPromise;
         }
     }
@@ -158,7 +171,7 @@ export class SurveySessionManage extends Interaction {
                             fadeOut: false,
                             isScoredQuestion: this.isScoredQuestion,
                         },
-                    })
+                    }),
                 );
             } else {
                 this.currentScreen = "results";
@@ -185,11 +198,14 @@ export class SurveySessionManage extends Interaction {
             offset: "0, 3",
         });
         await this.waitFor(
-            browser.navigator.clipboard.writeText(ev.currentTarget.innerText.trim())
+            browser.navigator.clipboard.writeText(ev.currentTarget.innerText.trim()),
         );
         this.protectSyncAfterAsync(() => {
             this.copyBtnPopover.show();
-            this.waitForTimeout(() => this.copyBtnPopover.hide(), copyBtnTooltipHideDelay);
+            this.waitForTimeout(
+                () => this.copyBtnPopover.hide(),
+                copyBtnTooltipHideDelay,
+            );
         })();
     }
 
@@ -233,7 +249,7 @@ export class SurveySessionManage extends Interaction {
                                 fadeOut: true,
                                 isScoredQuestion: this.isScoredQuestion,
                             },
-                        })
+                        }),
                     );
                 }
                 break;
@@ -268,7 +284,7 @@ export class SurveySessionManage extends Interaction {
                 if (!this.resultsRefreshInterval) {
                     this.resultsRefreshInterval = setInterval(
                         this.refreshResults.bind(this),
-                        this.answersRefreshDelay
+                        this.answersRefreshDelay,
                     );
                 }
                 break;
@@ -402,11 +418,13 @@ export class SurveySessionManage extends Interaction {
         this.nextQuestion = await this.waitFor(
             rpc(`/survey/session/next_question/${this.surveyAccessToken}`, {
                 go_back: goBack,
-            })
+            }),
         );
         let preloadBgPromise;
         if (this.refreshBackground && this.nextQuestion.background_image_url) {
-            preloadBgPromise = preloadBackground(this.nextQuestion.background_image_url);
+            preloadBgPromise = preloadBackground(
+                this.nextQuestion.background_image_url,
+            );
         } else {
             preloadBgPromise = Promise.resolve();
         }
@@ -428,8 +446,10 @@ export class SurveySessionManage extends Interaction {
         }
 
         const parser = new DOMParser();
-        const newContent = parser.parseFromString(this.nextQuestion.question_html, "text/html").body
-            .firstChild;
+        const newContent = parser.parseFromString(
+            this.nextQuestion.question_html,
+            "text/html",
+        ).body.firstChild;
         newContent.style.opacity = 0;
 
         if (goBack) {
@@ -441,7 +461,9 @@ export class SurveySessionManage extends Interaction {
 
         // Background Management
         if (this.refreshBackground) {
-            const surveyBackground = newContent.querySelector("div.o_survey_background");
+            const surveyBackground = newContent.querySelector(
+                "div.o_survey_background",
+            );
             if (surveyBackground) {
                 surveyBackground.style.backgroundImage = `url(${this.nextQuestion.background_image_url})`;
                 surveyBackground.classList.remove("o_survey_background_transition");
@@ -466,7 +488,9 @@ export class SurveySessionManage extends Interaction {
         // ev could not exist (onNextQuestionDone )
         const showResults = ev?.currentTarget?.dataset?.showResults;
         await this.waitFor(
-            this.services.orm.call("survey.survey", "action_end_session", [[this.surveyId]])
+            this.services.orm.call("survey.survey", "action_end_session", [
+                [this.surveyId],
+            ]),
         );
         this.protectSyncAfterAsync(() => {
             if (showResults) {
@@ -518,7 +542,7 @@ export class SurveySessionManage extends Interaction {
         this.chartEl?.dispatchEvent(
             new CustomEvent("updateState", {
                 detail: options,
-            })
+            }),
         );
     }
 
@@ -540,13 +564,10 @@ export class SurveySessionManage extends Interaction {
             tooltip = nextPageTooltips.closingWords;
         } else {
             const nextScreen = this.getNextScreen();
-            if (nextScreen === "nextQuestion" || this.surveyHasConditionalQuestions) {
-                tooltip = nextPageTooltips.nextQuestion;
-            }
             tooltip = nextPageTooltips[nextScreen];
         }
         const sessionNavigationNextEl = this.el.querySelector(
-            ".o_survey_session_navigation_next_label"
+            ".o_survey_session_navigation_next_label",
         );
         if (sessionNavigationNextEl && tooltip) {
             this.sessionNavigationNextLabel = tooltip;
@@ -563,7 +584,7 @@ export class SurveySessionManage extends Interaction {
         if (this.isStartScreen) {
             this.attendeesRefreshInterval = setInterval(
                 this.refreshAttendeesCount.bind(this),
-                this.answersRefreshDelay
+                this.answersRefreshDelay,
             );
         } else {
             if (this.attendeesRefreshInterval) {
@@ -572,7 +593,7 @@ export class SurveySessionManage extends Interaction {
             if (!this.resultsRefreshInterval) {
                 this.resultsRefreshInterval = setInterval(
                     this.refreshResults.bind(this),
-                    this.answersRefreshDelay
+                    this.answersRefreshDelay,
                 );
             }
         }
@@ -590,7 +611,12 @@ export class SurveySessionManage extends Interaction {
         const questionTimeLimitReached = !!timerData.questionTimeLimitReached;
         const timeLimitMinutes = Number(timerData.timeLimitMinutes);
         const hasAnswered = !!timerData.hasAnswered;
-        if (this.timerEl && !questionTimeLimitReached && !hasAnswered && timeLimitMinutes) {
+        if (
+            this.timerEl &&
+            !questionTimeLimitReached &&
+            !hasAnswered &&
+            timeLimitMinutes
+        ) {
             this.addListener(surveyManagerEl, "time_up", async () => {
                 if (this.currentScreen === "question" && this.isScoredQuestion) {
                     this.onNext();
@@ -602,7 +628,7 @@ export class SurveySessionManage extends Interaction {
                         timeLimitMinutes: timeLimitMinutes,
                         timer: timerData.timer,
                     },
-                })
+                }),
             );
         }
     }
@@ -627,10 +653,12 @@ export class SurveySessionManage extends Interaction {
                         questionResults.question_statistics_graph
                     ) {
                         const parsedStatistics = JSON.parse(
-                            questionResults.question_statistics_graph
+                            questionResults.question_statistics_graph,
                         );
                         if (parsedStatistics.length > 0) {
-                            this.chartUpdateState({ questionStatistics: parsedStatistics });
+                            this.chartUpdateState({
+                                questionStatistics: parsedStatistics,
+                            });
                         }
                     } else if (!this.isStartScreen && this.showTextAnswers) {
                         this.textAnswersEl.dispatchEvent(
@@ -639,7 +667,7 @@ export class SurveySessionManage extends Interaction {
                                     questionType: this.el.dataset.questionType,
                                     inputLineValues: questionResults.input_line_values,
                                 },
-                            })
+                            }),
                         );
                     }
 
@@ -651,7 +679,7 @@ export class SurveySessionManage extends Interaction {
                         this.isLastQuestion =
                             !questionResults.answer_count ||
                             !this.surveyLastTriggeringAnswers.some((answerId) =>
-                                questionResults.selected_answers.includes(answerId)
+                                questionResults.selected_answers.includes(answerId),
                             );
                         this.updateNextScreenTooltip();
                     }
@@ -661,7 +689,7 @@ export class SurveySessionManage extends Interaction {
                         const max = this.attendeesCount > 0 ? this.attendeesCount : 1;
                         const percentage = Math.min(
                             Math.round((questionResults.answer_count / max) * 100),
-                            100
+                            100,
                         );
                         progressBar.style.width = `${percentage}%`;
                     }
@@ -669,13 +697,13 @@ export class SurveySessionManage extends Interaction {
                     if (this.attendeesCount && this.attendeesCount > 0) {
                         const answerCount = Math.min(
                             questionResults.answer_count,
-                            this.attendeesCount
+                            this.attendeesCount,
                         );
                         const answerCountElement = this.el.querySelector(
-                            ".o_survey_session_answer_count"
+                            ".o_survey_session_answer_count",
                         );
                         const progressBarTextElement = this.el.querySelector(
-                            ".progress-bar.o_survey_session_progress_small span"
+                            ".progress-bar.o_survey_session_progress_small span",
                         );
                         if (answerCountElement) {
                             answerCountElement.textContent = answerCount;
@@ -690,7 +718,7 @@ export class SurveySessionManage extends Interaction {
                 // onRejected, stop refreshing
                 clearInterval(this.resultsRefreshInterval);
                 delete this.resultsRefreshInterval;
-            })
+            }),
         );
     }
 
@@ -699,20 +727,28 @@ export class SurveySessionManage extends Interaction {
      */
     refreshAttendeesCount() {
         this.waitFor(
-            this.services.orm.read("survey.survey", [this.surveyId], ["session_answer_count"])
+            this.services.orm.read(
+                "survey.survey",
+                [this.surveyId],
+                ["session_answer_count"],
+            ),
         ).then(
             this.protectSyncAfterAsync((result) => {
                 if (result && result.length === 1) {
-                    this.sessionAttendeesCountText = String(result[0].session_answer_count);
+                    this.sessionAttendeesCountText = String(
+                        result[0].session_answer_count,
+                    );
                 }
             }),
             this.protectSyncAfterAsync((err) => {
                 // on failure, stop refreshing
                 clearInterval(this.attendeesRefreshInterval);
                 console.error(err);
-            })
+            }),
         );
     }
 }
 
-registry.category("public.interactions").add("survey.survey_session_manage", SurveySessionManage);
+registry
+    .category("public.interactions")
+    .add("survey.survey_session_manage", SurveySessionManage);

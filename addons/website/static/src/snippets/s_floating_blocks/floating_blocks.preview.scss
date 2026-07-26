@@ -14,7 +14,7 @@
             opacity: 1;
 
             &:nth-child(1) {
-                transition: all .3s;
+                transition: all 0.3s;
                 margin: 3% 0 -20%;
                 transform-origin: center top;
                 transform: scale(0.98);
@@ -30,8 +30,10 @@
             }
         }
     }
-    &:is(:hover, :focus-visible) [data-snippet="s_floating_blocks"] .s_floating_blocks_block:nth-child(1) {
+    &:is(:hover, :focus-visible)
+        [data-snippet="s_floating_blocks"]
+        .s_floating_blocks_block:nth-child(1) {
         margin: 3% 0 -30%;
-        transform: scale(.95);
+        transform: scale(0.95);
     }
 }

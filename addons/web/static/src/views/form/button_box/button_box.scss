@@ -1,6 +1,8 @@
 .o-form-buttonbox {
     // Compute the expected oe_stat_button's height according to the default btn size.
-    $-stat-button-inner-size: calc(#{$btn-padding-y} * 2 + #{$btn-font-size} * #{$btn-line-height});
+    $-stat-button-inner-size: calc(
+        #{$btn-padding-y} * 2 + #{$btn-font-size} * #{$btn-line-height}
+    );
     $-stat-button-height: calc(#{$-stat-button-inner-size} + #{$btn-border-width} * 2);
 
     $-stat-button-icon-size: 1.5em;
@@ -67,7 +69,9 @@
             overflow: hidden;
         }
 
-        .o_stat_info, > span, .o_field_statinfo {
+        .o_stat_info,
+        > span,
+        .o_field_statinfo {
             @extend %-stat-button-container;
 
             .o_stat_text {
@@ -84,7 +88,8 @@
         }
 
         &:not(:disabled) {
-            > .o_stat_info .o_field_widget, > span .o_field_widget {
+            > .o_stat_info .o_field_widget,
+            > span .o_field_widget {
                 cursor: pointer;
             }
         }
@@ -97,11 +102,11 @@
             display: none !important;
         }
         &:hover .o_stat_info > .o_not_hover {
-            display: none !important
+            display: none !important;
         }
         &.btn-outline-secondary:disabled {
             opacity: 1;
-            color:inherit;
+            color: inherit;
         }
         &.btn-outline-secondary:active {
             z-index: 1;
@@ -169,7 +174,10 @@
 .o-form-buttonbox-small {
     --button-box-gap: 1px;
     --button-box-per-row: 2;
-    --button-box-border-color: #{map-get(map-get($o-btns-bs-outline-override, 'secondary'), 'border')};
+    --button-box-border-color: #{map-get(
+            map-get($o-btns-bs-outline-override, "secondary"),
+            "border"
+        )};
     --button-box-spacing: #{map-get($spacers, 3)};
 
     display: grid;
@@ -186,7 +194,9 @@
         right: var(--button-box-spacing) !important;
     }
 
-    > span .o_field_widget, .o_stat_info, .o_stat_value {
+    > span .o_field_widget,
+    .o_stat_info,
+    .o_stat_value {
         @include text-truncate;
     }
 
@@ -202,7 +212,6 @@
 }
 
 .o_dropdown_more {
-
     .oe_stat_button {
         height: auto;
         width: 100%;
@@ -237,7 +246,8 @@
             height: unset;
             padding: var(--dropdown-item-padding-y) var(--dropdown-item-padding-x);
 
-            &, * {
+            &,
+            * {
                 font-size: $h5-font-size;
                 font-weight: $o-font-weight-medium;
             }
@@ -252,7 +262,8 @@
             }
         }
 
-        .o_field_statinfo, .o_stat_info {
+        .o_field_statinfo,
+        .o_stat_info {
             flex-direction: row-reverse;
             align-items: baseline;
             gap: map-get($spacers, 1);

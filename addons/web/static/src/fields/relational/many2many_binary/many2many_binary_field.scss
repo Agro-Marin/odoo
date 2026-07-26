@@ -39,7 +39,10 @@ $o-attachment-margin: 5px;
         @include o-text-overflow(block);
 
         a {
-            @include o-hover-text-color($default-color: $o-main-text-color, $hover-color: $headings-color);
+            @include o-hover-text-color(
+                $default-color: $o-main-text-color,
+                $hover-color: $headings-color
+            );
         }
     }
 
@@ -47,7 +50,8 @@ $o-attachment-margin: 5px;
         display: none;
     }
 
-    .o_attachment_uploaded, .o_attachment_delete {
+    .o_attachment_uploaded,
+    .o_attachment_delete {
         @include o-position-absolute(0, 0, 0, $left: auto);
         display: flex;
         align-items: center;
@@ -56,7 +60,7 @@ $o-attachment-margin: 5px;
     }
 
     .o_attachment_delete {
-        background: desaturate(map-get($theme-colors, 'primary'), 50%);
+        background: desaturate(map-get($theme-colors, "primary"), 50%);
         color: white;
         cursor: pointer;
         font-size: 20px;
@@ -64,7 +68,7 @@ $o-attachment-margin: 5px;
         transition: all 0.3s ease 0s;
 
         &:hover {
-            background: map-get($theme-colors, 'primary');
+            background: map-get($theme-colors, "primary");
         }
     }
 
@@ -81,7 +85,8 @@ $o-attachment-margin: 5px;
             }
         }
 
-        .o_attachment_delete, .o_attachment_uploaded {
+        .o_attachment_delete,
+        .o_attachment_uploaded {
             display: none;
         }
     }

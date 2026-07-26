@@ -1,6 +1,6 @@
 [data-embedded="video"] {
     position: relative;
-    &:has( iframe) {
+    &:has(iframe) {
         aspect-ratio: 16 / 9;
     }
     margin: 0 auto;

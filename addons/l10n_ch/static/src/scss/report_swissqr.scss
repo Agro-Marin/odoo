@@ -1,18 +1,18 @@
 @font-face {
     font-family: LiberationSans;
-    src: url('../font/LiberationSans-Bold.woff') format('woff');
+    src: url("../font/LiberationSans-Bold.woff") format("woff");
     font-weight: bold;
 }
 @font-face {
     font-family: LiberationSans;
-    src: url('../font/LiberationSans-Regular.woff') format('woff');
+    src: url("../font/LiberationSans-Regular.woff") format("woff");
 }
 
 $l10n-ch-qr-ratio: 1.25;
 
-body.l10n_ch_qr{
+body.l10n_ch_qr {
     padding: 0;
-    span{
+    span {
         padding-left: 10mm;
         white-space: nowrap;
     }
@@ -30,14 +30,13 @@ body.l10n_ch_qr{
     height: 7mm * $l10n-ch-qr-ratio;
     padding: 15px;
     padding-top: 150px;
-    h1{
-        padding-left:20mm;
-        white-space:nowrap;
+    h1 {
+        padding-left: 20mm;
+        white-space: nowrap;
     }
 }
 
 .swissqr_content_v2 {
-
     $receipt_width: 52mm * $l10n-ch-qr-ratio;
     $left_col_width: 46mm * $l10n-ch-qr-ratio;
     $right_col_width: 87mm * $l10n-ch-qr-ratio;
@@ -143,7 +142,7 @@ body.l10n_ch_qr{
         .swissqr_column_left {
             float: left;
             width: $left_col_width;
-            .swissqr_section_title{
+            .swissqr_section_title {
                 height: 7mm * $l10n-ch-qr-ratio;
             }
             .swissqr {
@@ -189,5 +188,4 @@ body.l10n_ch_qr{
         top: -2mm * $l10n-ch-qr-ratio;
         left: 6mm * $l10n-ch-qr-ratio;
     }
-
 }

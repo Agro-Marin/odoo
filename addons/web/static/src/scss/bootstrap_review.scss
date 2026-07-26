@@ -10,7 +10,8 @@
 }
 
 .accordion {
-    .collapsing, .collapse.show {
+    .collapsing,
+    .collapse.show {
         > .card-body:first-child {
             // Above background color would overflow on the card-header border
             // without this
@@ -36,7 +37,8 @@
         .modal-content {
             max-height: 100%;
         }
-        .modal-header, .modal-footer {
+        .modal-header,
+        .modal-footer {
             flex: 0 0 auto;
         }
         .modal-body {
@@ -89,8 +91,16 @@
 
 // Review $link-decoration behavior
 @if $link-decoration and $link-decoration != none {
-    .btn:not(.btn-link), .nav-link, .dropdown-item, .page-link, .breadcrumb-item > a, .badge, .fa {
-        &, &:hover, &:focus {
+    .btn:not(.btn-link),
+    .nav-link,
+    .dropdown-item,
+    .page-link,
+    .breadcrumb-item > a,
+    .badge,
+    .fa {
+        &,
+        &:hover,
+        &:focus {
             text-decoration: none;
         }
     }
@@ -100,8 +110,6 @@
 .carousel-indicators {
     list-style: none;
 }
-
-
 
 // Calendar
 
@@ -114,12 +122,14 @@ $o-calendar-today-color: color-contrast($o-calendar-today-background-color);
 // Finally, we have to take into account the gaps.
 $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)}));
 
-
 // Buttons
 
 .btn {
     &:focus-visible {
         // Make sure to have a fallback for :focus-visible state when the element use only the `.btn` class.
-        box-shadow: var(--#{$prefix}btn-focus-box-shadow, 0 0 0 #{$btn-focus-width} RGBA(#{$btn-link-focus-shadow-rgb}, .5));
+        box-shadow: var(
+            --#{$prefix}btn-focus-box-shadow,
+            0 0 0 #{$btn-focus-width} RGBA(#{$btn-link-focus-shadow-rgb}, 0.5)
+        );
     }
 }

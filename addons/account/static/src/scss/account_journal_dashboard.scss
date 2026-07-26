@@ -3,7 +3,6 @@
     --KanbanRecord-padding-h: #{$o-kanban-dashboard-hpadding};
 
     .o_kanban_record {
-
         &:not(.o_kanban_ghost) {
             min-height: 150px;
         }
@@ -73,5 +72,4 @@
     canvas {
         height: 150px;
     }
-
 }

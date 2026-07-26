@@ -1,7 +1,6 @@
 @import "mixins/banner";
 @include bsBanner("");
 
-
 // This file is importing bootstrap. While a simple "import "bootstrap";"
 // should be enough, this does not allow overridding mixins/functions.
 // Overridding those is necessary for some of our need and allow to generate

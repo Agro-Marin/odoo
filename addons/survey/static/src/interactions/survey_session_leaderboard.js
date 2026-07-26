@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { fadeIn, fadeOut } from "@survey/utils";
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
-import { rpc } from "@web/core/network/rpc";
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
+import { fadeIn, fadeOut } from "@survey/utils";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class SurveySessionLeaderboard extends Interaction {
     // Note: the class `o_survey_session_leaderboard` is present in two
@@ -28,7 +28,8 @@ export class SurveySessionLeaderboard extends Interaction {
         if (this.leaderboardAnimationPhase === "prepareScores") {
             // See also this.prepareScores
             const currentScore = parseInt(
-                barEl.closest(".o_survey_session_leaderboard_item").dataset.currentScore
+                barEl.closest(".o_survey_session_leaderboard_item").dataset
+                    .currentScore,
             );
             if (currentScore && currentScore !== 0) {
                 return {
@@ -91,9 +92,11 @@ export class SurveySessionLeaderboard extends Interaction {
         this.BAR_WIDTH = "24rem";
         this.BAR_HEIGHT = "3.8rem";
         this.surveyAccessToken = this.el.closest(
-            ".o_survey_session_manage"
+            ".o_survey_session_manage",
         ).dataset.surveyAccessToken;
-        this.sessionResults = this.el.parentElement.querySelector(".o_survey_session_results");
+        this.sessionResults = this.el.parentElement.querySelector(
+            ".o_survey_session_results",
+        );
     }
 
     /**
@@ -109,7 +112,9 @@ export class SurveySessionLeaderboard extends Interaction {
     showLeaderboard(ev) {
         let resolveFadeOut;
         let fadeOutPromise;
-        const resultsEl = this.el.parentElement.querySelector(".o_survey_session_results");
+        const resultsEl = this.el.parentElement.querySelector(
+            ".o_survey_session_results",
+        );
         if (ev.detail.fadeOut) {
             fadeOutPromise = new Promise((resolve, reject) => {
                 resolveFadeOut = resolve;
@@ -121,17 +126,23 @@ export class SurveySessionLeaderboard extends Interaction {
         } else {
             fadeOutPromise = Promise.resolve();
             resultsEl.dispatchEvent(new CustomEvent("setDisplayNone"));
-            this.removeChildren(this.el.querySelector(".o_survey_session_leaderboard_container"));
+            this.removeChildren(
+                this.el.querySelector(".o_survey_session_leaderboard_container"),
+            );
         }
 
-        const leaderboardPromise = rpc(`/survey/session/leaderboard/${this.surveyAccessToken}`);
+        const leaderboardPromise = rpc(
+            `/survey/session/leaderboard/${this.surveyAccessToken}`,
+        );
         this.waitFor(Promise.all([fadeOutPromise, leaderboardPromise])).then(
             this.protectSyncAfterAsync((results) => {
                 const leaderboardResults = results[1];
                 const renderedTemplate = document.createElement("div");
                 const parser = new DOMParser();
-                const parsedResults = parser.parseFromString(leaderboardResults, "text/html").body
-                    .firstChild;
+                const parsedResults = parser.parseFromString(
+                    leaderboardResults,
+                    "text/html",
+                ).body.firstChild;
                 if (parsedResults) {
                     // In case of scored survey with no participants, parsedResults
                     // would be null and it would break the insert below
@@ -139,17 +150,17 @@ export class SurveySessionLeaderboard extends Interaction {
                 }
                 this.insert(
                     renderedTemplate,
-                    this.el.querySelector(".o_survey_session_leaderboard_container")
+                    this.el.querySelector(".o_survey_session_leaderboard_container"),
                 );
                 this.el
                     .querySelectorAll(".o_survey_session_leaderboard_item")
                     .forEach((item, index) => {
                         const rgb = SESSION_CHART_COLORS[index % 10];
                         item.querySelector(
-                            ".o_survey_session_leaderboard_bar"
+                            ".o_survey_session_leaderboard_bar",
                         ).style.backgroundColor = `rgba(${rgb},1)`;
                         item.querySelector(
-                            ".o_survey_session_leaderboard_bar_question"
+                            ".o_survey_session_leaderboard_bar_question",
                         ).style.backgroundColor = `rgba(${rgb},0.4)`;
                     });
                 fadeIn(this.el, this.fadeInOutTime, async () => {
@@ -161,7 +172,7 @@ export class SurveySessionLeaderboard extends Interaction {
                         this.leaderboardAnimationPhase = null;
                     }
                 });
-            })
+            }),
         );
     }
 
@@ -170,7 +181,9 @@ export class SurveySessionLeaderboard extends Interaction {
      */
     hideLeaderboard() {
         fadeOut(this.el, this.fadeInOutTime, () => {
-            this.removeChildren(this.el.querySelector(".o_survey_session_leaderboard_container"));
+            this.removeChildren(
+                this.el.querySelector(".o_survey_session_leaderboard_container"),
+            );
             fadeIn(this.sessionResults, this.fadeInOutTime);
         });
     }
@@ -192,7 +205,13 @@ export class SurveySessionLeaderboard extends Interaction {
             const nextScore = Math.min(totalScore, currentScore + increment);
             scoreEl.textContent = `${plusSign ? "+ " : ""}${Math.round(nextScore)} p`;
             if (nextScore < totalScore) {
-                this.animateScoreCounter(scoreEl, nextScore, totalScore, increment, plusSign);
+                this.animateScoreCounter(
+                    scoreEl,
+                    nextScore,
+                    totalScore,
+                    increment,
+                    plusSign,
+                );
             }
         }, 25);
     }
@@ -258,18 +277,24 @@ export class SurveySessionLeaderboard extends Interaction {
         });
         this.waitForTimeout(() => {
             this.leaderboardAnimationPhase = "reorderScores";
-            this.el.querySelectorAll(".o_survey_session_leaderboard_item").forEach(async (item) => {
-                const currentPosition = parseInt(item.dataset.currentPosition);
-                const newPosition = parseInt(item.dataset.newPosition);
-                if (currentPosition !== newPosition) {
-                    const offset = newPosition > currentPosition ? 2 : -2;
-                    await this.waitFor(this.animateMoveTo(item, newPosition, offset, 300));
-                    item.style.transition = "top ease-in-out .1s";
-                    await this.waitFor(this.animateMoveTo(item, newPosition, offset * -0.3, 100));
-                    await this.waitFor(this.animateMoveTo(item, newPosition, 0, 0));
-                    animationDone();
-                }
-            });
+            this.el
+                .querySelectorAll(".o_survey_session_leaderboard_item")
+                .forEach(async (item) => {
+                    const currentPosition = parseInt(item.dataset.currentPosition);
+                    const newPosition = parseInt(item.dataset.newPosition);
+                    if (currentPosition !== newPosition) {
+                        const offset = newPosition > currentPosition ? 2 : -2;
+                        await this.waitFor(
+                            this.animateMoveTo(item, newPosition, offset, 300),
+                        );
+                        item.style.transition = "top ease-in-out .1s";
+                        await this.waitFor(
+                            this.animateMoveTo(item, newPosition, offset * -0.3, 100),
+                        );
+                        await this.waitFor(this.animateMoveTo(item, newPosition, 0, 0));
+                        animationDone();
+                    }
+                });
         }, 1800);
         return animationPromise;
     }
@@ -296,7 +321,7 @@ export class SurveySessionLeaderboard extends Interaction {
                 .querySelectorAll(".o_survey_session_leaderboard_bar_question")
                 .forEach((barEl) => {
                     const scoreEl = barEl.querySelector(
-                        ".o_survey_session_leaderboard_bar_question_score"
+                        ".o_survey_session_leaderboard_bar_question_score",
                     );
                     scoreEl.textContent = "0 p";
                     const questionScore = parseInt(barEl.dataset.questionScore);
@@ -307,7 +332,13 @@ export class SurveySessionLeaderboard extends Interaction {
                         }
                         scoreEl.textContent = "+ 0 p";
                         this.waitForTimeout(() => {
-                            this.animateScoreCounter(scoreEl, 0, questionScore, increment, true);
+                            this.animateScoreCounter(
+                                scoreEl,
+                                0,
+                                questionScore,
+                                increment,
+                                true,
+                            );
                         }, 400);
                     }
                     this.waitForTimeout(animationDone, 1400);
@@ -349,22 +380,24 @@ export class SurveySessionLeaderboard extends Interaction {
         });
         this.waitForTimeout(() => {
             this.leaderboardAnimationPhase = "sumScores";
-            this.el.querySelectorAll(".o_survey_session_leaderboard_item").forEach((item) => {
-                const currentScore = parseInt(item.dataset.currentScore);
-                const updatedScore = parseInt(item.dataset.updatedScore);
-                let increment = parseInt(item.dataset.maxQuestionScore / 40);
-                if (!increment || increment === 0) {
-                    increment = 1;
-                }
-                this.animateScoreCounter(
-                    item.querySelector(".o_survey_session_leaderboard_score"),
-                    currentScore,
-                    updatedScore,
-                    increment,
-                    false
-                );
-                this.waitForTimeout(animationDone, 500);
-            });
+            this.el
+                .querySelectorAll(".o_survey_session_leaderboard_item")
+                .forEach((item) => {
+                    const currentScore = parseInt(item.dataset.currentScore);
+                    const updatedScore = parseInt(item.dataset.updatedScore);
+                    let increment = parseInt(item.dataset.maxQuestionScore / 40);
+                    if (!increment || increment === 0) {
+                        increment = 1;
+                    }
+                    this.animateScoreCounter(
+                        item.querySelector(".o_survey_session_leaderboard_score"),
+                        currentScore,
+                        updatedScore,
+                        increment,
+                        false,
+                    );
+                    this.waitForTimeout(animationDone, 500);
+                });
         }, 1400);
 
         return animationPromise;

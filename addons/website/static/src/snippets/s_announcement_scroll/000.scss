@@ -1,6 +1,6 @@
 .s_announcement_scroll {
     overflow-x: clip;
-    font-size: clamp(40px, calc(var(--marquee-item-font-size, 80) * .05vw), 200px);
+    font-size: clamp(40px, calc(var(--marquee-item-font-size, 80) * 0.05vw), 200px);
 
     .s_announcement_scroll_marquee_item {
         white-space: preserve nowrap;
@@ -27,16 +27,24 @@
 
     // Animation states, only when ready
     &.s_announcement_scroll_ready {
-
         // Base behavior: once the snippet is ready, the animation is going in
         // the base direction.
         .s_announcement_scroll_marquee_item {
-            --marquee-animation-time: calc((25s - var(--marquee-animation-speed) * 2) * var(--marquee-item-size) * .001);
+            --marquee-animation-time: calc(
+                (25s - var(--marquee-animation-speed) * 2) * var(--marquee-item-size) *
+                    0.001
+            );
 
             animation-composition: add;
             animation:
-                var(--marquee-animation, o-marquee-scroll-left) linear infinite var(--marquee-animation-time),
-                var(--marquee-animation, o-marquee-scroll-left) linear infinite calc(var(--marquee-animation-time) * var(--marquee-animation-hover-multiplier, 1)) reverse paused;
+                var(--marquee-animation, o-marquee-scroll-left) linear infinite
+                    var(--marquee-animation-time),
+                var(--marquee-animation, o-marquee-scroll-left) linear infinite
+                    calc(
+                        var(--marquee-animation-time) *
+                            var(--marquee-animation-hover-multiplier, 1)
+                    )
+                    reverse paused;
         }
         &.s_announcement_scroll_hover_slow .s_announcement_scroll_marquee_item {
             --marquee-animation-hover-multiplier: 2;
@@ -46,13 +54,15 @@
         // hover.
         @media (hover: hover) {
             &:where(:hover:not(.s_announcement_scroll_page_scrolling)) {
-                &.s_announcement_scroll_hover_pause .s_announcement_scroll_marquee_item {
+                &.s_announcement_scroll_hover_pause
+                    .s_announcement_scroll_marquee_item {
                     animation-play-state: paused;
                 }
                 &.s_announcement_scroll_hover_slow .s_announcement_scroll_marquee_item {
                     animation-play-state: running;
                 }
-                &.s_announcement_scroll_hover_direction .s_announcement_scroll_marquee_item {
+                &.s_announcement_scroll_hover_direction
+                    .s_announcement_scroll_marquee_item {
                     animation-play-state: paused, running;
                 }
             }

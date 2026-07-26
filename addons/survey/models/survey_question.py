@@ -170,10 +170,12 @@ class SurveyQuestion(models.Model):
     )
     # -- scoreable/answerable simple answer_types: numerical_box / date / datetime
     answer_numerical_box = fields.Float(
-        "Correct numerical answer", help="Correct number answer for this question.",
+        "Correct numerical answer",
+        help="Correct number answer for this question.",
     )
     answer_date = fields.Date(
-        "Correct date answer", help="Correct date answer for this question.",
+        "Correct date answer",
+        help="Correct date answer for this question.",
     )
     answer_datetime = fields.Datetime(
         "Correct datetime answer",
@@ -571,9 +573,9 @@ class SurveyQuestion(models.Model):
             [("id", "in", self.ids), ("suggested_answer_ids.value", "in", [False, ""])]
         )
         questions_with_image_only_answer.has_image_only_suggested_answer = True
-        (self - questions_with_image_only_answer).has_image_only_suggested_answer = (
-            False
-        )
+        (
+            self - questions_with_image_only_answer
+        ).has_image_only_suggested_answer = False
 
     @api.depends("question_type")
     def _compute_question_placeholder(self) -> None:
@@ -1017,7 +1019,8 @@ class SurveyQuestion(models.Model):
             return {
                 self.id: _(
                     "Value must be between %(min)s and %(max)s.",
-                    min=self.slider_min, max=self.slider_max,
+                    min=self.slider_min,
+                    max=self.slider_max,
                 )
             }
         return {}

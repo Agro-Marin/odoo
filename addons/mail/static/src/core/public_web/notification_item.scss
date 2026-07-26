@@ -3,13 +3,17 @@
     outline-offset: -1px;
 
     &:not(.o-interest) {
-        --border-opacity: .35;
+        --border-opacity: 0.35;
     }
     &.o-active {
-        outline-color: rgba($o-action, var(--mail-NotificationItem-activeOutlineOpacity, 0.5));
+        outline-color: rgba(
+            $o-action,
+            var(--mail-NotificationItem-activeOutlineOpacity, 0.5)
+        );
     }
-    &:hover, &.o-active {
-        backdrop-filter: contrast(.9);
+    &:hover,
+    &.o-active {
+        backdrop-filter: contrast(0.9);
     }
 }
 
@@ -54,7 +58,7 @@
 .o-mail-NotificationItem-markAsRead {
     background-color: $o-view-background-color;
     color: $success !important;
-    outline: 1px solid rgba($success, .75);
+    outline: 1px solid rgba($success, 0.75);
     outline-offset: -1px;
     padding: calc(map-get($spacers, 1) / 2);
 
@@ -63,12 +67,12 @@
         color: darken($success, 10%) !important;
         background-color: mix($o-view-background-color, $success, 75%);
         filter: brightness(1.1);
-        box-shadow: $box-shadow-sm
+        box-shadow: $box-shadow-sm;
     }
 }
 
 .o-mail-NotificationItem-text {
-    opacity: .75;
+    opacity: 0.75;
 
     &:before {
         // invisible character so that typing status bar has constant height, regardless of text content.

@@ -1,5 +1,4 @@
 .o_newsletter_modal {
-
     .modal-header {
         padding: 0;
         border: none;
@@ -15,7 +14,11 @@
         line-height: $font-size-lg * 2;
         margin: 0;
         padding: 0;
-        @include o-bg-color(color-contrast(o-color('primary')), o-color('primary'), $with-extras: false);
+        @include o-bg-color(
+            color-contrast(o-color("primary")),
+            o-color("primary"),
+            $with-extras: false
+        );
         box-shadow: $box-shadow-sm;
         opacity: 1;
     }

@@ -1,5 +1,4 @@
 @include media-breakpoint-down(md) {
-
     .o_base_settings_view .o_form_renderer {
         flex-flow: column nowrap;
 
@@ -23,7 +22,8 @@
                     display: block;
                     width: auto;
                     height: $o-base-settings-mobile-tabs-height;
-                    padding: $o-base-settings-mobile-tabs-height*0.25 $o-base-settings-mobile-tabs-height*0.4;
+                    padding: $o-base-settings-mobile-tabs-height * 0.25
+                        $o-base-settings-mobile-tabs-height * 0.4;
                     text-align: center;
                     font-size: 14px;
                     font-weight: 500;
@@ -38,7 +38,7 @@
                     }
 
                     &:after {
-                        content: '';
+                        content: "";
                         background: $o-brand-primary;
                         opacity: 0;
                         @include o-position-absolute(auto, 0, 0, 0);
@@ -61,6 +61,5 @@
                 }
             }
         }
-
     }
 }

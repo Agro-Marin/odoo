@@ -1,5 +1,4 @@
 import { expect, test } from "@odoo/hoot";
-
 import { mountView } from "@web/../tests/web_test_helpers";
 
 import { defineProjectModels } from "./project_models.js";
@@ -18,8 +17,13 @@ test("ProjectMany2one: project.task form view with private task", async () => {
             </form>
         `,
     });
-    expect("div[name='project_id'] .o_many2one").toHaveClass("o_many2one private_placeholder w-100");
-    expect("div[name='project_id'] .o_many2one input").toHaveAttribute("placeholder", "Private");
+    expect("div[name='project_id'] .o_many2one").toHaveClass(
+        "o_many2one private_placeholder w-100",
+    );
+    expect("div[name='project_id'] .o_many2one input").toHaveAttribute(
+        "placeholder",
+        "Private",
+    );
 });
 
 test("ProjectMany2one: project.task list view", async () => {
@@ -36,5 +40,7 @@ test("ProjectMany2one: project.task list view", async () => {
     expect("div[name='project_id']").toHaveCount(3);
     expect("div[name='project_id'] .o_many2one").toHaveCount(2);
     expect("div[name='project_id'] span.fst-italic.text-muted").toHaveCount(1);
-    expect("div[name='project_id'] span.fst-italic.text-muted").toHaveText("🔒 Private");
+    expect("div[name='project_id'] span.fst-italic.text-muted").toHaveText(
+        "🔒 Private",
+    );
 });

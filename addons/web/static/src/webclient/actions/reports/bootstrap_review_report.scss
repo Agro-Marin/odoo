@@ -3,20 +3,25 @@
 // of how custom properties are resolved in the paged media context.
 @each $color-name, $color-value in $utilities-bg {
     .bg-#{$color-name} {
-        background-color: RGB($color-value) if($enable-important-utilities, !important, null);
+        background-color: RGB($color-value)
+            if($enable-important-utilities, !important, null);
     }
 }
 
 // Do a similar operation than before for grays.
 @each $color-name, $color-value in $grays {
     .bg-#{$color-name} {
-        background-color: $color-value if($enable-important-utilities, !important, null);
+        background-color: $color-value
+            if($enable-important-utilities, !important, null);
     }
 }
 
 // Add the extra theme colors to match backend text-x colors
 // Note: text-muted is using $o-gray-600 (bs_overidden_report) to avoid rgba.
-$report-text-colors: map-merge-multiple($theme-colors, $o-theme-text-colors, $grays,
+$report-text-colors: map-merge-multiple(
+    $theme-colors,
+    $o-theme-text-colors,
+    $grays,
     (
         "body": $body-color,
         "muted": $text-muted,
@@ -34,7 +39,10 @@ $report-text-colors: map-merge-multiple($theme-colors, $o-theme-text-colors, $gr
 $report-text-colors: null;
 
 // Prevent page breaks inside structural snippets in PDF output.
-.jumbotron, .panel, .carousel, section {
+.jumbotron,
+.panel,
+.carousel,
+section {
     break-inside: avoid;
 }
 
@@ -61,7 +69,9 @@ $report-text-colors: null;
 // Keep .col-lg-* overrides for the company.report_footer HTML content, which
 // is user-editable via the Odoo editor and may contain Bootstrap columns.
 .footer {
-    .col-lg-3, .col-lg-4, .col-lg-6 {
+    .col-lg-3,
+    .col-lg-4,
+    .col-lg-6 {
         flex: 0 0 auto;
     }
 
@@ -92,7 +102,12 @@ $report-text-colors: null;
 // Removes borders within a table-borderless as its new definition in
 // Boostrap 5 still has its borders visible in PDFs
 .table-borderless {
-    tbody, thead, tfoot, tr, td, th {
+    tbody,
+    thead,
+    tfoot,
+    tr,
+    td,
+    th {
         border: 0 none;
     }
     > :not(:first-child) {

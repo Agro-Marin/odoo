@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
-import { clearUncommittedChanges } from "@web/webclient/actions/action_service";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useService } from "@web/core/utils/hooks";
+import { clearUncommittedChanges } from "@web/webclient/actions/action_service";
 
 import { ProjectTemplateButtons } from "./project_template_buttons.js";
 
@@ -77,7 +77,7 @@ export class ProjectTaskTemplateDropdown extends Component {
             "project.task",
             "action_create_from_template",
             [templateId],
-            { context }
+            { context },
         );
         await this.action.switchView("form", { resId, focusTitle: true });
     }

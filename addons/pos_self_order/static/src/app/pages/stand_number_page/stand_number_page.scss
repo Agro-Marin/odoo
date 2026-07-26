@@ -1,5 +1,3 @@
-
-
 .numpad-so {
     background-color: $o-white;
     border-radius: $border-radius-xl;
@@ -14,7 +12,7 @@
         }
 
         &:disabled {
-            background-color: lighten($o-gray-300, 5%)
+            background-color: lighten($o-gray-300, 5%);
         }
     }
 }

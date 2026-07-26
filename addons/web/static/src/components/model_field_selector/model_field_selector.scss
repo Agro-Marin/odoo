@@ -12,7 +12,9 @@
 
         max-width: 100%;
         word-wrap: break-word;
-        &:active, &:focus, &:active:focus {
+        &:active,
+        &:focus,
+        &:active:focus {
             outline: none;
         }
         > .o_model_field_selector_chain_part {

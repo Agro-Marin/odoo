@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { kanbanView } from "@web/views/kanban/kanban_view";
-import { ProjectUpdateKanbanController } from './project_update_kanban_controller.js';
+
 import { ProjectRelationalModel } from "../project_relational_model.js";
+import { ProjectUpdateKanbanController } from "./project_update_kanban_controller.js";
 
 export const projectUpdateKanbanView = {
     ...kanbanView,
@@ -10,4 +11,4 @@ export const projectUpdateKanbanView = {
     Model: ProjectRelationalModel,
 };
 
-registry.category('views').add('project_update_kanban', projectUpdateKanbanView);
+registry.category("views").add("project_update_kanban", projectUpdateKanbanView);

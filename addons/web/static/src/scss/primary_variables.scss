@@ -19,13 +19,27 @@ $o-font-size-base-touch: o-to-rem(16px) !default;
 $o-font-size-base-small: o-to-rem(13px) !default;
 $o-font-size-base-smaller: o-to-rem(12px) !default;
 $o-line-height-base: 1.5 !default; // This is BS default
-$o-line-height-sm : 1.25 !default;
-$o-line-height-lg : 2 !default;
+$o-line-height-sm: 1.25 !default;
+$o-line-height-lg: 2 !default;
 
 // Global sans-serif fonts stack. Inter is preferred, with system fonts as fallback.
 // Unicode support is added later via o-add-unicode-support-font().
-$o-system-fonts: ("Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji") !default;
-
+$o-system-fonts: (
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Ubuntu,
+    "Noto Sans",
+    Arial,
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol",
+    "Noto Color Emoji"
+) !default;
 
 // Font weights
 // Caution: These values represent the desired font weights, but they may vary
@@ -43,18 +57,18 @@ $o-font-weight-bold: 700 !default;
 
 // Colors
 // Cool slate-tinted gray ramp (Tailwind slate-inspired)
-$o-white: #FFFFFF !default;
+$o-white: #ffffff !default;
 $o-black: #000000 !default;
 
-$o-gray-100: #F8FAFC !default;
-$o-gray-200: #E2E8F0 !default;
-$o-gray-300: #CBD5E1 !default;
-$o-gray-400: #94A3B8 !default;
-$o-gray-500: #64748B !default;
+$o-gray-100: #f8fafc !default;
+$o-gray-200: #e2e8f0 !default;
+$o-gray-300: #cbd5e1 !default;
+$o-gray-400: #94a3b8 !default;
+$o-gray-500: #64748b !default;
 $o-gray-600: #475569 !default;
 $o-gray-700: #334155 !default;
-$o-gray-800: #1E293B !default;
-$o-gray-900: #0F172A !default;
+$o-gray-800: #1e293b !default;
+$o-gray-900: #0f172a !default;
 
 $o-grays: (
     100: $o-gray-100,
@@ -68,9 +82,9 @@ $o-grays: (
     900: $o-gray-900,
 ) !default;
 
-$o-community-color: #6C5CE7 !default;
-$o-enterprise-color: #A855F7 !default;
-$o-enterprise-action-color: #06B6D4 !default;
+$o-community-color: #6c5ce7 !default;
+$o-enterprise-color: #a855f7 !default;
+$o-enterprise-action-color: #06b6d4 !default;
 
 $o-brand-odoo: $o-community-color !default;
 $o-brand-primary: $o-community-color !default;
@@ -79,30 +93,30 @@ $o-brand-secondary: $o-gray-500 !default;
 $o-brand-lightsecondary: $o-gray-100 !default;
 
 $o-action: $o-brand-primary !default;
-$o-success: #10B981 !default;
-$o-info: #3B82F6 !default;
-$o-warning: #F59E0B !default;
-$o-danger: #EF4444 !default;
+$o-success: #10b981 !default;
+$o-info: #3b82f6 !default;
+$o-warning: #f59e0b !default;
+$o-danger: #ef4444 !default;
 
 // Fine-tune contextual text colors.
 // Overrides $theme-colors generated 'text-x' classes only.
 // Custom colors are set by $o-text-colors-custom
 $o-theme-text-colors: (
     "success": #059669,
-    "info": #2563EB,
-    "warning": #D97706,
-    "danger": #DC2626,
-)!default;
+    "info": #2563eb,
+    "warning": #d97706,
+    "danger": #dc2626,
+) !default;
 
 // Opacities
-$o-opacity-disabled: .5 !default;
-$o-opacity-muted: .76 !default;
+$o-opacity-disabled: 0.5 !default;
+$o-opacity-muted: 0.76 !default;
 
 $o-opacities: (
     0: 0,
-    25: .25,
-    50: .5,
-    75: .75,
+    25: 0.25,
+    50: 0.5,
+    75: 0.75,
     100: 1,
     disabled: $o-opacity-disabled,
     muted: $o-opacity-muted,
@@ -110,9 +124,21 @@ $o-opacities: (
 
 // Font families
 $o-font-family-sans-serif: o-add-unicode-support-font($o-system-fonts) !default;
-$o-font-family-monospace: o-add-unicode-support-font((SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace)) !default;
+$o-font-family-monospace: o-add-unicode-support-font(
+    (
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        "Liberation Mono",
+        "Courier New",
+        monospace
+    )
+) !default;
 
-$o-headings-font-family: o-add-unicode-support-font(("Inter", "SF Pro Display", $o-system-fonts)) !default;
+$o-headings-font-family: o-add-unicode-support-font(
+    ("Inter", "SF Pro Display", $o-system-fonts)
+) !default;
 
 // Font colors
 $o-main-text-color: $o-gray-900 !default;
@@ -123,11 +149,11 @@ $o-main-favorite-color: #f3cc00 !default;
 $o-main-code-color: #d2317b !default;
 
 // Tables
-$o-table-cell-padding-x-sm: .3rem !default;
-$o-table-cell-padding-y-sm: .5rem !default;
+$o-table-cell-padding-x-sm: 0.3rem !default;
+$o-table-cell-padding-y-sm: 0.5rem !default;
 
 // Components colors
-$o-component-active-color:  $o-black !default;
+$o-component-active-color: $o-black !default;
 $o-component-active-bg: mix($o-action, $o-gray-100, 20%) !default;
 $o-component-active-border: $o-action !default;
 
@@ -156,7 +182,6 @@ $o-btn-custom: (
 ) !default;
 
 // Components (BS)
-
 
 // Forms
 
@@ -204,7 +229,6 @@ $o-statusbar-height: 33px !default;
 
 $o-label-font-size-factor: 0.8 !default;
 
-
 // == List group
 
 $o-list-group-active-color: $o-black !default;
@@ -212,8 +236,7 @@ $o-list-group-active-bg: mix($o-info, $o-white, 10%) !default;
 
 // Breadcrumbs
 
-$o-breadcrumb-item-padding-x: .5rem !default;
-
+$o-breadcrumb-item-padding-x: 0.5rem !default;
 
 // == Badges
 
@@ -242,72 +265,77 @@ $o-touch-btn-with-icon-padding: 7px 10px !default;
 // Notice: each map's entry is passed directly to the Bootstrap mixin, meaning
 // that all states must be defined, there can't be omissions.
 $o-btns-bs-override: () !default;
-$o-btns-bs-override: map-merge((
-    "primary": (
-        background: $o-brand-primary,
-        border: $o-brand-primary,
-        color: $o-white,
+$o-btns-bs-override: map-merge(
+    (
+        "primary": (
+            background: $o-brand-primary,
+            border: $o-brand-primary,
+            color: $o-white,
 
-        hover-background: darken($o-brand-primary, 10%),
-        hover-border: darken($o-brand-primary, 20%),
-        hover-color: $o-white,
+            hover-background: darken($o-brand-primary, 10%),
+            hover-border: darken($o-brand-primary, 20%),
+            hover-color: $o-white,
 
-        active-background: darken($o-brand-primary, 15%),
-        active-border: darken($o-brand-primary, 15%),
-        active-color: $o-white,
+            active-background: darken($o-brand-primary, 15%),
+            active-border: darken($o-brand-primary, 15%),
+            active-color: $o-white,
+        ),
+        "secondary": (
+            background: $o-gray-300,
+            border: $o-gray-300,
+            color: $o-gray-900,
+
+            hover-background: $o-gray-400,
+            hover-border: $o-gray-400,
+            hover-color: $o-black,
+
+            active-background: $o-component-active-bg,
+            active-border: $o-component-active-border,
+            active-color: $o-component-active-color,
+        ),
+        "light": (
+            background: $o-white,
+            border: $o-white,
+            color: $o-gray-900,
+
+            hover-background: $o-gray-200,
+            hover-border: $o-gray-200,
+            hover-color: $o-black,
+
+            active-background: $o-component-active-bg,
+            active-border: $o-component-active-border,
+            active-color: $o-component-active-color,
+        ),
     ),
-    "secondary": (
-        background: $o-gray-300,
-        border: $o-gray-300,
-        color: $o-gray-900,
-
-        hover-background: $o-gray-400,
-        hover-border: $o-gray-400,
-        hover-color: $o-black,
-
-        active-background: $o-component-active-bg,
-        active-border:  $o-component-active-border,
-        active-color: $o-component-active-color,
-    ),
-    "light": (
-        background: $o-white,
-        border: $o-white,
-        color: $o-gray-900,
-
-        hover-background: $o-gray-200,
-        hover-border: $o-gray-200,
-        hover-color: $o-black,
-
-        active-background: $o-component-active-bg,
-        active-border:  $o-component-active-border,
-        active-color: $o-component-active-color,
-    ),
-), $o-btns-bs-override);
+    $o-btns-bs-override
+);
 
 $o-btns-bs-outline-override: () !default;
-$o-btns-bs-outline-override: map-merge((
-    "secondary": (
-        background: transparent,
-        border: $o-gray-300,
-        color: $o-gray-900,
+$o-btns-bs-outline-override: map-merge(
+    (
+        "secondary": (
+            background: transparent,
+            border: $o-gray-300,
+            color: $o-gray-900,
 
-        hover-background: $o-gray-200,
-        hover-border: $o-gray-300,
-        hover-color: $o-black,
+            hover-background: $o-gray-200,
+            hover-border: $o-gray-300,
+            hover-color: $o-black,
 
-        active-background: $o-component-active-bg,
-        active-border:  $o-component-active-border,
-        active-color: $o-component-active-color,
+            active-background: $o-component-active-bg,
+            active-border: $o-component-active-border,
+            active-color: $o-component-active-color,
+        ),
     ),
-), $o-btns-bs-outline-override);
-
+    $o-btns-bs-outline-override
+);
 
 // == Easings
-$o-easing-enter: cubic-bezier(0.05, 0.7, 0.1, 1.0) !default;
-$o-easing-exit: cubic-bezier(0.3, 0.0, 0.8, 0.15) !default;
-$o-easing-standard: cubic-bezier(0.4, 0.0, 0.2, 1.0) !default;
-$o-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1.0) !default;
-$o-easing-smooth: cubic-bezier(0.25, 0.1, 0.25, 1.0) !default;
+$o-easing-enter: cubic-bezier(0.05, 0.7, 0.1, 1) !default;
+$o-easing-exit: cubic-bezier(0.3, 0, 0.8, 0.15) !default;
+$o-easing-standard: cubic-bezier(0.4, 0, 0.2, 1) !default;
+$o-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1) !default;
+$o-easing-smooth: cubic-bezier(0.25, 0.1, 0.25, 1) !default;
 
 // == Animation Durations
 $o-duration-instant: 100ms !default;
@@ -318,10 +346,18 @@ $o-duration-slower: 500ms !default;
 
 // == Shadow / Elevation System (slate-tinted)
 $o-shadow-xs: 0 1px 2px 0 rgba($o-gray-900, 0.05) !default;
-$o-shadow-sm: 0 1px 3px 0 rgba($o-gray-900, 0.1), 0 1px 2px -1px rgba($o-gray-900, 0.1) !default;
-$o-shadow-md: 0 4px 6px -1px rgba($o-gray-900, 0.1), 0 2px 4px -2px rgba($o-gray-900, 0.1) !default;
-$o-shadow-lg: 0 10px 15px -3px rgba($o-gray-900, 0.1), 0 4px 6px -4px rgba($o-gray-900, 0.1) !default;
-$o-shadow-xl: 0 20px 25px -5px rgba($o-gray-900, 0.1), 0 8px 10px -6px rgba($o-gray-900, 0.1) !default;
+$o-shadow-sm:
+    0 1px 3px 0 rgba($o-gray-900, 0.1),
+    0 1px 2px -1px rgba($o-gray-900, 0.1) !default;
+$o-shadow-md:
+    0 4px 6px -1px rgba($o-gray-900, 0.1),
+    0 2px 4px -2px rgba($o-gray-900, 0.1) !default;
+$o-shadow-lg:
+    0 10px 15px -3px rgba($o-gray-900, 0.1),
+    0 4px 6px -4px rgba($o-gray-900, 0.1) !default;
+$o-shadow-xl:
+    0 20px 25px -5px rgba($o-gray-900, 0.1),
+    0 8px 10px -6px rgba($o-gray-900, 0.1) !default;
 
 // Glass morphism background (overridden in dark mode for proper translucency)
 $o-glass-bg: $o-white !default;

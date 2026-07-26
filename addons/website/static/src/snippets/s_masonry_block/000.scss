@@ -1,5 +1,6 @@
 .s_masonry_block:not([data-vcss]) {
-    .row, .row > div {
+    .row,
+    .row > div {
         display: flex;
     }
 
@@ -19,7 +20,7 @@
 
         > div.s_masonry_block_pseudo_col {
             flex: 1 1 auto;
-            padding:0;
+            padding: 0;
 
             > .row {
                 flex-flow: row wrap;
@@ -81,13 +82,18 @@ html[data-no-flex] .s_masonry_block:not([data-vcss]) {
             padding: 0 0 50% 0; // to have 2:1 aspect ratio
             > div {
                 padding-top: 0;
-                padding-bottom:0;
+                padding-bottom: 0;
                 @include o-position-absolute(0, 0, 0, 0);
             }
         }
 
         .content {
-            @include o-position-absolute($s-masonry-block-content-top, $s-masonry-block-content-right, $s-masonry-block-content-bottom, $s-masonry-block-content-left);
+            @include o-position-absolute(
+                $s-masonry-block-content-top,
+                $s-masonry-block-content-right,
+                $s-masonry-block-content-bottom,
+                $s-masonry-block-content-left
+            );
         }
     }
 }

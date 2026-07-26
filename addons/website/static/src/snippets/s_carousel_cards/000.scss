@@ -1,7 +1,6 @@
 .s_carousel_cards_wrapper {
-
     .s_carousel_cards {
-        $-margin-x: calc(var(--#{$prefix}gutter-x) * .5);
+        $-margin-x: calc(var(--#{$prefix}gutter-x) * 0.5);
 
         --CarouselControllers-size: 2.5rem;
         --CardBody-padding: #{map-get($spacers, 4)};
@@ -18,7 +17,9 @@
         @extend %s_carousel_variants;
 
         // Allow cards to always take the full height of "carousel-item"
-        .carousel-item.active, .carousel-item-next, .carousel-item-prev {
+        .carousel-item.active,
+        .carousel-item-next,
+        .carousel-item-prev {
             display: flex;
         }
 
@@ -28,7 +29,10 @@
             --card-spacer-x: var(--CardBody-padding);
         }
         &:not(.s_carousel_controllers_hidden) .card-body {
-            padding-bottom: calc(var(--CarouselControllers-size, 3rem) + 2* var(--CardBody-padding) + var(--CardBody-extra-height));
+            padding-bottom: calc(
+                var(--CarouselControllers-size, 3rem) + 2 * var(--CardBody-padding) +
+                    var(--CardBody-extra-height)
+            );
         }
         .s_carousel_cards_item:only-child .card-body {
             padding-bottom: calc(var(--card-spacer-y) + var(--CardBody-extra-height));
@@ -44,7 +48,6 @@
 
         @include media-breakpoint-up(lg) {
             &.s_carousel_cards_with_img {
-
                 .o_horizontal_controllers_row {
                     margin: 0 0 0 var(--card-img-size-h);
                 }

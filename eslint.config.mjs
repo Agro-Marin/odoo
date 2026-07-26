@@ -18,6 +18,10 @@ const COMMUNITY_MODULES = [
     "addons/website_blog",
     "addons/web_tour",
     "addons/base_setup",
+    "addons/gamification",
+    "addons/survey",
+    "addons/project",
+    "addons/mass_mailing",
     "addons/purchase",
     "addons/spreadsheet",
     "addons/spreadsheet_account",
@@ -319,13 +323,15 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
             },
         },
         rules: {
-            "prettier/prettier": ["error", {
-                tabWidth: 4,
-                semi: true,
-                singleQuote: false,
-                printWidth: 88,
-                endOfLine: "auto",
-            }],
+            // Deliberately optionless: eslint-plugin-prettier resolves the
+            // nearest .prettierrc.json for each file, and rule options passed
+            // here would SHADOW it — giving two sources of truth that drift
+            // silently (eslint and the `prettier` CLI would then disagree on
+            // the same file). Each repo ships its own .prettierrc.json, which
+            // is required anyway: prettier resolves config from the file's own
+            // directory upward, and addons/enterprise is a sibling tree that
+            // can never reach addons/odoo's copy. Keep the two in sync.
+            "prettier/prettier": "error",
             "no-undef": "error",
             "no-restricted-globals": ["error", "event", "self"],
             eqeqeq: ["error", "smart"],

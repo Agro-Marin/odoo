@@ -22,17 +22,20 @@
             color: color-contrast($info);
         }
 
-        .o-tooltip--string, .o-tooltip--help {
+        .o-tooltip--string,
+        .o-tooltip--help {
             max-width: MIN($tooltip-max-width, 100%);
         }
     }
 
-    .o-tooltip--string, .o-tooltip--technical--title {
-        padding:  map-get($spacers, 1) 0;
+    .o-tooltip--string,
+    .o-tooltip--technical--title {
+        padding: map-get($spacers, 1) 0;
         font-weight: $font-weight-bold;
     }
 
-    .o-tooltip--help, .o-tooltip--technical {
+    .o-tooltip--help,
+    .o-tooltip--technical {
         margin: map-get($spacers, 1) map-get($spacers, 2) map-get($spacers, 2);
     }
 

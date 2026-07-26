@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
-
-import { patch } from "@web/core/utils/patch";
 import { onWillStart } from "@odoo/owl";
+import { patch } from "@web/core/utils/patch";
 
 patch(Composer.prototype, {
     setup() {
@@ -38,5 +37,5 @@ patch(Composer.prototype, {
 
     get shouldHideFromMessageListOnDelete() {
         return true;
-    }
+    },
 });

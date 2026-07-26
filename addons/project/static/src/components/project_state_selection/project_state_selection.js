@@ -1,12 +1,12 @@
 /** @odoo-module native */
-import { registry } from '@web/core/registry';
+import { registry } from "@web/core/registry";
 import { formatSelection } from "@web/fields/formatters";
 import {
     StateSelectionField,
     stateSelectionField,
 } from "@web/fields/selection/state_selection/state_selection_field";
 
-import { STATUS_COLORS, STATUS_COLOR_PREFIX } from '../../utils/project_utils.js';
+import { STATUS_COLOR_PREFIX, STATUS_COLORS } from "../../utils/project_utils.js";
 
 export class ProjectStateSelectionField extends StateSelectionField {
     setup() {
@@ -19,7 +19,7 @@ export class ProjectStateSelectionField extends StateSelectionField {
      * @override
      */
     get options() {
-        return super.options.filter(o => o[0] !== 'to_define');
+        return super.options.filter((o) => o[0] !== "to_define");
     }
 
     /**

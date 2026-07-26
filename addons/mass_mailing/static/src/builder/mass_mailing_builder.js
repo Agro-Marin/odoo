@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { Component } from "@odoo/owl";
 import { Builder } from "@html_builder/builder";
 import { CORE_PLUGINS } from "@html_builder/core/core_plugins";
+import { CustomizeTab } from "@html_builder/sidebar/customize_tab";
 import { removePlugins } from "@html_builder/utils/utils";
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
-import { registry } from "@web/core/registry";
-import { CustomizeTab } from "@html_builder/sidebar/customize_tab";
-import { OptionsContainerWithSnippetVersionControl } from "./options/options_container.js";
 import { PowerButtonsPlugin } from "@html_editor/main/power_buttons_plugin";
+import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+
+import { OptionsContainerWithSnippetVersionControl } from "./options/options_container.js";
 
 class CustomizeTabWithSnippetVersionControl extends CustomizeTab {
     static components = {
@@ -51,23 +52,29 @@ export class MassMailingBuilder extends Component {
                 ...registry.category("builder-plugins").getAll(),
                 ...registry.category("mass_mailing-plugins").getAll(),
             ],
-            pluginsToRemove
+            pluginsToRemove,
         );
         const builderEditorPlugins = removePlugins(
             [...CORE_PLUGINS, PowerButtonsPlugin],
-            pluginsToRemove
+            pluginsToRemove,
         );
         const optionalPlugins = [
             ...(this.props.builderProps.config.dynamicPlaceholder
                 ? removePlugins(
                       DYNAMIC_PLACEHOLDER_PLUGINS,
-                      ["PromptPlugin"] // mass_mailing does not use the dependency banner plugin
+                      ["PromptPlugin"], // mass_mailing does not use the dependency banner plugin
                   )
                 : []),
         ];
-        builderProps.Plugins = [...builderEditorPlugins, ...massMailingPlugins, ...optionalPlugins];
+        builderProps.Plugins = [
+            ...builderEditorPlugins,
+            ...massMailingPlugins,
+            ...optionalPlugins,
+        ];
         return builderProps;
     }
 }
 
-registry.category("lazy_components").add("mass_mailing.MassMailingBuilder", MassMailingBuilder);
+registry
+    .category("lazy_components")
+    .add("mass_mailing.MassMailingBuilder", MassMailingBuilder);

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { Domain } from "@web/core/domain";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
+import { Domain } from "@web/core/domain";
 import { useService } from "@web/core/utils/hooks";
 
 /**
@@ -23,7 +23,7 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
 
         this.state = useDomState((editingElement) => {
             const currentDomain = new Domain(
-                JSON.parse(editingElement.dataset.filterDomain || "[]")
+                JSON.parse(editingElement.dataset.filterDomain || "[]"),
             );
             this.parseTree(currentDomain);
             return {
@@ -42,13 +42,23 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
      */
     async parseTree(domain) {
         const resModel = this.getModel();
-        const tree = await this.treeProcessor.treeFromDomain(resModel, domain, !this.env.debug);
+        const tree = await this.treeProcessor.treeFromDomain(
+            resModel,
+            domain,
+            !this.env.debug,
+        );
         // Extract subtrees connected by an `&`, Odoo Standard for domain facets
         const trees = !tree.negate && tree.value === "&" ? tree.children : [tree];
         this.state.facets = await Promise.all(
             trees.map((tree) =>
-                this.treeProcessor.getDomainTreeDescription(resModel, tree, false, 2, 1)
-            )
+                this.treeProcessor.getDomainTreeDescription(
+                    resModel,
+                    tree,
+                    false,
+                    2,
+                    1,
+                ),
+            ),
         );
     }
 
@@ -64,7 +74,7 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
                     const newDomain = new Domain(domain);
                     this.state.domain = newDomain;
                     this.env.getEditingElement().dataset.filterDomain = JSON.stringify(
-                        this.state.domain.toJson()
+                        this.state.domain.toJson(),
                     );
                     this.parseTree(newDomain);
                     this.config.onChange?.({ isPreviewing: false });
@@ -74,7 +84,7 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
                 onClose: () => {
                     this.overlayButtonsPlugin.showOverlayButtonsUi();
                 },
-            }
+            },
         );
     }
 }

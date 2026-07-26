@@ -1,9 +1,12 @@
+import contextlib
 import csv
 import io
 import json
+import logging
 from collections import defaultdict
 from datetime import timedelta
 from typing import Any
+from urllib.parse import quote
 
 import werkzeug
 from dateutil.relativedelta import relativedelta
@@ -13,10 +16,10 @@ from odoo import _, fields, http
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
-from urllib.parse import quote
-
 from odoo.tools import format_date, format_datetime, is_html_empty
 from odoo.tools.urls import keep_query, urljoin
+
+_logger = logging.getLogger(__name__)
 
 
 class Survey(http.Controller):
@@ -710,7 +713,11 @@ class Survey(http.Controller):
                     continue
             elif key.startswith("Q") and key[1:].isdigit():
                 question_id = int(key[1:])
-            if question_id and question_id in question_ids and question_id not in existing_question_ids:
+            if (
+                question_id
+                and question_id in question_ids
+                and question_id not in existing_question_ids
+            ):
                 prefills[question_id] = value
 
         for question_id, raw_value in prefills.items():
@@ -731,12 +738,24 @@ class Survey(http.Controller):
                     if answers:
                         answer_sudo._save_lines(question, answers)
                 elif question.question_type in (
-                    "char_box", "text_box", "numerical_box",
-                    "date", "datetime", "scale", "nps", "slider", "rating",
+                    "char_box",
+                    "text_box",
+                    "numerical_box",
+                    "date",
+                    "datetime",
+                    "scale",
+                    "nps",
+                    "slider",
+                    "rating",
                 ):
                     answer_sudo._save_lines(question, raw_value)
             except Exception:
                 # Silently skip invalid prefill values — don't block survey start
+                _logger.debug(
+                    "Skipping invalid prefill value for question %s",
+                    question.id,
+                    exc_info=True,
+                )
                 continue
 
     @staticmethod
@@ -902,7 +921,9 @@ class Survey(http.Controller):
         )
 
         # Send email with resume link
-        template = self.env.ref("survey.mail_template_survey_save_later", raise_if_not_found=False)
+        template = self.env.ref(
+            "survey.mail_template_survey_save_later", raise_if_not_found=False
+        )
         if template:
             template.sudo().send_mail(
                 answer_sudo.id,
@@ -911,13 +932,15 @@ class Survey(http.Controller):
             )
         else:
             # Fallback: simple email via mail.mail
-            self.env["mail.mail"].sudo().create({
-                "subject": f"Continue your survey: {survey_sudo.title}",
-                "email_to": answer_sudo.email,
-                "body_html": f"<p>You can resume your survey at any time using this link:</p>"
-                             f'<p><a href="{resume_url}">{resume_url}</a></p>',
-                "auto_delete": True,
-            }).send()
+            self.env["mail.mail"].sudo().create(
+                {
+                    "subject": f"Continue your survey: {survey_sudo.title}",
+                    "email_to": answer_sudo.email,
+                    "body_html": f"<p>You can resume your survey at any time using this link:</p>"
+                    f'<p><a href="{resume_url}">{resume_url}</a></p>',
+                    "auto_delete": True,
+                }
+            ).send()
 
         return {"success": True, "email": answer_sudo.email}
 
@@ -1543,28 +1566,22 @@ class Survey(http.Controller):
 
         # Score range filter
         if post.get("score_min"):
-            try:
+            with contextlib.suppress(ValueError):
                 user_input_domains.append(
                     Domain("scoring_percentage", ">=", float(post["score_min"]))
                 )
-            except ValueError:
-                pass
         if post.get("score_max"):
-            try:
+            with contextlib.suppress(ValueError):
                 user_input_domains.append(
                     Domain("scoring_percentage", "<=", float(post["score_max"]))
                 )
-            except ValueError:
-                pass
 
         # Quality score filter
         if post.get("quality_min"):
-            try:
+            with contextlib.suppress(ValueError):
                 user_input_domains.append(
                     Domain("quality_score", ">=", int(post["quality_min"]))
                 )
-            except ValueError:
-                pass
 
         user_input_domains.extend(
             (Domain("test_entry", "=", False), Domain("survey_id", "=", survey.id))
@@ -1801,7 +1818,9 @@ class Survey(http.Controller):
 
         # Header styling
         header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="714B67", end_color="714B67", fill_type="solid")
+        header_fill = PatternFill(
+            start_color="714B67", end_color="714B67", fill_type="solid"
+        )
         for col_idx, col_name in enumerate(header, 1):
             cell = ws.cell(row=1, column=col_idx, value=col_name)
             cell.font = header_font
@@ -1819,7 +1838,9 @@ class Survey(http.Controller):
                 len(str(ws.cell(row=r, column=col_idx).value or ""))
                 for r in range(1, min(len(rows) + 2, 50))  # sample first 50 rows
             )
-            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 40)
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(
+                max_len + 2, 40
+            )
 
         # Freeze header row
         ws.freeze_panes = "A2"
@@ -1831,7 +1852,10 @@ class Survey(http.Controller):
         return request.make_response(
             output.getvalue(),
             headers=[
-                ("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                (
+                    "Content-Type",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
                 ("Content-Disposition", content_disposition(filename)),
             ],
         )
@@ -1904,7 +1928,11 @@ class Survey(http.Controller):
                                 if ln.suggested_answer_id
                             )
                         )
-                elif question.question_type in ("simple_choice", "dropdown", "multiple_choice"):
+                elif question.question_type in (
+                    "simple_choice",
+                    "dropdown",
+                    "multiple_choice",
+                ):
                     row.append(
                         ", ".join(
                             ln.suggested_answer_id.value
@@ -2014,7 +2042,8 @@ class Survey(http.Controller):
         - Completion time quartiles
         - Quality score tiers (Low/Medium/High)
         """
-        request.env.cr.execute("""
+        request.env.cr.execute(
+            """
             SELECT
                 scoring_percentage,
                 quality_score,
@@ -2025,10 +2054,17 @@ class Survey(http.Controller):
               AND test_entry = FALSE
               AND end_datetime IS NOT NULL
               AND start_datetime IS NOT NULL
-        """, [survey.id])
+        """,
+            [survey.id],
+        )
         rows = request.env.cr.fetchall()
         if not rows:
-            return {"score_bands": [], "quality_tiers": [], "duration_buckets": [], "total": 0}
+            return {
+                "score_bands": [],
+                "quality_tiers": [],
+                "duration_buckets": [],
+                "total": 0,
+            }
 
         # Score bands
         bands = {"0-25%": 0, "25-50%": 0, "50-75%": 0, "75-100%": 0}
@@ -2060,8 +2096,12 @@ class Survey(http.Controller):
             q3 = durations[3 * len(durations) // 4]
             buckets = {
                 f"< {q1:.0f} min": len([d for d in durations if d < q1]),
-                f"{q1:.0f}-{median:.0f} min": len([d for d in durations if q1 <= d < median]),
-                f"{median:.0f}-{q3:.0f} min": len([d for d in durations if median <= d < q3]),
+                f"{q1:.0f}-{median:.0f} min": len(
+                    [d for d in durations if q1 <= d < median]
+                ),
+                f"{median:.0f}-{q3:.0f} min": len(
+                    [d for d in durations if median <= d < q3]
+                ),
                 f"> {q3:.0f} min": len([d for d in durations if d >= q3]),
             }
         else:
@@ -2084,9 +2124,12 @@ class Survey(http.Controller):
         auth="user",
     )
     def survey_compare(
-        self, survey: Any,
-        period_a_from: str = "", period_a_to: str = "",
-        period_b_from: str = "", period_b_to: str = "",
+        self,
+        survey: Any,
+        period_a_from: str = "",
+        period_a_to: str = "",
+        period_b_from: str = "",
+        period_b_to: str = "",
         **post: Any,
     ) -> dict[str, Any]:
         """Compare survey results between two time periods.
@@ -2094,6 +2137,7 @@ class Survey(http.Controller):
         Returns per-question statistics for each period (counts, averages,
         correct answer rates) and deltas between them.
         """
+
         def _get_lines_for_period(date_from, date_to):
             domain = [
                 ("survey_id", "=", survey.id),
@@ -2108,14 +2152,22 @@ class Survey(http.Controller):
             return {
                 "count": len(user_inputs),
                 "avg_score": round(
-                    sum(user_inputs.mapped("scoring_percentage")) / (len(user_inputs) or 1), 1
+                    sum(user_inputs.mapped("scoring_percentage"))
+                    / (len(user_inputs) or 1),
+                    1,
                 ),
                 "avg_quality": round(
-                    sum(user_inputs.mapped("quality_score")) / (len(user_inputs) or 1), 1
+                    sum(user_inputs.mapped("quality_score")) / (len(user_inputs) or 1),
+                    1,
                 ),
                 "success_rate": round(
-                    len(user_inputs.filtered("scoring_success")) / (len(user_inputs) or 1) * 100, 1
-                ) if survey.scoring_type != "no_scoring" else None,
+                    len(user_inputs.filtered("scoring_success"))
+                    / (len(user_inputs) or 1)
+                    * 100,
+                    1,
+                )
+                if survey.scoring_type != "no_scoring"
+                else None,
             }
 
         period_a = _get_lines_for_period(period_a_from, period_a_to)
@@ -2146,7 +2198,9 @@ class Survey(http.Controller):
         type="jsonrpc",
         auth="user",
     )
-    def survey_trends(self, survey: Any, granularity: str = "day", **post: Any) -> dict[str, Any]:
+    def survey_trends(
+        self, survey: Any, granularity: str = "day", **post: Any
+    ) -> dict[str, Any]:
         """Return time-series data for survey responses.
 
         :param granularity: 'day', 'week', or 'month'
@@ -2158,7 +2212,8 @@ class Survey(http.Controller):
 
         trunc = {"day": "day", "week": "week", "month": "month"}[granularity]
 
-        request.env.cr.execute("""
+        request.env.cr.execute(
+            """
             SELECT
                 date_trunc(%s, end_datetime) AS period,
                 COUNT(*) AS cnt,
@@ -2170,7 +2225,9 @@ class Survey(http.Controller):
               AND end_datetime IS NOT NULL
             GROUP BY period
             ORDER BY period
-        """, [trunc, survey.id])
+        """,
+            [trunc, survey.id],
+        )
 
         results = request.env.cr.fetchall()
         has_scoring = survey.scoring_type != "no_scoring"
@@ -2184,6 +2241,8 @@ class Survey(http.Controller):
         return {
             "labels": [row[0].strftime(date_fmt) for row in results],
             "counts": [row[1] for row in results],
-            "avg_scores": [round(row[2] or 0, 1) for row in results] if has_scoring else [],
+            "avg_scores": [round(row[2] or 0, 1) for row in results]
+            if has_scoring
+            else [],
             "granularity": granularity,
         }

@@ -27,7 +27,7 @@
 
     &:hover > span {
         color: $o-we-fg-lighter;
-        border-bottom-color: #{rgba($o-we-sidebar-tabs-active-border-color, .5)};
+        border-bottom-color: #{rgba($o-we-sidebar-tabs-active-border-color, 0.5)};
     }
 
     &.active > span {
@@ -62,7 +62,8 @@
         grid-column: span 2;
         padding: 0;
 
-        button, div {
+        button,
+        div {
             height: 50px;
         }
     }
@@ -73,9 +74,13 @@
         }
     }
 
-    .o-hb-img-shape-btn,  .o-hb-bg-shape-btn {
+    .o-hb-img-shape-btn,
+    .o-hb-bg-shape-btn {
         > .o-hb-btn {
-            --o-highlight-shape-color: var(--o-hb-btn-active-color, #{$o-we-color-accent});
+            --o-highlight-shape-color: var(
+                --o-hb-btn-active-color,
+                #{$o-we-color-accent}
+            );
             --o-highlight-shape-bg-opacity: 0%;
             --o-highlight-shape-bg-color: color-mix(
                 in srgb,
@@ -120,7 +125,7 @@
         max-width: 0;
     }
 }
-div:hover>.o_we_shape_animated_label {
+div:hover > .o_we_shape_animated_label {
     i {
         padding-right: calc($o-we-item-spacing / 2);
     }

@@ -18,11 +18,11 @@
                 padding: 0;
 
                 &.active {
-                    color: rgba($body-color, .7);
+                    color: rgba($body-color, 0.7);
                     cursor: default;
                 }
                 &.active:hover {
-                    color: rgba($body-color, .9);
+                    color: rgba($body-color, 0.9);
                     cursor: pointer;
                 }
             }
@@ -55,7 +55,6 @@
     }
 
     .o_wevent_event_title {
-
         .o_wevent_event_name {
             font-weight: $display-font-weight;
             line-height: $display-line-height;
@@ -97,7 +96,9 @@
 
 #modal_ticket_registration {
     // Handle overflow behaviors.
-    #registration_form, #o_wevent_tickets, #o_wevent_tickets_collapse {
+    #registration_form,
+    #o_wevent_tickets,
+    #o_wevent_tickets_collapse {
         position: relative;
         flex: 1 1 auto;
         display: flex;
@@ -122,7 +123,7 @@
 
 // Used in wevent and wevent_sale
 .o_event_add_to_calendar_btns a {
-    border: 1px solid #DEE2E6;
+    border: 1px solid #dee2e6;
     &:hover {
         background-color: $gray-200;
     }

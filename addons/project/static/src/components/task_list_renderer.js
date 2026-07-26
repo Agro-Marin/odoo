@@ -1,8 +1,7 @@
 /** @odoo-module native */
+import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ListRenderer } from "@web/views/list/list_renderer";
-
-import { useEffect } from "@odoo/owl";
 
 export class TaskListRenderer extends ListRenderer {
     setup() {
@@ -10,7 +9,7 @@ export class TaskListRenderer extends ListRenderer {
         this.dialog = useService("dialog");
         useEffect(
             (editedRecord) => this.focusName(editedRecord),
-            () => [this.editedRecord]
+            () => [this.editedRecord],
         );
     }
 

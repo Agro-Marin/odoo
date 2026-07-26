@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
+import contextlib
 import datetime
 import io
 import logging
@@ -527,7 +528,7 @@ class SlideSlide(models.Model):
             ._fields["slide_category"]
             .get_values(self.env)
         ]
-        default_vals = dict((key, 0) for key in keys + ["total_slides"])
+        default_vals = dict.fromkeys(keys + ["total_slides"], 0)
 
         res = self.env["slide.slide"]._read_group(
             [
@@ -928,7 +929,7 @@ class SlideSlide(models.Model):
 
         slides = super().create(vals_list)
 
-        for slide, vals in zip(slides, vals_list):
+        for slide, vals in zip(slides, vals_list, strict=True):
             # avoid fetching external metadata when installing the module (i.e. for demo data)
             # we also support a context key if you don't want to fetch the metadata when creating a slide
             if (
@@ -951,7 +952,7 @@ class SlideSlide(models.Model):
                         {
                             key: value
                             for key, value in slide_metadata.items()
-                            if key not in vals.keys()
+                            if key not in vals
                         }
                     )
 
@@ -1031,7 +1032,7 @@ class SlideSlide(models.Model):
                         {
                             key: value
                             for key, value in slide_metadata.items()
-                            if key not in values.keys() and not slide[key]
+                            if key not in values and not slide[key]
                         }
                     )
 
@@ -1640,10 +1641,9 @@ class SlideSlide(models.Model):
         params["projection"] = "BASIC"
         if "google.drive.config" in self.env:
             access_token = False
-            try:
+            # ignore and use the 'key' fallback
+            with contextlib.suppress(RedirectWarning, UserError):
                 access_token = self.env["google.drive.config"].get_access_token()
-            except RedirectWarning, UserError:
-                pass  # ignore and use the 'key' fallback
 
             if access_token:
                 params["access_token"] = access_token
@@ -1737,7 +1737,13 @@ class SlideSlide(models.Model):
                         if completion_time:
                             slide_metadata["completion_time"] = completion_time
                     except Exception:
-                        pass  # fail silently as this is nice to have
+                        # fail silently as this is nice to have
+                        _logger.debug(
+                            "Could not derive completion_time from the Google Drive "
+                            "PDF at %s",
+                            google_drive_values.get("downloadUrl"),
+                            exc_info=True,
+                        )
             elif mime_type in sheet_mimetypes:
                 slide_metadata["slide_type"] = "sheet"
             elif mime_type in doc_mimetypes:
@@ -1871,7 +1877,10 @@ class SlideSlide(models.Model):
                 pdf = PdfFileReader(io.BytesIO(data_bytes))
                 return (5 * len(pdf.pages)) / 60
             except Exception:
-                pass  # as this is a nice to have, fail silently
+                # as this is a nice to have, fail silently
+                _logger.debug(
+                    "Could not read PDF to estimate its completion time", exc_info=True
+                )
 
         return False
 
@@ -1946,7 +1955,10 @@ class SlideSlide(models.Model):
         results_data = super()._search_render_results(
             fetch_fields, mapping, icon, limit
         )
-        for slide, data in zip(self, results_data):
+        # strict=False on purpose: the base _search_render_results truncates its
+        # output with [:limit] while `self` is not pre-limited, so results_data
+        # is legitimately shorter than self once more than `limit` slides match.
+        for slide, data in zip(self, results_data, strict=False):
             data["_fa"] = icon_per_category.get(
                 slide.slide_category, "fa-regular fa-file-pdf"
             )

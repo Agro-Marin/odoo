@@ -1,5 +1,6 @@
 div.o_mrp_routing_form div.o_field_integer.o_small_integer {
-    &, input {
+    &,
+    input {
         max-width: 2rem;
     }
 }
@@ -11,7 +12,7 @@ div.o_mrp_routing_form div.o_field_integer.o_small_integer {
     min-width: 650px;
     margin-top: 50px;
 
-    background: url('/mrp/static/img/routing.svg') no-repeat top left;
+    background: url("/mrp/static/img/routing.svg") no-repeat top left;
 
     @include media-breakpoint-down(md) {
         margin-left: 22rem;

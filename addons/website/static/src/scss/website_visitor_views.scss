@@ -1,6 +1,6 @@
 .o_wvisitor_kanban .o_kanban_renderer {
     &.o_kanban_ungrouped {
-        padding:0px;
+        padding: 0px;
         .o_kanban_record {
             width: 100%;
             margin: 0px;
@@ -28,7 +28,7 @@
 
 .w_visitor_kanban_actions .btn {
     margin: inherit;
-    &:not(:last-child){
+    &:not(:last-child) {
         margin-right: 0.25rem;
     }
 }

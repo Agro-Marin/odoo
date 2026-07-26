@@ -1,4 +1,3 @@
-
 .s_title:not([data-vcss]) {
     .s_title_boxed {
         > * {
@@ -18,8 +17,12 @@
             border-top: 1px solid;
             border-top-color: inherit;
         }
-        &:before { margin: 0 calc($grid-gutter-width / 2) 0 -100%; }
-        &:after  { margin: 0 -100% 0 calc($grid-gutter-width / 2); }
+        &:before {
+            margin: 0 calc($grid-gutter-width / 2) 0 -100%;
+        }
+        &:after {
+            margin: 0 -100% 0 calc($grid-gutter-width / 2);
+        }
     }
     .s_title_underlined {
         @extend %o-page-header;
@@ -28,7 +31,7 @@
         font-variant: small-caps;
     }
     .s_title_transparent {
-        opacity: .5;
+        opacity: 0.5;
     }
     .s_title_thin {
         font-weight: 300;

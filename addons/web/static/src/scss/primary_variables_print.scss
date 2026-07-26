@@ -41,7 +41,7 @@ $grid-breakpoints: (
 $o-border-color: var(--border-color, #{$o-gray-500}) !default;
 
 // Webclient
-$o-webclient-background-color: #FFFFFF !default;
+$o-webclient-background-color: #ffffff !default;
 
 // Text
 $o-main-text-color: $o-gray-800 !default;
@@ -56,8 +56,8 @@ $o-spacer: $o-root-font-size !default;
 $o-horizontal-padding: $o-spacer !default;
 
 // Tables
-$o-table-cell-padding-x-sm: .15rem !default;
-$o-table-cell-padding-y-sm: .25rem !default;
+$o-table-cell-padding-x-sm: 0.15rem !default;
+$o-table-cell-padding-y-sm: 0.25rem !default;
 
 // Breadcrumbs
-$o-breadcrumb-item-padding-x: .15rem !default;
+$o-breadcrumb-item-padding-x: 0.15rem !default;

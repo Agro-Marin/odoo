@@ -1,17 +1,17 @@
-import { expect, test, describe } from "@odoo/hoot";
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
+import { describe, expect, test } from "@odoo/hoot";
+import { queryFirst } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
+    clickSave,
+    contains,
     defineModels,
     fields,
+    MockServer,
     models,
     mountView,
     onRpc,
-    contains,
-    clickSave,
-    MockServer,
 } from "@web/../tests/web_test_helpers";
-import { queryFirst } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 
 class Mailing extends models.Model {
     _name = "mailing.mailing";
@@ -20,9 +20,15 @@ class Mailing extends models.Model {
     subject = fields.Char();
     mailing_model_id = fields.Many2one({ relation: "ir.model", string: "Recipients" });
     mailing_model_name = fields.Char({ string: "Recipients Model Name" });
-    mailing_filter_id = fields.Many2one({ relation: "mailing.filter", string: "Filters" });
+    mailing_filter_id = fields.Many2one({
+        relation: "mailing.filter",
+        string: "Filters",
+    });
     mailing_domain = fields.Char({ string: "Domain" });
-    mailing_filter_domain = fields.Char({ related: "mailing_domain", string: "Domain" });
+    mailing_filter_domain = fields.Char({
+        related: "mailing_domain",
+        string: "Domain",
+    });
     mailing_filter_count = fields.Integer({ string: "Filter Count" });
 
     _records = [
@@ -75,7 +81,10 @@ class MailingFilter extends models.Model {
 
     name = fields.Char();
     mailing_domain = fields.Char();
-    mailing_model_id = fields.Many2one({ relation: "ir.model", string: "Recipients Model" });
+    mailing_model_id = fields.Many2one({
+        relation: "ir.model",
+        string: "Recipients Model",
+    });
 
     _records = [
         {
@@ -207,7 +216,9 @@ test("unlink favorite filter", async () => {
 
     queryFirst(".o_field_mailing_filter input").autocomplete = "widget";
     await contains(".o_field_mailing_filter input").click();
-    expect(".o_field_mailing_filter .dropdown li.ui-menu-item.o_m2o_no_result").toHaveCount(1);
+    expect(
+        ".o_field_mailing_filter .dropdown li.ui-menu-item.o_m2o_no_result",
+    ).toHaveCount(1);
     await clickSave();
 });
 
@@ -234,7 +245,7 @@ test("changing filter correctly applies the domain", async () => {
     Mailing._onChanges = {
         mailing_filter_id(record) {
             record.mailing_domain = MockServer.env["mailing.filter"].filter(
-                (r) => r.id === record.mailing_filter_id
+                (r) => r.id === record.mailing_filter_id,
             )[0].mailing_domain;
         },
     };
@@ -296,12 +307,12 @@ test("filter drop-down and filter icons visibility toggles properly based on fil
     Mailing._onChanges = {
         mailing_model_id(record) {
             record.mailing_filter_count = MockServer.env["mailing.filter"].filter(
-                (r) => r.mailing_model_id === record.mailing_model_id
+                (r) => r.mailing_model_id === record.mailing_model_id,
             ).length;
         },
         mailing_filter_id(record) {
             const filterDomain = MockServer.env["mailing.filter"].filter(
-                (r) => r.id === record.mailing_filter_id
+                (r) => r.id === record.mailing_filter_id,
             )[0].mailing_domain;
             record.mailing_domain = filterDomain;
             record.mailing_filter_domain = filterDomain;
@@ -416,7 +427,7 @@ test("filter widget works in edit and readonly", async () => {
     Mailing._onChanges = {
         mailing_filter_id(record) {
             record.mailing_domain = MockServer.env["mailing.filter"].filter(
-                (r) => r.id === record.mailing_filter_id
+                (r) => r.id === record.mailing_filter_id,
             )[0].mailing_domain;
         },
     };

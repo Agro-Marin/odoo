@@ -56,7 +56,8 @@
     .o_rightpanel_data_table {
         --#{$prefix}border-style: dashed;
 
-        th, td {
+        th,
+        td {
             &:first-child {
                 padding-left: map-get($spacers, 3);
             }

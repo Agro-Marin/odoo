@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { PriorityField, priorityField } from "@web/fields/selection/priority/priority_field";
+import {
+    PriorityField,
+    priorityField,
+} from "@web/fields/selection/priority/priority_field";
 
 export class PrioritySwitchField extends PriorityField {
     /**
@@ -18,7 +21,8 @@ export class PrioritySwitchField extends PriorityField {
                 category: "smart_action",
                 hotkey: "alt+r",
                 isAvailable: () =>
-                    !this.props.readonly && this.props.record.data[this.props.name] !== id,
+                    !this.props.readonly &&
+                    this.props.record.data[this.props.name] !== id,
             },
         ]);
     }
