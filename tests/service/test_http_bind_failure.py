@@ -96,9 +96,7 @@ class TestSuccessfulSpawnIsUnchanged:
     def test_httpd_is_stored_and_served(self, server, caplog):
         httpd = MagicMock()
         with (
-            patch.object(
-                _threaded, "ThreadedWSGIServerReloadable", return_value=httpd
-            ),
+            patch.object(_threaded, "ThreadedWSGIServerReloadable", return_value=httpd),
             patch.object(_threaded.threading, "Thread") as thread,
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
         ):

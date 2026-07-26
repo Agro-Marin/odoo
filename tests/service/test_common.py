@@ -16,7 +16,7 @@ import pytest
 @pytest.fixture(scope="module")
 def common_mod():
     """Import ``odoo.service.common`` once per session."""
-    import odoo.service.common as mod  # noqa: PLC0415
+    import odoo.service.common as mod
 
     return mod
 
@@ -56,7 +56,12 @@ class TestDispatchAllowlist:
             return "this should never be reachable via RPC"
 
         # Inject the helper at module level just as a real contributor would
-        with patch.object(common_mod, "exp_accidental_debug_helper", exp_accidental_debug_helper, create=True):
+        with patch.object(
+            common_mod,
+            "exp_accidental_debug_helper",
+            exp_accidental_debug_helper,
+            create=True,
+        ):
             # Must NOT be exposed by dispatch
             with pytest.raises(AttributeError, match="Method not found"):
                 common_mod.dispatch("accidental_debug_helper", [])
@@ -104,7 +109,7 @@ class TestExpAuthenticateExceptionAbsorption:
 
     def test_pool_error_returns_false_not_raise(self, common_mod):
         """PoolError from the DB layer must collapse to ``False`` like AccessDenied."""
-        from odoo.db import PoolError  # noqa: PLC0415
+        from odoo.db import PoolError
 
         with patch.object(
             common_mod, "Registry", side_effect=PoolError("pool exhausted")
@@ -115,7 +120,7 @@ class TestExpAuthenticateExceptionAbsorption:
         """Regression-check the surviving catch: bypass paths that don't go
         through the pool (direct ``psycopg.connect`` from migration scripts)
         still raise ``OperationalError`` and must still collapse to ``False``."""
-        import psycopg  # noqa: PLC0415
+        import psycopg
 
         with patch.object(
             common_mod, "Registry", side_effect=psycopg.OperationalError("PG down")
@@ -123,7 +128,7 @@ class TestExpAuthenticateExceptionAbsorption:
             assert common_mod.exp_authenticate("any_db", "u", "p", None) is False
 
     def test_invalid_catalog_name_returns_false_not_raise(self, common_mod):
-        """"Database does not exist" must collapse to ``False``, like every other
+        """ "Database does not exist" must collapse to ``False``, like every other
         connect failure.
 
         Regression, and a subtle one: the catch used to be
@@ -145,7 +150,9 @@ class TestExpAuthenticateExceptionAbsorption:
         with patch.object(
             common_mod,
             "Registry",
-            side_effect=psycopg.errors.InvalidCatalogName('database "x" does not exist'),
+            side_effect=psycopg.errors.InvalidCatalogName(
+                'database "x" does not exist'
+            ),
         ):
             assert common_mod.exp_authenticate("no_such_db", "u", "p", None) is False
 
@@ -163,7 +170,9 @@ class TestExpAuthenticateExceptionAbsorption:
         import psycopg
 
         with patch.object(
-            common_mod, "Registry", side_effect=getattr(psycopg.errors, exc_name)("nope")
+            common_mod,
+            "Registry",
+            side_effect=getattr(psycopg.errors, exc_name)("nope"),
         ):
             assert common_mod.exp_authenticate("any_db", "u", "p", None) is False
 
@@ -185,20 +194,23 @@ class TestExpAuthenticateExceptionAbsorption:
             with patch.object(
                 common_mod,
                 "Registry",
-                side_effect=psycopg.errors.UndefinedTable("relation ... does not exist"),
+                side_effect=psycopg.errors.UndefinedTable(
+                    "relation ... does not exist"
+                ),
             ):
                 assert common_mod.exp_authenticate("some_db", "u", "p", None) is False
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
         assert warnings, "an unexpected database error must not vanish at DEBUG"
         assert "unexpected database error" in warnings[0].getMessage()
 
-    @pytest.mark.parametrize("exc_factory", [
-        lambda: __import__("psycopg").errors.InvalidCatalogName("no such db"),
-        lambda: __import__("psycopg").OperationalError("PG down"),
-    ])
-    def test_routine_connect_failures_stay_quiet(
-        self, common_mod, caplog, exc_factory
-    ):
+    @pytest.mark.parametrize(
+        "exc_factory",
+        [
+            lambda: __import__("psycopg").errors.InvalidCatalogName("no such db"),
+            lambda: __import__("psycopg").OperationalError("PG down"),
+        ],
+    )
+    def test_routine_connect_failures_stay_quiet(self, common_mod, caplog, exc_factory):
         """A "no such database" probe is attacker-drivable — it must not let an
         unauthenticated caller flood the log at WARNING."""
         import logging
@@ -270,10 +282,10 @@ class TestExpAuthenticateNotAnOdooDatabase:
                     "cursor() must not be opened once res.users is known absent"
                 )
 
-        with patch.object(
-            common_mod, "Registry", return_value=_NotOdooRegistry()
-        ):
-            assert common_mod.exp_authenticate("bare_db", "admin", "admin", None) is False
+        with patch.object(common_mod, "Registry", return_value=_NotOdooRegistry()):
+            assert (
+                common_mod.exp_authenticate("bare_db", "admin", "admin", None) is False
+            )
 
 
 class TestExpAuthenticateNeverServableNames:
@@ -314,8 +326,10 @@ class TestExpAuthenticateNeverServableNames:
         def _must_not_run(*a, **kw):  # pragma: no cover - must not run
             raise AssertionError("Registry must not be built for an unlisted db")
 
-        with patch.dict(config.options, {"db_name": ["served_db"]}), \
-             patch.object(common_mod, "Registry", side_effect=_must_not_run):
+        with (
+            patch.dict(config.options, {"db_name": ["served_db"]}),
+            patch.object(common_mod, "Registry", side_effect=_must_not_run),
+        ):
             assert common_mod.exp_authenticate("other_db", "a", "b", None) is False
 
     def test_listed_database_still_reaches_the_registry(self, common_mod):
@@ -324,10 +338,12 @@ class TestExpAuthenticateNeverServableNames:
         from odoo.tools import config
 
         for options in ({"db_name": []}, {"db_name": ["served_db"]}):
-            with patch.dict(config.options, options), \
-                 patch.object(
-                     common_mod, "Registry", side_effect=RuntimeError("reached")
-                 ):
+            with (
+                patch.dict(config.options, options),
+                patch.object(
+                    common_mod, "Registry", side_effect=RuntimeError("reached")
+                ),
+            ):
                 with pytest.raises(RuntimeError, match="reached"):
                     common_mod.exp_authenticate("served_db", "a", "b", None)
 
@@ -340,10 +356,10 @@ class TestExpAuthenticateNeverServableNames:
         """
         from odoo.tools import config
 
-        with patch.dict(config.options, {"dbfilter": "^nomatch$", "db_name": []}), \
-             patch.object(
-                 common_mod, "Registry", side_effect=RuntimeError("reached")
-             ):
+        with (
+            patch.dict(config.options, {"dbfilter": "^nomatch$", "db_name": []}),
+            patch.object(common_mod, "Registry", side_effect=RuntimeError("reached")),
+        ):
             with pytest.raises(RuntimeError, match="reached"):
                 common_mod.exp_authenticate("any_db", "a", "b", None)
 
@@ -354,8 +370,10 @@ class TestExpAuthenticateNeverServableNames:
         def _must_not_run(*args, **kwargs):  # pragma: no cover - must not run
             raise AssertionError("Registry(db_template) must not be built")
 
-        with patch.dict(config.options, {"db_template": "tpl_custom"}), \
-             patch.object(common_mod, "Registry", side_effect=_must_not_run):
+        with (
+            patch.dict(config.options, {"db_template": "tpl_custom"}),
+            patch.object(common_mod, "Registry", side_effect=_must_not_run),
+        ):
             assert common_mod.exp_authenticate("tpl_custom", "a", "b", None) is False
 
 
@@ -374,7 +392,9 @@ class TestServiceModuleDocstring:
     """
 
     def test_service_package_has_docstring(self):
-        import odoo.service  # noqa: PLC0415
+        import odoo.service
 
         assert odoo.service.__doc__ is not None
-        assert "RPC" in odoo.service.__doc__ or "network protocols" in odoo.service.__doc__
+        assert (
+            "RPC" in odoo.service.__doc__ or "network protocols" in odoo.service.__doc__
+        )

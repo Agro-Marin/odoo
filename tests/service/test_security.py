@@ -17,7 +17,7 @@ import pytest
 @pytest.fixture(scope="module")
 def sec():
     """Return ``odoo.service.security``, imported once per session."""
-    import odoo.service.security as mod  # noqa: PLC0415
+    import odoo.service.security as mod
 
     return mod
 
@@ -46,7 +46,9 @@ def _make_env(expected_token: str):
     env = MagicMock()
     user = MagicMock()
     user._compute_session_token.return_value = expected_token
-    env.__getitem__ = MagicMock(return_value=MagicMock(browse=MagicMock(return_value=user)))
+    env.__getitem__ = MagicMock(
+        return_value=MagicMock(browse=MagicMock(return_value=user))
+    )
     return env, user
 
 
@@ -55,7 +57,9 @@ class TestCheckSession:
 
     def test_expired_deletion_time_returns_false(self, sec) -> None:
         """A session whose deletion_time is in the past must be rejected."""
-        session = _FakeSession(uid=1, sid="abc", token="tok", deletion_time=time.time() - 1)
+        session = _FakeSession(
+            uid=1, sid="abc", token="tok", deletion_time=time.time() - 1
+        )
         env, _ = _make_env("tok")
         assert sec.check_session(session, env) is False
 
@@ -82,8 +86,6 @@ class TestCheckSession:
             result = sec.check_session(session, env)
         assert result is True
         # device log must not be touched when request=None
-        env.__getitem__.return_value.browse.return_value  # ensure no _update_device calls
-        # The env["res.device.log"] key should never have been accessed
         accessed_keys = [c.args[0] for c in env.__getitem__.call_args_list]
         assert "res.device.log" not in accessed_keys
 
