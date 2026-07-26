@@ -23,6 +23,7 @@ from odoo import tools
 
 from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
+from .savepoint import insert_or_existing
 from .pool import Connection, ConnectionPool, PoolError
 from .utils import categorize_query, connection_info_for
 
@@ -41,6 +42,7 @@ __all__ = [
     "db_connect",
     "drain_all",
     "drain_db",
+    "insert_or_existing",
     "is_pooled",
     "pool_health",
     "sql_counter",

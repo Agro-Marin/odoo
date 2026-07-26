@@ -3,11 +3,10 @@ from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any, Self
 
-import psycopg.errors
-
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.exceptions import ConcurrencyError, UserError
+from odoo.db import insert_or_existing
+from odoo.exceptions import UserError
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -481,15 +480,10 @@ class IrSequence(models.Model):
         clamped to avoid overlapping any existing adjacent range.
 
         The insert can still violate ``UNIQUE(sequence_id, date_from,
-        date_to)``: the range may exist but have been missed by the searches
-        above, in which case it is visible to this transaction and is returned.
-        When the winner is a *concurrent* transaction the row is not in this
-        snapshot at all — cursors run at ``REPEATABLE READ`` and ``ROLLBACK TO
-        SAVEPOINT`` keeps the snapshot — so nothing local can recover, and
-        :class:`~odoo.exceptions.ConcurrencyError` asks ``retrying`` to replay
-        the request against a fresh snapshot.  Returning the empty recordset
-        that search yielded instead sent ``_next`` on to draw with
-        ``id = False`` (``operator does not exist: integer = boolean``).
+        date_to)``; :func:`~odoo.db.insert_or_existing` resolves that race.
+        Returning the empty recordset a re-``search`` yields instead sent
+        ``_next`` on to draw with ``id = False`` (``operator does not exist:
+        integer = boolean``).
 
         :param date: the date the new sub-sequence must cover
         :return: the created ``ir.sequence.date_range`` record
@@ -520,30 +514,26 @@ class IrSequence(models.Model):
         if date_range:
             date_from = date_range.date_to + timedelta(days=1)
         seq_date_range = self.env["ir.sequence.date_range"].sudo()
-        try:
-            with self.env.cr.savepoint():
-                return seq_date_range.create(
-                    {
-                        "date_from": date_from,
-                        "date_to": date_to,
-                        "sequence_id": self.id,
-                    }
-                )
-        except psycopg.errors.UniqueViolation:
-            existing = seq_date_range.search(
+        date_range, _created = insert_or_existing(
+            self.env.cr,
+            lambda: seq_date_range.create(
+                {
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "sequence_id": self.id,
+                }
+            ),
+            lambda: seq_date_range.search(
                 [
                     ("sequence_id", "=", self.id),
                     ("date_from", "<=", date),
                     ("date_to", ">=", date),
                 ],
                 limit=1,
-            )
-            if not existing:
-                raise ConcurrencyError(
-                    f"ir.sequence {self.id}: date range {date_from}..{date_to}"
-                    " was created by a concurrent transaction"
-                ) from None
-            return existing
+            ),
+            conflict=f"ir.sequence {self.id} date range {date_from}..{date_to}",
+        )
+        return date_range
 
     def _get_current_sequence(self, sequence_date: Any = None) -> Any:
         """Return the concrete record that holds this sequence's counter.
