@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import tagged
+
 from odoo.addons.sale_purchase.tests.test_sale_purchase import TestSalePurchase
 
 
