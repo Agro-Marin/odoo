@@ -32,7 +32,7 @@ from typing import Any
 import psycopg.errors
 
 from odoo import api, db, fields, models
-from odoo.exceptions import RetryableJobError, UserError
+from odoo.exceptions import RetryableJobError, UserError, ValidationError
 from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
 from odoo.tools import SQL
@@ -49,6 +49,8 @@ DEAD_JOB_GRACE_S = 60
 
 RETRY_BACKOFF_BASE_S = 10
 RETRY_BACKOFF_MAX_S = 3600
+
+CLAIM_MAX_ATTEMPTS = 10
 
 DONE_RETENTION = timedelta(days=7)
 FAILED_RETENTION = timedelta(days=30)
@@ -244,6 +246,24 @@ class IrJob(models.Model):
         "A job with the same identity key is already queued.",
     )
 
+    @api.constrains("depends_on_ids", "dependent_ids")
+    def _check_dependency_cycle(self) -> None:
+        """Refuse dependency loops, which nothing downstream can break.
+
+        A cycle leaves every job on it in ``wait_deps`` forever:
+        ``_resolve_dependencies`` only promotes a job once all its dependencies
+        are ``done``, and ``_gc_jobs`` only prunes terminal states, so the rows
+        are never run, never cancelled and never collected.
+
+        Both sides of the relation are watched: ``dependent_ids`` writes the
+        same ``ir_job_dependency`` rows from the other end and would otherwise
+        close a loop without triggering the check.  ``after=`` needs no guard --
+        a new job only ever depends on already-inserted rows -- and its raw
+        ``INSERT`` would not fire a constraint anyway.
+        """
+        if self._has_cycle("depends_on_ids"):
+            raise ValidationError(self.env._("Job dependencies cannot form a cycle."))
+
     @api.job(max_retries=0)
     def _job_ping(self, message: str = "") -> None:
         """Operational smoke test: verify job workers pick up and run jobs.
@@ -273,10 +293,16 @@ class IrJob(models.Model):
         """Persist a job row for ``records.method_name(*args, **kwargs)``.
 
         Raw ``INSERT ... ON CONFLICT DO NOTHING`` (not ``create()``): the
-        partial unique index arbitrates ``identity_key`` dedup race-free,
-        which a search-then-create cannot.  Called from ``delayed()`` only —
-        it is not an RPC surface, and access control is the ``@api.job``
-        marker check plus the model ACL on ``ir.job`` itself.
+        partial unique index arbitrates ``identity_key`` dedup against rows a
+        search-then-create would miss, namely those this transaction has not
+        flushed.  It does *not* make the dedup race-free across transactions:
+        cursors run at ``REPEATABLE READ``, where a conflict with a row
+        committed after this snapshot raises ``SerializationFailure`` rather
+        than skipping the insert, and ``retrying`` replays the request.  So the
+        ``DO NOTHING`` branch below only ever fires for an in-snapshot row.
+        Called from ``delayed()`` only — it is not an RPC surface, and access
+        control is the ``@api.job`` marker check plus the model ACL on
+        ``ir.job`` itself.
 
         With ``after``, the job starts in ``wait_deps`` unless every
         dependency is already done.  The dependency-state read is not locked
@@ -285,6 +311,11 @@ class IrJob(models.Model):
         race delays the job by at most one pass instead of losing it.
         On an ``identity_key`` dedup hit the existing job is returned as-is:
         no new dependencies are attached.
+
+        Unsaved records are refused: ``records.ids`` drops ``NewId`` entries, so
+        a non-empty recordset that has not been flushed would persist
+        ``record_ids = []`` and the job would later run against nothing, doing
+        no work and reporting success.
         """
         func = getattr(type(records), method_name, None)
         job_config = getattr(func, "_job_config", None)
@@ -293,6 +324,15 @@ class IrJob(models.Model):
                 self.env._(
                     "Method %(model)s.%(method)s cannot be enqueued: it is not "
                     "declared with @api.job.",
+                    model=records._name,
+                    method=method_name,
+                )
+            )
+        if len(records) != len(records.ids):
+            raise UserError(
+                self.env._(
+                    "Cannot enqueue %(model)s.%(method)s on unsaved records: "
+                    "the job would run against no record at all.",
                     model=records._name,
                     method=method_name,
                 )
@@ -388,6 +428,7 @@ class IrJob(models.Model):
             env.cr.execute(
                 SQL(
                     "SELECT id FROM ir_job WHERE identity_key = %s"
+                    " AND state IN ('wait_deps', 'pending', 'started')"
                     " ORDER BY id DESC LIMIT 1",
                     identity_key,
                 )
@@ -513,49 +554,112 @@ class IrJob(models.Model):
                     )
 
     @staticmethod
-    def _claim_next(cr, worker_ident: str) -> dict[str, Any] | None:
+    def _claim_next(
+        cr, worker_ident: str, channels: list[str] | None = None
+    ) -> dict[str, Any] | None:
         """Atomically claim the next ready job, or return ``None``.
+
+        :param channels: restrict the claim to these channels (default: any).
+            A worker pool can then be dedicated to a channel -- and a caller
+            that must not disturb the rest of the queue, such as a test, can
+            confine itself to its own jobs.  Without it every claim is
+            database-wide, so a caller sharing the database with a live queue
+            claims and commits somebody else's work.
 
         The per-database advisory xact-lock serializes concurrent claims:
         ``SKIP LOCKED`` alone cannot prevent two workers from both observing
-        a channel below capacity and over-admitting.  The lock is released at
-        the caller's next commit/rollback and claims take microseconds, so
-        contention is negligible.  A channel with no ``ir_job_channel`` row
-        has an implicit capacity of 1.
+        a channel below capacity and over-admitting.  A channel with no
+        ``ir_job_channel`` row has an implicit capacity of 1.
+
+        Saturated channels are collected once, in the ``saturated`` CTE, rather
+        than by re-counting each candidate row's channel: as a correlated
+        subquery the capacity test ran per row scanned, so a backlog queued
+        behind a channel at capacity was re-counted from scratch on every
+        claim.  Measured on a saturated channel with 50k pending jobs, one
+        claim executed both subplans 50 001 times for 84 ms and 200k buffer
+        hits; since claims are serialized on the advisory lock, that latency is
+        the whole database's claim throughput.  With the CTE the same claim
+        takes 12 ms, and the counting scan uses ``ir_job_capacity_idx``.
+        Both forms read one snapshot, so the capacity decision is unchanged.
+
+        Acquiring that lock is also what makes the attempt racy, so each try
+        runs on a fresh snapshot.  Cursors are ``REPEATABLE READ`` and the
+        ``pg_advisory_xact_lock`` call is the transaction's first statement, so
+        it pins the snapshot: a claimer that *waits* for the lock resumes
+        holding a snapshot older than the winner's commit, and its ``UPDATE`` of
+        the row the winner just took fails with ``40001``.  Measured at eight
+        concurrent claimers, that was roughly seven failures per successful
+        claim, each one escaping ``_claim_and_run_loop`` and ending the worker
+        pass.
+
+        The ``40001`` is a safety net, not the bug: a stale snapshot also
+        undercounts the channel's ``started`` rows, and the serialization
+        failure is what stops the claim from over-admitting on that stale count
+        (the stale claimer always collides with the winner's row first, because
+        both order candidates the same way).  Retrying therefore only restores
+        liveness -- it must roll back first, which is what refreshes the
+        snapshot so the retry counts capacity correctly.  Nothing of the
+        caller's is pending at this point: the loop commits between jobs.
         """
-        cr.execute("SELECT pg_advisory_xact_lock(hashtextextended('ir_job_claim', 0))")
-        cr.execute(
-            SQL(
-                """
-                UPDATE ir_job
-                SET state = 'started',
-                    started_at = (now() AT TIME ZONE 'UTC'),
-                    worker_ident = %s,
-                    write_date = (now() AT TIME ZONE 'UTC')
-                WHERE id = (
-                    SELECT j.id
-                    FROM ir_job j
-                    WHERE j.state = 'pending'
-                      AND (j.eta IS NULL OR j.eta <= (now() AT TIME ZONE 'UTC'))
-                      AND (SELECT count(*) FROM ir_job b
-                           WHERE b.channel = j.channel AND b.state = 'started')
-                          < COALESCE((SELECT c.capacity FROM ir_job_channel c
-                                      WHERE c.name = j.channel AND c.active), 1)
-                    ORDER BY j.priority, j.create_date, j.id
-                    LIMIT 1
-                    FOR NO KEY UPDATE SKIP LOCKED
+        for _attempt in range(CLAIM_MAX_ATTEMPTS):
+            try:
+                cr.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended('ir_job_claim', 0))"
                 )
-                RETURNING id, uuid, channel, priority, model_name, method_name,
-                          record_ids, args, kwargs, user_id, company_id,
-                          context, retry, max_retries
-                """,
-                worker_ident,
-            )
+                cr.execute(
+                    SQL(
+                        """
+                        UPDATE ir_job
+                        SET state = 'started',
+                            started_at = (now() AT TIME ZONE 'UTC'),
+                            worker_ident = %s,
+                            write_date = (now() AT TIME ZONE 'UTC')
+                        WHERE id = (
+                            WITH saturated AS (
+                                SELECT b.channel
+                                FROM ir_job b
+                                WHERE b.state = 'started'
+                                GROUP BY b.channel
+                                HAVING count(*) >= COALESCE(
+                                    (SELECT c.capacity FROM ir_job_channel c
+                                     WHERE c.name = b.channel AND c.active), 1)
+                            )
+                            SELECT j.id
+                            FROM ir_job j
+                            WHERE j.state = 'pending'
+                              AND (j.eta IS NULL
+                                   OR j.eta <= (now() AT TIME ZONE 'UTC'))
+                              %s
+                              AND j.channel NOT IN (
+                                  SELECT channel FROM saturated)
+                            ORDER BY j.priority, j.create_date, j.id
+                            LIMIT 1
+                            FOR NO KEY UPDATE SKIP LOCKED
+                        )
+                        RETURNING id, uuid, channel, priority, model_name,
+                                  method_name, record_ids, args, kwargs,
+                                  user_id, company_id, context, retry,
+                                  max_retries
+                        """,
+                        worker_ident,
+                        (
+                            SQL("AND j.channel = ANY(%s)", list(channels))
+                            if channels is not None
+                            else SQL()
+                        ),
+                    )
+                )
+            except psycopg.errors.SerializationFailure:
+                cr.rollback()
+                continue
+            row = cr.fetchone()
+            if row is None:
+                return None
+            return dict(zip([d.name for d in cr.description], row, strict=True))
+        _logger.warning(
+            "job claim gave up after %s serialization failures", CLAIM_MAX_ATTEMPTS
         )
-        row = cr.fetchone()
-        if row is None:
-            return None
-        return dict(zip([d.name for d in cr.description], row, strict=True))
+        return None
 
     @staticmethod
     def _run_claimed(cr, job: dict[str, Any]) -> None:
@@ -565,6 +669,18 @@ class IrJob(models.Model):
         together (in the caller), so a crash between them is impossible —
         re-execution can only happen when the effects were rolled back too.
         Raises on business failure; the caller rolls back and records it.
+
+        The company comes from the stored context's ``allowed_company_ids``, or
+        (when the enqueue carried none, as a cron/shell/nested enqueue does)
+        from the user's companies as they stand at execution time.  The
+        persisted ``company_id`` is deliberately *not* used to seed the scope:
+        ``allowed_company_ids = [company_id]`` would pin ``env.company``
+        correctly but shrink ``env.companies`` to that one company, silently
+        hiding records from any job that reads across the user's companies.
+        Pinning the enqueue-time scope faithfully means storing the whole
+        ``[company] + rest`` list at enqueue, which in turn lets a job run
+        against a company revoked in the meantime (nothing validates
+        ``allowed_company_ids`` against ``user.company_ids``).
         """
         env = api.Environment(cr, job["user_id"], dict(job["context"] or {}))
         records = env[job["model_name"]].browse(job["record_ids"] or [])

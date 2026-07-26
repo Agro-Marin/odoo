@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Collection
 from datetime import datetime, timedelta
 from typing import Any, Self
 
@@ -6,7 +7,7 @@ import psycopg.errors
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.exceptions import UserError
+from odoo.exceptions import ConcurrencyError, UserError
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -15,9 +16,12 @@ _logger = logging.getLogger(__name__)
 def _create_sequence(
     cr: Any, seq_name: str, number_increment: int, number_next: int
 ) -> None:
-    """Create a PostgreSQL sequence."""
-    if number_increment == 0:
-        raise UserError(_("Step must not be zero."))
+    """Create a PostgreSQL sequence.
+
+    ``number_increment`` is trusted to be strictly positive; the invariant is
+    owned by ``ir.sequence._positive_increment``, which every caller flushes
+    through before reaching here.
+    """
     cr.execute(
         SQL(
             "CREATE SEQUENCE %s INCREMENT BY %s START WITH %s",
@@ -42,11 +46,12 @@ def _alter_sequence(
     number_increment: int | None = None,
     number_next: int | None = None,
 ) -> None:
-    """Alter a PostgreSQL sequence."""
+    """Alter a PostgreSQL sequence.
+
+    See :func:`_create_sequence` on why ``number_increment`` needs no check.
+    """
     if number_increment is None and number_next is None:
         return
-    if number_increment == 0:
-        raise UserError(_("Step must not be zero."))
     cr.execute(
         "SELECT relname FROM pg_class"
         " WHERE relkind = %s AND relname = %s"
@@ -101,23 +106,49 @@ def _update_nogap(self: Any, number_increment: int) -> int:
     return number_next
 
 
-def _predict_nextval(self: Any, seq_name: str) -> int:
-    """Predict next value for PostgreSQL sequence without consuming it"""
-    seqtable = SQL.identifier(seq_name)
-    query = SQL(
-        """
-        SELECT last_value,
-            (SELECT increment_by FROM pg_sequences
-             WHERE schemaname = current_schema AND sequencename = %s),
-            is_called
-        FROM %s""",
-        seq_name,
-        seqtable,
+def _predict_nextvals(env: Any, seq_names: Collection[str]) -> dict[str, int]:
+    """Return ``{sequence name: next value}`` without consuming the sequences.
+
+    Two queries for the whole batch instead of one per sequence: rendering the
+    sequence list view issued a round-trip per row.  The first resolves which
+    of ``seq_names`` exist and their step; the second reads them all in a
+    single ``UNION ALL``.
+
+    The per-sequence value has to come from the sequence *relation*, not from
+    ``pg_sequences``: ``ALTER SEQUENCE ... RESTART WITH n`` moves the current
+    value while leaving ``start_value`` at the original START, so the view
+    cannot answer for a restarted sequence.
+
+    Sequences missing from the catalog are absent from the result rather than
+    raising, so a row whose backing sequence has been lost degrades to the
+    caller's fallback instead of aborting the transaction.
+    """
+    if not seq_names:
+        return {}
+    increments = dict(
+        env.execute_query(
+            SQL(
+                "SELECT sequencename, increment_by FROM pg_sequences"
+                " WHERE schemaname = current_schema"
+                "   AND sequencename = ANY(%s::name[])",
+                list(seq_names),
+            )
+        )
     )
-    [(last_value, increment_by, is_called)] = self.env.execute_query(query)
-    if is_called:
-        return last_value + increment_by
-    return last_value
+    if not increments:
+        return {}
+    reads = SQL(" UNION ALL ").join(
+        SQL(
+            "SELECT %s AS name, last_value, is_called FROM %s",
+            name,
+            SQL.identifier(name),
+        )
+        for name in increments
+    )
+    return {
+        name: last_value + increments[name] if is_called else last_value
+        for name, last_value, is_called in env.execute_query(reads)
+    }
 
 
 _INTERPOLATION_FORMATS = {
@@ -195,13 +226,22 @@ class IrSequence(models.Model):
         ``@api.depends`` can track -- that value is volatile by nature (see the
         field's own help text) and a stale read there is expected.
         """
+        standard = self.filtered(
+            lambda seq: seq.id and seq.implementation == "standard"
+        )
+        predicted = _predict_nextvals(
+            self.env, [seq._pg_sequence_name() for seq in standard]
+        )
+        standard_ids = set(standard._ids)
         for seq in self:
             if not seq.id:
                 seq.number_next_actual = 0
-            elif seq.implementation != "standard":
+            elif seq.id not in standard_ids:
                 seq.number_next_actual = seq.number_next
             else:
-                seq.number_next_actual = _predict_nextval(seq, seq._pg_sequence_name())
+                seq.number_next_actual = predicted.get(
+                    seq._pg_sequence_name(), seq.number_next
+                )
 
     def _set_number_next_actual(self) -> None:
         for seq in self:
@@ -255,6 +295,15 @@ class IrSequence(models.Model):
         "ir.sequence.date_range", "sequence_id", string="Subsequences"
     )
 
+    _positive_increment = models.Constraint(
+        "CHECK (number_increment > 0)",
+        "The sequence step must be strictly positive.",
+    )
+    _non_negative_padding = models.Constraint(
+        "CHECK (padding >= 0)",
+        "The sequence size cannot be negative.",
+    )
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         """Create a sequence; the ``standard`` implementation is backed by a fast, gaps-allowed PostgreSQL sequence."""
@@ -264,7 +313,7 @@ class IrSequence(models.Model):
                 _create_sequence(
                     self.env.cr,
                     seq._pg_sequence_name(),
-                    seq.number_increment or 1,
+                    seq.number_increment,
                     seq.number_next if seq.number_next is not None else 1,
                 )
         return seqs
@@ -274,83 +323,113 @@ class IrSequence(models.Model):
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
-        new_implementation = vals.get("implementation")
+        """Persist the change, then reconcile the backing PostgreSQL sequences.
+
+        The ORM write and its flush run *first* so the model's own invariants --
+        notably the strictly-positive ``number_increment`` -- reject a bad value
+        before any DDL is issued. Altering the sequence first meant an invalid
+        step reached PostgreSQL as a raw ``INCREMENT must not be zero`` that
+        aborted the whole transaction, and left the reconciliation of a rejected
+        write to be unwound by the rollback.
+
+        Reconciling is driven by the *transition*, not by the resulting state
+        alone, so the pre-write ``implementation`` and ``number_increment`` are
+        snapshotted before the write moves them.
+        """
+        previous = {seq.id: (seq.implementation, seq.number_increment) for seq in self}
+        res = super().write(vals)
+        self.flush_model(vals.keys())
         for seq in self:
-            i = vals.get("number_increment", seq.number_increment)
-            n = vals.get("number_next", seq.number_next)
-            if seq.implementation == "standard":
-                if new_implementation in ("standard", None):
-                    if "number_next" in vals:
-                        _alter_sequence(
-                            self.env.cr,
-                            seq._pg_sequence_name(),
-                            number_next=n,
-                        )
-                    if seq.number_increment != i:
-                        _alter_sequence(
-                            self.env.cr,
-                            seq._pg_sequence_name(),
-                            number_increment=i,
-                        )
-                        seq.date_range_ids._alter_sequence(number_increment=i)
-                else:
-                    if "number_next" not in vals and "number_next_actual" not in vals:
-                        seq_seed = _predict_nextval(seq, seq._pg_sequence_name())
-                        sub_seeds = [
-                            (
-                                sub_seq.id,
-                                _predict_nextval(sub_seq, sub_seq._pg_sequence_name()),
-                            )
-                            for sub_seq in seq.date_range_ids
-                        ]
-                        seq.flush_recordset(["number_next"])
-                        self.env.cr.execute(
-                            SQL(
-                                "UPDATE %s SET number_next=%s WHERE id=%s",
-                                SQL.identifier(seq._table),
-                                seq_seed,
-                                seq.id,
-                            )
-                        )
-                        seq.invalidate_recordset(["number_next", "number_next_actual"])
-                        if sub_seeds:
-                            sub_seqs = seq.date_range_ids
-                            sub_seqs.flush_recordset(["number_next"])
-                            self.env.cr.execute(
-                                SQL(
-                                    "UPDATE %s t SET number_next = v.number_next"
-                                    " FROM unnest(%s::int[], %s::int[])"
-                                    " AS v(id, number_next)"
-                                    " WHERE t.id = v.id",
-                                    SQL.identifier(sub_seqs._table),
-                                    [sub_id for sub_id, _ in sub_seeds],
-                                    [number for _, number in sub_seeds],
-                                )
-                            )
-                            sub_seqs.invalidate_recordset(
-                                ["number_next", "number_next_actual"]
-                            )
-                    _drop_sequences(
+            previous_implementation, previous_increment = previous[seq.id]
+            was_standard = previous_implementation == "standard"
+            is_standard = seq.implementation == "standard"
+            if was_standard and is_standard:
+                if "number_next" in vals:
+                    _alter_sequence(
                         self.env.cr,
-                        [
-                            seq._pg_sequence_name(),
-                            *(s._pg_sequence_name() for s in seq.date_range_ids),
-                        ],
+                        seq._pg_sequence_name(),
+                        number_next=seq.number_next,
                     )
-            elif new_implementation in ("no_gap", None):
-                pass
-            else:
-                _create_sequence(self.env.cr, seq._pg_sequence_name(), i, n)
+                if previous_increment != seq.number_increment:
+                    _alter_sequence(
+                        self.env.cr,
+                        seq._pg_sequence_name(),
+                        number_increment=seq.number_increment,
+                    )
+                    seq.date_range_ids._alter_sequence(
+                        number_increment=seq.number_increment
+                    )
+            elif was_standard:
+                if "number_next" not in vals and "number_next_actual" not in vals:
+                    seq._carry_over_pg_counters()
+                _drop_sequences(
+                    self.env.cr,
+                    [
+                        seq._pg_sequence_name(),
+                        *(s._pg_sequence_name() for s in seq.date_range_ids),
+                    ],
+                )
+            elif is_standard:
+                _create_sequence(
+                    self.env.cr,
+                    seq._pg_sequence_name(),
+                    seq.number_increment,
+                    seq.number_next,
+                )
                 for sub_seq in seq.date_range_ids:
                     _create_sequence(
                         self.env.cr,
                         sub_seq._pg_sequence_name(),
-                        i,
+                        seq.number_increment,
                         sub_seq.number_next,
                     )
-        res = super().write(vals)
-        self.flush_model(vals.keys())
         return res
+
+    def _carry_over_pg_counters(self) -> None:
+        """Seed ``number_next`` from the PostgreSQL counters about to be dropped.
+
+        Called when a ``standard`` sequence becomes ``no_gap``: without it the
+        ``no_gap`` counter would resume from the stored ``number_next``, which
+        the PostgreSQL sequence has been outrunning, and re-issue numbers that
+        were already handed out.
+        """
+        self.ensure_one()
+        sub_seqs = self.date_range_ids
+        predicted = _predict_nextvals(
+            self.env,
+            [
+                self._pg_sequence_name(),
+                *(sub_seq._pg_sequence_name() for sub_seq in sub_seqs),
+            ],
+        )
+        self.flush_recordset(["number_next"])
+        self.env.cr.execute(
+            SQL(
+                "UPDATE %s SET number_next=%s WHERE id=%s",
+                SQL.identifier(self._table),
+                predicted.get(self._pg_sequence_name(), self.number_next),
+                self.id,
+            )
+        )
+        self.invalidate_recordset(["number_next", "number_next_actual"])
+        if not sub_seqs:
+            return
+        sub_seqs.flush_recordset(["number_next"])
+        self.env.cr.execute(
+            SQL(
+                "UPDATE %s t SET number_next = v.number_next"
+                " FROM unnest(%s::int[], %s::int[])"
+                " AS v(id, number_next)"
+                " WHERE t.id = v.id",
+                SQL.identifier(sub_seqs._table),
+                sub_seqs.ids,
+                [
+                    predicted.get(sub_seq._pg_sequence_name(), sub_seq.number_next)
+                    for sub_seq in sub_seqs
+                ],
+            )
+        )
+        sub_seqs.invalidate_recordset(["number_next", "number_next_actual"])
 
     def _next_do(self) -> str:
         if self.implementation == "standard":
@@ -401,6 +480,17 @@ class IrSequence(models.Model):
         The new range defaults to the calendar year of ``date`` and is then
         clamped to avoid overlapping any existing adjacent range.
 
+        The insert can still violate ``UNIQUE(sequence_id, date_from,
+        date_to)``: the range may exist but have been missed by the searches
+        above, in which case it is visible to this transaction and is returned.
+        When the winner is a *concurrent* transaction the row is not in this
+        snapshot at all — cursors run at ``REPEATABLE READ`` and ``ROLLBACK TO
+        SAVEPOINT`` keeps the snapshot — so nothing local can recover, and
+        :class:`~odoo.exceptions.ConcurrencyError` asks ``retrying`` to replay
+        the request against a fresh snapshot.  Returning the empty recordset
+        that search yielded instead sent ``_next`` on to draw with
+        ``id = False`` (``operator does not exist: integer = boolean``).
+
         :param date: the date the new sub-sequence must cover
         :return: the created ``ir.sequence.date_range`` record
         """
@@ -440,7 +530,7 @@ class IrSequence(models.Model):
                     }
                 )
         except psycopg.errors.UniqueViolation:
-            return seq_date_range.search(
+            existing = seq_date_range.search(
                 [
                     ("sequence_id", "=", self.id),
                     ("date_from", "<=", date),
@@ -448,6 +538,12 @@ class IrSequence(models.Model):
                 ],
                 limit=1,
             )
+            if not existing:
+                raise ConcurrencyError(
+                    f"ir.sequence {self.id}: date range {date_from}..{date_to}"
+                    " was created by a concurrent transaction"
+                ) from None
+            return existing
 
     def _get_current_sequence(self, sequence_date: Any = None) -> Any:
         """Return the concrete record that holds this sequence's counter.
@@ -592,11 +688,20 @@ class IrSequenceDate_Range(models.Model):
         while the standard branch reads a PostgreSQL sequence that no
         ``@api.depends`` can track.
         """
+        standard = self.filtered(
+            lambda seq: seq.id and seq.sequence_id.implementation == "standard"
+        )
+        predicted = _predict_nextvals(
+            self.env, [seq._pg_sequence_name() for seq in standard]
+        )
+        standard_ids = set(standard._ids)
         for seq in self:
-            if not seq.id or seq.sequence_id.implementation != "standard":
+            if seq.id not in standard_ids:
                 seq.number_next_actual = seq.number_next
             else:
-                seq.number_next_actual = _predict_nextval(seq, seq._pg_sequence_name())
+                seq.number_next_actual = predicted.get(
+                    seq._pg_sequence_name(), seq.number_next
+                )
 
     def _set_number_next_actual(self) -> None:
         for seq in self:

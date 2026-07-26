@@ -600,3 +600,72 @@ class TestResCurrency(TransactionCase):
             self.env["res.currency"].search_count([["rate_ids", "=", "irrelevant"]]),
             0,
         )
+
+
+class TestResCurrencyRateMemoScope(TransactionCase):
+    """RCUR-M1: the rate memo must not be shared across access contexts.
+
+    ``_get_rates_from_memo`` populates itself with a rule-filtered query, so
+    its result depends on the reader. Keyed on ``(currency, company root)``
+    alone, whichever context first touched a currency answered for every later
+    one in the same transaction, diverging from ``_get_rates_sql`` in both
+    directions. The parity test above cannot see this: it runs as a single
+    user, where rules apply identically to both paths.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company_a = cls.env["res.company"].create({"name": "memo scope A"})
+        cls.company_b = cls.env["res.company"].create({"name": "memo scope B"})
+        cls.currency = cls.env["res.currency"].create(
+            {"name": "MS1", "symbol": "MS", "rounding": 0.01}
+        )
+        cls.env["res.currency.rate"].create(
+            {
+                "currency_id": cls.currency.id,
+                "company_id": cls.company_b.id,
+                "name": "2020-01-01",
+                "rate": 7.0,
+            }
+        )
+        cls.user = cls.env["res.users"].create(
+            {
+                "name": "memo scope user",
+                "login": "memo_scope_user",
+                "company_id": cls.company_a.id,
+                "company_ids": [Command.set(cls.company_a.ids)],
+                "group_ids": [Command.set(cls.env.ref("base.group_user").ids)],
+            }
+        )
+        cls.env.flush_all()
+
+    def _rates(self, su, sql=False):
+        env = self.env(
+            user=self.user, su=su, context={"allowed_company_ids": self.company_a.ids}
+        )
+        currency = env["res.currency"].browse(self.currency.id)
+        company = env["res.company"].browse(self.company_b.id)
+        method = currency._get_rates_sql if sql else currency._get_rates
+        return method(company, "2020-06-01")[self.currency.id]
+
+    def test_reference_paths_differ_by_access_context(self):
+        """The premise: the rule genuinely hides company B's rate here."""
+        self.assertEqual(self._rates(True, sql=True), 7.0)
+        self.assertEqual(self._rates(False, sql=True), 1.0)
+
+    def test_restricted_reader_after_sudo_does_not_inherit_the_hidden_rate(self):
+        self.assertEqual(self._rates(True), 7.0)
+        self.assertEqual(self._rates(False), 1.0)
+
+    def test_sudo_after_restricted_reader_is_not_pinned_to_the_restricted_set(self):
+        self.assertEqual(self._rates(False), 1.0)
+        self.assertEqual(self._rates(True), 7.0)
+
+    def test_memo_matches_sql_for_every_access_context(self):
+        for su in (True, False):
+            self.assertEqual(
+                self._rates(su),
+                self._rates(su, sql=True),
+                f"memo/SQL divergence for su={su}",
+            )

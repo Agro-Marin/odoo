@@ -220,13 +220,29 @@ class ResCurrency(models.Model):
             )
         )
 
+    def _rate_history_scope(self) -> tuple:
+        """Return what the memoized rate history is allowed to be shared across.
+
+        The history is loaded by a rule-filtered ``search_fetch``, so it is a
+        function of the reader's access context, not of the database alone:
+        ``res_currency_rate_rule`` restricts rows by ``company_ids``, ``sudo()``
+        bypasses rules outright, and a custom rule may key on ``user``. Keying
+        the memo on ``(currency, company root)`` alone let whichever context
+        touched a currency first in the transaction answer for every later one --
+        either handing a restricted reader rates the rule hides, or pinning a
+        ``sudo()`` reader to the restricted set. Both directions diverged from
+        :meth:`_get_rates_sql`, the contract this memo must reproduce.
+        """
+        return (self.env.su, self.env.uid, tuple(sorted(self.env.companies.ids)))
+
     def _get_rates_from_memo(self, company: Self, date: Any) -> dict[int, float] | None:
         """Memoized equivalent of :meth:`_get_rates_sql` (RCUR-M1).
 
-        The first call per (currency, company root) loads the currency's full
-        rate history (company-root and global ``company_id IS NULL`` scopes)
-        into the memo; later dates resolve in memory via
-        :meth:`_resolve_rate_from_history`.
+        The first call per (currency, company root, access scope) loads the
+        currency's full rate history (company-root and global ``company_id IS
+        NULL`` scopes) into the memo; later dates resolve in memory via
+        :meth:`_resolve_rate_from_history`. See :meth:`_rate_history_scope` for
+        why the reader's access context is part of the key.
 
         :return: same mapping as :meth:`_get_rates`, or ``None`` when ``date``
                  cannot be normalized (caller then uses the SQL cold path).
@@ -238,11 +254,12 @@ class ResCurrency(models.Model):
         if not date:
             return None
         root_id = company.root_id.id
+        scope = self._rate_history_scope()
         memo = self.env.cr.cache.setdefault(RATE_HISTORY_CACHE_KEY, {})
         missing = {
             currency_id
             for currency_id in self.ids
-            if (currency_id, root_id) not in memo
+            if (currency_id, root_id, scope) not in memo
         }
         if missing:
             histories = {currency_id: (([], []), ([], [])) for currency_id in missing}
@@ -260,10 +277,10 @@ class ResCurrency(models.Model):
                 dates.append(rate.name)
                 values.append(rate.rate or None)
             for currency_id, history in histories.items():
-                memo[currency_id, root_id] = history
+                memo[currency_id, root_id, scope] = history
         return {
             currency_id: self._resolve_rate_from_history(
-                memo[currency_id, root_id], date
+                memo[currency_id, root_id, scope], date
             )
             for currency_id in self.ids
         }
