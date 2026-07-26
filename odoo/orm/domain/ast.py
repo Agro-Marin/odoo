@@ -78,6 +78,36 @@ interpreter recursion limit.
 """
 
 
+def _comparand_eq(left: typing.Any, right: typing.Any) -> bool:
+    """Compare two condition comparands, keeping ``0``/``False`` distinct.
+
+    :meth:`DomainCondition.__eq__` already refuses to equate values of different
+    classes, because they compile to different SQL (``0`` is a column value,
+    ``False`` is a null test).  That guard stopped at the *container*: two
+    ``OrderedSet``s are the same class, and ``OrderedSet([0]) ==
+    OrderedSet([False])`` because ``0 == False`` and their hashes agree.
+
+    ``Domain._optimize`` detects "this pass changed nothing" with ``==``, so any
+    optimization canonicalizing *inside* a set between such twins was silently
+    discarded and the original value survived to both evaluators — which is how
+    ``('country_id', 'in', [0])`` kept reaching SQL as ``country_id IN (NULL)``
+    (matching nothing) while the Python evaluator read the falsy ``0`` as "no
+    relation".  Applying the existing class rule element-wise closes that.
+
+    Falls back to plain ``==`` when the elements are not hashable (an ``any``
+    sub-domain, an ``SQL`` value), where the type-tagging trick does not apply
+    and the class guard above is already the discriminator.
+    """
+    if left.__class__ in (list, tuple, set, frozenset, OrderedSet):
+        if len(left) != len(right):
+            return False
+        try:
+            return {(type(v), v) for v in left} == {(type(v), v) for v in right}
+        except TypeError:
+            return left == right
+    return left == right
+
+
 def _iter_subdomains(node: Domain) -> typing.Iterator[Domain]:
     """Yield the direct operator-child domains of *node* (none for leaves).
 
@@ -518,6 +548,36 @@ class Domain:
         """
         raise NotImplementedError
 
+    def _predicate_optimized(self, records: BaseModel) -> Domain | None:
+        """Return a predicate-ready equivalent of this node, or ``None`` if ready.
+
+        ``_to_sql`` is reached through a fully optimized tree, but
+        ``filtered_domain`` used to call ``_as_predicate`` on the *raw* domain
+        and only :class:`DomainCondition` optimized itself, one leaf at a time.
+        The operator nodes therefore built a predicate for every child,
+        including children the optimizer would have discarded -- so a sibling
+        collapsing an ``|`` to TRUE removed a malformed leaf for ``search()``
+        but not for ``filtered_domain()``, and the two evaluators disagreed on
+        whether the domain was even *legal* depending on the order the leaves
+        happened to be written in.
+
+        Optimizing the node itself first makes both evaluators start from the
+        same tree.  Nodes already at ``DYNAMIC_VALUES`` (the level
+        ``_as_predicate`` needs) answer ``None`` and are used as-is, so this
+        costs one stamp check per node rather than a repeated traversal.
+
+        Used by the n-ary nodes only, deliberately: they are where a sibling
+        eliminates a child.  :class:`DomainNot` has no siblings to collapse
+        against, and pre-optimizing it instead pushes the negation *into* the
+        condition, which is not equivalent for a value that may be absent --
+        ``~('attributes.myint', '>=', 0)`` over a record with no such property
+        stopped agreeing with SQL (``test_filtered_domain_integer_property_zero``).
+        """
+        if self._opt_level >= OptimizationLevel.DYNAMIC_VALUES:
+            return None
+        with _recursion_error_as_value_error():
+            return self._optimize(records, OptimizationLevel.DYNAMIC_VALUES)
+
     def optimize(self, model: BaseModel) -> Domain:
         """Rewrite the domain into a canonical, logically equivalent form.
 
@@ -843,6 +903,8 @@ class DomainAnd(DomainNary):
         return super().__and__(other)
 
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
+        if (optimized := self._predicate_optimized(records)) is not None:
+            return optimized._as_predicate(records)
         predicates = tuple(child._as_predicate(records) for child in self.children)
 
         def and_predicate(record: BaseModel) -> bool:
@@ -869,6 +931,8 @@ class DomainOr(DomainNary):
         return super().__or__(other)
 
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
+        if (optimized := self._predicate_optimized(records)) is not None:
+            return optimized._as_predicate(records)
         predicates = tuple(child._as_predicate(records) for child in self.children)
 
         def or_predicate(record: BaseModel) -> bool:
@@ -1034,7 +1098,7 @@ class DomainCondition(Domain):
             and self.field_expr == other.field_expr
             and self.operator == other.operator
             and self.value.__class__ is other.value.__class__
-            and self.value == other.value
+            and _comparand_eq(self.value, other.value)
         )
 
     def __hash__(self) -> int:

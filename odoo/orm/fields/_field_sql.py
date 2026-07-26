@@ -205,10 +205,29 @@ class _FieldSqlMixin(_FieldStubs):
             assert isinstance(value, COLLECTION_TYPES), (
                 f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
             )
-            params = tuple(
-                _value_to_column(v) for v in value if v is not False and v is not None
-            )
-            null_in_condition = len(params) < len(value)
+            # A comparand the column cannot represent equals no stored value, so
+            # it is dropped from the set rather than raised on -- the rule
+            # ``_optimize_numeric_comparand`` documents for numeric fields and
+            # ``Id.filter_function`` already applies on the Python side ("dropped
+            # from an equality set ... which is what the SQL side concludes
+            # too").  The SQL side did not: it raised, so ``('id', '=', 'abc')``
+            # aborted ``search()`` while ``filtered_domain()`` matched nothing.
+            # An *ordering* comparison still raises, in both evaluators.
+            # ``null_in_condition`` is tracked explicitly: inferring it from a
+            # length difference would read a dropped value as a null comparand.
+            converted: list[typing.Any] = []
+            null_in_condition = False
+            for v in value:
+                if v is False or v is None:
+                    null_in_condition = True
+                    continue
+                try:
+                    converted.append(_value_to_column(v))
+                except ValueError, TypeError:
+                    continue
+            params = tuple(converted)
+            if not params and not null_in_condition:
+                return SQL("FALSE") if operator == "in" else SQL("TRUE")
             if (null_value := self.falsy_value) is not None:
                 null_value = _value_to_column(null_value)
                 if null_value in params:

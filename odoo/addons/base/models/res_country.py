@@ -303,13 +303,26 @@ class ResCountryState(models.Model):
 
     @api.model
     def _search_display_name(self, operator: str, value: str) -> Domain:
+        """Also match the ``Name (Country)`` display form.
+
+        Only a *string* comparand can carry that form, and only a string can be
+        fed to the regex in :meth:`_get_name_search_domain`.  A null comparand
+        reaches here as ``('display_name', 'in', {False})`` -- the shape the
+        optimizer normalizes ``('display_name', '=', False)`` into, and a
+        non-empty (so truthy) set -- and used to be regex-matched, raising
+        ``TypeError: expected string or bytes-like object, got 'bool'`` out of
+        any ``search([('display_name', '=', False)])`` or the ``state_id any
+        (...)`` sub-domain built from one.
+        """
         domain = super()._search_display_name(operator, value)
         if value and operator not in Domain.NEGATIVE_OPERATORS:
-            if operator in ("ilike", "="):
+            if operator in ("ilike", "=") and isinstance(value, str):
                 domain |= self._get_name_search_domain(value, operator)
             elif operator == "in":
                 domain |= Domain.OR(
-                    self._get_name_search_domain(name, "=") for name in value
+                    self._get_name_search_domain(name, "=")
+                    for name in value
+                    if isinstance(name, str)
                 )
         if country_id := self.env.context.get("country_id"):
             domain &= Domain("country_id", "=", country_id)

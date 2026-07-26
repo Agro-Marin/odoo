@@ -253,6 +253,19 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
         elif field.type == "boolean":
             sql_expr = SQL("COALESCE(%s, FALSE)", sql_expr)
+        elif field.is_text:
+            # A text field's ``falsy_value`` is ``""``, which the domain layer
+            # aliases with NULL: ``('ref', '=', '')`` and ``('ref', '=', False)``
+            # both select the NULL *and* the empty-string rows
+            # (``_optimize_in_set_falsy_value``).  Grouping on the raw column
+            # instead split them into two indistinguishable "empty" groups, and
+            # since the web client scopes a group by ``[(field, '=', key)]``
+            # (``web_read_group``), *both* expanded to the union of the two --
+            # so each group showed a count it could not reproduce when opened.
+            # Normalizing onto NULL yields one group, keyed ``False``, which is
+            # what ``_read_group_empty_value`` calls the empty group.  Same
+            # correction the boolean branch above makes for NULL vs FALSE.
+            sql_expr = SQL("NULLIF(%s, '')", sql_expr)
 
         return sql_expr.inlined(self.env.cr)
 

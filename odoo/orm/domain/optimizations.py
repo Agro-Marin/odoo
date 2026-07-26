@@ -535,6 +535,108 @@ def _optimize_numeric_comparand(condition, model):
     return DomainCondition(condition.field_expr, operator, coerced)
 
 
+@field_type_optimization(["char", "text", "html"])
+def _optimize_textual_comparand(condition, model):
+    """Coerce a non-string comparand on a textual field to its string form.
+
+    The mirror of :func:`_optimize_numeric_comparand`, and needed for the same
+    reason: the two evaluators disagree on a comparand neither of them owns.
+    ``Field.condition_to_sql`` renders the value through the column conversion,
+    so ``('name', '=', 0)`` reaches PostgreSQL as ``name IN ('0')`` and matches
+    the record actually named ``"0"``; ``Field.filter_function`` compares the
+    raw ``0``, matches nothing -- and, because it reads a falsy comparand as a
+    null marker, ``('ref', '=', 0)`` selected *every* record with an empty
+    ``ref`` under ``filtered_domain()`` while ``search()`` selected none.  Both
+    spellings are what a web client or ``ir.filters`` entry produces whenever a
+    numeric-looking value lands on a char column (references, codes, zips).
+
+    ``False``/``None`` are left alone -- they mean "unset" and every operator
+    branch handles them specially -- and so are ``bool``s, which mean
+    "set"/"unset" in a domain rather than ``"True"``/``"False"``.  The
+    like-family already coerces through :func:`_optimize_like_str`.
+    """
+    operator = condition.operator
+    if (
+        operator not in ("in", "not in", ">", "<", ">=", "<=")
+        or "." in condition.field_expr
+    ):
+        return condition
+
+    def coerce(value):
+        if value is None or isinstance(value, (str, bool, bytes, bytearray, SQL)):
+            return value
+        return str(value)
+
+    value = condition.value
+    if isinstance(value, COLLECTION_TYPES):
+        coerced = [coerce(v) for v in value]
+        if coerced == list(value):
+            return condition
+        return DomainCondition(condition.field_expr, operator, OrderedSet(coerced))
+    coerced = coerce(value)
+    if coerced is value:
+        return condition
+    return DomainCondition(condition.field_expr, operator, coerced)
+
+
+@field_type_optimization(
+    ["many2one", "many2one_reference", "one2many", "many2many"],
+)
+def _optimize_relational_falsy_id(condition, model):
+    """A falsy id comparand on a relational field means "no relation".
+
+    ``convert_to_column`` maps a falsy id to SQL ``NULL``, so ``('country_id',
+    '=', 0)`` was emitted as ``country_id IN (NULL)`` -- which matches nothing
+    and is not even the ``IS NULL`` the value was turned into -- while
+    ``filter_function`` read the falsy ``0`` as "unset" and returned exactly the
+    rows *without* a country.  ``('country_id', '>', 0)`` was worse: it reached
+    PostgreSQL as ``country_id > NULL``, silently empty, the very shape
+    :func:`_optimize_inequality_against_null` exists to prevent -- its guard
+    just never saw ``0``, because it tests only ``False``/``None`` while the
+    column conversion nulls every falsy id.
+
+    Canonicalizing onto ``False`` here settles it once, before either
+    evaluator: the equality path becomes a real ``IS NULL`` test, and the
+    ordering path is collapsed to FALSE by
+    :func:`_optimize_inequality_against_null` on the next pass (comparing an
+    order against "no record" has no meaning).  Non-falsy ids are untouched.
+
+    Ordering is rewritten for the to-*one* types only.  On an x2many it is
+    meaningless whatever the comparand, and :func:`_optimize_x2many_inequality`
+    says so with a clear error; collapsing the falsy case to FALSE here first
+    would make ``('child_ids', '>', 0)`` quietly match nothing while
+    ``('child_ids', '>', 1)`` raised.
+    """
+    operator = condition.operator
+    if operator not in ("in", "not in", ">", "<", ">=", "<="):
+        return condition
+    if operator not in ("in", "not in") and condition._field(model).type not in (
+        "many2one",
+        "many2one_reference",
+    ):
+        return condition
+
+    def is_falsy_id(value):
+        return (
+            not isinstance(value, bool)
+            and isinstance(value, (int, float))
+            and not value
+        )
+
+    value = condition.value
+    if isinstance(value, COLLECTION_TYPES):
+        if not any(is_falsy_id(v) for v in value):
+            return condition
+        return DomainCondition(
+            condition.field_expr,
+            operator,
+            OrderedSet(False if is_falsy_id(v) else v for v in value),
+        )
+    if not is_falsy_id(value):
+        return condition
+    return DomainCondition(condition.field_expr, operator, False)
+
+
 @field_type_optimization(["boolean"])
 def _optimize_boolean_in(condition, model):
     """Coerce a boolean field's in/not-in set to bools (strings via ``str2bool``).
@@ -645,6 +747,63 @@ def _optimize_inequality_against_null(condition, model):
     return _FALSE_DOMAIN
 
 
+@operator_optimization([">", "<", ">=", "<="])
+def _optimize_inequality_against_collection(condition, model):
+    """An ordering comparison needs a single comparand, never a collection.
+
+    ``('color', '>', [0, 1])`` has no meaning: PostgreSQL rejected it late and
+    loudly (``int4 > int4[]``, or a bare ``int()`` ``TypeError`` while converting
+    the comparand) whereas ``filter_function`` compared against the list and
+    answered, so the two evaluators disagreed on whether the domain was even
+    legal -- from a domain any authenticated RPC caller can send.
+
+    The **empty** collection is rejected too, and is the more insidious half:
+    it selects nothing on both sides, so it looks harmless, but *negated* it
+    diverged -- SQL compares against NULL and three-valued ``NOT`` keeps
+    excluding every row, while Python's two-valued ``not False`` admits all of
+    them.  Collapsing it to FALSE would settle that as well, but ``id``'s
+    comparand validation already rejects ``[]`` alongside ``"abc"`` / ``b"x"`` /
+    ``{}`` (``TestIdComparandValidation``), and one rule for every malformed
+    ordering comparand beats two.
+
+    ``SQL`` and sub-domain values are left to their own operators, and
+    recordsets are rejected by :func:`_optimize_relational_name_search` with a
+    message about ids.
+    """
+    value = condition.value
+    if isinstance(value, COLLECTION_TYPES):
+        condition._raise(
+            "Cannot compare %r with a collection using %r; an ordering "
+            "comparison takes a single value",
+            condition.field_expr,
+            condition.operator,
+            error=TypeError,
+        )
+    return condition
+
+
+@field_type_optimization(["one2many", "many2many"])
+def _optimize_x2many_inequality(condition, model):
+    """Ordering comparisons are meaningless on an x2many field.
+
+    A to-many field holds a *set* of records, so there is no single value to
+    order against, whatever the comparand's type.
+    :func:`_optimize_relational_name_search` already rejected the str/bool/
+    collection shapes; a plain id slipped through to the SQL builder, which
+    asserted ``Relational field ... expects 'any' operator`` -- an
+    ``AssertionError`` (so it vanishes under ``python -O``) raised deep in query
+    building, while ``filtered_domain`` happily compared against the recordset.
+    """
+    if condition.operator in (">", "<", ">=", "<="):
+        condition._raise(
+            "Cannot use an ordering comparison on the to-many field %r; "
+            "use 'any' with a sub-domain",
+            condition.field_expr,
+            error=TypeError,
+        )
+    return condition
+
+
 @field_type_optimization(["date"])
 def _optimize_type_date(condition, model):
     """Make sure we have a date type in the value"""
@@ -704,9 +863,8 @@ def _value_to_datetime(
             value = resolve_date(value, env)
         return _value_to_datetime(value, env)
     if isinstance(value, date):
-        if value.year in (1, 9999):
-            tz = None
-        elif (tz := env.tz) == utc:
+        tz = None if value.year in (1, 9999) else env.tz
+        if tz == utc:
             tz = None
         value = datetime.combine(value, time.min, tz)
         if tz is not None:

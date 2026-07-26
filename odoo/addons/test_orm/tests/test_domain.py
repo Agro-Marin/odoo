@@ -1577,9 +1577,17 @@ class TestIdComparandValidation(TransactionCase):
     BAD_VALUES = ("abc", b"x", [], {}, True)
 
     def test_bad_comparand_raises_cleanly(self):
+        """Any clean Python error will do; what matters is that it is not a
+        database one (see the class docstring).
+
+        A *collection* comparand is now rejected one step earlier, by the
+        ordering-operator optimization that also covers ``('parent_id', '>',
+        [1, 2])``, and raises ``TypeError`` like that sibling case rather than
+        the ``ValueError`` ``Id.convert_to_column`` would have raised.
+        """
         model = self.env["res.partner"]
         for value in self.BAD_VALUES:
-            with self.subTest(value=value), self.assertRaises(ValueError):
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
                 model.search([("id", ">", value)])
 
     def test_transaction_survives_a_bad_comparand(self):
