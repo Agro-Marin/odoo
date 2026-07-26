@@ -13,14 +13,11 @@ from odoo.addons.base.tests.test_expression import TransactionExpressionCase
 
 class TestDomain(TransactionExpressionCase):
     def _search(self, model, domain, init_domain=Domain.TRUE, test_complement=False):
-        # just overwrite the defaults here, because we test complements manually
         return super()._search(model, domain, init_domain, test_complement)
 
     def test_00_test_bool_undefined(self):
         """Undefined/empty values in the database equal False and differ from True."""
 
-        # Add a new boolean column after that some rows/tuples has been added (with data)
-        # Existing rows/tuples will be undefined/empty
         self.env["ir.model.fields"].create(
             {
                 "name": "x_bool_new_undefined",
@@ -71,20 +68,17 @@ class TestDomain(TransactionExpressionCase):
         """
         Model = self.env["test_orm.empty_int"]
 
-        # optimize() turns `in`/`=` values into OrderedSet (formerly unhashable)
         d1 = Domain("number", "in", [1, 2, 3]).optimize(Model)
-        d2 = Domain("number", "in", [3, 2, 1]).optimize(Model)  # different order
+        d2 = Domain("number", "in", [3, 2, 1]).optimize(Model)
         self.assertEqual(d1, d2)
-        self.assertEqual(hash(d1), hash(d2))  # invariant a == b ⟹ hash == hash
-        self.assertEqual(len({d1, d2}), 1)  # usable as set/dict keys
+        self.assertEqual(hash(d1), hash(d2))
+        self.assertEqual(len({d1, d2}), 1)
 
-        # a nary domain with set-valued leaves is hashable end-to-end
         nary = Domain.OR(
             [Domain("number", "in", [1, 2]), Domain("number", "=", 5)]
         ).optimize(Model)
-        self.assertIsInstance(hash(nary), int)  # must not raise
+        self.assertIsInstance(hash(nary), int)
 
-        # scalar conditions still differentiate by value (hash quality preserved)
         self.assertNotEqual(
             hash(Domain("number", "=", 1).optimize(Model)),
             hash(Domain("number", "=", 2).optimize(Model)),
@@ -94,16 +88,14 @@ class TestDomain(TransactionExpressionCase):
         EmptyInt = self.env["test_orm.empty_int"]
         records = EmptyInt.create(
             [
-                {"number": 42},  # stored as 42
-                {"number": 0},  # stored as 0
-                {"number": False},  # stored as 0
-                {},  # stored as NULL
+                {"number": 42},
+                {"number": 0},
+                {"number": False},
+                {},
             ]
         )
-        # check read (NULL is returned as 0)
         self.assertListEqual(records.mapped("number"), [42, 0, 0, 0])
 
-        # check database value
         self.env.flush_all()
 
         sql = SQL(
@@ -161,7 +153,6 @@ class TestDomain(TransactionExpressionCase):
             self._search(EmptyInt, [("number", "<", -1)]).mapped("number"), []
         )
 
-        # check ('number', 'in', subset) for every subset of {42, 0, False}
         values = [42, 0, False]
         for length in range(len(values) + 1):
             for subset in combinations(values, length):
@@ -185,15 +176,13 @@ class TestDomain(TransactionExpressionCase):
         records = EmptyChar.create(
             [
                 {"name": "name"},
-                {"name": ""},  # stored as ''
-                {"name": False},  # stored as null (explicitly asked)
-                {},  # stored as null
+                {"name": ""},
+                {"name": False},
+                {},
             ]
         )
-        # check read
         self.assertListEqual(records.mapped("name"), ["name", "", False, False])
 
-        # check database value
         self.env.flush_all()
 
         sql = SQL(
@@ -257,7 +246,6 @@ class TestDomain(TransactionExpressionCase):
         values = ["name", "", False]
         for length in range(len(values) + 1):
             for subset in combinations(values, length):
-                # check against a subset containing both values for empty strings
                 subset_check = set(subset)
                 if {False, ""} & subset_check:
                     subset_check |= {False, ""}
@@ -280,7 +268,6 @@ class TestDomain(TransactionExpressionCase):
                     f"Incorrect result for search([('name', 'not in', {list(subset)})])",
                 )
 
-        # =like check
         self.assertListEqual(
             self._search(EmptyChar, [("name", "=like", "na%")]).mapped("name"),
             ["name"],
@@ -364,7 +351,6 @@ class TestDomain(TransactionExpressionCase):
         values = ["name", "", False]
         for length in range(len(values) + 1):
             for subset in combinations(values, length):
-                # check against a subset containing both values for empty strings
                 subset_check = set(subset)
                 if {False, ""} & subset_check:
                     subset_check |= {False, ""}
@@ -409,12 +395,9 @@ class TestDomain(TransactionExpressionCase):
                 },
             ]
         )
-        # Link parent_1.child_1 to parent_1.child_2
         parent_1.child_ids[0].link_sibling_id = parent_1.child_ids[1]
-        # Link parent_2.child_2 to parent_2.child_1
         parent_2.child_ids[1].link_sibling_id = parent_2.child_ids[0]
 
-        # Check any/not any traversing normal Many2one
         res_search = self._search(
             Child, [("link_sibling_id", "any", [("quantity", ">", 5)])]
         )
@@ -425,7 +408,6 @@ class TestDomain(TransactionExpressionCase):
         )
         self.assertEqual(res_search, parent_1.child_ids[1] + parent_2.child_ids)
 
-        # Check any/not any traversing bypass_search_access Many2one
         self.assertFalse(Child._fields["link_sibling_id"].bypass_search_access)
         self.patch(Child._fields["link_sibling_id"], "bypass_search_access", True)
         self.assertTrue(Child._fields["link_sibling_id"].bypass_search_access)
@@ -440,7 +422,6 @@ class TestDomain(TransactionExpressionCase):
         )
         self.assertEqual(res_search, parent_1.child_ids[1] + parent_2.child_ids)
 
-        # Check any/not any traversing delegate Many2one
         res_search = self._search(
             Child, [("parent_id", "any", [("name", "=", "Jean")])]
         )
@@ -500,7 +481,6 @@ class TestDomain(TransactionExpressionCase):
             ]
         )
 
-        # Check any/not any traversing normal one2many
         res_search = self._search(
             Parent, [("child_ids", "any", [("quantity", "=", 1)])]
         )
@@ -511,7 +491,6 @@ class TestDomain(TransactionExpressionCase):
         )
         self.assertEqual(res_search, parent_2 + parent_3)
 
-        # Check any/not any traversing bypass_search_access Many2one
         self.assertFalse(Parent._fields["child_ids"].bypass_search_access)
         self.patch(Parent._fields["child_ids"], "bypass_search_access", True)
         self.assertTrue(Parent._fields["child_ids"].bypass_search_access)
@@ -527,7 +506,6 @@ class TestDomain(TransactionExpressionCase):
         self.assertEqual(res_search, parent_2 + parent_3)
 
     def test_anys_many2many(self):
-        # bypass_search_access + without
         Child = self.env["test_orm.any.child"]
 
         child_1, child_2, child_3 = Child.create(
@@ -547,7 +525,6 @@ class TestDomain(TransactionExpressionCase):
             ]
         )
 
-        # Check any/not any traversing normal Many2Many
         res_search = self._search(
             Child, [("tag_ids", "any", [("name", "=", "Urgent")])]
         )
@@ -624,7 +601,6 @@ class TestDomainOptimize(TransactionCase):
         self.assertIs(Domain.FALSE.optimize(model), Domain.FALSE)
 
     def test_condition_build(self):
-        # the terms do not change during the build of the condition
         dom = Domain("a", "=", 1)
         self.assertEqual((dom.field_expr, dom.operator, dom.value), ("a", "=", 1))
 
@@ -649,7 +625,6 @@ class TestDomainOptimize(TransactionCase):
         model = self.env["test_orm.mixed"]
         domain = Domain("xxx_inexisting", "=", False)
         with self.assertRaises(ValueError):
-            # fields must be validated
             domain.optimize(model)
 
     def test_condition_optimize_search(self):
@@ -696,8 +671,6 @@ class TestDomainOptimize(TransactionCase):
     def test_condition_optimize_deprecated_operators(self):
         """`<>` and `==` are deprecated aliases that normalize to `!=` / `=`."""
         model = self.env["test_orm.mixed"]
-        # the deprecation warning itself is asserted in the _warn test below;
-        # here we only check the rewrite, so silence the expected warning.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             self.assertEqual(
@@ -968,10 +941,6 @@ class TestDomainOptimize(TransactionCase):
             Domain("moment", "not in", ["2024-01-05", datetime(2023, 1, 1)]).optimize(
                 model
             ),
-            # The two AND-ed subtrees are emitted in canonical (content-sorted)
-            # order, not in the caller's value order, so the optimized form is
-            # independent of how the ``not in`` collection was written: the 2023
-            # subtree sorts before the 2024 one.
             (
                 Domain("moment", "in", OrderedSet([False]))
                 | Domain("moment", "<", datetime(2023, 1, 1))
@@ -1085,9 +1054,6 @@ class TestDomainOptimize(TransactionCase):
 
     def test_condition_hierarchy_boolean_values(self):
         """Booleans in child_of/parent_of fail (True) or collapse (False) cleanly."""
-        # Regression: bool is an int subclass, so True/[True] passed the id
-        # partition and reached SQL as parent_id IN (true) — a psycopg
-        # UndefinedFunction surfacing as an opaque RPC 500.
         model = self.env["test_orm.category"]
         parent = model.create({"name": "parent"})
         model.create({"name": "child", "parent": parent.id})
@@ -1095,11 +1061,8 @@ class TestDomainOptimize(TransactionCase):
             for value in (True, [True], [True, parent.id]):
                 with self.assertRaises(ValueError, msg=f"{op} {value!r}"):
                     model.search([("id", op, value)])
-            # False means "not set": it seeds no record, so alone it collapses
-            # to an empty result...
             self.assertFalse(model.search([("id", op, False)]))
             self.assertFalse(model.search([("id", op, [False])]))
-            # ...and mixed with real ids it is simply dropped
             self.assertEqual(
                 model.search([("id", op, [False, parent.id])]),
                 model.search([("id", op, parent.id)]),
@@ -1107,20 +1070,14 @@ class TestDomainOptimize(TransactionCase):
 
     def test_filtered_domain_new_records_required_m2o(self):
         """A FULL-optimized domain reused over new() records still sees the False branch."""
-        # A FULL pass strips False from required NOT NULL fields — valid for
-        # persisted rows only.  Reusing the FULL-stamped domain as a predicate
-        # over new() records (whose required m2o may legitimately be unset) must
-        # still agree with a fresh parse: the pre-strip condition is kept
-        # reachable on the optimized node.
         model = self.env["test_orm.move_line"]
         move = self.env["test_orm.move"].create({})
         raw = [("move_id", "in", [False, move.id])]
         full = Domain(raw).optimize_full(model)
-        # the strip actually fired, otherwise this test is vacuous
         [(_, _, optimized_value)] = list(full)
         self.assertEqual(optimized_value, [move.id])
 
-        new_record = model.new({})  # required m2o absent in memory
+        new_record = model.new({})
         self.assertFalse(new_record.move_id)
         self.assertEqual(
             new_record.filtered_domain(raw),
@@ -1133,12 +1090,10 @@ class TestDomainOptimize(TransactionCase):
             "the FULL-stamped (stripped) domain must agree with the fresh "
             "parse over new records",
         )
-        # sanity: over persisted records both forms agree too
         line = model.create({"move_id": move.id})
         self.assertEqual(line.filtered_domain(full), line.filtered_domain(raw))
 
     def test_not_optimize(self):
-        # optimizations are tested with nary
         self.assertEqual(
             ~~self.number_domain,
             self.number_domain,
@@ -1212,7 +1167,6 @@ class TestDomainOptimize(TransactionCase):
         set345 = OrderedSet([3, 4, 5])
         set910 = OrderedSet([9, 10])
         sets = [set123, set345, set910, OrderedSet()]
-        # check all possible pairs (a, b) of sets above
         for a, b in list(combinations(sets, 2)) + list(combinations(reversed(sets), 2)):
             self.assertEqual(
                 (domain("in", a) | domain("in", b)).optimize(model),
@@ -1278,8 +1232,6 @@ class TestDomainOptimize(TransactionCase):
     def test_nary_optimize_in_relational(self):
         model = self.env["test_orm.discussion"]
 
-        # check when the optimizations are applied, the results are checked
-        # by the previous test function
         with self.subTest(field_type="many2one"):
             d1 = Domain("moderator", "in", [1]).optimize(model)
             d2 = Domain("moderator", "in", [1, 2]).optimize(model)
@@ -1308,15 +1260,12 @@ class TestDomainOptimize(TransactionCase):
         model = self.env["test_orm.discussion"]
 
         for field_name, left, right in [
-            # many2one
             ("moderator", Domain("id", ">", 5), Domain("login", "like", "one")),
-            # many2many
             (
                 "categories",
                 Domain("id", ">", 5),
                 Domain("name", "like", "these"),
             ),
-            # one2many
             ("messages", Domain("id", ">", 5), Domain("name", "like", "hello")),
         ]:
             field_type = model._fields[field_name].type
@@ -1396,7 +1345,6 @@ class TestDomainOptimize(TransactionCase):
 
     def test_optimize_level_by_level(self):
         def search_foo(model, operator, value):
-            # groups values to check that it is called once
             return [("name", "=", str(tuple(value)))]
 
         self.patch(self.registry["test_orm.bar"], "_search_foo", search_foo)
@@ -1405,28 +1353,27 @@ class TestDomainOptimize(TransactionCase):
         domain = domain.optimize_full(bar)
         self.assertEqual(domain, Domain("name", "in", OrderedSet(["(4, 5)"])))
 
-    @users("admin")  # just so it's not SUPERUSER to be able to de-escalate su.
+    @users("admin")
     def test_bypass_comodel_id_lookup(self):
         model = self.env["test_orm.mixed"]
         base_domain = Domain("currency_id.id", "=", 2)
-        self.assertEqual(  # without sudo
+        self.assertEqual(
             list(base_domain.optimize_full(model)),
             [("currency_id", "any", [("id", "in", [2])])],
         )
-        self.assertEqual(  # with sudo
+        self.assertEqual(
             list(base_domain.optimize_full(model.sudo())),
             [("currency_id", "in", [2])],
         )
 
-        # check how False is managed
         base_domain = Domain("currency_id.id", "in", [2, False])
-        self.assertEqual(  # with sudo
+        self.assertEqual(
             list(base_domain.optimize_full(model.sudo())),
             [("currency_id", "in", [2])],
         )
 
         base_domain = Domain("currency_id.id", "not in", [2])
-        self.assertEqual(  # with sudo
+        self.assertEqual(
             list(base_domain.optimize_full(model.sudo())),
             [("currency_id", "not in", [2, False])],
         )
@@ -1442,12 +1389,10 @@ class TestDomainOptimize(TransactionCase):
         """
         for op in ("any", "any!", "not any", "not any!"):
             with self.subTest(operator=op):
-                # Single-condition fast path: [("field", op, [subcondition])]
                 dom = Domain(
                     [("partner_id", op, [("name", "ilike", "test")])],
                     internal=True,
                 )
-                # The value should have been parsed as a Domain, not left as list
                 conditions = list(dom.iter_conditions())
                 self.assertEqual(len(conditions), 1, f"Expected 1 condition for {op}")
                 self.assertIsInstance(
@@ -1456,7 +1401,6 @@ class TestDomainOptimize(TransactionCase):
                     f"Operator {op!r} value must be parsed as Domain when internal=True",
                 )
 
-                # Stack-based parser: ['&', ("field", op, subcond), ("other", "=", 1)]
                 dom2 = Domain(
                     [
                         "&",
@@ -1506,7 +1450,6 @@ class TestDomainEdgeCases(TransactionCase):
         self.assertEqual(
             [type(c).__name__ for c in combined.children][1], "DomainCustom"
         )
-        # both previously raised NotImplementedError
         self.assertIsInstance(list(combined), list)
         self.assertIn("custom", repr(combined))
 
@@ -1545,10 +1488,8 @@ class TestDomainEdgeCases(TransactionCase):
                 inner = [("parent_id", op, inner)]
             return inner
 
-        # shallow chains (legitimate use) still build
         Domain(nested_any(5))
         Domain([("partner_id", "any", [("active", "=", True)])])
-        # deep chains are rejected up front, via every construction path
         with self.assertRaises(ValueError):
             Domain(nested_any(MAX_DOMAIN_NESTING + 5))
         with self.assertRaises(ValueError):
@@ -1557,7 +1498,6 @@ class TestDomainEdgeCases(TransactionCase):
             Domain("parent_id", "any", nested_any(500))
         with self.assertRaises(ValueError):
             Domain(nested_any(500), internal=True)
-        # a huge non-subdomain ('in') value must not be mistaken for nesting
         Domain([("id", "in", list(range(10000)))])
 
 
@@ -1620,9 +1560,7 @@ class TestInequalityAgainstNull(TransactionCase):
     def test_falsy_value_fields_are_unaffected(self):
         """Fields with a falsy sentinel keep comparing against it."""
         model = self.env["res.partner"]
-        # Char falsy_value is "" -> compares against '', not collapsed
         self.assertNotEqual(Domain("name", ">", False).optimize(model), Domain.FALSE)
-        # Integer falsy_value is 0 -> compares against 0, not collapsed
         self.assertNotEqual(Domain("color", ">=", False).optimize(model), Domain.FALSE)
 
 
@@ -1649,8 +1587,6 @@ class TestIdComparandValidation(TransactionCase):
         model = self.env["res.partner"]
         with self.assertRaises(ValueError):
             model.search([("id", ">", "abc")])
-        # An unrelated query must still work -- this is what a raw psycopg
-        # error made impossible.
         self.assertTrue(self.env["res.country"].search_count([]) >= 0)
 
     def test_valid_comparands_still_work(self):
@@ -1658,12 +1594,10 @@ class TestIdComparandValidation(TransactionCase):
         records = model.search([], limit=3)
         self.assertTrue(records)
         lowest = min(records.ids)
-        # numeric strings are parsed, as Postgres did implicitly
         self.assertEqual(
             model.search_count([("id", ">=", str(lowest))]),
             model.search_count([("id", ">=", lowest)]),
         )
-        # floats are NOT truncated: id >= 1.5 and id >= 1 differ
         self.assertEqual(
             set(model.search([("id", ">=", lowest + 0.5)]).ids),
             set(model.search([("id", ">", lowest)]).ids),
@@ -1712,9 +1646,6 @@ class TestSearchFilteredDomainParity(TransactionCase):
     ITERATIONS = 300
     SEED = 20260724
 
-    # Only ``base`` fields, so the suite runs against a bare test_orm database.
-    # ``setUp`` still filters them against the live model, so the test keeps
-    # working if a field is moved to another module.
     CHAR_FIELDS = ("name", "ref", "city", "email", "phone", "street", "function")
     NUM_FIELDS = ("color", "id")
     BOOL_FIELDS = ("active", "is_company")
@@ -1857,8 +1788,6 @@ class TestDomainConfluence(TransactionCase):
     class is the real backing test.
     """
 
-    # Mix of mergeable same-field conditions (count: a range + an exclusion)
-    # and unrelated fields, so the sort key has real reordering work to do.
     def _leaves(self):
         return [
             Domain("count", ">", 5),
@@ -1903,7 +1832,6 @@ class TestDomainConfluence(TransactionCase):
         dy = Domain("foo", "like", "y%")
         leaves = [dx, dy, dx]
         canonical = Domain.OR(leaves).optimize(model)
-        # the duplicate is actually gone: {x, x, y} -> {x, y}
         self.assertEqual(len(list(canonical.children)), 2)
         for perm in permutations(leaves):
             self.assertEqual(
@@ -1936,7 +1864,6 @@ class TestDomainAgainstRawRows(TransactionCase):
     with it -- on purpose: it is the record of what the SQL is supposed to mean.
     """
 
-    # (column, falsy_value) -- ``id`` is NOT NULL and has no falsy value.
     COLUMNS = {
         "name": "",
         "ref": "",
@@ -1970,8 +1897,6 @@ class TestDomainAgainstRawRows(TransactionCase):
             ]
         )
         self.env.flush_all()
-        # The fixture deliberately contains inactive rows; a raw SELECT has no
-        # notion of the implicit ``active = True`` filter, so neither may search.
         self.Partner = self.env["res.partner"].with_context(active_test=False)
         cols = ", ".join(f'"{c}"' for c in self.COLUMNS if c != "id")
         self.env.cr.execute(
@@ -1996,7 +1921,6 @@ class TestDomainAgainstRawRows(TransactionCase):
         elif operator == "in":
             expr = raw is not None and raw in params
         else:
-            # NOT IN against NULL is UNKNOWN, i.e. not true
             expr = raw is not None and raw not in params
 
         if (operator == "in") == null_in:
@@ -2041,9 +1965,6 @@ class TestDomainAgainstRawRows(TransactionCase):
                 found = self.Partner.search([("id", "in", self.records.ids), leaf])
                 self.assertEqual(set(found.ids), expected)
                 sizes.add(len(expected))
-        # Guard against a vacuous pass: if every expectation were empty (or the
-        # whole fixture) the comparisons above would hold no matter what the
-        # optimizer did.
         self.assertGreater(
             len({s for s in sizes if 0 < s < len(self.records)}),
             1,
@@ -2071,9 +1992,6 @@ class TestDomainAgainstRawRows(TransactionCase):
                 found = self.Partner.search([("id", "in", self.records.ids), leaf])
                 self.assertEqual(set(found.ids), expected)
                 sizes.add(len(expected))
-        # Guard against a vacuous pass: if every expectation were empty (or the
-        # whole fixture) the comparisons above would hold no matter what the
-        # optimizer did.
         self.assertGreater(
             len({s for s in sizes if 0 < s < len(self.records)}),
             1,

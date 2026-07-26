@@ -2,13 +2,10 @@ from odoo.tests import common
 
 
 class TestActionBindings(common.TransactionCase):
-
     def test_bindings(self):
         """check the action bindings on models"""
         Actions = self.env["ir.actions.actions"]
 
-        # first make sure there is no bound action — clear all bindings
-        # on res.partner (other modules like mail, sms, etc. may have added some)
         partner_model = self.env["ir.model"]._get("res.partner")
         self.env["ir.actions.actions"].search(
             [
@@ -19,7 +16,6 @@ class TestActionBindings(common.TransactionCase):
         self.assertFalse(bindings.get("action"))
         self.assertFalse(bindings.get("report"))
 
-        # create action bindings, and check the returned bindings
         action1 = self.env.ref("base.action_attachment")
         action2 = self.env.ref("base.ir_default_menu_action")
         action3 = self.env["ir.actions.report"].search(
@@ -41,7 +37,6 @@ class TestActionBindings(common.TransactionCase):
             "Wrong action bindings",
         )
 
-        # add a group on an action, and check that it is not returned
         group = self.env.ref("base.group_system")
         action2.group_ids += group
         self.env.user.group_ids -= group

@@ -5,7 +5,6 @@ from odoo.tests import common, tagged
 
 @tagged("post_install", "-at_install", "-standard", "nightly_export")
 class TestTranslationFlow(common.TransactionCase):
-
     @common.no_retry
     def test_export_source(self):
         """Export the source terms for every module and save it"""
@@ -22,7 +21,6 @@ class TestTranslationFlow(common.TransactionCase):
             )
             export.act_getfile()
             if not export.data:
-                # export.data = False => no terms to translate
                 continue
             pot_file = base64.b64decode(export.data)
             common.save_test_file(

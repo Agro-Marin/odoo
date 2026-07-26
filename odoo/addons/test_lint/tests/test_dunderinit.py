@@ -7,14 +7,12 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-# whitelist that allow data modules only
 WHITELIST = [
     "test_data_module",
 ]
 
 
 class TestDunderinit(lint_case.LintCase):
-
     def test_dunderinit(self):
         """Test that __init__.py exists in Odoo modules, otherwise they won't get packaged"""
 

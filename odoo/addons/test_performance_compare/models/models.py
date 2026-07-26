@@ -48,9 +48,7 @@ class PerfCmpBase(models.Model):
     line_ids = fields.One2many("perf.cmp.line", "base_id")
     tag_ids = fields.Many2many("perf.cmp.tag")
 
-    # stored computed: exercises the recomputation path on write
     value_pc = fields.Float(compute="_compute_value_pc", store=True)
-    # stored computed off a one2many: exercises o2m-triggered recompute
     total = fields.Integer(compute="_compute_total", store=True)
 
     @api.depends("value")

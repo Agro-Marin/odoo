@@ -31,9 +31,8 @@ from odoo.tests.common import TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
 
-# Benchmark configuration
-DEFAULT_ITERATIONS = 50  # Number of times to run each test
-WARMUP_ITERATIONS = 5  # Warmup runs (excluded from stats)
+DEFAULT_ITERATIONS = 50
+WARMUP_ITERATIONS = 5
 
 
 @tagged("standard", "sql_benchmark")
@@ -56,13 +55,11 @@ class TestSQLBenchmark(TransactionCase):
         cls.User = cls.env["res.users"]
         cls.Country = cls.env["res.country"]
 
-        # Pre-create test data
         cls._create_test_data()
 
     @classmethod
     def _create_test_data(cls):
         """Create test data for benchmarks."""
-        # Create test partners if needed
         existing = cls.Partner.search_count([("name", "like", "BenchmarkPartner%")])
         if existing < 100:
             _logger.info("[SQL_BENCHMARK] Creating test data...")
@@ -85,9 +82,7 @@ class TestSQLBenchmark(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # Force garbage collection before each test
         gc.collect()
-        # Warm up connection pool
         self.Partner.search_count([])
 
     def _run_benchmark(
@@ -112,10 +107,6 @@ class TestSQLBenchmark(TransactionCase):
         self.all_results.append(stats)
         _logger.info("[SQL_BENCHMARK] %s", stats.summary("ms"))
         return stats
-
-    # =========================================================================
-    # SINGLE RECORD OPERATIONS
-    # =========================================================================
 
     def test_01_single_record_read_by_id(self):
         """Benchmark: Read single record by ID."""
@@ -162,10 +153,6 @@ class TestSQLBenchmark(TransactionCase):
             self._partner_to_delete.unlink()
 
         self._run_benchmark("Single Record Unlink", bench, setup=setup, iterations=30)
-
-    # =========================================================================
-    # SEARCH OPERATIONS
-    # =========================================================================
 
     def test_10_search_simple_domain(self):
         """Benchmark: Search with simple domain."""
@@ -221,10 +208,6 @@ class TestSQLBenchmark(TransactionCase):
             )
 
         self._run_benchmark("Search Read Combined (limit=50)", bench)
-
-    # =========================================================================
-    # BATCH OPERATIONS
-    # =========================================================================
 
     def test_20_batch_create_10(self):
         """Benchmark: Create 10 records in batch."""
@@ -282,10 +265,6 @@ class TestSQLBenchmark(TransactionCase):
 
         self._run_benchmark("Batch Read (100 records, 5 fields)", bench)
 
-    # =========================================================================
-    # RELATIONAL FIELD OPERATIONS
-    # =========================================================================
-
     def test_30_relational_many2one_access(self):
         """Benchmark: Access Many2one related fields."""
         partners = self.Partner.search([("country_id", "!=", False)], limit=50)
@@ -315,14 +294,9 @@ class TestSQLBenchmark(TransactionCase):
 
         def bench():
             for p in partners:
-                # Partner -> Country -> Currency -> Company
                 _ = p.country_id.currency_id.name if p.country_id.currency_id else None
 
         self._run_benchmark("Deep Relational Traversal (3 levels)", bench)
-
-    # =========================================================================
-    # COMPUTED FIELDS
-    # =========================================================================
 
     def test_40_computed_field_access(self):
         """Benchmark: Access computed fields (display_name)."""
@@ -340,15 +314,10 @@ class TestSQLBenchmark(TransactionCase):
 
         def bench():
             for u in users:
-                # Access computed fields that depend on other fields
                 _ = u.display_name
                 _ = u.partner_id.display_name
 
         self._run_benchmark("Computed Fields with Dependencies (20 users)", bench)
-
-    # =========================================================================
-    # RAW SQL vs ORM
-    # =========================================================================
 
     def test_50_raw_sql_select(self):
         """Benchmark: Raw SQL SELECT."""
@@ -397,10 +366,6 @@ class TestSQLBenchmark(TransactionCase):
 
         self._run_benchmark("Raw SQL INSERT", bench, iterations=30)
 
-    # =========================================================================
-    # TRANSACTION PATTERNS
-    # =========================================================================
-
     def test_60_savepoint_overhead(self):
         """Benchmark: Savepoint creation and release overhead."""
 
@@ -421,18 +386,12 @@ class TestSQLBenchmark(TransactionCase):
 
         self._run_benchmark("Multiple Queries (4 queries, 1 transaction)", bench)
 
-    # =========================================================================
-    # CACHE BEHAVIOR
-    # =========================================================================
-
     def test_70_cache_hit_single(self):
         """Benchmark: Cache hit on single record."""
         partner = self.Partner.search([], limit=1)
-        # Pre-populate cache
         _ = partner.name
 
         def bench():
-            # Should hit cache
             _ = partner.name
 
         self._run_benchmark("Cache Hit (single field)", bench, iterations=100)
@@ -455,31 +414,21 @@ class TestSQLBenchmark(TransactionCase):
         self.env.invalidate_all()
 
         def bench():
-            # First access triggers prefetch for all 100
             for p in partners:
                 _ = p.name
 
         self._run_benchmark("Prefetch (100 records)", bench)
 
-    # =========================================================================
-    # CONCURRENT SIMULATION
-    # =========================================================================
-
     def test_80_sequential_operations(self):
         """Benchmark: Sequential independent operations."""
 
         def bench():
-            # Simulate what could be parallelized with async
             self.Partner.search_count([("is_company", "=", True)])
             self.Partner.search_count([("is_company", "=", False)])
             self.Country.search_count([])
             self.User.search_count([])
 
         self._run_benchmark("Sequential Operations (4 counts)", bench)
-
-    # =========================================================================
-    # SCALING ANALYSIS - Critical for async benefit assessment
-    # =========================================================================
 
     def test_85_scaling_batch_create_1(self):
         """Benchmark: Create 1 record (baseline)."""
@@ -579,15 +528,10 @@ class TestSQLBenchmark(TransactionCase):
 
         self._run_benchmark("Scale: Search limit=500", bench)
 
-    # =========================================================================
-    # ASYNC POTENTIAL - Operations that could benefit from parallelization
-    # =========================================================================
-
     def test_90_independent_reads_2_tables(self):
         """Benchmark: 2 independent table reads (async potential: high)."""
 
         def bench():
-            # These two queries are completely independent
             self.Partner.search_read([("is_company", "=", True)], limit=50)
             self.Country.search_read([], limit=50)
 
@@ -597,7 +541,6 @@ class TestSQLBenchmark(TransactionCase):
         """Benchmark: 4 independent table reads (async potential: very high)."""
 
         def bench():
-            # All four queries are completely independent
             self.Partner.search_read([("is_company", "=", True)], limit=30)
             self.Country.search_read([], limit=30)
             self.User.search_read([], fields=["name", "login"], limit=30)
@@ -609,7 +552,6 @@ class TestSQLBenchmark(TransactionCase):
         """Benchmark: Dependent query chain (async potential: low)."""
 
         def bench():
-            # Each query depends on the previous one
             partner = self.Partner.search([("country_id", "!=", False)], limit=1)
             if partner:
                 country = partner.country_id
@@ -623,11 +565,9 @@ class TestSQLBenchmark(TransactionCase):
         """Benchmark: Mix of independent and dependent queries."""
 
         def bench():
-            # Independent group 1
             companies = self.Partner.search([("is_company", "=", True)], limit=20)
             self.Country.search([], limit=20)
 
-            # Dependent on group 1
             for company in companies[:5]:
                 _ = company.country_id.name
 
@@ -639,16 +579,18 @@ class TestSQLBenchmark(TransactionCase):
         self.env.invalidate_all()
 
         def bench():
-            # This causes N+1 queries without proper prefetching
-            return [{
-                        "name": p.name,
-                        "country": p.country_id.name,
-                        "currency": (
-                            p.country_id.currency_id.name
-                            if p.country_id.currency_id
-                            else None
-                        ),
-                    } for p in partners]
+            return [
+                {
+                    "name": p.name,
+                    "country": p.country_id.name,
+                    "currency": (
+                        p.country_id.currency_id.name
+                        if p.country_id.currency_id
+                        else None
+                    ),
+                }
+                for p in partners
+            ]
 
         self._run_benchmark("N+1 Pattern (20 records, 3 levels)", bench)
 
@@ -658,17 +600,12 @@ class TestSQLBenchmark(TransactionCase):
         self.env.invalidate_all()
 
         def bench():
-            # ORM prefetch should optimize this
             names = partners.mapped("name")
             emails = partners.mapped("email")
             phones = partners.mapped("phone")
             return names, emails, phones
 
         self._run_benchmark("Bulk mapped() access (100 records, 3 fields)", bench)
-
-    # =========================================================================
-    # QUERY COMPLEXITY ANALYSIS
-    # =========================================================================
 
     def test_95_simple_where(self):
         """Benchmark: Simple WHERE clause."""
@@ -735,10 +672,6 @@ class TestSQLBenchmark(TransactionCase):
 
         self._run_benchmark("Query: GROUP BY aggregation", bench)
 
-    # =========================================================================
-    # SUMMARY AND EXPORT
-    # =========================================================================
-
     def test_99_generate_summary(self):
         """Generate final summary and export results."""
         if not self.all_results:
@@ -749,7 +682,6 @@ class TestSQLBenchmark(TransactionCase):
         _logger.info("[SQL_BENCHMARK] FINAL SUMMARY")
         _logger.info("=" * 80)
 
-        # Sort by DB time ratio (highest first - best candidates for async)
         sorted_by_db_ratio = sorted(
             self.all_results, key=lambda x: x.db_ratio, reverse=True
         )
@@ -767,7 +699,6 @@ class TestSQLBenchmark(TransactionCase):
                 stat.query_count_mean,
             )
 
-        # Sort by total time (slowest first)
         sorted_by_time = sorted(self.all_results, key=lambda x: x.mean_ms, reverse=True)
 
         _logger.info("\n[SQL_BENCHMARK] SLOWEST OPERATIONS:")
@@ -783,7 +714,6 @@ class TestSQLBenchmark(TransactionCase):
                 stat.std_dev_ms,
             )
 
-        # Sort by variance (most inconsistent first)
         sorted_by_cv = sorted(self.all_results, key=lambda x: x.cv, reverse=True)
 
         _logger.info("\n[SQL_BENCHMARK] MOST VARIABLE OPERATIONS (inconsistent):")
@@ -799,7 +729,6 @@ class TestSQLBenchmark(TransactionCase):
                 stat.max_ms,
             )
 
-        # Export to JSON for external analysis
         export_data = {
             "timestamp": datetime.now().isoformat(),
             "config": {
@@ -824,7 +753,6 @@ class TestSQLBenchmark(TransactionCase):
         _logger.info("[SQL_BENCHMARK] ASYNC BENEFIT ANALYSIS")
         _logger.info("=" * 80)
 
-        # 1. DB Wait Time Analysis
         high_db_ratio = [s for s in self.all_results if s.db_ratio > 0.6]
         medium_db_ratio = [s for s in self.all_results if 0.3 <= s.db_ratio <= 0.6]
         low_db_ratio = [s for s in self.all_results if s.db_ratio < 0.3]
@@ -865,13 +793,10 @@ class TestSQLBenchmark(TransactionCase):
             _logger.info("   - Average DB wait: %.3f ms", avg_db_time)
             _logger.info("   - Total DB wait:   %.3f ms", total_db_wait)
 
-        # 2. Independent Operations Analysis
         _logger.info("\n2. INDEPENDENT OPERATIONS ANALYSIS:")
         independent_tests = [s for s in self.all_results if "Independent" in s.name]
         if independent_tests:
             for test in independent_tests:
-                # Calculate theoretical async speedup
-                # If queries run in parallel, time = max(individual query times) instead of sum
                 estimated_parallel_time = (
                     test.db_time_ms / test.query_count_mean
                     if test.query_count_mean > 0
@@ -893,7 +818,6 @@ class TestSQLBenchmark(TransactionCase):
                     min(speedup, test.query_count_mean),
                 )
 
-        # 3. Scaling Analysis
         _logger.info("\n3. SCALING ANALYSIS:")
         scale_create_tests = [
             s for s in self.all_results if s.name.startswith("Scale: Create")
@@ -905,7 +829,6 @@ class TestSQLBenchmark(TransactionCase):
         if scale_create_tests:
             _logger.info("   Batch Create scaling:")
             for test in sorted(scale_create_tests, key=lambda x: x.mean_ms):
-                # Extract record count from name
                 _logger.info(
                     "      %s: %.3f ms (%.3f ms/record avg)",
                     test.name,
@@ -918,7 +841,6 @@ class TestSQLBenchmark(TransactionCase):
             for test in sorted(scale_search_tests, key=lambda x: x.mean_ms):
                 _logger.info("      %s: %.3f ms", test.name, test.mean_ms)
 
-        # 4. Query Complexity Impact
         _logger.info("\n4. QUERY COMPLEXITY IMPACT:")
         query_tests = [s for s in self.all_results if s.name.startswith("Query:")]
         if query_tests:
@@ -939,7 +861,6 @@ class TestSQLBenchmark(TransactionCase):
                             overhead,
                         )
 
-        # 5. Theoretical Async Benefits Summary
         _logger.info("\n5. THEORETICAL ASYNC BENEFITS:")
         total_sync_time = sum(s.mean_ms for s in self.all_results)
         total_db_time = sum(s.db_time_ms for s in self.all_results)
@@ -957,8 +878,6 @@ class TestSQLBenchmark(TransactionCase):
             (total_python_time / total_sync_time * 100 if total_sync_time > 0 else 0),
         )
 
-        # Estimate potential savings from async
-        # Conservative: assume 50% of DB wait time could be parallelized
         potential_savings = total_db_time * 0.5
         _logger.info(
             "\n   POTENTIAL ASYNC SAVINGS (conservative 50%% parallelization):"
@@ -969,7 +888,6 @@ class TestSQLBenchmark(TransactionCase):
             (potential_savings / total_sync_time * 100 if total_sync_time > 0 else 0),
         )
 
-        # 6. Recommendations
         _logger.info("\n6. RECOMMENDATIONS:")
         if high_db_ratio:
             _logger.info(

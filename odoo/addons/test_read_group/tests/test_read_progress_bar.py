@@ -23,9 +23,7 @@ class TestReadProgressBar(common.TransactionCase):
         result = self.env["res.partner"].read_progress_bar(
             [], "category_id", progressbar
         )
-        # check that it works when grouping by m2m field
         self.assertTrue(result)
-        # check the null group
         self.assertIn("False", result)
 
     def test_week_grouping(self):
@@ -34,12 +32,8 @@ class TestReadProgressBar(common.TransactionCase):
         """
         context = {"lang": "en_US"}
         groupby = "date:week"
-        self.Model.create(
-            {"date": "2021-05-02", "name": "testWeekGrouping_first"}
-        )  # Sunday
-        self.Model.create(
-            {"date": "2021-05-09", "name": "testWeekGrouping_second"}
-        )  # Sunday
+        self.Model.create({"date": "2021-05-02", "name": "testWeekGrouping_first"})
+        self.Model.create({"date": "2021-05-09", "name": "testWeekGrouping_second"})
         progress_bar = {
             "field": "name",
             "colors": {
@@ -59,8 +53,6 @@ class TestReadProgressBar(common.TransactionCase):
         self.assertEqual(len(groups), 2)
         self.assertEqual(len(progressbars), 2)
 
-        # format the read_progress_bar result to get a dictionary under this format : {record_name: group_name}
-        # original format (after read_progress_bar) is : {group_name: {record_name: count}}
         pg_groups = {
             next(
                 record_name for record_name, count in data.items() if count
@@ -113,7 +105,6 @@ class TestReadProgressBar(common.TransactionCase):
 
         self.env["x_progressbar"].create(
             [
-                # week 1 2019
                 {
                     "x_country_id": c1.id,
                     "x_date": "2019-01-01",
@@ -139,7 +130,6 @@ class TestReadProgressBar(common.TransactionCase):
                     "x_date": "2019-01-05",
                     "x_state": "baz",
                 },
-                # week 2 2019
                 {
                     "x_country_id": c2.id,
                     "x_date": "2019-01-06",
@@ -175,7 +165,6 @@ class TestReadProgressBar(common.TransactionCase):
                     "x_date": "2019-01-12",
                     "x_state": "foo",
                 },
-                # week 3 2019
                 {
                     "x_country_id": c3.id,
                     "x_date": "2019-01-13",
@@ -210,7 +199,6 @@ class TestReadProgressBar(common.TransactionCase):
             },
         )
 
-        # check date aggregation and format
         result = self.env["x_progressbar"].read_progress_bar(
             [], "x_date:week", progress_bar
         )
@@ -223,7 +211,6 @@ class TestReadProgressBar(common.TransactionCase):
             },
         )
 
-        # add a computed field on model
         model.write(
             {
                 "field_id": [
@@ -249,7 +236,6 @@ class TestReadProgressBar(common.TransactionCase):
             "field": "x_state_computed",
             "colors": {"foo": "success", "bar": "warning", "baz": "danger"},
         }
-        # It is not possible to read_progress_bar with ungroupable fields
         with self.assertRaises(ValueError), mute_logger("odoo.domains"):
             self.env["x_progressbar"].read_progress_bar(
                 [], "x_country_id", progress_bar

@@ -42,34 +42,22 @@ class TestEsmAssetGc(TransactionCase):
 
     def test_gc_matrix(self):
         """Superseded old rows go; live, recent, and classic rows stay."""
-        # Superseded version + sidecar, both past the grace window.
         old_v1 = self._mk("x.gcb.esm.js", "/web/assets/esm/aaaa/x.gcb.esm.js", 30)
         old_map = self._mk(
             "x.gcb.esm.js.map", "/web/assets/esm/aaaa/x.gcb.esm.js.map", 30
         )
-        # Current version (newest per name) — survives. Rebuilds create the
-        # sidecar under the same NAME as the old one (only the hash dir in
-        # the URL changes), which is what supersedes old_map above.
         new_v2 = self._mk("x.gcb.esm.js", "/web/assets/esm/bbbb/x.gcb.esm.js")
         new_map = self._mk("x.gcb.esm.js.map", "/web/assets/esm/bbbb/x.gcb.esm.js.map")
-        # Stable bundle: its ONLY row is ancient but is the newest per
-        # name — must survive regardless of age.
         lone_old = self._mk("y.gcb.esm.js", "/web/assets/esm/cccc/y.gcb.esm.js", 400)
-        # Superseded but still within the grace window — survives this run.
         recent_old = self._mk("z.gcb.esm.js", "/web/assets/esm/dddd/z.gcb.esm.js", 2)
         recent_new = self._mk("z.gcb.esm.js", "/web/assets/esm/eeee/z.gcb.esm.js")
-        # Bridges: age is the only criterion.
         bridge_old = self._mk(
             "aabbccddeeff0011.js", "/web/assets/esm/bridges/aabbccddeeff0011.js", 30
         )
         bridge_new = self._mk(
             "1100ffeeddccbbaa.js", "/web/assets/esm/bridges/1100ffeeddccbbaa.js", 1
         )
-        # Classic concatenated bundle: name matches no ESM suffix — never
-        # touched by this vacuum even when ancient.
-        classic = self._mk(
-            "x.gcb.min.js", "/web/assets/0123456/x.gcb.min.js", 400
-        )
+        classic = self._mk("x.gcb.min.js", "/web/assets/0123456/x.gcb.min.js", 400)
 
         self.env["ir.attachment"]._gc_esm_assets()
 
@@ -86,9 +74,7 @@ class TestEsmAssetGc(TransactionCase):
 
     def test_gc_grace_window_configurable(self):
         """``web.esm.gc_grace_days`` widens the window."""
-        self.env["ir.config_parameter"].sudo().set_param(
-            "web.esm.gc_grace_days", "60"
-        )
+        self.env["ir.config_parameter"].sudo().set_param("web.esm.gc_grace_days", "60")
         bridge = self._mk(
             "22334455667788aa.js", "/web/assets/esm/bridges/22334455667788aa.js", 30
         )
@@ -105,9 +91,7 @@ class TestEsmAssetGc(TransactionCase):
         passes ``_check_serving_attachments``) would become the phantom 'newest'
         and mark the genuine stable bundle stale — deleting a live asset.
         """
-        # Genuine bundle: superuser, ancient, the only real row for its name.
         stable = self._mk("p.gcb.esm.js", "/web/assets/esm/aaaa/p.gcb.esm.js", 400)
-        # Phantom: same name, HIGHER id, created by a non-superuser admin.
         admin = self.env.ref("base.user_admin")
         self.assertNotEqual(admin.id, SUPERUSER_ID, "phantom must not be superuser")
         phantom = (

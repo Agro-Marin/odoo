@@ -31,7 +31,6 @@ class TtuRoot(models.Model):
             lambda move: move.product_id == self.product_id
         )
         if not production_move:
-            # Happens when opening the mo?
             return
         for line in production_move.move_line_ids:
             line.qty_done = 0
@@ -82,10 +81,6 @@ class TtuRoot(models.Model):
             E.field({"name": "move_raw_ids", "on_change": "1"}, move_subview),
             E.field({"name": "move_finished_ids", "on_change": "1"}, move_subview),
         )
-        # deoptimise to ensure we call onchange most of the time, as im the real
-        # case this is done as a result of the metric fuckton of computes, but
-        # here the near complete lack of computes causes most of the onchange
-        # triggers to get disabled
         for f in t.iter("field"):
             f.set("on_change", "1")
         return t
@@ -96,9 +91,7 @@ class TtuChild(models.Model):
     _description = "ttu.child"
 
     product_id = fields.Many2one("ttu.product")
-    unit_factor = fields.Integer(
-        default=1, required=True
-    )  # should be computed but we can ignore that
+    unit_factor = fields.Integer(default=1, required=True)
     quantity_done = fields.Integer(
         compute="_quantity_done_compute", inverse="_quantity_done_set"
     )
@@ -139,14 +132,11 @@ class TtuChild(models.Model):
             move.quantity_done = sum(move.mapped("move_line_ids.qty_done"))
 
     def _quantity_done_set(self):
-        quantity_done = self[
-            0
-        ].quantity_done  # any call to create will invalidate `move.quantity_done`
+        quantity_done = self[0].quantity_done
         for move in self:
             move_lines = move.move_line_ids
             if not move_lines:
                 if quantity_done:
-                    # do not impact reservation here
                     move_line = self.env["ttu.grandchild"].create(
                         {
                             "move_id": move.id,
@@ -159,11 +149,10 @@ class TtuChild(models.Model):
             elif len(move_lines) == 1:
                 move_lines[0].qty_done = quantity_done
             else:
-                # Bypass the error if we're trying to write the same value.
                 ml_quantity_done = sum(l.qty_done for l in move_lines)
-                assert (
-                    quantity_done == ml_quantity_done
-                ), "Cannot set the done quantity from this stock move, work directly with the move lines."
+                assert quantity_done == ml_quantity_done, (
+                    "Cannot set the done quantity from this stock move, work directly with the move lines."
+                )
 
 
 class TtuGrandchild(models.Model):

@@ -16,8 +16,6 @@ class TestRules(TransactionCase):
         cls.categ = ObjCateg.create({"name": "Food"})
         cls.allowed = SomeObj.create({"val": 1, "categ_id": cls.categ.id})
         cls.forbidden = SomeObj.create({"val": -1, "categ_id": cls.categ.id})
-        # create a global rule forbidding access to records with a negative
-        # (or zero) val
         cls.env["ir.rule"].create(
             {
                 "name": "Forbid negatives",
@@ -27,8 +25,6 @@ class TestRules(TransactionCase):
                 "domain_force": "[('val', '>', 0)]",
             }
         )
-        # create a global rule that forbid access to records without
-        # categories, the search is part of the test
         cls.env["ir.rule"].create(
             {
                 "name": "See all categories",
@@ -45,10 +41,8 @@ class TestRules(TransactionCase):
         allowed = self.allowed.with_env(env)
         forbidden = self.forbidden.with_env(env)
 
-        # this one should not blow up
         self.assertEqual(allowed.val, 1)
 
-        # but this one should
         allowed.invalidate_model(["val"])
         with self.assertRaises(AccessError):
             self.assertEqual(forbidden.val, -1)
@@ -59,7 +53,6 @@ class TestRules(TransactionCase):
         allowed = self.allowed.with_env(env)
         forbidden = self.forbidden.with_env(env)
 
-        # we forbid access to the public group, to which the public user belongs
         self.env["ir.rule"].create(
             {
                 "name": "Forbid public group",
@@ -71,7 +64,6 @@ class TestRules(TransactionCase):
             }
         )
 
-        # everything should blow up
         (allowed + forbidden).invalidate_model(["val"])
         with self.assertRaises(AccessError):
             self.assertEqual(forbidden.val, -1)
@@ -82,18 +74,15 @@ class TestRules(TransactionCase):
         """Test assignment of many2many field where rules apply."""
         ids = [self.allowed.id, self.forbidden.id]
 
-        # create container as superuser, connected to all some_objs
         container_admin = self.env["test_access_right.container"].create(
             {"some_ids": [Command.set(ids)]}
         )
         self.assertItemsEqual(container_admin.some_ids.ids, ids)
 
-        # check the container as the public user
         container_user = container_admin.with_user(self.env.ref("base.public_user"))
         container_user.invalidate_model(["some_ids"])
         self.assertItemsEqual(container_user.some_ids.ids, [self.allowed.id])
 
-        # this should fail
         with self.assertRaises(AccessError):
             container_user.write({"some_ids": [Command.set(ids)]})
 
@@ -103,7 +92,6 @@ class TestRules(TransactionCase):
         container_admin.invalidate_model(["some_ids"])
         self.assertItemsEqual(container_admin.some_ids.ids, ids)
 
-        # this removes all records
         container_user.write({"some_ids": [Command.clear()]})
         container_user.invalidate_model(["some_ids"])
         self.assertItemsEqual(container_user.some_ids.ids, [])
@@ -113,7 +101,6 @@ class TestRules(TransactionCase):
     def test_access_rule_performance(self):
         env = self.env(user=self.env.ref("base.public_user"))
         Model = env["test_access_right.some_obj"]
-        # cache warmup for check() in 'ir.model.access'
         Model.check_access("read")
         with self.assertQueryCount(0):
             Model._filtered_access("read")
@@ -131,21 +118,16 @@ class TestRules(TransactionCase):
         env = self.env(user=self.env.ref("base.public_user"))
         SomeObj = env["test_access_right.some_obj"]
 
-        # 1. NewId-only recordset passes — the rule "val > 0" cannot
-        #    reject a NewId regardless of its cached val.
-        new_record = SomeObj.new({"val": -42})  # cached val fails the rule
+        new_record = SomeObj.new({"val": -42})
         self.assertEqual(new_record.val, -42)
-        new_record.check_access("read")  # must not raise
+        new_record.check_access("read")
         self.assertTrue(new_record.has_access("read"))
 
-        # 2. Mixed recordset (NewId + real-allowed): passes for both.
         allowed_user = self.allowed.with_env(env)
         mixed_ok = new_record | allowed_user
-        mixed_ok.check_access("read")  # must not raise
+        mixed_ok.check_access("read")
         self.assertTrue(mixed_ok.has_access("read"))
 
-        # 3. Mixed recordset (NewId + real-forbidden): the real record
-        #    is forbidden, but the NewId is not in the forbidden subset.
         forbidden_user = self.forbidden.with_env(env)
         mixed_bad = new_record | forbidden_user
         result = mixed_bad._check_access("read")
@@ -153,11 +135,11 @@ class TestRules(TransactionCase):
         forbidden_records = result[0]
         self.assertIn(forbidden_user, forbidden_records)
         self.assertNotIn(
-            new_record, forbidden_records,
+            new_record,
+            forbidden_records,
             "NewId must not be reported as forbidden by ir.rule",
         )
 
-        # 4. ``_filtered_access`` keeps the NewId, drops the real-forbidden.
         filtered = mixed_bad._filtered_access("read")
         self.assertIn(new_record, filtered)
         self.assertNotIn(forbidden_user, filtered)
@@ -167,18 +149,13 @@ class TestRules(TransactionCase):
         ObjCateg = self.env["test_access_right.obj_categ"]
         SomeObj = self.env["test_access_right.some_obj"]
 
-        # validate the effect of context on category search, there are
-        # no existing media category
         self.assertTrue(ObjCateg.search([]))
         self.assertFalse(ObjCateg.with_context(only_media=True).search([]))
 
-        # record1 is food and is accessible with an empty context
         self.env.registry.clear_cache()
         records = SomeObj.search([("id", "=", self.allowed.id)])
         self.assertTrue(records)
 
-        # it should also be accessible as the context is not used when
-        # searching for SomeObjs
         self.env.registry.clear_cache()
         records = SomeObj.with_context(only_media=True).search(
             [("id", "=", self.allowed.id)]
@@ -226,14 +203,11 @@ class TestRules(TransactionCase):
 
         user = self.env.ref("base.public_user")
 
-        # the parent record is accessible, so is the child record
         search_result = ChildModel.with_user(user).search(
             [("id", "=", child.id)], order="id"
         )
         self.assertEqual(search_result, child)
 
-        # make the parent record inaccessible, and verify that the child record
-        # becomes inaccessible, too
         self.allowed.val = 0
         search_result = ChildModel.with_user(user).search(
             [("id", "=", child.id)], order="id"
@@ -268,13 +242,11 @@ class TestRules(TransactionCase):
             [("val", "=", 12)],
         ]
         for domain in valid_domains:
-            # no error is raised
             rule.domain_force = domain
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_ir_rule_cache_after_error(self):
-        NB_RECORD = 14  # At least twice 6, 6 is used by _make_access_error
-        # copy the forbidden record 15 times
+        NB_RECORD = 14
         SomeObj = self.env["test_access_right.some_obj"]
         forbiddens = SomeObj.create(
             [{"val": -1, "categ_id": self.categ.id}] * NB_RECORD
@@ -285,8 +257,6 @@ class TestRules(TransactionCase):
         forbiddens = forbiddens.with_env(env)
         forbiddens.browse().check_access("read")
 
-        # Don't use assertRaise since it invalidates the cache
-        # and it is what we want to test.
         with contextlib.suppress(AccessError):
             forbiddens.check_access("read")
             self.fail("Previous line should raise AccessError")

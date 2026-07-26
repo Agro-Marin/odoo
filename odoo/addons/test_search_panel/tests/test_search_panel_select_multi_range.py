@@ -9,7 +9,6 @@ SEARCH_PANEL_ERROR = {
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestSelectRangeMulti(odoo.tests.TransactionCase):
-
     def setUp(self):
         super().setUp()
         self.SourceModel = self.env["test_search_panel.source_model"]
@@ -29,8 +28,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
         if isinstance(result, dict):
             result.pop("__version", None)
         return result
-
-    # Many2one
 
     def test_many2one_empty(self):
         result = self._select_multi_range("tag_id")
@@ -99,7 +96,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
 
         r1_id, r2_id, _, _ = records.ids
 
-        # counters, expand, and group_by (many2one case)
         result = self._select_multi_range(
             "tag_id", enable_counters=True, expand=True, group_by="folder_id"
         )
@@ -130,7 +126,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and group_by (selection case)
         result = self._select_multi_range(
             "tag_id", enable_counters=True, expand=True, group_by="status"
         )
@@ -161,7 +156,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and group_by (other cases)
         result = self._select_multi_range(
             "tag_id", enable_counters=True, expand=True, group_by="color"
         )
@@ -192,7 +186,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and no group_by
         result = self._select_multi_range(
             "tag_id",
             enable_counters=True,
@@ -219,7 +212,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, no group_by, and search domain
         result = self._select_multi_range(
             "tag_id",
             enable_counters=True,
@@ -247,7 +239,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, no group_by, and limit
         result = self._select_multi_range(
             "tag_id",
             enable_counters=True,
@@ -259,7 +250,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             SEARCH_PANEL_ERROR,
         )
 
-        # no counters, expand, and group_by (many2one case)
         result = self._select_multi_range(
             "tag_id",
             expand=True,
@@ -289,7 +279,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, expand, and no group_by
         result = self._select_multi_range(
             "tag_id",
             expand=True,
@@ -312,7 +301,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, expand, no group_by, and search domain
         result = self._select_multi_range(
             "tag_id",
             expand=True,
@@ -336,7 +324,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, no expand, and group_by (many2one case)
         result = self._select_multi_range(
             "tag_id",
             enable_counters=True,
@@ -362,7 +349,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, no expand, no group_by, and search_domain
         result = self._select_multi_range(
             "tag_id",
             enable_counters=True,
@@ -379,7 +365,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, no expand, no group_by, and limit
         result = self._select_multi_range(
             "tag_id",
             enable_counters=True,
@@ -390,7 +375,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             SEARCH_PANEL_ERROR,
         )
 
-        # no counters, no expand, group_by (many2one case), and search domain
         result = self._select_multi_range(
             "tag_id",
             group_by="folder_id",
@@ -413,7 +397,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, no expand, no group_by, and search domain
         result = self._select_multi_range(
             "tag_id",
             search_domain=[["id", "in", [r1_id, r2_id]]],
@@ -428,7 +411,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, no expand, no group_by, and comodel domain
         result = self._select_multi_range(
             "tag_id",
             comodel_domain=[["id", "in", [t2_id, t3_id]]],
@@ -442,8 +424,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
                 },
             ],
         )
-
-    # Many2many
 
     def test_many2many_empty(self):
         result = self._select_multi_range("tag_ids")
@@ -512,7 +492,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
 
         r1_id, r2_id, _, _ = records.ids
 
-        # counters, expand, and group_by (many2one case)
         result = self._select_multi_range(
             "tag_ids", enable_counters=True, expand=True, group_by="folder_id"
         )
@@ -543,7 +522,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and group_by (selection case)
         result = self._select_multi_range(
             "tag_ids", enable_counters=True, expand=True, group_by="status"
         )
@@ -574,7 +552,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and group_by (other cases)
         result = self._select_multi_range(
             "tag_ids", enable_counters=True, expand=True, group_by="color"
         )
@@ -605,7 +582,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, group_by (many2one case), and group_domain
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -651,7 +627,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, group_by (other cases), and group_domain
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -693,7 +668,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and no group_by
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -720,7 +694,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, no group_by, and search domain
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -748,7 +721,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, expand, and group_by (many2one case)
         result = self._select_multi_range(
             "tag_ids",
             expand=True,
@@ -778,7 +750,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, expand, and no group_by
         result = self._select_multi_range(
             "tag_ids",
             expand=True,
@@ -801,7 +772,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, expand, no group_by, and search_domain
         result = self._select_multi_range(
             "tag_ids",
             expand=True,
@@ -825,7 +795,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, no expand, group_by (many2one case), and search_domain
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -845,7 +814,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, no expand, no group_by, and search_domain
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -862,7 +830,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, no expand, no group_by, and category_domain
         result = self._select_multi_range(
             "tag_ids",
             enable_counters=True,
@@ -889,7 +856,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, no expand, group_by (many2one case), and search_domain
         result = self._select_multi_range(
             "tag_ids",
             group_by="folder_id",
@@ -907,7 +873,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, no expand, no group_by, and search_domain
         result = self._select_multi_range(
             "tag_ids",
             search_domain=[["id", "=", r2_id]],
@@ -922,7 +887,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, no expand, no group_by, no search_domain, and limit
         result = self._select_multi_range(
             "tag_ids",
             limit=2,
@@ -955,8 +919,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
                 {"display_name": "Tag 3", "id": t3_id},
             ],
         )
-
-    # Selection case
 
     def test_selection_empty(self):
         result = self._select_multi_range(
@@ -993,12 +955,11 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
 
         r1_id, _ = records.ids
 
-        # counters, expand, and group_by
         result = self._select_multi_range(
             "state",
             enable_counters=True,
             expand=True,
-            group_by="not_possible_to_group",  # no impact expected
+            group_by="not_possible_to_group",
         )
         self.assertEqual(
             result["values"],
@@ -1016,7 +977,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and no group_by
         result = self._select_multi_range(
             "state",
             enable_counters=True,
@@ -1038,12 +998,11 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters, expand, and search domain
         result = self._select_multi_range(
             "state",
             enable_counters=True,
             expand=True,
-            search_domain=[["id", "=", r1_id]],  # impact expected
+            search_domain=[["id", "=", r1_id]],
         )
         self.assertEqual(
             result["values"],
@@ -1061,7 +1020,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters and expand
         result = self._select_multi_range(
             "state",
             expand=True,
@@ -1080,11 +1038,10 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters, expand, and search domain
         result = self._select_multi_range(
             "state",
             expand=True,
-            search_domain=[["id", "=", r1_id]],  # no impact expected
+            search_domain=[["id", "=", r1_id]],
         )
         self.assertEqual(
             result["values"],
@@ -1100,7 +1057,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # counters and no expand
         result = self._select_multi_range(
             "state",
             enable_counters=True,
@@ -1116,7 +1072,6 @@ class TestSelectRangeMulti(odoo.tests.TransactionCase):
             ],
         )
 
-        # no counters and no expand
         result = self._select_multi_range(
             "state",
         )

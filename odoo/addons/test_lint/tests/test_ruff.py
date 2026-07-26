@@ -18,11 +18,8 @@ from . import _checker_batch, _checker_gettext, _checker_sql, _checker_unlink, l
 
 _logger = logging.getLogger(__name__)
 
-# Regex to parse ``# pylint: disable=rule1,rule2`` inline comments.
 _PYLINT_DISABLE_RE = re.compile(r"#\s*pylint:\s*disable=([^\n]+)")
 
-# Map our checker rule names to all known pylint message IDs so we recognise
-# both ``# pylint: disable=missing-gettext`` and ``# pylint: disable=E8505``.
 _RULE_ALIASES: dict[str, frozenset[str]] = {
     "sql-injection": frozenset({"sql-injection", "E8501"}),
     "gettext-variable": frozenset({"gettext-variable", "E8502"}),
@@ -40,8 +37,8 @@ def _is_core_path(path: str) -> bool:
     Excludes addons_custom, enterprise, and other external addon directories
     to focus integration tests on standard Odoo code.
     """
-    root = tools.config.root_path  # .../core/odoo
-    core_dir = str(Path(root).parent)  # .../core
+    root = tools.config.root_path
+    core_dir = str(Path(root).parent)
     return path.startswith(core_dir)
 
 
@@ -56,19 +53,17 @@ def _is_suppressed(source: bytes | str, lineno: int, rule: str) -> bool:
         return False
     line = lines[lineno - 1].decode(errors="replace")
 
-    # Check pylint disable comment
     if m := _PYLINT_DISABLE_RE.search(line):
         disabled = {tok.strip() for tok in m.group(1).split(",")}
         aliases = _RULE_ALIASES.get(rule, frozenset({rule}))
         if disabled & aliases:
             return True
 
-    # Check noqa (bare = suppress everything, with code = match aliases)
     if "# noqa" in line:
         noqa_idx = line.index("# noqa")
         rest = line[noqa_idx + 6 :].strip()
         if not rest or rest.startswith("  "):
-            return True  # bare
+            return True
         if rest.startswith(":"):
             codes = {c.strip() for c in rest[1:].split(",")}
             aliases = _RULE_ALIASES.get(rule, frozenset({rule}))
@@ -86,7 +81,6 @@ class TestRuff(lint_case.LintCase):
         for path in self.iter_module_files("*.py"):
             if not _is_core_path(path):
                 continue
-            # Skip upgrade/migration scripts — they use intentional dynamic SQL
             if "/upgrades/" in path or "/migrations/" in path:
                 continue
             yield path

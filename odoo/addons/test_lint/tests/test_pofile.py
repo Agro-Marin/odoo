@@ -10,7 +10,6 @@ from odoo.tools.translate import translation_file_reader
 class PotLinter(TransactionCase):
     def test_pot_duplicate_entries(self):
         def format(entry):
-            # translation_file_reader only returns those three types
             if entry["type"] == "model":
                 return ("model", entry["name"], entry["imd_name"])
             elif entry["type"] == "model_terms":
@@ -24,7 +23,6 @@ class PotLinter(TransactionCase):
                 return ("code", entry["src"])
             return None
 
-        # retrieve all modules, and their corresponding POT file
         for module in get_modules():
             try:
                 filename = file_path(f"{module}/i18n/{module}.pot")

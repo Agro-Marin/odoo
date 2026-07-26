@@ -51,7 +51,6 @@ class TestSudo(Feedback):
             }
         )
 
-        # with_user(user)
         record1 = record.with_user(user1)
         self.assertEqual(record1.env.uid, user1.id)
         self.assertFalse(record1.env.su)
@@ -60,12 +59,10 @@ class TestSudo(Feedback):
         self.assertEqual(record2.env.uid, user2.id)
         self.assertFalse(record2.env.su)
 
-        # the superuser is always in superuser mode
         record3 = record2.with_user(SUPERUSER_ID)
         self.assertEqual(record3.env.uid, SUPERUSER_ID)
         self.assertTrue(record3.env.su)
 
-        # sudo()
         surecord1 = record1.sudo()
         self.assertEqual(surecord1.env.uid, user1.id)
         self.assertTrue(surecord1.env.su)
@@ -78,12 +75,10 @@ class TestSudo(Feedback):
         self.assertEqual(surecord3.env.uid, SUPERUSER_ID)
         self.assertTrue(surecord3.env.su)
 
-        # sudo().sudo()
         surecord1 = surecord1.sudo()
         self.assertEqual(surecord1.env.uid, user1.id)
         self.assertTrue(surecord1.env.su)
 
-        # sudo(False)
         record1 = surecord1.sudo(False)
         self.assertEqual(record1.env.uid, user1.id)
         self.assertFalse(record1.env.su)
@@ -96,7 +91,6 @@ class TestSudo(Feedback):
         self.assertEqual(record3.env.uid, SUPERUSER_ID)
         self.assertTrue(record3.env.su)
 
-        # sudo().with_user(user)
         record2 = surecord1.with_user(user2)
         self.assertEqual(record2.env.uid, user2.id)
         self.assertFalse(record2.env.su)
@@ -130,7 +124,6 @@ class TestACLFeedback(Feedback):
             }
         )
         cls.record = cls.env["test_access_right.some_obj"].create({"val": 5})
-        # values are in cache, clear them up for the test
         cls.env.flush_all()
         cls.env.invalidate_all()
 
@@ -167,7 +160,6 @@ This operation is allowed for the following groups:\n\t- Group 0\n\t- Group 1
 
 Contact your administrator to request access if necessary."""
         with self.assertRaises(AccessError) as ctx:
-            # noinspection PyStatementEffect
             r.val
         self.assertEqual(ctx.exception.args[0], expected)
         with self.assertRaises(AccessError) as ctx:
@@ -230,7 +222,6 @@ If you really, really need access, perhaps you can win over your friendly admini
                 self.record._name,
             ),
         )
-        # debug mode
         with self.debug_mode(), self.assertRaises(AccessError) as ctx:
             self.record.write({"val": 1})
         self.assertEqual(
@@ -557,7 +548,6 @@ Note: this might be a multi-company issue. Switching company may help - in Odoo,
 
 
 class TestFieldGroupFeedback(Feedback):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

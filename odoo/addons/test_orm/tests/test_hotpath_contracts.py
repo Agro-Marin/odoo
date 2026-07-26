@@ -52,12 +52,10 @@ class TestFieldGetContracts(TransactionCase):
                 "lang": "en_US",
             }
         )
-        # Flush + re-fetch to ensure values go through full roundtrip
         self.env.flush_all()
         record.invalidate_recordset()
         record.fetch(["foo", "truth", "count", "number", "date", "moment", "lang"])
 
-        # Each field type exercises a different _make_scalar_get closure
         self.assertEqual(record.foo, "hello")
         self.assertIs(record.truth, True)
         self.assertEqual(record.count, 42)
@@ -89,8 +87,8 @@ class TestFieldGetContracts(TransactionCase):
         self.env.flush_all()
         for fname in ("foo", "truth", "count", "number", "date", "moment", "lang"):
             record.invalidate_recordset([fname])
-            miss_value = record[fname]  # cache miss → convert_to_record
-            hit_value = record[fname]  # cache hit → _make_scalar_get closure
+            miss_value = record[fname]
+            hit_value = record[fname]
             self.assertEqual(
                 hit_value,
                 miss_value,
@@ -105,13 +103,10 @@ class TestFieldGetContracts(TransactionCase):
         record.invalidate_recordset()
         record.fetch(["foo", "truth", "count", "number", "date", "moment"])
 
-        # Each type has a specific falsy default:
-        #   Char → False, Boolean → False, Integer → 0,
-        #   Float → 0.0, Date → False, Datetime → False
         self.assertIs(record.foo, False)
         self.assertIs(record.truth, False)
         self.assertEqual(record.count, 0)
-        self.assertEqual(record.number, 3.14)  # has default
+        self.assertEqual(record.number, 3.14)
         self.assertIs(record.date, False)
         self.assertIs(record.moment, False)
 
@@ -135,7 +130,6 @@ class TestFieldGetContracts(TransactionCase):
         """Many2one __get__ returns a recordset, not a raw ID."""
         record = self.Mixed.create({})
         partner = record.currency_id
-        # Must be a recordset (or falsy), never an int
         if partner:
             self.assertTrue(hasattr(partner, "_ids"))
             self.assertTrue(hasattr(partner, "env"))
@@ -159,10 +153,7 @@ class TestFieldGetPending(TransactionCase):
                 "quantity": 10,
             }
         )
-        # quantity is stored computed from line_ids.quantity
-        # After create + recompute, must return actual value
         self.assertEqual(move.quantity, 10)
-        # Verify it's not PENDING
         self.assertIsNot(move.quantity, PENDING)
 
     def test_pending_evicted_on_read(self):
@@ -170,12 +161,10 @@ class TestFieldGetPending(TransactionCase):
         move = self.Move.create({})
         self.env.flush_all()
 
-        # Manually inject PENDING to simulate stale state
         field = self.Move._fields["quantity"]
         field_cache = field._get_cache(self.env)
         field_cache[move.id] = PENDING
 
-        # __get__ must handle PENDING — either recompute or fetch, never return it
         value = move.quantity
         self.assertIsNot(value, PENDING)
         self.assertIsInstance(value, int)
@@ -191,8 +180,6 @@ class TestFieldGetPending(TransactionCase):
         """
         Line = self.env["test_orm.move_line"]
         field = Line._fields["move_id"]
-        # Precondition: the guard is skipped exactly because a plain relational
-        # field is not a stored computed field.
         self.assertFalse(field.is_stored_computed)
 
         move = self.Move.create({})
@@ -201,18 +188,14 @@ class TestFieldGetPending(TransactionCase):
         lines.invalidate_recordset(["move_id"])
 
         field_cache = field._get_cache(self.env)
-        # Batch read path (the one the optimisation touches): returns the real
-        # records and never leaks the sentinel.
         self.assertEqual(lines.mapped("move_id"), move)
         for line in lines:
             self.assertIn(line.id, field_cache)
             self.assertIsNot(field_cache[line.id], PENDING)
 
-        # Invalidation must produce a clean miss (entry removed), not PENDING.
         lines.invalidate_recordset(["move_id"])
         for line in lines:
             self.assertNotIn(line.id, field_cache)
-        # Re-reading refetches correctly through the batch path.
         self.assertEqual(lines.mapped("move_id"), move)
 
 
@@ -259,9 +242,7 @@ class TestReadFormatContracts(TransactionCase):
 
         scalar_fnames = ["foo", "truth", "count", "number", "date", "moment"]
 
-        # Get fast path result
         fast_result = records._read_format(fnames=scalar_fnames, load=None)
-        # Get reference result
         ref_result = self._reference_read_format(records, scalar_fnames)
 
         self.assertEqual(len(fast_result), len(ref_result))
@@ -296,12 +277,10 @@ class TestReadFormatContracts(TransactionCase):
         record.invalidate_recordset()
         record.fetch(["currency_id"])
 
-        # load=None: Many2one should return raw ID (int or False)
         result_no_load = record._read_format(fnames=["currency_id"], load=None)
         val = result_no_load[0]["currency_id"]
         self.assertTrue(val is False or isinstance(val, int))
 
-        # load=_classic_read: Many2one should return (id, display_name) or False
         result_classic = record._read_format(
             fnames=["currency_id"], load="_classic_read"
         )
@@ -325,7 +304,6 @@ class TestTraversalContracts(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # Discussion requires author in participants (constraint on message)
         self.disc = self.Disc.create(
             {
                 "name": "Test Discussion",
@@ -352,7 +330,6 @@ class TestTraversalContracts(TransactionCase):
 
     def test_mapped_scalar_with_none(self):
         """mapped('field') handles None/False values correctly."""
-        # Create message with no body (body=False)
         msg = self.Msg.create({"discussion": self.disc.id, "body": False})
         records = self.messages | msg
         fast = records.mapped("body")
@@ -373,11 +350,9 @@ class TestTraversalContracts(TransactionCase):
 
     def test_filtered_falsy_field(self):
         """filtered('field') correctly excludes falsy values."""
-        # body is set for all, so filter on it
         with_body = self.messages.filtered("body")
         self.assertEqual(len(with_body), len(self.messages))
 
-        # Create one without body (set author explicitly to satisfy constraint)
         no_body = self.Msg.create({"discussion": self.disc.id, "body": False})
         all_msgs = self.messages | no_body
         filtered = all_msgs.filtered("body")
@@ -397,20 +372,16 @@ class TestTraversalContracts(TransactionCase):
 
     def test_sorted_with_nulls(self):
         """sorted() handles None values without crashing."""
-        # Create message with no body (Char field → False in cache)
         msg = self.Msg.create({"discussion": self.disc.id})
         records = self.messages | msg
-        # Must not raise — None handling in ReversibleComparator
         result = records.sorted("body")
         self.assertEqual(len(result), len(records))
 
     def test_sorted_multi_field(self):
         """sorted('field1, field2') produces correct composite order."""
         result = self.messages.sorted("important DESC, priority")
-        # All important=True should come first (DESC), then sorted by priority ASC
         important_ids = [r.id for r in result if r.important]
         [r.id for r in result if not r.important]
-        # Important ones should be at the start
         all_ids = list(result._ids)
         self.assertEqual(all_ids[: len(important_ids)], important_ids)
 
@@ -449,11 +420,9 @@ class TestWriteFlushContracts(TransactionCase):
         move = self.Move.create({})
         self.env.flush_all()
 
-        # After write, value should be in cache but DB may have old value
         move.tag_repeat = 5
-        self.assertEqual(move.tag_repeat, 5)  # cache updated
+        self.assertEqual(move.tag_repeat, 5)
 
-        # Check dirty tracking
         field = self.Move._fields["tag_repeat"]
         core = self.env._core
         self.assertTrue(core.has_dirty_field(field))
@@ -465,7 +434,6 @@ class TestWriteFlushContracts(TransactionCase):
         move.tag_repeat = 7
         self.env.flush_all()
 
-        # Read from DB directly to verify
         self.env.cr.execute(
             "SELECT tag_repeat FROM test_orm_move WHERE id = %s",
             (move.id,),
@@ -480,23 +448,17 @@ class TestWriteFlushContracts(TransactionCase):
         self.env.flush_all()
         self.assertEqual(move.quantity, 5)
 
-        # Write to dependency
         line.quantity = 15
-        # Stored computed field should recompute (lazily or on access)
         self.assertEqual(move.quantity, 15)
 
     def test_flush_convergence(self):
         """Recomputation that dirties more fields converges (no infinite loop)."""
-        # test_orm.move.tag_string depends on tag_name + tag_repeat
-        # tag_name is related to tag_id.name
         tag = self.env["test_orm.multi.tag"].create({"name": "X"})
         move = self.Move.create({"tag_id": tag.id, "tag_repeat": 3})
         self.env.flush_all()
 
-        # tag_string = tag_name * tag_repeat = "XXX"
         self.assertEqual(move.tag_string, "XXX")
 
-        # Change dependency — triggers recompute chain
         move.tag_repeat = 2
         self.env.flush_all()
         self.assertEqual(move.tag_string, "XX")
@@ -510,7 +472,6 @@ class TestWriteFlushContracts(TransactionCase):
         move.tag_repeat = 2
         move.tag_repeat = 3
 
-        # Only final value should be flushed
         self.env.flush_all()
         self.env.cr.execute(
             "SELECT tag_repeat FROM test_orm_move WHERE id = %s",
@@ -534,7 +495,6 @@ class TestCreateCacheContracts(TransactionCase):
     def test_cache_populated_after_create(self):
         """Stored fields are in cache immediately after create()."""
         move = self.Move.create({"tag_repeat": 5})
-        # Should be readable from cache without DB fetch
         field = self.Move._fields["tag_repeat"]
         field_cache = field._get_cache(self.env)
         self.assertIn(move.id, field_cache)
@@ -544,7 +504,6 @@ class TestCreateCacheContracts(TransactionCase):
         """Stored computed fields are computable after create()."""
         move = self.Move.create({})
         self.Line.create({"move_id": move.id, "quantity": 7})
-        # quantity is stored computed — should be available
         val = move.quantity
         self.assertEqual(val, 7)
         self.assertIsNot(val, PENDING)
@@ -565,7 +524,6 @@ class TestCreateCacheContracts(TransactionCase):
         field = self.Move._fields["tag_id"]
         field_cache = field._get_cache(self.env)
         self.assertIn(move.id, field_cache)
-        # Cache stores raw ID for Many2one
         self.assertEqual(field_cache[move.id], tag.id)
 
 
@@ -588,9 +546,7 @@ class TestPreconditionAPI(TransactionCase):
         self.Line.create({"move_id": move.id, "quantity": 12})
 
         field = self.Move._fields["quantity"]
-        # Explicitly call the precondition
         field.ensure_computed(move)
-        # Value should now be in cache
         field_cache = field._get_cache(self.env)
         self.assertIn(move.id, field_cache)
         self.assertEqual(field_cache[move.id], 12)
@@ -600,7 +556,6 @@ class TestPreconditionAPI(TransactionCase):
         """ensure_computed() is a no-op for plain stored fields."""
         move = self.Move.create({"tag_repeat": 5})
         field = self.Move._fields["tag_repeat"]
-        # Should not raise and should not modify cache
         field.ensure_computed(move)
         self.assertEqual(move.tag_repeat, 5)
 
@@ -621,7 +576,6 @@ class TestPreconditionAPI(TransactionCase):
         record = self.Mixed.create({"foo": "test"})
         self.env.flush_all()
         record.invalidate_recordset()
-        # Don't fetch — cache is empty
 
         field = self.Mixed._fields["foo"]
         hit, value = field.read_cache(record.id, self.env)
@@ -705,9 +659,7 @@ class TestModifiedTriggers(TransactionCase):
         self.env.flush_all()
         self.assertEqual(move.quantity, 3)
 
-        # Modify child
         line.quantity = 10
-        # Parent stored computed should update
         self.assertEqual(move.quantity, 10)
 
     def test_adding_child_triggers_parent(self):
@@ -717,7 +669,6 @@ class TestModifiedTriggers(TransactionCase):
         self.env.flush_all()
         self.assertEqual(move.quantity, 5)
 
-        # Add another child
         self.Line.create({"move_id": move.id, "quantity": 8})
         self.assertEqual(move.quantity, 13)
 
@@ -729,7 +680,6 @@ class TestModifiedTriggers(TransactionCase):
         self.env.flush_all()
         self.assertEqual(move.quantity, 13)
 
-        # Remove one child
         line2.unlink()
         self.assertEqual(move.quantity, 5)
 
@@ -738,14 +688,10 @@ class TestModifiedTriggers(TransactionCase):
         tag = self.env["test_orm.multi.tag"].create({"name": "A"})
         move = self.Move.create({"tag_id": tag.id, "tag_repeat": 2})
         self.env.flush_all()
-        # tag_name is related to tag_id.name
-        # tag_string depends on tag_name + tag_repeat
         self.assertEqual(move.tag_string, "AA")
 
-        # Change the source record
         tag.name = "B"
         self.env.flush_all()
-        # Must propagate: tag.name → move.tag_name → move.tag_string
         self.assertEqual(move.tag_string, "BB")
 
 
@@ -783,11 +729,9 @@ class TestReadFormatManyRecords(TransactionCase):
         records = self.Mixed.create([{"foo": f"name_{i}"} for i in range(5)])
         self.env.flush_all()
 
-        # Invalidate only some records
         records[2].invalidate_recordset(["foo"])
         records[4].invalidate_recordset(["foo"])
 
-        # _read_format should handle both cache hits and misses
         result = records._read_format(fnames=["foo"], load=None)
         self.assertEqual(len(result), 5)
         for i, vals in enumerate(result):

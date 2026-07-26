@@ -23,8 +23,6 @@ class TestReadGroupOverride(TransactionCase):
                     or Model._read_group_orderby is not BaseModel._read_group_orderby
                 )
             ):
-                # methods for customized order are overridden by Model
-                # change comodel_name of a many2one field as a hack for the test
                 many2one_field.comodel_name = Model._name
                 try:
                     Order._read_group([], ["many2one_id"], order="many2one_id")
@@ -54,7 +52,6 @@ class TestReadGroupOverride(TransactionCase):
         self.addCleanup(setattr, Country, "_order", Country._order)
         Partner._order = "country_id, id"
         Country._order = "id"
-        # Must not raise GroupingError (empty table still triggers plan-time 42803).
         self.env["res.users"]._read_group(
             [], ["partner_id"], ["__count"], order="partner_id"
         )

@@ -22,8 +22,6 @@ class OnchangeChecker(lint_case.NodeVisitor):
             if any(map(self.matches_onchange, node.decorator_list))
             else []
         )
-        # can stop at the first match: an @onchange function either mentions
-        # domains or does not
         return itertools.islice(
             (n for n in walker if isinstance(n, ast.Constant) and n.value == "domain"),
             1,

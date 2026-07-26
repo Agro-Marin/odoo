@@ -90,22 +90,18 @@ class TestJsonFieldTypes(TransactionCase):
 
     def test_read_write_null(self):
         """Writing None clears the field; read back as False (convert_to_record)."""
-        disc = self._create()  # creates with default
-        disc.history = None  # clear the field
+        disc = self._create()
+        disc.history = None
         disc.flush_recordset()
         disc.invalidate_recordset()
-        # None → convert_to_cache returns None → stored as NULL
-        # convert_to_record: None → False
         self.assertFalse(disc.history)
 
     def test_falsy_empty_dict(self):
         """Empty dict {} is falsy in Python but valid JSON — goes to cache as None."""
         disc = self._create()
         disc.history = {}
-        # convert_to_cache: not value → None
         disc.flush_recordset()
         disc.invalidate_recordset()
-        # After roundtrip, {} → None → False on read
         self.assertFalse(disc.history)
 
     def test_falsy_empty_list(self):
@@ -158,7 +154,6 @@ class TestJsonFieldCacheIsolation(TransactionCase):
         """Reading returns a deepcopy, not the cache object itself."""
         val1 = self.disc.history
         val2 = self.disc.history
-        # Should be equal but not the same object
         self.assertEqual(val1, val2)
         self.assertIsNot(val1, val2)
 
@@ -168,7 +163,6 @@ class TestJsonFieldCacheIsolation(TransactionCase):
         val["items"].append(999)
         val["new_key"] = "added"
 
-        # Re-read — should be original value
         fresh = self.disc.history
         self.assertEqual(fresh, {"items": [1, 2, 3]})
         self.assertNotIn("new_key", fresh)
@@ -176,9 +170,7 @@ class TestJsonFieldCacheIsolation(TransactionCase):
     def test_cache_roundtrip(self):
         """convert_to_cache normalizes JSON (e.g., sorts via dumps/loads)."""
         self.disc.history = {"b": 2, "a": 1}
-        # After cache normalization, read back
         result = self.disc.history
-        # Values should be preserved regardless of key order
         self.assertEqual(result["a"], 1)
         self.assertEqual(result["b"], 2)
 
@@ -261,7 +253,6 @@ class TestJsonFieldPersistence(TransactionCase):
         )
         disc_copy = disc.copy()
         self.assertEqual(disc_copy.history, {"source": True, "items": [1, 2]})
-        # Ensure independence after copy
         disc_copy.history = {"modified": True}
         disc_copy.flush_recordset()
         self.assertEqual(disc.history, {"source": True, "items": [1, 2]})
@@ -377,7 +368,6 @@ class TestJsonFieldEdgeCases(TransactionCase):
 
     def test_json_with_date_via_default(self):
         """json_default handles date/datetime serialization."""
-        # json_default is used in convert_to_cache to handle non-serializable types
         today = date.today()
         now = datetime.now()
         disc = self.env["test_orm.discussion"].create(
@@ -386,7 +376,6 @@ class TestJsonFieldEdgeCases(TransactionCase):
                 "history": {"date": today, "datetime": now},
             }
         )
-        # After normalization, dates are serialized to strings
         result = disc.history
         self.assertIsInstance(result["date"], str)
         self.assertIsInstance(result["datetime"], str)

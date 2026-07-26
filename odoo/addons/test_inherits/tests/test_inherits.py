@@ -6,7 +6,6 @@ from odoo.tests import common
 
 
 class test_inherits(common.TransactionCase):
-
     def test_ir_model_inherit(self):
         imi = self.env["ir.model.inherit"].search([("model_id.model", "=", "test.box")])
         self.assertEqual(len(imi), 1)
@@ -36,8 +35,8 @@ class test_inherits(common.TransactionCase):
             }
         )
         ctx = {
-            "default_state": "b",  # 'state' is inherited from 'test.unit'
-            "default_size": 2,  # 'size' is inherited from 'test.box'
+            "default_state": "b",
+            "default_size": 2,
         }
         pallet = (
             self.env["test.pallet"]
@@ -45,11 +44,10 @@ class test_inherits(common.TransactionCase):
             .create(
                 {
                     "name": "P",
-                    "unit_id": unit.id,  # grand-parent field is set
+                    "unit_id": unit.id,
                 }
             )
         )
-        # default 'state' should be ignored, but default 'size' should not
         self.assertEqual(pallet.state, "a")
         self.assertEqual(pallet.size, 2)
 
@@ -143,14 +141,12 @@ class test_inherits(common.TransactionCase):
         """Check the 'display_name' of an inherited translated 'name'."""
         self.env["res.lang"]._activate_lang("fr_FR")
 
-        # concrete check
         pallet_en = self.env["test.pallet"].create({"name": "Bread"})
         pallet_fr = pallet_en.with_context(lang="fr_FR")
         pallet_fr.box_id.unit_id.name = "Pain"
         self.assertEqual(pallet_en.display_name, "Bread")
         self.assertEqual(pallet_fr.display_name, "Pain")
 
-        # check model
         Unit = type(self.env["test.unit"])
         Box = type(self.env["test.box"])
         Pallet = type(self.env["test.pallet"])
@@ -170,8 +166,6 @@ class test_inherits(common.TransactionCase):
         self.assertEqual(boxes.mapped("unit_id.name"), ["bar"])
 
     def test_write_cache_x2m_unstored_inherits(self):
-        # test_unstored_inherits_shared_line_ids field is inherited through inheritS
-        # writing on that field invokes its inverse method, and should not write the value twice on the field
         parent = self.env["test.unstored.inherits.parent"].create({"name": "foo"})
 
         field = parent._fields["test_unstored_inherits_shared_line_ids"]

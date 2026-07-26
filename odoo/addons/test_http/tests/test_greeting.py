@@ -17,7 +17,6 @@ class TestHttpGreeting(TestHttpBase):
 
     def test_greeting0_matrix(self):
         test_matrix = [
-            # path, database, login, expected_code, expected_pattern
             ("/test_http/greeting", False, None, 200, r"Tek'ma'te"),
             ("/test_http/greeting", True, None, 200, r"Tek'ma'te"),
             ("/test_http/greeting", True, "public", 200, r"Tek'ma'te"),

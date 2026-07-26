@@ -9,7 +9,7 @@ from odoo.addons.test_http.controllers import CT_JSON
 
 @tagged("post_install", "-at_install")
 class TestHttpErrorHttp(TestHttpBase):
-    @mute_logger("odoo.http")  # UserError("Walter is AFK")
+    @mute_logger("odoo.http")
     def test_httperror0_exceptions_as_404(self):
         with self.subTest("Decorator/AccessError"):
             res = self.nodb_url_open(
@@ -72,7 +72,6 @@ class TestHttpErrorHttp(TestHttpBase):
 
 @tagged("post_install", "-at_install")
 class TestHttpJsonError(TestHttpBase):
-
     jsonrpc_error_structure = {
         "error": {
             "code": ...,

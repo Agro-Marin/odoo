@@ -49,14 +49,8 @@ class TestNewId(TransactionCase):
 
     def test_eq_origin_vs_ref(self):
         """A NewId with origin is not equal to one with only ref, even if values match."""
-        # origin=1 matches on origin field, ref=1 matches on ref field — different semantics
         a = NewId(origin=1)
         b = NewId(ref=1)
-        # Both have truthy origin/ref but they compare on different attributes
-        # a has origin=1, ref=None; b has origin=None, ref=1
-        # __eq__ checks: (self.origin and other.origin and ...) or (self.ref and other.ref and ...)
-        # a.origin=1 and b.origin=None → first branch fails
-        # a.ref=None → second branch fails
         self.assertNotEqual(a, b)
 
     def test_eq_not_newid(self):
@@ -78,7 +72,6 @@ class TestNewId(TransactionCase):
         b = NewId(origin=1)
         c = NewId(origin=2)
         s = {a, b, c}
-        # a and b are equal, so set should deduplicate
         self.assertEqual(len(s), 2)
 
     def test_hash_in_dict(self):
@@ -87,7 +80,6 @@ class TestNewId(TransactionCase):
         b = NewId(origin=1)
         d = {a: "first"}
         d[b] = "second"
-        # b overwrites a since they're equal
         self.assertEqual(len(d), 1)
         self.assertEqual(d[a], "second")
 
@@ -95,7 +87,6 @@ class TestNewId(TransactionCase):
         """Bare NewIds get unique hashes based on id()."""
         a = NewId()
         b = NewId()
-        # Very unlikely to collide, but they should at least be usable
         s = {a, b}
         self.assertEqual(len(s), 2)
 
@@ -111,7 +102,6 @@ class TestNewId(TransactionCase):
 
     def test_lt_no_origin_vs_int(self):
         """NewId without origin is not less than any integer."""
-        # No origin means origin is None → bool(self.origin) is False
         self.assertFalse(NewId() < 100)
 
     def test_lt_origin_vs_none_origin(self):
@@ -129,21 +119,12 @@ class TestNewId(TransactionCase):
 
     def test_lt_none_origin_vs_origin(self):
         """NewId without origin compared to NewId with origin."""
-        # NewId(origin=None) < NewId(origin=5)
-        # Line 72: other = other.origin → 5 (int)
-        # Line 73: if other is None → False (other=5)
-        # Line 75: isinstance(other, int) → True
-        # Line 76: bool(self.origin) is False → returns False
         self.assertFalse(NewId() < NewId(origin=5))
 
     def test_lt_both_none_origins(self):
         """Two NewIds without origins — neither is less than the other."""
         a = NewId()
         b = NewId()
-        # a.origin=None, b.origin=None
-        # Line 72: other = b.origin → None
-        # Line 73: other is None → True
-        # Line 74: other > self.origin if self.origin → self.origin is None/falsy → False
         self.assertFalse(a < b)
 
     def test_lt_returns_not_implemented(self):
@@ -195,10 +176,6 @@ class TestNewId(TransactionCase):
         self.assertTrue(a <= NewId(origin=1))
         self.assertTrue(a >= NewId(origin=1))
 
-    # ------------------------------------------------------------------
-    # Regression — hash invariant and ordering safety
-    # ------------------------------------------------------------------
-
     def test_eq_origin_set_vs_unset_with_matching_ref(self):
         """A NewId with origin and one without origin must NOT compare equal,
         even when refs match.
@@ -209,7 +186,6 @@ class TestNewId(TransactionCase):
         a = NewId(origin=5, ref="foo")
         b = NewId(origin=None, ref="foo")
         self.assertNotEqual(a, b)
-        # A False answer must be the literal False, never None
         self.assertIs(a == b, False)
 
     def test_eq_returns_bool_for_originless_pair(self):
@@ -240,7 +216,6 @@ class TestNewId(TransactionCase):
         """
         a = NewId(origin=5, ref="foo")
         b = NewId(origin=5, ref="bar")
-        # Both have the same origin → equal → set has 1 element
         self.assertEqual(a, b)
         self.assertEqual(len({a, b}), 1)
 
@@ -394,15 +369,12 @@ class TestCommand(TransactionCase):
         )
         self.assertEqual(discussion.categories, cat1)
 
-        # Add cat2 via link command
         discussion.write({"categories": [Command.link(cat2.id)]})
         self.assertEqual(discussion.categories, cat1 | cat2)
 
-        # Replace all with set command
         discussion.write({"categories": [Command.set(cat2.ids)]})
         self.assertEqual(discussion.categories, cat2)
 
-        # Clear all
         discussion.write({"categories": [Command.clear()]})
         self.assertFalse(discussion.categories)
 
@@ -412,40 +384,47 @@ class TestParseFieldExpr(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # Clear functools.cache so the tests see the current implementation.
         from odoo.orm.parsing import parse_field_expr
+
         parse_field_expr.cache_clear()
 
     def test_simple(self):
         from odoo.orm.parsing import parse_field_expr
+
         self.assertEqual(parse_field_expr("amount"), ("amount", None))
 
     def test_dotted(self):
         from odoo.orm.parsing import parse_field_expr
+
         self.assertEqual(parse_field_expr("partner_id.name"), ("partner_id", "name"))
 
     def test_multi_dotted(self):
         from odoo.orm.parsing import parse_field_expr
+
         self.assertEqual(parse_field_expr("a.b.c"), ("a", "b.c"))
 
     def test_reject_trailing_dot(self):
         """Regression: previously accepted, returning ('name', '')."""
         from odoo.orm.parsing import parse_field_expr
+
         with self.assertRaises(ValueError):
             parse_field_expr("name.")
 
     def test_reject_double_dot(self):
         """Regression: previously accepted 'x..y' returning ('x', '.y')."""
         from odoo.orm.parsing import parse_field_expr
+
         with self.assertRaises(ValueError):
             parse_field_expr("x..y")
 
     def test_reject_leading_dot(self):
         from odoo.orm.parsing import parse_field_expr
+
         with self.assertRaises(ValueError):
             parse_field_expr(".name")
 
     def test_reject_empty(self):
         from odoo.orm.parsing import parse_field_expr
+
         with self.assertRaises(ValueError):
             parse_field_expr("")

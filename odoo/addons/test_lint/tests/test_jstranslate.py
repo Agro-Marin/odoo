@@ -8,19 +8,15 @@ from . import lint_case
 
 _logger = logging.getLogger(__name__)
 
-# Pattern 0: _t(`template string with ${expression}`)
 TSTRING_RE = re.compile(r"_t\(\s*`.*?\s*`\s*\)", re.DOTALL)
 EXPRESSION_RE = re.compile(r"\$\{.+?\}")
-# Pattern 1: _('literal') or _("literal")
 UNDERSCORE_RE = re.compile(r'\b_\(\s*[\'"]')
 
-# Rust-compatible patterns (DOTALL via (?s) inline flag)
 _RUST_TSTRING_PAT = r"(?s)_t\(\s*`.*?\s*`\s*\)"
 _RUST_UNDERSCORE_PAT = r"""\b_\(\s*['"]"""
 
 
 class TestJsTranslations(lint_case.LintCase):
-
     def check_text(self, text):
         """Search for translation errors in the text.
 
@@ -83,7 +79,6 @@ class TestJsTranslations(lint_case.LintCase):
         """
         roots = self._module_roots()
 
-        # Parallel regex scan across all .js files
         results = scan_regex_patterns(
             roots,
             [".js"],
@@ -93,20 +88,17 @@ class TestJsTranslations(lint_case.LintCase):
 
         failures = 0
         for path, line, pat_idx, matched_text in results:
-            # Exclusions: lodash (uses `_` for utility), minified third-party libs
             if path.endswith("/lodash.js"):
                 continue
             if "/lib/" in path and path.endswith(".min.js"):
                 continue
 
             if pat_idx == 0:
-                # TSTRING_RE match — only flag if it contains ${expression}
                 if not EXPRESSION_RE.search(matched_text):
                     continue
                 prefix = "Translation of a template string"
                 suffix = matched_text
             else:
-                # UNDERSCORE_RE match — always flag
                 prefix = "underscore.js used as translation function"
                 suffix = "_t is the JS translation function"
 

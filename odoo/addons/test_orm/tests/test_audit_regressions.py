@@ -72,9 +72,7 @@ class TestCompanyDependentInsertFallback(TransactionCase):
         self.env.flush_all()
         self.env.registry.clear_cache()
 
-        record = (
-            self.env["test_orm.company"].with_user(user).create({"foo": "USERVAL"})
-        )
+        record = self.env["test_orm.company"].with_user(user).create({"foo": "USERVAL"})
         self.env.flush_all()
         self.env.invalidate_all()
 
@@ -88,15 +86,12 @@ class TestCompanyDependentInsertFallback(TransactionCase):
             "USERVAL",
             "other users must see the written value, not the global default",
         )
-        # and the value must actually be persisted, not deduped to NULL
         self.env.cr.execute(
             "SELECT foo FROM test_orm_company WHERE id = %s", [record.id]
         )
         self.assertIsNotNone(self.env.cr.fetchone()[0])
 
     def test_create_matching_superuser_fallback_stores_null(self):
-        # the dedup itself must keep working when the value DOES equal the
-        # fallback every reader resolves to
         IrDefault = self.env["ir.default"]
         IrDefault.set("test_orm.company", "foo", "GLOBAL")
         self.env.flush_all()
@@ -135,16 +130,12 @@ class TestDatetimeEqualsDate(TransactionCase):
             "'=' with a date must cover the whole day",
         )
         self.assertEqual(
-            Model.search_count(
-                [("create_date", "=", "today"), ("id", "=", record.id)]
-            ),
+            Model.search_count([("create_date", "=", "today"), ("id", "=", record.id)]),
             1,
             "'=' with 'today' must cover the whole day",
         )
         self.assertEqual(
-            Model.search_count(
-                [("create_date", "!=", today), ("id", "=", record.id)]
-            ),
+            Model.search_count([("create_date", "!=", today), ("id", "=", record.id)]),
             0,
             "'!=' with a date is the complement of the whole day",
         )

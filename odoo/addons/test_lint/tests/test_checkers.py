@@ -627,9 +627,6 @@ class TestBatchLint(BaseCase):
             for record in records:
                 callbacks.append(lambda: self.env['res.partner'].search([]))
         """)
-        # Lambdas don't define a new ast.FunctionDef — the Call node is
-        # inside the loop body AST.  Flagging is acceptable since lambdas
-        # with search inside loops are suspicious anyway.
         self.assertTrue(violations, "search inside lambda in loop should be flagged")
 
     def test_skips_test_files(self):

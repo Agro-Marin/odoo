@@ -27,7 +27,6 @@ class TestHttpMisc(TestHttpBase):
         self.assertEqual(res.status_code, 404)
 
     def test_misc1_reverse_proxy(self):
-        # client <-> reverse-proxy <-> odoo
         client_ip = "127.0.0.16"
         reverseproxy_ip = gethostbyname(HOST)
         host = "mycompany.odoo.com"
@@ -39,14 +38,12 @@ class TestHttpMisc(TestHttpBase):
             "X-Forwarded-Proto": "https",
         }
 
-        # Don't trust client-sent forwarded headers
         with patch.object(config, "options", {**config.options, "proxy_mode": False}):
             res = self.nodb_url_open("/test_http/wsgi_environ", headers=headers)
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.json()["REMOTE_ADDR"], reverseproxy_ip)
             self.assertEqual(res.json()["HTTP_HOST"], "")
 
-        # Trust proxy-sent forwarded headers
         with patch.object(config, "options", {**config.options, "proxy_mode": True}):
             res = self.nodb_url_open("/test_http/wsgi_environ", headers=headers)
             self.assertEqual(res.status_code, 200)
@@ -85,8 +82,6 @@ class TestHttpMisc(TestHttpBase):
         ``/foo#bar?a=b``, which browsers treat as a query living inside
         the fragment — the server sees no query at all.
         """
-        # Capture the location string that redirect_query builds by stubbing
-        # self.redirect to return the composed URL untouched.
         captured = {}
 
         def fake_redirect(location, code=303, local=True):
@@ -97,27 +92,21 @@ class TestHttpMisc(TestHttpBase):
             fake_req = MagicMock()
             fake_req.db = False
             fake_req.redirect = fake_redirect
-            odoo.http.Request.redirect_query(
-                fake_req, path, query=query, local=True
-            )
+            odoo.http.Request.redirect_query(fake_req, path, query=query, local=True)
             return captured["location"]
 
-        # No existing ?query, no fragment: plain append.
         self.assertEqual(
             location_from_redirect_query("/foo", {"a": "b"}),
             "/foo?a=b",
         )
-        # Existing ?query, no fragment: append with '&'.
         self.assertEqual(
             location_from_redirect_query("/foo?x=1", {"a": "b"}),
             "/foo?x=1&a=b",
         )
-        # Fragment only: query goes *before* the fragment.
         self.assertEqual(
             location_from_redirect_query("/foo#bar", {"a": "b"}),
             "/foo?a=b#bar",
         )
-        # Existing query + fragment: '&' after existing query, fragment preserved.
         self.assertEqual(
             location_from_redirect_query("/foo?x=1#bar", {"a": "b"}),
             "/foo?x=1&a=b#bar",
@@ -127,7 +116,6 @@ class TestHttpMisc(TestHttpBase):
         uri = "test_http/static/src/img/gizeh.png"
         path = file_path(uri)
 
-        # Valid URLs
         self.assertEqual(root.get_static_file(f"/{uri}"), path, "Valid file")
         self.assertEqual(
             root.get_static_file(f"odoo.com/{uri}", host="odoo.com"),
@@ -139,8 +127,6 @@ class TestHttpMisc(TestHttpBase):
             path,
             "Valid file with valid host",
         )
-        # Hostnames are case-insensitive (RFC 4343): a cased authority must still
-        # resolve, whether the case is in the URL or in the expected host.
         self.assertEqual(
             root.get_static_file(f"http://ODOO.com/{uri}", host="odoo.com"),
             path,
@@ -152,7 +138,6 @@ class TestHttpMisc(TestHttpBase):
             "Valid file with case-mismatched expected host",
         )
 
-        # Invalid URLs
         self.assertIsNone(
             root.get_static_file("/test_http/i-dont-exist"),
             "File doesn't exist",
@@ -224,7 +209,6 @@ class TestHttpMisc(TestHttpBase):
             },
         )
 
-        # Fake client IP using proxy_mode and a forged X-Forwarded-For http header
         headers = {
             "Host": "",
             "X-Forwarded-For": TEST_IP,
@@ -304,9 +288,7 @@ class TestHttpCors(TestHttpBase):
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Methods"), "GET, POST"
         )
-        self.assertEqual(
-            res_opt.headers.get("Access-Control-Max-Age"), "86400"
-        )  # one day
+        self.assertEqual(res_opt.headers.get("Access-Control-Max-Age"), "86400")
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
             "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
@@ -330,9 +312,7 @@ class TestHttpCors(TestHttpBase):
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Methods"), "GET, PUT"
         )
-        self.assertEqual(
-            res_opt.headers.get("Access-Control-Max-Age"), "86400"
-        )  # one day
+        self.assertEqual(res_opt.headers.get("Access-Control-Max-Age"), "86400")
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
             "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
@@ -346,9 +326,6 @@ class TestHttpCors(TestHttpBase):
         )
 
     def test_cors1_preflight_reflects_requested_headers(self):
-        # A preflight naming specific headers gets them reflected verbatim
-        # (any header a CORS-opted route is asked for is allowed); the static
-        # fallback list only serves preflights that name none.
         res_opt = self.url_open(
             f"{self.base_url()}/test_http/cors_http_default",
             timeout=10,
@@ -370,9 +347,7 @@ class TestHttpCors(TestHttpBase):
         self.assertIn(res_opt.status_code, (200, 204), res_opt.text)
         self.assertEqual(res_opt.headers.get("Access-Control-Allow-Origin"), "*")
         self.assertEqual(res_opt.headers.get("Access-Control-Allow-Methods"), "POST")
-        self.assertEqual(
-            res_opt.headers.get("Access-Control-Max-Age"), "86400"
-        )  # one day
+        self.assertEqual(res_opt.headers.get("Access-Control-Max-Age"), "86400")
         self.assertEqual(
             res_opt.headers.get("Access-Control-Allow-Headers"),
             "Origin, X-Requested-With, Content-Type, Accept, Authorization, Range",
@@ -386,6 +361,63 @@ class TestHttpCors(TestHttpBase):
         self.assertEqual(res_post.status_code, 200)
         self.assertEqual(res_post.headers.get("Access-Control-Allow-Origin"), "*")
         self.assertEqual(res_post.headers.get("Access-Control-Allow-Methods"), "POST")
+
+    def test_cors3_preflight_declares_what_it_varies_on(self):
+        res_opt = self.url_open(
+            f"{self.base_url()}/test_http/cors_http_default",
+            timeout=10,
+            method="OPTIONS",
+            headers={"Access-Control-Request-Headers": "x-custom-header"},
+        )
+        self.assertIn(
+            "access-control-request-headers",
+            res_opt.headers.get("Vary", "").lower(),
+        )
+
+    @mute_logger("odoo.http")
+    def test_cors4_error_response_keeps_cors_headers(self):
+        """An error response must still carry the route's CORS headers.
+
+        ``handle_error`` builds the response outside the normal dispatch flow,
+        so it used to bypass ``Dispatcher.post_dispatch`` entirely — the CORS
+        headers staged by ``pre_dispatch`` never reached it. A cross-origin
+        caller then saw an opaque browser CORS failure instead of the real
+        status/body, making every server-side error undiagnosable client-side.
+        """
+        res = self.url_open("/test_http/cors_http_error")
+        self.assertEqual(res.status_code, 422)
+        self.assertEqual(
+            res.headers.get("Access-Control-Allow-Origin"),
+            "*",
+            "the error response lost the CORS headers set by pre_dispatch",
+        )
+        self.assertEqual(res.headers.get("Access-Control-Allow-Methods"), "GET, POST")
+
+
+@tagged("post_install", "-at_install")
+class TestHttpMethodsAllowList(TestHttpBase):
+    def test_methods0_options_does_not_bypass_a_post_only_route(self):
+        """``methods=["POST"]`` must exclude OPTIONS on a CORS-less route.
+
+        OPTIONS was appended to *every* restricted route's allow-list, but only
+        a ``cors=`` route is short-circuited by ``pre_dispatch``'s 204 preflight.
+        On a CORS-less route the verb therefore reached the endpoint — and since
+        OPTIONS is a ``SAFE_HTTP_METHODS`` member, CSRF validation was skipped
+        along the way, so a csrf-protected POST-only handler ran unauthenticated
+        with its query parameters.
+        """
+        res = self.db_url_open("/test_http/echo-http-csrf?injected=1", method="OPTIONS")
+        self.assertEqual(res.status_code, 405, res.text)
+        self.assertNotIn("injected", res.text, "the endpoint must not have run")
+        self.assertEqual(res.headers.get("Allow"), "POST")
+
+    def test_methods1_preflight_still_reaches_a_cors_route(self):
+        res = self.url_open(
+            f"{self.base_url()}/test_http/cors_http_methods",
+            timeout=10,
+            method="OPTIONS",
+        )
+        self.assertIn(res.status_code, (200, 204))
 
 
 @tagged("post_install", "-at_install")
@@ -414,7 +446,6 @@ class TestHttpEnsureDb(TestHttpBase):
             "db0",
         )
 
-        # follow the redirection
         res = self.multidb_url_open("/test_http/ensure_db")
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
@@ -445,7 +476,6 @@ class TestHttpEnsureDb(TestHttpBase):
         self.assertEqual(new_session.db, "db1")
         self.assertEqual(new_session.uid, None)
 
-        # follow redirection
         self.opener.cookies.set("session_id", new_session.sid, domain=HOST)
         res = self.multidb_url_open("/test_http/ensure_db")
         res.raise_for_status()
@@ -453,7 +483,7 @@ class TestHttpEnsureDb(TestHttpBase):
         self.assertEqual(res.text, "db1")
 
     def test_ensure_db4_unicode(self):
-        self.db_list = ["basededonnée1", "basededonnée2"]  # é matters
+        self.db_list = ["basededonnée1", "basededonnée2"]
 
         res = self.multidb_url_open("/test_http/ensure_db?db=basededonnée1")
         res.raise_for_status()
@@ -466,7 +496,6 @@ class TestHttpEnsureDb(TestHttpBase):
             "basededonnée1",
         )
 
-        # follow the redirection
         res = self.multidb_url_open("/test_http/ensure_db")
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
@@ -474,7 +503,6 @@ class TestHttpEnsureDb(TestHttpBase):
 
 
 class TestContentDisposition(BaseCase):
-
     def test_content_disposition(self):
         """Test that content_disposition filename conforms to RFC 6266, RFC 5987"""
         assertions = [
@@ -518,7 +546,7 @@ class TestRewindUploadedFiles(BaseCase):
         )
         req = Request(builder.get_environ())
         (upload,) = req.files.getlist("ufile")
-        upload.stream.read()  # first (failed) attempt consumed the stream
+        upload.stream.read()
 
         rewind_uploaded_files(req, cause=RuntimeError("serialization failure"))
 
@@ -543,7 +571,6 @@ class TestRewindUploadedFiles(BaseCase):
         uploads = req.files.getlist("attachments")
         self.assertEqual(len(uploads), 3, "sanity: all three files parsed")
 
-        # simulate the first (failed) attempt consuming every stream to EOF
         for upload in uploads:
             upload.stream.read()
         self.assertEqual(
@@ -552,7 +579,6 @@ class TestRewindUploadedFiles(BaseCase):
 
         rewind_uploaded_files(req, cause=RuntimeError("serialization failure"))
 
-        # the retried handler must see every file in full again — not just the first
         self.assertEqual([u.read() for u in uploads], contents)
 
     def test_rewind_nonseekable_raises_chained(self):

@@ -43,16 +43,6 @@ class TestDevice(TestHttpBase):
     def hit(self, time, endpoint, headers=None, ip=None):
         if ip:
             headers = headers or {}
-            # ``X-Forwarded-Proto: http`` rather than ``https`` so the response
-            # ``Set-Cookie`` does not carry the ``Secure`` attribute — the
-            # ``Opener`` (a ``requests.Session``) connects over plain
-            # ``http://127.0.0.1:8169``, and a ``Secure`` cookie would be
-            # silently held back by the cookie jar's scheme check, leaving the
-            # second hit() call stateless and the device-log test asserting
-            # against a single-IP linked_ip_addresses instead of all three.
-            # The test's intent is to simulate a proxy forwarding ``X-Forwarded-For``
-            # for IP-based device tracking, not to exercise TLS — so HTTP is
-            # the correct simulation here.
             headers = {
                 **headers,
                 "Host": "",
@@ -89,10 +79,6 @@ class TestDevice(TestHttpBase):
             ]
         )
         return devices, logs
-
-    # --------------------
-    # DETECTION
-    # --------------------
 
     def test_detection_device_readonly(self):
         session = self.authenticate(self.user_admin.login, self.user_admin.login)
@@ -152,9 +138,7 @@ class TestDevice(TestHttpBase):
         self.assertEqual(len(devices), 1)
         self.assertEqual(len(logs), 1)
         self.assertEqual(len(session["_trace"]), 1)
-        self.assertEqual(
-            self.info_trace(session["_trace"][0])["elapsed_time"], 0
-        )  # No trace update (< 3600 sec)
+        self.assertEqual(self.info_trace(session["_trace"][0])["elapsed_time"], 0)
 
         self.hit("2024-01-01 09:00:00", "/test_http/greeting-public?readonly=0")
 
@@ -406,10 +390,6 @@ class TestDevice(TestHttpBase):
             "By default, devices should be found from the most recent to the least recent (according to their last activity).",
         )
 
-    # --------------------
-    # DELETION
-    # --------------------
-
     def test_deletion_device(self):
         """
         A user is authenticated and the administrator
@@ -495,8 +475,6 @@ class TestDevice(TestHttpBase):
         admin_device = self.user_admin.device_ids
         self.assertEqual(len(admin_device), 1)
 
-        # The internal user builds a recordset pointing at the admin's device
-        # (bypassing the record rule via sudo + with_user) and tries to revoke it.
         foreign_device = admin_device.sudo().with_user(self.user_internal)
         with self.assertRaises(AccessError):
             foreign_device._revoke()
@@ -510,10 +488,6 @@ class TestDevice(TestHttpBase):
         internal_device = self.user_internal.device_ids
         self.assertEqual(len(internal_device), 1)
         self.assertFalse(internal_device.revoked)
-        # Capture the identifier BEFORE revoking: the res.device view excludes
-        # revoked logs (``WHERE revoked IS NOT TRUE``), so once ``_revoke`` flags
-        # the log the device row leaves the view and reading any field on
-        # ``internal_device`` raises MissingError.
         session_identifier = internal_device.session_identifier
 
         internal_device.with_user(self.user_admin)._revoke()
@@ -523,10 +497,6 @@ class TestDevice(TestHttpBase):
             [("session_identifier", "=", session_identifier)]
         )
         self.assertTrue(revoked_log.revoked)
-
-    # --------------------
-    # FILESYSTEM REFLEXION
-    # --------------------
 
     def _create_device_log_for_user(self, session, count):
         for _ in range(count):
@@ -559,28 +529,21 @@ class TestDevice(TestHttpBase):
         self.assertEqual(len(logs), 10)
         self.assertEqual(len(self.user_internal.device_ids), 10)
 
-        # Update all device logs
         with (
             freeze_time("2025-02-01 08:00:00"),
             patch.object(self.cr, "commit", lambda: ...),
         ):
             self.DeviceLog.sudo()._update_revoked()
-        self.DeviceLog.flush_model()  # Because write on ``res.device.log`` and so we have new values in cache
-        self.Device.invalidate_model()  # Because it depends on the ``res.device.log`` model (updated in database)
+        self.DeviceLog.flush_model()
+        self.Device.invalidate_model()
 
         devices, _ = self.get_devices_logs(self.user_admin)
-        self.assertEqual(
-            len(devices), 0
-        )  # No file exist on the filesystem (``revoked`` equals to ``True``)
+        self.assertEqual(len(devices), 0)
         self.assertEqual(len(self.user_admin.device_ids), 0)
 
         devices, _ = self.get_devices_logs(self.user_internal)
         self.assertEqual(len(devices), 0)
         self.assertEqual(len(self.user_internal.device_ids), 0)
-
-    # --------------------
-    # SPECIFIC USE CASE
-    # --------------------
 
     def test_specific_public_user_write(self):
         """
@@ -591,11 +554,4 @@ class TestDevice(TestHttpBase):
         session = self.authenticate(None, None)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
 
-        # As we don't have a uid in the session, we shouldn't go through
-        # the session check and therefore we won't go through the device update.
-        # `authenticate` method in the test is not the real method.
-        # To check that we are not creating a session (by making it dirty),
-        # we can check that there is no `_trace`.
-        # This means that the device logic will not create a session file
-        # (because we are not passing in the `_update_device` logic).
         self.assertFalse(session["_trace"])

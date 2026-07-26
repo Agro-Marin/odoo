@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.http import request
 
 MILKY_WAY_REGIONS = ["P3X", "P4X", "P2X", "P5C"]
 PEGASUS_REGIONS = ["M4R", "P3Y", "M6R"]
@@ -89,3 +90,13 @@ class Test_HttpGalaxy(models.Model):
         return self.env["ir.qweb"]._render(
             "test_http.tmpl_galaxy", {"galaxy": self.browse([galaxy_id])}
         )
+
+
+class IrHttp(models.AbstractModel):
+    _inherit = "ir.http"
+
+    @classmethod
+    def _pre_dispatch(cls, rule, args):
+        if request.httprequest.headers.get("X-Test-Reroute"):
+            request.reroute(request.httprequest.path)
+        super()._pre_dispatch(rule, args)

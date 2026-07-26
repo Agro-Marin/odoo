@@ -88,38 +88,53 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
 
     def test_validate_rec_name_rejects_unknown_field(self):
         from odoo.orm.registration import _validate_rec_name
-        cls = type("FakeModel", (), {
-            "_name": "fake.model",
-            "_rec_name": "no_such_field",
-            "_fields": {},
-        })
+
+        cls = type(
+            "FakeModel",
+            (),
+            {
+                "_name": "fake.model",
+                "_rec_name": "no_such_field",
+                "_fields": {},
+            },
+        )
         with self.assertRaises(TypeError):
             _validate_rec_name(cls)
 
     def test_validate_active_name_rejects_unknown_field(self):
         from odoo.orm.registration import _validate_active_name
-        cls = type("FakeModel", (), {
-            "_name": "fake.model",
-            "_active_name": "active",
-            "_fields": {},  # 'active' is not present
-        })
+
+        cls = type(
+            "FakeModel",
+            (),
+            {
+                "_name": "fake.model",
+                "_active_name": "active",
+                "_fields": {},
+            },
+        )
         with self.assertRaises(TypeError):
             _validate_active_name(cls)
 
     def test_validate_active_name_rejects_unsupported_name(self):
         from odoo.orm.registration import _validate_active_name
-        # Field is present, but the name is neither 'active' nor 'x_active'
-        cls = type("FakeModel", (), {
-            "_name": "fake.model",
-            "_active_name": "is_active",
-            "_fields": {"is_active": object()},
-        })
+
+        cls = type(
+            "FakeModel",
+            (),
+            {
+                "_name": "fake.model",
+                "_active_name": "is_active",
+                "_fields": {"is_active": object()},
+            },
+        )
         with self.assertRaises(TypeError):
             _validate_active_name(cls)
 
     def test_add_to_registry_rejects_non_definition(self):
         """``add_to_registry`` must reject a non-MetaModel input even under -O."""
         from odoo.orm.registration import add_to_registry
+
         with self.assertRaises(TypeError):
             add_to_registry(self.env.registry, type("NotAModel", (), {}))
 
@@ -132,7 +147,7 @@ class TestRegistrationValidatorsSurviveOptO(TransactionCase):
         the recursion would create at runtime).
         """
         from odoo.orm.registration import _setup
-        # Pick any registered model and pretend its setup is mid-flight.
+
         cls = self.env.registry["res.partner"]
         original_done = cls._setup_done__
         cls._setup_done__ = False
@@ -150,7 +165,6 @@ class TestRaiseOnInvalidObjectName(TransactionCase):
     """Test the exception-raising wrapper."""
 
     def test_valid_name_no_error(self):
-        # Should not raise
         raise_on_invalid_object_name("res.partner")
 
     def test_invalid_name_raises(self):
@@ -162,7 +176,6 @@ class TestCheckPgName(TransactionCase):
     """Test PostgreSQL identifier validation — raises ValidationError."""
 
     def test_valid_simple(self):
-        # Should not raise
         check_pg_name("my_table")
 
     def test_valid_with_dollar(self):
@@ -184,9 +197,6 @@ class TestCheckPgName(TransactionCase):
             check_pg_name("my-table")
 
     def test_rejects_uppercase(self):
-        # PostgreSQL folds unquoted identifiers to lowercase, so accepting
-        # ``MyTable`` would silently collide with ``mytable``.  Matches the
-        # rule already documented for ``check_object_name``.
         with self.assertRaises(ValidationError):
             check_pg_name("MyTable")
         with self.assertRaises(ValidationError):
@@ -199,7 +209,6 @@ class TestCheckMethodName(TransactionCase):
     """Test RPC method name validation — raises AccessError for private methods."""
 
     def test_public_method_allowed(self):
-        # Should not raise
         check_method_name("read")
 
     def test_private_method_blocked(self):

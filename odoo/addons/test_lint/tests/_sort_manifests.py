@@ -23,39 +23,29 @@ import json
 import sys
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Canonical key order
-# Grouped: identity/description → attribution → requirements → content → flags → hooks
-# ---------------------------------------------------------------------------
 
 MANIFEST_KEY_ORDER: list[str] = [
-    # Identity / description
     "name",
     "version",
     "category",
     "sequence",
     "summary",
     "description",
-    # Attribution
     "author",
     "contributors",
     "website",
     "icon",
     "images",
-    # Technical requirements
     "license",
     "depends",
     "external_dependencies",
     "countries",
-    # Content
     "data",
     "demo",
     "assets",
-    # Behaviour flags
     "installable",
     "application",
     "auto_install",
-    # Lifecycle hooks
     "post_load",
     "pre_init_hook",
     "post_init_hook",
@@ -78,17 +68,11 @@ def expected_key_order(present_keys: list[str]) -> list[str]:
     return known + unknown
 
 
-# ---------------------------------------------------------------------------
-# Formatter
-# ---------------------------------------------------------------------------
-
 def _fmt_str(s: str) -> str:
     """Render a string value as Python source, preferring double quotes."""
     if "\n" in s:
-        # Triple-quoted block string — escape any embedded triple-double-quotes.
-        inner = s.replace("\\", "\\\\").replace('"""', r'\"\"\"')
+        inner = s.replace("\\", "\\\\").replace('"""', r"\"\"\"")
         return f'"""{inner}"""'
-    # json.dumps always produces a double-quoted, properly escaped string.
     return json.dumps(s)
 
 
@@ -131,25 +115,18 @@ def _fmt_value(value: object, depth: int) -> str:
 def render_manifest(data: dict) -> str:
     """Render a manifest dict as a complete ``__manifest__.py`` source string."""
     ordered_keys = expected_key_order(list(data.keys()))
-    body = "\n".join(
-        f'{_INDENT}"{k}": {_fmt_value(data[k], 1)},' for k in ordered_keys
-    )
+    body = "\n".join(f'{_INDENT}"{k}": {_fmt_value(data[k], 1)},' for k in ordered_keys)
     return f"{{\n{body}\n}}\n"
 
-
-# ---------------------------------------------------------------------------
-# Per-file processing
-# ---------------------------------------------------------------------------
 
 def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
     """Rewrite *path* with manifest keys in canonical order.
 
     Any comment/copyright header preceding the dict literal is preserved.
 
-    Returns:
-        ``True``  — file was changed (or would change in dry-run mode)
-        ``False`` — file was already canonical; no change needed
-        ``None``  — file was skipped due to a parse error (warning on stderr)
+    :return: ``True`` if the file was changed (or would change in dry-run mode),
+        ``False`` if it was already canonical, ``None`` if it was skipped due to
+        a parse error (warning on stderr)
     """
     source = path.read_text(encoding="utf-8")
 
@@ -179,8 +156,6 @@ def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
         print(f"  SKIP  {path}: top-level literal is not a dict", file=sys.stderr)
         return None
 
-    # Preserve any comment/copyright header that precedes the dict literal.
-    # dict_node.lineno is 1-based; slice is 0-based.
     source_lines = source.splitlines(keepends=True)
     prefix = "".join(source_lines[: dict_node.lineno - 1])
 
@@ -193,10 +168,6 @@ def sort_manifest(path: Path, *, dry_run: bool = False) -> bool | None:
         path.write_text(new_source, encoding="utf-8")
     return True
 
-
-# ---------------------------------------------------------------------------
-# CLI (standalone use)
-# ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> None:
     """Entry point for standalone use."""
@@ -212,7 +183,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Directories to search recursively (default: current directory)",
     )
     parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Print which files would change without modifying them",
     )

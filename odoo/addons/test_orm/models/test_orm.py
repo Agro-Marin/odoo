@@ -42,7 +42,7 @@ class TestOrmCategory(models.Model):
         "The color code must be positive!",
     )
 
-    @api.depends("name", "parent.display_name")  # this definition is recursive
+    @api.depends("name", "parent.display_name")
     def _compute_display_name(self):
         for cat in self:
             if cat.parent:
@@ -66,23 +66,17 @@ class TestOrmCategory(models.Model):
     def _inverse_display_name(self):
         for cat in self:
             names = cat.display_name.split("/")
-            # determine sequence of categories
             categories = []
             for name in names[:-1]:
                 category = self.search([("name", "ilike", name.strip())])
                 categories.append(category[0])
             categories.append(cat)
-            # assign parents following sequence
             for parent, child in itertools.pairwise(categories):
                 if parent and child:
                     child.parent = parent
-            # assign name of last category, and reassign display_name (to normalize it)
             cat.name = names[-1].strip()
 
     def _fetch_query(self, query, fields):
-        # DLE P45: `test_31_prefetch`,
-        # with self.assertRaises(AccessError):
-        #     cat1.name
         if self.search_count([("id", "in", self._ids), ("name", "=", "NOACCESS")]):
             msg = "Sorry"
             raise AccessError(msg)
@@ -118,9 +112,7 @@ class TestOrmDiscussion(models.Model):
     )
 
     history = fields.Json("History", default={"delete_messages": []})
-    attributes_definition = fields.PropertiesDefinition(
-        "Message Properties"
-    )  # see message@attributes
+    attributes_definition = fields.PropertiesDefinition("Message Properties")
 
     def _domain_very_important(self):
         """Ensure computed O2M domains work as expected."""
@@ -128,17 +120,14 @@ class TestOrmDiscussion(models.Model):
 
     @api.onchange("name")
     def _onchange_name(self):
-        # test onchange modifying one2many field values
         if (
             self.env.context.get("generate_dummy_message")
             and self.name == "{generate_dummy_message}"
         ):
-            # update body of existings messages and emails
             for message in self.messages:
                 message.body = "not last dummy message"
             for message in self.important_messages:
                 message.body = "not last dummy message"
-            # add new dummy message
             message_vals = self.messages._add_missing_default_values(
                 {"body": "dummy message", "important": True}
             )
@@ -215,7 +204,6 @@ class TestOrmMessage(models.Model):
 
     @api.constrains("name")
     def _check_name(self):
-        # dummy constraint to check on computed field
         for message in self:
             if message.name.startswith("[X]"):
                 msg = "No way!"
@@ -239,11 +227,9 @@ class TestOrmMessage(models.Model):
     def _search_size(self, operator, value):
         if operator not in ("=", "!=", "<", "<=", ">", ">=", "in", "not in"):
             return []
-        # retrieve all the messages that match with a specific SQL query
         self.flush_model(["body"])
         field = self._fields["body"]
         if field.translate:
-            # body is JSONB when translate=True (e.g., test_inherit overrides it)
             lang = self.env.lang or "en_US"
             query = """SELECT id FROM "%s" WHERE char_length("body"->>%%s) %s %%s""" % (
                 self._table,
@@ -257,18 +243,11 @@ class TestOrmMessage(models.Model):
             )
             self.env.cr.execute(query, (value,))
         ids = [t[0] for t in self.env.cr.fetchall()]
-        # return domain with an implicit AND
         return [("id", "in", ids), (1, "=", 1)]
 
     @api.depends("size")
     def _compute_double_size(self):
         for message in self:
-            # This illustrates a subtle situation: message.double_size depends
-            # on message.size. When the latter is computed, message.size is
-            # assigned, which would normally invalidate message.double_size.
-            # However, this may not happen while message.double_size is being
-            # computed: the last statement below would fail, because
-            # message.double_size would be undefined.
             message.double_size = 0
             size = message.size
             message.double_size = message.double_size + size
@@ -445,7 +424,6 @@ class TestOrmMixed(models.Model):
     amount = fields.Monetary()
 
     def _compute_now(self):
-        # this is a non-stored computed field without dependencies
         for message in self:
             message.now = fields.Datetime.now()
 
@@ -512,7 +490,6 @@ class TestOrmRelated(models.Model):
     _description = "Test ORM Related"
 
     name = fields.Char()
-    # related fields with a single field
     related_name = fields.Char(
         related="name", string="A related on Name", readonly=False
     )
@@ -750,12 +727,6 @@ class TestOrmMove(models.Model):
     tag_repeat = fields.Integer()
     tag_string = fields.Char(compute="_compute_tag_string")
 
-    # This field can fool the ORM during onchanges!  When editing a payment
-    # record, modified fields are assigned to the parent record.  When
-    # determining the dependent records, the ORM looks for the payments related
-    # to this record by the field `move_id`.  As this field is an inverse of
-    # `move_id`, it uses it.  If that field was not initialized properly, the
-    # ORM determines its value to be... empty (instead of the payment record.)
     payment_ids = fields.One2many("test_orm.payment", "move_id")
     payment_amount = fields.Integer(compute="_compute_payment_amount")
 
@@ -822,7 +793,6 @@ class TestOrmOrderLine(models.Model):
                 rec.has_been_rewarded = "Yes"
 
     def unlink(self):
-        # also delete associated reward lines
         reward_lines = [
             other_line
             for line in self
@@ -853,9 +823,7 @@ class TestOrmCompany(models.Model):
         strip_classes=True,
         strip_style=True,
     )
-    company_id = fields.Many2one(
-        "res.company", company_dependent=True
-    )  # child_of and parent_of is optimized
+    company_id = fields.Many2one("res.company", company_dependent=True)
     partner_id = fields.Many2one("res.partner", company_dependent=True)
 
 
@@ -901,9 +869,6 @@ class TestOrmRecursive(models.Model):
             else:
                 rec.display_name = rec.name
 
-    # This field is recursive, non-stored and context-dependent. Its purpose is
-    # to reproduce a bug in modified(), which might not detect that the field
-    # is present in cache if it has values in another context.
     @api.depends_context("bozo")
     @api.depends("name", "parent.context_dependent_name")
     def _compute_context_dependent_name(self):
@@ -947,8 +912,6 @@ class TestOrmRecursiveLine(models.Model):
     task_ids = fields.One2many("test_orm.recursive.task", "line_id")
     task_number = fields.Integer(compute="_compute_task_number", store=True)
 
-    # line.task_number indirectly depends on recursive field task.line_id, and
-    # is triggered by the recursion in modified() on field task.line_id
     @api.depends("task_ids")
     def _compute_task_number(self):
         for record in self:
@@ -967,11 +930,8 @@ class TestOrmRecursiveTask(models.Model):
         store=True,
     )
 
-    # the recursive nature of task.line_id is a bit artificial, but it makes
-    # line.task_number be triggered by a recursive call in modified()
     @api.depends("value", "line_id.order_id.value")
     def _compute_line_id(self):
-        # this assignment forces the new value of record.line_id to be dirty in cache
         self.line_id = False
         for record in self:
             domain = [("order_id.value", "=", record.value)]
@@ -983,8 +943,8 @@ class TestOrmCascade(models.Model):
     _description = "Test ORM Cascade"
 
     foo = fields.Char()
-    bar = fields.Char(compute="_compute_bar")  # depends on foo
-    baz = fields.Char(compute="_compute_baz", store=True)  # depends on bar
+    bar = fields.Char(compute="_compute_bar")
+    baz = fields.Char(compute="_compute_baz", store=True)
 
     @api.depends("foo")
     def _compute_bar(self):
@@ -1049,7 +1009,6 @@ class TestOrmComputeOnchange(models.Model):
             if record.active:
                 record.baz = (record.foo or "") + "z"
 
-    # special case: this field has no dependency
     def _compute_quux(self):
         self.quux = "quux"
 
@@ -1060,7 +1019,6 @@ class TestOrmComputeOnchange(models.Model):
                 continue
             if any(line.foo == record.foo for line in record.line_ids):
                 continue
-            # add a line with the same value as 'foo'
             record.line_ids = [Command.create({"foo": record.foo})]
 
     @api.depends("foo")
@@ -1102,7 +1060,6 @@ class TestOrmComputeDynamicDepends(models.Model):
     full_name = fields.Char(compute="_compute_full_name")
 
     def _get_full_name_fields(self):
-        # the fields to use are stored in a config parameter
         depends = self.env["ir.config_parameter"].get_param("test_orm.full_name", "")
         return depends.split(",") if depends else []
 
@@ -1166,7 +1123,6 @@ class TestOrmOne2many(models.Model):
 
     @api.depends("name")
     def _compute_line_ids(self):
-        # increment counter of line with the same name, or create a new line
         for record in self:
             if not record.name:
                 continue
@@ -1246,7 +1202,6 @@ class TestOrmModel_Binary(models.Model):
 
     @api.depends("binary")
     def _compute_binary(self):
-        # arbitrary value: 'bin_size' must have no effect
         for record in self:
             record.binary_computed = [(record.id, bool(record.binary))]
 
@@ -1416,7 +1371,6 @@ class TestOrmAttachment(models.Model):
         for rec in self:
             rec.name = self.env[rec.res_model].browse(rec.res_id).display_name
 
-    # override those methods for many2many search
     def _search(
         self,
         domain,
@@ -1439,7 +1393,6 @@ class TestOrmAttachment(models.Model):
     def _check_access(self, operation):
         return super()._check_access(operation)
 
-    # DLE P55: `test_cache_invalidation`
     def modified(self, fnames, *args, **kwargs):
         if not self:
             return None
@@ -1551,7 +1504,6 @@ class TestOrmModel_Child_Nocheck(models.Model):
     parent_id = fields.Many2one("test_orm.model_parent", check_company=False)
 
 
-# model with explicit and stored field 'display_name'
 class TestOrmDisplay(models.Model):
     _name = "test_orm.display"
     _description = "Model that overrides display_name"
@@ -1563,17 +1515,12 @@ class TestOrmDisplay(models.Model):
             record.display_name = "My id is %s" % (record.id)
 
 
-# abstract model with automatic and non-stored field 'display_name'
 class TestOrmMixin(models.AbstractModel):
     _name = "test_orm.mixin"
     _description = "Dummy mixin model"
 
 
-# in this model extension, the field 'display_name' should not be inherited from
-
-
-# pylint: disable=E0102
-class TestOrmDisplay(models.Model):  # noqa: F811
+class TestOrmDisplay(models.Model):
     _name = "test_orm.display"
     _inherit = ["test_orm.mixin", "test_orm.display"]
 
@@ -1711,7 +1658,6 @@ class TestOrmCity(models.Model):
     country_id = fields.Many2one("test_orm.country")
 
 
-# abstract model with a selection field
 class TestOrmState_Mixin(models.AbstractModel):
     _name = "test_orm.state_mixin"
     _description = "Dummy state mixin model"
@@ -1737,8 +1683,7 @@ class TestOrmModel_Selection_Base(models.Model):
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Base(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Base(models.Model):
     _inherit = "test_orm.model_selection_base"
     _description = "Model with a selection field extension with ondelete null"
 
@@ -1750,8 +1695,7 @@ class TestOrmModel_Selection_Base(models.Model):  # noqa: F811
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Base(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Base(models.Model):
     _inherit = "test_orm.model_selection_base"
     _description = "Model with a selection field extension without ondelete"
 
@@ -1804,8 +1748,7 @@ class TestOrmModel_Selection_Required(models.Model):
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Required(models.Model):
     _inherit = "test_orm.model_selection_required"
     _description = "Model with a selection field extension with ondelete default"
 
@@ -1817,8 +1760,7 @@ class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Required(models.Model):
     _inherit = "test_orm.model_selection_required"
     _description = "Model with a selection field extension with ondelete cascade"
 
@@ -1830,8 +1772,7 @@ class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Required(models.Model):
     _inherit = "test_orm.model_selection_required"
     _description = "Model with a selection field extension with ondelete set <option>"
 
@@ -1843,8 +1784,7 @@ class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Required(models.Model):
     _inherit = "test_orm.model_selection_required"
     _description = (
         "Model with a selection field extension with multiple ondelete policies"
@@ -1862,8 +1802,7 @@ class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Required(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Required(models.Model):
     _inherit = "test_orm.model_selection_required"
     _description = "Model with a selection field extension with ondelete callback"
 
@@ -1908,8 +1847,7 @@ class TestOrmModel_Selection_Required_For_Write_Override(models.Model):
     )
 
 
-# pylint: disable=E0102
-class TestOrmModel_Selection_Required_For_Write_Override(models.Model):  # noqa: F811
+class TestOrmModel_Selection_Required_For_Write_Override(models.Model):
     _inherit = "test_orm.model_selection_required_for_write_override"
 
     my_selection = fields.Selection(
@@ -1921,10 +1859,6 @@ class TestOrmModel_Selection_Required_For_Write_Override(models.Model):  # noqa:
 
     def write(self, vals):
         if "my_selection" in vals:
-            # A *recoverable* write refusal (business rule), so the selection
-            # ondelete cleanup falls back to a raw column update (SEL-C4).
-            # A bare ValueError/TypeError here would be treated as a
-            # programming error and propagate instead.
             msg = "No... no no no"
             raise UserError(msg)
         return super().write(vals)
@@ -1943,8 +1877,7 @@ class SelectionCompanyDependent(models.Model):
     )
 
 
-# pylint: disable=E0102
-class SelectionCompanyDependent(models.Model):  # noqa: F811
+class SelectionCompanyDependent(models.Model):
     _inherit = "test_orm.model_selection_company_dependent"
     _description = (
         "Model with a company dependent selection field extension without ondelete"
@@ -1957,10 +1890,6 @@ class SelectionCompanyDependent(models.Model):  # noqa: F811
     )
 
 
-# Special classes to ensure the correct usage of a shared cache amongst users.
-
-
-# See the method test_shared_cache_computed_field
 class TestOrmModel_Shared_Cache_Compute_Parent(models.Model):
     _name = "test_orm.model_shared_cache_compute_parent"
     _description = "model_shared_cache_compute_parent"
@@ -1987,9 +1916,7 @@ class TestOrmModel_Shared_Cache_Compute_Line(models.Model):
 
     parent_id = fields.Many2one("test_orm.model_shared_cache_compute_parent")
     amount = fields.Integer()
-    user_id = fields.Many2one(
-        "res.users", default=lambda self: self.env.user
-    )  # Note: There is an ir.rule about this.
+    user_id = fields.Many2one("res.users", default=lambda self: self.env.user)
 
 
 class TestOrmComputeContainer(models.Model):
@@ -2208,7 +2135,6 @@ class TestOrmCompute_Editable(models.Model):
     @api.onchange("line_ids")
     def _onchange_line_ids(self):
         for line in self.line_ids:
-            # even if 'same' is not in the view, it should be the same as 'value'
             line.count += line.same
 
 
@@ -2297,8 +2223,6 @@ class TestOrmCrew(models.Model):
     _description = "All yaaaaaarrrrr by ship"
     _table = "test_orm_crew"
 
-    # this actually represents the union of two relations pirate/ship and
-    # prisoner/ship, where some of the many2one fields can be NULL
     pirate_id = fields.Many2one("test_orm.pirate")
     prisoner_id = fields.Many2one("test_orm.prisoner")
     ship_id = fields.Many2one("test_orm.ship")
@@ -2343,14 +2267,11 @@ class TestOrmPrecompute(models.Model):
 
     name = fields.Char(required=True)
 
-    # both fields are precomputed
     lower = fields.Char(compute="_compute_names", store=True, precompute=True)
     upper = fields.Char(compute="_compute_names", store=True, precompute=True)
 
-    # precomputed that depends on precomputed fields
     lowup = fields.Char(compute="_compute_lowup", store=True, precompute=True)
 
-    # kind of precomputed related field traversing a many2one
     partner_id = fields.Many2one("res.partner")
     commercial_id = fields.Many2one(
         "res.partner",
@@ -2359,7 +2280,6 @@ class TestOrmPrecompute(models.Model):
         precompute=True,
     )
 
-    # precomputed depending on one2many fields
     line_ids = fields.One2many("test_orm.precompute.line", "parent_id")
     size = fields.Integer(compute="_compute_size", store=True, precompute=True)
 
@@ -2457,8 +2377,6 @@ class TestOrmPrecomputeEditable(models.Model):
 
     @api.depends("baz")
     def _compute_baz2(self):
-        # this field is a trick to get the value of baz if it ever is recomputed
-        # during the precomputation of bar
         for record in self:
             record.baz2 = record.baz
 
@@ -2518,7 +2436,7 @@ class TestOrmPrecomputeMonetary(models.Model):
             record.amount = 12.333
 
     def _compute_currency_id(self):
-        self.currency_id = 1  # EUR
+        self.currency_id = 1
 
 
 class TestOrmPrefetch(models.Model):

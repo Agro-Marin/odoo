@@ -98,7 +98,6 @@ def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
         if not name:
             continue
 
-        # Rule: missing-gettext — error constructors with raw string first arg
         if name in ERRORS_REQUIRING_GETTEXT and node.args:
             first_arg = node.args[0]
             if not _is_whitelisted_argument(first_arg):
@@ -110,7 +109,6 @@ def check(tree: ast.Module, filepath: str = "") -> Iterator[Violation]:
                 )
                 continue
 
-        # Rules: gettext-variable, gettext-placeholders, gettext-repr
         if name not in ("_", "_lt"):
             continue
 

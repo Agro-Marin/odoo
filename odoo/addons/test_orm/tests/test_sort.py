@@ -29,7 +29,6 @@ class TestSort(TransactionCase):
     def test_basic(self):
         db_result = self.env["test_orm.country"].search([])
         with self.assertQueryCount(1):
-            # 1 query to fetch the fields, in practice it is already prefetched
             self.assertEqual(db_result.ids, self.countries.sorted().ids)
         with self.assertQueryCount(0):
             self.assertEqual(
@@ -46,8 +45,6 @@ class TestSort(TransactionCase):
     def test_basic_m2o(self):
         db_result = self.env["test_orm.city"].search([])
         with self.assertQueryCount(2):
-            # 1 query to fetch the fields of both models,
-            # in practice at least one is already prefetched or needs to be and the other is likely to be needed too
             self.assertEqual(db_result.ids, self.cities.sorted().ids)
         with self.assertQueryCount(0):
             self.assertEqual(db_result[::-1].ids, self.cities.sorted(reverse=True).ids)
@@ -72,8 +69,6 @@ class TestSort(TransactionCase):
         order = "country_id DESC, id ASC"
         db_result = self.env["test_orm.city"].search([], order=order)
         with self.assertQueryCount(2):
-            # 1 query to fetch the fields of both models,
-            # in practice at least one is already prefetched or needs to be and the other is likely to be needed too
             self.assertEqual(db_result.ids, self.cities.sorted(order).ids)
         with self.assertQueryCount(0):
             self.assertEqual(
@@ -143,7 +138,6 @@ class TestSort(TransactionCase):
                     .mapped("name"),
                     countries.sorted(order).mapped("name"),
                 )
-        # Also test caller's reverse=True (flips null position + value order)
         for order in [
             "name ASC",
             "name DESC",
@@ -223,20 +217,19 @@ class TestSort(TransactionCase):
             ]
         )
 
-        order = "id"  # new id after existing ones
+        order = "id"
         self.assertEqual(
             (self.countries + new_countries).sorted(order),
             self.countries.sorted(order) + new_countries.sorted(order),
         )
 
-        order = "id DESC"  # new id before existing ones
+        order = "id DESC"
         self.assertEqual(
             (self.countries + new_countries).sorted(order),
             new_countries.sorted(order) + self.countries.sorted(order),
         )
 
     def test_prefetch(self):
-        # sorted keeps the _prefetch_ids
         partners_with_children = self.env["res.partner"].create(
             [
                 {
@@ -256,7 +249,66 @@ class TestSort(TransactionCase):
             ]
         )
         partners_with_children.invalidate_model(["name"])
-        # Only one query to fetch name of children of each partner
         with self.assertQueryCount(1):
             for partner in partners_with_children:
                 partner.child_ids.sorted("id").mapped("name")
+
+
+class TestSortNullPlacement(TransactionCase):
+    """``sorted(order)`` must place NULLs where ``search(order=...)`` does.
+
+    A NULL column reads as ``0`` / ``0.0`` / ``False`` in *record* format, so a
+    sort key built from record values cannot tell "no value" from a stored zero:
+    the NULL rows were sorted into the zero bucket instead of the NULL bucket.
+    That disagreed with SQL *and* with ``_sorted_by_ids`` -- the cache fast path
+    of this very method, which keeps ``None`` distinct -- so the result also
+    depended on whether the field happened to be in cache.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Model = self.env["test_orm.empty_int"]
+        self.records = self.Model.create(
+            [{"number": 5}, {}, {"number": 0}, {"number": -3}, {}]
+        )
+        self.env.flush_all()
+
+    def _assert_same_order(self, order):
+        scoped = [("id", "in", self.records.ids)]
+        self.env.invalidate_all()
+        expected = self.Model.search(scoped, order=order).ids
+        self.env.invalidate_all()
+        cold = self.records.sorted(order).ids
+        warm_records = self.Model.browse(self.records.ids)
+        warm_records.fetch(["number"])
+        warm = warm_records.sorted(order).ids
+        self.assertEqual(
+            cold, expected, f"sorted({order!r}) disagrees with search(order=...)"
+        )
+        self.assertEqual(warm, cold, f"sorted({order!r}) depends on the cache state")
+
+    def test_nulls_last_and_first(self):
+        for order in (
+            "number, id",
+            "number DESC, id",
+            "number NULLS FIRST, id",
+            "number NULLS LAST, id",
+            "number DESC NULLS FIRST, id",
+            "number DESC NULLS LAST, id",
+        ):
+            with self.subTest(order=order):
+                self._assert_same_order(order)
+
+    def test_secondary_key_still_applies(self):
+        """The ``id`` tie-break must keep working: ``id`` is not cache-backed, so
+        its sort key can only come from the record value.
+        """
+        null_ids = sorted((self.records[1] + self.records[4]).ids)
+        self.env.invalidate_all()
+        ordered = self.records.sorted("number NULLS LAST, id").ids
+        self.assertEqual(ordered[-2:], null_ids)
+        self.assertEqual(
+            ordered[:-2],
+            [self.records[3].id, self.records[2].id, self.records[0].id],
+            "value rows must be ordered -3, 0, 5",
+        )

@@ -54,7 +54,6 @@ class TestHttpEchoReplyHttpNoDB(TestHttpBase):
             "/test_http/echo-json-over-http", data=payload, headers=CT_JSON
         )
         self.assertEqual(res.status_code, 200)
-        # Server parses and re-serializes with orjson (compact, no spaces)
         self.assertEqual(res.text, '{"commander":"Thor"}')
         mimetype = res.headers["Content-Type"].partition(";")[0]
         self.assertEqual(mimetype, "application/json")
@@ -76,21 +75,18 @@ class TestHttpEchoReplyJsonNoDB(TestHttpBase):
             "/test_http/echo-json?race=Asgard", data=payload, headers=CT_JSON
         )
         self.assertEqual(res.status_code, 200)
-        # orjson compact output (no spaces after : and ,)
         self.assertEqual(
             res.text,
             '{"jsonrpc":"2.0","id":1234,"result":{"commander":"Thor"}}',
         )
 
     def test_echojson1_http_get_nodb(self):
-        res = self.nodb_url_open("/test_http/echo-json")  # GET
+        res = self.nodb_url_open("/test_http/echo-json")
         self.assertEqual(res.status_code, 405)
 
     @mute_logger("odoo.http")
     def test_echojson2_http_post_nodb(self):
-        res = self.nodb_url_open(
-            "/test_http/echo-json", data={"race": "Asgard"}
-        )  # POST
+        res = self.nodb_url_open("/test_http/echo-json", data={"race": "Asgard"})
         self.assertEqual(
             res.text,
             Like("""
@@ -184,16 +180,12 @@ class TestHttpEchoReplyHttpWithDB(TestHttpBase):
 
     @mute_logger("odoo.http")
     def test_echohttp8_post_good_csrf_with_session_rotation(self):
-        # Compute a csrf token in advance,
-        # to mimic a form opened in another browser tab with the CSRF token already computed
         csrf_token = Request.csrf_token(self)
         sid_before_rotation = self.opener.cookies["session_id"]
 
-        # Force a rotation by changing the create date of the session
         self.session["create_time"] = time.time() - SESSION_ROTATION_INTERVAL
         root.session_store.save(self.session)
 
-        # Trigger session rotation by calling another endpoint
         res = self.db_url_open("/test_http/echo-http-get")
         self.assertNotEqual(
             sid_before_rotation,
@@ -201,7 +193,6 @@ class TestHttpEchoReplyHttpWithDB(TestHttpBase):
             "The session must rotate for this test to make sense",
         )
 
-        # Do the post with the CSRF token computed in advance
         res = self.db_url_open(
             "/test_http/echo-http-csrf?race=Asgard",
             data={"commander": "Thor", "csrf_token": csrf_token},
@@ -235,19 +226,18 @@ class TestHttpEchoReplyJsonWithDB(TestHttpBase):
             "/test_http/echo-json?race=Asgard", data=payload, headers=CT_JSON
         )
         self.assertEqual(res.status_code, 200)
-        # orjson compact output (no spaces after : and ,)
         self.assertEqual(
             res.text,
             '{"jsonrpc":"2.0","id":1234,"result":{"commander":"Thor"}}',
         )
 
     def test_echojson1_http_get_db(self):
-        res = self.db_url_open("/test_http/echo-json")  # GET
+        res = self.db_url_open("/test_http/echo-json")
         self.assertEqual(res.status_code, 405)
 
     @mute_logger("odoo.http")
     def test_echojson2_http_post_db(self):
-        res = self.db_url_open("/test_http/echo-json", data={"race": "Asgard"})  # POST
+        res = self.db_url_open("/test_http/echo-json", data={"race": "Asgard"})
         self.assertEqual(
             res.text,
             Like("""
@@ -275,7 +265,6 @@ class TestHttpEchoReplyJsonWithDB(TestHttpBase):
             "/test_http/echo-json-context", data=payload, headers=CT_JSON
         )
         self.assertEqual(res.status_code, 200)
-        # orjson compact output (no spaces after : and ,)
         self.assertEqual(
             res.text,
             '{"jsonrpc":"2.0","id":0,"result":'

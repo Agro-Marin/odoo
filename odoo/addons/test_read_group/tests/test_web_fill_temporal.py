@@ -92,7 +92,6 @@ class TestFillTemporal(common.TransactionCase):
         self.assertEqual(groups, expected)
 
         Model = self.Model.with_context(fill_temporal=True)
-        # Same result for formatted_grouping_sets
         self.assertEqual(
             Model.formatted_read_grouping_sets(
                 [], [["date:month"], []], ["__count", "value:sum"]
@@ -252,12 +251,11 @@ class TestFillTemporal(common.TransactionCase):
             },
         ]
 
-        # Time Zone                      UTC     UTC DST
         tzs = [
-            "America/Anchorage",  # -09:00    -08:00
-            "Europe/Brussels",  # +01:00    +02:00
+            "America/Anchorage",
+            "Europe/Brussels",
             "Pacific/Kwajalein",
-        ]  # +12:00    +12:00
+        ]
 
         for tz in tzs:
             model = self.Model.with_context(tz=tz, fill_temporal=True)
@@ -465,12 +463,12 @@ class TestFillTemporal(common.TransactionCase):
         """Test data with weeks starting on Sunday."""
         self.Model.create(
             [
-                {"date": "1916-08-19", "value": 4},  # saturday W34
-                {"date": "1916-08-20", "value": 13},  # sunday   W35
-                {"date": "1916-09-10", "value": 5},  # sunday   W38
-                {"date": "1916-08-18", "value": 3},  # friday   W34
-                {"date": "1916-09-11", "value": 4},  # monday   W38
-                {"date": "1916-09-12", "value": 11},  # tuesday  W38
+                {"date": "1916-08-19", "value": 4},
+                {"date": "1916-08-20", "value": 13},
+                {"date": "1916-09-10", "value": 5},
+                {"date": "1916-08-18", "value": 3},
+                {"date": "1916-09-11", "value": 4},
+                {"date": "1916-09-12", "value": 11},
             ]
         )
 
@@ -1175,7 +1173,6 @@ class TestFillTemporal(common.TransactionCase):
             },
         ).formatted_read_group([], ["datetime:month"], ["__count", "value:sum"])
 
-        # Feb/Mar/Apr filled (empty) + the out-of-window June datum, kept.
         self.assertEqual(len(groups), 4)
         self.assertEqual(sum(g["value:sum"] or 0 for g in groups), 7)
         self.assertEqual([g["__count"] for g in groups], [0, 0, 0, 1])
@@ -1184,12 +1181,12 @@ class TestFillTemporal(common.TransactionCase):
         """Test data with weeks starting on Sunday and forced boundaries."""
         self.Model.create(
             [
-                {"date": "1916-08-19", "value": 4},  # saturday W34
-                {"date": "1916-08-20", "value": 13},  # sunday   W35
-                {"date": "1916-09-10", "value": 5},  # sunday   W38
-                {"date": "1916-08-18", "value": 3},  # friday   W34
-                {"date": "1916-09-11", "value": 4},  # monday   W38
-                {"date": "1916-09-12", "value": 11},  # tuesday  W38
+                {"date": "1916-08-19", "value": 4},
+                {"date": "1916-08-20", "value": 13},
+                {"date": "1916-09-10", "value": 5},
+                {"date": "1916-08-18", "value": 3},
+                {"date": "1916-09-11", "value": 4},
+                {"date": "1916-09-12", "value": 11},
             ]
         )
 

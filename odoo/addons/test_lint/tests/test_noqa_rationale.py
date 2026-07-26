@@ -18,15 +18,11 @@ from . import _checker_noqa_rationale, lint_case
 
 _logger = logging.getLogger(__name__)
 
-# Flip to True once the legacy backlog is cleared.  Until then the test is
-# advisory: it logs every violation as a warning so they show up in CI,
-# but it does not fail the suite.
 ENFORCE = False
 
-# Skip patterns — files where bare ``# noqa`` is intentional fixture data.
 _SKIP_FRAGMENTS = (
-    "/test_lint/tests/_checker_noqa_rationale.py",  # the regex itself mentions noqa
-    "/test_lint/tests/test_noqa_rationale.py",      # this file
+    "/test_lint/tests/_checker_noqa_rationale.py",
+    "/test_lint/tests/test_noqa_rationale.py",
 )
 
 
@@ -37,8 +33,8 @@ def _is_core_path(path: str) -> bool:
     code we own, not the surrounding addons workspace (enterprise,
     design-themes, customer addons).
     """
-    root = tools.config.root_path  # .../core/odoo
-    core_dir = str(Path(root).parent)  # .../core
+    root = tools.config.root_path
+    core_dir = str(Path(root).parent)
     return path.startswith(core_dir)
 
 
@@ -55,7 +51,7 @@ class TestNoqaRationale(lint_case.LintCase):
                 continue
             try:
                 source = Path(path).read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 continue
             for v in _checker_noqa_rationale.find_violations(source):
                 violations.append((path, v))
@@ -64,7 +60,6 @@ class TestNoqaRationale(lint_case.LintCase):
             _logger.info("noqa rationale check: no violations across core")
             return
 
-        # Group by file for readable log output.
         by_file: dict[str, list[_checker_noqa_rationale.Violation]] = {}
         for path, v in violations:
             by_file.setdefault(path, []).append(v)
@@ -83,9 +78,6 @@ class TestNoqaRationale(lint_case.LintCase):
             self.fail(report)
         else:
             _logger.warning(
-                "noqa rationale check (advisory; ENFORCE=False)\n%s", report,
+                "noqa rationale check (advisory; ENFORCE=False)\n%s",
+                report,
             )
-
-        # When the legacy backlog reaches zero, flip ``ENFORCE`` to ``True``
-        # above — or replace the boolean with a baseline-ratchet that fails
-        # only when the violation count INCREASES from a stored snapshot.

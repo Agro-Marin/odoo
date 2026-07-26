@@ -23,9 +23,6 @@ from odoo.addons.base.models.assetsbundle.common import _run_cli_pipe
 XML_SPACE_ATTR = "{http://www.w3.org/XML/1998/namespace}space"
 
 TEMPLATE_XML = "<templates><t t-name='audit.g10.tpl'><div>x</div></t></templates>"
-# The last statement deliberately ends WITHOUT a semicolon: under ASI a
-# parenthesized expression appended next — the template IIFE — parses as a
-# CALL of the dangling expression unless the bundler inserts a ";".
 UNTERMINATED_JS = "window.auditG10 = window.auditG10Src\n"
 
 
@@ -60,9 +57,6 @@ class TestTemplateIifeAsiGuard(TransactionCase):
         )
 
     def _assert_no_call_expression(self, content):
-        # Erase block comments the way a JS parser skips them; the dangling
-        # expression must NOT be followed by "(" — that reads as a call of
-        # the template IIFE with the expression as callee.
         code = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
         self.assertIsNone(
             re.search(r"auditG10Src\s*\(", code),
@@ -113,8 +107,6 @@ class TestPlainCssAutoprefix(TransactionCase):
         )
 
     def test_plain_css_prefixed_in_debug(self):
-        # The debug body is rebuilt from each asset's ``content`` by
-        # ``CssPipeline.sourcemap_bundle`` — it must carry the prefixes too.
         content = self._bundle(debug=True).css().raw.decode()
         self.assertIn("-webkit-appearance:none", content)
 
@@ -131,9 +123,6 @@ class TestPlainCssAutoprefix(TransactionCase):
             autoprefix=True,
         )
         content = bundle.css().raw.decode()
-        # The exact single-prefix shape: a second autoprefix pass over the
-        # compiled Sass fragment would re-expand the bare ``appearance`` and
-        # break the closed ``{...}`` sequence.
         self.assertRegex(
             content,
             r"\.mix-scss\{-webkit-appearance:none;"
@@ -152,12 +141,9 @@ class TestForInlineCompile(TransactionCase):
     def test_compiles_standalone_scss(self):
         asset = ScssStylesheetAsset.for_inline_compile("// preview")
         css = asset.compile("$c: red;\nbody { color: $c; }")
-        # bundle=None selects the production "compressed" output style.
         self.assertIn("body{color:red}", css)
 
     def test_no_content_error_survives_missing_bundle(self):
-        # The inline-or-url ValueError itself used to crash on bundle.name
-        # when bundle was None — the guard must name the failure instead.
         with self.assertRaisesRegex(ValueError, "<no bundle>"):
             WebAsset(None)
 
@@ -173,8 +159,6 @@ class TestRunCliPipeFailures(BaseCase):
         self.assertIn("return code 1", message)
 
     def test_non_utf8_output_degrades_to_replacement(self):
-        # errors="replace": invalid bytes must not surface as a
-        # UnicodeDecodeError that bypasses every caller's CompileError policy.
         with self.assertRaises(CompileError) as ctx:
             _run_cli_pipe(["sh", "-c", "printf '\\377\\376 broken'; exit 3"], "", 10)
         message = str(ctx.exception)

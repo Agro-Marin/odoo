@@ -10,40 +10,6 @@ SQL, savepoints, ``ilike`` unaccent, ``_parent_store``) are pinned as explicit
 ``test_divergence_*`` methods.
 """
 
-# Design notes (why the suite is shaped this way):
-#
-# Side-B (real-registry) mapping: each scenario runs against an *existing*
-# test_orm model (test_orm.foo, test_orm.move/move_line, test_orm.model_a/
-# model_b …), not a dynamically-created ir.model. test_orm declares no
-# dynamic-model precedent, and reusing the shipped models guarantees both sides
-# share the exact same field shapes (side A feeds the very same Python model
-# class to the harness), so a side-A/side-B schema drift cannot mask a backend
-# bug.
-#
-# Building the harness registry inside a full Odoo boot needs care.
-# model_test_env auto-discovers every model of a class's _module plus the whole
-# base module. Under a live server base is fully imported, so the harness would
-# pull in the real ir.default / ir.config_parameter (whose methods run raw SQL
-# and hit ormcache) and crash. In its intended Tier-2 pytest context base is
-# not imported, so the harness falls back to its lightweight stubs. Here
-# _isolated_registry reproduces those Tier-2 semantics: it hides
-# MetaModel._module_to_models__ for the duration of the build (so only the
-# passed classes + injected stubs register), then swaps the registry's
-# plain-dict ormcache store for real LRU objects.
-#
-# Observation normalisation: scenarios never compare raw id integers (they
-# differ between an empty in-memory store and a populated database). Every
-# observation is expressed in terms of business keys — field values, name
-# sequences, ordered related-record names — so identity is compared through a
-# stable mapping rather than by primary key.
-#
-# Candidate [REF] task (harness robustness, not a false-green):
-# ModelRegistry.ormcache_lrus is defaultdict(dict); ormcache's lookup reads
-# d.generation (an LRU attribute), so any ormcache-decorated method invoked
-# through the harness raises AttributeError. The Tier-2 self-tests never invoke
-# such a method, so it stays latent. This suite works around it (LRU swap), but
-# the harness itself would be more robust using an LRU-backed store.
-
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -82,16 +48,6 @@ _STUB_MODULE = "test_orm_diff_stub"
 class _StubIrModelData(models.Model):
     """Minimal ``ir.model.data`` so ``unlink()`` runs DB-free."""
 
-    # unlink() unconditionally resolves self.env["ir.model.data"] (and
-    # ir.attachment) to collect xmlid / attachment cleanup targets, but the
-    # harness only injects ir.default / res.users / res.company stubs. On the
-    # in-memory path InMemoryBackend.delete only .browse()s these two models and
-    # returns them empty, so a bare, field-less stub is enough.
-    #
-    # Candidate [REF] task: this gap means a DB-free test that calls unlink()
-    # currently raises KeyError: 'ir.model.data'; injecting these two stubs in
-    # model_test_env (as it already does for ir.default etc.) would make
-    # unlink() usable out of the box.
     _name = "ir.model.data"
     _module = _STUB_MODULE
     _description = "ir.model.data (differential test stub)"
@@ -130,8 +86,6 @@ def _isolated_registry(*classes):
 class TestBackendDifferential(TransactionCase):
     """Run identical scenarios through the harness and the real SQL backend."""
 
-    # -- executor ----------------------------------------------------------
-
     def _diff(self, classes, script, msg=""):
         """Run *script* on both backends and assert identical observations.
 
@@ -143,8 +97,6 @@ class TestBackendDifferential(TransactionCase):
         registry = _isolated_registry(*classes)
         with model_test_env(registry=registry) as env_a:
             obs_a = script(env_a)
-        # Side B runs against the real registry; TransactionCase gives this test
-        # method its own savepoint, so nothing created here survives the method.
         obs_b = script(self.env)
         self.assertEqual(
             obs_a,
@@ -155,18 +107,14 @@ class TestBackendDifferential(TransactionCase):
         )
         return obs_a
 
-    # create / write / read round-trips
-
     def test_create_read_defaults_and_falsy(self):
         def script(env):
             F = env["test_orm.foo"]
-            # explicit falsy values (0, "") + a record relying entirely on
-            # defaults. Names are distinct so ordering is unambiguous.
             F.create({"name": "falsy", "value1": 0, "value2": 0, "text": ""})
             F.create({"name": "filled", "value1": 7, "value2": -3, "text": "hi"})
-            F.create({"name": "defaulted"})  # value1/value2/text defaulted
+            F.create({"name": "defaulted"})
             env.flush_all()
-            env.invalidate_all()  # force a storage round-trip, not a cache read
+            env.invalidate_all()
             recs = F.search(
                 [("name", "in", ["falsy", "filled", "defaulted"])], order="name"
             )
@@ -175,7 +123,6 @@ class TestBackendDifferential(TransactionCase):
                     "name": r.name,
                     "value1": r.value1,
                     "value2": r.value2,
-                    # "" vs False normalisation must agree across backends
                     "text": r.text,
                     "text_is_falsy": not r.text,
                 }
@@ -192,7 +139,6 @@ class TestBackendDifferential(TransactionCase):
             env.flush_all()
             env.invalidate_all()
             line = move.line_ids
-            # 'visible' defaults to True; 'quantity' set; both read from storage
             return {"visible": line.visible, "quantity": line.quantity}
 
         self._diff(
@@ -223,8 +169,6 @@ class TestBackendDifferential(TransactionCase):
             return sorted(F.search([]).mapped("name"))
 
         self._diff((TestOrmFoo,), script, "unlink")
-
-    # search operators
 
     def _make_foos(self, env, rows):
         F = env["test_orm.foo"]
@@ -277,8 +221,6 @@ class TestBackendDifferential(TransactionCase):
         self._diff((TestOrmFoo,), script, "< / <= / > / >=")
 
     def test_search_like_ilike_ascii(self):
-        # ASCII-only data: like/ilike must agree on both backends (the accent-
-        # sensitive divergence is pinned separately in test_divergence_*).
         rows = [("Apple", 0), ("apricot", 0), ("Banana", 0), ("grApe", 0)]
         names = [n for n, _ in rows]
 
@@ -302,8 +244,6 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((TestOrmFoo,), script, "like / ilike (ASCII)")
 
-    # ordering, limit, offset
-
     def test_search_order_asc_desc(self):
         rows = [("a", 3), ("b", 1), ("c", 2)]
         names = [n for n, _ in rows]
@@ -326,19 +266,16 @@ class TestBackendDifferential(TransactionCase):
             F = self._make_foos(env, rows)
             scope = [("name", "in", names)]
             return {
-                # value1 asc, then name desc as the tie-breaker
                 "multi": F.search(scope, order="value1 asc, name desc").mapped("name"),
             }
 
         self._diff((TestOrmFoo,), script, "multi-key order")
 
     def test_search_order_nulls(self):
-        # NULL sort placement: PostgreSQL defaults to NULLS LAST for ASC and
-        # NULLS FIRST for DESC; the in-memory .sorted() must match.
         def script(env):
             F = env["test_orm.foo"]
             F.create({"name": "b"})
-            F.create({})  # name is NULL / False
+            F.create({})
             F.create({"name": "a"})
             env.flush_all()
             env.invalidate_all()
@@ -366,8 +303,6 @@ class TestBackendDifferential(TransactionCase):
             }
 
         self._diff((TestOrmFoo,), script, "limit / offset / count")
-
-    # Many2many
 
     def test_m2m_set_link_unlink(self):
         def script(env):
@@ -401,8 +336,6 @@ class TestBackendDifferential(TransactionCase):
         )
 
     def test_m2m_read_ordering(self):
-        # The m2m read orders corecords by the comodel _order (here 'id', i.e.
-        # creation order), regardless of link order.
         def script(env):
             A = env["test_orm.model_a"]
             B = env["test_orm.model_b"]
@@ -412,7 +345,6 @@ class TestBackendDifferential(TransactionCase):
             a = A.create(
                 {
                     "name": "a",
-                    # linked in a deliberately scrambled order
                     "a_restricted_b_ids": [Command.set([b3.id, b1.id, b2.id])],
                 }
             )
@@ -421,8 +353,6 @@ class TestBackendDifferential(TransactionCase):
             return a.a_restricted_b_ids.mapped("name")
 
         self._diff((TestOrmModel_A, TestOrmModel_B), script, "m2m read ordering")
-
-    # One2many Command processing
 
     def test_o2m_commands(self):
         def script(env):
@@ -441,7 +371,7 @@ class TestBackendDifferential(TransactionCase):
                 env.invalidate_all()
                 return {
                     "lines": sorted(move.line_ids.mapped("quantity")),
-                    "quantity": move.quantity,  # stored compute = sum(lines)
+                    "quantity": move.quantity,
                 }
 
             steps = {"after_create": snap()}
@@ -463,11 +393,7 @@ class TestBackendDifferential(TransactionCase):
             "o2m Command processing",
         )
 
-    # translated field (en_US)
-
     def test_translated_field_en_us_roundtrip(self):
-        # Exercises the jsonb translated-column path: create stores {en_US: v},
-        # write merges into the stored dict, read projects the en_US scalar.
         def script(env):
             M = env["test_orm.related_translation_1"]
             r = M.create({"name": "Hello"})
@@ -485,8 +411,6 @@ class TestBackendDifferential(TransactionCase):
             (TestOrmRelated_Translation_1,), script, "translated en_US round-trip"
         )
 
-    # date / datetime boundary comparisons
-
     def test_datetime_boundaries(self):
         moments = [
             datetime(2020, 1, 1, 12, 0, 0),
@@ -500,7 +424,7 @@ class TestBackendDifferential(TransactionCase):
                 M.create({"expire_at": m})
             env.flush_all()
             env.invalidate_all()
-            b = datetime(2020, 6, 15, 8, 30, 0)  # exactly equals moments[1]
+            b = datetime(2020, 6, 15, 8, 30, 0)
             return {
                 "lt": M.search_count([("expire_at", "<", b)]),
                 "le": M.search_count([("expire_at", "<=", b)]),
@@ -539,22 +463,13 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((CalendarTest,), script, "date boundaries")
 
-    # EXPECTED, DECLARED divergences
-    # These backends intentionally differ.  Each pin asserts the *current*
-    # divergence so a future change (in either direction) fails loudly and
-    # forces a conscious decision, rather than a silent false-green.
-
     def test_divergence_record_rules_not_enforced(self):
         """Harness has no ``ir.rule`` model: record rules are NOT enforced."""
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
-            # The harness backend advertises that it does NOT enforce rules...
             self.assertFalse(env_a.backend.supports_record_rules)
-            # ...and accessing ir.rule fails loud rather than skipping silently.
             with self.assertRaises(InMemoryRecordRulesNotSupported):
-                _ = env_a["ir.rule"]  # access triggers the guard
-        # Side B: the SQL path has no backend object and ir.rule is a real,
-        # enforced model (an empty recordset is falsy, so assert on the registry).
+                _ = env_a["ir.rule"]
         self.assertIsNone(self.env.backend)
         self.assertIn("ir.rule", self.env.registry)
 
@@ -564,7 +479,6 @@ class TestBackendDifferential(TransactionCase):
         with model_test_env(registry=registry) as env_a:
             with self.assertRaises(InMemorySqlNotSupported):
                 env_a.cr.execute('SELECT count(*) FROM "test_orm_foo"')
-        # Side B: the same raw SQL executes.
         self.env["test_orm.foo"].create({"name": "x"})
         self.env.flush_all()
         self.env.cr.execute('SELECT count(*) FROM "test_orm_foo"')
@@ -572,15 +486,12 @@ class TestBackendDifferential(TransactionCase):
 
     def test_divergence_rollback_and_savepoint_fail_loud(self):
         """DictBackend keeps no snapshot, so rollback/savepoint fail loud."""
-        # The DB backend supports both; the harness raises rather than silently
-        # no-op'ing (which would diverge from a real ROLLBACK discarding writes).
         registry = _isolated_registry(TestOrmFoo)
         with model_test_env(registry=registry) as env_a:
             with self.assertRaises(InMemorySqlNotSupported):
                 env_a.cr.rollback()
             with self.assertRaises(InMemorySqlNotSupported):
                 env_a.cr.savepoint()
-        # Side B: a real savepoint rolls back cleanly.
         F = self.env["test_orm.foo"]
         sp = self.env.cr.savepoint()
         F.create({"name": "temp"})
@@ -609,9 +520,7 @@ class TestBackendDifferential(TransactionCase):
         with model_test_env(registry=registry) as env_a:
             obs_a = script(env_a)
         obs_b = script(self.env)
-        # Harness: accent-sensitive -> only the ASCII spelling matches.
         self.assertEqual(obs_a, ["Cafe"])
-        # PostgreSQL: unaccent -> both spellings match.
         self.assertEqual(obs_b, ["Cafe", "Café"])
         self.assertNotEqual(obs_a, obs_b)
 
@@ -642,13 +551,10 @@ class TestBackendDifferential(TransactionCase):
         registry = _isolated_registry(TestOrmCategory)
         with model_test_env(registry=registry) as env_a:
             C_a, root_a, _child_a, grand_a = build_tree(env_a)
-            # Divergence 1: parent_path is NOT maintained in the harness.
             self.assertFalse(grand_a.parent_path)
-            # Divergence 2: child_of therefore does not work (it errors).
             with self.assertRaises(TypeError):
                 C_a.search([("id", "child_of", root_a.id)])
 
-        # Side B: parent_path is maintained and child_of returns the subtree.
         C_b, root_b, child_b, grand_b = build_tree(self.env)
         self.assertTrue(grand_b.parent_path)
         self.assertEqual(grand_b.parent_path.count("/"), 3)

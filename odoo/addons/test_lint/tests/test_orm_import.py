@@ -12,7 +12,6 @@ import_orm_re = re.compile(r"^(from|import)\s+odoo\.orm", flags=re.MULTILINE)
 
 
 class TestDunderinit(lint_case.LintCase):
-
     def test_addons_orm_import(self):
         """Addon runtime code must reach the ORM through the public facade
         (odoo.api / odoo.fields / odoo.models), never by importing the unstable

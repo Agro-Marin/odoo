@@ -80,9 +80,6 @@ class TestTypedParams(BaseCase):
                 coerce_params(bad, specs)
 
     def test_fractional_float_for_int_param_is_rejected(self):
-        # ``int(3.7)`` truncates; a fractional JSON number for an int param is
-        # a caller bug and must 400, not silently round toward zero. Integral
-        # floats (JS clients serialize 3 as 3.0) still coerce.
         specs = build_param_specs(_all_optional)
         with self.assertRaises(BadRequest):
             coerce_params({"n": 3.7}, specs)
@@ -95,7 +92,6 @@ class TestTypedParams(BaseCase):
                 coerce_params({"x": bad}, specs)
 
     def test_container_for_str_param_is_rejected(self):
-        # A JSON object/array for a str param must not arrive as its repr.
         specs = build_param_specs(_all_optional)
         for bad in ({"a": 1}, [1, 2]):
             with self.assertRaises(BadRequest):
@@ -104,39 +100,63 @@ class TestTypedParams(BaseCase):
     def test_unannotated_route_has_no_specs(self):
         self.assertEqual(build_param_specs(lambda self, **kw: None), {})
 
-    def test_override_without_typed_restated_warns(self):
-        """Coercion is compiled per decorator; an override that drops
-        ``typed=True`` must be flagged, since the merged routing (and OpenAPI)
-        still advertise coercion."""
+    def test_override_inherits_typed_without_restating_it(self):
+        """``typed=True`` is inherited like every other ``@route`` argument.
+
+        Coercion is compiled per fragment (each override validates against its
+        own signature), so it cannot be copied down the chain — but an override
+        that does not restate ``typed=True`` must still get specs compiled for
+        it. It used to keep ``routing['typed'] is True`` (and its OpenAPI
+        schema) while silently accepting raw, unvalidated strings.
+        """
         from odoo.http.routing import _check_and_complete_route_definition
 
         def parent(self, n: int, **kw):
             return None
 
         parent.original_routing = {"routes": ["/x"], "type": "http", "typed": True}
+        parent.original_endpoint = parent
+        parent._param_specs = None
 
         def child(self, n: int, **kw):
             return None
 
         child.original_routing = {}
+        child.original_endpoint = child
+        child._param_specs = None
 
         class FakeController:
             pass
 
         merged = {"auth": "user", "methods": None, "routes": []}
-        # The hook returns the effective fragment (it no longer mutates
-        # ``original_routing``); merge from the return value like the caller.
         merged.update(
             _check_and_complete_route_definition(FakeController, parent, merged)
         )
-        with self.assertLogs("odoo.http.routing", level="WARNING") as capture:
-            _check_and_complete_route_definition(FakeController, child, merged)
-        self.assertIn("without restating typed=True", capture.output[0])
+        self.assertEqual(set(parent._param_specs), {"n"})
 
-        # Restating typed=True (or explicitly opting out) stays silent.
-        child.original_routing = {"typed": True}
-        with self.assertNoLogs("odoo.http.routing", level="WARNING"):
-            _check_and_complete_route_definition(FakeController, child, merged)
+        _check_and_complete_route_definition(FakeController, child, merged)
+        self.assertIsNotNone(
+            child._param_specs, "the override must inherit parameter coercion"
+        )
+        self.assertEqual(set(child._param_specs), {"n"})
+
+    def test_override_can_opt_out_of_typed(self):
+        """An explicit ``typed=False`` on the override still disables coercion."""
+        from odoo.http.routing import _check_and_complete_route_definition
+
+        def child(self, n: int, **kw):
+            return None
+
+        child.original_routing = {"typed": False}
+        child.original_endpoint = child
+        child._param_specs = None
+
+        class FakeController:
+            pass
+
+        merged = {"auth": "user", "methods": None, "routes": [], "typed": True}
+        _check_and_complete_route_definition(FakeController, child, merged)
+        self.assertIsNone(child._param_specs)
 
 
 @tagged("post_install", "-at_install")
@@ -162,8 +182,6 @@ class TestTypedRouting(TestHttpBase):
         self.assertEqual(res.status_code, 400)
 
     def test_repeated_query_key_fills_list_param(self):
-        # The flat params merge keeps one value per key; the dispatcher re-reads
-        # ``list``-annotated params via ``getlist`` so none are dropped.
         res = self.nodb_url_open("/test_http/typed-list?vals=1&vals=2&vals=3")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.text, "[1, 2, 3]")

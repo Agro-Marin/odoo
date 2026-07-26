@@ -12,11 +12,6 @@ import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-# Base class names that indicate an ORM model.  In the astroid-based checker,
-# ``node.ancestors()`` resolved the full MRO at analysis time.  With stdlib
-# ``ast`` we can only inspect the literal base-class expressions, so we match
-# any name containing "Model" (covers ``models.Model``, ``models.TransientModel``,
-# ``models.AbstractModel``, ``BaseModel``).
 _MODEL_BASE_NAMES = frozenset(
     {
         "Model",
@@ -67,7 +62,6 @@ def check(tree: ast.Module) -> Iterator[Violation]:
             if item.name != "unlink":
                 continue
 
-            # Walk the unlink method body for raise statements
             for child in ast.walk(item):
                 if isinstance(child, ast.Raise):
                     yield Violation(child.lineno, child.col_offset)

@@ -73,8 +73,6 @@ class Test_Read_GroupAggregate(models.Model):
     display_name = fields.Char(store=True)
 
 
-# a selection in reverse lexical order, to check the possible reordering made
-# by read_group on selection fields
 SELECTION = [("c", "C"), ("b", "B"), ("a", "A")]
 
 
@@ -89,7 +87,6 @@ class Test_Read_GroupOn_Selection(models.Model):
     value = fields.Integer()
 
     def _expand_states(self, states, domain):
-        # return all possible states, in order
         return [key for key, val in self._fields["state"].selection]
 
 
@@ -202,9 +199,6 @@ class Test_Read_GroupTag(models.Model):
 
 
 class Test_Read_GroupPrefixCollision(models.Model):
-    # Field names chosen so the m2m spec ``tag`` is a string PREFIX of the m2o
-    # spec ``tag_id`` — the trigger for the _read_grouping_sets order-filter
-    # bug (``order_part.startswith(spec)`` wrongly drops ``tag_id ...`` terms).
     _name = "test_read_group.prefix_collision"
     _description = "Prefix-colliding groupby specs (tag / tag_id)"
 

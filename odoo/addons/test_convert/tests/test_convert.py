@@ -69,7 +69,6 @@ class TestEvalXML(common.TransactionCase):
     def test_function(self):
         obj = xml_import(self.env, "test_convert", None, "init")
 
-        # pass args in eval
         xml = E.function(
             model="test_convert.usered",
             name="model_method",
@@ -92,7 +91,6 @@ class TestEvalXML(common.TransactionCase):
         self.assertEqual(args, (2,))
         self.assertEqual(kwargs, {})
 
-        # pass args in child elements
         xml = E.function(
             E.value(eval="1"),
             E.value(eval="2"),
@@ -120,7 +118,6 @@ class TestEvalXML(common.TransactionCase):
     def test_function_kwargs(self):
         obj = xml_import(self.env, "test_convert", None, "init")
 
-        # pass args and kwargs in child elements
         xml = E.function(
             E.value(eval="1"),
             E.value(name="foo", eval="2"),
@@ -145,7 +142,6 @@ class TestEvalXML(common.TransactionCase):
         self.assertEqual(args, ())
         self.assertEqual(kwargs, {"foo": 2})
 
-        # pass args and context in kwargs
         xml = E.function(
             E.value(eval="1"),
             E.value(name="context", eval="{'foo': 2}"),
@@ -185,19 +181,17 @@ class TestEvalXML(common.TransactionCase):
         self.assertEqual(kwargs, {})
 
     def test_o2m_sub_records(self):
-        # patch the model's class with a proxy that copies the argument
         Model = self.registry["test_convert.test_model"]
         call_args = []
 
         def _load_records(self, data_list, update=False):
             call_args.append(data_list)
-            # pylint: disable=bad-super-call
             return super(Model, self)._load_records(data_list, update=update)
 
         self.patch(Model, "_load_records", _load_records)
 
-        # import a record with a subrecord
-        xml = ET.fromstring("""
+        xml = ET.fromstring(
+            """
             <record id="test_convert.test_o2m_record" model="test_convert.test_model">
                 <field name="usered_ids">
                     <record id="test_convert.test_o2m_subrecord" model="test_convert.usered">
@@ -205,11 +199,11 @@ class TestEvalXML(common.TransactionCase):
                     </record>
                 </field>
             </record>
-        """.strip())
+        """.strip()
+        )
         obj = xml_import(self.env, "test_convert", None, "init")
         obj._tag_record(xml)
 
-        # check that field 'usered_ids' is not passed
         self.assertEqual(len(call_args), 1)
         for data in call_args[0]:
             self.assertNotIn(
@@ -219,7 +213,8 @@ class TestEvalXML(common.TransactionCase):
             )
 
     def test_o2m_sub_records_noupdate(self):
-        xml = ET.fromstring("""
+        xml = ET.fromstring(
+            """
             <data noupdate="1">
               <record id="test_convert.test_o2m_record_noup" model="test_convert.test_model">
                 <field name="usered_ids">
@@ -229,20 +224,18 @@ class TestEvalXML(common.TransactionCase):
                 </field>
               </record>
             </data>
-        """.strip())
+        """.strip()
+        )
 
         xmlids = {
             "test_convert.test_o2m_record_noup",
             "test_convert.test_o2m_subrecord_noup",
         }
 
-        # create records
         xml_import(self.env, "test_convert", None, "init").parse(xml)
 
-        # clear loaded xmlids
         self.registry.loaded_xmlids.difference_update(xmlids)
 
-        # reload the xml in update mode
         idref = {}
         xml_import(self.env, "test_convert", idref, "update").parse(xml)
 
@@ -260,12 +253,8 @@ class TestEvalXML(common.TransactionCase):
         env_fr = self.env(context=dict(self.env.context, lang="fr_FR"))
         record = self.env.ref("test_convert.test_translated_field")
 
-        # 1. Test xml_import, which is sometimes imported and used directly in addons' code
-        # Change the value of the record `name` field
         record.name = "bar"
         self.assertEqual(record.name, "bar")
-        # Reset the value to the one from the XML data file,
-        # with a lang passed in the environment.
         filepath = file_path(
             "test_convert/data/test_translated_field/test_model_data.xml"
         )
@@ -274,12 +263,8 @@ class TestEvalXML(common.TransactionCase):
         obj.parse(doc.getroot())
         self.assertEqual(record.with_context(lang=None).name, "foo")
 
-        # 2. Test convert_file with an XML
-        # Change the value of the record `name` field
         record.name = "bar"
         self.assertEqual(record.name, "bar")
-        # Reset the value to the one from the XML data file,
-        # with a lang passed in the environment.
         convert_file(
             env_fr,
             "test_convert",
@@ -288,12 +273,8 @@ class TestEvalXML(common.TransactionCase):
         )
         self.assertEqual(record.with_context(lang=None).name, "foo")
 
-        # 3. Test convert_file with a CSV
-        # Change the value of the record `name` field
         record.name = "bar"
         self.assertEqual(record.name, "bar")
-        # Reset the value to the one from the XML data file,
-        # with a lang passed in the environment.
         convert_file(
             env_fr,
             "test_convert",

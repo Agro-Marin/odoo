@@ -62,13 +62,10 @@ class TestMapped(TransactionCase):
     def test_mapped_relational(self):
         """mapped('m2o_field') returns a recordset (union of all values)."""
         parents = self.categories.mapped("parent")
-        # Only cat_child1 and cat_child2 have parents — both point to cat_root
         self.assertEqual(parents, self.cat_root)
 
     def test_mapped_dotted_path(self):
         """mapped('rel.field') traverses (deduplicating relations) then maps field."""
-        # Both messages share the same discussion. The intermediate step
-        # `messages['discussion']` returns the union (1 record), so we get 1 name.
         names = self.messages.mapped("discussion.name")
         self.assertIsInstance(names, list)
         self.assertEqual(names, ["Test Discussion"])
@@ -87,7 +84,6 @@ class TestMapped(TransactionCase):
     def test_mapped_callable_returns_recordset(self):
         """mapped(func) returning recordsets produces their union."""
         result = self.categories.mapped(lambda r: r.parent)
-        # cat_root.parent is empty, child1/child2 → cat_root
         self.assertEqual(result, self.cat_root)
 
     def test_mapped_empty_recordset(self):
@@ -146,13 +142,11 @@ class TestFiltered(TransactionCase):
     def test_filtered_field_name(self):
         """filtered('field') keeps records where field is truthy."""
         result = self.all_cats.filtered("color")
-        # color=0 is falsy, color=1 and color=3 are truthy
         self.assertEqual(result, self.cat_a | self.cat_c)
 
     def test_filtered_dotted_field(self):
         """filtered('rel.field') keeps records where any traversed value is truthy."""
         result = self.all_cats.filtered("parent.color")
-        # Only cat_c has a parent (cat_a), and cat_a.color=1 is truthy
         self.assertEqual(result, self.cat_c)
 
     def test_filtered_domain(self):
@@ -228,16 +222,16 @@ class TestGrouped(TransactionCase):
         groups = self.all_cats.grouped("color")
         self.assertIn(1, groups)
         self.assertIn(2, groups)
-        self.assertEqual(len(groups[1]), 2)  # cat_root, cat_a
-        self.assertEqual(len(groups[2]), 2)  # cat_b, cat_c
+        self.assertEqual(len(groups[1]), 2)
+        self.assertEqual(len(groups[2]), 2)
 
     def test_grouped_callable_key(self):
         """grouped(func) uses function result as key."""
         groups = self.all_cats.grouped(lambda r: bool(r.parent))
         self.assertIn(True, groups)
         self.assertIn(False, groups)
-        self.assertEqual(len(groups[True]), 2)  # cat_a, cat_b
-        self.assertEqual(len(groups[False]), 2)  # cat_root, cat_c
+        self.assertEqual(len(groups[True]), 2)
+        self.assertEqual(len(groups[False]), 2)
 
     def test_grouped_preserves_prefetch(self):
         """Grouped records share the original prefetch set."""
@@ -253,7 +247,7 @@ class TestGrouped(TransactionCase):
 
     def test_grouped_single_group(self):
         """All records with same key → one group."""
-        same_color = self.cat_root | self.cat_a  # both color=1
+        same_color = self.cat_root | self.cat_a
         groups = same_color.grouped("color")
         self.assertEqual(len(groups), 1)
         self.assertEqual(len(groups[1]), 2)
@@ -268,9 +262,7 @@ class TestGrouped(TransactionCase):
 
     def test_grouped_falsy_key(self):
         """Falsy values (False, 0) work as keys."""
-        # cat_root and cat_c have no parent (False)
         groups = self.all_cats.grouped("parent")
-        # False key for records without parent
         false_key = self.env["test_orm.category"]
         self.assertIn(false_key, groups)
         self.assertEqual(len(groups[false_key]), 2)
@@ -278,7 +270,6 @@ class TestGrouped(TransactionCase):
     def test_grouped_relational_key(self):
         """grouped('m2o_field') groups by Many2one value (recordset keys)."""
         groups = self.all_cats.grouped("parent")
-        # Find the group with cat_root as parent
         self.assertIn(self.cat_root, groups)
         self.assertEqual(groups[self.cat_root], self.cat_a | self.cat_b)
 
@@ -355,7 +346,6 @@ class TestCycleDetection(TransactionCase):
 
     def test_self_cycle(self):
         """Record pointing to itself is a cycle."""
-        # We need to bypass the ORM constraint to create a cycle
         self.env.cr.execute(
             "UPDATE test_orm_category SET parent = %s WHERE id = %s",
             (self.cat_a.id, self.cat_a.id),
@@ -365,8 +355,6 @@ class TestCycleDetection(TransactionCase):
 
     def test_indirect_cycle(self):
         """A→C→B→A cycle detected: following parent field loops back."""
-        # Current: cat_b.parent=cat_a, cat_c.parent=cat_b, cat_a.parent=NULL
-        # Close the loop: set cat_a.parent=cat_c → A→C→B→A (following parent)
         self.env.cr.execute(
             "UPDATE test_orm_category SET parent = %s WHERE id = %s",
             (self.cat_c.id, self.cat_a.id),
@@ -396,7 +384,6 @@ class TestCycleDetection(TransactionCase):
     def test_non_self_relational(self):
         """Field pointing to different model raises ValueError."""
         with self.assertRaises(ValueError):
-            # moderator is Many2one to res.users, not to test_orm.discussion
             self.env["test_orm.discussion"].create({"name": "X"})._has_cycle(
                 "moderator"
             )

@@ -14,7 +14,6 @@ any benchmark whose query count differs between the two builds is flagged, becau
 a Python-time win that quietly adds SQL round-trips is not a real win.
 """
 
-# ruff: noqa: T201  (this is a CLI; print() is the user-facing output)
 import argparse
 import json
 import math
@@ -24,13 +23,8 @@ from pathlib import Path
 
 METRIC_KEY = {"median": "median_us", "mean": "mean_us", "p95": "p95_us"}
 
-# A speedup outside [1/THRESHOLD, THRESHOLD] is considered a real move rather
-# than noise; anything inside is reported as "~".
 THRESHOLD = 1.05
 
-# Cross-run coefficient of variation above this means the benchmark is noisy
-# *between* process launches (typical for DB-bound ops) and its speedup should
-# be read as indicative only.
 NOISY_CV = 0.15
 
 
@@ -62,12 +56,10 @@ def _aggregate(paths, metric_key):
         agg[name] = {
             "value": med,
             "cv": cv,
-            # a query-count divergence anywhere across runs is worth surfacing
             "query": max(r.get("query_max", 0) for r in recs),
             "group": recs[0]["group"],
             "runs": len(recs),
         }
-    # the header meta comes from the first report of the side
     return reports[0]["meta"], agg
 
 
@@ -91,12 +83,20 @@ def _marker(s, base_cv, cand_cv):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
-        "-b", "--baseline", nargs="+", required=True,
-        metavar="JSON", help="one or more baseline reports (e.g. upstream runs)",
+        "-b",
+        "--baseline",
+        nargs="+",
+        required=True,
+        metavar="JSON",
+        help="one or more baseline reports (e.g. upstream runs)",
     )
     ap.add_argument(
-        "-c", "--candidate", nargs="+", required=True,
-        metavar="JSON", help="one or more candidate reports (e.g. fork runs)",
+        "-c",
+        "--candidate",
+        nargs="+",
+        required=True,
+        metavar="JSON",
+        help="one or more candidate reports (e.g. fork runs)",
     )
     ap.add_argument(
         "--metric",
@@ -115,21 +115,29 @@ def main(argv=None):
     nb = len(args.baseline)
     nc = len(args.candidate)
     print(f"# ORM benchmark comparison  (metric: {args.metric}, median across runs)\n")
-    print(f"  BASELINE  : {bm['label']!r:12}  py{bm['python']}  {bm['driver']}  odoo {bm['odoo_version']}  ({nb} run{'s' * (nb != 1)})")
-    print(f"  CANDIDATE : {cm['label']!r:12}  py{cm['python']}  {cm['driver']}  odoo {cm['odoo_version']}  ({nc} run{'s' * (nc != 1)})")
+    print(
+        f"  BASELINE  : {bm['label']!r:12}  py{bm['python']}  {bm['driver']}  odoo {bm['odoo_version']}  ({nb} run{'s' * (nb != 1)})"
+    )
+    print(
+        f"  CANDIDATE : {cm['label']!r:12}  py{cm['python']}  {cm['driver']}  odoo {cm['odoo_version']}  ({nc} run{'s' * (nc != 1)})"
+    )
     print(f"  host      : base={bm.get('host')!r}  cand={cm.get('host')!r}")
     print("  speedup = baseline / candidate   ( > 1.00 ⇒ candidate faster )")
-    print("  '~' marks a benchmark that is noisy across runs — read its speedup as indicative only.\n")
+    print(
+        "  '~' marks a benchmark that is noisy across runs — read its speedup as indicative only.\n"
+    )
 
     sep = "  " + "-" * 98
     if args.md:
         print("| benchmark | group | base µs | cand µs | speedup | queries (b→c) |")
         print("|---|---|--:|--:|--:|:--|")
     else:
-        print(f"  {'benchmark':34} {'group':11} {'base µs':>11} {'cand µs':>11} {'speedup':>9}  {'queries':>11}")
+        print(
+            f"  {'benchmark':34} {'group':11} {'base µs':>11} {'cand µs':>11} {'speedup':>9}  {'queries':>11}"
+        )
         print(sep)
 
-    speedups = []          # stable benchmarks only — used for the headline geomean
+    speedups = []
     speedups_all = []
     query_divergences = []
     only_base, only_cand = [], []
@@ -157,9 +165,13 @@ def main(argv=None):
         mark = _marker(s, b["cv"], c["cv"])
 
         if args.md:
-            print(f"| {name} | {b['group']} | {bv:.1f} | {cvv:.1f} | {_fmt_speedup(s).strip()} {mark.strip()} | {qstr} |")
+            print(
+                f"| {name} | {b['group']} | {bv:.1f} | {cvv:.1f} | {_fmt_speedup(s).strip()} {mark.strip()} | {qstr} |"
+            )
         else:
-            print(f"  {name:34} {b['group']:11} {bv:11.1f} {cvv:11.1f} {_fmt_speedup(s)}{mark} {qstr:>11}")
+            print(
+                f"  {name:34} {b['group']:11} {bv:11.1f} {cvv:11.1f} {_fmt_speedup(s)}{mark} {qstr:>11}"
+            )
 
     if not args.md:
         print(sep)
@@ -173,19 +185,34 @@ def main(argv=None):
         slower = sum(1 for s in speedups_all if s <= 1 / THRESHOLD)
         same = len(speedups_all) - faster - slower
         print(f"  benchmarks compared : {len(speedups_all)}")
-        print(f"  geomean (stable only): {_geo(speedups):.3f}x   over {len(speedups)} low-noise benchmarks")
-        print(f"  geomean (all)        : {_geo(speedups_all):.3f}x   (includes noisy DB-bound ops)")
+        print(
+            f"  geomean (stable only): {_geo(speedups):.3f}x   over {len(speedups)} low-noise benchmarks"
+        )
+        print(
+            f"  geomean (all)        : {_geo(speedups_all):.3f}x   (includes noisy DB-bound ops)"
+        )
         print(f"  candidate faster    : {faster}    slower: {slower}    ~equal: {same}")
         ranked = sorted(
-            ((bi[n]["value"] / ci[n]["value"], n) for n in names
-             if n in bi and n in ci and ci[n]["value"]),
+            (
+                (bi[n]["value"] / ci[n]["value"], n)
+                for n in names
+                if n in bi and n in ci and ci[n]["value"]
+            ),
             reverse=True,
         )
-        print("  top wins            : " + ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[:3]))
-        print("  top regressions     : " + ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[-3:]))
+        print(
+            "  top wins            : "
+            + ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[:3])
+        )
+        print(
+            "  top regressions     : "
+            + ", ".join(f"{n} ({s:.2f}x)" for s, n in ranked[-3:])
+        )
 
     if query_divergences:
-        print(f"\n  ⚠ query-count divergences ({len(query_divergences)}) — NOT apples-to-apples:")
+        print(
+            f"\n  ⚠ query-count divergences ({len(query_divergences)}) — NOT apples-to-apples:"
+        )
         for name, bq, cq in query_divergences:
             print(f"      {name:34} baseline={bq}  candidate={cq}")
     else:

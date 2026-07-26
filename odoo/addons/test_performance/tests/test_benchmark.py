@@ -32,7 +32,6 @@ from odoo.tools.misc import real_time
 
 _logger = logging.getLogger(__name__)
 
-# Benchmark configuration
 DEFAULT_ITERATIONS = 50
 WARMUP_ITERATIONS = 5
 
@@ -52,7 +51,6 @@ class TestORMBenchmark(TransactionCase):
         cls.Model = cls.env["test_performance.base"]
         cls.SimpleModel = cls.env["test_performance.simple.minded"]
 
-        # Pre-create test data
         cls._create_test_data()
 
     @classmethod
@@ -64,7 +62,6 @@ class TestORMBenchmark(TransactionCase):
             cls.Model.create(
                 [{"name": f"ORMBench_{i}", "value": i} for i in range(100)]
             )
-            # Create parent-child relationships
             parent = cls.SimpleModel.create({"name": "BenchParent"})
             cls.SimpleModel.create(
                 [{"name": f"BenchChild_{i}", "parent_id": parent.id} for i in range(50)]
@@ -74,7 +71,6 @@ class TestORMBenchmark(TransactionCase):
     def setUp(self):
         super().setUp()
         gc.collect()
-        # Warm up
         self.Model.search_count([])
 
     def _run_benchmark(
@@ -98,10 +94,6 @@ class TestORMBenchmark(TransactionCase):
         self.all_results.append(stats)
         _logger.info("[ORM_BENCHMARK] %s", stats.summary())
         return stats
-
-    # =========================================================================
-    # RECORDSET CREATION & ACCESS
-    # =========================================================================
 
     def test_01_browse_single(self):
         """Benchmark: browse() single record."""
@@ -170,10 +162,6 @@ class TestORMBenchmark(TransactionCase):
             "Recordset slicing", bench, iterations=100, invalidate_cache=False
         )
 
-    # =========================================================================
-    # RECORDSET OPERATIONS
-    # =========================================================================
-
     def test_10_recordset_union(self):
         """Benchmark: Recordset union (|)."""
         records1 = self.Model.search([], limit=50)
@@ -219,7 +207,6 @@ class TestORMBenchmark(TransactionCase):
     def test_11_filtered_lambda(self):
         """Benchmark: filtered() with lambda."""
         records = self.Model.search([], limit=100)
-        # Pre-load values
         _ = records.mapped("value")
 
         def bench():
@@ -232,7 +219,6 @@ class TestORMBenchmark(TransactionCase):
     def test_11_filtered_field(self):
         """Benchmark: filtered() with field name."""
         records = self.SimpleModel.search([], limit=100)
-        # Pre-load values
         _ = records.mapped("active")
 
         def bench():
@@ -263,7 +249,6 @@ class TestORMBenchmark(TransactionCase):
     def test_13_sorted_field(self):
         """Benchmark: sorted() by field."""
         records = self.Model.search([], limit=100)
-        # Pre-load values
         _ = records.mapped("name")
 
         def bench():
@@ -276,7 +261,6 @@ class TestORMBenchmark(TransactionCase):
     def test_13_sorted_lambda(self):
         """Benchmark: sorted() with lambda."""
         records = self.Model.search([], limit=100)
-        # Pre-load values
         _ = records.mapped("value")
 
         def bench():
@@ -295,14 +279,9 @@ class TestORMBenchmark(TransactionCase):
 
         self._run_benchmark("exists() (100 records)", bench)
 
-    # =========================================================================
-    # FIELD ACCESS PATTERNS
-    # =========================================================================
-
     def test_20_field_access_cached(self):
         """Benchmark: Field access (cached)."""
         record = self.Model.search([], limit=1)
-        # Pre-load cache
         _ = record.name
 
         def bench():
@@ -327,7 +306,7 @@ class TestORMBenchmark(TransactionCase):
     def test_21_field_getitem_vs_getattr(self):
         """Benchmark: record['field'] vs record.field."""
         record = self.Model.search([], limit=1)
-        _ = record.name  # Pre-cache
+        _ = record.name
 
         def bench_getattr():
             _ = record.name
@@ -377,10 +356,6 @@ class TestORMBenchmark(TransactionCase):
 
         self._run_benchmark("One2many field access", bench)
 
-    # =========================================================================
-    # ENVIRONMENT OPERATIONS
-    # =========================================================================
-
     def test_30_with_context(self):
         """Benchmark: with_context() overhead."""
         records = self.Model.search([], limit=50)
@@ -421,14 +396,9 @@ class TestORMBenchmark(TransactionCase):
 
         self._run_benchmark("env.ref()", bench, iterations=100, invalidate_cache=False)
 
-    # =========================================================================
-    # CACHE OPERATIONS
-    # =========================================================================
-
     def test_40_cache_invalidate_recordset(self):
         """Benchmark: invalidate_recordset()."""
         records = self.Model.search([], limit=100)
-        # Pre-load cache
         _ = records.mapped("name")
 
         def bench():
@@ -455,14 +425,9 @@ class TestORMBenchmark(TransactionCase):
         records = self.Model.search([], limit=100)
 
         def bench():
-            # First access triggers prefetch for all 100 records
             _ = records[0].name
 
         self._run_benchmark("Prefetch trigger (100 records)", bench)
-
-    # =========================================================================
-    # COMPUTED FIELDS
-    # =========================================================================
 
     def test_50_computed_simple(self):
         """Benchmark: Simple computed field."""
@@ -481,10 +446,6 @@ class TestORMBenchmark(TransactionCase):
             _ = records.mapped("display_name")
 
         self._run_benchmark("Computed field (display_name)", bench)
-
-    # =========================================================================
-    # WRITE OPERATIONS
-    # =========================================================================
 
     def test_60_write_single_field(self):
         """Benchmark: write() single field."""
@@ -522,10 +483,6 @@ class TestORMBenchmark(TransactionCase):
 
         self._run_benchmark("Batch write() (50 records)", bench, iterations=20)
 
-    # =========================================================================
-    # CREATE OPERATIONS
-    # =========================================================================
-
     def test_70_create_single(self):
         """Benchmark: create() single record."""
         counter = [0]
@@ -547,10 +504,6 @@ class TestORMBenchmark(TransactionCase):
             )
 
         self._run_benchmark("create() batch (10 records)", bench, iterations=15)
-
-    # =========================================================================
-    # SEARCH OPERATIONS
-    # =========================================================================
 
     def test_80_search_simple(self):
         """Benchmark: search() with simple domain."""
@@ -586,10 +539,6 @@ class TestORMBenchmark(TransactionCase):
 
         self._run_benchmark("search_read()", bench)
 
-    # =========================================================================
-    # ORM vs RAW SQL COMPARISON
-    # =========================================================================
-
     def test_90_orm_vs_raw_read(self):
         """Benchmark: ORM read vs raw SQL."""
         records = self.Model.search([], limit=100)
@@ -615,7 +564,6 @@ class TestORMBenchmark(TransactionCase):
         records = self.Model.search([], limit=100)
         ids = list(records.ids)
 
-        # Measure ORM
         orm_times = []
         for _ in range(50):
             self.env.invalidate_all()
@@ -623,7 +571,6 @@ class TestORMBenchmark(TransactionCase):
             records.read(["name", "value"])
             orm_times.append((real_time() - start) * 1_000_000)
 
-        # Measure raw SQL
         raw_times = []
         for _ in range(50):
             start = real_time()
@@ -650,10 +597,6 @@ class TestORMBenchmark(TransactionCase):
             overhead_pct,
         )
 
-    # =========================================================================
-    # SUMMARY
-    # =========================================================================
-
     def test_99_generate_summary(self):
         """Generate final summary."""
         if not self.all_results:
@@ -664,7 +607,6 @@ class TestORMBenchmark(TransactionCase):
         _logger.info("[ORM_BENCHMARK] FINAL SUMMARY")
         _logger.info("=" * 80)
 
-        # Sort by Python overhead ratio (highest first)
         sorted_by_overhead = sorted(
             self.all_results, key=lambda x: x.python_ratio, reverse=True
         )
@@ -688,7 +630,6 @@ class TestORMBenchmark(TransactionCase):
                 stat.query_count_mean,
             )
 
-        # Sort by total time
         sorted_by_time = sorted(self.all_results, key=lambda x: x.mean_us, reverse=True)
 
         _logger.info("\n[ORM_BENCHMARK] SLOWEST OPERATIONS:")
@@ -706,7 +647,6 @@ class TestORMBenchmark(TransactionCase):
                 stat.std_dev_us,
             )
 
-        # Zero-query operations (pure Python overhead)
         zero_query_ops = [s for s in self.all_results if s.query_count_mean == 0]
         if zero_query_ops:
             _logger.info("\n[ORM_BENCHMARK] PURE PYTHON OVERHEAD (0 queries):")
@@ -716,7 +656,6 @@ class TestORMBenchmark(TransactionCase):
             ]:
                 _logger.info("  %-40s %10.1f µs", stat.name[:40], stat.mean_us)
 
-        # Summary statistics
         total_overhead = sum(s.python_time_us for s in self.all_results)
         total_db_time = sum(s.db_time_us for s in self.all_results)
         avg_python_ratio = statistics.mean(s.python_ratio for s in self.all_results)
@@ -727,7 +666,6 @@ class TestORMBenchmark(TransactionCase):
         _logger.info("  Total DB time:        %.1f µs", total_db_time)
         _logger.info("  Average overhead %%:   %.1f%%", avg_python_ratio * 100)
 
-        # Export JSON
         export_data = {
             "timestamp": datetime.now().isoformat(),
             "results": [stat.to_dict() for stat in self.all_results],

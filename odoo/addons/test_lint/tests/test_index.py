@@ -1,11 +1,7 @@
 from odoo.tests import common
 
 BTREE_INDEX_PY_DEFS = (True, "1", "btree", "btree_not_null")
-# Ignore list of models and fields we don't want to index,
-# usually because the table is known to always be small,
-# or there is a custom index that covers this btree index
-# A separate ignore list for models is provided to simplify maintenance.
-BTREE_INDEX_IGNORE_MODELS = {  # model._name
+BTREE_INDEX_IGNORE_MODELS = {
     "res.company",
     "stock.warehouse",
     "event.type",
@@ -17,45 +13,44 @@ BTREE_INDEX_IGNORE_MODELS = {  # model._name
     "ir.module.module.dependency",
     "ir.module.module.exclusion",
 }
-BTREE_INDEX_IGNORE_FIELDS = {  # str(field)  (fully-qualified field name)
-    "mail.message.res_id",  # covered by _model_res_id_idx, should always be accessed via a domain adding the model
-    "ir.attachment.res_id",  # covered by _res_idx, should always be accessed via a domain adding the model
-    "spreadsheet.revision.res_id",  # covered by _res_model_res_id_idx, should be accessed via a domain adding the model
-    "discuss.channel.member.channel_id",  # covered by first key of _seen_message_id_idx
-    "discuss.channel.rtc.session.channel_member_id",  # covered by _channel_member_unique
-    "documents.document.attachment_id",  # covered by _attachment_unique, which is enforced with an unique btree index
-    "account.fiscal.position.account.position_id",  # covered by first key of _account_src_dest_uniq
-    "mailing.subscription.contact_id",  # covered by first key of _unique_contact_list
-    "knowledge.article.member.article_id",  # covered by first key of _unique_article_partner
-    "slide.channel.forum_id",  # covered by _forum_uniq
-    "hr.appraisal.skill.appraisal_id",  # covered by first key of __unique_skill
-    "mail.presence.user_id",  # covered by _user_unique
-    "mail.presence.guest_id",  # covered by _guest_unique
-    "res.users.settings.user_id",  # covered by _unique_user_id
-    "project.collaborator.project_id",  # covered by first key of _unique_collaborator
+BTREE_INDEX_IGNORE_FIELDS = {
+    "mail.message.res_id",
+    "ir.attachment.res_id",
+    "spreadsheet.revision.res_id",
+    "discuss.channel.member.channel_id",
+    "discuss.channel.rtc.session.channel_member_id",
+    "documents.document.attachment_id",
+    "account.fiscal.position.account.position_id",
+    "mailing.subscription.contact_id",
+    "knowledge.article.member.article_id",
+    "slide.channel.forum_id",
+    "hr.appraisal.skill.appraisal_id",
+    "mail.presence.user_id",
+    "mail.presence.guest_id",
+    "res.users.settings.user_id",
+    "project.collaborator.project_id",
 }
 
 
 @common.tagged("post_install", "-at_install")
 @common.no_retry
 class TestIndex(common.TransactionCase):
-
     def test_enforce_index_on_one2many_inverse(self):
         """Ensure btree indexes are enforced on the stored inverse fields of One2many relations."""
 
         def ignore(o2m_field, m2o_field):
             if not comodel._auto or comodel._abstract:
-                return True  # tableless
+                return True
             if comodel.is_transient():
-                return True  # transient models shouldn't have a lot of records
+                return True
             if not m2o_field.is_column:
-                return True  # the m2o isn't stored in database
+                return True
             if o2m_field.comodel_name in BTREE_INDEX_IGNORE_MODELS:
-                return True  # the o2m field's model is in the model ignore list
+                return True
             if str(m2o_field) in BTREE_INDEX_IGNORE_FIELDS:
-                return True  # the m2o field is in the field ignore list
+                return True
             if m2o_field.index in BTREE_INDEX_PY_DEFS:
-                return True  # the field is already indexed in the definition
+                return True
             ir_model_id = self.env["ir.model"]._get_id(comodel._name)
             modules = (
                 self.env["ir.model.data"]
@@ -65,9 +60,8 @@ class TestIndex(common.TransactionCase):
                 )
                 .mapped("module")
             )
-            # ruff: noqa: SIM103
             if modules and all("test" in module for module in modules):
-                return True  # skip model if it's in a test module
+                return True
             return False
 
         fields_to_index = set()

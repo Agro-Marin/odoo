@@ -20,7 +20,6 @@ class TestError(common.HttpCase):
             self.xmlrpc_object.execute, common.get_db_name(), uid, "admin"
         )
 
-        # Reset the admin's lang to avoid breaking tests due to admin not in English
         self.rpc("res.users", "write", [uid], {"lang": False})
 
     def test_01_private(self):
@@ -94,7 +93,6 @@ class TestError(common.HttpCase):
             e.faultString,
         )
 
-        # Unlink b2 => ON DELETE RESTRICT constraint raises
         with (
             self.assertRaises(Fault) as ctx,
             mute_logger("odoo.db", "odoo.http"),
@@ -131,9 +129,7 @@ class TestError(common.HttpCase):
         def db_list(**kwargs):
             return [self.env.cr.dbname, self.env.cr.dbname + "_another_db"]
 
-        self.patch(
-            http, "db_list", db_list
-        )  # this is just to ensure that the request won't have a db, breaking monodb behaviour
+        self.patch(http, "db_list", db_list)
 
         self.rpc("test_rpc.model_b", "create", {"name": "B1"})
 

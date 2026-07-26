@@ -140,7 +140,7 @@ class TestRecordsetSetOperations(TransactionCase):
         r1 = self.cat_a | self.cat_b
         r2 = self.cat_b | self.cat_c
         result = r1 + r2
-        self.assertEqual(len(result), 4)  # cat_b appears twice
+        self.assertEqual(len(result), 4)
         self.assertEqual(
             list(result._ids),
             [self.cat_a.id, self.cat_b.id, self.cat_b.id, self.cat_c.id],
@@ -407,21 +407,15 @@ class TestRecordsetIteration(TransactionCase):
         ``range()`` and returned ``-1`` literally via ``ids[-1]`` instead of
         normalizing to ``len(ids)+start`` like CPython ``list.index``.
         """
-        # list.index([id_a, id_b, id_c], id_c, -1) == 2 (CPython)
         self.assertEqual(self.records.index(self.cat_c, -1), 2)
-        # start=-3 (== 0) covers the whole sequence
         self.assertEqual(self.records.index(self.cat_a, -3), 0)
-        # start=-1 with a non-last target raises (only the last index is
-        # searched after normalization, just like list.index)
         with self.assertRaises(ValueError):
             self.records.index(self.cat_a, -1)
 
     def test_index_negative_stop_normalized(self):
         """Negative ``stop`` excludes the tail per ``list.index`` semantics."""
-        # stop=-1 excludes the last element; cat_c is unfindable
         with self.assertRaises(ValueError):
             self.records.index(self.cat_c, 0, -1)
-        # cat_a still findable in [0, len-1)
         self.assertEqual(self.records.index(self.cat_a, 0, -1), 0)
 
     def test_bool_empty(self):
@@ -454,8 +448,6 @@ class TestRecordsetIteration(TransactionCase):
         """Recordsets are hashable and can be used in sets/dicts."""
         r1 = self.cat_a | self.cat_b
         self.cat_a | self.cat_b
-        # Different recordset objects with same ids should have same hash
-        # (Note: hash depends on frozenset of ids, so order doesn't matter)
         s = {r1}
         self.assertIn(r1, s)
 

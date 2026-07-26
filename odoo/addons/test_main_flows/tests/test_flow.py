@@ -10,15 +10,12 @@ _logger = logging.getLogger(__name__)
 
 
 class BaseTestUi(AccountTestMockOnlineSyncCommon):
-
     def main_flow_tour(self):
-        # Disable all onboarding tours
         self.env.ref("base.user_admin").write(
             {
                 "email": "mitchell.admin@example.com",
             }
         )
-        # Enable Buy and Manufacture routes to be selectable on the product form.
         self.env.ref("purchase_stock.route_warehouse0_buy").write(
             {
                 "product_selectable": True,
@@ -29,10 +26,8 @@ class BaseTestUi(AccountTestMockOnlineSyncCommon):
                 "product_selectable": True,
             }
         )
-        # Enable Make to Order
         self.env.ref("stock.route_warehouse0_mto").active = True
 
-        # Define minimal accounting data to run without CoA
         a_suspense = self.env["account.account"].create(
             {
                 "code": "X2220",
@@ -145,7 +140,6 @@ class BaseTestUi(AccountTestMockOnlineSyncCommon):
 
 @odoo.tests.tagged("post_install", "-at_install", "is_tour")
 class TestUi(BaseTestUi):
-
     def test_01_main_flow_tour(self):
         self.main_flow_tour()
 
@@ -254,7 +248,6 @@ class TestUi(BaseTestUi):
             )
 
     def test_company_switch_access_error_debug(self):
-        # This test is identical to test_company_switch_access_error, but with debug mode enabled
         company1 = self.env.company
         company2 = self.env["res.company"].create({"name": "second company"})
         self.env["res.users"].browse(2).write(
@@ -310,7 +303,6 @@ class TestUi(BaseTestUi):
 
 @odoo.tests.tagged("post_install", "-at_install", "is_tour")
 class TestUiMobile(BaseTestUi):
-
     browser_size = "375x667"
     touch_enabled = True
 

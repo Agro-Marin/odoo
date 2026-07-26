@@ -40,8 +40,7 @@ GEOIP_ODOO_FARM_2 = {
 
 @tagged("post_install", "-at_install")
 class TestHttpSession(TestHttpBase):
-
-    @mute_logger("odoo.http")  # greeting_none called ignoring args {'debug'}
+    @mute_logger("odoo.http")
     def test_session00_debug_mode(self):
         session = self.authenticate(None, None)
         self.assertEqual(session.debug, "")
@@ -55,7 +54,6 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(session.debug, "")
 
     def test_session01_default_session(self):
-        # The default session should not be saved on the filestore.
         with patch.object(odoo.http.root.session_store, "save") as mock_save:
             res = self.db_url_open("/test_http/geoip")
             res.raise_for_status()
@@ -66,10 +64,6 @@ class TestHttpSession(TestHttpBase):
                 raise AssertionError(msg) from exc
 
     def test_session02_csrf_token_persists_session(self):
-        # Issuing a CSRF token must persist the (anonymous) session that
-        # signed it. Otherwise the session cookie references a session that
-        # was never stored, and ``renew_missing`` hands out a fresh sid on
-        # the next request.
         self.assertFalse(odoo.http.root.session_store.store)
         res = self.db_url_open("/test_http/csrf-token")
         res.raise_for_status()
@@ -80,12 +74,6 @@ class TestHttpSession(TestHttpBase):
         )
 
     def test_session02_csrf_anonymous_roundtrip(self):
-        # Regression: an anonymous CSRF token issued on one request must
-        # still validate on the next. The token is signed over the sid
-        # static prefix; if the session is not persisted, the cookie's sid
-        # is rotated away by ``renew_missing`` and the prefix no longer
-        # matches, yielding a spurious "Session expired (invalid CSRF
-        # token)" on every anonymous login / website form POST.
         res = self.db_url_open("/test_http/csrf-token")
         res.raise_for_status()
         csrf_token = res.text.strip()
@@ -100,12 +88,92 @@ class TestHttpSession(TestHttpBase):
             f"validate; got {res.status_code}: {res.text[:200]}",
         )
 
+    @mute_logger("odoo.http")
+    def test_session02b_failing_request_still_saves_the_session(self):
+        self.assertFalse(odoo.http.root.session_store.store)
+        res = self.db_url_open("/test_http/session_then_error")
+        self.assertEqual(res.status_code, 422)
+        self.assertTrue(
+            odoo.http.root.session_store.store,
+            "the session written before the failure must have been persisted",
+        )
+        self.assertIn(
+            "session_id",
+            res.cookies,
+            "the error response must carry the session cookie",
+        )
+        stored = next(iter(odoo.http.root.session_store.store.values()))
+        self.assertEqual(stored.get("gate_address"), "P3X-984")
+
+    def test_session02c_untouched_anonymous_session_sets_no_cookie(self):
+        res = self.db_url_open("/test_http/greeting")
+        res.raise_for_status()
+        self.assertFalse(odoo.http.root.session_store.store)
+        self.assertNotIn("session_id", res.cookies)
+
+    @mute_logger("odoo.http", "odoo.http.application")
+    def test_session02d_expiry_rotates_a_connected_session(self):
+        """A SessionExpired raised while ``session.uid`` is set must rotate the sid.
+
+        This is the ``was_connected`` branch — reached in production by
+        ``auth_timeout``'s inactivity logout and ``web.home``'s session-token
+        check. It used to be implemented inline in ``HttpDispatcher.handle_error``
+        (and only there). Rotation now happens in ``Request._save_session``, run
+        over the error response by ``Application._finalize_error_response``, so
+        this pins that the security-relevant behaviour survived the move — and
+        that it is no longer HTTP-dispatcher-only.
+        """
+        session = self.authenticate("admin", "admin")
+        old_sid = session.sid
+        self.assertIsNotNone(session.uid)
+
+        res = self.db_url_open("/test_http/expire_session")
+        self.assertEqual(res.status_code, 303)
+        self.assertIn("/web/login?redirect=", res.headers["Location"])
+
+        new_sid = res.cookies["session_id"]
+        self.assertNotEqual(
+            new_sid, old_sid, "the authenticated sid must not survive expiry"
+        )
+        store = odoo.http.root.session_store.store
+        self.assertNotIn(old_sid, store, "the old session file must be gone")
+        self.assertIsNone(store[new_sid].uid, "the rotated session is logged out")
+
+    @mute_logger("odoo.http", "odoo.http.application")
+    def test_session02e_jsonrpc_expiry_must_not_log_out(self):
+        """jsonrpc SessionExpired must NOT log out — the bus depends on it.
+
+        Characterization, not a fix. It is tempting to "unify" the
+        SessionExpired handling that ``HttpDispatcher.handle_error`` implements
+        (logout + rotate) across all three dispatchers. That would be wrong:
+        ``bus`` overloads ``SessionExpiredException`` on the *public* jsonrpc
+        route ``/websocket/peek_notifications`` to mean "your session predates
+        my websocket handshake, re-handshake" — a routine signal on ordinary
+        polling traffic, not an authentication event. Logging out there would
+        sign out every polling visitor on a benign reconnect.
+
+        So: the JSON dispatchers report the expiry (code 100) and leave the
+        session alone. This test fails the moment someone unifies them.
+        """
+        session = self.authenticate("admin", "admin")
+        old_sid = session.sid
+
+        res = self.db_url_open(
+            "/test_http/expire_session_json",
+            data=json.dumps({"jsonrpc": "2.0", "method": "call", "params": {}}),
+            headers=CT_JSON,
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["error"]["code"], 100)
+
+        store = odoo.http.root.session_store.store
+        self.assertIn(old_sid, store, "jsonrpc expiry must leave the session alone")
+        self.assertEqual(store[old_sid].uid, session.uid, "still authenticated")
+
     def test_session03_logout_15_0_geoip(self):
         session = self.authenticate(None, None)
         session["db"] = "idontexist"
-        session["geoip"] = (
-            {}
-        )  # Until saas-15.2 geoip was directly stored in the session
+        session["geoip"] = {}
         odoo.http.root.session_store.save(session)
 
         with self.assertLogs("odoo.http.request_class", level="WARNING") as (
@@ -155,7 +223,7 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(res.status_code, 200, "Should not be redirected to /web/login")
 
     def test_session05_default_lang(self):
-        self.env["res.lang"]._activate_lang("en_US")  # default lang
+        self.env["res.lang"]._activate_lang("en_US")
         lang_fr = self.env["res.lang"]._activate_lang("fr_FR")
 
         with self.subTest(case="no preferred lang"):
@@ -183,7 +251,7 @@ class TestHttpSession(TestHttpBase):
 
     def test_session06_saved_lang(self):
         session = self.authenticate("demo", "demo")
-        self.env["res.lang"]._activate_lang("en_US")  # default lang
+        self.env["res.lang"]._activate_lang("en_US")
         lang_fr = self.env["res.lang"]._activate_lang("fr_FR")
 
         with self.subTest(case="no saved lang"):
@@ -289,25 +357,20 @@ class TestHttpSession(TestHttpBase):
         """
         sid = "a" * STORED_SESSION_BYTES * 2
 
-        # Load preserves content verbatim and starts clean (not dirty).
         data = {"uid": 5, "context": {"lang": "en_US", "ids": [1, 2, 3]}}
         session = Session(data, sid)
         self.assertEqual(dict(session), data)
         self.assertFalse(session.is_dirty)
 
-        # Load bypasses write-time coercion: a value that ``__setitem__``
-        # would normalise (tuple -> list) is stored verbatim on load.
         loaded = Session({"foo": (1, 2, 3)}, sid)
         self.assertEqual(loaded["foo"], (1, 2, 3))
 
-        # Application writes are STILL validated and coerced.
         session["foo"] = (1, 2, 3)
-        self.assertEqual(session["foo"], [1, 2, 3])  # tuple coerced to list
+        self.assertEqual(session["foo"], [1, 2, 3])
         self.assertTrue(session.is_dirty)
         with self.assertRaises(TypeError):
             session["bad"] = datetime.datetime.now()
 
-        # ... and still deep-copied (isolated from later source mutation).
         source = {"k": [1]}
         session["iso"] = source
         source["k"].append(2)
@@ -325,31 +388,24 @@ class TestHttpSession(TestHttpBase):
         session.mark_clean()
         self.assertFalse(session.is_modified())
 
-        # In-place nested mutation: bypasses __setitem__, so is_dirty stays
-        # False, but is_modified must detect it (the bug this fixes).
         session.context["lang"] = "es_MX"
         self.assertFalse(session.is_dirty)
         self.assertTrue(session.is_modified())
 
-        # Reverting the nested value to its baseline clears the modification
-        # (no intervening mark_clean, so the baseline is still "en_US").
         session.context["lang"] = "en_US"
         self.assertFalse(session.is_modified())
 
-        # A no-op top-level write is not a modification.
         session["uid"] = 5
         self.assertFalse(session.is_modified())
 
-        # Explicit writes still register, and re-baselining clears the state.
         session["foo"] = "bar"
         self.assertTrue(session.is_modified())
         session.mark_clean()
         self.assertFalse(session.is_modified())
 
-        # After re-baseline, the current values are the new baseline.
-        session.context["lang"] = "en_US"  # unchanged
+        session.context["lang"] = "en_US"
         self.assertFalse(session.is_modified())
-        session.context["lang"] = "de_DE"  # now changed
+        session.context["lang"] = "de_DE"
         self.assertTrue(session.is_modified())
 
     @patch("odoo.http.root.session_store.vacuum")
@@ -363,7 +419,6 @@ class TestHttpSession(TestHttpBase):
             self.env["ir.http"]._gc_sessions()
             mock.assert_not_called()
 
-        # Documented off-values do not count as "set": the GC still runs.
         for off_value in ("0", "false", "no"):
             with patch.dict(os.environ, {"ODOO_SKIP_GC_SESSIONS": off_value}):
                 mock.reset_mock()
@@ -394,9 +449,6 @@ class TestHttpSession(TestHttpBase):
 
     def test_session11_items_accessibility(self):
         session = self.authenticate("admin", "admin")
-        # Access default items
-        # These items are always accessible with properties
-        # even if it no longer exists in the data
         login_value = "other admin"
         self.assertIn("login", session)
         session.login = login_value
@@ -410,8 +462,6 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(session.get("login"), None)
         with self.assertRaises(KeyError):
             session["login"]
-        # Access other items
-        # These items must be accessible as in a "classic" dictionary
         foo_value = "bar"
         self.assertNotIn("foo", session)
         with self.assertRaises(AttributeError):
@@ -423,12 +473,9 @@ class TestHttpSession(TestHttpBase):
         self.assertEqual(session.pop("foo"), foo_value)
         with self.assertRaises(KeyError):
             session["foo"]
-        # Check that the session is dirty if items are modified
-        # Default items
         session.is_dirty = False
         session.context = {"foo": "bar"}
         self.assertTrue(session.is_dirty)
-        # Other items
         session.is_dirty = False
         session["foo_2"] = "bar_2"
         self.assertTrue(session.is_dirty)
@@ -492,9 +539,6 @@ class TestHttpSession(TestHttpBase):
         session["create_time"] -= SESSION_ROTATION_INTERVAL
         odoo.http.root.session_store.save(session)
 
-        # Any route that uses werkzeug.exceptions.abort would do, here
-        # we call a simple type='jsonrpc' route with bad data to trigger
-        # the abort in odoo.http.JsonRPCDispatcher.dispatch.
         res = self.url_open("/test_http/echo-json", data="not json", headers=CT_JSON)
         self.assertEqual(res.status_code, 400, res.text)
 
@@ -532,7 +576,6 @@ class TestSessionStore(HttpCaseWithUserDemo):
 
     @mute_logger("odoo.http")
     def test02_session_lifetime_1week(self):
-        # default lifetime is 1 week
         with freeze_time() as freeze:
             session = self.authenticate(None, None)
 
@@ -556,7 +599,6 @@ class TestSessionStore(HttpCaseWithUserDemo):
 
     @mute_logger("odoo.http")
     def test03_session_lifetime_1min(self):
-        # changing the lifetime to 1 minute
         self.env["ir.config_parameter"].set_param("sessions.max_inactivity_seconds", 60)
         with freeze_time() as freeze:
             session = self.authenticate(None, None)
@@ -581,7 +623,6 @@ class TestSessionStore(HttpCaseWithUserDemo):
 
     @mute_logger("odoo.http")
     def test04_session_lifetime_nodb(self):
-        # in case of requesting session in a no db scenario
         self.env["ir.config_parameter"].set_param(
             "sessions.max_inactivity_seconds", SESSION_LIFETIME // 2
         )
@@ -635,7 +676,6 @@ class TestSessionStore(HttpCaseWithUserDemo):
         )
 
 
-# HttpCase because session rotation needs to be tested on the file store instead of memory store
 class TestSessionRotation(HttpCase):
     def test_session_rotation(self):
         def get_amount_sessions(session):
@@ -650,11 +690,9 @@ class TestSessionRotation(HttpCase):
         self.authenticate("admin", "admin")
         self.url_open("/odoo")
         session_one = self.opener.cookies["session_id"]
-        # Session shouldn't rotate if not expired
         self.url_open("/odoo")
         self.assertEqual(self.opener.cookies["session_id"], session_one)
         self.assertEqual(get_amount_sessions(session_one), 1)
-        # Expire the first session
         session_one_obj = root.session_store.get(session_one)
         session_one_obj["create_time"] -= SESSION_ROTATION_INTERVAL
         root.session_store.save(session_one_obj)
@@ -662,7 +700,6 @@ class TestSessionRotation(HttpCase):
         session_two = self.opener.cookies["session_id"]
         self.assertNotEqual(session_one, session_two)
         self.assertEqual(get_amount_sessions(session_two), 2)
-        # Trigger cleanup
         session_two_obj = root.session_store.get(session_two)
         session_two_obj["create_time"] -= SESSION_DELETION_TIMER
         root.session_store.save(session_two_obj)
@@ -670,7 +707,6 @@ class TestSessionRotation(HttpCase):
         session_three = self.opener.cookies["session_id"]
         self.assertEqual(session_three, session_two)
         self.assertEqual(get_amount_sessions(session_three), 1)
-        # Cleaning the test up
         self.logout()
         root.session_store.delete_from_identifiers(
             [session_three[:STORED_SESSION_BYTES]]
@@ -693,12 +729,10 @@ class TestSessionRotation(HttpCase):
         self.url_open("/odoo")
         session_one = self.opener.cookies["session_id"]
 
-        # Age the session past the rotation interval.
         session_obj = root.session_store.get(session_one)
         session_obj["create_time"] -= SESSION_ROTATION_INTERVAL
         root.session_store.save(session_obj)
 
-        # Hitting an excluded path must NOT rotate.
         self.url_open("/websocket/peek_notifications", data={})
         self.assertEqual(
             self.opener.cookies.get("session_id", session_one),
@@ -706,19 +740,14 @@ class TestSessionRotation(HttpCase):
             "websocket polling endpoints must not trigger session rotation",
         )
 
-        # Hitting a non-excluded path DOES rotate — ensures the gate is
-        # only bypassing the excluded set, not rotation entirely.
         self.url_open("/odoo")
         session_two = self.opener.cookies["session_id"]
         self.assertNotEqual(
             session_one, session_two, "non-excluded paths still rotate as expected"
         )
 
-        # Cleanup
         self.logout()
-        root.session_store.delete_from_identifiers(
-            [session_two[:STORED_SESSION_BYTES]]
-        )
+        root.session_store.delete_from_identifiers([session_two[:STORED_SESSION_BYTES]])
 
     def test_session_token_lookup_does_not_clear_cache(self):
         """An invalid-uid session-token lookup must NOT wipe the cache.
@@ -730,11 +759,7 @@ class TestSessionRotation(HttpCase):
         invalidation of the "default" ormcache category.
         """
         with patch.object(self.env.registry, "clear_cache") as mock_clear:
-            result = (
-                self.env["res.users"]
-                .browse(99999999)
-                ._session_token_get_values()
-            )
+            result = self.env["res.users"].browse(99999999)._session_token_get_values()
 
         self.assertFalse(result, "lookup of a non-existent user must return falsy")
         mock_clear.assert_not_called()

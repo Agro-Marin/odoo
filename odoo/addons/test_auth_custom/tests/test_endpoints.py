@@ -5,10 +5,8 @@ from odoo.tests import HttpCase
 
 
 class TestCustomAuth(HttpCase):
-    # suppress "WARNING: Access Error" when auth fails on json endpoints
     @odoo.tools.mute_logger("odoo.http")
     def test_json(self):
-        # straight request should fail
         r = self.url_open(
             "/test_auth_custom/json",
             headers={"Content-Type": "application/json"},
@@ -17,7 +15,6 @@ class TestCustomAuth(HttpCase):
         e = r.json()["error"]
         self.assertEqual(e["data"]["name"], "odoo.exceptions.AccessDenied")
 
-        # but preflight should work
         self.env.flush_all()
         url = f"{self.base_url()}/test_auth_custom/json"
         r = self.url_open(
@@ -44,11 +41,9 @@ class TestCustomAuth(HttpCase):
 
     @odoo.tools.mute_logger("odoo.http")
     def test_http(self):
-        # straight request should fail
         r = self.url_open("/test_auth_custom/http")
         self.assertEqual(r.status_code, HTTPStatus.FORBIDDEN)
 
-        # but preflight should work
         self.env.flush_all()
         url = f"{self.base_url()}/test_auth_custom/http"
         r = self.url_open(

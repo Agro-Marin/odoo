@@ -2,7 +2,6 @@ from odoo.tests.common import TransactionCase
 
 
 class TestEnv(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -16,7 +15,6 @@ class TestEnv(TransactionCase):
         )
         cls.env = cls.env(user=user)
 
-        # make sure there is at least another environment in the current transaction
         cls.sudo_env = cls.env(su=True)
 
     def test_env_company_part_01(self):

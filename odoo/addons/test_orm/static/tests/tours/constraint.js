@@ -10,7 +10,6 @@ registry.category("web_tour.tours").add("sql_constaint", {
             run: "click",
         },
         {
-            // create test category
             content: "create new category",
             trigger: "button.o_list_button_add",
             run: "click",
@@ -21,19 +20,16 @@ registry.category("web_tour.tours").add("sql_constaint", {
             run: "edit Test Category",
         },
         {
-            // try to insert a value that will raise the SQL constraint
             content: "insert invalid value",
             trigger: '.o_field_widget[name="color"] input',
             run: "edit -1",
         },
         {
-            // save
             content: "save category",
             trigger: "button.o_form_button_save",
             run: "click",
         },
         {
-            // check popup content
             content: "check notification box",
             trigger:
                 ".o_error_dialog:contains(The color code must be positive!)",

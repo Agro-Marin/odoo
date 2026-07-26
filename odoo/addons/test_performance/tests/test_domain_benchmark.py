@@ -27,7 +27,6 @@ from odoo.tools import OrderedSet
 
 _logger = logging.getLogger(__name__)
 
-# How many iterations per micro-benchmark
 N = 2000
 WARMUP = 200
 
@@ -38,24 +37,14 @@ def _log_result(timer: PerfTimer, name: str):
     return stats
 
 
-# ---------------------------------------------------------------------------
-# Realistic domain fixtures (no DB required for construction)
-# ---------------------------------------------------------------------------
-
-# Fields on test_performance.base: name(Char), value(Integer), value_pc(Float),
-# partner_id(Many2one res.partner), line_ids(One2many), total(Integer), tag_ids(Many2many)
-
-# Simple: single condition
 DOMAIN_SINGLE = [("name", "=", "test")]
 
-# Small: typical search_read filter (3 conditions, implicit AND)
 DOMAIN_SMALL = [
     ("partner_id", "!=", False),
     ("name", "ilike", "bench"),
     ("value", ">", 50),
 ]
 
-# Medium: typical list view with OR branches (10 conditions)
 DOMAIN_MEDIUM = [
     "&",
     ("partner_id", "!=", False),
@@ -72,7 +61,6 @@ DOMAIN_MEDIUM = [
     ("value", "in", [1, 2, 3, 4, 5]),
 ]
 
-# Large: complex filter with many conditions (25 conditions)
 DOMAIN_LARGE = [
     "|",
     "&",
@@ -103,7 +91,6 @@ DOMAIN_LARGE = [
     ("value", "<", 1000),
 ]
 
-# Mergeable: many conditions on same field (optimization target)
 DOMAIN_MERGEABLE = [
     ("value", "in", [1, 2, 3]),
     ("value", "in", [3, 4, 5]),
@@ -112,7 +99,6 @@ DOMAIN_MERGEABLE = [
     ("name", "ilike", "b"),
 ]
 
-# Nested OR with duplicates (dedup optimization target)
 DOMAIN_DUPLICATES = [
     "|",
     "|",
@@ -123,7 +109,6 @@ DOMAIN_DUPLICATES = [
     ("name", "=", "b"),
 ]
 
-# Relational: any operator with subdomain
 DOMAIN_RELATIONAL = [
     ("partner_id", "any", [("name", "ilike", "test"), ("active", "=", True)]),
 ]
@@ -154,10 +139,6 @@ class TestDomainBenchmark(TransactionCase):
         stats = _log_result(timer, name)
         self.all_stats.append(stats)
         return stats
-
-    # =====================================================================
-    # Phase 1: PARSING — Domain.__new__()
-    # =====================================================================
 
     def test_01_parse_single(self):
         """Parse single-condition domain (fast path)."""
@@ -198,10 +179,6 @@ class TestDomainBenchmark(TransactionCase):
     def test_02_parse_empty_list(self):
         """Parse empty domain []."""
         self._bench("parse: Domain([])", lambda: Domain([]))
-
-    # =====================================================================
-    # Phase 2: OPTIMIZATION — fixed-point rewriting
-    # =====================================================================
 
     def test_10_optimize_single(self):
         """Optimize single-condition domain."""
@@ -251,10 +228,6 @@ class TestDomainBenchmark(TransactionCase):
         model = self.Model
         self._bench("optimize (BASIC): 10 conditions", lambda: d.optimize(model))
 
-    # =====================================================================
-    # Phase 3: SORT KEY — nary child sorting
-    # =====================================================================
-
     def test_20_sort_key_condition(self):
         """Sort key for DomainCondition node."""
         cond = DomainCondition("name", "=", "test")
@@ -269,16 +242,11 @@ class TestDomainBenchmark(TransactionCase):
         """Sort a list of 10 domain children by sort key."""
         d = Domain(DOMAIN_MEDIUM)
         children = list(d.children) if hasattr(d, "children") else [d]
-        # Expand to 10+ items for meaningful sort
         items = children * 3
         self._bench(
             "sort: 10+ children by sort_key",
             lambda: sorted(items, key=_optimize_nary_sort_key),
         )
-
-    # =====================================================================
-    # Phase 4: SQL GENERATION — _to_sql()
-    # =====================================================================
 
     def test_30_to_sql_single(self):
         """SQL generation for single optimized condition."""
@@ -316,10 +284,6 @@ class TestDomainBenchmark(TransactionCase):
 
         self._bench("to_sql: 25 conditions", bench)
 
-    # =====================================================================
-    # Phase 5: END-TO-END — parse + optimize + to_sql
-    # =====================================================================
-
     def test_40_e2e_single(self):
         """End-to-end: parse → optimize → to_sql for single condition."""
         model = self.Model
@@ -356,10 +320,6 @@ class TestDomainBenchmark(TransactionCase):
 
         self._bench("e2e: 25 conditions", bench)
 
-    # =====================================================================
-    # Phase 6: OBJECT CREATION overhead
-    # =====================================================================
-
     def test_50_domcondition_new(self):
         """Raw DomainCondition.__new__() allocation cost."""
         self._bench(
@@ -384,10 +344,6 @@ class TestDomainBenchmark(TransactionCase):
         a = OrderedSet([1, 2, 3, 4, 5, 6, 7, 8])
         b = OrderedSet([3, 4, 5, 6, 7, 8, 9, 10])
         self._bench("OrderedSet & OrderedSet (8 elems)", lambda: a & b)
-
-    # =====================================================================
-    # SUMMARY
-    # =====================================================================
 
     def test_99_summary(self):
         """Print summary table sorted by median time."""
@@ -418,7 +374,6 @@ class TestDomainBenchmark(TransactionCase):
                 s.get("cv", 0),
             )
 
-        # Breakdown by phase
         phases = {
             "Parsing": [
                 s for s in self.all_stats if s.get("name", "").startswith("parse:")

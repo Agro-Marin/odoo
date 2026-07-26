@@ -5,16 +5,12 @@ var inc;
 registry.category("web_tour.tours").add("widget_x2many", {
     url: "/odoo/action-test_orm.action_discussions?debug=tests",
     steps: () => [
-        /////////////////////////////////////////////////////////////////////////////////////////////
-        // Discussions
-        /////////////////////////////////////////////////////////////////////////////////////////////
         {
             content: "wait web client",
             trigger: ".o_breadcrumb:contains(Discussions)",
             run: "click",
         },
         {
-            // create test discussion
             content: "create new discussion",
             trigger: "button.o_list_button_add",
             run: "click",
@@ -70,7 +66,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 ".o_field_widget[name=participants] .o_data_cell:contains(user_test)",
         },
         {
-            // add ourself as participant
             content: "click to add participants",
             trigger:
                 ".o_field_widget[name=participants] .o_field_x2many_list_row_add a",
@@ -97,7 +92,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         ...stepUtils.saveForm(),
         {
-            // add message a
             content: "Select First Tab",
             trigger: ".o_notebook_headers .nav-item a:contains(Messages)",
             run: "click",
@@ -123,7 +117,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test] Mitchell Admin:a)',
         },
         {
-            // add message b
             content: "create new message b",
             trigger:
                 ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
@@ -144,7 +137,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test] Mitchell Admin:a\n[test] Mitchell Admin:b)',
         },
         {
-            // change content to trigger on change
             content: "insert content",
             trigger: ".o_field_widget[name=name] input",
             run: "edit test_trigger && press Enter",
@@ -155,7 +147,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger] Mitchell Admin:a\n[test_trigger] Mitchell Admin:b)',
         },
         {
-            // change message b
             content: "edit message b",
             trigger: ".o_field_widget[name=messages] .o_data_cell:text(b)",
             run: "click",
@@ -175,7 +166,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger] Mitchell Admin:a\n[test_trigger] Mitchell Admin:bbb)',
         },
         {
-            // add message c
             content: "create new message c",
             trigger:
                 ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
@@ -195,7 +185,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_field_widget[name=messages] .o_data_row:eq(2)",
         },
         {
-            // add participants
             content: "change tab to Participants",
             trigger: ".o_notebook_headers .nav-item a:contains(Participants)",
             run: "click",
@@ -222,7 +211,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             run: "click",
         },
         {
-            // save
             content: "save discussion",
             trigger: "button.o_form_button_save",
             run: "click",
@@ -237,7 +225,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 "body:not(:has(.o_field_widget[name=messages] tbody .o_data_row:eq(3)))",
         },
         {
-            // check saved data
             content: "check data 1",
             trigger:
                 ".o_content:has(.o_field_widget[name=messages] tbody .o_data_row:eq(2))",
@@ -272,7 +259,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_notebook_headers .nav-link.active:contains(Messages)",
         },
         {
-            // add message d
             content: "create new message d",
             trigger:
                 ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
@@ -292,7 +278,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_field_widget[name=messages] .o_data_cell:text(d)",
         },
         {
-            // add message e
             content: "create new message e",
             trigger:
                 ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
@@ -312,7 +297,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_field_widget[name=messages] .o_data_cell:text(e)",
         },
         {
-            // change message a
             content: "edit message a",
             trigger: ".o_field_widget[name=messages] .o_data_cell:text(a)",
             run: "click",
@@ -331,7 +315,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_field_widget[name=messages] .o_data_cell:text(aaa)",
         },
         {
-            // change message e
             content: "edit message e",
             trigger: ".o_field_widget[name=messages] .o_data_cell:text(e)",
             run: "click",
@@ -374,7 +357,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger] Marc Demo:e)',
         },
         {
-            // remove
             content: "remove b",
             trigger:
                 ".o_field_widget[name=messages] .o_data_row:has(.o_data_cell:text(bbb)) .o_list_record_remove",
@@ -390,13 +372,11 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: "body:not(:has(tr:has(td:text(e))))",
         },
         {
-            // save
             content: "save discussion",
             trigger: "button.o_form_button_save",
             run: "click",
         },
         {
-            // check saved data
             content: "check data 4",
             trigger:
                 ".o_content:not(:has(.o_field_widget[name=messages] tbody tr:has(.o_list_record_remove):eq(4)))",
@@ -434,7 +414,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
                 ".o_form_editable .o_field_widget[name=messages] tbody tr:has(td:text(d))",
         },
         {
-            // add message ddd
             content: "create new message ddd",
             trigger:
                 ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
@@ -467,7 +446,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             run: "click",
         },
         {
-            // check onchange data
             content: "check data 8",
             trigger:
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger] Mitchell Admin:aaa\n[test_trigger] Mitchell Admin:c\n[test_trigger] Mitchell Admin:d\n[test_trigger] Marc Demo:ddd)',
@@ -485,13 +463,9 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_field_widget[name=messages]:has(tr td:text(ddd))",
         },
         ...stepUtils.discardForm({
-            // cancel
             content: "cancel change",
         }),
 
-        /////////////////////////////////////////////////////////////////////////////////////////////
-        // Discussions 2
-        /////////////////////////////////////////////////////////////////////////////////////////////
 
         {
             content:
@@ -575,7 +549,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             run: "edit ccccc",
         },
         {
-            // check onchange
             content: "click outside to trigger one2many onchange",
             trigger: ".o_field_widget[name=name] input",
             run: "click",
@@ -597,7 +570,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             run: "click",
         },
         {
-            // remove record
             content: "delete the last item in the editable list",
             trigger:
                 ".o_field_widget[name=messages] .o_data_row td.o_list_record_remove button:visible:last",
@@ -613,7 +585,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         ...stepUtils.saveForm(),
         {
-            // check saved data
             content: "check data 10",
             trigger:
                 ".o_field_widget[name=message_concat] textarea:value([test_trigger2] Mitchell Admin:aaa\n[test_trigger2] Marc Demo:ccccc)",
@@ -630,7 +601,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_form_editable .nav-link.active:contains(Messages)",
         },
         {
-            // add message eee
             content: "create new message eee",
             trigger:
                 ".o_field_widget[name=messages] .o_field_x2many_list_row_add a",
@@ -646,7 +616,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
         },
         ...stepUtils.saveForm(),
         {
-            // check saved data
             content: "check data 12",
             trigger:
                 '.o_field_widget[name="message_concat"] textarea:value([test_trigger2] Mitchell Admin:aaa\n[test_trigger2] Marc Demo:ccccc\n[test_trigger2] Mitchell Admin:eee)',
@@ -660,9 +629,6 @@ registry.category("web_tour.tours").add("widget_x2many", {
             trigger: ".o_field_widget[name=messages] .o_data_row:eq(2)",
         },
 
-        /////////////////////////////////////////////////////////////////////////////////////////////
-        // Discussions 3
-        /////////////////////////////////////////////////////////////////////////////////////////////
         {
             trigger: ".tab-pane:eq(0) .o_field_widget tbody .o_data_row:eq(2)",
         },

@@ -14,7 +14,6 @@ class TestAccess(odoo.tests.HttpCase):
                 "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
             }
         )
-        # a partner that can't be read by the portal user, would typically be a user's
         self.internal_user_partner = self.env["res.partner"].create({"name": "I"})
 
         self.document = self.env["test_access_right.ticket"].create(
@@ -40,13 +39,8 @@ class TestAccess(odoo.tests.HttpCase):
         This should not block P from accessing the ticket.
         """
         document = self.document.with_user(self.portal_user)
-        # at this point, some fields might already be loaded in cache.
-        # if so, it means we would bypass the ACL when trying to read the field
-        # while this is bad, this is not the object of this test
         self.internal_user_partner.invalidate_model(["active"])
-        # from portal's _document_check_access:
         document.check_access("read")
-        # no raise, because we are supposed to be able to read our ticket
 
     def test_name_search_with_sudo(self):
         """Check that _name_search returns correct values with sudo"""

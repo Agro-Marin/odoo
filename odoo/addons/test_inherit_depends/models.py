@@ -9,7 +9,6 @@ class TestOrmFoo(models.Model):
 class TestInheritMother(models.Model):
     _inherit = "test.inherit.mother"
 
-    # extend again the selection of the state field
     state = fields.Selection(selection_add=[("g", "G")])
     field_in_mother_5 = fields.Char()
 

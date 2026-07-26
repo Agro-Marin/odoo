@@ -4,17 +4,15 @@ import io
 import logging
 
 import docutils.nodes
-import docutils.parsers.rst.directives  # noqa: F401 (registers directives)
-import docutils.parsers.rst.directives.admonitions  # noqa: F401 (registers directives)
-import docutils.parsers.rst.roles  # noqa: F401 (registers roles)
+import docutils.parsers.rst.directives
+import docutils.parsers.rst.directives.admonitions
+import docutils.parsers.rst.roles
 
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, get_db_name, no_retry, tagged
 
 logger = logging.getLogger(__name__)
 
-# There are too many broken docstrings to fix them all in one PR, we use
-# this list to fix one module at a time.
 MODULES_TO_LINT = ("base",)
 MODULES_TO_LINT_ONLY_PUBLIC_METHODS = ("helpdesk",)
 
@@ -81,7 +79,7 @@ Online editor:
 
 
 def extract_docstring_params(doctree):
-    params = {}  # sorted set
+    params = {}
     types = {}
     rtype = inspect._empty
 
@@ -181,8 +179,6 @@ class TestDocstring(BaseCase):
                     continue
                 seen_methods.add(method_name)
 
-                # We don't care of the docstring in overrides, find the
-                # class that introduced the method.
                 reverse_mro = reversed(model_cls.mro()[1:-1])
                 for parent_class in reverse_mro:
                     method = getattr(parent_class, method_name, None)
@@ -192,20 +188,16 @@ class TestDocstring(BaseCase):
                     continue
 
                 if (getattr(parent_class, "_name", None) or "").startswith("mail."):
-                    # don't lint the mail mixins (until we lint them)
                     settings = self.doctree_settings_silent
                 elif (model_cls._original_module or model_name).startswith(
                     MODULES_TO_LINT
                 ):
-                    # lint all methods
                     settings = self.doctree_settings_verbose
                 elif (model_cls._original_module or model_name).startswith(
                     MODULES_TO_LINT_ONLY_PUBLIC_METHODS
                 ) and not method_name.startswith("_"):
-                    # lint only public methods
                     settings = self.doctree_settings_verbose
                 else:
-                    # don't lint anything
                     settings = self.doctree_settings_silent
 
                 with self.subTest(
@@ -248,7 +240,6 @@ class TestDocstring(BaseCase):
         except AssertionError:
             if sign_params[-1].kind != VAR_KEYWORD:
                 raise
-            # TODO: increase verbosity to warning
             logger.info(
                 ABUSE_KWARGS.format(
                     **self._subtest.params,
@@ -259,7 +250,6 @@ class TestDocstring(BaseCase):
                         set(sign_types)
                         - set(doc_params)
                         - {
-                            # self               , kwargs
                             sign_params[0].name,
                             sign_params[-1].name,
                         }

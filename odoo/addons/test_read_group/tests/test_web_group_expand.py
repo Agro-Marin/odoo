@@ -109,14 +109,6 @@ class TestGroupExpand(common.TransactionCase):
         )
 
     def test_static_group_expand(self):
-        # this test verifies that the following happens when grouping by a Selection field with
-        # group_expand=True:
-        #   - the order of the returned groups is the same as the order in which the
-        #     options are declared in the field definition.
-        #   - the groups returned include the empty groups, i.e. all groups, even those
-        #     that have no records assigned to them, this is a (wanted) side-effect of the
-        #     implementation.
-        #   - the false group, i.e. records without the Selection field set, is last.
         self.Model.create(
             [
                 {"value": 1, "static_expand": "a"},
@@ -161,9 +153,6 @@ class TestGroupExpand(common.TransactionCase):
         )
 
     def test_dynamic_group_expand(self):
-        # this test tests the same as the above test but with a Selection field whose
-        # options are dynamic, this means that the result of formatted_read_group when grouping by this
-        # field can change from one call to another.
         self.Model.create(
             [
                 {"value": 1, "dynamic_expand": "a"},
@@ -209,8 +198,6 @@ class TestGroupExpand(common.TransactionCase):
         )
 
     def test_no_group_expand(self):
-        # if group_expand is not defined on a Selection field, it should return only the necessary
-        # groups and in alphabetical order (PostgreSQL ordering)
         self.Model.create(
             [
                 {"value": 1, "no_expand": "a"},
@@ -268,10 +255,9 @@ class TestGroupExpand(common.TransactionCase):
             ]
         )
 
-        # 1 for formatted_read_group + 1 for fetch display_name/fold
         with self.assertQueryCount(2):
             self.env.invalidate_all()
-            self.assertEqual(  # No group_expand limit reached directly
+            self.assertEqual(
                 Line.formatted_read_group(
                     [], ["order_expand_id"], ["value:sum"], limit=2
                 ),
@@ -291,10 +277,9 @@ class TestGroupExpand(common.TransactionCase):
                 ],
             )
 
-        # 1 for formatted_read_group + 1 for fetch display_name/fold
         with self.assertQueryCount(2):
             self.env.invalidate_all()
-            self.assertEqual(  # No group_expand because offset
+            self.assertEqual(
                 Line.formatted_read_group(
                     [], ["order_expand_id"], ["value:sum"], offset=1
                 ),
@@ -314,10 +299,9 @@ class TestGroupExpand(common.TransactionCase):
                 ],
             )
 
-        # 1 for formatted_read_group + group expand (discarded) + 1 for fetch display_name/fold
         with self.assertQueryCount(3):
             self.env.invalidate_all()
-            self.assertEqual(  # No group_expand because limit reached when we try to add group_expand records
+            self.assertEqual(
                 Line.formatted_read_group(
                     [], ["order_expand_id"], ["value:sum"], limit=4
                 ),
@@ -375,19 +359,17 @@ class TestGroupExpand(common.TransactionCase):
                 "value:sum": 3,
             },
         ]
-        # 1 for formatted_read_group + group expand + 1 for fetch display_name/fold
         with self.assertQueryCount(3):
             self.env.invalidate_all()
-            self.assertEqual(  # group_expand because limit isn't reached
+            self.assertEqual(
                 Line.formatted_read_group(
                     [], ["order_expand_id"], ["value:sum"], limit=6
                 ),
                 result,
             )
-        # 1 for formatted_read_group + group expand + 1 for fetch display_name/fold
         with self.assertQueryCount(3):
             self.env.invalidate_all()
-            self.assertEqual(  # group_expand because there isn't limit
+            self.assertEqual(
                 Line.formatted_read_group([], ["order_expand_id"], ["value:sum"]),
                 result,
             )
@@ -414,7 +396,6 @@ class TestGroupExpand(common.TransactionCase):
             ],
         )
 
-        # 1 for formatted_read_group + 1 for group_expand + 1 for fetch display_name/fold
         with self.assertQueryCount(3):
             self.env.invalidate_all()
             self.assertEqual(
@@ -453,7 +434,6 @@ class TestGroupExpand(common.TransactionCase):
                 ],
             )
 
-        # Same result for formatted_grouping_sets
         self.assertEqual(
             Line.formatted_read_grouping_sets(
                 [], [["order_expand_id"], []], ["value:sum"]
@@ -464,8 +444,6 @@ class TestGroupExpand(common.TransactionCase):
             ],
         )
 
-        # Modify the data so that each record has the same order,
-        # and test that the _compute_display_name is called once with the correct recordset.
         all_lines.order_expand_id = order_1.id
         self.env.invalidate_all()
 

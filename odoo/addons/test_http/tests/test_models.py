@@ -8,6 +8,7 @@ from odoo.tools import mute_logger
 from odoo.tools.misc import submap
 
 from .test_common import TestHttpBase
+from odoo.addons import test_http
 from odoo.addons.test_http.utils import HtmlTokenizer
 
 
@@ -42,7 +43,7 @@ class TestHttpModels(TestHttpBase):
 
     @mute_logger("odoo.http")
     def test_models1_galaxy_ko(self):
-        res = self.url_open("/test_http/404")  # unknown galaxy
+        res = self.url_open("/test_http/404")
         self.assertEqual(res.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
         self.assertIn("The Ancients did not settle there.", res.text)
 
@@ -67,7 +68,7 @@ class TestHttpModels(TestHttpBase):
     def test_models3_stargate_ko(self):
         milky_way = self.env.ref("test_http.milky_way")
         with self.assertLogs("odoo.http.application", level="WARNING") as logs:
-            res = self.url_open(f"/test_http/{milky_way.id}/9999")  # unknown gate
+            res = self.url_open(f"/test_http/{milky_way.id}/9999")
         self.assertEqual(res.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
         self.assertIn("The goauld destroyed the gate", res.text)
         self.assertEqual(
@@ -96,11 +97,6 @@ class TestHttpModels(TestHttpBase):
 
         self.assertEqual(milky_way.name, "Milky Way")
 
-        # No cursor ERROR log expected: pipeline mode defers SQL execution,
-        # so ReadOnlySqlTransaction is raised during pipeline exit, not
-        # during cursor.execute() where the ERROR would normally be logged.
-        # Logger moved from ``odoo.http.request_class`` to ``odoo.http._serve``
-        # in the http audit pass 6 module split.
         with self.assertLogs("odoo.http._serve", "WARNING") as capture_http:
             res = self.url_open(
                 f"/test_http/{milky_way.id}/setname?readonly=1",
@@ -121,16 +117,10 @@ class TestHttpModels(TestHttpBase):
                 ),
             ],
         )
-        # The warning must name the offending route so a mis-declared
-        # ``readonly=True`` endpoint is actionable (and flags the re-run hazard).
-        self.assertIn(
-            f"/test_http/{milky_way.id}/setname", capture_http.output[0]
-        )
+        self.assertIn(f"/test_http/{milky_way.id}/setname", capture_http.output[0])
 
     def test_models5_max_upload_too_large(self):
-        res = self.url_open(
-            "/test_http/1/setname", {"name": "too much data" * 1000}
-        )  # 1.3kB
+        res = self.url_open("/test_http/1/setname", {"name": "too much data" * 1000})
         self.assertEqual(res.status_code, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
 
     def test_models6_rpc_path_poisoning(self):
@@ -171,4 +161,161 @@ class TestHttpModels(TestHttpBase):
             "#res.users/read",
             res.text,
             "the fragment must not leak in the next request",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestHttpReadonlyPromotion(TestHttpBase):
+    """The read-only -> read/write promotion re-runs the handler body."""
+
+    def setUp(self):
+        super().setUp()
+        test_http.controllers.su_on_entry.clear()
+        self.addCleanup(test_http.controllers.su_on_entry.clear)
+
+    @mute_logger("odoo.http._serve")
+    def test_promotion_replay_does_not_inherit_the_aborted_env(self):
+        """The read/write replay must start from the same env as attempt one.
+
+        ``_serve_db`` used to hand the retry ``self.env(cr=cr)`` — the *aborted*
+        attempt's environment. Any ``request.update_env(user=/context=/su=)``
+        the handler performed before its failing write therefore pre-seeded the
+        replay, and ``su=True`` in particular survives: no
+        ``ir.http._auth_method_*`` resets it, so the second run would begin in
+        superuser mode. The env is now rebuilt from the (re-fetched) session.
+        """
+        self.authenticate("admin", "admin")
+        milky_way = self.env.ref("test_http.milky_way")
+
+        res = self.url_open(
+            f"/test_http/{milky_way.id}/su_setname",
+            {"name": "Wilky May"},
+        )
+        res.raise_for_status()
+
+        entries = test_http.controllers.su_on_entry
+        self.assertEqual(
+            len(entries),
+            2,
+            "the handler must have run twice (read-only attempt, then read/write)",
+        )
+        self.assertEqual(
+            entries,
+            [False, False],
+            "the replay inherited the aborted attempt's superuser escalation",
+        )
+
+        milky_way.invalidate_recordset()
+        self.assertEqual(milky_way.name, "Wilky May")
+
+
+@tagged("post_install", "-at_install")
+class TestHttpRerouteUpload(TestHttpBase):
+    """``reroute()`` replaces request.httprequest; the entrypoint must close it."""
+
+    def setUp(self):
+        super().setUp()
+        test_http.controllers.reroute_upload_files.clear()
+        self.addCleanup(test_http.controllers.reroute_upload_files.clear)
+
+    def test_reroute_after_body_parse_does_not_stall(self):
+        """Rerouting once the body is parsed must not re-read the WSGI stream.
+
+        ``reroute`` builds a new wrapper over a copy of the environ — including
+        the same, already-drained ``wsgi.input``. Re-parsing it blocked in the
+        multipart parser waiting for bytes that never come, until the socket
+        timed out, and the request died as a 400. The new wrapper now adopts the
+        materialised body (``HTTPRequest._adopt_body_state``).
+        """
+        res = self.db_url_open(
+            "/test_http/reroute_upload",
+            files={"ufile": ("gate.txt", b"Chevron seven", "text/plain")},
+        )
+        res.raise_for_status()
+        self.assertEqual(res.text, "Chevron seven")
+
+    def test_reroute_before_body_parse_closes_the_live_wrapper(self):
+        """The wrapper that actually owns the uploads must be closed.
+
+        This is ``http_routing``'s production shape: the reroute happens in
+        ``ir.http._pre_dispatch``, before the dispatcher parses anything, so the
+        POST-reroute wrapper is the one that materialises the ``FileStorage``
+        objects. ``Application.__call__``'s ``with`` only ever closed the
+        PRE-reroute wrapper, leaving those spooled temp files to the garbage
+        collector instead of being released deterministically at end of request.
+        """
+        res = self.db_url_open(
+            "/test_http/reroute_upload",
+            files={"ufile": ("gate.txt", b"Chevron seven", "text/plain")},
+            headers={"X-Test-Reroute": "1"},
+        )
+        res.raise_for_status()
+        self.assertEqual(res.text, "Chevron seven")
+
+        (ufile,) = test_http.controllers.reroute_upload_files
+        self.assertTrue(
+            ufile.stream.closed,
+            "the post-reroute wrapper's upload was left open at end of request",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestHttpRetryReplay(TestHttpBase):
+    """The serialization-retry loop must replay from the first attempt's state."""
+
+    def setUp(self):
+        super().setUp()
+        test_http.controllers.replay_observations.clear()
+        self.addCleanup(test_http.controllers.replay_observations.clear)
+        test_http.controllers.should_fail = None
+        self.addCleanup(setattr, test_http.controllers, "should_fail", None)
+
+    @mute_logger("odoo.service.model")
+    def test_retry_replays_from_a_clean_request_state(self):
+        """A retried handler must not inherit the aborted attempt's leftovers.
+
+        ``retrying`` rolled back the *database*, re-fetched the session and
+        rewound uploads, but left two request-scoped side effects of the failed
+        attempt in place:
+
+        * the environment it escalated — ``update_env(su=True)`` is reset by no
+          ``ir.http._auth_method_*``, so the replay began as superuser;
+        * the response headers it staged — ``Set-Cookie`` is *accumulated*, so a
+          cookie set before the failing write shipped once per attempt.
+
+        Both are now cleared by ``Request._reset_for_replay``, shared with the
+        read-only -> read/write promotion.
+        """
+        self.authenticate("admin", "admin")
+        test_http.controllers.should_fail = True
+
+        res = self.db_url_open("/test_http/retry_replay")
+        res.raise_for_status()
+        self.assertEqual(res.text, "ok")
+
+        observations = test_http.controllers.replay_observations
+        self.assertEqual(len(observations), 2, "the handler must have run twice")
+        self.assertEqual(
+            [o["su"] for o in observations],
+            [False, False],
+            "the replay inherited the aborted attempt's superuser escalation",
+        )
+        self.assertEqual(
+            [o["default_env_su"] for o in observations],
+            [False, False],
+            "the replay flushes through the aborted attempt's escalated default_env",
+        )
+        self.assertEqual(
+            [o["staged_cookies"] for o in observations],
+            [0, 0],
+            "the replay inherited the aborted attempt's staged Set-Cookie headers",
+        )
+
+        probes = [
+            v
+            for k, v in res.raw.headers.items()
+            if k.lower() == "set-cookie" and v.startswith("probe=")
+        ]
+        self.assertEqual(
+            len(probes), 1, f"the probe cookie was emitted once per attempt: {probes}"
         )

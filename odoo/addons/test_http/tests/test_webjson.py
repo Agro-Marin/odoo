@@ -22,11 +22,6 @@ CSRF_USER_HEADERS = {
 
 def read_group_list(model, domain=None, groupby=(), aggregates=("__count",)):
     result = model.web_read_group(domain or [], groupby=groupby, aggregates=aggregates)
-    # Mirror the /json controller's cleanup of internal keys not exposed to API
-    # consumers:
-    # - pop the ``@versioned`` ``__version`` cache stamp
-    # - pop each group's '__extra_domain'
-    # - tuple into list
     result.pop("__version", None)
     for group in result["groups"]:
         del group["__extra_domain"]
@@ -51,7 +46,6 @@ class TestHttpWebJson_1(TestHttpBase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # enable explicitly and make sure demo has permissions
         cls.env["ir.config_parameter"].set_param("web.json.enabled", True)
         cls.user_demo.write(
             {
@@ -73,7 +67,6 @@ class TestHttpWebJson_1(TestHttpBase):
         elif expected_code:
             self.assertEqual(res.status_code, expected_code)
         else:
-            # expected=0, raise for status
             res.raise_for_status()
         return res
 
@@ -112,16 +105,13 @@ class TestHttpWebJson_1(TestHttpBase):
         self.assertIn("You are not allowed to access", capture.output[0])
 
     def test_webjson_access_export(self):
-        # a simple call
         url = f"/test_http.stargate/{self.earth.id}"
         self.authenticate_demo()
         res = self.url_open_json(url)
 
-        # remove export permssion
         group_export = self.env.ref("base.group_allow_export")
         self.user_demo.write({"group_ids": [Command.unlink(group_export.id)]})
 
-        # check that demo has no access to /json
         with self.assertLogs("odoo.http.application", "WARNING") as capture:
             res = self.url_open_json(url, expected_code=403)
             self.assertIn("need export permissions", res.text)
@@ -279,7 +269,6 @@ class TestHttpWebJson_1(TestHttpBase):
 
     def test_webjson_list_args(self):
         env = self.authenticate_demo()
-        # create a default filter
         domain = [("name", "ilike", "earth")]
         self.env["ir.filters"].create(
             {
@@ -369,7 +358,6 @@ class TestHttpWebJson_1(TestHttpBase):
             summary="test", user_id=self.user_demo.id
         )
         res = self.url_open_json("/test_http.stargate?view_type=activity")
-        # check that we have at least the following fields
         expected_fields = [
             "activity_ids",
             "activity_summary",
@@ -389,10 +377,8 @@ class TestHttpWebJson_1(TestHttpBase):
         env = self.authenticate_demo()
         today = date.today()
         start_date_iso = today.replace(day=1).isoformat()
-        # check that we have the date in the URL
         res = self.url_open_json("/test_http.stargate?view_type=calendar")
         self.assertIn(f"start_date={start_date_iso}", res.url)
-        # check that we can filter using the date
         last_date = max(
             env["test_http.stargate"]
             .search([("last_use_date", "!=", False)])
@@ -410,9 +396,7 @@ class TestHttpWebJson_1(TestHttpBase):
 
     def test_webjson_readonly(self):
         env = self.authenticate_demo()
-        # test that we can write
         env.ref("test_http.earth").copy()
-        # create the action that executes the same write
         self.env["ir.actions.server"].create(
             {
                 "name": "test write",
@@ -422,7 +406,6 @@ class TestHttpWebJson_1(TestHttpBase):
                 "code": "action = {}\nmodel.env.ref('test_http.earth').copy()",
             }
         )
-        # test that is does NOT work
         with mute_logger("odoo.http", "odoo.db"):
             res = self.url_open_json("/test_webjson_readonly", expected_code=403)
             self.assertIn("Unsupported server action", res.text)

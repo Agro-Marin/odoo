@@ -28,7 +28,6 @@ class TestResConfig(TransactionCase):
         display True on a fresh database (no parameter stored yet), and saving
         False must persist "False" instead of deleting the parameter."""
         ICP = self.env["ir.config_parameter"].sudo()
-        # fresh database: the parameter is not stored, the field default wins
         self.assertFalse(ICP.get_param("resConfigTest.parameter3"))
         settings = self.env["res.config.test"].create({})
         self.assertTrue(
@@ -39,11 +38,9 @@ class TestResConfig(TransactionCase):
         settings.execute()
         self.assertEqual(ICP.get_param("resConfigTest.parameter3"), "True")
 
-        # unchecking must persist "False", not delete the parameter
         self.env["res.config.test"].create({"param3": False}).execute()
         self.assertEqual(ICP.get_param("resConfigTest.parameter3"), "False")
 
-        # reopening the settings must show False, not revert to the default
         self.assertFalse(self.env["res.config.test"].create({}).param3)
 
     def test_02_mixed_group_field_types_save(self):
@@ -52,8 +49,6 @@ class TestResConfig(TransactionCase):
         settings = self.env["res.config.test"].create(
             {"group_test_checkbox": True, "group_test_selection": "0"}
         )
-        # would raise "TypeError: '<' not supported between instances of
-        # 'str' and 'bool'" before the sort key normalization
         settings.execute()
         group_user = self.env.ref("base.group_user")
         self.assertIn(

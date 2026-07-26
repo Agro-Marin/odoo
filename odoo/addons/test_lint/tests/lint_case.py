@@ -24,9 +24,6 @@ def get_odoo_module_name(python_module_name: str) -> str:
     return python_module_name
 
 
-# Lint tests are deterministic static analysis: a failure is a real failure, so
-# retrying only wastes staging/build time (pylint alone can take 10-15min). The
-# _retry=False class attribute is inherited by every LintCase subclass.
 @no_retry
 class LintCase(BaseCase):
     """Utility methods for lint-type test cases."""
@@ -67,7 +64,6 @@ def iter_registry_methods(registry=None):
         for method_name, _ in inspect.getmembers(model_cls, inspect.isroutine):
             if method_name.startswith("__"):
                 continue
-            # Walk reversed MRO to find the class that introduced the method
             for parent_class in reversed(model_cls.mro()[1:-1]):
                 method = getattr(parent_class, method_name, None)
                 if callable(method):

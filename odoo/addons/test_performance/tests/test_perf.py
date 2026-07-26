@@ -33,7 +33,6 @@ from odoo.tests.common import TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
 
-# Configuration
 ITERATIONS = 200
 WARMUP = 10
 BATCH_SIZES = (1, 10, 100)
@@ -53,11 +52,6 @@ def _bench(func, n=ITERATIONS, warmup=WARMUP):
 
 def _log_result(stats: dict):
     _logger.info("[ORM_PERF] %s", stats.get("summary", stats.get("name", "?")))
-
-
-# ============================================================================
-# Phase 1: Field Type Conversion Benchmarks
-# ============================================================================
 
 
 @tagged("standard", "orm_perf")
@@ -209,11 +203,6 @@ class TestFieldConversion(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-# ============================================================================
-# Phase 1b: Field __get__ (Descriptor Access) Benchmarks
-# ============================================================================
-
-
 @tagged("standard", "orm_perf", "field_get")
 class TestFieldGet(TransactionCase):
     """Benchmark Field.__get__ (record.field_name) for every scalar type.
@@ -247,7 +236,6 @@ class TestFieldGet(TransactionCase):
                 "f_html": "<p>Hello</p>",
             }
         )
-        # Ensure cache is warm
         cls.record.read(list(cls.Model._fields))
         cls.results: list[dict] = []
 
@@ -264,7 +252,6 @@ class TestFieldGet(TransactionCase):
         record = self.record
         label = label or f"__get__({field_name})"
 
-        # Access via getattr to go through descriptor protocol
         def bench():
             getattr(record, field_name)
 
@@ -340,7 +327,6 @@ class TestFieldGet(TransactionCase):
                 [{"name": f"multi_{i}", "value": i} for i in range(100 - len(records))]
             )
             records = Base.search([], limit=100)
-        # Warm cache
         records.read(["value", "name"])
 
         def bench():
@@ -361,10 +347,8 @@ class TestFieldGet(TransactionCase):
         from odoo.orm.fields.base import Field
 
         record = self.record
-        # Warm cache
         record.read(list(self.Model._fields))
 
-        # Classes that have specialized __get__ and their test fields
         test_cases = [
             (numeric.Integer, "f_integer", "__get__(integer)"),
             (numeric.Float, "f_float", "__get__(float)"),
@@ -391,14 +375,12 @@ class TestFieldGet(TransactionCase):
             field = self.Model._fields[fname]
             spec_get = type(field).__get__
 
-            # Measure specialized (current)
             def bench_spec(f=field, r=record, g=spec_get):
                 g(f, r)
 
             timer_spec = _bench(bench_spec, n=500, warmup=20)
             s_spec = timer_spec.stats(f"spec:{label}", warmup=0)
 
-            # Measure base (bypass override)
             def bench_base(f=field, r=record, g=base_get):
                 g(f, r)
 
@@ -429,11 +411,6 @@ class TestFieldGet(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-# ============================================================================
-# Phase 2: Record Iteration & Object Creation
-# ============================================================================
-
-
 @tagged("standard", "orm_perf")
 class TestIteration(TransactionCase):
     """Benchmark recordset iteration, browse, __hash__, __eq__."""
@@ -442,7 +419,6 @@ class TestIteration(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_performance.base"]
-        # Ensure 1000 records exist
         existing = cls.Model.search_count([])
         if existing < 1000:
             cls.Model.create(
@@ -561,11 +537,6 @@ class TestIteration(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-# ============================================================================
-# Phase 3: Cache & Recomputation Internals
-# ============================================================================
-
-
 @tagged("standard", "orm_perf")
 class TestCacheInternals(TransactionCase):
     """Benchmark modified(), flush_model(), _flush(), cache operations."""
@@ -621,9 +592,7 @@ class TestCacheInternals(TransactionCase):
         record = self.Model.search([], limit=1)
 
         def bench():
-            record.modified(
-                ["value"]
-            )  # triggers value_pc, computed_value, indirect_computed_value
+            record.modified(["value"])
 
         timer = _bench(bench)
         self._log(timer.stats("modified(computed_chain)", warmup=0))
@@ -631,7 +600,6 @@ class TestCacheInternals(TransactionCase):
     def test_04_flush_model_clean(self):
         """Benchmark flush_model() when nothing is dirty."""
         records = self.Model.search([], limit=100)
-        # Make sure nothing is dirty
         self.env.flush_all()
 
         def bench():
@@ -645,7 +613,7 @@ class TestCacheInternals(TransactionCase):
         record = self.Model.search([], limit=1)
 
         def bench():
-            record.value = record.value + 1  # make dirty
+            record.value = record.value + 1
             record.flush_model()
 
         timer = _bench(bench, n=50)
@@ -664,7 +632,7 @@ class TestCacheInternals(TransactionCase):
     def test_07_invalidate_all(self):
         """Benchmark invalidate_all()."""
         records = self.Model.search([], limit=100)
-        _ = records.mapped("name")  # populate cache
+        _ = records.mapped("name")
 
         def bench():
             self.env.invalidate_all()
@@ -711,11 +679,6 @@ class TestCacheInternals(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-# ============================================================================
-# Phase 4 supplement: Unlink benchmark
-# ============================================================================
-
-
 @tagged("standard", "orm_perf")
 class TestUnlink(TransactionCase):
     """Benchmark unlink() operations missing from test_orm_benchmark."""
@@ -760,11 +723,6 @@ class TestUnlink(TransactionCase):
         _logger.info("\n[ORM_PERF] === UNLINK SUMMARY ===")
         for r in self.results:
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
-
-# ============================================================================
-# Phase 6: Domain Processing
-# ============================================================================
 
 
 @tagged("standard", "orm_perf")
@@ -853,7 +811,6 @@ class TestDomainPerf(TransactionCase):
         """Benchmark Domain to SQL conversion via _search."""
         domain = [("name", "like", "bench"), ("value", ">", 10)]
         model = self.Model.sudo()
-        # Warm up to ensure model is loaded
         model.search(domain, limit=1)
 
         def bench():
@@ -891,11 +848,6 @@ class TestDomainPerf(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-# ============================================================================
-# Phase 7: Read Group Operations
-# ============================================================================
-
-
 @tagged("standard", "orm_perf")
 class TestReadGroupPerf(TransactionCase):
     """Benchmark _read_group() operations."""
@@ -904,7 +856,6 @@ class TestReadGroupPerf(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Model = cls.env["test_performance.base"]
-        # Ensure enough data
         existing = cls.Model.search_count([])
         if existing < 100:
             cls.Model.create(
@@ -967,11 +918,6 @@ class TestReadGroupPerf(TransactionCase):
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
 
-# ============================================================================
-# Phase 8: Optimized Hot-Path Micro-Benchmarks
-# ============================================================================
-
-
 @tagged("standard", "orm_perf")
 class TestHotPaths(TransactionCase):
     """Benchmark the specific internal methods optimized during the ORM
@@ -984,7 +930,6 @@ class TestHotPaths(TransactionCase):
         super().setUpClass()
         cls.Model = cls.env["test_performance.base"]
         cls.AllTypes = cls.env["test_performance.all_types"]
-        # Ensure 200 records exist
         existing = cls.Model.search_count([])
         if existing < 200:
             cls.Model.create(
@@ -999,8 +944,6 @@ class TestHotPaths(TransactionCase):
     def _log(self, stats):
         _log_result(stats)
         self.results.append(stats)
-
-    # --- _read_format ---
 
     def test_01_read_format_10_records(self):
         """Benchmark _read_format (via read()) for 10 records, 3 fields."""
@@ -1030,7 +973,7 @@ class TestHotPaths(TransactionCase):
         """Benchmark _read_format when cache is already warm (fast path)."""
         records = self.Model.search([], limit=100)
         fnames = ["name", "value", "partner_id"]
-        records.read(fnames)  # warm cache
+        records.read(fnames)
 
         def bench():
             records.read(fnames)
@@ -1038,12 +981,10 @@ class TestHotPaths(TransactionCase):
         timer = _bench(bench, n=200, warmup=10)
         self._log(timer.stats("read(100rec×3fields,cached)", warmup=0))
 
-    # --- grouped ---
-
     def test_10_grouped_by_field(self):
         """Benchmark grouped() by field name."""
         records = self.Model.search([], limit=100)
-        _ = records.mapped("value")  # warm cache
+        _ = records.mapped("value")
 
         def bench():
             records.grouped("value")
@@ -1062,14 +1003,12 @@ class TestHotPaths(TransactionCase):
         timer = _bench(bench, n=100, warmup=10)
         self._log(timer.stats("grouped(lambda,100)", warmup=0))
 
-    # --- _to_prefetch ---
-
     def test_20_to_prefetch(self):
         """Benchmark Field._to_prefetch — set-based filtering of prefetch IDs."""
         records = self.Model.search([], limit=200)
         field = self.Model._fields["name"]
         record = records[0]
-        records.read(["name"])  # warm cache so seen set is large
+        records.read(["name"])
 
         def bench():
             field._to_prefetch(record)
@@ -1090,13 +1029,11 @@ class TestHotPaths(TransactionCase):
         timer = _bench(bench, n=100, warmup=10)
         self._log(timer.stats("_to_prefetch(200,cold)", warmup=0))
 
-    # --- ensure_computed ---
-
     def test_30_ensure_computed_noop(self):
         """Benchmark ensure_computed() when field is not pending (no-op)."""
         records = self.Model.search([], limit=100)
         field = self.Model._fields["value_pc"]
-        self.env.flush_all()  # nothing pending
+        self.env.flush_all()
 
         def bench():
             field.ensure_computed(records)
@@ -1122,11 +1059,6 @@ class TestHotPaths(TransactionCase):
         by_time = sorted(self.results, key=lambda r: r.get("p50_us", 0), reverse=True)
         for r in by_time:
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
-
-
-# ============================================================================
-# Cross-cutting: Full Pipeline Benchmarks
-# ============================================================================
 
 
 @tagged("standard", "orm_perf")
@@ -1228,7 +1160,6 @@ class TestFullPipeline(TransactionCase):
 
     def test_04_search_fetch(self):
         """Benchmark search_fetch() — search + cache population."""
-        # Create some records (keep under COPY_THRESHOLD to avoid binary COPY numeric bug)
         for i in range(20):
             self.Model.create({"name": f"sf_{i}", "f_integer": i})
         model = self.Model.sudo()
@@ -1252,7 +1183,6 @@ class TestFullPipeline(TransactionCase):
         for r in by_time:
             _logger.info("[ORM_PERF]   %s", r.get("summary", ""))
 
-        # Collect ALL results from all test classes
         all_results = []
         for cls_results in [
             getattr(TestFieldConversion, "results", []),
@@ -1286,11 +1216,6 @@ class TestFullPipeline(TransactionCase):
                 "results": all_results,
             }
             _logger.info(json.dumps(export, indent=2, default=str))
-
-
-# ============================================================================
-# Rust Acceleration Targets — Baselines for uncovered hot paths
-# ============================================================================
 
 
 @tagged("standard", "accel_baseline")
@@ -1584,11 +1509,6 @@ class TestAccelFieldCache(TransactionCase):
         timer = _bench(bench)
         self._log(timer.stats("cache.set_value()", warmup=0))
 
-    # NOTE: FieldCache exposes no bulk insert/update method; that logic lives in
-    # Field._insert_cache / Field._update_cache, which operate directly on the
-    # per-field dict from get_field_data(). These benchmarks measure that same
-    # raw dict operation standalone (no ORM layer), mirroring the production code.
-
     def test_04_insert_if_absent_100(self):
         from odoo.orm.components.cache import FieldCache
 
@@ -1596,7 +1516,6 @@ class TestAccelFieldCache(TransactionCase):
         d = cache.get_field_data("test")
         ids = tuple(range(100))
         vals = tuple(range(100))
-        # Field._insert_cache: bulk setdefault driven through C via deque(map(...)).
         timer = _bench(
             lambda: deque(map(d.setdefault, ids, vals, strict=True), maxlen=0)
         )
@@ -1617,7 +1536,6 @@ class TestAccelFieldCache(TransactionCase):
     def test_06_update_batch_1(self):
         cache, f, _ = self._make_cache(100)
         d = cache.get_field_data(f)
-        # Field._update_cache batch path: dict.update(dict.fromkeys(ids, value)).
         timer = _bench(lambda: d.update(dict.fromkeys((42,), "x")))
         self._log(timer.stats("update_batch(1)", warmup=0))
 
@@ -1708,11 +1626,6 @@ class TestAccelPrimitives(TransactionCase):
         nid = NewId(origin=10)
         timer = _bench(lambda: nid < 20)
         self._log(timer.stats("NewId.__lt__(int)", warmup=0))
-
-    # NOTE: the OriginIds iterable class was replaced by helpers._origin_ids(),
-    # which dispatches tuple inputs to the Rust origin_ids() accelerator and
-    # returns the materialized list. Benchmarking the call measures the same
-    # origin-extraction work the iterable used to perform lazily.
 
     def test_10_originids_int(self):
         from odoo.orm.helpers import _origin_ids

@@ -24,9 +24,7 @@ class TestTranslationImportModel1(models.Model):
     xml = fields.Text("XML", translate=xml_translate)
 
     def get_code_translation(self):
-        _(
-            "slot"
-        )  # a code translation for both python and js(static/src/xml/js_template.xml)
+        _("slot")
         return _("Code, English")
 
     def get_code_lazy_translation(self):
@@ -90,12 +88,9 @@ class TestTranslationImportModel1(models.Model):
         _("PY Export 26 %s", "NO - PY Export 05" + "".join(terms))
         _("PY Export 27 %s", "".join(terms) + "NO - PY Export 06")
 
-        # pylint: disable=E8502
-        _(f"PY Export 28")  # noqa: F541, INT001
-        # pylint: disable=E8502
-        _(f"NO - PY Export 07 {term}")  # noqa: INT001
+        _(f"PY Export 28")
+        _(f"NO - PY Export 07 {term}")
 
-        # pylint: disable=E8502
         _(dummy_function("NO - PY Export 08"))
 
 
