@@ -2,7 +2,7 @@
 
 from lxml import etree
 
-from odoo import fields, models, _
+from odoo import _, fields, models
 
 HIERARCHY_VALID_ATTRIBUTES = {
     '__validate__',                     # ir.ui.view implementation detail
