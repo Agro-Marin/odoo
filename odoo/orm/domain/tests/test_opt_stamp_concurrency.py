@@ -23,7 +23,7 @@ together on every iteration.  Runtime is a fraction of a second.
 import threading
 import unittest
 
-from odoo.orm.domain import optimizations
+from odoo.orm.domain import optimizations  # noqa: F401  (registers the passes)
 from odoo.orm.domain.ast import (
     Domain,
     DomainNary,

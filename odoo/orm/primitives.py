@@ -26,7 +26,7 @@ class NewId:
     equality). Matches ``test_orm.test_sort``.
     """
 
-    __slots__ = ("origin", "ref", "__hash")
+    __slots__ = ("__hash", "origin", "ref")
 
     def __init__(self, origin: int | None = None, ref: typing.Any = None) -> None:
         self.origin = origin

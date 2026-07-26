@@ -16,18 +16,20 @@ from odoo.orm.primitives import NewId
 class TestNewIdVsInt:
     def test_origin_newid_sits_between_n_and_n_plus_1(self):
         n = NewId(origin=5)
+        # the int-on-the-left forms exercise the REFLECTED operator, a
+        # different dunder from the ones above -- do not "unyoda" them
         assert n > 5
         assert n >= 5
         assert not n < 5
         assert not n <= 5
-        assert 5 < n
-        assert 5 <= n
+        assert 5 < n  # noqa: SIM300
+        assert 5 <= n  # noqa: SIM300
         assert n < 6
         assert n <= 6
         assert not n > 6
         assert not n >= 6
-        assert 6 > n
-        assert 6 >= n
+        assert 6 > n  # noqa: SIM300
+        assert 6 >= n  # noqa: SIM300
 
     def test_originless_newid_is_plus_infinity_vs_int(self):
         n = NewId()
@@ -116,7 +118,7 @@ class TestEqualityHashAndOrigin:
 
     def test_equality_against_non_newid_is_false(self):
         assert NewId(origin=5) != 5
-        assert NewId() != False
+        assert NewId() != False  # noqa: E712
 
     def test_hash_follows_origin_then_ref(self):
         assert hash(NewId(origin=5)) == hash(NewId(origin=5)) == hash(5)
@@ -134,5 +136,6 @@ class TestEqualityHashAndOrigin:
         assert not NewId(ref="r")
 
     def test_comparison_with_unsupported_type_raises(self):
+        """The comparison itself is the subject, hence the bare expression."""
         with pytest.raises(TypeError):
-            NewId() < "abc"
+            NewId() < "abc"  # noqa: B015

@@ -27,6 +27,15 @@ _schema = logging.getLogger("odoo.schema")
 class _RegistryFieldsMixin(_RegistryStubs):
     """Field-dependency graph: triggers, inverses, computed-field deps."""
 
+    def _publish_field_metadata(self) -> tuple:
+        """Return the inverses and co-computed groups, publishing them on the way.
+
+        Both are ``cached_property`` whose evaluation publishes into
+        ``model_graph``, and the trigger build needs them there before it
+        freezes. Callers that only need the publication discard the result.
+        """
+        return self.field_inverses, self.field_computed
+
     def _ensure_field_triggers(self) -> dict:
         """Return the trigger map, building and publishing it if needed.
 
@@ -54,7 +63,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
             for field in model_cls._fields.values():
                 if field.relational:
                     field.setup_inverses(self, result)
-        self.model_graph._inverses = result
+        self.model_graph.set_inverses(result)
         return result
 
     @functools.cached_property
@@ -97,7 +106,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
                         f"Use distinct compute methods for stored and non-stored fields.",
                         stacklevel=1,
                     )
-        self.model_graph._computed = computed
+        self.model_graph.set_computed(computed)
         return computed
 
     def get_trigger_tree(
@@ -199,8 +208,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
         if not graph.set_triggers(new_triggers, epoch=start_epoch):
             return graph._triggers
 
-        self.field_inverses
-        self.field_computed
+        self._publish_field_metadata()
 
         graph.freeze()
 

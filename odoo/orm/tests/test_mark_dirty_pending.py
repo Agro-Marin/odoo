@@ -56,7 +56,7 @@ class Thing(models.Model):
 
 def _write_survives_pending(env, field_name):
     record = env["x.thing"].create({"src": "a"})
-    record.name_plain, record.name_trans
+    _warm = (record.name_plain, record.name_trans)
     record.write({"src": "b"})
     record.write({field_name: "manual"})
     field = record._fields[field_name]

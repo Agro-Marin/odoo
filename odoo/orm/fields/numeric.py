@@ -250,7 +250,8 @@ class Float(Field[float]):
 
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
-        if value or value == 0.0:
+        # exact zero is the point: it separates 0.0 from an unset value
+        if value or value == 0.0:  # noqa: RUF069
             return value
         return ""
 
@@ -440,7 +441,8 @@ class Monetary(Field[float]):
 
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
-        if value or value == 0.0:
+        # exact zero is the point: it separates 0.0 from an unset value
+        if value or value == 0.0:  # noqa: RUF069
             return value
         return ""
 

@@ -79,11 +79,11 @@ def test_registry_builds_and_strips_granularity_suffix():
         assert "line_ids.partner_id" in depends
         assert "line_ids.partner_id.create_date" in depends
         assert not any(path.endswith("year_number") for path in depends)
-        registry._field_triggers
+        registry._ensure_field_triggers()
 
 
 def test_bad_depends_path_raises_descriptive_error():
     with model_test_env(BadOrder) as env:
         registry = env.registry
         with pytest.raises(ValueError, match=r"'name' is not relational"):
-            registry._field_triggers
+            registry._ensure_field_triggers()

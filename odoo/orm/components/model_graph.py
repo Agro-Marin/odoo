@@ -631,6 +631,22 @@ class ModelGraph:
         if state.recompute_order is None:
             state.recompute_order = self._compute_recompute_order(state.triggers)
 
+    def set_inverses(self, inverses: _Collector) -> None:
+        """Publish the field-inverses mapping built by the registry.
+
+        The registry owns the construction (it walks the model classes); the
+        graph owns the storage. Going through a method keeps that hand-off
+        greppable instead of an assignment to a private attribute from outside.
+        """
+        self._inverses = inverses
+
+    def set_computed(self, computed: dict[Any, list]) -> None:
+        """Publish the co-computed-field groups built by the registry.
+
+        See :meth:`set_inverses` for why this is a method.
+        """
+        self._computed = computed
+
     @property
     def field_inverses(self) -> _Collector:
         """Direct access to the inverses mapping."""

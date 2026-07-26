@@ -1,4 +1,4 @@
 {
-  "count": 388,
-  "note": "81 -> 388 (+307) from [REF] odoo: strip all Python and JavaScript comments. The strip removes every '# noqa' and '# pylint: disable' marker along with all other comments, so the findings they had been suppressing now surface. Not new defects and not a code regression: no rule outcome changed, only the suppressions were deleted. Measured with ruff 0.15.20 on the comment-stripped tree. This floor is a consequence of the strip, not an accepted debt increase -- if the strip is reverted, restore 81."
+  "count": 350,
+  "note": "388 -> 350 (-38): the 19.0-marin ORM audit. -9 from naming the field-trigger build barrier (_ensure_field_triggers, was a bare 'self._field_triggers' expression at 10 sites), -2 from publishing the graph metadata through ModelGraph.set_inverses/set_computed, and the rest from real fixes plus reasoned noqa where the rule is wrong (RSE102 would strip a call on a functools.partial; SIM300 on NewId tests would swap the reflected operator being tested). odoo/orm is down to a single finding. Measured with ruff 0.15.20 -- note requirements-dev.txt pins 0.15.2, which does not match the interpreter this floor was measured on."
 }
