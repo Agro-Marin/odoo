@@ -40,6 +40,7 @@ __all__ = [
     "db_connect",
     "drain_all",
     "drain_db",
+    "is_pooled",
     "sql_counter",
 ]
 
@@ -103,6 +104,22 @@ def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Conn
         msg = "URI connections not allowed"
         raise ValueError(msg)
     return Connection(_get_pool(readonly), db, info)
+
+
+def is_pooled(db_name: str) -> bool:
+    """Whether a connection pool for ``db_name`` currently exists.
+
+    Read-only: asking never creates a pool.  Intended for callers that connect
+    to a database only to inspect it and then want to leave the process exactly
+    as they found it — close the pool if they opened it, keep it if the database
+    was already being served.  See :meth:`ConnectionPool.has_database`.
+
+    :param db_name: Name of the database to test
+    """
+    return bool(
+        (_Pool and _Pool.has_database(db_name))
+        or (_Pool_readonly and _Pool_readonly.has_database(db_name))
+    )
 
 
 def close_db(db_name: str) -> None:

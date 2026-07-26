@@ -840,6 +840,22 @@ class ConnectionPool:
         except Exception:
             _logger.debug("Failed to drain pool", exc_info=True)
 
+    def has_database(self, db_name: str) -> bool:
+        """Whether any per-DSN pool for *db_name* currently exists.
+
+        A read-only predicate: unlike :meth:`ConnectionPool.cursor`, asking does
+        not create a pool.  Lets a caller that must connect to a database purely
+        to inspect it (``service.db.list_db_incompatible``) tell "this database
+        was already being served" from "I opened this pool myself", and so close
+        only the pools it created — instead of evicting a live one as a side
+        effect of looking at it.
+
+        Same database-component matching as :meth:`close_database`, so the two
+        agree on what "a pool for this database" means.
+        """
+        with self._lock:
+            return any(dict(k).get("database") == db_name for k in self._pools)
+
     def close_database(self, db_name: str) -> None:
         """Close every per-DSN pool connected to *db_name*.
 

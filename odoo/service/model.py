@@ -109,8 +109,22 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
     """Invoke the given method ``name`` on the recordset ``model``.
 
     Private methods cannot be called, only ones returned by `get_public_method`.
+
+    The ``create`` arity check runs BEFORE the call.  It used to sit next to the
+    ``result.id``/``result.ids`` narrowing that needs ``args[0]``, i.e. after the
+    method had already run — where it was unreachable, since ``create`` is
+    ``@api.model`` and so receives ``args`` untouched: an argument-less RPC
+    ``create`` raised ``TypeError: create() missing 1 required positional
+    argument: 'vals_list'`` from the ORM (verified) and never reached the guard.
+    Checked up front, the caller gets the intended ``AccessError``.
     """
     method = get_public_method(model, name)
+
+    if name == "create" and not args:
+        raise AccessError(
+            f"Method '{model._name}.create' requires a vals dict or list "
+            f"of vals dicts as its first positional argument."
+        )
 
     if getattr(method, "_api_model", False):
         recs = model
@@ -131,11 +145,6 @@ def call_kw(model: BaseModel, name: str, args: list, kwargs: Mapping) -> typing.
     result = method(recs, *args, **kwargs)
 
     if name == "create":
-        if not args:
-            raise AccessError(
-                f"Method '{model._name}.create' requires a vals dict or list "
-                f"of vals dicts as its first positional argument."
-            )
         result = result.id if isinstance(args[0], Mapping) else result.ids
     elif isinstance(result, BaseModel):
         result = result.ids

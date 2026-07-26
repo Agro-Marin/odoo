@@ -25,15 +25,10 @@ import psycopg.errors
 import pytest
 
 
-# ---------------------------------------------------------------------------
-# Module-scope import (heavy import chain — paid once per session)
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def mod():
     """Return ``odoo.service.model``, imported once per session."""
-    import odoo.service.model as m  # noqa: PLC0415
+    import odoo.service.model as m
 
     return m
 
@@ -41,14 +36,9 @@ def mod():
 @pytest.fixture(scope="module")
 def tx():
     """Return ``odoo.service.transaction`` (home of ``retrying`` + its constants)."""
-    import odoo.service.transaction as t  # noqa: PLC0415
+    import odoo.service.transaction as t
 
     return t
-
-
-# ---------------------------------------------------------------------------
-# Helpers used across multiple test classes
-# ---------------------------------------------------------------------------
 
 
 class _FakeIntegrityError(psycopg.errors.IntegrityError):
@@ -63,7 +53,6 @@ class _FakeIntegrityError(psycopg.errors.IntegrityError):
         self._pgresult = None
         self._diag_mock = MagicMock()
         self._diag_mock.table_name = table_name
-        # psycopg stores the sqlstate on the class for PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
         self.sqlstate = "23505"
 
     @property
@@ -84,14 +73,8 @@ def mock_env():
     e.registry.reset_changes = MagicMock()
     e.registry.signal_changes = MagicMock()
     e.registry.values.return_value = []
-    # env._() translation helper — forward the template as-is for assertions
     e._.side_effect = lambda tmpl, *args: tmpl % args if args else tmpl
     return e
-
-
-# ---------------------------------------------------------------------------
-# TestGetPublicMethod
-# ---------------------------------------------------------------------------
 
 
 class _FakeBaseModel:
@@ -114,8 +97,7 @@ class _FakeModel(_FakeBaseModel):
     not_callable = "a string attribute"
 
 
-# Mark the api-private method
-_FakeModel.api_private_method._api_private = True  # type: ignore[attr-defined]
+_FakeModel.api_private_method._api_private = True
 
 
 class TestGetPublicMethod:
@@ -129,22 +111,21 @@ class TestGetPublicMethod:
             yield instance
 
     def test_underscore_prefix_blocked(self, mod, fake_model) -> None:
-        from odoo.exceptions import AccessError  # noqa: PLC0415
+        from odoo.exceptions import AccessError
 
         with patch.object(mod, "BaseModel", _FakeBaseModel):
             with pytest.raises(AccessError):
                 mod.get_public_method(fake_model, "_underscore")
 
     def test_unsafe_attribute_blocked(self, mod, fake_model) -> None:
-        from odoo.exceptions import AccessError  # noqa: PLC0415
+        from odoo.exceptions import AccessError
 
-        # "__class__" is in _UNSAFE_ATTRIBUTES
         with patch.object(mod, "BaseModel", _FakeBaseModel):
             with pytest.raises(AccessError):
                 mod.get_public_method(fake_model, "__class__")
 
     def test_api_private_blocked(self, mod, fake_model) -> None:
-        from odoo.exceptions import AccessError  # noqa: PLC0415
+        from odoo.exceptions import AccessError
 
         with patch.object(mod, "BaseModel", _FakeBaseModel):
             with pytest.raises(AccessError):
@@ -183,15 +164,14 @@ class TestGetPublicMethod:
         O(definitions) — but it must still find _api_private even when the
         definition lives deep in the hierarchy.
         """
-        from odoo.exceptions import AccessError  # noqa: PLC0415
+        from odoo.exceptions import AccessError
 
         class Base(_FakeBaseModel):
             def deep_private(self) -> str:
                 return "from base"
 
-        Base.deep_private._api_private = True  # type: ignore[attr-defined]
+        Base.deep_private._api_private = True
 
-        # Three levels of inheritance — method is only in Base.__dict__
         class Mid(Base):
             pass
 
@@ -218,7 +198,6 @@ class TestGetPublicMethodCache:
     def test_success_is_cached_and_stable(self, mod, cache) -> None:
         with patch.object(mod, "BaseModel", _FakeBaseModel):
             first = mod.get_public_method(_FakeModel(), "public_method")
-            # A DIFFERENT instance of the same class must hit the cached entry.
             second = mod.get_public_method(_FakeModel(), "public_method")
         assert first is second
         assert cache[_FakeModel]["public_method"] is first
@@ -227,7 +206,7 @@ class TestGetPublicMethodCache:
         """Private / api-private / missing / non-callable names must never add a
         cache entry: caching them would let an unauthenticated caller grow the
         memo with unbounded distinct fake names (a memory DoS)."""
-        from odoo.exceptions import AccessError  # noqa: PLC0415
+        from odoo.exceptions import AccessError
 
         rejects = [
             ("_underscore", AccessError),
@@ -239,7 +218,6 @@ class TestGetPublicMethodCache:
             for name, exc in rejects:
                 with pytest.raises(exc):
                     mod.get_public_method(_FakeModel(), name)
-        # The per-class dict may exist but MUST hold no rejected name.
         assert cache.get(_FakeModel, {}) == {}
 
     def test_distinct_classes_do_not_collide(self, mod, cache) -> None:
@@ -283,11 +261,9 @@ class TestGetPublicMethodCache:
                 return "replaced"
 
             with patch.object(_FakeModel, "public_method", replacement):
-                # must observe the patch, not the memo
                 got = mod.get_public_method(_FakeModel(), "public_method")
                 assert got is replacement
 
-            # ...and must observe the restore, not the patched entry
             assert mod.get_public_method(_FakeModel(), "public_method") is original
 
     def test_rebound_method_is_still_access_checked(self, mod, cache) -> None:
@@ -304,15 +280,10 @@ class TestGetPublicMethodCache:
             def sneaky(self) -> str:
                 return "nope"
 
-            sneaky._api_private = True  # type: ignore[attr-defined]
+            sneaky._api_private = True
             with patch.object(_FakeModel, "public_method", sneaky):
                 with pytest.raises(AccessError):
                     mod.get_public_method(_FakeModel(), "public_method")
-
-
-# ---------------------------------------------------------------------------
-# TestForceLazyValues
-# ---------------------------------------------------------------------------
 
 
 def _tracked_lazy():
@@ -365,17 +336,9 @@ class TestForceLazyValues:
         assert forced()
 
     def test_lazy_dict_key_needs_no_walk(self, mod) -> None:
-        # The walk deliberately does NOT descend into dict KEYS, and does not
-        # need to: a lazy used as a dict key is forced the instant it is
-        # inserted (``lazy.__hash__`` hashes ``_value``), so it is already
-        # evaluated before the walk ever runs.  It also could never be
-        # marshalled regardless (JSON/XML-RPC keys must be strings).  Both facts
-        # are why skipping keys is safe — verify the key is forced by
-        # construction, not by ``_force_lazy_values``.
         lz, forced = _tracked_lazy()
         d = {lz: "value"}
-        assert forced()  # forced by dict construction (hashing), before the walk
-        # The walk over the built dict leaves that already-forced key untouched.
+        assert forced()
         mod._force_lazy_values(d)
         assert forced()
 
@@ -390,8 +353,6 @@ class TestForceLazyValues:
         assert forced()
 
     def test_lazy_in_dict_values_view_forced(self, mod) -> None:
-        # ``dict_values`` is neither Sequence nor Set — exercises the generic
-        # Iterable fallback that the previous design once mishandled.
         lz, forced = _tracked_lazy()
         mod._force_lazy_values({"k": lz}.values())
         assert forced()
@@ -404,7 +365,6 @@ class TestForceLazyValues:
     def test_top_level_generator_materialized_and_forced(self, mod) -> None:
         lz, forced = _tracked_lazy()
         out = mod._force_lazy_values(x for x in [lz, 2])
-        # One-shot iterators are materialized so the marshaller gets a real list.
         assert isinstance(out, list)
         assert forced()
 
@@ -418,16 +378,13 @@ class TestForceLazyValues:
         assert mod._force_lazy_values(data) == data
 
     def test_str_not_descended(self, mod) -> None:
-        # A str is a Sequence; descending it would recurse char-by-char forever.
         assert mod._force_lazy_values(["abc"]) == ["abc"]
 
     def test_str_subclass_does_not_infinite_recurse(self, mod) -> None:
         class MyStr(str):
             __slots__ = ()
 
-        # Exact-class fast path misses a str *subclass*; the isinstance(str)
-        # guard after it must still stop the char-by-char recursion.
-        mod._force_lazy_values({"k": MyStr("abcdef")})  # must not RecursionError
+        mod._force_lazy_values({"k": MyStr("abcdef")})
 
     def test_real_lazy_in_odoo_containers_forced(self, mod) -> None:
         """Real ``lazy`` values inside odoo's frozendict / OrderedSet are forced.
@@ -441,16 +398,13 @@ class TestForceLazyValues:
         s1, s2, s3 = (lazy(lambda i=i: seen.append(i)) for i in (1, 2, 3))
         result = [
             frozendict({"a": s1, "b": 2, "c": [s2]}),
-            OrderedSet([10, 20]),  # scalars only — nothing to force
+            OrderedSet([10, 20]),
             {"k": (s3, "txt", 99)},
         ]
         mod._force_lazy_values(result)
         assert sorted(seen) == [1, 2, 3]
 
     def test_scalar_heavy_collection_still_forces_lazy(self, mod) -> None:
-        # The exact-scalar fast path skips the ABC walk for ints/floats/bools/
-        # None/str/bytes; a lazy mixed in with those (and nested in a dict) must
-        # still be forced.
         lz1, f1 = _tracked_lazy()
         lz2, f2 = _tracked_lazy()
         mod._force_lazy_values([1, 2.0, True, None, "s", b"b", lz1, {"x": 3, "y": lz2}])
@@ -467,7 +421,6 @@ class TestForceLazyValues:
         """
         cyclic_list: list = [1]
         cyclic_list.append(cyclic_list)
-        # Must not raise; the same object comes back for the marshaller to handle.
         assert mod._force_lazy_values(cyclic_list) is cyclic_list
 
         cyclic_dict: dict = {}
@@ -482,13 +435,7 @@ class TestForceLazyValues:
         deep: object = "leaf"
         for _ in range(sys.getrecursionlimit() + 500):
             deep = [deep]
-        # No exception; the marshaller decides what to do with it.
         mod._force_lazy_values(deep)
-
-
-# ---------------------------------------------------------------------------
-# TestRetrying
-# ---------------------------------------------------------------------------
 
 
 class TestRetrying:
@@ -659,11 +606,10 @@ class TestRetrying:
 
     def test_integrity_error_converted_to_validation_error(self, mod, mock_env) -> None:
         """IntegrityError → ValidationError with the model's sql_error_to_message."""
-        from odoo.exceptions import ValidationError  # noqa: PLC0415
+        from odoo.exceptions import ValidationError
 
         exc = _FakeIntegrityError(table_name="some_table")
 
-        # Provide a model that matches the table name
         matching_model = MagicMock()
         matching_model._name = "some.model"
         matching_model._table = "some_table"
@@ -723,8 +669,6 @@ class TestRetrying:
         short-circuits the retry loop instead of burning the random-backoff budget on
         a connection that will never recover.
         """
-        # The cursor.closed property is `_closed or bool(_cnx.closed)`.  Reproduce
-        # both inputs so the parametrized cases cover the full truth table.
         mock_env.cr._closed = wrapper_closed
         mock_env.cr.closed = wrapper_closed or conn_dead
         exc = psycopg.errors.SerializationFailure()
@@ -863,10 +807,6 @@ class TestRetrying:
             ):
                 mod.retrying(func, mock_env)
 
-    # -- commit-time failures: the final commit() runs in its own guarded
-    # block, so a failure there (deferred constraint, post-commit hook) is
-    # NOT retried but DOES get the same cleanup/translation as an in-loop one.
-
     def test_commit_time_failure_runs_cleanup_without_retry(
         self, mod, mock_env
     ) -> None:
@@ -888,8 +828,8 @@ class TestRetrying:
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
-        assert calls == 1  # commit-time failure was NOT retried
-        mock_env.transaction.reset.assert_called()  # cleanup ran
+        assert calls == 1
+        mock_env.transaction.reset.assert_called()
         mock_env.registry.reset_changes.assert_called()
         mock_env.registry.signal_changes.assert_not_called()
 
@@ -937,14 +877,8 @@ class TestRetrying:
 
         with patch("odoo.http") as mock_http:
             mock_http.request = None
-            with pytest.raises(_FakeIntegrityError):  # raw, not ValidationError
+            with pytest.raises(_FakeIntegrityError):
                 mod.retrying(lambda: "ok", mock_env)
-
-
-# ---------------------------------------------------------------------------
-# TestRetryVocabularyMatchesPostgres — the retry SQLSTATE / exception lists
-# must describe the SAME real PG errors (mock-reality bridge)
-# ---------------------------------------------------------------------------
 
 
 class TestRetryVocabularyMatchesPostgres:
@@ -981,11 +915,6 @@ class TestRetryVocabularyMatchesPostgres:
             cls = getattr(psycopg.errors, name)
             assert issubclass(cls, tx.PG_CONCURRENCY_EXCEPTIONS_TO_RETRY), name
             assert sqlstate in tx.PG_CONCURRENCY_ERRORS_TO_RETRY, name
-
-
-# ---------------------------------------------------------------------------
-# TestRetryingRequestSideEffects — session refresh vs upload rewind ordering
-# ---------------------------------------------------------------------------
 
 
 class TestRetryingRequestSideEffects:
@@ -1032,7 +961,7 @@ class TestRetryingRequestSideEffects:
     ) -> None:
         """A non-seekable upload used to turn the friendly ValidationError into
         an opaque RuntimeError; the rewind must not run on this path at all."""
-        from odoo.exceptions import ValidationError  # noqa: PLC0415
+        from odoo.exceptions import ValidationError
 
         exc = _FakeIntegrityError(table_name="some_table")
         matching_model = MagicMock()
@@ -1100,11 +1029,6 @@ class TestRetryingRequestSideEffects:
         assert mock_rewind.call_count == tx.MAX_TRIES_ON_CONCURRENCY_FAILURE - 1
 
 
-# ---------------------------------------------------------------------------
-# TestCallKw — result shaping + access-control, no live DB
-# ---------------------------------------------------------------------------
-
-
 class TestCallKw:
     """``call_kw`` shapes the result (create -> id / ids, recordset -> ids) and
     rejects malformed argument lists.  These paths were previously untested
@@ -1132,7 +1056,6 @@ class TestCallKw:
         assert out == [1, 2]
 
     def test_recordset_result_is_reduced_to_ids(self, mod):
-        # A non-create method returning a BaseModel must be marshalled to .ids.
         rs = MagicMock(spec=mod.BaseModel)
         rs.ids = [7, 8]
         method = MagicMock(__name__="search", _api_model=False, return_value=rs)
@@ -1141,20 +1064,33 @@ class TestCallKw:
         assert out == [7, 8]
 
     def test_non_model_method_without_ids_raises_accesserror(self, mod):
-        from odoo.exceptions import AccessError  # noqa: PLC0415
+        from odoo.exceptions import AccessError
 
         method = MagicMock(__name__="write")
-        del method._api_model  # getattr(..., "_api_model", False) -> False
+        del method._api_model
         model = MagicMock()
         model._name = "res.partner"
         with patch.object(mod, "get_public_method", return_value=method):
             with pytest.raises(AccessError):
-                mod.call_kw(model, "write", [], {})  # no ids in args
+                mod.call_kw(model, "write", [], {})
 
+    def test_create_without_vals_raises_accesserror_before_calling(self, mod):
+        """The ``create`` arity guard must run BEFORE the ORM method.
 
-# ---------------------------------------------------------------------------
-# TestDispatchValidation — the object-service RPC gateway, no live DB
-# ---------------------------------------------------------------------------
+        It used to sit beside the ``result.id``/``result.ids`` narrowing that
+        needs ``args[0]`` — i.e. after the call — where it was dead code:
+        ``create`` is ``@api.model``, so ``args`` reaches the ORM untouched and
+        an argument-less RPC ``create`` raised ``TypeError: create() missing 1
+        required positional argument: 'vals_list'`` (verified against a live
+        registry) and never reached the guard.
+        """
+        from odoo.exceptions import AccessError
+
+        method = MagicMock(__name__="create", _api_model=True)
+        with patch.object(mod, "get_public_method", return_value=method):
+            with pytest.raises(AccessError, match="requires a vals dict"):
+                mod.call_kw(self._model(), "create", [], {})
+        method.assert_not_called()
 
 
 class TestDispatchValidation:
@@ -1169,7 +1105,7 @@ class TestDispatchValidation:
 
     def test_too_few_params_raises_typeerror(self, mod):
         with pytest.raises(TypeError):
-            mod.dispatch("execute", ["db", 1, "pw"])  # < 5 positional args
+            mod.dispatch("execute", ["db", 1, "pw"])
 
     def test_unexposed_database_refused_before_registry(self, mod):
         """``execute_kw`` takes ``db`` off the wire and verifies credentials
@@ -1183,7 +1119,7 @@ class TestDispatchValidation:
         from odoo.exceptions import AccessDenied
         from odoo.tools import config
 
-        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+        def _must_not_run(*a, **kw):
             raise AssertionError("Registry must not be built for an unexposed db")
 
         with (
@@ -1201,7 +1137,7 @@ class TestDispatchValidation:
         the RPC layer would surface as a 500 rather than AccessDenied."""
         from odoo.exceptions import AccessDenied
 
-        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+        def _must_not_run(*a, **kw):
             raise AssertionError("Registry must not be built for a system db")
 
         with patch.object(mod, "Registry", side_effect=_must_not_run):
@@ -1275,26 +1211,20 @@ class TestDispatchValidation:
         assert not isinstance(excinfo.value, AccessDenied)
 
     def test_bool_uid_rejected_before_registry(self, mod):
-        # int(True) == 1 would silently bind uid to admin; reject it with a
-        # typed error. This fires before Registry(db), so no DB is needed.
         with pytest.raises(TypeError):
             mod.dispatch("execute", ["db", True, "pw", "res.partner", "read", [1]])
 
     def test_float_uid_rejected_before_registry(self, mod):
-        # int(1.9) == 1 would silently truncate a float uid to admin; require an
-        # exact int, like the bool guard above.  Fires before Registry(db).
         with pytest.raises(TypeError):
             mod.dispatch("execute", ["db", 1.9, "pw", "res.partner", "read", [1]])
 
     def test_empty_password_raises_accessdenied(self, mod):
-        from odoo.exceptions import AccessDenied  # noqa: PLC0415
+        from odoo.exceptions import AccessDenied
 
         with pytest.raises(AccessDenied):
             mod.dispatch("execute", ["db", 1, "", "res.partner", "read", [1]])
 
     def test_execute_kw_bad_arg_shape_raises_typeerror(self, mod):
-        # execute_kw accepts (args, [kw]); 3 trailing positionals is malformed.
-        # Patch Registry so we exercise the arg-shape guard, not DB access.
         with patch.object(mod, "Registry") as reg:
             reg.return_value.check_signaling.return_value = reg.return_value
             with pytest.raises(TypeError):

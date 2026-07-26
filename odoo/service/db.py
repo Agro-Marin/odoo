@@ -1,4 +1,5 @@
 import base64
+import functools
 import json
 import logging
 import os
@@ -23,7 +24,6 @@ import odoo.modules.db
 import odoo.modules.neutralize
 import odoo.release
 import odoo.tools
-from odoo.libs.filesystem import osutil
 from odoo.release import version_info
 from odoo.tools import SQL
 from odoo.tools.misc import exec_pg_environ, find_pg_tool
@@ -147,6 +147,23 @@ def _create_empty_database(
     ``SELECT`` is racy): attempt ``CREATE DATABASE`` directly and translate PG's
     ``42P04`` (``DuplicateDatabase``) into the canonical ``DatabaseExists``.
 
+    ``CREATE DATABASE ... TEMPLATE t`` also needs zero sessions on ``t``, so it
+    is retried through :func:`_retry_on_object_in_use` like the sibling
+    database-level DDLs.  With the upstream default template this never fires —
+    ``template0`` is ``datallowconn = false``, so nothing can be connected — but
+    ``--db-template`` is documented and supported, and a populated template
+    (this workspace's ``tpl_p314o19marin``) is ``datallowconn = true``: one
+    ``psql`` session on it is enough to fail every database creation on the
+    instance, including the auto-create-on-serve boot path.  Without the retry
+    that surfaced as a raw ``psycopg.errors.ObjectInUse``.
+
+    Unlike DROP / RENAME / DUPLICATE this deliberately does NOT terminate the
+    blocking sessions (no ``_drop_conn``): those ops evict connections to a
+    database they are about to destroy or rewrite, whereas the blocker here is a
+    third party's session on a template this call only READS — very likely the
+    operator maintaining it.  Backoff-only retries the transient case and leaves
+    the deliberate one alone, failing with an error that names the template.
+
     :param template: override the configured ``db_template``. ``restore_db``
         passes ``"template0"``: a dump replay needs a bare canvas — any object
         a populated template pre-creates (e.g. ``orm_signaling_*``) collides
@@ -187,10 +204,17 @@ def _create_empty_database(
                 database_identifier(cr, chosen_template),
             )
         already_exists = False
-        try:
-            cr.execute(create_sql, log_exceptions=False)
-        except psycopg.errors.DuplicateDatabase:
-            already_exists = True
+
+        def _create() -> None:
+            nonlocal already_exists
+            try:
+                cr.execute(create_sql, log_exceptions=False)
+            except psycopg.errors.DuplicateDatabase:
+                already_exists = True
+
+        _retry_on_object_in_use(
+            f"CREATE DB: {name} (template {chosen_template})", _create
+        )
 
     if already_exists and not setup_if_exists:
         raise DatabaseExists(f"database {name!r} already exists!")
@@ -380,27 +404,31 @@ _DROP_DATABASE_MAX_RETRIES = 5
 _DROP_DATABASE_BACKOFF_BASE = 0.2
 
 
-def _retry_terminate_then_ddl(
-    cr: BaseCursor,
-    terminate_target: str,
+def _retry_on_object_in_use(
     op_label: str,
     run: Callable[[], None],
+    *,
+    before_attempt: Callable[[], None] | None = None,
 ) -> None:
-    """Run a database-level DDL op under the terminate-then-act retry loop
-    shared by DROP / DUPLICATE / RENAME.
+    """Run a database-level DDL op, retrying while PG reports ``ObjectInUse``.
 
-    These DDLs need zero sessions on the source/target; ``_drop_conn`` evicts
-    them best-effort, but a fresh request can reconnect before the DDL, so PG
-    raises ``ObjectInUse`` (55006).  Each attempt re-terminates and re-runs
-    ``run`` with exponential backoff.
+    Every ``CREATE``/``DROP``/``ALTER ... RENAME`` at the database level needs
+    zero sessions on the database it reads or writes, and raises ``ObjectInUse``
+    (55006) otherwise.  Because the sessions belong to other processes, that is a
+    race rather than a permanent failure, so it is retried with exponential
+    backoff instead of surfacing raw to the caller.
 
+    ``before_attempt`` runs before each try; ``_retry_terminate_then_ddl``
+    supplies the connection-eviction step for the ops that are entitled to it.
     ``run`` MUST let ``ObjectInUse`` propagate (so this loop retries) and may
     raise any other exception to abort immediately.  After the retries are
-    exhausted the last ``ObjectInUse`` is re-raised wrapped in ``RuntimeError``.
+    exhausted the last ``ObjectInUse`` is re-raised wrapped in ``RuntimeError``,
+    so callers see one actionable error type rather than a bare psycopg class.
     """
     last_error: psycopg.errors.ObjectInUse | None = None
     for attempt in range(1, _DROP_DATABASE_MAX_RETRIES + 1):
-        _drop_conn(cr, terminate_target)
+        if before_attempt is not None:
+            before_attempt()
         try:
             run()
         except psycopg.errors.ObjectInUse as e:
@@ -420,6 +448,31 @@ def _retry_terminate_then_ddl(
         f"{op_label}: still in use after {_DROP_DATABASE_MAX_RETRIES} "
         f"attempts: {last_error}"
     ) from last_error
+
+
+def _retry_terminate_then_ddl(
+    cr: BaseCursor,
+    terminate_target: str,
+    op_label: str,
+    run: Callable[[], None],
+) -> None:
+    """Terminate-then-act variant of :func:`_retry_on_object_in_use`.
+
+    Used by DROP / DUPLICATE / RENAME, which are entitled to evict the sessions
+    standing in their way: they are about to destroy or rewrite
+    ``terminate_target``, so a connection to it is already doomed.
+
+    ``_drop_conn`` evicts best-effort (it needs superuser or
+    ``pg_signal_backend``), and a fresh request can reconnect before the DDL
+    lands, which is why the eviction is re-run on every attempt rather than once
+    up front.
+
+    CREATE deliberately does NOT use this variant — see
+    :func:`_create_empty_database`.
+    """
+    _retry_on_object_in_use(
+        op_label, run, before_attempt=lambda: _drop_conn(cr, terminate_target)
+    )
 
 
 _RESTORE_MAX_EXPANSION_RATIO = 50
@@ -635,9 +688,11 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
     """Run ``pg_dump`` to completion, raising ``RuntimeError`` on timeout/error.
 
-    Shared by the two blocking dump paths (zip, via ``--file=``; and buffered
-    custom format to a ``TemporaryFile``).  Bounded by ``_pg_dump_total_timeout``
-    so a hung pg_dump can't block a worker — ``subprocess.run`` kills and reaps.
+    Used by the buffered custom-format path (``stream=None``), which needs the
+    whole dump on disk before it can hand back a seekable file.  Every other dump
+    path streams through :func:`_run_pg_dump_streaming`.  Bounded by
+    ``_pg_dump_total_timeout`` so a hung pg_dump can't block a worker —
+    ``subprocess.run`` kills and reaps.
     """
     timeout = _pg_dump_total_timeout()
     try:
@@ -763,6 +818,69 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         )
 
 
+def _zip_filestore_into(zipf: zipfile.ZipFile, filestore: str) -> None:
+    """Add ``filestore``'s files to ``zipf`` under ``filestore/``, in place.
+
+    Reads the LIVE filestore rather than a staged copy — see :func:`dump_db`.
+    Symlinks are resolved and any target escaping ``filestore`` is skipped, so a
+    stray link cannot pull arbitrary host files into a backup (the containment
+    check :func:`osutil.zip_dir` performed, kept here now that the walk is ours).
+    """
+    root = Path(filestore)
+    if not root.is_dir():
+        return
+    root_real = os.path.realpath(root)
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for fname in sorted(filenames):
+            fpath = Path(dirpath, fname)
+            real = os.path.realpath(fpath)
+            if not Path(real).is_file():
+                continue
+            if os.path.commonpath([root_real, real]) != root_real:
+                _logger.warning(
+                    "DUMP DB: skipping filestore entry %r, it resolves outside "
+                    "the filestore (%r)",
+                    str(fpath),
+                    real,
+                )
+                continue
+            zipf.write(fpath, str(Path("filestore", fpath.relative_to(root))))
+
+
+def _write_zip_dump(
+    db_name: str,
+    stream: IO[bytes],
+    cmd: list[str],
+    env: dict,
+    with_filestore: bool,
+) -> None:
+    """Write the v8+ zip backup of ``db_name`` straight into ``stream``.
+
+    Members are produced in place — ``manifest.json``, then ``dump.sql`` streamed
+    from ``pg_dump``'s stdout through the deflater, then the filestore read from
+    where it lives.  Nothing is staged on disk first, which is the point: the
+    previous implementation assembled the whole backup in a
+    ``TemporaryDirectory`` (``shutil.copytree`` of the entire filestore plus the
+    UNCOMPRESSED ``dump.sql``) and only then zipped that tree.  ``TMPDIR`` is
+    frequently a tmpfs — it is a 16 GiB one on this workspace — so that staging
+    copy was charged to RAM: a 201 MiB filestore drove ``/tmp`` usage up 204 MiB
+    (measured; 3 MiB with ``with_filestore=False``, which isolates the copytree
+    as the cause).  Peak temp space is now the compressed archive alone, and only
+    when the caller passes no ``stream``.
+    """
+    with zipfile.ZipFile(
+        stream, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
+    ) as zipf:
+        db = odoo.db.db_connect(db_name)
+        with db.cursor() as cr:
+            manifest = dump_db_manifest(cr)
+        zipf.writestr("manifest.json", json.dumps(manifest, indent=4))
+        with zipf.open("dump.sql", "w") as sql_member:
+            _run_pg_dump_streaming(cmd, env, sql_member)
+        if with_filestore:
+            _zip_filestore_into(zipf, odoo.tools.config.filestore(db_name))
+
+
 @check_db_management_enabled
 def dump_db(
     db_name: str,
@@ -775,11 +893,13 @@ def dump_db(
 
     .. warning::
         For the ``zip`` format this is a **best-effort online snapshot**, not a
-        transactional one: the manifest, then the filestore copytree, then
-        ``pg_dump`` run in sequence, so writes during the copytree→pg_dump window
-        yield inconsistent dumps (an attachment row without its file, or vice
-        versa).  For a backup-of-record on a busy DB, freeze writes externally or
-        use physical-replica snapshots.
+        transactional one: ``pg_dump`` and the filestore read run in sequence, so
+        writes landing in between are not captured coherently.  The SQL is taken
+        FIRST and the filestore after, which makes the residue benign — a file
+        with no row that references it, rather than a row whose file is missing.
+        (The reverse order, which staging the filestore first used to impose,
+        produced the broken direction.)  For a backup-of-record on a busy DB,
+        freeze writes externally or use physical-replica snapshots.
     """
     validate_db_name(db_name)
     if backup_format not in BACKUP_FORMATS:
@@ -799,33 +919,17 @@ def dump_db(
     env = exec_pg_environ()
 
     if backup_format == "zip":
-        with tempfile.TemporaryDirectory() as dump_dir:
-            with Path(dump_dir, "manifest.json").open("w") as fh:
-                db = odoo.db.db_connect(db_name)
-                with db.cursor() as cr:
-                    json.dump(dump_db_manifest(cr), fh, indent=4)
-            if with_filestore:
-                filestore = odoo.tools.config.filestore(db_name)
-                if Path(filestore).exists():
-                    shutil.copytree(filestore, Path(dump_dir, "filestore"))
-            cmd.insert(-1, "--file=" + str(Path(dump_dir, "dump.sql")))
-            _run_pg_dump_blocking(cmd, env, stdout=subprocess.DEVNULL)
-            dump_sql_last = lambda file_name: file_name != "dump.sql"
-            if stream:
-                osutil.zip_dir(
-                    dump_dir, stream, include_dir=False, fnct_sort=dump_sql_last
-                )
-            else:
-                t = tempfile.TemporaryFile()
-                try:
-                    osutil.zip_dir(
-                        dump_dir, t, include_dir=False, fnct_sort=dump_sql_last
-                    )
-                    t.seek(0)
-                except BaseException:
-                    t.close()
-                    raise
-                return t
+        if stream:
+            _write_zip_dump(db_name, stream, cmd, env, with_filestore)
+        else:
+            t = tempfile.TemporaryFile()
+            try:
+                _write_zip_dump(db_name, t, cmd, env, with_filestore)
+                t.seek(0)
+            except BaseException:
+                t.close()
+                raise
+            return t
     else:
         cmd.insert(-1, "--format=c")
         if stream:
@@ -1296,11 +1400,29 @@ def list_dbs(force: bool = False) -> list[str]:
 def list_db_incompatible(databases: list[str]) -> list[str]:
     """Check a list of databases for compatibility with this version of Odoo.
 
+    Leaves the process's connection pools as it found them.  This is an
+    INSPECTION helper reached from an ``auth="none"`` page (the database
+    manager / selector calls it on every render, via
+    ``web.controllers.database._render_template``), so it must not evict a pool
+    that something else is using: each eviction costs the next request to that
+    database a full pool rebuild — measured at ~4.9 ms versus ~0.24 ms on a warm
+    pool, for every database on the instance, on every render.
+
+    So a pool is closed only when this call is the reason it exists (probing a
+    database nobody was serving — leaving that pool behind would be a leak), or
+    when the database turns out to be INCOMPATIBLE and therefore will not be
+    served anyway.  A compatible database that already had a pool keeps it.
+
+    In-flight work was never at risk either way — a checked-out connection
+    survives its pool's close, and registries are untouched — so the whole cost
+    of the old unconditional close was reconnect latency.
+
     :param databases: A list of existing Postgresql databases
     :return: A list of databases that are incompatible
     """
     incompatible_databases = []
     server_version = ".".join(str(v) for v in version_info[:2])
+    preexisting = {name for name in databases if odoo.db.is_pooled(name)}
     for database_name in databases:
         try:
             with closing(odoo.db.db_connect(database_name).cursor()) as cr:
@@ -1326,7 +1448,8 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
                 exc_info=True,
             )
             incompatible_databases.append(database_name)
-        finally:
+    for database_name in databases:
+        if database_name in incompatible_databases or database_name not in preexisting:
             odoo.db.close_db(database_name)
     return incompatible_databases
 
@@ -1345,22 +1468,40 @@ def exp_list_lang() -> list:
     return odoo.tools.misc.scan_languages()
 
 
+@functools.cache
+def _scan_countries() -> tuple[tuple[str, str], ...]:
+    """Parse the bundled ``res.country`` XML once per process.
+
+    The answer is a constant of the installation — a shipped data file read from
+    ``config.root_path``, which cannot change while the process runs — but
+    ``list_countries`` is an ``auth="none"`` RPC verb (no master password), so an
+    uncached parse re-read 71 KB of XML on every anonymous call, measured at
+    1.17 ms.  Cached, the work happens once.
+
+    Returns a tuple of tuples so the cached value cannot be mutated by a caller;
+    :func:`exp_list_countries` copies it back into the ``list``-of-``list`` shape
+    its RPC contract promises.
+    """
+    root = ET.parse(
+        Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
+    ).getroot()
+    countries = []
+    for country in root.findall('.//record[@model="res.country"]'):
+        name = country.find('field[@name="name"]').text
+        code = country.find('field[@name="code"]').text
+        countries.append((code, name))
+    return tuple(sorted(countries, key=lambda c: c[1]))
+
+
 def exp_list_countries() -> list[list[str]]:
     """Return ``[code, name]`` pairs for every country shipped in ``res.country`` XML.
 
     Reads the bundled XML directly rather than querying a database so it
     works before any DB exists (the DB-creation wizard needs this list
-    on the pre-database selector page).
+    on the pre-database selector page).  The parse is memoized in
+    :func:`_scan_countries`; this builds the fresh mutable result each call.
     """
-    list_countries = []
-    root = ET.parse(
-        Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
-    ).getroot()
-    for country in root.findall('.//record[@model="res.country"]'):
-        name = country.find('field[@name="name"]').text
-        code = country.find('field[@name="code"]').text
-        list_countries.append([code, name])
-    return sorted(list_countries, key=lambda c: c[1])
+    return [[code, name] for code, name in _scan_countries()]
 
 
 def exp_server_version() -> str:
