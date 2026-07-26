@@ -1,15 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import common
-from odoo.tests.common import tagged
 
 
 class TestUTMCommon(common.TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestUTMCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.utm_campaign = cls.env['utm.campaign'].create({'name': 'Test Campaign'})
         cls.utm_medium = cls.env['utm.medium'].create({'name': 'Test Medium'})

@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import itertools
 import re
 from collections import defaultdict
-import itertools
 
 from odoo import api, fields, models
 from odoo.fields import Domain
@@ -24,7 +23,7 @@ class UtmMixin(models.AbstractModel):
 
     @api.model
     def default_get(self, fields):
-        values = super(UtmMixin, self).default_get(fields)
+        values = super().default_get(fields)
 
         # We ignore UTM for salesmen, except some requests that could be done as superuser_id to bypass access rights.
         if not self.env.is_superuser() and self.env.user.has_group('sales_team.group_sale_salesman'):

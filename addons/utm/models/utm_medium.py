@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 
+import re
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-
-import re
 
 
 class UtmMedium(models.Model):
@@ -24,7 +23,7 @@ class UtmMedium(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         new_names = self.env['utm.mixin']._get_unique_names(self._name, [vals.get('name') for vals in vals_list])
-        for vals, new_name in zip(vals_list, new_names):
+        for vals, new_name in zip(vals_list, new_names, strict=True):
             vals['name'] = new_name
         return super().create(vals_list)
 

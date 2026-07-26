@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api
+from odoo import api, fields, models
 
 
 class UtmCampaign(models.Model):
@@ -38,7 +37,7 @@ class UtmCampaign(models.Model):
         new_names = self.env['utm.mixin'].with_context(
             utm_check_skip_record_ids=self.ids
         )._get_unique_names(self._name, [c.title for c in self])
-        for campaign, new_name in zip(self, new_names):
+        for campaign, new_name in zip(self, new_names, strict=True):
             campaign.name = new_name
 
     @api.model_create_multi
@@ -47,7 +46,7 @@ class UtmCampaign(models.Model):
             if not vals.get('title') and vals.get('name'):
                 vals['title'] = vals['name']
         new_names = self.env['utm.mixin']._get_unique_names(self._name, [vals.get('name') for vals in vals_list])
-        for vals, new_name in zip(vals_list, new_names):
+        for vals, new_name in zip(vals_list, new_names, strict=True):
             if new_name:
                 vals['name'] = new_name
         return super().create(vals_list)
