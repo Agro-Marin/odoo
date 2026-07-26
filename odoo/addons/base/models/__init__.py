@@ -18,7 +18,7 @@ from . import ir_asset
 
 from . import ir_actions
 from . import ir_actions_server
-from . import ir_embedded_actions
+from . import ir_actions_embedded
 from . import ir_actions_report
 
 from . import ir_attachment_storage
