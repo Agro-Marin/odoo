@@ -8,6 +8,7 @@ from typing import Self
 from odoo.exceptions import LockError, UserError
 from odoo.tools import SQL, Query, partition
 from odoo.tools.orm_profiler import _OrmProfile
+from odoo.tools.translate import _
 
 from ... import decorators as api
 from ..._typing import (
@@ -447,7 +448,7 @@ class SearchMixin(_ModelStubs):
 
         if limit is not None and limit is not False:
             query.limit = 1 if limit is True else limit
-        if offset is not None:
+        if offset is not None and offset is not False:
             query.offset = 1 if offset is True else offset
 
         prof.stop()
@@ -670,6 +671,3 @@ class SearchMixin(_ModelStubs):
         real_ids = (id_ for [id_] in self.env.execute_query(sql))
         valid_ids = {*real_ids, *new_ids}
         return self.browse(i for i in self._ids if i in valid_ids)
-
-
-from odoo.tools.translate import _
