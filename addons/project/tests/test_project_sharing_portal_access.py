@@ -1,3 +1,4 @@
+import contextlib
 import json
 from collections import OrderedDict
 from re import search
@@ -34,21 +35,41 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
 
         Task = cls.env["project.task"]
         readable_fields, writeable_fields = Task._portal_accessible_fields()
+
+        # `html.field.history.mixin` drops html_field_history from create/write
+        # vals for every user, so writing it never raises -- it is protected by
+        # being ignored, not by an AccessError. Exclude it from all four groups.
+        field_exception = {"html_field_history"}
+
         cls.read_protected_fields_task = OrderedDict(
-            [(k, v) for k, v in Task._fields.items() if k in readable_fields]
+            [
+                (k, v)
+                for k, v in Task._fields.items()
+                if k in readable_fields and k not in field_exception
+            ]
         )
         cls.write_protected_fields_task = OrderedDict(
-            [(k, v) for k, v in Task._fields.items() if k in writeable_fields]
+            [
+                (k, v)
+                for k, v in Task._fields.items()
+                if k in writeable_fields and k not in field_exception
+            ]
         )
         cls.readonly_protected_fields_task = OrderedDict(
             [
                 (k, v)
                 for k, v in Task._fields.items()
-                if k in readable_fields and k not in writeable_fields
+                if k in readable_fields
+                and k not in writeable_fields
+                and k not in field_exception
             ]
         )
         cls.other_fields_task = OrderedDict(
-            [(k, v) for k, v in Task._fields.items() if k not in readable_fields]
+            [
+                (k, v)
+                for k, v in Task._fields.items()
+                if k not in readable_fields and k not in field_exception
+            ]
         )
 
     def test_mention_suggestions(self) -> None:
@@ -121,6 +142,30 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
                 AccessError, msg=f"Field {field} should be inaccessible"
             ):
                 task.read([field])
+
+    def test_portal_user_cannot_forge_html_field_history(self) -> None:
+        """The exception carved out of the field groups, pinned explicitly.
+
+        Two independent layers stop a portal collaborator forging another
+        user's revision history: `html.field.history.mixin` drops the key from
+        vals, and behind it the field ACL raises. Because the first layer runs
+        first, the write raises nothing -- which is why the field cannot sit in
+        `other_fields_task` with the AccessError-expecting fields. Assert the
+        invariant instead of either mechanism, so this still holds if the outer
+        layer is removed.
+        """
+        task = self.task_portal.with_user(self.user_portal)
+        before = self.task_portal.sudo().html_field_history
+
+        with contextlib.suppress(AccessError):
+            task.write({"html_field_history": {"description": [{"patch": "forged"}]}})
+
+        self.task_portal.invalidate_recordset(["html_field_history"])
+        self.assertEqual(
+            self.task_portal.sudo().html_field_history,
+            before,
+            "a portal collaborator must not be able to write the revision history",
+        )
 
     def test_write_task_with_portal_user(self) -> None:
         task = self.task_portal.with_user(self.user_portal)
