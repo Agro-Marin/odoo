@@ -128,10 +128,23 @@ class AssetAttachmentStore:
 
         The single write-side source for :meth:`save_attachment` and the
         cross-params fallback copy in :meth:`get_attachments`. The identity
-        columns set here (``res_model='ir.ui.view'``, ``res_id`` coerced to
-        ``0``, ``public=True``, ``create_uid=SUPERUSER_ID``) are exactly the
-        columns :meth:`get_attachments` / :meth:`_clean_attachments` filter on,
-        so the read and write halves cannot drift.
+        columns set here (``res_model='ir.ui.view'``, ``res_id``, ``public``)
+        are exactly the columns :meth:`get_attachments` /
+        :meth:`_clean_attachments` filter on, so the read and write halves
+        cannot drift.
+
+        Two of those columns are not literally what the readers match on, and
+        both are load-bearing:
+
+        * ``res_id`` is written as ``False`` but read as ``= 0``. ``res_id`` is
+          an integer-backed ``Many2oneReference``, so ``False`` is stored as
+          ``0``, not NULL — a NULL would make every lookup and every cleanup
+          silently match nothing and leak an attachment per build.
+        * ``create_uid`` is NOT in this payload; it comes from the
+          ``with_user(SUPERUSER_ID)`` both writers apply. Setting it here would
+          be ignored (it is a ``log_access`` column written by the ORM), so the
+          filter and the write agree only as long as the writers keep that
+          ``with_user``.
         """
         return {
             "name": name,

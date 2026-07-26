@@ -1,5 +1,4 @@
 import re
-import textwrap
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
@@ -165,18 +164,23 @@ class XmlTemplatePipeline:
 
         Non-ESM bundles ship templates inside the concatenated ``.min.js`` via
         this wrapper; ESM bundles use :meth:`generate_esm_template_bundle`.
+
+        Written unindented rather than ``textwrap.dedent``-ed: the interpolated
+        ``registerTemplate(...)`` lines start at column 0, so they used to drag
+        the computed common prefix to ``""`` and turn the dedent into a no-op
+        that shipped the literal's own indentation instead.
         """
         templates = self.generate_xml_bundle()
-        return textwrap.dedent(f"""
-
-            /*******************************************
-            *  Templates                               *
-            *******************************************/
-
-            (function() {{
-                "use strict";
-                const {{ {self._TEMPLATE_REGISTRARS} }} = odoo.loader.modules.get("{self._TEMPLATE_MODULE}");
-                /* {self._bundle.name} */
-                {templates}
-            }})();
-        """)
+        return (
+            "\n\n"
+            "/*******************************************\n"
+            "*  Templates                               *\n"
+            "*******************************************/\n\n"
+            "(function() {\n"
+            '    "use strict";\n'
+            f"    const {{ {self._TEMPLATE_REGISTRARS} }} = "
+            f'odoo.loader.modules.get("{self._TEMPLATE_MODULE}");\n'
+            f"    /* {self._bundle.name} */\n"
+            f"{templates}\n"
+            "})();\n"
+        )

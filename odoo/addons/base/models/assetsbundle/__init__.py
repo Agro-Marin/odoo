@@ -29,6 +29,7 @@ from odoo.tools.assets.esm_graph import (
 from .assets import (
     JavascriptAsset,
     PreprocessedCSS,
+    SassStylesheetAsset,
     ScssStylesheetAsset,
     StylesheetAsset,
     WebAsset,
@@ -36,6 +37,7 @@ from .assets import (
 )
 from .bundle import AssetsBundle
 from .common import (
+    _SCSS_STATEMENT_SPANS,
     _rewrite_css_outside_strings,
     AssetError,
     AssetNotFoundError,

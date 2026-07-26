@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .bundle import AssetsBundle
 from .assets import PreprocessedCSS, StylesheetAsset
 from .common import (
-    _CSS_STRING_OR_COMMENT,
+    _SCSS_STATEMENT_SPANS,
     CompileError,
     _logger,
     _rewrite_css_outside_strings,
@@ -84,9 +84,8 @@ class CssPipeline:
     ``sourcemap_bundle`` sequence.
     """
 
-    rx_preprocess_imports = re.compile(r"""(@import\s*['"]([^'"]+)['"]([^;{]*;?))""")
-    _rx_import_scanner = re.compile(
-        rf"//[^\n]*|(?s:{_CSS_STRING_OR_COMMENT.pattern})|{rx_preprocess_imports.pattern}",
+    rx_preprocess_imports = re.compile(
+        r"""@import\s*['"](?P<ref>[^'"]+)['"](?P<tail>[^;{]*;?)"""
     )
     rx_css_split = re.compile(r"/\*! odoo-split:([a-f0-9-]+) \*/")
 
@@ -123,10 +122,15 @@ class CssPipeline:
         if assets:
             dialects = {type(a) for a in assets}
             if len(dialects) != 1:
-                raise RuntimeError(
-                    f"bundle {bundle.name!r} mixes preprocessed-CSS dialects "
-                    f"{sorted(t.__name__ for t in dialects)}"
+                msg = (
+                    f"Bundle {bundle.name!r} mixes preprocessed-CSS dialects "
+                    f"{sorted(t.__name__ for t in dialects)}: they compile as one "
+                    "document and no compiler reads two syntaxes at once. Split "
+                    "them into separate bundles."
                 )
+                _logger.warning(msg)
+                bundle.css_errors.append(msg)
+                return ""
             source = "\n".join(asset.get_source() for asset in assets)
             compiled = self.compile_css(assets[0].compile, source)
 
@@ -211,18 +215,15 @@ class CssPipeline:
         """Sanitize @import rules, remove duplicates, then compile.
 
         Only @import statements in actual SCSS *code* are sanitized: ones
-        sitting inside a comment or string literal are passed through
-        verbatim (see :attr:`_rx_import_scanner`).
+        sitting inside a comment, a string literal or a ``url(…)`` are passed
+        through verbatim (see :data:`_SCSS_STATEMENT_SPANS`).
         """
         bundle = self._bundle
         seen_imports: set[str] = set()
 
         def sanitize_import(matchobj: re.Match) -> str:
-            token = matchobj.group(0)
-            if token[:2] in ("/*", "//") or token[:1] in ("'", '"'):
-                return token
-            ref = matchobj.group(2)
-            line = f'@import "{ref}"{matchobj.group(3)}'
+            ref = matchobj.group("ref")
+            line = f'@import "{ref}"{matchobj.group("tail")}'
             if line in seen_imports:
                 return ""
             seen_imports.add(line)
@@ -237,7 +238,12 @@ class CssPipeline:
                 return ""
             return line
 
-        source = self._rx_import_scanner.sub(sanitize_import, source)
+        source = _rewrite_css_outside_strings(
+            self.rx_preprocess_imports,
+            sanitize_import,
+            source,
+            _SCSS_STATEMENT_SPANS,
+        )
 
         try:
             return compiler(source).strip()
@@ -247,7 +253,10 @@ class CssPipeline:
             bundle.css_errors.append(error)
             return ""
 
-    _RX_APPEARANCE = re.compile(r"([{; \t])appearance:\s*([\w-]+)(\s*!important)?(;?)")
+    _RX_APPEARANCE = re.compile(
+        r"(?P<lead>[{; \t])appearance:\s*(?P<value>[\w-]+)"
+        r"(?P<important>\s*!important)?(?P<semicolon>;?)"
+    )
 
     @classmethod
     def _autoprefix_css(cls, source: str) -> str:
@@ -259,9 +268,9 @@ class CssPipeline:
         """
 
         def _prefix(match: re.Match) -> str:
-            lead, value = match.group(1), match.group(2)
-            important = match.group(3) or ""
-            semicolon = match.group(4)
+            lead, value = match.group("lead"), match.group("value")
+            important = match.group("important") or ""
+            semicolon = match.group("semicolon")
             return (
                 f"{lead}-webkit-appearance:{value}{important};"
                 f"-moz-appearance:{value}{important};"

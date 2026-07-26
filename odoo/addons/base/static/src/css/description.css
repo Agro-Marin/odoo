@@ -625,7 +625,6 @@ div.oe_demo span.oe_demo_play {
   margin-left: -40px;
   display: block;
   position: absolute;
-  background: url("../img/layout/play-button.png") no-repeat left top transparent;
   pointer-events: none;
 }
 div.oe_demo img {
@@ -647,10 +646,6 @@ div.oe_demo div.oe_demo_footer {
   border-bottom-left-radius: 3px;
   border-bottom-right-radius: 3px;
   pointer-events: none;
-}
-
-div.oe_demo:hover span.oe_demo_play {
-  background: url("../img/layout/play-button-over.png") no-repeat left top transparent;
 }
 
 /*  ----- SEPARATOR ----- */

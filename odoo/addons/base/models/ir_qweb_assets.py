@@ -2026,19 +2026,29 @@ class IrQweb(models.AbstractModel):
 
         Looks for all ``t-call-assets`` in views to build the minimal set of
         bundles. Only generates assets without extras, ignoring rtl.
+
+        :return: the generated attachments' URLs. ``js()``/``css()`` return
+            ``ir.attachment`` records, and ``links += <record>`` iterated them
+            into the list, so this returned records despite its name and
+            annotation — while the ``bus`` override appended a URL string to the
+            same list. Callers only need the URLs; taking ``.url`` here makes
+            the two halves agree.
         """
         _logger.runbot("Pregenerating assets bundles")
 
         js_bundles, css_bundles = self._get_bundles_to_pregenerate()
 
-        links = []
         start = time.time()
-        for bundle in sorted(js_bundles):
-            links += self._get_asset_bundle(bundle, css=False, js=True).js()
+        links = [
+            self._get_asset_bundle(bundle, css=False, js=True).js().url
+            for bundle in sorted(js_bundles)
+        ]
         _logger.info("JS Assets bundles generated in %s seconds", time.time() - start)
         start = time.time()
-        for bundle in sorted(css_bundles):
-            links += self._get_asset_bundle(bundle, css=True, js=False).css()
+        links += [
+            self._get_asset_bundle(bundle, css=True, js=False).css().url
+            for bundle in sorted(css_bundles)
+        ]
         _logger.info("CSS Assets bundles generated in %s seconds", time.time() - start)
         return links
 

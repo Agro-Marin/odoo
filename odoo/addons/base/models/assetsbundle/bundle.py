@@ -4,6 +4,7 @@ import logging
 import re
 from collections.abc import Callable, Collection, Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from odoo.api import Environment
@@ -12,6 +13,7 @@ from odoo.libs.constants import (
     ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
+    TEMPLATE_EXTENSIONS,
 )
 from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
 from odoo.tools.assets.esbuild import (
@@ -30,12 +32,19 @@ from odoo.tools.misc import file_path
 
 if TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment
-from .assets import JavascriptAsset, ScssStylesheetAsset, StylesheetAsset, XMLAsset
+from .assets import (
+    JavascriptAsset,
+    SassStylesheetAsset,
+    ScssStylesheetAsset,
+    StylesheetAsset,
+    XMLAsset,
+)
 from .common import (
     BundleFileSpec,
     NativeModuleData,
     XMLBlock,
     _bundle_log,
+    _pipeline_fingerprint,
     _rewrite_css_outside_strings,
     _sourcemap_source_root,
 )
@@ -62,7 +71,19 @@ class AssetsBundle:
 
     rx_css_import = re.compile(r"(@import[^;{]+;?)")
 
-    _BUNDLE_FILE_EXTENSIONS = frozenset({"scss", "css", "js", "xml"})
+    _STYLESHEET_TYPES = MappingProxyType(
+        {
+            "css": StylesheetAsset,
+            "scss": ScssStylesheetAsset,
+            "sass": SassStylesheetAsset,
+        }
+    )
+    _SCRIPT_TYPES = MappingProxyType({"js": JavascriptAsset})
+    _TEMPLATE_TYPES = MappingProxyType({"xml": XMLAsset})
+
+    _BUNDLE_FILE_EXTENSIONS = frozenset(
+        _STYLESHEET_TYPES | _SCRIPT_TYPES | _TEMPLATE_TYPES
+    )
 
     @classmethod
     def _validate_external_libs(
@@ -141,6 +162,18 @@ class AssetsBundle:
             )
 
     @staticmethod
+    def _url_extension(url: str) -> str:
+        """Return the asset-type extension of ``url``, without ``?…`` or ``#…``.
+
+        One reader for both member kinds. External assets already stripped the
+        query and the fragment; bundle files did not, so a cache-busted member
+        (``…/x.css?v=2``) yielded the extension ``"css?v=2"``, matched nothing,
+        and was dropped from the bundle with only a ``bundle_file_skipped``
+        warning to show for it.
+        """
+        return url.partition("#")[0].partition("?")[0].rpartition(".")[2]
+
+    @staticmethod
     def _addon_relative_path_exists(rel: str) -> bool:
         """Whether the addon-relative path ``rel`` exists on disk.
 
@@ -201,7 +234,7 @@ class AssetsBundle:
         self.is_debug_assets = debug_assets
         self.external_assets = []
         for url in external_assets:
-            ext = url.partition("#")[0].partition("?")[0].rpartition(".")[2]
+            ext = self._url_extension(url)
             if (css and ext in STYLE_EXTENSIONS) or (js and ext in SCRIPT_EXTENSIONS):
                 self.external_assets.append(url)
             elif ext not in STYLE_EXTENSIONS and ext not in SCRIPT_EXTENSIONS:
@@ -214,7 +247,7 @@ class AssetsBundle:
                 )
 
         for f in files:
-            extension = f["url"].rpartition(".")[2]
+            extension = self._url_extension(f["url"])
             params = {
                 "url": f["url"],
                 "filename": f["filename"],
@@ -223,30 +256,20 @@ class AssetsBundle:
                     None if self.is_debug_assets else f.get("last_modified")
                 ),
             }
-            if css:
-                css_params = {
-                    "rtl": self.rtl,
-                    "autoprefix": self.autoprefix,
-                }
-                match extension:
-                    case "scss":
-                        self.stylesheets.append(
-                            ScssStylesheetAsset(self, **params, **css_params)
-                        )
-                    case "css":
-                        self.stylesheets.append(
-                            StylesheetAsset(self, **params, **css_params)
-                        )
-            if js:
-                match extension:
-                    case "js":
-                        asset = JavascriptAsset(self, **params)
-                        if self._is_esm_bundle and self._is_module_js(asset):
-                            self.native_modules.append(asset)
-                        else:
-                            self.javascripts.append(asset)
-                    case "xml":
-                        self.templates.append(XMLAsset(self, **params))
+            if css and (stylesheet_type := self._STYLESHEET_TYPES.get(extension)):
+                self.stylesheets.append(
+                    stylesheet_type(
+                        self, **params, rtl=self.rtl, autoprefix=self.autoprefix
+                    )
+                )
+            if js and (script_type := self._SCRIPT_TYPES.get(extension)):
+                asset = script_type(self, **params)
+                if self._is_esm_bundle and self._is_module_js(asset):
+                    self.native_modules.append(asset)
+                else:
+                    self.javascripts.append(asset)
+            if js and (template_type := self._TEMPLATE_TYPES.get(extension)):
+                self.templates.append(template_type(self, **params))
             if extension not in self._BUNDLE_FILE_EXTENSIONS:
                 log_event(
                     _bundle_log,
@@ -473,13 +496,25 @@ class AssetsBundle:
         module invalidates the cache. Computed over the ``__init__`` version
         snapshot (``self._version_assets``), not the live lists, so the version
         is stable across compilation-time mutations.
+
+        Descriptors are NUL-separated. Straight concatenation is ambiguous —
+        descriptors embed their own ``,`` separators and a URL may contain one,
+        so two different asset lists could serialise to the same byte string and
+        share a version. NUL cannot occur in a URL or an mtime.
+
+        Seeded with :func:`_pipeline_fingerprint` so that changing *how* assets
+        compile invalidates the cached attachments too, not only changing the
+        assets themselves.
         """
         if asset_type not in self._checksum_cache:
             if asset_type not in self._version_assets:
                 raise ValueError(f"Asset type {asset_type} not known")
             h = hashlib.sha256()
+            h.update(_pipeline_fingerprint().encode())
+            h.update(b"\x00")
             for asset in self._version_assets[asset_type]:
                 h.update(asset.unique_descriptor.encode())
+                h.update(b"\x00")
             self._checksum_cache[asset_type] = h.hexdigest()
         return self._checksum_cache[asset_type]
 
@@ -685,3 +720,31 @@ class AssetsBundle:
     def preprocess_css(self) -> str:
         """Delegates to :meth:`CssPipeline.preprocess`."""
         return self._css.preprocess()
+
+
+def _check_extension_tables() -> None:
+    """Fail at import if the asset-type tables and the extension constants drift.
+
+    ``ir.asset`` collects bundle members by ``ASSET_EXTENSIONS`` and
+    ``ir_qweb_assets`` classifies debug links by the same three constants, but
+    only :class:`AssetsBundle` can actually *build* an asset. An extension
+    declared there and missing here is collected, linked — and then silently
+    dropped from the bundle with a ``bundle_file_skipped`` warning (this is how
+    ``sass`` behaved). The reverse is dead code: the file never reaches the
+    bundle. Both are cheap constant comparisons, so they run once at import.
+    """
+    for label, declared, handled in (
+        ("STYLE_EXTENSIONS", STYLE_EXTENSIONS, AssetsBundle._STYLESHEET_TYPES),
+        ("SCRIPT_EXTENSIONS", SCRIPT_EXTENSIONS, AssetsBundle._SCRIPT_TYPES),
+        ("TEMPLATE_EXTENSIONS", TEMPLATE_EXTENSIONS, AssetsBundle._TEMPLATE_TYPES),
+    ):
+        if set(declared) != set(handled):
+            raise ValueError(
+                f"{label} is {sorted(declared)} but AssetsBundle builds "
+                f"{sorted(handled)}. Extensions only in {label} are collected "
+                f"into bundles and then dropped; extensions only in AssetsBundle "
+                f"are unreachable."
+            )
+
+
+_check_extension_tables()
