@@ -240,6 +240,78 @@ def _limit_malloc_arenas() -> None:
         _logger.warning("Could not set ARENA_MAX through mallopt()")
 
 
+def _connection_budget_demand() -> tuple[int, int]:
+    """Return ``(processes, connections)`` this deployment may demand at once.
+
+    ``db_maxconn`` is a PER-PROCESS budget, so prefork multiplies it by every
+    child that opens pools: the HTTP workers, the cron and job workers, and the
+    evented subprocess (which uses ``db_maxconn_gevent`` when set).  The master
+    is excluded — it calls ``db.close_all()`` before its supervision loop.
+    """
+    maxconn = config["db_maxconn"]
+    if not config["workers"]:
+        return 1, maxconn
+    children = config["workers"] + config["max_cron_threads"] + config["job_workers"]
+    demand = children * maxconn
+    processes = children
+    if config["http_enable"]:
+        processes += 1
+        demand += config["db_maxconn_gevent"] or maxconn
+    return processes, demand
+
+
+def _warn_on_connection_budget() -> None:
+    """Warn when this deployment can demand more PG connections than exist.
+
+    ``db_maxconn``'s own help text already states the arithmetic — size
+    ``max_connections`` against it "multiplied by the worker count" — but
+    nothing checked it, so the failure surfaced as ``FATAL: sorry, too many
+    clients already`` from whichever worker happened to lose the race, at the
+    moment of peak load rather than at boot.
+
+    Advisory only: the numbers are ceilings, not reservations, and a deployment
+    that never saturates every worker at once is fine.  It therefore warns and
+    continues, and stays silent when PostgreSQL cannot be asked.
+
+    Every read it makes — config included, not just the two ``SHOW`` queries —
+    is inside the guard.  This runs on the boot path, so a check that exists
+    only to print advice must not be able to become the reason a server fails to
+    start; the config read was outside the guard once, and an incomplete
+    ``config`` mapping turned a diagnostic into a ``KeyError`` at startup.
+    """
+    import odoo
+
+    if odoo.evented:
+        return
+    try:
+        processes, demand = _connection_budget_demand()
+        with contextlib.closing(db.db_connect("postgres").cursor()) as cr:
+            cr.execute("SHOW max_connections")
+            server_max = int(cr.fetchone()[0])
+            cr.execute("SHOW superuser_reserved_connections")
+            reserved = int(cr.fetchone()[0])
+    except Exception:
+        _logger.debug("Could not check the connection budget", exc_info=True)
+        return
+
+    headroom = server_max - reserved
+    if demand <= headroom:
+        return
+    _logger.warning(
+        "Connection budget exceeds the server: %d process(es) x db_maxconn may "
+        "check out %d connections, but PostgreSQL allows %d (max_connections=%d "
+        "minus superuser_reserved_connections=%d). Under load this surfaces as "
+        "'FATAL: sorry, too many clients already'. Lower db_maxconn to %d or "
+        "less, reduce the worker count, or raise max_connections.",
+        processes,
+        demand,
+        headroom,
+        server_max,
+        reserved,
+        max(headroom // processes, 1),
+    )
+
+
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
     """Start the odoo http server and cron processor."""
     global server
@@ -259,6 +331,8 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     else:
         _limit_malloc_arenas()
         server = ThreadedServer(odoo.http.root)
+
+    _warn_on_connection_budget()
 
     watcher = None
     if "reload" in config["dev_mode"] and not odoo.evented:
