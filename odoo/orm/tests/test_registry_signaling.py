@@ -538,3 +538,49 @@ def test_registry_lookup_of_inflight_registry_takes_the_lock(monkeypatch):
 def test_registry_empty_db_name_rejected():
     with pytest.raises(ValueError, match="Missing database name"):
         Registry("")
+
+
+# --- per-database assertion report (CI exit code) -----------------------------
+#
+# ``odoo-bin --test-enable`` derives its exit code from
+# ``registry._assertion_report.wasSuccessful()``.  The report used to be created
+# per Registry INSTANCE, so any test that reloaded the registry published a
+# fresh empty report and erased every failure recorded before it: the run logged
+# "Module X: N failures" and "At least one test failed when loading the modules"
+# yet exited 0.  Reproduced end to end with a two-test module (one failing, one
+# calling ``Registry.new``): exit 1 without the reload, exit 0 with it.
+
+
+def test_assertion_report_is_none_outside_test_mode(monkeypatch):
+    monkeypatch.setitem(registry_module.config.options, "test_enable", False)
+    assert registry_module._get_assertion_report("some_db") is None
+
+
+def test_assertion_report_survives_a_registry_reload(monkeypatch):
+    monkeypatch.setitem(registry_module.config.options, "test_enable", True)
+    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+
+    first = registry_module._get_assertion_report("db_a")
+    assert first is not None
+    # a later Registry.new() for the SAME database must keep the same report,
+    # or the failures recorded so far vanish from the process exit code
+    assert registry_module._get_assertion_report("db_a") is first
+
+
+def test_assertion_report_is_per_database(monkeypatch):
+    monkeypatch.setitem(registry_module.config.options, "test_enable", True)
+    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+
+    assert registry_module._get_assertion_report(
+        "db_a"
+    ) is not registry_module._get_assertion_report("db_b")
+
+
+def test_recorded_failure_is_still_visible_after_a_reload(monkeypatch):
+    monkeypatch.setitem(registry_module.config.options, "test_enable", True)
+    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+
+    report = registry_module._get_assertion_report("db_a")
+    report.failures_count += 1
+    assert not report.wasSuccessful()
+    assert not registry_module._get_assertion_report("db_a").wasSuccessful()
