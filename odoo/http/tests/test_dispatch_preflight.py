@@ -55,16 +55,42 @@ def _pre_dispatch(request, rule):
     return None
 
 
-def test_credentialed_cors_echoes_origin_instead_of_wildcard():
+def test_credentialed_cors_echoes_the_origin_a_resolver_allows():
     """``Allow-Origin: *`` is forbidden by the CORS spec once credentials are
-    sent, so a ``cors_credentials`` route must echo the caller's Origin."""
+    sent, so a ``cors_credentials`` route echoes the caller's Origin — but only
+    the ones its ``cors`` resolver actually names."""
     req = _request(headers={"Origin": "https://app.example"})
-    _pre_dispatch(req, _rule(cors="*", cors_credentials=True))
+    _pre_dispatch(
+        req,
+        _rule(
+            cors=lambda r: r.httprequest.headers.get("Origin"), cors_credentials=True
+        ),
+    )
 
     headers = req.future_response.headers
     assert headers["Access-Control-Allow-Origin"] == "https://app.example"
     assert headers["Access-Control-Allow-Credentials"] == "true"
     assert "Origin" in headers["Vary"]
+
+
+def test_a_resolver_that_declines_grants_nothing():
+    req = _request(headers={"Origin": "https://evil.example"})
+    _pre_dispatch(req, _rule(cors=lambda r: None, cors_credentials=True))
+
+    headers = req.future_response.headers
+    assert "Access-Control-Allow-Origin" not in headers
+    assert "Access-Control-Allow-Credentials" not in headers
+    assert headers["Vary"] == "Origin"
+
+
+def test_a_resolver_varies_on_origin_even_without_credentials():
+    """The answer now depends on the caller, so a shared cache must key on it."""
+    req = _request(headers={"Origin": "https://app.example"})
+    _pre_dispatch(req, _rule(cors=lambda r: "https://app.example"))
+
+    headers = req.future_response.headers
+    assert headers["Access-Control-Allow-Origin"] == "https://app.example"
+    assert headers["Vary"] == "Origin"
 
 
 def test_plain_cors_still_emits_the_declared_value():
@@ -87,7 +113,7 @@ def test_credentialed_cors_emits_nothing_without_an_origin():
     two variants are cached apart.
     """
     req = _request()
-    _pre_dispatch(req, _rule(cors="*", cors_credentials=True))
+    _pre_dispatch(req, _rule(cors="https://app.example", cors_credentials=True))
 
     headers = req.future_response.headers
     assert "Access-Control-Allow-Origin" not in headers
@@ -114,7 +140,9 @@ def test_credentialed_preflight_varies_on_both_reasons():
             "Access-Control-Request-Headers": "X-Foo",
         },
     )
-    response = _pre_dispatch(req, _rule(cors="*", cors_credentials=True))
+    response = _pre_dispatch(
+        req, _rule(cors="https://app.example", cors_credentials=True)
+    )
 
     assert response.status_code == 204
     vary = req.future_response.headers["Vary"]

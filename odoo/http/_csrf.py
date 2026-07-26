@@ -15,13 +15,15 @@ import time
 
 from odoo.tools import consteq
 
+from ._protocols import RequestState
 from .constants import CSRF_TOKEN_MAX_AGE, STORED_SESSION_BYTES
 
 
-class _RequestCsrfMixin:
+class _RequestCsrfMixin(RequestState):
     """CSRF token issuance and validation for :class:`Request`.
 
-    Reads ``self.session`` and ``self.env``. Issuing a token via
+    The ``Request`` state it reads is declared by
+    :class:`~odoo.http._protocols.RequestState`. Issuing a token via
     :meth:`csrf_token` marks the session dirty (``touch``) so its sid is
     persisted and survives to the validating request; :meth:`validate_csrf`
     has no side effects.

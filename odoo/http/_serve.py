@@ -22,10 +22,12 @@ from werkzeug.exceptions import HTTPException, NotFound, UnsupportedMediaType
 import odoo.api
 from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service.transaction import retrying
 from odoo.tools import config
 
+from ._protocols import RequestState
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
 from .dispatcher import (
     HttpDispatcher,
@@ -41,12 +43,11 @@ from .wrappers import Response
 _logger = logging.getLogger(__name__)
 
 
-class _RequestServeMixin:
+class _RequestServeMixin(RequestState):
     """Routing methods mixed into :class:`~odoo.http.Request` (see module docstring).
 
-    No state of its own; reads/writes attributes Request initializes
-    (``httprequest``, ``session``, ``db``, ``env``, ``registry``, ``dispatcher``,
-    ``params``, ``future_response``).
+    No state of its own; the ``Request`` state it reads and writes is declared by
+    :class:`~odoo.http._protocols.RequestState`.
     """
 
     def _set_request_dispatcher(self, rule: Any) -> None:
@@ -186,7 +187,7 @@ class _RequestServeMixin:
         cr = None
         try:
             cr = self._acquire_registry_cursor()
-            threading.current_thread().dbname = self.registry.db_name
+            current_worker_thread().dbname = self.registry.db_name
 
             self.env = odoo.api.Environment(cr, self.session.uid, self.session.context)
             try:
@@ -207,7 +208,7 @@ class _RequestServeMixin:
             promoted = False
 
             if readonly and cr.readonly:
-                threading.current_thread().cursor_mode = "ro"
+                current_worker_thread().cursor_mode = "ro"
                 try:
                     return retrying(serve_func, env=self.env)
                 except psycopg.errors.ReadOnlySqlTransaction as exc:
@@ -221,7 +222,7 @@ class _RequestServeMixin:
                         self.httprequest.path,
                         exc_info=True,
                     )
-                    threading.current_thread().cursor_mode = "ro->rw"
+                    current_worker_thread().cursor_mode = "ro->rw"
                     self._rewind_input_files(exc)
                     self.session = self._get_session_and_dbname()[0]
                     promoted = True
@@ -229,7 +230,7 @@ class _RequestServeMixin:
                     self._update_served_exception(exc)
                     raise
             else:
-                threading.current_thread().cursor_mode = "rw"
+                current_worker_thread().cursor_mode = "rw"
 
             if cr.readonly:
                 cr.close()

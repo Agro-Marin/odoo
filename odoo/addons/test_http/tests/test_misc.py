@@ -9,6 +9,7 @@ from werkzeug.test import EnvironBuilder
 from werkzeug.wrappers import Request
 
 import odoo
+from odoo import http
 from odoo.http import content_disposition, rewind_uploaded_files, root
 from odoo.tests import tagged
 from odoo.tests.common import HOST, BaseCase, get_db_name, new_test_user
@@ -397,19 +398,44 @@ class TestHttpCors(TestHttpBase):
 @tagged("post_install", "-at_install")
 class TestHttpMethodsAllowList(TestHttpBase):
     def test_methods0_options_does_not_bypass_a_post_only_route(self):
-        """``methods=["POST"]`` must exclude OPTIONS on a CORS-less route.
+        """OPTIONS must be answered by the framework, never by a POST-only handler.
 
-        OPTIONS was appended to *every* restricted route's allow-list, but only
-        a ``cors=`` route is short-circuited by ``pre_dispatch``'s 204 preflight.
-        On a CORS-less route the verb therefore reached the endpoint — and since
-        OPTIONS is a ``SAFE_HTTP_METHODS`` member, CSRF validation was skipped
-        along the way, so a csrf-protected POST-only handler ran unauthenticated
-        with its query parameters.
+        OPTIONS is a ``SAFE_HTTP_METHODS`` member, so if it ever reached the
+        endpoint a csrf-protected POST-only handler would run with its query
+        parameters and no CSRF check. ``pre_dispatch`` intercepts it with a 204
+        that advertises what the route really accepts.
         """
         res = self.db_url_open("/test_http/echo-http-csrf?injected=1", method="OPTIONS")
-        self.assertEqual(res.status_code, 405, res.text)
+        self.assertEqual(res.status_code, 204, res.text)
         self.assertNotIn("injected", res.text, "the endpoint must not have run")
-        self.assertEqual(res.headers.get("Allow"), "POST")
+        self.assertEqual(res.headers.get("Allow"), "POST, OPTIONS")
+
+    def test_methods2_options_answer_is_uniform_across_routes(self):
+        """A route with and one without a ``methods=`` allow-list agree.
+
+        The allow-listed one used to 405 out of werkzeug while the unrestricted
+        one got a framework 204, so clients saw two different answers to the
+        same question depending on a detail of the route declaration.
+        """
+        allow_listed = self.db_url_open("/test_http/echo-http-csrf", method="OPTIONS")
+        unrestricted = self.db_url_open("/test_http/greeting", method="OPTIONS")
+        self.assertEqual(allow_listed.status_code, 204)
+        self.assertEqual(unrestricted.status_code, 204)
+        self.assertIn("OPTIONS", allow_listed.headers.get("Allow", ""))
+        self.assertIn("OPTIONS", unrestricted.headers.get("Allow", ""))
+
+    def test_methods3_trace_is_rejected_before_dispatch(self):
+        """TRACE must never reach a handler.
+
+        It is not a ``SAFE_HTTP_METHODS`` member any more, but a route without a
+        ``methods=`` allow-list still matches every verb, so the rejection has
+        to happen at the WSGI entry point rather than in the CSRF gate.
+        """
+        res = self.db_url_open("/test_http/echo-http-csrf", method="TRACE")
+        self.assertEqual(res.status_code, 405, res.text)
+        res = self.db_url_open("/test_http/greeting", method="TRACE")
+        self.assertEqual(res.status_code, 405, res.text)
+        self.assertNotIn("Tek", res.text, "the endpoint must not have run")
 
     def test_methods1_preflight_still_reaches_a_cors_route(self):
         res = self.url_open(
@@ -596,3 +622,65 @@ class TestRewindUploadedFiles(BaseCase):
 
         self.assertIs(cm.exception.__cause__, cause)
         self.assertIn("ufile", str(cm.exception))
+
+
+@tagged("post_install", "-at_install")
+class TestHttpJson2Params(TestHttpBase):
+    def test_json2_0_query_string_reaches_the_handler(self):
+        """A ``json2`` route served over GET has no body to carry parameters.
+
+        Only the JSON body and the URL path arguments used to be merged, so the
+        query string was dropped silently: a GET json2 route was unreachable
+        with arguments, and a ``typed=True`` one answered 400 whatever the
+        caller sent.
+        """
+        res = self.db_url_open("/test_http/echo-json2?q=hello&n=1")
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(res.json(), {"q": "hello", "n": "1"})
+
+    def test_json2_1_body_wins_over_the_query_string(self):
+        res = self.db_url_open(
+            "/test_http/echo-json2?q=from-query",
+            data=json.dumps({"q": "from-body"}),
+            headers=CT_JSON,
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(res.json(), {"q": "from-body"})
+
+
+@tagged("post_install", "-at_install")
+class TestHttpCorsCredentials(TestHttpBase):
+    """``cors='*'`` with credentials is refused; a resolver narrows the echo."""
+
+    def test_cors0_resolver_allows_an_origin_on_this_host(self):
+        base = self.base_url()
+        res = self.url_open(
+            f"{base}/test_http/cors-resolver", headers={"Origin": base}, timeout=10
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertEqual(res.headers.get("Access-Control-Allow-Origin"), base)
+        self.assertEqual(res.headers.get("Access-Control-Allow-Credentials"), "true")
+        self.assertIn("Origin", res.headers.get("Vary", ""))
+
+    def test_cors1_resolver_refuses_a_foreign_origin(self):
+        res = self.url_open(
+            f"{self.base_url()}/test_http/cors-resolver",
+            headers={"Origin": "https://evil.example"},
+            timeout=10,
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertIsNone(res.headers.get("Access-Control-Allow-Origin"))
+        self.assertIsNone(res.headers.get("Access-Control-Allow-Credentials"))
+        self.assertIn("Origin", res.headers.get("Vary", ""))
+
+    def test_cors2_wildcard_with_credentials_is_refused_at_decoration(self):
+        with self.assertRaises(ValueError):
+
+            @http.route(
+                "/test_http/never",
+                type="http",
+                auth="none",
+                cors="*",
+                cors_credentials=True,
+            )
+            def never(self): ...

@@ -110,7 +110,13 @@ class GeoIP(collections.abc.Mapping):
     then an empty object is returned. This empty object can be used like
     a regular one with the exception that all values are set to None.
 
-    :param str ip: The IP Address to geo-localize
+    :param ip: The IP Address to geo-localize, or ``None`` when the
+        WSGI server reported no ``REMOTE_ADDR``; an unusable address
+        resolves to the empty record like any other lookup miss.
+    :param app: the :class:`~odoo.http.Application` owning the geoip
+        databases. Required rather than defaulted to the ``root`` singleton:
+        the default was the last edge making this module import
+        ``application``, which imports this one back.
 
     .. note::
 
@@ -125,11 +131,7 @@ class GeoIP(collections.abc.Mapping):
         'FR'
     """
 
-    def __init__(self, ip: str, app: Any = None) -> None:
-        if app is None:
-            from .application import root
-
-            app = root
+    def __init__(self, ip: str | None, app: Any) -> None:
         self.app = app
         self.ip = ip
 

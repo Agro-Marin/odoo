@@ -113,6 +113,20 @@ class TestHttp(http.Controller):
     def typed_list(self, vals: list[int] | None = None):
         return repr(vals)
 
+    @http.route("/test_http/echo-json2", type="json2", auth="none")
+    def echo_json2(self, **kwargs):
+        return kwargs
+
+    @http.route(
+        "/test_http/cors-resolver",
+        type="http",
+        auth="none",
+        cors=http.cors_same_host,
+        cors_credentials=True,
+    )
+    def cors_resolver(self):
+        return "resolved"
+
     @http.route("/test_http/openapi.json", type="http", auth="none", methods=["GET"])
     def openapi_json(self):
         from odoo.http.openapi import openapi_from_map

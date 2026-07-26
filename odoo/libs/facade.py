@@ -13,12 +13,28 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-class ProxyAttr:
-    """Expose an attribute of the wrapped instance on a `Proxy`, with optional type casting."""
+class ProxyAttr[T = Any]:
+    """Expose an attribute of the wrapped instance on a `Proxy`, with optional type casting.
 
-    def __init__(self, cast: Callable[..., Any] | bool = False) -> None:
+    :meth:`__set_name__` swaps this descriptor out for a plain ``property``, so
+    the ``__get__``/``__set__`` below never run — they exist only so a type
+    checker, which cannot follow that swap, sees the proxied attribute as its
+    cast type instead of as a ``ProxyAttr`` instance.
+    """
+
+    _cast__: Callable[..., Any] | bool
+
+    def __init__(self, cast: Callable[..., T] | bool = False) -> None:
         """Store the optional ``cast`` applied to the attribute on read."""
         self._cast__ = cast
+
+    if TYPE_CHECKING:
+
+        def __get__(self, instance: Any, owner: type | None = None) -> T:
+            """Type-checker view of reading the proxied attribute."""
+
+        def __set__(self, instance: Any, value: T) -> None:
+            """Type-checker view of writing the proxied attribute."""
 
     def __set_name__(self, owner: type, name: str) -> None:
         """Install a property on ``owner`` proxying ``name`` to the wrapped instance."""
@@ -40,79 +56,81 @@ class ProxyAttr:
         setattr(owner, name, property(getter, setter))
 
 
-class ProxyFunc:
-    """Expose a method of the wrapped instance on a `Proxy`, with optional casting of the return value."""
+class ProxyFunc[T = Any]:
+    """Expose a method of the wrapped instance on a `Proxy`, with optional casting of the return value.
 
-    def __init__(self, cast: Callable[..., Any] | bool = False) -> None:
+    Like :class:`ProxyAttr`, the ``__call__`` below is type-checker-only:
+    :meth:`__set_name__` replaces this descriptor with the wrapping function.
+    """
+
+    _cast__: Callable[..., Any] | bool | None
+
+    def __init__(self, cast: Callable[..., T] | bool | None = False) -> None:
         """Store the optional ``cast`` applied to the function's return value."""
         self._cast__ = cast
 
+    if TYPE_CHECKING:
+
+        def __call__(self, *args: Any, **kwargs: Any) -> T:
+            """Type-checker view of calling the proxied method."""
+
     def __set_name__(self, owner: type, name: str) -> None:
-        """Install a wrapper on ``owner`` forwarding ``name`` to the wrapped instance."""
+        """Install a wrapper on ``owner`` forwarding ``name`` to the wrapped instance.
+
+        The three wrappers are named rather than three conditional definitions
+        of one ``wrap_func``: same-name variants with different signatures are
+        a redefinition a type checker cannot reconcile, and nine near-identical
+        bodies hid how little actually differs between them.
+        """
         func = getattr(owner._wrapped__, name)
         descriptor = inspect.getattr_static(owner._wrapped__, name)
         cast = self._cast__
 
-        if isinstance(descriptor, staticmethod):
-            if cast:
+        if cast is None:
 
-                def wrap_func(*args: Any, **kwargs: Any) -> Any:
-                    result = func(*args, **kwargs)
-                    return cast(result) if result is not None else None
+            def finish(result: Any) -> Any:
+                """Discard the result: this member is declared as returning None."""
+                return None
 
-            elif cast is None:
+        elif cast:
 
-                def wrap_func(*args: Any, **kwargs: Any) -> None:
-                    func(*args, **kwargs)
-
-            else:
-
-                def wrap_func(*args: Any, **kwargs: Any) -> Any:
-                    return func(*args, **kwargs)
-
-            functools.update_wrapper(wrap_func, func)
-            wrap_func = staticmethod(wrap_func)
-
-        elif isinstance(descriptor, classmethod):
-            if cast:
-
-                def wrap_func(cls: type, *args: Any, **kwargs: Any) -> Any:
-                    result = func(*args, **kwargs)
-                    return cast(result) if result is not None else None
-
-            elif cast is None:
-
-                def wrap_func(cls: type, *args: Any, **kwargs: Any) -> None:
-                    func(*args, **kwargs)
-
-            else:
-
-                def wrap_func(cls: type, *args: Any, **kwargs: Any) -> Any:
-                    return func(*args, **kwargs)
-
-            functools.update_wrapper(wrap_func, func)
-            wrap_func = classmethod(wrap_func)
+            def finish(result: Any) -> Any:
+                """Apply the declared cast, preserving ``None``."""
+                return cast(result) if result is not None else None
 
         else:
-            if cast:
 
-                def wrap_func(self: Any, *args: Any, **kwargs: Any) -> Any:
-                    result = func(self._wrapped__, *args, **kwargs)
-                    return cast(result) if result is not None else None
+            def finish(result: Any) -> Any:
+                """Pass the result through uncast."""
+                return result
 
-            elif cast is None:
+        def static_wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Forward to the wrapped staticmethod."""
+            return finish(func(*args, **kwargs))
 
-                def wrap_func(self: Any, *args: Any, **kwargs: Any) -> None:
-                    func(self._wrapped__, *args, **kwargs)
+        def class_wrapper(cls: type, *args: Any, **kwargs: Any) -> Any:
+            """Forward to the wrapped classmethod, dropping the proxy class."""
+            return finish(func(*args, **kwargs))
 
-            else:
+        def instance_wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+            """Forward to the wrapped instance's bound method."""
+            return finish(func(self._wrapped__, *args, **kwargs))
 
-                def wrap_func(self: Any, *args: Any, **kwargs: Any) -> Any:
-                    return func(self._wrapped__, *args, **kwargs)
+        wrapper: Any
+        if isinstance(descriptor, staticmethod):
+            wrapper = static_wrapper
+        elif isinstance(descriptor, classmethod):
+            wrapper = class_wrapper
+        else:
+            wrapper = instance_wrapper
+        functools.update_wrapper(wrapper, func)
 
-            functools.update_wrapper(wrap_func, func)
+        if isinstance(descriptor, staticmethod):
+            wrapper = staticmethod(wrapper)
+        elif isinstance(descriptor, classmethod):
+            wrapper = classmethod(wrapper)
 
-        setattr(owner, name, wrap_func)
+        setattr(owner, name, wrapper)
 
 
 class ProxyMeta(type):

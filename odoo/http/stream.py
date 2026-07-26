@@ -14,6 +14,7 @@ from odoo.tools import config, file_path
 
 from .constants import STATIC_CACHE_LONG
 from .core import request
+from .wrappers import Response, _Response
 
 
 class Stream:
@@ -190,8 +191,6 @@ class Stream:
             :func:`werkzeug.utils.send_file` instead of the stream
             sensitive values. Discouraged.
         """
-        from .wrappers import Response
-
         if self.type not in ("url", "data", "path"):
             e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
             raise ValueError(e)
@@ -220,7 +219,7 @@ class Stream:
             "last_modified": self.last_modified,
             "max_age": STATIC_CACHE_LONG if immutable else self.max_age,
             "environ": request.httprequest.environ,
-            "response_class": Response,
+            "response_class": _Response,
             **send_file_kwargs,
         }
 
@@ -259,4 +258,4 @@ class Stream:
         if immutable:
             cache_control["immutable"] = None
 
-        return res
+        return Response(res)

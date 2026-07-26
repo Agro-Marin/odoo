@@ -7,12 +7,14 @@ import traceback
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 from urllib.parse import quote as url_quote
+from urllib.parse import urlsplit
 
 import psycopg
 
 import odoo.service.common
 import odoo.service.db
 import odoo.service.model
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import config
 
 from .constants import SESSION_LIFETIME
@@ -210,7 +212,7 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
     :return: the return value of the called method
     :rtype: Any
     """
-    thread = threading.current_thread()
+    thread = current_worker_thread()
     sentinel = object()
     prev_uid = getattr(thread, "uid", sentinel)
     prev_dbname = getattr(thread, "dbname", sentinel)
@@ -258,12 +260,31 @@ def get_session_max_inactivity(env: Any) -> int:
 def is_cors_preflight(request: Any, endpoint: Any) -> bool:
     """Check if the request is a CORS preflight request.
 
-    ``cors`` holds the allow-origin *string*, so ``bool(...)`` keeps the declared
-    ``-> bool`` contract instead of leaking that value to callers.
+    ``cors`` holds the allow-origin *string* or resolver, so ``bool(...)`` keeps
+    the declared ``-> bool`` contract instead of leaking that value to callers.
     """
     return request.httprequest.method == "OPTIONS" and bool(
         endpoint.routing.get("cors", False)
     )
+
+
+def cors_same_host(request: Any) -> str | None:
+    """``cors=`` resolver allowing the caller's ``Origin`` on this same host.
+
+    ``cors='*'`` may not be combined with ``cors_credentials``: echoing back an
+    arbitrary ``Origin`` together with ``Allow-Credentials: true`` hands every
+    site on the internet authenticated, readable access to the route — the very
+    thing the CORS spec forbids the wildcard for. What the combination was
+    standing in for is cross-*port* access inside one deployment (HTTP workers
+    on 8069, the websocket server on 8072), so match the host and let the scheme
+    and port differ.
+    """
+    origin = request.httprequest.headers.get("Origin")
+    if not origin:
+        return None
+    if urlsplit(origin).hostname == urlsplit(request.httprequest.host_url).hostname:
+        return origin
+    return None
 
 
 _TRACEBACK_HIDDEN = "Traceback hidden; enable dev_mode or read the server log."

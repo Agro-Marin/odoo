@@ -8,19 +8,22 @@ from typing import Any
 from urllib.parse import urlencode, urlparse
 
 import werkzeug.routing
-from werkzeug.exceptions import HTTPException, NotFound
+from werkzeug.exceptions import HTTPException, MethodNotAllowed, NotFound
 from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
 from werkzeug.wrappers import Response
 
 import odoo.tools
 from odoo.exceptions import AccessDenied, AccessError, UserError
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules import module as module_manager
 from odoo.tools import config, file_path
 from odoo.tools.misc import real_time
 
 from .constants import (
-    ENSURE_DB_PATH_PREFIX,
+    DEFAULT_ALLOWED_METHODS,
+    ENSURE_DB_PATH_PREFIXES,
     ENSURE_DB_PATHS,
+    REJECTED_HTTP_METHODS,
 )
 from .core import _request_stack, request
 from .exceptions import RegistryError, SessionExpiredException
@@ -239,7 +242,8 @@ class Application:
 
     def set_csp(self, response: Response) -> None:
         headers = response.headers
-        headers["X-Content-Type-Options"] = "nosniff"
+        if "X-Content-Type-Options" not in headers:
+            headers["X-Content-Type-Options"] = "nosniff"
 
         if "Content-Security-Policy" in headers:
             return
@@ -252,12 +256,14 @@ class Application:
     def _reset_thread_state(self) -> None:
         """Reset per-request bookkeeping on the pooled worker thread.
 
-        Every field the perf logger / watchdog reads (``query_count``,
-        ``perf_t0``, ``cursor_mode``, ``dbname``, ``uid``, ``url`` …) must be reset
-        here, else a request failing before populating one reports the PREVIOUS
-        request's value. ``url`` is cleared (not zeroed) as it is set only later.
+        Threads are pooled, so every field of
+        :class:`~odoo.libs.worker_thread.WorkerThread` must be reset here: a
+        request that fails before populating one would otherwise report the
+        PREVIOUS request's value. Fields set only later in the request are
+        cleared rather than zeroed, so a reader can tell "not reached yet" from
+        a real value.
         """
-        current_thread = threading.current_thread()
+        current_thread = current_worker_thread()
         current_thread.query_count = 0
         current_thread.query_time = 0
         current_thread.perf_t0 = real_time()
@@ -301,9 +307,8 @@ class Application:
         if not durable:
             request.session.can_save = False
         request.session.logout()
-        if (
-            httprequest.path.startswith(ENSURE_DB_PATH_PREFIX)
-            or httprequest.path in ENSURE_DB_PATHS
+        if httprequest.path in ENSURE_DB_PATHS or httprequest.path.startswith(
+            tuple(ENSURE_DB_PATH_PREFIXES)
         ):
             args_nodb = request.httprequest.args.copy()
             args_nodb.pop("db", None)
@@ -424,7 +429,10 @@ class Application:
                 pushed = True
 
                 request._post_init()
-                threading.current_thread().url = httprequest.url
+                current_worker_thread().url = httprequest.url
+
+                if httprequest.method in REJECTED_HTTP_METHODS:
+                    raise MethodNotAllowed(valid_methods=list(DEFAULT_ALLOWED_METHODS))
 
                 if "\x00" in httprequest.path:
                     raise NotFound

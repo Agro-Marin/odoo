@@ -1,5 +1,6 @@
 import collections.abc
 import logging
+import typing
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from http import HTTPStatus
@@ -19,7 +20,13 @@ from werkzeug.exceptions import (
 
 from odoo.exceptions import UserError
 
-from .constants import CORS_MAX_AGE, MISSING_CSRF_WARNING, SAFE_HTTP_METHODS
+from ._params import coerce_params
+from .constants import (
+    CORS_MAX_AGE,
+    DEFAULT_ALLOWED_METHODS,
+    MISSING_CSRF_WARNING,
+    SAFE_HTTP_METHODS,
+)
 from .exceptions import SessionExpiredException
 from .helpers import serialize_exception
 from .wrappers import Response
@@ -32,8 +39,6 @@ else:
 _logger = logging.getLogger(__name__)
 
 _dispatchers: dict[str, type[Dispatcher]] = {}
-
-_DEFAULT_ALLOWED_METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
 
 
 def infer_dispatcher_for_unmatched(request: Request) -> type[Dispatcher]:
@@ -120,15 +125,20 @@ class Dispatcher(ABC):
         httprequest = self.request.httprequest
         set_header = self.request.future_response.headers.set
         cors = routing.get("cors")
+        credentials = bool(routing.get("cors_credentials"))
         vary: list[str] = []
 
         if cors:
-            allow_origin = cors
-            if routing.get("cors_credentials"):
+            if callable(cors):
                 vary.append("Origin")
+                allow_origin = cors(self.request)
+            else:
+                allow_origin = cors
+            if credentials:
+                if "Origin" not in vary:
+                    vary.append("Origin")
                 origin = httprequest.headers.get("Origin")
-                if origin and cors in ("*", origin):
-                    allow_origin = origin
+                if origin and allow_origin == origin:
                     set_header("Access-Control-Allow-Credentials", "true")
                 else:
                     allow_origin = None
@@ -164,7 +174,7 @@ class Dispatcher(ABC):
         ):
             response = Response(status=204)
             response.headers["Allow"] = ", ".join(
-                [*(routing.get("methods") or _DEFAULT_ALLOWED_METHODS), "OPTIONS"]
+                [*(routing.get("methods") or DEFAULT_ALLOWED_METHODS), "OPTIONS"]
             )
             werkzeug.exceptions.abort(response)
 
@@ -195,13 +205,22 @@ class Dispatcher(ABC):
         root.set_csp(response)
 
     def _call_endpoint(self, endpoint: Callable) -> Any:
-        """Invoke ``endpoint`` with the request's deserialized params.
+        """Coerce ``typed=`` parameters, then invoke ``endpoint`` with them.
 
         With a database, route through ``ir.http._dispatch`` (which layers
         captcha/recaptcha and module overrides); without one (``auth='none'``)
         call the endpoint directly. Shared so the db/no-db branch lives in one
         place rather than each ``dispatch``.
+
+        Coercion belongs here rather than inside ``route_wrapper`` because the
+        specs are a property of the matched endpoint — a per-routing-map-build
+        object — and only the dispatcher holds it. It also means a
+        ``super().handler(...)`` chain coerces once, at the boundary, instead of
+        re-validating already-coerced values at every override level.
         """
+        specs = getattr(endpoint, "_param_specs", None)
+        if specs:
+            self.request.params = coerce_params(self.request.params, specs)
         if self.request.db:
             return self.request.registry["ir.http"]._dispatch(endpoint)
         return endpoint(**self.request.params)
@@ -355,10 +374,10 @@ class JsonRPCDispatcher(Dispatcher):
         try:
             self.jsonrequest = self.request.get_json_data()
         except ValueError:
-            werkzeug.exceptions.abort(Response("Invalid JSON data", status=400))
+            self._abort_bad_request("Invalid JSON data")
 
         if not isinstance(self.jsonrequest, dict):
-            werkzeug.exceptions.abort(Response("Invalid JSON-RPC data", status=400))
+            self._abort_bad_request("Invalid JSON-RPC data")
 
         self.request_id = self.jsonrequest.get("id")
         params = self.jsonrequest.get("params", {})
@@ -394,6 +413,23 @@ class JsonRPCDispatcher(Dispatcher):
 
         return self._response(error=error)
 
+    def _abort_bad_request(self, message: str) -> typing.NoReturn:
+        """Abort with a ``400`` carrying a JSON-RPC error *in JSON*.
+
+        A body the caller cannot parse is not an error report. These two aborts
+        used to build a bare ``Response``, whose ``text/html`` default mimetype
+        answered an ``application/json`` request with HTML — the same defect
+        :func:`infer_dispatcher_for_unmatched` fixes for unmatched paths. The
+        status stays ``400`` rather than the JSON-RPC ``200``: the envelope was
+        never read, so there is no ``id`` to correlate a protocol-level reply to.
+        """
+        body = {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": 400, "message": message, "data": {}},
+        }
+        werkzeug.exceptions.abort(self.request.make_json_response(body, status=400))
+
     def _response(
         self, result: Any = None, error: dict[str, Any] | None = None
     ) -> Response:
@@ -425,6 +461,16 @@ class Json2Dispatcher(Dispatcher):
         )
 
     def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
+        """Deserialize a plain-JSON request body and call the endpoint.
+
+        Parameters come from three places, each overriding the previous: the
+        query string, the JSON body, then the URL path arguments. The query
+        string is included because a ``json2`` route may legitimately be served
+        over ``GET``, where there is no body to carry parameters — it used to be
+        dropped silently, so a ``GET`` json2 route was unreachable with
+        arguments and a ``typed=True`` one answered 400 no matter what the
+        caller sent. The ordering matches :meth:`HttpDispatcher.dispatch`.
+        """
         httprequest = self.request.httprequest
         if (
             httprequest.method not in SAFE_HTTP_METHODS
@@ -447,10 +493,11 @@ class Json2Dispatcher(Dispatcher):
                     f"{type(self.jsonrequest).__name__!r})."
                 )
                 raise werkzeug.exceptions.BadRequest(e)
-        if self.jsonrequest is None:
-            self.request.params = dict(args)
-        else:
-            self.request.params = self.jsonrequest | args
+        self.request.params = {
+            **httprequest.args,
+            **(self.jsonrequest or {}),
+            **args,
+        }
 
         result = self._call_endpoint(endpoint)
         if isinstance(result, Response):

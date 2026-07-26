@@ -19,19 +19,18 @@ class _Endpoint:
         self.routing = MappingProxyType(routing)
 
 
-def test_options_is_not_added_to_a_cors_less_route():
-    """A ``methods=`` allow-list without ``cors`` must stay exactly as declared.
+def test_options_is_added_to_a_cors_less_route():
+    """Every allow-list gains OPTIONS so one code path answers the verb.
 
-    Regression: OPTIONS used to be appended to *every* restricted route. Nothing
-    short-circuits an OPTIONS request on a CORS-less route (only
-    ``Dispatcher.pre_dispatch``'s 204 preflight does, and it requires ``cors``),
-    so the verb reached the endpoint — and since OPTIONS is a
-    ``SAFE_HTTP_METHODS`` member, CSRF validation was skipped on the way there.
-    A ``@route(methods=["POST"], csrf=True)`` handler therefore executed for
-    ``OPTIONS /path?injected=1``.
+    ``Dispatcher.pre_dispatch`` intercepts OPTIONS with a 204 ``Allow`` before
+    the endpoint whenever the author did not declare it, so widening the rule
+    cannot let a ``@route(methods=["POST"], csrf=True)`` handler run for
+    ``OPTIONS /path?injected=1``. Without that widening the two kinds of route
+    disagreed: a werkzeug 405 for an allow-listed one, a framework 204 for an
+    unrestricted one.
     """
     kwargs = rule_routing_kwargs(_Endpoint(methods=("POST",), csrf=True))
-    assert kwargs["methods"] == ("POST",)
+    assert set(kwargs["methods"]) == {"POST", "OPTIONS"}
 
 
 def test_options_is_added_to_a_cors_route():

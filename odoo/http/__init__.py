@@ -128,10 +128,12 @@ All symbols are re-exported for backward compatibility.
 from .constants import (
     CORS_MAX_AGE,
     CSRF_TOKEN_MAX_AGE,
+    DEFAULT_ALLOWED_METHODS,
     DEFAULT_LANG,
     DEFAULT_MAX_CONTENT_LENGTH,
     MISSING_CSRF_WARNING,
     NOT_FOUND_NODB,
+    REJECTED_HTTP_METHODS,
     ROUTING_KEYS,
     SAFE_HTTP_METHODS,
     SESSION_DELETION_TIMER,
@@ -142,6 +144,7 @@ from .constants import (
     STATIC_CACHE_LONG,
     STORED_SESSION_BYTES,
     get_default_session,
+    register_ensure_db_paths,
     register_session_rotation_excluded_paths,
 )
 
@@ -156,6 +159,7 @@ from ._protocols import HttpExtension
 
 from .helpers import (
     content_disposition,
+    cors_same_host,
     db_filter,
     db_list,
     dispatch_rpc,
@@ -228,12 +232,14 @@ from odoo.modules.registry import Registry
 __all__ = [
     "CORS_MAX_AGE",
     "CSRF_TOKEN_MAX_AGE",
+    "DEFAULT_ALLOWED_METHODS",
     "DEFAULT_LANG",
     "DEFAULT_MAX_CONTENT_LENGTH",
     "GEOIP_EMPTY_CITY",
     "GEOIP_EMPTY_COUNTRY",
     "MISSING_CSRF_WARNING",
     "NOT_FOUND_NODB",
+    "REJECTED_HTTP_METHODS",
     "ROUTING_KEYS",
     "SAFE_HTTP_METHODS",
     "SESSION_DELETION_TIMER",
@@ -273,6 +279,7 @@ __all__ = [
     "_request_stack",
     "borrow_request",
     "content_disposition",
+    "cors_same_host",
     "db_filter",
     "db_list",
     "dispatch_rpc",
@@ -281,6 +288,7 @@ __all__ = [
     "get_session_max_inactivity",
     "is_cors_preflight",
     "maxminddb",
+    "register_ensure_db_paths",
     "register_routing_parameters",
     "register_session_rotation_excluded_paths",
     "request",

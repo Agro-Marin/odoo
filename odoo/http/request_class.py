@@ -13,6 +13,7 @@ import werkzeug.exceptions
 
 import odoo
 from odoo.libs.json import loads as _fast_loads
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service.db import list_dbs as _list_all_dbs
 from odoo.tools import profiler
@@ -121,11 +122,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     * :class:`_RequestCsrfMixin` — CSRF token issuance and validation.
     """
 
-    def __init__(self, httprequest: HTTPRequest, app: Any = None) -> None:
-        if app is None:
-            from .application import root
-
-            app = root
+    def __init__(self, httprequest: HTTPRequest, app: Any) -> None:
         self.app = app
 
         self.httprequest: HTTPRequest = httprequest
@@ -206,7 +203,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         """
         self.env = self.env(None, user, context, su)
         self.env.transaction.default_env = self.env
-        threading.current_thread().uid = self.env.uid
+        current_worker_thread().uid = self.env.uid
 
     def update_context(self, **overrides: Any) -> None:
         """
@@ -412,6 +409,12 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         ``utime``, rather than an atomic rewrite + fsync of identical bytes.
         Both still count as *written*, so the cookie is refreshed either way.
 
+        ``expires=None`` is passed explicitly: the shared cookie default is a
+        one-year ``Expires``, which would contradict the ``Max-Age`` computed
+        here from the session's real lifetime. ``Max-Age`` wins wherever both are
+        understood, so the second date only ever misinformed whoever read the
+        header.
+
         :param env: an environment to compute the session token.
             MUST be left ``None`` (in which case it uses the request's
             env) UNLESS the database changed.
@@ -463,5 +466,6 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 "session_id",
                 sess.sid,
                 max_age=max_age,
+                expires=None,
                 httponly=True,
             )

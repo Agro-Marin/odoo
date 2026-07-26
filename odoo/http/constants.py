@@ -1,8 +1,20 @@
 import time
+from collections.abc import Iterable
 
 CORS_MAX_AGE = 60 * 60 * 24
 
-SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
+SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS")
+
+DEFAULT_ALLOWED_METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
+
+REJECTED_HTTP_METHODS = ("TRACE",)
+"""Verbs the framework never dispatches, whatever a route declares.
+
+A route with no ``methods=`` allow-list matches every verb, so dropping
+``TRACE`` from :data:`SAFE_HTTP_METHODS` is not enough on its own: the handler
+would still run, merely with CSRF now enforced. ``TRACE`` echoes the request
+back and no Odoo route serves it, so reject it at the entry point instead.
+"""
 
 CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 
@@ -59,8 +71,28 @@ NOT_FOUND_NODB = """\
 <!-- Alternatively, use the X-Odoo-Database header. -->
 """
 
-ENSURE_DB_PATH_PREFIX = "/odoo/"
-ENSURE_DB_PATHS = frozenset({"/odoo", "/web", "/web/login"})
+ENSURE_DB_PATHS: set[str] = set()
+ENSURE_DB_PATH_PREFIXES: set[str] = set()
+
+
+def register_ensure_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
+    """Declare paths that must keep working after a database becomes unusable.
+
+    :meth:`~odoo.http.Application._recover_from_registry_error` re-serves these
+    db-less with the ``db`` query parameter stripped, so the client lands on a
+    database selector instead of a 500. The paths belong to whichever addon owns
+    the routes (``/odoo``, ``/web``, ``/web/login`` are ``web``'s), so they are
+    registered from there rather than hard-coded here — the recovery path is
+    framework machinery, the URLs are not.
+
+    Call at import time from the owning addon's ``__init__.py``. Registration
+    must therefore have happened by the time a registry fails, which holds for
+    any addon in ``server_wide_modules``; an unregistered path simply keeps its
+    query string on the way to the selector.
+    """
+    ENSURE_DB_PATHS.update(paths)
+    ENSURE_DB_PATH_PREFIXES.update(prefixes)
+
 
 ROUTING_KEYS = frozenset(
     {
