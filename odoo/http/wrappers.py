@@ -1,7 +1,7 @@
 import functools
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import werkzeug.datastructures
 import werkzeug.exceptions
@@ -62,7 +62,24 @@ def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
     return getter, setter
 
 
-class HTTPRequest:
+if TYPE_CHECKING:
+    _HTTPRequestProxied = werkzeug.wrappers.Request
+else:
+    _HTTPRequestProxied = object
+
+
+class HTTPRequest(_HTTPRequestProxied):
+    """A werkzeug ``Request`` re-exposed through an explicit attribute allow-list.
+
+    The allow-list (:data:`HTTPREQUEST_ATTRIBUTES`) is installed as properties at
+    import time, which no type checker can see — 15% of this package's mypy
+    errors were ``"HTTPRequest" has no attribute``. Declaring the werkzeug base
+    only under ``TYPE_CHECKING`` gives the checker the real signatures without
+    inheriting the behaviour at runtime, where the point is precisely to expose
+    a *narrower* surface than ``Request``. Adding a name to the allow-list needs
+    no second edit here.
+    """
+
     def __init__(self, environ: dict[str, Any]) -> None:
         httprequest = werkzeug.wrappers.Request(environ)
         httprequest.user_agent_class = UserAgent
@@ -72,8 +89,8 @@ class HTTPRequest:
         httprequest.max_form_parts = 10_000
 
         self.__wrapped = httprequest
-        self.__environ = self.__wrapped.environ
-        self.environ = self.headers.environ = {
+        self.__environ = httprequest.environ
+        filtered = {
             key: value
             for key, value in self.__environ.items()
             if (
@@ -81,6 +98,8 @@ class HTTPRequest:
                 or key in ["wsgi.url_scheme", "werkzeug.proxy_fix.orig"]
             )
         }
+        self.environ = filtered
+        httprequest.headers = werkzeug.datastructures.EnvironHeaders(filtered)
 
     @property
     def session_id(self) -> str | None:

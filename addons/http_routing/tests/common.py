@@ -99,7 +99,7 @@ def MockRequest(
             context={"lang": ""},
             force_website_id=website and website.id,
         ),
-        geoip=odoo.http.GeoIP("127.0.0.1"),
+        geoip=odoo.http.GeoIP("127.0.0.1", app=odoo.http.root),
         db=env.registry.db_name,
         env=env,
         registry=env.registry,

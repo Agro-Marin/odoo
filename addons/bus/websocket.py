@@ -1186,6 +1186,10 @@ class WebsocketRequest:
         self.httprequest = httprequest
         self.session = None
         self.ws = websocket
+        # Stands in for ``http.Request`` wherever a caller accepts either
+        # (``res.device._update_device``), so it carries the same collaborator:
+        # both hand it to ``GeoIP``, which takes its databases from the app.
+        self.app = root
         # Assigned by ``serve_websocket_message``; initialized here so that
         # accessors used before a message is served (e.g. the ``cookies``
         # cached_property via ``wsrequest``) don't hit an AttributeError.

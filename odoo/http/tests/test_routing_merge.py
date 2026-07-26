@@ -10,6 +10,7 @@ import logging
 
 import pytest
 
+from odoo.http._params import coerce_params
 from odoo.http.controller import Controller
 from odoo.http.routing import route
 
@@ -138,8 +139,8 @@ def test_merge_never_mutates_declared_fragments():
     assert dict(Child.__dict__["x"].original_routing) == child_decl
     assert child_decl["type"] == "jsonrpc"
     assert child_decl["readonly"] is True
-    assert Parent.__dict__["x"]._merged_route_type == "http"
-    assert Child.__dict__["x"]._merged_route_type == "http"
+    assert not hasattr(Parent.__dict__["x"], "_merged_route_type")
+    assert not hasattr(Child.__dict__["x"], "_merged_route_type")
 
     for routing in _merge(("ma", Parent), ("mb", Child)).values():
         assert routing["type"] == "http"
@@ -230,7 +231,7 @@ def test_typed_is_inherited_by_an_override_that_does_not_restate_it():
         "/merge/typed"
     ]
     assert endpoint.routing.get("typed") is True
-    endpoint(n="5")
+    endpoint(**coerce_params({"n": "5"}, endpoint._param_specs))
     assert seen["v"] == (5, "int"), "the override must coerce, not pass the raw string"
 
 
@@ -255,13 +256,14 @@ def test_an_override_can_still_opt_out_of_typed():
     endpoint = _endpoints(("merge_untyped", Parent), ("merge_untyped", Child))[
         "/merge/untyped"
     ]
+    assert endpoint._param_specs is None
     endpoint(n="9")
     assert seen["v"] == ("9", "str")
 
 
 def test_typed_specs_are_stable_across_repeated_map_builds():
-    """Routing maps are rebuilt per database; the specs live on a process-global
-    function object, so a second build must not leave a different state behind."""
+    """Routing maps are rebuilt per database, each build minting fresh endpoints,
+    so repeated builds must produce identical specs and touch nothing shared."""
     seen = {}
 
     class Parent(Controller):
@@ -273,7 +275,8 @@ def test_typed_specs_are_stable_across_repeated_map_builds():
             return "ok"
 
     args = (("merge_rebuild", Parent),)
-    _endpoints(*args)["/merge/rebuild"](n="3")
-    assert seen["v"] == (3, "int")
-    _endpoints(*args)["/merge/rebuild"](n="4")
-    assert seen["v"] == (4, "int")
+    for raw, want in (("3", 3), ("4", 4)):
+        endpoint = _endpoints(*args)["/merge/rebuild"]
+        endpoint(**coerce_params({"n": raw}, endpoint._param_specs))
+        assert seen["v"] == (want, "int")
+    assert not hasattr(Parent.__dict__["hit"], "_param_specs")

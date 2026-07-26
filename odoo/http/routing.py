@@ -13,9 +13,10 @@ import werkzeug.routing
 from odoo.tools import unique
 from odoo.tools.misc import submap
 
-from ._params import build_param_specs, coerce_params
+from ._params import build_param_specs
 from .constants import ROUTING_KEYS
 from .controller import Controller
+from .core import request
 from .dispatcher import _dispatchers
 from .wrappers import Response
 
@@ -95,30 +96,25 @@ class FasterRule(werkzeug.routing.Rule):
 def rule_routing_kwargs(endpoint: Callable) -> dict[str, Any]:
     """Build the werkzeug ``Rule`` keyword arguments for ``endpoint``.
 
-    Returns the :data:`ROUTING_KEYS` subset of ``endpoint.routing``, appending
-    ``OPTIONS`` to ``methods`` when an allow-list is set **and the route declares
-    ``cors``** — the only case where a preflight must reach the dispatcher rather
-    than 405. Shared by both routing maps (nodb and per-database) so they cannot
+    Returns the :data:`ROUTING_KEYS` subset of ``endpoint.routing`` with
+    ``OPTIONS`` appended to any ``methods`` allow-list, so that *every* route
+    answers OPTIONS through :meth:`Dispatcher.pre_dispatch` — a 204 preflight for
+    a ``cors`` route, a 204 ``Allow`` advertisement otherwise — instead of a
+    werkzeug 405 for allow-listed routes and a framework 204 for unrestricted
+    ones. Shared by both routing maps (nodb and per-database) so they cannot
     drift on accepted methods.
 
-    The ``cors`` condition is load-bearing, not cosmetic. Appending ``OPTIONS``
-    unconditionally widened every ``methods=``-restricted route: only a ``cors``
-    route is short-circuited by :meth:`Dispatcher.pre_dispatch`'s 204 preflight,
-    so on a CORS-less route the OPTIONS request fell through to the endpoint —
-    and because ``OPTIONS`` is in :data:`SAFE_HTTP_METHODS`, CSRF validation was
-    skipped on the way. A ``@route(methods=["POST"], csrf=True)`` handler
-    therefore ran, with its query parameters, for
-    ``OPTIONS /path?...`` — the exact request the author excluded. Routes that
-    genuinely serve OPTIONS themselves (WebDAV, the mail-plugin handshake) list
-    it in their own ``methods=`` and are unaffected.
+    Widening the rule is only safe because ``pre_dispatch`` intercepts OPTIONS
+    before the endpoint runs whenever the author did not list it: without that
+    interception a ``@route(methods=["POST"], csrf=True)`` handler would execute
+    for ``OPTIONS /path?...``, CSRF-free, since OPTIONS is a
+    :data:`SAFE_HTTP_METHODS` member. Routes that genuinely serve OPTIONS
+    themselves (WebDAV, the mail-plugin handshake) list it in their own
+    ``methods=`` and reach their endpoint as declared.
     """
     routing = submap(endpoint.routing, ROUTING_KEYS)
     methods = routing.get("methods")
-    if (
-        methods is not None
-        and "OPTIONS" not in methods
-        and endpoint.routing.get("cors")
-    ):
+    if methods is not None and "OPTIONS" not in methods:
         routing["methods"] = [*methods, "OPTIONS"]
     return routing
 
@@ -157,24 +153,74 @@ def _route_param_filter(endpoint: Callable) -> tuple[bool, frozenset[str], str]:
     return accepts_var_keyword, frozenset(named), bound_self_name
 
 
-def _apply_param_specs(func: Callable, specs: dict[str, Any] | None) -> None:
-    """Attach compiled ``typed=`` parameter specs to a route wrapper.
+def _apply_param_specs(endpoint: Callable, specs: dict[str, Any] | None) -> None:
+    """Attach compiled ``typed=`` parameter specs to a per-build endpoint.
 
-    ``func._param_specs`` drives coercion inside ``route_wrapper``;
-    ``func.typed_list_params`` names the ``list``-annotated parameters that
-    :meth:`HttpDispatcher.dispatch` must re-read with ``getlist``, because the
-    flat ``get_http_params`` merge keeps only one value per key.
+    ``endpoint._param_specs`` drives coercion in
+    :meth:`Dispatcher._call_endpoint`; ``endpoint.typed_list_params`` names the
+    ``list``-annotated parameters that :meth:`HttpDispatcher.dispatch` must
+    re-read with ``getlist``, because the flat ``get_http_params`` merge keeps
+    only one value per key.
 
-    Both are written together and unconditionally — including as ``None`` — so a
-    rebuild that turns coercion *off* (an override declaring ``typed=False``)
-    cannot leave a stale spec behind on a process-global function object.
+    The target MUST be the ``functools.partial`` minted per URL by
+    :func:`_generate_routing_rules`, never the decorated ``route_wrapper``: a
+    wrapper is one process-global object shared by every database, while the
+    merged ``typed`` verdict depends on which modules are installed. Writing it
+    on the wrapper let the last routing-map build decide coercion for *all*
+    databases — a database with no typed route at all would 400 on a valid
+    request, and a ``list[...]`` parameter would coerce while silently keeping
+    only its first value, because ``typed_list_params`` was already read from
+    the per-build endpoint while ``_param_specs`` was not.
     """
-    func._param_specs = specs
-    func.typed_list_params = (
+    endpoint._param_specs = specs
+    endpoint.typed_list_params = (
         frozenset(name for name, spec in specs.items() if spec.target is list)
         if specs
         else None
     )
+
+
+def _original_endpoint(method: Any) -> Callable:
+    """The undecorated handler behind a ``@route``-decorated bound method."""
+    return method.original_endpoint
+
+
+def _reject_wildcard_credentials(who: str, routing: Any) -> None:
+    """Refuse ``cors='*'`` combined with ``cors_credentials``.
+
+    The pair asks the framework to echo back whatever ``Origin`` called, with
+    ``Access-Control-Allow-Credentials: true`` — every site on the internet then
+    gets authenticated, readable access to the route, and on a ``jsonrpc`` route
+    (``csrf`` off by default) that is a complete same-origin-policy bypass. It
+    is checked both at decoration and after the merge, since the two keys can
+    arrive from different fragments of an override chain.
+    """
+    if routing.get("cors") == "*" and routing.get("cors_credentials"):
+        e = (
+            f"{who}: cors='*' cannot be combined with cors_credentials. Name the "
+            "allowed origin explicitly, or pass a resolver callable such as "
+            "odoo.http.cors_same_host."
+        )
+        raise ValueError(e)
+
+
+def _effective_route_type(declared_routing: dict[str, Any]) -> str:
+    """The route type in force for the call being served.
+
+    A declaration that names its ``type`` is authoritative: the merge forces
+    every fragment of a chain to the first-declared type, so a fragment's own
+    ``type`` either is the merged one or is a misconfiguration already warned
+    about at build time. A bare ``@route()`` override declares nothing and must
+    borrow the merged verdict, which is per routing-map build — i.e. per
+    database — so it cannot be cached on the process-global wrapper. The active
+    dispatcher was selected from exactly that verdict, so read it from there.
+    """
+    declared = declared_routing.get("type")
+    if declared is not None:
+        return declared
+    if request:
+        return request.dispatcher.routing_type
+    return "http"
 
 
 def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
@@ -215,16 +261,21 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
           access the current user.
     :param Iterable[str] methods: A list of http methods (verbs) this
         route applies to. If not specified, all methods are allowed.
-    :param str cors: The Access-Control-Allow-Origin cors directive value.
+    :param str | Callable[[Request], str | None] cors: The
+        Access-Control-Allow-Origin value, either a literal (``'*'`` or one
+        origin) or a resolver invoked per request that returns the origin to
+        allow, or ``None`` to allow none. Use the resolver form to allow a *set*
+        of origins, e.g. :func:`~odoo.http.cors_same_host`.
     :param bool cors_credentials: Allow a cross-origin caller to send
-        credentials (the session cookie). The CORS spec forbids answering a
-        credentialed request with ``Allow-Origin: *``, so when this is set the
-        request's own ``Origin`` is echoed back — provided ``cors`` is ``'*'`` or
-        names that exact origin — together with
-        ``Access-Control-Allow-Credentials: true`` and ``Vary: Origin``. An
-        ``Origin`` the route does not allow gets no CORS headers at all, so the
-        browser blocks it. ``False`` by default; without it a ``cors=`` route
-        cannot be called cross-origin with cookie authentication.
+        credentials (the session cookie). The request's own ``Origin`` is echoed
+        back when ``cors`` resolves to exactly that origin, together with
+        ``Access-Control-Allow-Credentials: true`` and ``Vary: Origin``; any
+        other ``Origin`` gets no CORS headers at all, so the browser blocks it.
+        ``cors='*'`` is REFUSED with this option — echoing an arbitrary origin
+        back with credentials grants every site on the internet authenticated,
+        readable access, which is what the CORS spec forbids the wildcard for.
+        ``False`` by default; without it a ``cors=`` route cannot be called
+        cross-origin with cookie authentication.
     :param bool csrf: Whether CSRF protection should be enabled for the
         route. Enabled by default for ``'http'``-type requests, disabled
         by default for ``'jsonrpc'``-type requests.
@@ -294,6 +345,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
+        _reject_wildcard_credentials(fname, routing)
         unknown = routing.keys() - _KNOWN_ROUTING_PARAMETERS - {"routes"}
         if unknown:
             _logger.warning(
@@ -327,24 +379,13 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
             if params_ko:
                 _logger.warning("%s called ignoring args %s", fname, params_ko)
 
-            param_specs = route_wrapper._param_specs
-            if param_specs is not None:
-                params_ok = coerce_params(params_ok, param_specs)
-
             result = endpoint(controller_self, *args, **params_ok)
-            route_type = getattr(route_wrapper, "_merged_route_type", None) or (
-                routing.get("type", "http")
-            )
-            if route_type == "http":
+            if _effective_route_type(routing) == "http":
                 return Response.load(result, fname)
             return result
 
         route_wrapper.original_routing = routing
         route_wrapper.original_endpoint = endpoint
-        _apply_param_specs(
-            route_wrapper,
-            build_param_specs(endpoint) if routing.get("typed") else None,
-        )
         return route_wrapper
 
     return decorator
@@ -463,6 +504,10 @@ def _generate_routing_rules(
             if nodb_only and merged_routing["auth"] != "none":
                 continue
 
+            _reject_wildcard_credentials(
+                f"{type(ctrl).__name__}.{method_name}", merged_routing
+            )
+
             merged_routing.setdefault(
                 "save_session", merged_routing["auth"] != "bearer"
             )
@@ -470,11 +515,17 @@ def _generate_routing_rules(
             if isinstance(merged_routing.get("methods"), list):
                 merged_routing["methods"] = tuple(merged_routing["methods"])
             frozen_routing = MappingProxyType(merged_routing)
+            param_specs = (
+                build_param_specs(_original_endpoint(method))
+                if merged_routing.get("typed")
+                else None
+            )
 
             for url in merged_routing["routes"]:
                 endpoint = functools.partial(method)
                 functools.update_wrapper(endpoint, method)
                 endpoint.routing = frozen_routing
+                _apply_param_specs(endpoint, param_specs)
 
                 yield (url, endpoint)
 
@@ -519,15 +570,9 @@ def _check_and_complete_route_definition(
             routing_type,
         )
     fragment["type"] = routing_type
-    submethod._merged_route_type = routing_type
 
-    effective_typed = bool(fragment.get("typed", merged_routing.get("typed", False)))
-    if effective_typed:
+    if bool(fragment.get("typed", merged_routing.get("typed", False))):
         fragment["typed"] = True
-    _apply_param_specs(
-        submethod,
-        build_param_specs(submethod.original_endpoint) if effective_typed else None,
-    )
 
     default_auth = fragment.get("auth", merged_routing["auth"])
     default_mode = fragment.get("readonly", default_auth == "none")

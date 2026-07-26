@@ -24,8 +24,8 @@ def _spec(fn):
 
 
 def test_resolve_optional_forms_are_equivalent():
-    optional = getattr(typing, "Optional")
-    union = getattr(typing, "Union")
+    optional = typing.Optional
+    union = typing.Union
     assert _resolve(int | None) == (int, None, True)
     assert _resolve(optional[int]) == (int, None, True)
     assert _resolve(union[int, None]) == (int, None, True)
@@ -33,7 +33,7 @@ def test_resolve_optional_forms_are_equivalent():
 
 
 def test_resolve_list_forms():
-    legacy_list = getattr(typing, "List")
+    legacy_list = list
     assert _resolve(list) == (list, None, False)
     assert _resolve(list[int]) == (list, int, False)
     assert _resolve(legacy_list[int]) == (list, int, False)
@@ -159,9 +159,13 @@ def test_str_param_rejects_bool():
 
 def test_string_annotations_are_resolved():
     """Regression: under ``from __future__ import annotations`` every annotation
-    is a string, and ``typed=True`` silently coerced nothing."""
+    is a string, and ``typed=True`` silently coerced nothing.
 
-    def ep(self, n: "int", opt: "int | None" = None): ...
+    The quotes are the subject under test, not a style slip: ``ruff --fix`` will
+    strip them and delete the regression unless they are pinned.
+    """
+
+    def ep(self, n: "int", opt: "int | None" = None): ...  # noqa: UP037
 
     specs = _spec(ep)
     assert specs["n"] == ParamSpec(int, None, False, True)
@@ -170,7 +174,13 @@ def test_string_annotations_are_resolved():
 
 
 def test_unresolvable_string_annotation_passes_through():
-    def ep(self, n: "int", ghost: "NotARealName" = None): ...
+    """An annotation naming nothing must degrade to pass-through, not raise.
+
+    ``NotARealName`` is undefined on purpose; unquoting it (which ``ruff --fix``
+    does without the pragma) turns this into a ``NameError`` at import.
+    """
+
+    def ep(self, n: "int", ghost: "NotARealName" = None): ...  # noqa: UP037, F821
 
     specs = _spec(ep)
     assert set(specs) == {"n"}

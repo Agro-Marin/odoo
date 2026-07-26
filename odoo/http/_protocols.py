@@ -1,15 +1,21 @@
-"""Structural type definitions for the http package's external contracts.
+"""Structural type definitions for the http package's contracts.
 
 :class:`HttpExtension` declares the ``env["ir.http"]`` methods the http package
 calls — documenting the contract in one place and surfacing breakage when a hook
-signature changes. No type checker runs on this fork; the contract is enforced
-by ``test_http/tests/test_ir_http_contract.py``, which asserts presence and
-positional arity of every hook against the real ``ir.http`` model.
+signature changes. mypy checks this package (``mypy.ini``, ratcheted by
+``.github/workflows/py_typecheck.yml``) but cannot see through
+``env["ir.http"]``, which resolves to a registry model at runtime — so the
+contract is additionally enforced by ``test_http/tests/test_ir_http_contract.py``,
+asserting presence and positional arity of every hook against the real
+``ir.http`` model.
 
 Methods are declared as instance methods to model the **caller-visible** shape
 (``env["ir.http"].method(...)``), even though most are ``@classmethod`` on
 ``IrHttp``. Being a ``typing.Protocol``, it imposes no nominal inheritance —
 duck-typing stays the runtime discipline.
+
+:class:`RequestState` covers the package's *internal* contract instead: what the
+``Request`` mixins may assume ``Request`` itself provides.
 """
 
 from __future__ import annotations
@@ -21,7 +27,50 @@ if TYPE_CHECKING:
     import werkzeug.datastructures
     import werkzeug.routing
 
-    from .wrappers import Response
+    import odoo.api
+    from odoo.modules.registry import Registry
+
+    from .dispatcher import Dispatcher
+    from .geoip import GeoIP
+    from .session import Session
+    from .wrappers import FutureResponse, HTTPRequest, Response
+
+
+if TYPE_CHECKING:
+
+    class RequestState:
+        """The state :class:`~odoo.http.Request` provides to its mixins.
+
+        ``Request`` is split across ``_RequestServeMixin`` /
+        ``_RequestResponseMixin`` / ``_RequestCsrfMixin`` for file size, so each
+        mixin reads attributes it does not define. That borrowing used to live
+        only in prose at the top of each mixin, where nothing could check it and
+        a rename would leave the description behind; declaring it here makes the
+        contract the thing the type checker verifies.
+
+        Type-checking only — mixed in as ``object`` at runtime, since ``Request``
+        supplies these for real.
+        """
+
+        app: Any
+        db: str | None
+        dispatcher: Dispatcher
+        env: odoo.api.Environment | None
+        future_response: FutureResponse
+        geoip: GeoIP
+        httprequest: HTTPRequest
+        params: dict[str, Any]
+        registry: Registry | None
+        session: Session
+
+        def _get_session_and_dbname(self) -> tuple[Session, str | None]: ...
+
+        def _reset_for_replay(self, cr: Any = None) -> None: ...
+
+        def get_http_params(self) -> dict[str, Any]: ...
+
+else:
+    RequestState = object
 
 
 @runtime_checkable

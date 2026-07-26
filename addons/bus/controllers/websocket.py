@@ -1,4 +1,10 @@
-from odoo.http import Controller, SessionExpiredException, request, route
+from odoo.http import (
+    Controller,
+    SessionExpiredException,
+    cors_same_host,
+    request,
+    route,
+)
 from odoo.libs.json import dumps as json_dumps
 
 from ..models.bus import channel_with_db
@@ -56,7 +62,7 @@ class WebsocketController(Controller):
         "/bus/websocket_worker_bundle",
         type="http",
         auth="public",
-        cors="*",
+        cors=cors_same_host,
         cors_credentials=True,
     )
     def get_websocket_worker_bundle(self, v=None):  # pylint: disable=unused-argument
@@ -73,17 +79,16 @@ class WebsocketController(Controller):
         stale worker. A worker boots once per browser session, so the
         conditional request is negligible.
 
-        CORS: ``cors='*', cors_credentials=True``. In prefork mode the HTTP
-        workers (port 8069) and the gevent/WebSocket server (port 8072) have
+        CORS: ``cors=cors_same_host, cors_credentials=True``. In prefork mode the
+        HTTP workers (port 8069) and the gevent/WebSocket server (port 8072) have
         different origins, so the JS client fetches this bundle cross-origin
         *with* credentials and boots the worker from a blob: URL — which is also
         why the bundle must be a SINGLE file: module workers cannot resolve
         relative imports against a blob URL. ``Access-Control-Allow-Origin: *``
-        is forbidden by the CORS spec once credentials are sent, so
-        ``cors_credentials`` makes ``pre_dispatch`` echo the caller's ``Origin``
-        and add ``Allow-Credentials``/``Vary: Origin``. This used to be written
-        by hand here, because staged headers override whatever a controller sets
-        on its own response and the plain ``cors=`` option could not express it.
+        is forbidden by the CORS spec once credentials are sent, and the
+        framework refuses that pair outright, so the resolver narrows the echo to
+        origins on this deployment's own host — the ports that actually need it —
+        instead of every site on the internet.
         """
         bundle = request.env["ir.qweb"]._get_websocket_worker_bundle()
         if bundle:

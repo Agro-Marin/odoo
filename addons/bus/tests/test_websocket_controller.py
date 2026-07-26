@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from odoo.http import SESSION_ROTATION_INTERVAL, root
 from odoo.tests import JsonRpcException
 from odoo.tools import mute_logger
@@ -176,17 +178,30 @@ class TestWebsocketWorkerBundle(HttpCaseWithUserDemo):
         self.assertEqual(conditional.status_code, 304)
         self.assertFalse(conditional.content)
 
-    def test_cors_headers_echoed_only_with_origin(self):
-        """The credentialed-CORS headers are added when (and only when) the
-        request carries an Origin header; the origin is echoed back since
-        `Access-Control-Allow-Origin: *` is forbidden with credentials."""
-        origin = "http://other-origin.example.com:8072"
+    def test_cors_headers_echoed_only_for_this_host(self):
+        """The credentialed-CORS headers are added only for an Origin on this
+        deployment's own host.
+
+        `Access-Control-Allow-Origin: *` is forbidden with credentials, and
+        echoing back whatever Origin called would grant every site on the
+        internet credentialed access. What this route needs is the *other port*
+        of the same deployment — the gevent/WebSocket server — so `cors_same_host`
+        matches the host and lets the port differ.
+        """
+        host = urlsplit(self.base_url()).hostname
+        origin = f"http://{host}:8072"
         response = self._get_bundle(headers={"Origin": origin})
         self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), origin)
         self.assertEqual(
             response.headers.get("Access-Control-Allow-Credentials"), "true"
         )
         self.assertIn("Origin", response.headers.get("Vary", ""))
+
+        response = self._get_bundle(headers={"Origin": "https://evil.example"})
+        self.assertNotIn("Access-Control-Allow-Origin", response.headers)
+        self.assertNotIn("Access-Control-Allow-Credentials", response.headers)
+        self.assertIn("Origin", response.headers.get("Vary", ""))
+
         response = self._get_bundle()
         self.assertNotIn("Access-Control-Allow-Origin", response.headers)
         self.assertNotIn("Access-Control-Allow-Credentials", response.headers)

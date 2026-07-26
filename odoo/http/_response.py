@@ -18,15 +18,18 @@ import werkzeug.utils
 from werkzeug.exceptions import NotFound
 
 from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
+from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools.json import orjson_default
 
+from ._protocols import RequestState
 from .wrappers import HTTPRequest, Response
 
 
-class _RequestResponseMixin:
+class _RequestResponseMixin(RequestState):
     """Response constructors and redirect/render/reroute helpers for Request.
 
-    Reads/writes ``self.httprequest``, ``self.env``, ``self.db``.
+    The ``Request`` state it reads is declared by
+    :class:`~odoo.http._protocols.RequestState`.
     """
 
     def make_response(
@@ -157,5 +160,5 @@ class _RequestResponseMixin:
 
         httprequest = HTTPRequest(environ)
         httprequest._adopt_body_state(self.httprequest)
-        threading.current_thread().url = httprequest.url
+        current_worker_thread().url = httprequest.url
         self.httprequest = httprequest

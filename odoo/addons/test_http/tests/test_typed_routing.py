@@ -103,11 +103,10 @@ class TestTypedParams(BaseCase):
     def test_override_inherits_typed_without_restating_it(self):
         """``typed=True`` is inherited like every other ``@route`` argument.
 
-        Coercion is compiled per fragment (each override validates against its
-        own signature), so it cannot be copied down the chain — but an override
-        that does not restate ``typed=True`` must still get specs compiled for
-        it. It used to keep ``routing['typed'] is True`` (and its OpenAPI
-        schema) while silently accepting raw, unvalidated strings.
+        The merge carries the verdict, and the specs are compiled once per
+        routing-map build against the leaf's own signature. An override that
+        does not restate ``typed=True`` used to keep ``routing['typed'] is
+        True`` (and its OpenAPI schema) while silently accepting raw strings.
         """
         from odoo.http.routing import _check_and_complete_route_definition
 
@@ -116,14 +115,12 @@ class TestTypedParams(BaseCase):
 
         parent.original_routing = {"routes": ["/x"], "type": "http", "typed": True}
         parent.original_endpoint = parent
-        parent._param_specs = None
 
         def child(self, n: int, **kw):
             return None
 
         child.original_routing = {}
         child.original_endpoint = child
-        child._param_specs = None
 
         class FakeController:
             pass
@@ -132,13 +129,12 @@ class TestTypedParams(BaseCase):
         merged.update(
             _check_and_complete_route_definition(FakeController, parent, merged)
         )
-        self.assertEqual(set(parent._param_specs), {"n"})
+        self.assertTrue(merged["typed"])
 
-        _check_and_complete_route_definition(FakeController, child, merged)
-        self.assertIsNotNone(
-            child._param_specs, "the override must inherit parameter coercion"
+        merged.update(
+            _check_and_complete_route_definition(FakeController, child, merged)
         )
-        self.assertEqual(set(child._param_specs), {"n"})
+        self.assertTrue(merged["typed"], "the override must inherit parameter coercion")
 
     def test_override_can_opt_out_of_typed(self):
         """An explicit ``typed=False`` on the override still disables coercion."""
@@ -149,14 +145,39 @@ class TestTypedParams(BaseCase):
 
         child.original_routing = {"typed": False}
         child.original_endpoint = child
-        child._param_specs = None
 
         class FakeController:
             pass
 
         merged = {"auth": "user", "methods": None, "routes": [], "typed": True}
-        _check_and_complete_route_definition(FakeController, child, merged)
-        self.assertIsNone(child._param_specs)
+        merged.update(
+            _check_and_complete_route_definition(FakeController, child, merged)
+        )
+        self.assertFalse(merged["typed"])
+
+    def test_merge_never_writes_specs_on_the_shared_wrapper(self):
+        """Specs belong to the per-build endpoint, not the decorated function.
+
+        A ``route_wrapper`` is one process-global object shared by every
+        database; the merged ``typed`` verdict depends on the installed module
+        set. Writing specs there let the last routing-map build decide coercion
+        for all databases.
+        """
+        from odoo.http.routing import _check_and_complete_route_definition
+
+        def parent(self, n: int, **kw):
+            return None
+
+        parent.original_routing = {"routes": ["/x"], "type": "http", "typed": True}
+        parent.original_endpoint = parent
+
+        class FakeController:
+            pass
+
+        merged = {"auth": "user", "methods": None, "routes": []}
+        _check_and_complete_route_definition(FakeController, parent, merged)
+        self.assertFalse(hasattr(parent, "_param_specs"))
+        self.assertFalse(hasattr(parent, "typed_list_params"))
 
 
 @tagged("post_install", "-at_install")

@@ -566,7 +566,9 @@ test("a wall-clock jump (system suspend) does not mass-evict live clients", asyn
     worker._lastLivenessSweepTs = now - worker.CLIENT_LIVENESS_TIMEOUT - 5000;
     worker._sweepClientLiveness();
     expect(worker.channelsByClient.has(client)).toBe(true);
-    expect(worker.lastSeenByClient.get(client)).toBe(now);
+    // The sweep reads its own `Date.now()`: asserting equality with the one
+    // captured above fails whenever a millisecond passes between the two.
+    expect(worker.lastSeenByClient.get(client)).toBeGreaterThanOrEqual(now);
 });
 
 test("a moderate suspend (under the liveness timeout) does not evict live clients", async () => {
@@ -591,7 +593,9 @@ test("a moderate suspend (under the liveness timeout) does not evict live client
     worker._lastLivenessSweepTs = now - gap;
     worker._sweepClientLiveness();
     expect(worker.channelsByClient.has(client)).toBe(true);
-    expect(worker.lastSeenByClient.get(client)).toBe(now);
+    // The sweep reads its own `Date.now()`: asserting equality with the one
+    // captured above fails whenever a millisecond passes between the two.
+    expect(worker.lastSeenByClient.get(client)).toBeGreaterThanOrEqual(now);
 });
 
 /**

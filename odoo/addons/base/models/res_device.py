@@ -149,7 +149,7 @@ class ResDeviceLog(models.Model):
         if not trace:
             return
 
-        geoip = GeoIP(trace["ip_address"])
+        geoip = GeoIP(trace["ip_address"], app=request.app)
         user_id = request.session.uid
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
 
