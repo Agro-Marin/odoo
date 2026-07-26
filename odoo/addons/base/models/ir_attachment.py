@@ -429,12 +429,11 @@ class IrAttachment(models.Model):
         sec_domain = Domain("public", "=", True)
         res_ids = condition_values(self, "res_id", domain)
         if not res_ids or False in res_ids:
+            unlinked = Domain("res_id", "=", False) | Domain("res_model", "=", False)
             if self.env.is_system():
-                sec_domain |= Domain("res_id", "=", False)
+                sec_domain |= unlinked
             else:
-                sec_domain |= Domain("res_id", "=", False) & Domain(
-                    "create_uid", "=", self.env.uid
-                )
+                sec_domain |= unlinked & Domain("create_uid", "=", self.env.uid)
 
         res_model_names = condition_values(self, "res_model", domain)
         if 0 < len(res_model_names or ()) <= self._SEARCH_MODEL_DOMAIN_LIMIT:
@@ -1980,7 +1979,8 @@ class IrAttachment(models.Model):
             att_id = attachment.id
             res_model, res_id = attachment.res_model, attachment.res_id
             if not self.env.is_system():
-                if not res_id and attachment.create_uid.id != self.env.uid:
+                linked = bool(res_model and res_id)
+                if not linked and attachment.create_uid.id != self.env.uid:
                     forbidden_ids.add(att_id)
                     continue
                 if res_field := attachment.res_field:

@@ -1919,6 +1919,53 @@ class TestPermissions(TransactionCaseWithUserDemo):
         with self.assertRaises(ValidationError):
             existing_attachment.type = "binary"
 
+    def test_res_id_without_res_model_stays_owner_only(self):
+        """An attachment carrying ``res_id`` but no ``res_model`` is unlinked.
+
+        ``_check_access`` used to read that state as "linked to a record" and
+        skip the creator check, while ``res_model and res_id`` then skipped the
+        comodel check too — so the row fell through every branch and any
+        internal user could read, write and delete it. ``res_id`` is
+        caller-supplied at create time, so the state is trivially reachable.
+        """
+        other_user = (
+            self.env["res.users"]
+            .sudo()
+            .create(
+                {
+                    "name": "Attachment Outsider",
+                    "login": "attachment_outsider",
+                    "group_ids": [(6, 0, self.env.ref("base.group_user").ids)],
+                }
+            )
+        )
+        orphan = self.Attachments.create(
+            {"name": "orphan", "raw": b"owner-only", "res_id": 1}
+        )
+        self.env.flush_all()
+        self.assertFalse(orphan.sudo().res_model)
+
+        outsider_view = orphan.with_user(other_user)
+        outsider_view.invalidate_recordset()
+        with self.assertRaises(AccessError):
+            _ = outsider_view.raw
+        with self.assertRaises(AccessError):
+            outsider_view.write({"name": "taken over"})
+        with self.assertRaises(AccessError):
+            outsider_view.unlink()
+
+        self.assertEqual(orphan.raw, b"owner-only", "the creator kept access")
+        self.assertIn(
+            orphan,
+            self.Attachments.search([("name", "=", "orphan")]),
+            "_search and _check_access disagree on what counts as unlinked",
+        )
+        self.assertNotIn(
+            orphan,
+            self.Attachments.with_user(other_user).search([("name", "=", "orphan")]),
+            "an outsider found the attachment through search",
+        )
+
 
 class TestFilestoreDedup(TransactionCaseWithUserDemo):
     """Regression tests for the deduplicated filestore read/write/delete paths.
