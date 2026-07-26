@@ -92,6 +92,14 @@ def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     return "other", None
 
 
+_REPLICA_OVERRIDABLE: tuple[str, ...] = (
+    "host",
+    "port",
+    "user",
+    "password",
+    "sslmode",
+)
+
 _HEALTH_PARAMS: dict[str, str] = {
     "connect_timeout": "10",
     "tcp_user_timeout": "30000",
@@ -110,7 +118,18 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
     connection keywords.
 
     :param str db_or_uri: database name or postgres dsn
-    :param bool readonly: load defaults from ``db_replica_*`` instead of ``db_*``.
+    :param bool readonly: take each connection keyword from ``db_replica_*``
+        when it is set, falling back to the primary's ``db_*``.
+
+        All five of host/port/user/password/sslmode are overridable.  Only
+        host and port used to be, so a replica needing its own role — a
+        read-only login, or a managed instance with separate credentials —
+        could not be configured at all: the replica DSN inherited the
+        primary's user and password with nothing to say why the connection
+        was refused.
+
+        An empty ``db_replica_*`` means "inherit", not "send nothing", so a
+        deployment overrides exactly the keywords that differ.
     :rtype: (str, dict)
     """
     global _ODOO_PGAPPNAME_WARNED
@@ -149,12 +168,10 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
         return db_name, info
 
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
-    for p in ("host", "port", "user", "password", "sslmode"):
+    for p in _REPLICA_OVERRIDABLE:
         cfg = tools.config["db_" + p]
-        if readonly and p in ("host", "port"):
-            replica_cfg = tools.config.get("db_replica_" + p)
-            if replica_cfg:
-                cfg = replica_cfg
+        if readonly:
+            cfg = tools.config.get("db_replica_" + p) or cfg
         if cfg:
             connection_info[p] = cfg
 

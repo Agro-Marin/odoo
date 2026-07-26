@@ -58,3 +58,36 @@ class TestTransactionSchemaCache(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestClearSeparatesTwoLifetimes(unittest.TestCase):
+    """Catalog facts and the lock ledger expire on different events.
+
+    A ``ROW EXCLUSIVE`` lock is held to the end of the transaction, so DDL —
+    which does not end one — invalidates what was read from the catalog but not
+    the fact that the lock was taken.  Clearing both on DDL made the next
+    ``copy_from`` re-issue a ``LOCK TABLE`` it already held.
+    """
+
+    def setUp(self):
+        self.cache = TransactionSchemaCache()
+        self.cache.set_id_sequence("t", "t_id_seq")
+        self.cache.set_column_types("t", ["a"], [23])
+        self.cache.locked_tables.add("t")
+
+    def test_clear_catalog_facts_keeps_the_lock_ledger(self):
+        self.cache.clear_catalog_facts()
+        self.assertIsNone(self.cache.get_id_sequence("t"))
+        self.assertIsNone(self.cache.get_column_types("t", ["a"]))
+        self.assertIn("t", self.cache.locked_tables, "the lock is still held")
+
+    def test_clear_drops_the_lock_ledger_too(self):
+        self.cache.clear()
+        self.assertIsNone(self.cache.get_id_sequence("t"))
+        self.assertEqual(self.cache.locked_tables, set())
+
+    def test_repr_reports_all_three_populations(self):
+        self.assertEqual(
+            repr(self.cache),
+            "TransactionSchemaCache(sequences=1, column_types=1, locked=1)",
+        )

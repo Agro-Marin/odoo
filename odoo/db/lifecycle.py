@@ -32,7 +32,6 @@ from .utils import register_adapters
 _PREPARE_THRESHOLD = 2
 _PREPARED_MAX = 500
 
-_HEALTHCHECK_GRACE_PERIOD = 1.0
 _IDLE_SINCE_ATTR = "_odoo_idle_since"
 
 _RESET_SESSION_STATE_SQL = (
@@ -106,7 +105,7 @@ def _reset_connection(conn: psycopg.Connection) -> None:
 
 def _check_connection(conn: psycopg.Connection) -> None:
     """Liveness check psycopg_pool runs on every ``getconn`` — gated so a
-    connection released within the last :data:`_HEALTHCHECK_GRACE_PERIOD` seconds
+    connection released within the last ``db_healthcheck_grace`` seconds
     skips the probe.
 
     The probe (an empty ``execute("")``) is a server round-trip on every borrow;
@@ -122,7 +121,8 @@ def _check_connection(conn: psycopg.Connection) -> None:
     with a fresh one.  A connection with no stamp (shouldn't happen) fails safe
     to the full probe.
     """
+    grace = tools.config["db_healthcheck_grace"]
     idle_since = getattr(conn, _IDLE_SINCE_ATTR, None)
-    if idle_since is not None and monotonic() - idle_since < _HEALTHCHECK_GRACE_PERIOD:
+    if grace and idle_since is not None and monotonic() - idle_since < grace:
         return
     _PsycopgPool.check_connection(conn)

@@ -84,11 +84,60 @@ class TestCursor(BaseCursor):
             if self.readonly:
                 self._cursor._obj.execute("SET TRANSACTION READ ONLY")
 
-    def execute(self, *args: Any, **kwargs: Any) -> None:
-        """Execute a query, creating the savepoint if needed."""
+    def _close_savepoint(self, *, rollback: bool) -> None:
+        """Release or roll back the internal savepoint, notifying the cursor.
+
+        Single place that ends the savepoint, because a ``ROLLBACK TO
+        SAVEPOINT`` releases the locks taken inside it and the wrapped cursor
+        caches catalog facts that rest on those locks.  ``rollback()`` notified
+        it; ``commit()`` on a readonly cursor — which also rolls back — did not.
+        """
+        if not self._savepoint:
+            return
+        self._savepoint.close(rollback=rollback)
+        self._savepoint = None
+        if rollback:
+            self._cursor._on_rollback_to_savepoint()
+
+    def _statement(self, name: str, args: tuple, kwargs: dict) -> Any:
+        """Forward a statement to the real cursor, behind this cursor's savepoint.
+
+        Every entry point :class:`~odoo.db.cursor.Cursor` marks with
+        ``_before_statement`` must come through here.  Only ``execute`` used to,
+        so ``executemany`` / ``execute_values`` / ``copy_from`` — which this
+        class does not override, and which therefore reach the real cursor via
+        :meth:`__getattr__` — wrote outside the savepoint and survived the test
+        rollback.
+
+        The savepoint cannot be taken by hooking the wrapped cursor instead:
+        several test cursors share one real cursor, so a hook installed there
+        would open whichever test cursor happens to be innermost, not the one
+        the caller is using.  ``TestCursorCoversEveryStatementApi`` pins the two
+        lists against each other so a new write API cannot quietly skip this.
+        """
         assert not self._closed, "Cannot use a closed cursor"
         self._check_savepoint()
-        return self._cursor.execute(*args, **kwargs)
+        return getattr(self._cursor, name)(*args, **kwargs)
+
+    def execute(self, *args: Any, **kwargs: Any) -> None:
+        """Execute a query, creating the savepoint if needed."""
+        return self._statement("execute", args, kwargs)
+
+    def executemany(self, *args: Any, **kwargs: Any) -> None:
+        """Batch-execute a query, creating the savepoint if needed."""
+        return self._statement("executemany", args, kwargs)
+
+    def execute_values(self, *args: Any, **kwargs: Any) -> Any:
+        """Expand a VALUES list, creating the savepoint if needed."""
+        return self._statement("execute_values", args, kwargs)
+
+    def copy_from(self, *args: Any, **kwargs: Any) -> Any:
+        """Bulk-insert via COPY, creating the savepoint if needed."""
+        return self._statement("copy_from", args, kwargs)
+
+    def copy(self, *args: Any, **kwargs: Any) -> Any:
+        """Open a raw COPY context, creating the savepoint if needed."""
+        return self._statement("copy", args, kwargs)
 
     def close(self) -> None:
         """Roll back to the savepoint and release the lock."""
@@ -120,9 +169,7 @@ class TestCursor(BaseCursor):
         which patches the class cursor's commit/rollback/close to raise.
         """
         self.flush()
-        if self._savepoint:
-            self._savepoint.close(rollback=self.readonly)
-            self._savepoint = None
+        self._close_savepoint(rollback=self.readonly)
         self.clear()
         self._now = None
         self.prerollback.clear()
@@ -138,10 +185,7 @@ class TestCursor(BaseCursor):
         self._now = None
         self.postcommit.clear()
         self.prerollback.run()
-        if self._savepoint:
-            self._savepoint.close(rollback=True)
-            self._savepoint = None
-            self._cursor._on_rollback_to_savepoint()
+        self._close_savepoint(rollback=True)
         self.postrollback.run()
 
     def __getattr__(self, name: str) -> Any:

@@ -53,6 +53,13 @@ class TransactionSchemaCache:
         self._column_types: dict[tuple[str, tuple[str, ...]], list[int]] = {}
         self.locked_tables: set[str] = set()
 
+    def __repr__(self) -> str:
+        return (
+            f"TransactionSchemaCache(sequences={len(self._id_sequences)},"
+            f" column_types={len(self._column_types)},"
+            f" locked={len(self.locked_tables)})"
+        )
+
     def get_id_sequence(self, table: str) -> str | None:
         """Return the cached id-column sequence name, or ``None`` on a miss."""
         return self._id_sequences.get(table)
@@ -76,14 +83,26 @@ class TransactionSchemaCache:
         """Cache *types* for ``(table, columns)`` for the rest of this transaction."""
         self._column_types[table, tuple(columns)] = types
 
-    def clear(self) -> None:
-        """Drop every cached fact.
+    def clear_catalog_facts(self) -> None:
+        """Drop the memoized catalog reads, keeping the table-lock ledger.
 
-        Called at each transaction boundary (``commit`` / ``rollback``, which
-        also release the locks the facts rested on) and by
-        :meth:`Cursor.discard_cached_plans` when a schema change is known to
-        have landed.
+        For when a schema change lands but the transaction continues
+        (:meth:`Cursor.discard_cached_plans`).  ``locked_tables`` is deliberately
+        kept: PostgreSQL holds a ``ROW EXCLUSIVE`` lock to the end of the
+        transaction, and DDL does not end one, so the lock this cursor already
+        took is still held and re-issuing ``LOCK TABLE`` would be a wasted
+        round-trip.  The catalog facts, by contrast, are exactly what the DDL
+        may have invalidated.
         """
         self._id_sequences.clear()
         self._column_types.clear()
+
+    def clear(self) -> None:
+        """Drop every cached fact, including the table-lock ledger.
+
+        Called where the locks themselves are gone: at each transaction boundary
+        (``commit`` / ``rollback``) and on ``ROLLBACK TO SAVEPOINT``, which
+        releases the locks acquired inside the savepoint.
+        """
+        self.clear_catalog_facts()
         self.locked_tables.clear()

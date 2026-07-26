@@ -14,7 +14,7 @@ under a concurrent-DDL race in production.
 
 import unittest
 
-from odoo.db.savepoint import Savepoint
+from odoo.db.savepoint import Savepoint, _FlushingSavepoint
 
 
 class _StubCursor:
@@ -155,3 +155,20 @@ class TestDepthCounterFailsSafe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRestoresOrmStateIsDeclaredOnTheBase(unittest.TestCase):
+    """The savepoint seam's guard must report a seam failure, not an AttributeError.
+
+    ``BaseCursor.savepoint`` refuses a transaction-bearing cursor a savepoint
+    class that does not restore ORM state.  That check reads
+    ``_restores_orm_state``, which only ``_FlushingSavepoint`` declared, so
+    pointing the seam at a plain ``Savepoint`` raised ``AttributeError`` from
+    inside the guard instead of the intended ``RuntimeError``.
+    """
+
+    def test_plain_savepoint_declares_it(self):
+        self.assertFalse(Savepoint._restores_orm_state)
+
+    def test_flushing_savepoint_inherits_the_same_default(self):
+        self.assertFalse(_FlushingSavepoint._restores_orm_state)

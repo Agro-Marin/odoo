@@ -1,7 +1,6 @@
 import logging
 import os
 import threading
-import warnings
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager, suppress
 from datetime import datetime
@@ -10,7 +9,6 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, NoReturn, Self
 
 import psycopg
-
 from odoo_rust import rows_to_dicts as _rows_to_dicts
 from psycopg import IsolationLevel
 from psycopg import sql as _sql
@@ -33,17 +31,29 @@ from .utils import categorize_query
 if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
 
-    _CursorProtocol = psycopg.Cursor
-else:
-    _CursorProtocol = object
-
 _logger = logging.getLogger(__name__)
 
 _TX_IDLE = _TxStatus.IDLE
 
 
-class BaseCursor(_CursorProtocol):
-    """Base class for cursors that manage pre/post commit hooks."""
+class BaseCursor:
+    """Base class for cursors that manage pre/post commit hooks.
+
+    Declares only what every cursor flavour genuinely provides.  This used to
+    inherit ``psycopg.Cursor`` under ``TYPE_CHECKING`` and ``object`` at
+    runtime, which told the type checker that every subclass — including
+    ``odoo.tests.cursor.TestCursor``, which forwards by ``__getattr__`` — had
+    psycopg's whole cursor API.  ``cr.stream(...)`` and ``cr.scroll(...)``
+    type-checked clean while resolving at runtime through two layers of
+    ``__getattr__``, which is precisely how the bulk-write savepoint bypass
+    (see :meth:`_before_statement`) stayed invisible to mypy.
+
+    ``close`` and ``fetchone`` are declared under ``TYPE_CHECKING`` only, never
+    defined: :class:`Cursor` implements them, while ``TestCursor`` reaches the
+    real cursor through ``__getattr__``, which Python consults only when normal
+    lookup fails.  Giving them runtime bodies here — even ones that raise —
+    shadows that forwarding and breaks every ``fetchone`` on a test cursor.
+    """
 
     BATCH_SIZE = 1000
     _MAX_FLUSH_PASSES = 10
@@ -106,6 +116,25 @@ class BaseCursor(_CursorProtocol):
     def discard_cached_plans(self) -> None:
         """Drop cached statement plans held by the underlying connection."""
 
+    def _before_statement(self) -> None:
+        """Hook: a statement is about to reach the server through this cursor.
+
+        Called by every statement-issuing entry point (``execute``,
+        ``executemany``, ``execute_values``, ``copy_from``, ``copy``) and a
+        no-op in this layer.  Its job is to *mark* that set: it is the machine-
+        readable answer to "which methods put a statement on the wire", which is
+        what lets a wrapper cursor be checked for covering all of them.
+
+        ``odoo.tests.cursor.TestCursor`` is the wrapper that needs it — it takes
+        a rollback savepoint before the first statement of each test.  Only its
+        ``execute()`` override did so, and the bulk APIs it does not override
+        reach the real cursor through ``__getattr__``, so their writes landed
+        outside the savepoint and survived the rollback.  ``TestCursor`` now
+        forwards each marked name explicitly, and a test pins the two lists
+        against each other; a write API added here without a matching forwarder
+        fails that test instead of silently escaping the savepoint.
+        """
+
     def _on_rollback_to_savepoint(self) -> None:
         """Hook: a ``ROLLBACK TO SAVEPOINT`` just undid part of this transaction.
 
@@ -126,7 +155,11 @@ class BaseCursor(_CursorProtocol):
 
         ``prepare`` is forwarded to psycopg: ``None`` keeps the automatic
         behaviour, ``False`` opts the statement out of the prepared-statement
-        cache (see :meth:`Cursor.execute`).
+        cache (see :meth:`Cursor.execute`).  Detected DDL defaults to ``False``:
+        psycopg auto-prepares parameterless statements too, so a repeated
+        ``CREATE``/``ALTER`` was being parsed into a prepared statement that
+        :meth:`Cursor._invalidate_caches_after_ddl` then deallocated on the very
+        next query.
         """
         raise NotImplementedError
 
@@ -137,6 +170,14 @@ class BaseCursor(_CursorProtocol):
     def rollback(self) -> None:
         """Rollback the current transaction."""
         raise NotImplementedError
+
+    if TYPE_CHECKING:
+
+        def close(self) -> None:
+            """Release the cursor and whatever connection it holds."""
+
+        def fetchone(self) -> tuple[Any, ...] | None:
+            """Return the next row of the current result set, or ``None``."""
 
     def savepoint(self, flush: bool = True) -> Savepoint:
         """Open a new savepoint, returned as a context manager.
@@ -374,6 +415,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         ``with`` block).  Prefer :meth:`copy_from` for bulk inserts; reach for
         this only when you need the raw psycopg ``Copy`` object.
         """
+        self._before_statement()
         return self._obj.copy(statement, params, writer=writer)
 
     def _refuse_copy(self) -> NoReturn:
@@ -411,6 +453,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         prepare: bool | None = None,
     ) -> None:
 
+        self._before_statement()
+
         if isinstance(query, SQL):
             if params is not None:
                 raise ValueError(
@@ -438,6 +482,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if params and is_ddl:
             query = _inline_ddl_params(qs, params, self._cnx)
             params = None
+
+        if is_ddl and prepare is None:
+            prepare = False
 
         debug = _logger.isEnabledFor(logging.DEBUG)
         hooks = getattr(self._thread, "query_hooks", None)
@@ -475,9 +522,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         try:
             self._cnx._prepared.clear()
         except AttributeError:
+            _logger.warning(
+                "psycopg no longer exposes Connection._prepared.clear(); "
+                "auto-prepare is off for the rest of this cursor's life "
+                "(restored when the connection returns to the pool). "
+                "Re-check odoo.db.cursor against the installed psycopg.",
+            )
             self._cnx.prepare_threshold = None
             self._cnx.execute("DEALLOCATE ALL")
-        self._schema_cache.clear()
+        self._schema_cache.clear_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
         """Drop catalog facts a partial rollback may have invalidated.
@@ -530,6 +583,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             really is one statement.  See that method for why the counters
             measure requested SQL work rather than packets.
         """
+        self._before_statement()
+
         if isinstance(query, SQL):
             if query.params:
                 raise ValueError(
@@ -685,18 +740,34 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.postrollback.run()
 
     def __getattr__(self, name: str) -> Any:
+        """Refuse anything outside the Odoo cursor API.
+
+        This used to warn and then forward to the underlying psycopg cursor,
+        which meant an unknown attribute silently *worked* — and a wrapper
+        cursor could reach raw psycopg through two layers of ``__getattr__``
+        without any of the bookkeeping in between.  That is exactly how the
+        ``TestCursor`` bulk-write savepoint bypass survived: ``copy_from`` on a
+        test cursor forwarded to ``TestCursor._cursor``, then past this method,
+        and wrote outside the savepoint.  A ``DeprecationWarning`` is invisible
+        in a passing test run; an ``AttributeError`` is not.
+
+        Measured before switching: across 13,680 non-test modules in core,
+        base, enterprise, agromarin and design-themes there is no caller that
+        relies on the forwarding, and a full ``base`` run emits the warning
+        exactly zero times.  Code that genuinely needs psycopg's own surface
+        should say so — ``cr._obj.<name>`` — rather than have it appear by
+        accident.
+        """
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
         if self._closed:
             msg = "Cursor already closed"
             raise psycopg.InterfaceError(msg)
-        warnings.warn(
+        raise AttributeError(
             f"Cursor.{name} is not part of the Odoo cursor API. "
-            f"Add explicit forwarding in cursor.py or use cr._obj.{name} directly.",
-            DeprecationWarning,
-            stacklevel=2,
+            f"Add explicit forwarding in cursor.py, or reach psycopg deliberately "
+            f"with cr._obj.{name}."
         )
-        return getattr(self._obj, name)
 
     @property
     def closed(self) -> bool:

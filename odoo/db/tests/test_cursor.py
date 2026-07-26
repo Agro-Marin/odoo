@@ -310,3 +310,50 @@ class TestMetricsMixin(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBeforeStatementSeam(unittest.TestCase):
+    """Every statement entry point announces itself through one hook.
+
+    ``odoo.tests.cursor.TestCursor`` creates its rollback savepoint lazily on
+    first use.  It used to hang that off its own ``execute()`` override, so the
+    bulk APIs it does not override reached the real cursor via ``__getattr__``
+    and wrote outside the savepoint — verified against a live database: rows
+    written by ``copy_from``/``executemany``/``execute_values`` survived the
+    test rollback while ``execute``'s did not.
+    """
+
+    def test_base_cursor_hook_is_a_noop(self):
+        self.assertIsNone(_Cursor()._before_statement())
+
+    def test_every_statement_entry_point_calls_it(self):
+        missing = [name for name in _STATEMENT_APIS if name not in _marks_statements()]
+        self.assertEqual(
+            missing,
+            [],
+            "a statement entry point that skips the hook lets a wrapper cursor's "
+            "per-statement bookkeeping be bypassed silently",
+        )
+
+    def test_the_hook_marks_exactly_the_known_entry_points(self):
+        self.assertEqual(
+            _marks_statements(),
+            set(_STATEMENT_APIS),
+            "update _STATEMENT_APIS (and TestCursor) when the set changes",
+        )
+
+
+_STATEMENT_APIS = ("execute", "executemany", "execute_values", "copy_from", "copy")
+
+
+def _marks_statements() -> set:
+    """Names on :class:`Cursor` whose body calls ``_before_statement``."""
+    from odoo.db.cursor import Cursor
+
+    return {
+        name
+        for name in dir(Cursor)
+        if callable(getattr(Cursor, name, None))
+        and getattr(getattr(Cursor, name), "__code__", None) is not None
+        and "_before_statement" in getattr(Cursor, name).__code__.co_names
+    }
