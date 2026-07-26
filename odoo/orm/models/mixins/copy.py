@@ -153,8 +153,8 @@ class CopyMixin(_ModelStubs):
                         from_lang_term,
                         to_lang_terms,
                     ) in translation_dictionary.items():
-                        for lang, to_lang_term in to_lang_terms.items():
-                            translations[lang][from_lang_term] = to_lang_term
+                        for term_lang, to_lang_term in to_lang_terms.items():
+                            translations[term_lang][from_lang_term] = to_lang_term
                     new.update_field_translations(name, translations)
 
     def copy(self, default: ValuesType | None = None) -> Self:
