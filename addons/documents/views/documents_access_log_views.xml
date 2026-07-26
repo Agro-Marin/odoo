@@ -1,0 +1,67 @@
+<odoo>
+
+    <record id="documents_access_log_view_list" model="ir.ui.view">
+        <field name="name">documents.access.log list</field>
+        <field name="model">documents.access.log</field>
+        <field name="arch" type="xml">
+            <!-- create/edit/delete are off by intent, not just by ACL: an
+                 append-only log that can be edited from the UI is not evidence
+                 of anything. -->
+            <list string="Access Log" create="false" edit="false" delete="false"
+                default_order="access_date desc">
+                <field name="access_date" />
+                <field name="document_id" />
+                <field name="partner_id" />
+                <field name="action" />
+            </list>
+        </field>
+    </record>
+
+    <record id="documents_access_log_view_search" model="ir.ui.view">
+        <field name="name">documents.access.log search</field>
+        <field name="model">documents.access.log</field>
+        <field name="arch" type="xml">
+            <search string="Access Log">
+                <field name="document_id" />
+                <field name="partner_id" />
+                <filter name="filter_download" string="Downloads"
+                    domain="[('action', '=', 'download')]" />
+                <filter name="filter_view" string="Views"
+                    domain="[('action', '=', 'view')]" />
+                <separator />
+                <filter name="filter_last_month" string="Last 30 Days"
+                    domain="[('access_date', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]" />
+                <group>
+                    <filter name="group_document" string="Document" domain="[]"
+                        context="{'group_by': 'document_id'}" />
+                    <filter name="group_partner" string="Person" domain="[]"
+                        context="{'group_by': 'partner_id'}" />
+                    <filter name="group_action" string="Action" domain="[]"
+                        context="{'group_by': 'action'}" />
+                    <filter name="group_date" string="Date" domain="[]"
+                        context="{'group_by': 'access_date'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="documents_access_log_action" model="ir.actions.act_window">
+        <field name="name">Access Log</field>
+        <field name="res_model">documents.access.log</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="documents_access_log_view_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No access recorded yet</p>
+            <p>Opening and downloading a document is recorded here, so you can
+                answer who took a copy of what, and when.</p>
+        </field>
+    </record>
+
+    <menuitem name="Access Log"
+        id="menu_documents_access_log"
+        parent="documents.Config"
+        action="documents_access_log_action"
+        groups="documents.group_documents_manager"
+        sequence="60" />
+
+</odoo>

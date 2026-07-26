@@ -1,0 +1,26 @@
+# mixin
+from . import documents_unlink_mixin
+from . import documents_mixin
+
+# documents
+from . import documents_access
+from . import documents_access_log
+from . import documents_access_tracking
+from . import documents_document
+from . import documents_redirect
+from . import documents_tag
+
+# orm
+from . import ir_attachment
+from . import ir_binary
+from . import ir_http
+
+# inherit
+from . import ir_actions_server
+from . import ir_embedded_actions
+from . import mail_activity
+from . import mail_activity_type
+from . import res_partner
+from . import res_users
+from . import res_company
+from . import res_config_settings
