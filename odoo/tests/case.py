@@ -28,9 +28,7 @@ class _Outcome:
         self.test = test
 
     @contextlib.contextmanager
-    def testPartExecutor(
-        self, test_case: TestCase, isTest: bool = False
-    ) -> Generator[None]:
+    def testPartExecutor(self, test_case: TestCase) -> Generator[None]:
         try:
             yield
         except KeyboardInterrupt:
@@ -73,10 +71,10 @@ class _Outcome:
             _logger.warning(
                 "No common frame found with current stack, displaying full stack"
             )
-            tb = initial_tb
-        else:
-            while tb and tb.tb_frame != common_frame:
-                tb = tb.tb_next
+            return initial_tb
+
+        while tb and tb.tb_frame != common_frame:
+            tb = tb.tb_next
 
         current_frame = common_frame.f_back
         while current_frame:
@@ -161,7 +159,7 @@ class TestCase(_TestCase):
             }
         self._subtest = _SubTest(self, msg, params)
         try:
-            with self._outcome.testPartExecutor(self._subtest, isTest=True):
+            with self._outcome.testPartExecutor(self._subtest):
                 yield
         finally:
             self._subtest = parent
@@ -219,7 +217,7 @@ class TestCase(_TestCase):
             with outcome.testPartExecutor(self):
                 self._callSetUp()
             if outcome.success:
-                with outcome.testPartExecutor(self, isTest=True):
+                with outcome.testPartExecutor(self):
                     self._callTestMethod(testMethod)
                 with outcome.testPartExecutor(self):
                     self._callTearDown()

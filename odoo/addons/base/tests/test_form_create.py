@@ -122,3 +122,81 @@ class TestFormCreate(TransactionCase):
             child.name = "a child"
         partner = partner_form.save()
         self.assertEqual(partner.child_ids.name, "a child")
+
+
+NESTED_O2M_ARCH = """
+<form>
+  <field name="name"/>
+  <field name="child_ids">
+    <form>
+      <field name="name"/>
+      <field name="child_ids">
+        <form>
+          <field name="name"/>
+          <field name="child_ids"><form><field name="name"/></form></field>
+        </form>
+      </field>
+    </form>
+  </field>
+</form>
+"""
+
+
+@tagged("-at_install", "post_install")
+class TestFormNestedX2many(TransactionCase):
+    """A deep x2many nesting must not rewrite the outer level's field info.
+
+    ``_process_view`` annotates each field's info dict (``edition_view``,
+    ``invisible``, and the one2many -> many2many downgrade once the nesting
+    budget runs out).  Those dicts came straight out of ``_models_info``, which
+    every nesting level shares, so on a self-referential one2many the innermost
+    downgrade rewrote the *outermost* field.
+    """
+
+    def _nested_form(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "nested o2m probe",
+                "model": "res.partner",
+                "arch": NESTED_O2M_ARCH,
+            }
+        )
+        return Form(self.env["res.partner"], view=view)
+
+    def test_outer_o2m_keeps_its_type(self):
+        form = self._nested_form()
+        self.assertEqual(form._view["fields"]["child_ids"]["type"], "one2many")
+
+    def test_field_info_is_not_aliased_into_models_info(self):
+        form = self._nested_form()
+        self.assertIsNot(
+            form._view["fields"]["child_ids"],
+            form._models_info["res.partner"]["fields"]["child_ids"],
+        )
+
+    def test_outer_o2m_is_still_editable(self):
+        form = self._nested_form()
+        form.name = "root"
+        with form.child_ids.new() as line:
+            line.name = "child"
+        record = form.save()
+        self.assertEqual(record.child_ids.mapped("name"), ["child"])
+
+
+@tagged("-at_install", "post_install")
+class TestFormAttributeAccess(TransactionCase):
+    def test_unknown_private_attribute_raises_attribute_error(self):
+        form = Form(self.env["res.partner"])
+        with self.assertRaises(AttributeError):
+            _ = form._not_a_field
+        self.assertFalse(hasattr(form, "_not_a_field"))
+
+    def test_unknown_field_still_reports_the_view(self):
+        form = Form(self.env["res.partner"])
+        with self.assertRaises(AssertionError):
+            _ = form.definitely_not_a_field
+
+    def test_half_built_form_does_not_recurse(self):
+        form = Form.__new__(Form)
+        with self.assertRaises(AttributeError):
+            _ = form._view

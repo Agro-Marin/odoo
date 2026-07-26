@@ -26,11 +26,10 @@ def get_module_test_cases(module: Any) -> Iterator[case.TestCase]:
             continue
 
         test_case_class = obj
-        test_cases = test_case_class.__dict__.items()
         if getattr(test_case_class, "allow_inherited_tests_method", False):
             test_cases = inspect.getmembers(test_case_class, callable)
         else:
-            test_cases = sorted(test_cases, key=lambda pair: pair[0])
+            test_cases = sorted(test_case_class.__dict__.items())
 
         for method_name, method in test_cases:
             if not callable(method):

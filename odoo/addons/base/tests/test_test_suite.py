@@ -3,18 +3,25 @@ import difflib
 import logging
 import os
 import re
+import sys
 import threading
 from contextlib import contextmanager
 from pathlib import PurePath
 from unittest import SkipTest, skip
 from unittest.mock import patch
 
+from odoo.db import Cursor
+from odoo.orm.models.mixins._crud_common import COPY_THRESHOLD
 from odoo.tests.benchmark import compute_stats
 from odoo.tests.case import TestCase
 from odoo.tests.common import (
+    _DELEGATING_STATEMENTS,
+    _STATEMENT_RECORDERS,
     BaseCase,
+    HttpCase,
     RegistryRLock,
     TransactionCase,
+    mute_logger,
     users,
     warmup,
 )
@@ -660,3 +667,212 @@ class TestEnvInt(BaseCase):
                 self.assertEqual(env_int(var, 3), expected)
         with patch.dict(os.environ, {var: "nope"}), self.assertRaises(ValueError):
             env_int(var, 3)
+
+
+class TestRetryAccounting(BaseCase):
+    """``testsRun`` must count tests, not attempts (see OdooTestResult.retry)."""
+
+    class _Case(BaseCase):
+        test_tags = {"standard"}
+        test_module = "base"
+        attempts = 0
+        failures_wanted = 0
+
+        def test_probe(self):
+            type(self).attempts += 1
+            if self.attempts <= self.failures_wanted:
+                raise AssertionError("deliberate")
+
+    def _run(self, retries, failures_wanted=0):
+        case = type("Probe", (self._Case,), {})
+        case.failures_wanted = failures_wanted
+        case._tests_run_count = retries + 1
+        result = OdooTestResult()
+        with mute_logger(__name__):
+            case("test_probe").run(result)
+        return case.attempts, result
+
+    def test_passing_test_is_counted_once_with_retries(self):
+        for retries in (0, 1, 3):
+            with self.subTest(retries=retries):
+                attempts, result = self._run(retries)
+                self.assertEqual(attempts, 1)
+                self.assertEqual(result.testsRun, 1)
+                self.assertTrue(result.wasSuccessful())
+
+    def test_flaky_test_is_counted_once(self):
+        attempts, result = self._run(retries=2, failures_wanted=2)
+        self.assertEqual(attempts, 3, "should have retried twice")
+        self.assertEqual(result.testsRun, 1)
+        self.assertTrue(result.wasSuccessful())
+        self.assertEqual(result.failures_count, 0, "soft failures must not count")
+
+    def test_always_failing_test_is_counted_once_and_fails(self):
+        attempts, result = self._run(retries=1, failures_wanted=99)
+        self.assertEqual(attempts, 2)
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(result.failures_count, 1)
+
+
+class TestPatchExecuteStatementApi(TransactionCase):
+    """``assertQueries`` must see every statement the cursor can issue."""
+
+    def test_every_marked_entry_point_is_recorded(self):
+        marked = {
+            name
+            for name in dir(Cursor)
+            if callable(getattr(Cursor, name, None))
+            and getattr(getattr(Cursor, name), "__code__", None) is not None
+            and "_before_statement" in getattr(Cursor, name).__code__.co_names
+        }
+        self.assertTrue(marked, "Cursor marks no statement entry points at all")
+        self.assertEqual(
+            sorted(marked),
+            sorted(set(_STATEMENT_RECORDERS) | _DELEGATING_STATEMENTS),
+            "every statement entry point must either be recorded or be known "
+            "to reach the server through execute()",
+        )
+
+    def _capture(self, func):
+        self.warm = False
+        with self.assertQueries([], flush=False) as caught:
+            func()
+        self.warm = True
+        return list(caught)
+
+    def test_executemany_is_recorded_once(self):
+        caught = self._capture(
+            lambda: self.cr.executemany("SELECT %s::int", [(1,), (2,), (3,)])
+        )
+        self.assertEqual(caught, ["SELECT %s::int"])
+
+    def test_execute_values_is_recorded_once_via_execute(self):
+        self.cr.execute("CREATE TEMP TABLE _probe_ev (n int)")
+        caught = self._capture(
+            lambda: self.cr.execute_values(
+                "INSERT INTO _probe_ev (n) VALUES %s", [(1,), (2,)]
+            )
+        )
+        self.assertEqual(caught, ["INSERT INTO _probe_ev (n) VALUES (%s), (%s)"])
+
+    def test_copy_from_is_recorded_as_a_copy(self):
+        self.cr.execute("CREATE TEMP TABLE _probe_cp (a int, b text)")
+        caught = self._capture(
+            lambda: self.cr.copy_from("_probe_cp", ["a", "b"], [(1, "x"), (2, "y")])
+        )
+        self.assertEqual(caught, ['COPY "_probe_cp" ("a", "b") FROM STDIN'])
+
+    def _bulk_create(self):
+        self.env["res.partner"].create(
+            [{"name": f"probe {i}"} for i in range(COPY_THRESHOLD + 2)]
+        )
+        self.env.flush_all()
+
+    def test_bulk_create_write_is_visible(self):
+        caught = self._capture(self._bulk_create)
+        self.assertTrue(
+            any(q.startswith('COPY "res_partner"') for q in caught),
+            f"the COPY that inserted the rows is missing from {caught}",
+        )
+
+    def test_captured_queries_are_always_strings(self):
+        caught = self._capture(self._bulk_create)
+        self.assertTrue(caught)
+        for query in caught:
+            self.assertIsInstance(query, str)
+        self._normalize_query(caught[0])
+        "\n".join(caught)
+
+
+class TestReadonlyModeIsTestScoped(TransactionCase):
+    """A mid-test readonly change must not outlive the test that made it."""
+
+    def test_a_disables_readonly(self):
+        self.registry_enter_test_mode(register_cleanup=True)
+        self.set_registry_readonly_mode(False)
+        self.assertFalse(type(self)._registry_readonly_enabled)
+
+    def test_b_sees_the_default_again(self):
+        self.assertTrue(
+            type(self)._registry_readonly_enabled,
+            "readonly enforcement leaked out of the previous test",
+        )
+
+
+class Test03LeakPatchers(BaseCase):
+    """With Test04LeakedPatchersCheck, pins ``check_remaining_patchers``.
+
+    Three leaked patchers, because the bug it guards against — walking the live
+    ``_patch._active_patches`` while ``stop()`` removes entries from it — skips
+    every other one, so a single leaked patcher would pass either way.
+    """
+
+    class Target:
+        a = 1
+        b = 2
+        c = 3
+
+    def test_leak_three_patchers(self):
+        for name, value in (("a", 10), ("b", 20), ("c", 30)):
+            patch.object(self.Target, name, value).start()
+
+
+class Test04LeakedPatchersCheck(BaseCase):
+    def test_every_leaked_patcher_was_stopped(self):
+        target = Test03LeakPatchers.Target
+        self.addCleanup(setattr, target, "a", 1)
+        self.addCleanup(setattr, target, "b", 2)
+        self.addCleanup(setattr, target, "c", 3)
+        self.assertEqual(
+            (target.a, target.b, target.c),
+            (1, 2, 3),
+            "patchers leaked by the previous class survived its cleanup",
+        )
+
+
+class TestCompleteTraceback(BaseCase):
+    """The 'no common frame' fallback must return a traceback, not crash."""
+
+    def test_detached_traceback_falls_back_to_the_full_stack(self):
+        from odoo.tests.case import _Outcome
+
+        captured = {}
+
+        def in_another_thread():
+            try:
+                raise RuntimeError("detached")
+            except RuntimeError:
+                captured["tb"] = sys.exc_info()[2]
+
+        thread = threading.Thread(target=in_another_thread)
+        thread.start()
+        thread.join()
+
+        outcome = _Outcome(self, OdooTestResult())
+        with self.assertLogs("odoo.tests.case", "WARNING"):
+            result = outcome._complete_traceback(captured["tb"])
+        self.assertIs(result, captured["tb"])
+
+
+class TestBaseCaseDefaults(BaseCase):
+    """A BaseCase subclass outside ``odoo.addons`` must still be usable."""
+
+    def test_subclass_outside_addons_is_constructible(self):
+        outside = type(
+            "Outside",
+            (BaseCase,),
+            {"__module__": "some.third.party", "test_x": lambda self: None},
+        )
+        self.assertIsNone(outside.test_tags, "the class keeps the sentinel")
+        case = outside("test_x")
+        self.assertEqual(case.test_tags, set(), "the instance gets a usable set")
+        self.assertEqual(case.test_module, "")
+
+    def test_framework_bases_keep_the_untagged_sentinel(self):
+        for base in (BaseCase, TransactionCase, HttpCase):
+            with self.subTest(base=base.__name__):
+                self.assertIsNone(
+                    base.test_tags,
+                    "consuming the sentinel drops every addon subclass "
+                    "of this base out of test selection",
+                )

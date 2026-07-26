@@ -89,7 +89,7 @@ class TagsSelector:
         It must have at least one tag in ``self.include`` and none in
         ``self.exclude`` for each tag category.
         """
-        if not hasattr(test, "test_tags"):
+        if not getattr(test, "test_tags", None):
             _logger.debug("Skipping test '%s' because no test_tag found.", test)
             return False
 

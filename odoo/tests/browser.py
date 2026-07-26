@@ -78,6 +78,17 @@ IGNORED_MSGS = re.compile(
 ).search
 
 
+TARGET_GONE = re.compile(r"inspected target navigated or closed", re.IGNORECASE).search
+"""Match the CDP error raised when a command outlives the page it addressed.
+
+``_wait_ready`` polls ``Runtime.evaluate`` *while the page is still loading*,
+so the page navigating out from under an in-flight evaluate is the normal
+course of events, not a failure — the poll simply has to be retried against
+the new target.  Letting it escape made every tour a coin flip on how the
+navigation happened to interleave with the poll.
+"""
+
+
 class ChromeBrowserException(Exception):
     pass
 
@@ -148,19 +159,35 @@ class ChromeBrowser:
         else:
             self.sigxcpu_handler = None
 
-        self.chrome, self.devtools_port = self._chrome_start(
-            user_data_dir=self.user_data_dir,
-            touch_enabled=test_case.touch_enabled,
-            headless=headless,
-            debug=debug,
-        )
-        self.ws = self._open_websocket()
         self._request_id = itertools.count()
         self._result = Future()
         self.error_checker = None
         self.had_failure = False
         self._responses = {}
         self._frames = {}
+        self.chrome, self.devtools_port = self._chrome_start(
+            user_data_dir=self.user_data_dir,
+            touch_enabled=test_case.touch_enabled,
+            headless=headless,
+            debug=debug,
+        )
+        try:
+            self._connect()
+        except BaseException:
+            self.stop()
+            raise
+
+    def _connect(self) -> None:
+        """Open the CDP session and put the page in its test configuration.
+
+        Split out of ``__init__`` so a failure here is not a leak: Chrome is
+        already running by this point, but ``browser_js`` only registers
+        ``stop`` as a cleanup *after* the constructor returns.  A CDP command
+        timing out — or the deliberate ``SkipTest`` below when the websocket
+        handshake is refused — used to strand the browser process tree and its
+        ~100 MB profile directory for the rest of the session.
+        """
+        self.ws = self._open_websocket()
         self._handlers = {
             "Fetch.requestPaused": self._handle_request_paused,
             "Runtime.consoleAPICalled": self._handle_console,
@@ -199,7 +226,7 @@ class ChromeBrowser:
             "Emulation.setFocusEmulationEnabled", params={"enabled": True}
         )
         width, height = (
-            int(size) for size in re.split(r"[x,]", test_case.browser_size)
+            int(size) for size in re.split(r"[x,]", self.test_case.browser_size)
         )
         self._websocket_request(
             "Emulation.setDeviceMetricsOverride",
@@ -267,7 +294,8 @@ class ChromeBrowser:
             except Exception:
                 _logger.warning("Error during browser shutdown", exc_info=True)
             self._logger.info("Closing websocket connection")
-            self.ws.close()
+            with contextlib.suppress(AttributeError, OSError):
+                self.ws.close()
 
         self._logger.info("Terminating chrome headless with pid %s", self.chrome.pid)
         try:
@@ -822,6 +850,11 @@ which leads to stray network requests and inconsistencies."""
                 result = "cancelled"
             except TimeoutError:
                 result = "evaluate timeout"
+                continue
+            except ChromeBrowserException as evaluate_error:
+                if not TARGET_GONE(str(evaluate_error)):
+                    raise
+                result = "target navigated while evaluating"
                 continue
 
             if result == {"type": "boolean", "value": True}:
