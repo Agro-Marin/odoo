@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import datetime
+
 import markupsafe
 
 from odoo import _, fields, models, tools
