@@ -127,15 +127,26 @@ class _FieldConvertMixin(_FieldStubs):
                 if value is PENDING:
                     return PENDING
                 return self.convert_to_column(value, record, validate=False)
+            # A context-dependent field has one column but one cache per
+            # context, and only the contexts a compute has run in hold a value.
+            # Returning the first hit let a PENDING slot outrank a real value
+            # written in another context: ``_flush`` has already popped the
+            # dirty flag by then, so it dropped the column and the write was
+            # lost with no error.  A real value is authoritative wherever it
+            # comes from; PENDING only means "not computed *here*".
+            found = False
             for cache in field_cache.values():
                 if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
-                    if value is PENDING:
-                        return PENDING
-                    return self.convert_to_column(value, record, validate=False)
+                    found = True
+                    if value is not PENDING:
+                        return self.convert_to_column(value, record, validate=False)
+            if found:
+                return PENDING
             raise KeyError(record_id)
         values = {}
         flat_value = SENTINEL
         found = False
+        saw_pending = False
         for ctx_key, cache in field_cache.items():
             if not isinstance(cache, dict):
                 if ctx_key == record_id:
@@ -145,7 +156,9 @@ class _FieldConvertMixin(_FieldStubs):
                 continue
             if (value := cache.get(record_id, SENTINEL)) is not SENTINEL:
                 found = True
-                if value is not PENDING:
+                if value is PENDING:
+                    saw_pending = True
+                else:
                     values[ctx_key[0]] = self._to_json_value(
                         self.convert_to_column(value, record)
                     )
@@ -155,6 +168,10 @@ class _FieldConvertMixin(_FieldStubs):
             values[record.env.company.id] = self._to_json_value(
                 self.convert_to_column(flat_value, record)
             )
+        if not values and saw_pending:
+            # Every company slot is still uncomputed: report that rather than
+            # returning ``None``, which would flush SQL NULL over the column.
+            return PENDING
         return PsycopgJson(values) if values else None
 
     def convert_to_cache(
