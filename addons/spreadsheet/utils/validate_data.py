@@ -1,10 +1,9 @@
-from collections import defaultdict
-from itertools import chain
 import json
 import re
+from collections import defaultdict
+from itertools import chain
 
 from odoo.tools.view_validation import get_domain_value_names
-
 
 markdown_link_regex = r"^\[([^\[]+)\]\((.+)\)$"
 
@@ -140,13 +139,13 @@ def filter_fields(data):
     charts = odoo_charts(data)
     if "odooVersion" in data and data["odooVersion"] < 5:
         for filter_definition in data.get("globalFilters", []):
-            for pivot_id, matching in filter_definition.get("pivotFields", dict()).items():
+            for pivot_id, matching in filter_definition.get("pivotFields", {}).items():
                 model = data["pivots"][pivot_id]["model"]
                 fields_by_model[model].add(matching["field"])
-            for list_id, matching in filter_definition.get("listFields", dict()).items():
+            for list_id, matching in filter_definition.get("listFields", {}).items():
                 model = data["lists"][list_id]["model"]
                 fields_by_model[model].add(matching["field"])
-            for chart_id, matching in filter_definition.get("graphFields", dict()).items():
+            for chart_id, matching in filter_definition.get("graphFields", {}).items():
                 chart = next((chart for chart in charts if chart["id"] == chart_id), None)
                 model = chart["metaData"]["resModel"]
                 fields_by_model[model].add(matching["field"])
@@ -185,9 +184,9 @@ def extract_fields(extract_fn, items):
 
 def fields_in_spreadsheet(data):
     """return all fields, grouped by model, used in the spreadsheet"""
-    odoo_pivots = (pivot for pivot in data.get("pivots", dict()).values() if pivot.get("type", "ODOO") == "ODOO")
+    odoo_pivots = (pivot for pivot in data.get("pivots", {}).values() if pivot.get("type", "ODOO") == "ODOO")
     all_fields = chain(
-        extract_fields(list_fields, data.get("lists", dict()).values()).items(),
+        extract_fields(list_fields, data.get("lists", {}).values()).items(),
         extract_fields(pivot_fields, odoo_pivots).items(),
         extract_fields(chart_fields, odoo_charts(data)).items(),
         extract_fields(odoo_view_fields, odoo_view_links(data)).items(),

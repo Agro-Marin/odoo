@@ -33,7 +33,7 @@ def strftime_format_to_spreadsheet_time_format(strf_format):
         spreadsheet_symbol = strftime_to_spreadsheet_time_format_table.get(symbol)
         if spreadsheet_symbol:
             parts.append(spreadsheet_symbol)
-        if symbol == "%I" or symbol == "%p":
+        if symbol in {"%I", "%p"}:
             twelve_hour_system = True
 
     separator = re.search(r"(:| )", strf_format)

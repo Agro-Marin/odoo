@@ -1,9 +1,10 @@
 from odoo.tests.common import TransactionCase
 
+
 class TestCurrencyRates(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        super(TestCurrencyRates, cls).setUpClass()
+        super().setUpClass()
         cls.env["res.currency"].create(
             [
                 {
