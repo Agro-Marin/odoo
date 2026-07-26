@@ -1,6 +1,7 @@
-from odoo import api, fields, models, Command
-import json
 import base64
+import json
+
+from odoo import Command, api, fields, models
 
 
 class Web_TourTour(models.Model):
@@ -40,6 +41,7 @@ class Web_TourTour(models.Model):
         if self.env.user and self.env.user.tour_enabled and self.env.user._is_internal():
             tours_to_run = self.search([("custom", "=", False), ("user_consumed_ids", "not in", self.env.user.id)])
             return bool(tours_to_run[:1]) and tours_to_run[:1]._get_tour_json()
+        return None
 
     @api.model
     def get_tour_json_by_name(self, tour_name):
