@@ -38,8 +38,6 @@ from odoo.tools.misc import stripped_sys_argv
 
 from ._env import env_float, env_int
 
-# Watcher backends, selected in ``_watcher``; surfaced here so ``start()`` can
-# dispatch on whichever one actually loaded.
 from ._watcher import (
     FSWatcherInotify,
     FSWatcherWatchdog,
@@ -47,9 +45,8 @@ from ._watcher import (
     watchdog,
 )
 
-_logger = logging.getLogger("odoo.service.server")  # preserve operator log filters
+_logger = logging.getLogger("odoo.service.server")
 
-# Module-level state (see module docstring for the mutation invariant).
 server = None
 server_phoenix = False
 
@@ -72,25 +69,24 @@ def load_server_wide_modules() -> None:
 def _reexec(updated_modules: list[str] | None = None) -> None:
     """Reexecute odoo-server process with (nearly) the same arguments."""
     if osutil.is_running_as_nt_service(nt_service_name):
-        # Windows-only restart via the SCM. ``shell=True`` is required because
-        # ``net`` is a shell built-in/cmd alias on Windows; ``nt_service_name``
-        # is a build-time constant from ``odoo.release``, not user input.
-        subprocess.call(  # noqa: S602
+        rc = subprocess.call(
             f"net stop {nt_service_name} && net start {nt_service_name}",
             shell=True,
+        )
+        if rc == 0:
+            return
+        _logger.warning(
+            "Service restart via the SCM failed (exit %s); "
+            "falling back to an in-place re-exec",
+            rc,
         )
     exe = Path(sys.executable).name
     args = stripped_sys_argv()
     if updated_modules:
         args += ["-u", ",".join(updated_modules)]
-    # Insert the interpreter as argv[0] unless already present (full path or
-    # basename) — checking both avoids a double-insert that would make
-    # ``os.execve`` treat the python binary as a script.
     if not args or args[0] not in (sys.executable, exe):
         args.insert(0, sys.executable)
-    # ``os.execve`` (no shell) replaces the process in place, preserving the
-    # LISTEN_* env vars systemd socket activation needs.
-    os.execve(sys.executable, args, os.environ)  # noqa: S606
+    os.execve(sys.executable, args, os.environ)
 
 
 def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
@@ -104,18 +100,11 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     from odoo.db.utils import seed_planner_stats
     from odoo.tests import loader
 
-    # Planner-stats floor: test suites only roll back, so tables populated only
-    # by test data keep committed "empty" statistics, and the planner degrades
-    # their hot queries into quadratic nested-loop plans (the intermittent
-    # "suite hang").  Committed on purpose — plain stats any later ANALYZE
-    # overwrites.  Never let it abort the run; failure just means the old speed.
     try:
         with registry.cursor() as cr:
             seeded = seed_planner_stats(cr)
         if seeded:
-            _logger.info(
-                "Seeded planner statistics for %d zero-stat tables", seeded
-            )
+            _logger.info("Seeded planner statistics for %d zero-stat tables", seeded)
     except Exception:
         _logger.warning(
             "Planner-stats seeding failed; tests may run slower", exc_info=True
@@ -124,9 +113,7 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     t0 = time.time()
     t0_sql = db.sql_counter
     module_names = (
-        registry.updated_modules
-        if update_module
-        else sorted(registry._init_modules)
+        registry.updated_modules if update_module else sorted(registry._init_modules)
     )
     _logger.info("Starting post tests")
     tests_before = registry._assertion_report.testsRun
@@ -136,13 +123,6 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
             env["ir.qweb"]._pregenerate_assets_bundles()
 
-    # The threaded server enters preload holding ``Registry._lock`` (see
-    # ``ThreadedServer.run``; upstream odoo/odoo#161438).  The registry is now
-    # fully loaded, and holding the lock through the suite deadlocks any HTTP
-    # request from a test that does NOT enter registry test mode (it blocks in
-    # ``Registry.__new__`` while this thread waits for its response).  Release
-    # our holds for the suite and restore after.  HttpCase suites are unaffected
-    # (test mode uses ``DummyRLock``); the prefork path holds no lock (held == 0).
     lock = Registry._lock
     held = 0
     while getattr(lock, "_is_owned", bool)():
@@ -168,20 +148,14 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
 
 def preload_registries(dbnames: list[str] | None) -> int:
     """Preload registries for ``dbnames``, optionally running post-install tests."""
-    # TODO: move all config checks to args dont check tools.config here
     dbnames = dbnames or []
     rc = 0
 
     preload_profiler = contextlib.nullcontext()
 
-    # ``env_int`` (not raw ``int(...)``) so a malformed value doesn't abort
-    # startup, like every other ODOO_* knob.  0 (or garbage) means auto-size.
     registries_size = env_int("ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger)
     if not registries_size:
         if os.name == "posix":
-            # Size the LRU depending of the memory limits
-            # A registry takes 10MB of memory on average, so we reserve
-            # 10Mb (registry) + 5Mb (working memory) per registry
             avgsz = 15 * 1024 * 1024
             limit_memory_soft = (
                 config["limit_memory_soft"]
@@ -190,19 +164,13 @@ def preload_registries(dbnames: list[str] | None) -> int:
             )
             registries_size = (limit_memory_soft // avgsz) or 1
         if len(dbnames) > max(registries_size, Registry.registries.count):
-            # A preload list larger than the limit sizes the LRU to fit it, else
-            # this loop would evict registries it just built.
             registries_size = len(dbnames)
     if registries_size:
         Registry.registries.count = registries_size
 
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
-            # Guarded parse: a malformed interval warns and falls back to 0.1s
-            # instead of aborting the preload run.
-            interval = env_float(
-                "ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger
-            )
+            interval = env_float("ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger)
             collectors = [profiler.PeriodicCollector(interval=interval)]
             if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
                 collectors.append("sql")
@@ -220,7 +188,6 @@ def preload_registries(dbnames: list[str] | None) -> int:
                     reinit_modules=config["reinit"],
                 )
 
-                # run post-install tests
                 if config["test_enable"]:
                     _run_post_install_tests(registry, update_module)
                 if (
@@ -254,8 +221,6 @@ def _limit_malloc_arenas() -> None:
     [2] https://www.gnu.org/software/libc/manual/html_node/The-GNU-Allocator.html
     [3] https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;h=00ce48c;hb=0a8262a#l862
     """
-    # ``_is_gil_enabled`` exists on 3.13+ (returns True on a normal build); the
-    # ``hasattr`` keeps this safe on older interpreters.
     gil_disabled = hasattr(sys, "_is_gil_enabled") and not sys._is_gil_enabled()
     if gil_disabled or not (
         platform.system() == "Linux"
@@ -268,8 +233,6 @@ def _limit_malloc_arenas() -> None:
 
         libc = ctypes.CDLL("libc.so.6")
         M_ARENA_MAX = -8
-        # Explicit check, NOT ``assert``: ``python -O`` strips asserts (and the
-        # ``mallopt()`` inside), silently skipping the cap.  Returns 1 on success.
         ok = libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2)) == 1
     except Exception:
         ok = False
@@ -279,14 +242,11 @@ def _limit_malloc_arenas() -> None:
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
     """Start the odoo http server and cron processor."""
-    # ``server`` is the canonical handle other modules read as ``lifecycle.server``
-    # (see module docstring); the global binding is by design.
-    global server  # noqa: PLW0603
+    global server
 
     load_server_wide_modules()
     import odoo.http
 
-    # Lazy import so ``server.py`` can ``from . import lifecycle`` without a cycle.
     from .server import EventServer, PreforkServer, ThreadedServer
 
     if odoo.evented:
@@ -321,11 +281,8 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     try:
         rc = server.run(preload, stop)
     finally:
-        # Stop the watcher on every exit path (incl. an exception out of
-        # ``server.run``), else the inotify thread and its kernel watches leak.
         if watcher:
             watcher.stop()
-    # like the legend of the phoenix, all ends with beginnings
     if server_phoenix:
         _reexec()
 
@@ -344,13 +301,8 @@ def restart() -> None:
         )
         return
     if os.name == "nt":
-        # Windows has no SIGHUP; do the re-exec on a background thread so the
-        # caller can return its response (the Odoo HTTP /restart endpoint, the
-        # database manager UI, etc.) before the current process replaces itself.
         threading.Thread(target=_reexec).start()
     else:
-        # POSIX: send SIGHUP to ourselves; the server's signal handler sets
-        # ``server_phoenix = True`` and breaks the main loop, then ``start()``
-        # calls ``_reexec`` after ``server.run`` returns.
         import signal
+
         os.kill(server.pid, signal.SIGHUP)

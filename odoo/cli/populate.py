@@ -10,8 +10,6 @@ from . import DatabaseCommand, odoo_env
 if TYPE_CHECKING:
     from odoo import api
 
-# argparse delivers every user-supplied value as `str`; keep the default in
-# the same type so comparisons and .split() behave uniformly.
 DEFAULT_FACTOR = "10000"
 DEFAULT_SEPARATOR = "_"
 DEFAULT_MODELS = "res.partner,product.template,account.move,sale.order,crm.lead,stock.picking,project.task"
@@ -35,12 +33,8 @@ def _parse_model_factors(
         opt_factors = [int(f) for f in factors.split(",")]
     except ValueError:
         error(f"--factors must be a comma-separated list of integers, got {factors!r}")
-        # argparse's parser.error never returns; guard the fall-through for
-        # callbacks that do (tests, programmatic use).
         return {}
     if any(f < 1 for f in opt_factors):
-        # A factor of N *copies* the data N times; 0/negative would silently
-        # populate nothing while the command still reports success.
         error(f"--factors must all be >= 1, got {factors!r}")
         return {}
     model_names = models.split(",")
@@ -51,7 +45,6 @@ def _parse_model_factors(
             len(model_names),
             opt_factors[len(model_names) :],
         )
-    # deduplicate models if necessary, keeping the last factor of each model
     return {
         model_name: (
             opt_factors[index] if index < len(opt_factors) else opt_factors[-1]
@@ -116,8 +109,6 @@ class Populate(DatabaseCommand):
             if (model := env.get(model_name)) is not None
             and not (model._transient or model._abstract)
         }
-        # Warn on dropped models; previously they vanished silently and the
-        # command still reported success.
         if skipped := set(modelname_factors) - {m._name for m in model_factors}:
             _logger.warning(
                 "Ignoring unknown, transient or abstract models: %s",

@@ -20,8 +20,6 @@ class Module(DatabaseCommand):
 
     def __init__(self) -> None:
         super().__init__()
-        # On the main parser too, so `module -c cfg install …` works like
-        # `module install -c cfg …` (same both-levels pattern as `db`).
         self.add_config_arguments(self.parser)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
@@ -103,9 +101,6 @@ class Module(DatabaseCommand):
 
     def _get_zip_path(self, path: str) -> Path | None:
         fullpath = Path(path).resolve()
-        # is_zipfile, not just the extension: the "not a readable .zip"
-        # warning must be true, and _import_zipfile's traceback on a
-        # mislabeled file is a worse failure mode than a clean warning.
         if (
             fullpath.is_file()
             and fullpath.suffix.lower() == ".zip"
@@ -178,10 +173,6 @@ class Module(DatabaseCommand):
             else:
                 valid_module_names = self._get_module_names(parsed_args.modules)
                 upgradable_modules = self._get_modules(env, valid_module_names)
-                # button_upgrade raises UserError for any not-installed module,
-                # aborting the whole batch. Skip those with a warning so one bad
-                # name doesn't poison the rest. (Also keeps --outdated meaningful:
-                # uninstalled modules have db_version False, always "outdated".)
                 if not_installed := upgradable_modules.filtered(
                     lambda m: m.state not in ("installed", "to upgrade")
                 ):
@@ -202,8 +193,6 @@ class Module(DatabaseCommand):
     def _uninstall(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
             modules = self._get_modules(env, parsed_args.modules)
-            # install and upgrade both warn on typo'd names; a silent
-            # uninstall "success" is worse — the user believes it happened.
             if unknown := set(parsed_args.modules) - set(modules.mapped("name")):
                 _logger.warning(
                     "Ignoring unknown modules: %s", ", ".join(sorted(unknown))

@@ -49,14 +49,13 @@ if TYPE_CHECKING:
 try:
     import websocket
 except ImportError:
-    # chrome headless tests will be skipped
     websocket = None
 
 _logger = logging.getLogger(__name__)
 
-CHECK_BROWSER_SLEEP = 0.1  # seconds
+CHECK_BROWSER_SLEEP = 0.1
 CHECK_BROWSER_ITERATIONS = 100
-BROWSER_WAIT = CHECK_BROWSER_SLEEP * CHECK_BROWSER_ITERATIONS  # seconds
+BROWSER_WAIT = CHECK_BROWSER_SLEEP * CHECK_BROWSER_ITERATIONS
 DEFAULT_SUCCESS_SIGNAL = "test successful"
 
 IGNORED_MSGS = re.compile(
@@ -108,9 +107,6 @@ def run(gen_func):
 if os.name == "posix" and platform.system() != "Darwin":
     import resource
 
-    # since the introduction of pointer compression in Chrome 80 (v8 v8.0),
-    # the memory reservation algorithm requires more than 8GiB of
-    # virtual mem for alignment this exceeds our default memory limits.
     def _preexec():
         resource.setrlimit(
             resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
@@ -123,7 +119,7 @@ else:
 class ChromeBrowser:
     """Helper object to control a Chrome headless process."""
 
-    remote_debugging_port = 0  # 9222, change it in a non-git-tracked file
+    remote_debugging_port = 0
 
     def __init__(
         self,
@@ -163,9 +159,7 @@ class ChromeBrowser:
         self._result = Future()
         self.error_checker = None
         self.had_failure = False
-        # maps request_id to Futures
         self._responses = {}
-        # maps frame ids to callbacks
         self._frames = {}
         self._handlers = {
             "Fetch.requestPaused": self._handle_request_paused,
@@ -174,10 +168,6 @@ class ChromeBrowser:
             "Page.frameStoppedLoading": self._handle_frame_stopped_loading,
             "Page.screencastFrame": self.screencaster,
         }
-        # Python 3.14 intermittently refuses pthread_create under test-suite load,
-        # so Thread.start() can raise RuntimeError; the refusal clears within a few
-        # hundred ms. Retry after gc + a short sleep, with a fresh Thread each time
-        # (Thread.start() only accepts one call per instance).
         for attempt in range(5):
             self._receiver = threading.Thread(
                 target=self._receive,
@@ -192,7 +182,7 @@ class ChromeBrowser:
                 gc.collect()
                 time.sleep(0.2 * (attempt + 1))
         else:
-            self._receiver.start()  # surface the original error
+            self._receiver.start()
         self._logger.info("Enable chrome headless console log notification")
         self._websocket_send("Runtime.enable")
         self._websocket_request("Fetch.enable")
@@ -208,9 +198,6 @@ class ChromeBrowser:
         self._websocket_send(
             "Emulation.setFocusEmulationEnabled", params={"enabled": True}
         )
-        # both "1366x768" and "1366,768" occur in the wild: the old code
-        # normalized by *mutating* test_case.browser_size, so tests were
-        # written against either form — accept both, mutate nothing
         width, height = (
             int(size) for size in re.split(r"[x,]", test_case.browser_size)
         )
@@ -229,15 +216,13 @@ class ChromeBrowser:
         if sig == signal.SIGXCPU:
             _logger.info("CPU time limit reached, stopping Chrome and shutting down")
             self.stop()
-            # sys.exit, not the site-provided exit() builtin: same SystemExit
-            # semantics, but always available (python -S, frozen builds)
             sys.exit()
 
     def throttle(self, factor: int | None) -> None:
         if not factor:
             return
 
-        assert 1 <= factor <= 50  # arbitrary upper limit
+        assert 1 <= factor <= 50
         self.throttling_factor = factor
         self._websocket_request(
             "Emulation.setCPUThrottlingRate", params={"rate": factor}
@@ -253,7 +238,6 @@ class ChromeBrowser:
         if getattr(self, "_stopped", False):
             return
         self._stopped = True
-        # method may be called during `_open_websocket`
         if hasattr(self, "ws"):
             try:
                 self.screencaster.stop()
@@ -271,7 +255,6 @@ class ChromeBrowser:
                         "awaitPromise": True,
                     },
                 )
-                # wait for any in-flight responses (e.g. the screenshot)
                 wait(self._responses.values(), 10)
                 self._result.cancel()
 
@@ -287,9 +270,6 @@ class ChromeBrowser:
             self.ws.close()
 
         self._logger.info("Terminating chrome headless with pid %s", self.chrome.pid)
-        # terminating the main process doesn't reap its children; collect the
-        # whole tree first, then SIGKILL whatever survives. NoSuchProcess: stop()
-        # may run after Chrome already exited.
         try:
             main = psutil.Process(self.chrome.pid)
             procs = [main, *main.children(recursive=True)]
@@ -311,7 +291,6 @@ class ChromeBrowser:
         self._logger.info('Removing chrome user profile "%s"', self.user_data_dir)
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
-        # Restore previous signal handler
         if self.sigxcpu_handler:
             signal.signal(signal.SIGXCPU, self.sigxcpu_handler)
 
@@ -327,13 +306,10 @@ class ChromeBrowser:
         """Spawn a Chrome subprocess and wait for it to expose the DevTools port."""
         log_path = pathlib.Path(self.user_data_dir, "err.log")
         with log_path.open("wb") as log_file:
-            # pylint: disable=subprocess-popen-preexec-fn
-            # TMPDIR -> profile dir so Chrome's `org.chromium.*` scratch dirs get
-            # removed with the profile instead of littering the system temp dir.
             proc = subprocess.Popen(
                 cmd,
                 stderr=log_file,
-                preexec_fn=_preexec,  # noqa: PLW1509
+                preexec_fn=_preexec,
                 env={**os.environ, "TMPDIR": self.user_data_dir},
             )
 
@@ -355,7 +331,6 @@ class ChromeBrowser:
             "Chrome headless failed to start:\n%s",
             log_path.read_text(encoding="utf-8"),
         )
-        # Chrome never started, so stop() won't run — clean up the profile dir here.
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
         raise unittest.SkipTest(
@@ -388,7 +363,6 @@ class ChromeBrowser:
             "--mute-audio": "",
         }
         switches = {
-            # required for tours that use Youtube autoplay conditions (namely website_slides' "course_tour")
             "--autoplay-policy": "no-user-gesture-required",
             "--disable-default-apps": "",
             "--disable-device-discovery-notifications": "",
@@ -397,20 +371,12 @@ class ChromeBrowser:
             "--remote-debugging-port": str(self.remote_debugging_port),
             "--user-data-dir": user_data_dir,
             "--no-first-run": "",
-            # FIXME: these next 2 flags are temporarily uncommented to allow client
-            # code to manually run garbage collection. This is done as currently
-            # the Chrome unit test process doesn't have access to its available
-            # memory, so it cannot run the GC efficiently and may run out of memory
-            # and crash. These should be re-commented when the process is correctly
-            # configured.
             "--enable-precise-memory-info": "",
             "--js-flags": "--expose-gc",
         }
         if headless:
             switches.update(headless_switches)
         if touch_enabled:
-            # enable Chrome's Touch mode, useful to detect touch capabilities using
-            # "'ontouchstart' in window"
             switches["--touch-events"] = ""
         if debug is not False:
             switches["--auto-open-devtools-for-tabs"] = ""
@@ -457,8 +423,6 @@ class ChromeBrowser:
         tries = 0
         failure_info = None
         message = None
-        # deadline on the clock, not on summed sleep()s: each requests.get may
-        # itself take up to 3s, which the old accounting ignored
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.chrome.poll() is not None:
@@ -526,11 +490,7 @@ class ChromeBrowser:
     def _receive(self, dbname: str) -> None:
         """Receive and dispatch WebSocket messages from Chrome DevTools."""
         threading.current_thread().dbname = dbname
-        # So CDT uses a streamed JSON-RPC structure, meaning a request is
-        # {id, method, params} and eventually a {id, result | error} should
-        # arrive the other way, however for events it uses "notifications"
-        # meaning request objects without an ``id``, but *coming from the server
-        while True:  # or maybe until `self._result` is `done()`?
+        while True:
             try:
                 msg = self.ws.recv()
                 if not msg:
@@ -542,8 +502,6 @@ class ChromeBrowser:
                 if not self._result.done():
                     del self.ws
                     self._result.set_exception(e)
-                    # drain destructively: cancelling a future can mutate
-                    # `_responses` mid-iteration
                     while True:
                         try:
                             _, f = self._responses.popitem()
@@ -555,8 +513,6 @@ class ChromeBrowser:
             except Exception as e:
                 if isinstance(e, ConnectionResetError) and self._result.done():
                     return
-                # if the socket is still connected something bad happened,
-                # otherwise the client was just shut down
                 if self.ws.connected:
                     self._result.set_exception(e)
                     raise
@@ -642,8 +598,7 @@ class ChromeBrowser:
             )
         except websocket.WebSocketConnectionClosedException:
             pass
-        except OSError:  # includes BrokenPipeError / ConnectionResetError
-            # this can happen if the browser is closed. Just ignore it.
+        except OSError:
             _logger.info(
                 "Websocket error while handling request %s",
                 params["request"]["url"],
@@ -655,20 +610,12 @@ class ChromeBrowser:
         args: list | None = None,
         stackTrace: dict | None = None,
         **kw: Any,
-    ) -> None:  # pylint: disable=redefined-builtin
-        # console formatting differs somewhat from Python's, if args[0] has
-        # format modifiers that many of args[1:] get formatted in, missing
-        # args are replaced by empty strings and extra args are concatenated
-        # (space-separated)
-        #
-        # current version modifies the args in place which could and should
-        # probably be improved
+    ) -> None:
         if args:
             arg0, args = str(self._from_remoteobject(args[0])), args[1:]
         else:
             arg0, args = "", []
         formatted = [re.sub(r"%[%sdfoOc]", self.console_formatter(args), arg0)]
-        # formatter consumes args it uses, leaves unformatted args untouched
         formatted.extend(str(self._from_remoteobject(arg)) for arg in args)
         message = " ".join(formatted)
         stack = "".join(self._format_stack({"type": type, "stackTrace": stackTrace}))
@@ -683,7 +630,7 @@ class ChromeBrowser:
             self._TO_LEVEL.get(log_type, logging.INFO),
             "%s%s",
             "Error received after termination: " if self._result.done() else "",
-            message,  # might still have %<x> characters
+            message,
         )
 
         if log_type == "error":
@@ -754,7 +701,7 @@ which leads to stray network requests and inconsistencies."""
         exception = exceptionDetails.get("exception")
         if exception:
             message += str(self._from_remoteobject(exception))
-        exceptionDetails["type"] = "trace"  # fake this so _format_stack works
+        exceptionDetails["type"] = "trace"
         stack = "".join(self._format_stack(exceptionDetails))
         if stack:
             message += "\n" + stack
@@ -791,9 +738,6 @@ which leads to stray network requests and inconsistencies."""
         "warning": logging.WARNING,
         "error": logging.ERROR,
         "dir": logging.RUNBOT,
-        # TODO: what do with
-        # dir, dirxml, table, trace, clear, startGroup, startGroupCollapsed,
-        # endGroup, assert, profile, profileEnd, count, timeEnd
     }
 
     def take_screenshot(self, prefix="sc_") -> Future[dict]:
@@ -852,7 +796,7 @@ which leads to stray network requests and inconsistencies."""
         self._websocket_request("Network.deleteCookies", params=params)
 
     def _wait_ready(self, ready_code: str | None = None, timeout: int = 60) -> bool:
-        timeout *= self.throttling_factor  # wall-clock budget, scaled once
+        timeout *= self.throttling_factor
         ready_code = ready_code or "document.readyState === 'complete'"
         self._logger.info('Evaluate ready code "%s"', ready_code)
         start_time = time.time()
@@ -872,16 +816,11 @@ which leads to stray network requests and inconsistencies."""
                     timeout=timeout - taken,
                 )["result"]
             except CancelledError:
-                # surface the real cause stored on `_result` (e.g. WS closed)
-                # instead of a bare CancelledError; otherwise retry until timeout
                 exc = self._result.done() and self._result.exception()
                 if exc:
                     raise exc from None
                 result = "cancelled"
             except TimeoutError:
-                # a ready code that is itself a never-resolving promise blocks
-                # the evaluate for the remaining budget; honour the documented
-                # bool contract instead of letting the TimeoutError escape
                 result = "evaluate timeout"
                 continue
 
@@ -893,8 +832,6 @@ which leads to stray network requests and inconsistencies."""
                     )
                 return True
 
-            # not ready yet: without this pause the loop hammers the CDP
-            # socket with thousands of evaluate round-trips per second
             time.sleep(0.05)
 
         exc = self._result.done() and self._result.exception()
@@ -907,7 +844,7 @@ which leads to stray network requests and inconsistencies."""
     def _wait_code_ok(
         self, code: str, timeout: float, error_checker: Callable | None = None
     ) -> None:
-        timeout *= self.throttling_factor  # wall-clock budget, scaled once
+        timeout *= self.throttling_factor
         self.error_checker = error_checker
         self._logger.info('Evaluate test code "%s"', code)
         start = time.time()
@@ -921,10 +858,6 @@ which leads to stray network requests and inconsistencies."""
                 timeout=timeout,
             )["result"]
         except TimeoutError as evaluate_timeout:
-            # the code itself outlived the budget (its promise never
-            # resolved).  Capture diagnostics and raise the browser exception
-            # like any other timeout — a bare TimeoutError used to escape
-            # browser_js's handler, failing the test without a screenshot.
             self.take_screenshot()
             self.screencaster.save()
             raise ChromeBrowserException(
@@ -935,18 +868,12 @@ which leads to stray network requests and inconsistencies."""
 
         err = ChromeBrowserException("failed")
         try:
-            # wait for the success signal/failure on the budget *remaining*
-            # after the evaluate phase.  `time.time() - start + timeout` — the
-            # sign flipped from the intended `start + timeout - time.time()` —
-            # granted elapsed+timeout more, so a hung run blocked for the
-            # evaluate duration twice over on top of the configured timeout.
             if (
                 self._result.result(max(0.0, start + timeout - time.time()))
                 and not self.had_failure
             ):
                 return
         except CancelledError:
-            # regular-ish shutdown
             return
         except ChromeBrowserException:
             self.screencaster.save()
@@ -982,28 +909,15 @@ which leads to stray network requests and inconsistencies."""
         objtype = arg["type"]
         subtype = arg.get("subtype")
         if objtype == "undefined":
-            # the undefined remoteobject is literally just {type: undefined}...
             return "undefined"
         elif objtype != "object" or subtype not in (None, "array"):
-            # value is the json representation for json object
-            # otherwise fallback on the description which is "a string
-            # representation of the object" e.g. the traceback for errors, the
-            # source for functions, ... finally fallback on the entire arg mess
             return arg.get("value", arg.get("description", arg))
         elif subtype == "array":
-            # apparently value is *not* the JSON representation for arrays
-            # instead it's just Array(3) which is useless, however the preview
-            # properties are the same as object which is useful (just ignore the
-            # name which is the index)
             return "[%s]" % ", ".join(
                 repr(p["value"]) if p["type"] == "string" else str(p["value"])
                 for p in arg.get("preview", {}).get("properties", [])
                 if re.match(r"\d+", p["name"])
             )
-        # all that's left is type=object, subtype=None aka custom or
-        # non-standard objects, print as TypeName(param=val, ...), sadly because
-        # of the way Odoo widgets are created they all appear as Class(...)
-        # nb: preview properties are *not* recursive, the value is *all* we get
         return "%s(%s)" % (
             arg.get("className") or "object",
             ", ".join(
@@ -1088,9 +1002,6 @@ class Screencaster:
     def start(self) -> None:
         """Start the Chrome screencast."""
         self._logger.info("Starting screencast")
-        # created here, not in __init__: every ChromeBrowser instantiates a
-        # Screencaster when screencasts are configured, but most never start
-        # one — eager creation littered empty frames-* directories
         self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.browser._websocket_send("Page.startScreencast")
 
@@ -1100,7 +1011,6 @@ class Screencaster:
             "Page.screencastFrameAck", params={"sessionId": sessionId}
         )
         if self.stopped:
-            # if already stopped, drop the frames as we might have removed the directory already
             return
         outfile = self.frames_dir / f"frame_{len(self.frames):05d}.png"
         try:
@@ -1123,9 +1033,6 @@ class Screencaster:
         if self.stopped:
             return
         self.browser._websocket_send("Page.stopScreencast")
-        # Wait for in-flight frames; there is no CDP event marking the last
-        # one, so poll for quiescence (no new frame for 0.5s) instead of the
-        # old flat 5s sleep, which taxed every failing screencasted test.
         deadline = time.time() + 5
         frame_count = -1
         while time.time() < deadline and len(self.frames) != frame_count:
@@ -1148,9 +1055,7 @@ class Screencaster:
                     end_time = next_frame["timestamp"] if next_frame else t
                     duration = end_time - f["timestamp"]
                 concat_file.write(f"file '{frame_file_path}'\nduration {duration}\n")
-            concat_file.write(
-                f"file '{frame_file_path}'"
-            )  # needed by the concat plugin
+            concat_file.write(f"file '{frame_file_path}'")
 
         try:
             ffmpeg_path = find_in_path("ffmpeg")
@@ -1196,9 +1101,7 @@ class Screencaster:
 
 @lru_cache(1)
 def _find_executable():
-    browser_bin_path = os.environ.get(
-        "ODOO_BROWSER_BIN"
-    )  # used for testing specific Chrome builds
+    browser_bin_path = os.environ.get("ODOO_BROWSER_BIN")
     if browser_bin_path and pathlib.Path(browser_bin_path).exists():
         return browser_bin_path
     system = platform.system()

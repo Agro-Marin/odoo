@@ -22,8 +22,6 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-# Pre-7.0 patterns (6.1, saas~) are kept: multi-version upgrade scripts and
-# odoo.upgrade paths may contain historical version folders.
 VERSION_RE = re.compile(
     r"""^
         # Optional prefix with Odoo version
@@ -60,7 +58,6 @@ def _convert_version(version: str) -> str:
     if version == "0.0.0":
         return version
     if version.count(".") > 2:
-        # the version number already contains the server version, see VERSION_RE
         return version
     return f"{release.major_version}.{version}"
 
@@ -82,9 +79,6 @@ def _migration_applies(
 
     full_version = _convert_version(version)
     if version != full_version:
-        # A "majorless" script (e.g. '2.0') must not re-run when only the Odoo
-        # major version bumps: compare just the module part so a 9.0.2.0 ->
-        # 10.0.2.0 upgrade does not replay the 2.0 script.
         return (
             parsed_installed[2:] < parse_version(full_version)[2:] <= parsed_target[2:]
         )
@@ -94,7 +88,7 @@ def _migration_applies(
 
 def _iter_upgrade_paths(pkg: str) -> Iterator[str]:
     """Yield the existing ``odoo.upgrade/<pkg>`` directories on the upgrade path."""
-    for path in odoo.upgrade.__path__:  # type: ignore[attr-defined]
+    for path in odoo.upgrade.__path__:
         upgrade_path = Path(path, pkg)
         if upgrade_path.exists():
             yield str(upgrade_path)
@@ -165,10 +159,6 @@ class MigrationManager:
             `-- foo.py                              # not processed
     """
 
-    # Plain dict on purpose: keys are exactly the packages _needs_migration()
-    # accepted in _get_files(), and migrate_module() re-checks that predicate,
-    # so a KeyError here means the two drifted apart — fail loudly rather than
-    # silently running zero scripts.
     migrations: dict[str, dict]
 
     def __init__(self, cr: Cursor, graph: module_graph.ModuleGraph) -> None:
@@ -238,7 +228,6 @@ class MigrationManager:
                 key=lambda k: parse_version(_convert_version(k)),
             )
             if "0.0.0" in versions:
-                # reorder versions
                 versions.remove("0.0.0")
                 if stage == "pre":
                     versions.insert(0, "0.0.0")
@@ -252,10 +241,6 @@ class MigrationManager:
             """return a list of migration script files"""
             m = self.migrations[pkg.name]
 
-            # Sort by (filename, full_path) so files with the same basename in
-            # different source dirs (module/migrations, module/upgrades, and
-            # odoo.upgrade/<pkg>) get a deterministic order rather than dict-
-            # iteration order.
             return sorted(
                 (
                     f
@@ -283,8 +268,6 @@ class MigrationManager:
                     )
 
 
-# _cr/_version variants are kept for backward compatibility with existing
-# migration scripts.
 VALID_MIGRATE_PARAMS = list(
     itertools.product(
         ["cr", "_cr"],

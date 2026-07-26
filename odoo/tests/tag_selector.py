@@ -37,13 +37,11 @@ class TagsSelector:
                                 (?:\[(.*)\])?               # parameters
                                 $""",
         re.VERBOSE,
-    )  # [-][tag][/file_path.py|/module][:class][.method][[params]]
+    )
 
     def __init__(self, spec: str) -> None:
         """Parse the spec to determine tags to include and exclude."""
-        parts = re.split(
-            r",(?![^\[]*\])", spec
-        )  # split on all comma not inside [] (not followed by ])
+        parts = re.split(r",(?![^\[]*\])", spec)
         filter_specs = [t.strip() for t in parts if t.strip()]
         self.exclude: set[tuple] = set()
         self.include: set[tuple] = set()
@@ -66,15 +64,12 @@ class TagsSelector:
             is_exclude = not is_include
 
             if not tag and is_include:
-                # including /module:class.method implicitly requires 'standard'
                 tag = "standard"
             elif not tag or tag == "*":
-                # '*' indicates all tests (instead of 'standard' tests only)
                 tag = None
             test_filter = (tag, module, klass, method, file_path)
 
             if parameters:
-                # we could check here that test supports negated parameters
                 self.parameters.add(
                     (test_filter, ("-" if is_exclude else "+", parameters))
                 )
@@ -94,17 +89,13 @@ class TagsSelector:
         It must have at least one tag in ``self.include`` and none in
         ``self.exclude`` for each tag category.
         """
-        if not hasattr(
-            test, "test_tags"
-        ):  # handle the case where the Test does not inherit from BaseCase and has no test_tags
+        if not hasattr(test, "test_tags"):
             _logger.debug("Skipping test '%s' because no test_tag found.", test)
             return False
 
         test_module = test.test_module
         test_class = test.__class__.__name__
-        test_tags = test.test_tags | {
-            test_module
-        }  # module as test_tags deprecated, keep for retrocompatibility,
+        test_tags = test.test_tags | {test_module}
         test_method = test._testMethodName
         test_module_path = test.__module__
         for prefix in ("odoo.addons", "odoo.upgrade"):

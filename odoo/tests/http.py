@@ -107,9 +107,6 @@ class HttpCase(TransactionCase):
     @classmethod
     def setUpClass(cls) -> None:
         if cls.http_port() is None:
-            # base_url() would otherwise die formatting None as %d — an
-            # opaque TypeError deep in setUpClass when the server runs
-            # without a listening httpd (--no-http, misconfigured preload).
             raise unittest.SkipTest(
                 f"{cls.__name__} requires a running HTTP server (--no-http?)"
             )
@@ -120,7 +117,6 @@ class HttpCase(TransactionCase):
         ICP = cls.env["ir.config_parameter"]
         ICP.set_param("web.base.url", cls.base_url())
         ICP.env.flush_all()
-        # v8 api with correct xmlrpc exception handling.
         cls.xmlrpc_url = f"{cls.base_url()}/xmlrpc/2/"
         cls._logger = logging.getLogger("%s.%s" % (cls.__module__, cls.__name__))
 
@@ -132,11 +128,6 @@ class HttpCase(TransactionCase):
     @classmethod
     def http_port(cls) -> int | None:
         """Return the HTTP server port, or None if the server is not running."""
-        # A server object can exist without a listening ``httpd`` (--no-http,
-        # ``odoo shell``, a server still starting up). Callers rely on the
-        # documented ``None`` -- e.g. http_routing's ``MockRequest`` does
-        # ``if HttpCase.http_port():`` -- so answer None there too instead of
-        # raising AttributeError on the missing attribute.
         httpd = getattr(odoo.service.lifecycle.server, "httpd", None)
         return httpd.server_port if httpd is not None else None
 
@@ -156,14 +147,10 @@ class HttpCase(TransactionCase):
             transport=Transport(self),
             use_datetime=True,
         )
-        # ServerProxy("close") returns the proxy's close method (stdlib API)
         for proxy in (self.xmlrpc_common, self.xmlrpc_db, self.xmlrpc_object):
             self.addCleanup(proxy("close"))
-        # setup an url opener helper
         self.opener = Opener(self)
-        # close whichever Opener is current at teardown (authenticate()
-        # replaces it); otherwise sockets linger until garbage collection
-        self.addCleanup(lambda: self.opener.close())  # noqa: PLW0108  # late-bound: authenticate() may replace self.opener
+        self.addCleanup(lambda: self.opener.close())
         self.http_key_sequence = itertools.count()
 
     @contextmanager
@@ -190,10 +177,6 @@ class HttpCase(TransactionCase):
         with ExitStack() as defer:
             defer.enter_context(release_test_lock())
             if all_requests:
-                # patch.object so the flag is restored on exit: a plain
-                # assignment leaked `True` for the rest of the test, silently
-                # disabling the stale-request cookie protection below after
-                # the first XML-RPC call (Transport passes all_requests=True).
                 defer.enter_context(patch.object(self, "http_request_allow_all", True))
             new_key = f"{self.canonical_tag}__{next(self.http_key_sequence)}"
             defer.enter_context(patch.object(self, "http_request_key", new_key))
@@ -206,9 +189,6 @@ class HttpCase(TransactionCase):
                 defer.callback(self.opener.cookies.pop, TEST_CURSOR_COOKIE_NAME, None)
             self.opener.cookies[TEST_CURSOR_COOKIE_NAME] = new_key
             if browser:
-                # http_only keeps this cookie out of document.cookie: only the
-                # HTTP worker needs it (to match a request to its test cursor),
-                # and a JS-visible cookie would pollute HOOT's MockCookie jar.
                 browser.set_cookie(
                     TEST_CURSOR_COOKIE_NAME,
                     self.http_request_key,
@@ -227,7 +207,6 @@ class HttpCase(TransactionCase):
         if not location:
             return urlsplit("")
         s = urlsplit(urljoin(self.base_url(), location))
-        # normalise query parameters
         return s._replace(query=urlencode(parse_qsl(s.query)))
 
     def assertURLEqual(
@@ -335,8 +314,6 @@ class HttpCase(TransactionCase):
         session.update(
             odoo.http.get_default_session(),
             db=get_db_name(),
-            # In order to avoid perform a query to each first `url_open`
-            # in a test (insert `res.device.log`).
             _trace_disable=True,
         )
         session.context["lang"] = odoo.http.DEFAULT_LANG
@@ -346,10 +323,7 @@ class HttpCase(TransactionCase):
                 session.context.update(extra_ctx)
             session.update(session_extra)
 
-        if user:  # if authenticated
-            # Flush and clear the current transaction.  This is useful, because
-            # the call below opens a test cursor, which uses a different cache
-            # than this transaction.
+        if user:
             self.cr.flush()
             self.cr.clear()
 
@@ -360,7 +334,6 @@ class HttpCase(TransactionCase):
                     "mfa": "default",
                 }
 
-            # patching to speedup the check in case the password is hashed with many hashround + avoid to update the password
             with patch(
                 "odoo.addons.base.models.res_users.ResUsersPatchedInTest._check_credentials",
                 new=patched_check_credentials,
@@ -381,33 +354,13 @@ class HttpCase(TransactionCase):
             session.context = dict(env["res.users"].context_get())
 
         odoo.http.root.session_store.save(session)
-        # Reset the opener: turns out when we set cookies['foo'] we're really
-        # setting a cookie on domain='' path='/'.
-        #
-        # But then our friendly neighborhood server might set a cookie for
-        # domain='localhost' path='/' (with the same value) which is considered
-        # a *different* cookie following ours rather than the same.
-        #
-        # When we update our cookie, it's done in-place, so the server-set
-        # cookie is still present and (as it follows ours and is more precise)
-        # very likely to still be used, therefore our session change is ignored.
-        #
-        # An alternative would be to set the cookie to None (unsetting it
-        # completely) or clear-ing session.cookies.
-        #
-        # Close the opener being replaced so its socket isn't leaked — but only if
-        # one exists: authenticate() also runs from setUpClass (``cls.authenticate
-        # (cls, ...)``), before setUp() has created the first opener. Mirror the
-        # ``getattr(self, "session", None)`` guard used at the top of this method.
         old_opener = getattr(self, "opener", None)
         if old_opener is not None:
-            old_opener.close()  # the replaced session would only be GC-reclaimed
+            old_opener.close()
         self.opener = Opener(self)
         self.opener.cookies.set("session_id", session.sid, domain=HOST)
         if browser:
             self._logger.info("Setting session cookie in browser")
-            # http_only mirrors the server's httponly session_id cookie; JS never
-            # reads it, and leaving it JS-visible would pollute HOOT's MockCookie jar.
             browser.set_cookie("session_id", session.sid, "/", HOST, http_only=True)
 
         return session
@@ -423,9 +376,7 @@ class HttpCase(TransactionCase):
                 "External chrome request during tests: Return empty file for %s",
                 url,
             )
-            return self.make_fetch_proxy_response(
-                ""
-            )  # return empty css file, we don't care
+            return self.make_fetch_proxy_response("")
 
         _logger.info("External chrome request during tests: returning 404 for %s", url)
         return {
@@ -486,7 +437,6 @@ class HttpCase(TransactionCase):
         if not self.env.registry.loaded:
             self._logger.warning("HttpCase test should be in post_install only")
 
-        # increase timeout if coverage is running
         if any(
             f.filename.endswith("/coverage/execfile.py")
             for f in inspect.stack()
@@ -500,16 +450,10 @@ class HttpCase(TransactionCase):
         if watch:
             self._logger.warning("watch mode is only suitable for local testing")
 
-        # instantiate through common's module globals: bus/web tests patch
-        # "odoo.tests.common.ChromeBrowser" and must keep affecting us
         browser = common.ChromeBrowser(
             self, headless=not watch, success_signal=success_signal, debug=debug
         )
         with contextlib.ExitStack() as atexit:
-            # safety net registered first (thus run last): guarantees Chrome is
-            # stopped and its profile dir removed even when the setup below
-            # (authenticate, cookies, navigate) fails before the happy-path
-            # browser.stop registration; stop() is idempotent
             atexit.callback(browser.stop)
             atexit.enter_context(self.allow_requests(browser=browser))
             atexit.callback(self._wait_remaining_requests)
@@ -526,8 +470,8 @@ class HttpCase(TransactionCase):
 
                 def sendone_wrapper(self, target, notification_type, message):
                     original_send_one(self, target, notification_type, message)
-                    self.env.cr.precommit.run()  # Trigger the creation of bus.bus records
-                    self.env.cr.postcommit.run()  # Trigger notification dispatching
+                    self.env.cr.precommit.run()
+                    self.env.cr.postcommit.run()
 
                 atexit.enter_context(patch.object(BusBus, "_sendone", sendone_wrapper))
                 atexit.enter_context(
@@ -539,9 +483,6 @@ class HttpCase(TransactionCase):
                 )
 
             self.authenticate(login, login, browser=browser)
-            # Flush and clear the current transaction.  This is useful in case
-            # we make requests to the server, as these requests are made with
-            # test cursors, which uses different caches than this transaction.
             self.cr.flush()
             self.cr.clear()
             url = urljoin(self.base_url(), url_path)
@@ -559,7 +500,6 @@ class HttpCase(TransactionCase):
                 for name, value in cookies.items():
                     browser.set_cookie(name, value, "/", HOST)
 
-            # used by dedicated runbot builds
             cpu_throttling_os = env_int("ODOO_BROWSER_CPU_THROTTLING", 0)
             cpu_throttling = cpu_throttling_os or cpu_throttling
 
@@ -576,8 +516,6 @@ class HttpCase(TransactionCase):
             browser.navigate_to(url, wait_stop=not bool(ready))
             atexit.callback(browser.stop)
 
-            # Needed because tests like test01.js (qunit tests) are passing a ready
-            # code = ""
             self.assertTrue(
                 browser._wait_ready(ready),
                 'The ready "%s" code was always falsy' % ready,
@@ -588,7 +526,7 @@ class HttpCase(TransactionCase):
                 browser._wait_code_ok(code, timeout, error_checker=error_checker)
             except ChromeBrowserException as chrome_browser_exception:
                 error = chrome_browser_exception
-            if error:  # dont keep initial traceback, keep that outside of except
+            if error:
                 if code:
                     message = 'The test code "%s" failed' % code
                 else:
@@ -707,5 +645,4 @@ class HttpCase(TransactionCase):
                 code=decoded_response["error"]["code"],
                 message=decoded_response["error"]["data"]["name"],
             )
-        # workaround: JsonRPCDispatcher is broken and may send neither result nor error
         return decoded_response.get("result")

@@ -14,13 +14,8 @@ from odoo.tools import config
 
 from .db import list_dbs
 
-# Cron and HTTP-worker main loops sleep this long between cycles when no signal
-# or NOTIFY is pending.  60 s balances drift responsiveness against idle CPU.
-SLEEP_INTERVAL = 60  # 1 min
+SLEEP_INTERVAL = 60
 
-# Max random sleep after a cron worker wakes on a ``cron_trigger`` NOTIFY, so
-# concurrent workers don't all hit PG at once (thundering herd).  Shared by both
-# cron paths (``ThreadedServer.cron_thread`` / ``WorkerCron.sleep``).
 CRON_NOTIFY_JITTER_MAX_S = 0.1
 
 

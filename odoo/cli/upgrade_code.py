@@ -14,10 +14,10 @@ The file_manager acts as a list of files, files have 3 attributes:
 There are additional utilities on the file_manager, such as:
 * print_progress(current, total)
 
-Example:
+Example::
 
     def upgrade(file_manager):
-        files = [f for f in file_manager if f.path.suffix == '.py']
+        files = [f for f in file_manager if f.path.suffix == ".py"]
         for fileno, file in enumerate(files, start=1):
             file.content = file.content.replace(..., ...)
             file_manager.print_progress(fileno, len(files))
@@ -61,11 +61,6 @@ try:
     import odoo.addons
     from . import Command
 except ImportError:
-    # Direct execution (not via odoo-bin): release and parse_version are
-    # standalone helpers, so load them straight from their files. Loading by
-    # path (instead of prepending ROOT to sys.path) keeps the odoo/ tree off
-    # sys.path, so its packages can't shadow stdlib modules — e.g. odoo/http/
-    # over http, or odoo/tools/json.py over json — when the upgrade scripts run.
     release = _load_module_from_file("release", ROOT / "release.py")
     _parse_version_module = _load_module_from_file(
         "parse_version", ROOT / "libs" / "parse_version.py"
@@ -110,8 +105,6 @@ class FileAccessor:
     @property
     def content(self) -> str:
         if self._content is None:
-            # Explicit utf-8: source files are utf-8 by convention and the
-            # default would follow the process locale (PEP 597).
             self._content = self.path.read_text(encoding="utf-8")
         return self._content
 
@@ -137,7 +130,6 @@ class FileManager:
             if path.suffix in AVAILABLE_EXT
             if path.is_file()
         }
-        # Probe stderr (where the progress line goes), not stdout.
         self._show_progress = sys.stderr.isatty()
 
     def __iter__(self) -> Iterator[FileAccessor]:
@@ -193,9 +185,6 @@ def migrate(
     dry_run: bool = False,
 ) -> bool:
     if script:
-        # Scripts are named {version}-{name}.py. Accept an exact stem
-        # (`17.5-00-example`) or a name-only suffix (`foo` -> `19.0-foo.py`).
-        # Anchor the suffix on the hyphen so `foo` doesn't match `19.0-foobar.py`.
         stem = script.removesuffix(".py")
         exact = UPGRADE / f"{stem}.py"
         if exact.is_file():
@@ -210,9 +199,6 @@ def migrate(
         script_path = candidates[0] if candidates else None
         if not script_path:
             raise FileNotFoundError(script)
-        # Guard against path traversal (`--script ../../etc/x`): the exact-stem
-        # branch can escape UPGRADE via `..`. Resolve both sides before
-        # comparing, since is_relative_to is purely lexical.
         if not script_path.resolve().is_relative_to(UPGRADE.resolve()):
             raise FileNotFoundError(f"--script {script!r} resolves outside {UPGRADE}")
         module = _load_module_from_file(script_path.name, script_path)
@@ -222,9 +208,9 @@ def migrate(
 
     file_manager = FileManager(addons_path, glob)
     for _name, module in modules:
-        file_manager.print_progress(0)  # 0%
+        file_manager.print_progress(0)
         module.upgrade(file_manager)
-        file_manager.print_progress(len(file_manager))  # 100%
+        file_manager.print_progress(len(file_manager))
     file_manager.clear_progress()
 
     for file in file_manager:
@@ -276,7 +262,6 @@ class UpgradeCode(Command):
             type=(
                 functools.partial(config.parse, "addons_path")
                 if config
-                # the paths must be resolved already
                 else functools.partial(str.split, sep=",")
             ),
             default=config["addons_path"] if config else [],
@@ -286,8 +271,6 @@ class UpgradeCode(Command):
 
     def run(self, cmdargs: list[str]) -> None:
         options = self.parser.parse_args(cmdargs)
-        # Catch inverted ranges early; otherwise the version filter matches
-        # zero scripts and exits 0, reading as "nothing to do".
         if options.from_version and options.to_version < options.from_version:
             self.parser.error(
                 f"--to {options.to_version} is older than --from {options.from_version}"
@@ -297,13 +280,9 @@ class UpgradeCode(Command):
             initialize_sys_path()
             options.addons_path = odoo.addons.__path__
         else:
-            # In standalone mode, type=str.split already returned a list;
-            # filter out empty entries that result from a trailing comma.
             options.addons_path = [p for p in options.addons_path if p]
         if not options.addons_path:
             self.parser.error("--addons-path is required when used standalone")
-        # Explicit kwargs, not migrate(**vars(options)): the splat coupled
-        # migrate's signature to the namespace, so a new flag broke it.
         is_dirty = migrate(
             options.addons_path,
             options.glob,

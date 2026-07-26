@@ -31,8 +31,6 @@ class Cloc(Command):
         self.parser.add_argument(
             "--path", "-p", action="append", help="File or directory path"
         )
-        # Declared (not just forwarded via unknown args) so they show up in
-        # --help; both only matter in database mode.
         self.parser.add_argument(
             "-c", "--config", dest="config", help="use a specific configuration file"
         )
@@ -50,9 +48,6 @@ class Cloc(Command):
 
         c = cloc.Cloc()
         if opt.database:
-            # build_config_args adds --no-http; remaining unknown args (e.g.
-            # --addons-path) are forwarded to the config parser, which
-            # rejects genuine typos.
             if opt.data_dir:
                 unknown = ["-D", opt.data_dir, *unknown]
             config.parse_config(

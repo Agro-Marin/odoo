@@ -59,22 +59,20 @@ def _parse(
         return default
     try:
         value = conv(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         if logger is not None:
             logger.warning(
                 "%s=%r is not %s; using default %s", name, raw, label, default
             )
         return default
-    # ``nan``/``inf`` parse fine but slip past both the fallback above and the
-    # ``value < minimum`` clamp below (nan comparisons are always False, inf is
-    # never below a finite minimum), then crash far away in
-    # ``socket.settimeout`` etc.  Treat non-finite as garbage.  (float path only:
-    # ``int`` never yields non-finite.)
     if conv is float and not math.isfinite(value):
         if logger is not None:
             logger.warning(
                 "%s=%r is not a finite %s; using default %s",
-                name, raw, label, default,
+                name,
+                raw,
+                label,
+                default,
             )
         return default
     if minimum is not None and value < minimum:

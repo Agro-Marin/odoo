@@ -17,17 +17,14 @@ import os
 import threading
 from pathlib import Path
 
-# Both names are bound to ``None`` up front so ``lifecycle`` can always
-# ``from ._watcher import inotify, watchdog`` whichever backend — if any —
-# actually imports below.
 inotify = None
 watchdog = None
 
 if os.name == "posix":
     try:
-        import inotify  # type: ignore[import-not-found]
-        from inotify.adapters import InotifyTrees  # type: ignore[import-not-found]
-        from inotify.constants import (  # type: ignore[import-not-found]
+        import inotify
+        from inotify.adapters import InotifyTrees
+        from inotify.constants import (
             IN_CREATE,
             IN_MODIFY,
             IN_MOVED_TO,
@@ -35,26 +32,25 @@ if os.name == "posix":
 
         INOTIFY_LISTEN_EVENTS = IN_MODIFY | IN_CREATE | IN_MOVED_TO
     except ImportError:
-        inotify = None  # reset in case partial import bound the name
+        inotify = None
 
 if not inotify:
     try:
-        import watchdog  # type: ignore[import-not-found]
-        from watchdog.events import (  # type: ignore[import-not-found]
+        import watchdog
+        from watchdog.events import (
             FileCreatedEvent,
             FileModifiedEvent,
             FileMovedEvent,
         )
-        from watchdog.observers import Observer  # type: ignore[import-not-found]
+        from watchdog.observers import Observer
     except ImportError:
-        watchdog = None  # reset in case partial import bound the name
-# No else-branch needed: both names are pre-bound to ``None`` above.
+        watchdog = None
 
-# Imported after the backend blocks so a missing-backend failure surfaces
-# before the slower addon namespace is touched.
-import odoo.addons  # noqa: E402
+import odoo.addons
 
-_logger = logging.getLogger("odoo.service.server")  # operator log-config preserved
+_logger = logging.getLogger("odoo.service.server")
+
+_OBSERVER_JOIN_TIMEOUT_S = 5.0
 
 
 class FSWatcherBase:
@@ -65,8 +61,12 @@ class FSWatcherBase:
     Log and skip instead.
     """
 
+    _reload_triggered = False
+
     def handle_file(self, path: str) -> bool | None:
         """Check if a changed file is a Python source and trigger autoreload."""
+        if self._reload_triggered:
+            return None
         if path.endswith(".py") and not Path(path).name.startswith(".~"):
             try:
                 source = Path(path).read_bytes() + b"\n"
@@ -82,11 +82,10 @@ class FSWatcherBase:
                     path,
                 )
             else:
-                # Lazy import (lifecycle imports _watcher).  Read the flag as
-                # ``lifecycle.server_phoenix`` so later rebinds are seen.
                 from . import lifecycle
 
                 if not lifecycle.server_phoenix:
+                    self._reload_triggered = True
                     _logger.info(
                         "autoreload: python code updated, autoreload activated"
                     )
@@ -116,7 +115,13 @@ class FSWatcherWatchdog(FSWatcherBase):
 
     def stop(self) -> None:
         self.observer.stop()
-        self.observer.join()
+        self.observer.join(timeout=_OBSERVER_JOIN_TIMEOUT_S)
+        if self.observer.is_alive():
+            _logger.warning(
+                "autoreload: watchdog observer did not stop within %.0fs; "
+                "continuing shutdown without it",
+                _OBSERVER_JOIN_TIMEOUT_S,
+            )
 
 
 class FSWatcherInotify(FSWatcherBase):
@@ -124,9 +129,8 @@ class FSWatcherInotify(FSWatcherBase):
 
     def __init__(self) -> None:
         self.started = False
-        # ignore warnings from inotify in case we have duplicate addons paths.
+        self.thread: threading.Thread | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
-        # recreate a list as InotifyTrees' __init__ deletes the list's items
         paths_to_watch = list(odoo.addons.__path__)
         for path in paths_to_watch:
             _logger.info("Watching addons folder %s", path)
@@ -141,8 +145,6 @@ class FSWatcherInotify(FSWatcherBase):
             for event in self.watcher.event_gen(timeout_s=0, yield_nones=False):
                 _, type_names, path, filename = event
                 if "IN_ISDIR" not in type_names:
-                    # despite not having IN_DELETE in the watcher's mask, the
-                    # watcher sends these events when a directory is deleted.
                     if "IN_DELETE" not in type_names:
                         full_path = str(Path(path, filename))
                         if self.handle_file(full_path):
@@ -164,5 +166,7 @@ class FSWatcherInotify(FSWatcherBase):
 
     def stop(self) -> None:
         self.started = False
-        self.thread.join()
-        del self.watcher  # ensures inotify watches are freed up before reexec
+        if self.thread is not None:
+            self.thread.join()
+            self.thread = None
+        self.watcher = None

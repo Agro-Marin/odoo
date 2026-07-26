@@ -5,4 +5,4 @@ pseudo-cursor *utility*, not a test module).  This re-export keeps the old
 import path ``from odoo.tests.test_cursor import TestCursor`` working.
 """
 
-from .cursor import TestCursor  # noqa: F401
+from .cursor import TestCursor

@@ -42,6 +42,7 @@ from odoo.db import Cursor, Savepoint
 from odoo.db.utils import seed_planner_stats
 from odoo.exceptions import AccessError
 from odoo.fields import Command
+from odoo.libs.password import CryptContext
 from odoo.modules.registry import DummyRLock, Registry
 from odoo.tools import (
     SQL,
@@ -54,7 +55,6 @@ from odoo.tools import (
 from odoo.tools.cache import _COUNTERS
 from odoo.tools.mail import single_email_re
 from odoo.tools.misc import lower_logging
-from odoo.tools.password import CryptContext
 from odoo.tools.xml_utils import _validate_xml
 
 from . import case
@@ -65,17 +65,10 @@ from .utils import HOST, env_int, get_db_name, save_test_file
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterable
 
-    # only referenced by the Approx annotation below; a runtime import would
-    # make the framework's import drag in addon code (see conventions.md)
     import odoo.addons.base
     from .result import OdooTestResult
 
 
-# Public API re-exported as `odoo.tests` (see tests/__init__.py).  Without
-# this, the star-import used to republish every stdlib module imported above
-# (odoo.tests.json, odoo.tests.os, ...).
-# `Command`, `mute_logger` and `patch` are sanctioned convenience re-exports
-# (odoo.fields / odoo.tools / unittest.mock), widely imported from odoo.tests.
 __all__ = [
     "ADMIN_USER_ID",
     "DEFAULT_SUCCESS_SIGNAL",
@@ -142,7 +135,6 @@ def get_cache_key_counter(bound_method, *args, **kwargs):
     return cache, key, counter
 
 
-# Useless constant, tests are aware of the content of demo data
 ADMIN_USER_ID = api.SUPERUSER_ID
 
 TEST_CURSOR_COOKIE_NAME = "test_request_key"
@@ -172,19 +164,12 @@ standalone_tests = defaultdict(list)
 
 
 class RegistryRLock(threading._RLock):
-    # Deliberately subclasses the *pure-Python* RLock: the C implementation
-    # returned by the threading.RLock() factory does not expose its recursion
-    # count, which the framework introspects for lock-balance warnings
-    # (TransactionCase.setUp).  Slower than the C lock, but it is taken once
-    # per HTTP request during tests, not on any hot path.
     @property
     def count(self) -> int:
         """Expose the private reentrant lock acquisition count."""
-        return self._count  # Expose private attribute
+        return self._count
 
 
-# The lock should only be released when new test cursors are meant to be opened.
-# Further filtering on cursors can be done by extending `assertCanOpenTestCursor`.
 _registry_test_lock = RegistryRLock()
 _registry_test_lock.acquire()
 
@@ -198,8 +183,6 @@ def release_test_lock() -> Generator[None]:
     finally:
         if not _registry_test_lock.acquire(timeout=60):
             tag = odoo.modules.module.current_test.canonical_tag
-            # sys.exit, not the site-provided exit() builtin: same SystemExit
-            # semantics, but always available (python -S, frozen builds)
             sys.exit(f"Could not re-acquire the registry lock during {tag}, exiting...")
 
 
@@ -210,11 +193,9 @@ def standalone(*tags: str) -> Callable[[Callable], Callable]:
     """
 
     def register(func: Callable) -> Callable:
-        # register func by odoo module name
         if func.__module__.startswith("odoo.addons."):
             module = func.__module__.split(".")[2]
             standalone_tests[module].append(func)
-        # register func with aribitrary name, if any
         for tag in tags:
             standalone_tests[tag].append(func)
         standalone_tests["all"].append(func)
@@ -277,19 +258,15 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
         )
     ]
     create_values = dict(kwargs, login=login, group_ids=group_ids)
-    # automatically generate a name as "Login (groups)" to ease user comprehension
     if not create_values.get("name"):
         create_values["name"] = f"{login} ({groups})"
-    # automatically give a password equal to login
     if not create_values.get("password"):
         create_values["password"] = login + "x" * (8 - len(login))
-    # generate email if not given as most test require an email
     if "email" not in create_values:
         if single_email_re.match(login):
             create_values["email"] = login
         else:
             create_values["email"] = f"{login[0]}.{login[0]}@example.com"
-    # ensure company_id + allowed company constraint works if not given at create
     if "company_id" in create_values and "company_ids" not in create_values:
         create_values["company_ids"] = [(4, create_values["company_id"])]
 
@@ -329,8 +306,6 @@ class RecordCapturer:
 
 def _enter_context(cm: Any, addcleanup: Callable) -> Any:
     """Enter a context manager and register its __exit__ as a cleanup function."""
-    # We look up the special methods on the type to match the with
-    # statement.
     cls = type(cm)
     try:
         enter = cls.__enter__
@@ -393,13 +368,9 @@ class BaseCase(case.TestCase):
                 cls.test_tags = {"standard", "at_install"}
             cls.test_module = cls.__module__.split(".")[2]
 
-    longMessage = (
-        True  # more verbose error message by default: https://www.odoo.com/r/Vmh
-    )
-    warm = True  # False during warm-up phase (see :func:`warmup`)
+    longMessage = True
+    warm = True
 
-    # env_int: an empty-but-set variable (common in CI) must not kill this
-    # class body — and with it every `import odoo.tests` — with ValueError.
     _tests_run_count = env_int("ODOO_TEST_FAILURE_RETRIES", 0) + 1
 
     _registry_patched = False
@@ -417,8 +388,6 @@ class BaseCase(case.TestCase):
 
     @classmethod
     def _request_handler(cls, s: Session, r: PreparedRequest, /, **kw):
-        # allow localhost requests
-        # TODO: also check port?
         url = urlsplit(r.url)
         timeout = kw.get("timeout")
         if timeout and timeout < 10:
@@ -438,7 +407,7 @@ class BaseCase(case.TestCase):
         )
         raise BlockedRequest(f"External requests verboten (was {r.method} {r.url})")
 
-    def run(self, result: OdooTestResult) -> None:  # type: ignore[override]
+    def run(self, result: OdooTestResult) -> None:
         testMethod = getattr(self, self._testMethodName)
 
         if getattr(testMethod, "_retry", True) and getattr(self, "_retry", True):
@@ -448,7 +417,7 @@ class BaseCase(case.TestCase):
             _logger.info("Auto retry disabled for %s", self)
 
         for retry in range(tests_run_count):
-            result.had_failure = False  # reset in case of retry without soft_fail
+            result.had_failure = False
             if retry:
                 _logger.runbot(f"Retrying a failed test: {self}")
             if retry < tests_run_count - 1:
@@ -460,7 +429,7 @@ class BaseCase(case.TestCase):
                     super().run(cast("TestResult", result))
                 if not (result.had_failure or quiet_log.had_error_log):
                     break
-            else:  # last try
+            else:
                 super().run(cast("TestResult", result))
                 if not result.wasSuccessful() and BaseCase._tests_run_count != 1:
                     _logger.runbot("Disabling auto-retry after a failed test")
@@ -474,9 +443,7 @@ class BaseCase(case.TestCase):
             for child in children:
                 _logger.warning("A child process was found, terminating it: %s", child)
                 child.terminate()
-            psutil.wait_procs(
-                children, timeout=10
-            )  # mainly to avoid a zombie process that would be logged again at the end.
+            psutil.wait_procs(children, timeout=10)
 
         cls.addClassCleanup(check_remaining_processes)
 
@@ -521,15 +488,10 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(close_esm_lexer)
         super().setUpClass()
         if "standard" in cls.test_tags or "click_all" in cls.test_tags:
-            # patch.object stores the value via setattr; an already-bound
-            # classmethod isn't re-bound on attribute access, so it would never
-            # receive the Session as `s`. A lambda binds and forwards it correctly.
-            # pylint: disable=unnecessary-lambda
-
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                lambda s, r, **kw: cls._request_handler(s, r, **kw),  # noqa: PLW0108  # lambda binds the patched Session as `s`
+                lambda s, r, **kw: cls._request_handler(s, r, **kw),
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
@@ -552,7 +514,6 @@ class BaseCase(case.TestCase):
     def uid(self, user):
         """Set the uid by changing the test's environment."""
         self.env = self.env(user=user)
-        # set the updated environment as the default one
         self.env.transaction.default_env = self.env
 
     def ref(self, xid: str) -> int:
@@ -582,14 +543,14 @@ class BaseCase(case.TestCase):
 
     def patch(self, obj: Any, key: str, val: Any) -> None:
         """Do the patch ``setattr(obj, key, val)``, and prepare cleanup."""
-        patcher = patch.object(obj, key, val)  # this is unittest.mock.patch
+        patcher = patch.object(obj, key, val)
         patcher.start()
         self.addCleanup(patcher.stop)
 
     @classmethod
     def classPatch(cls, obj: Any, key: str, val: Any) -> None:
         """Do the patch ``setattr(obj, key, val)``, and prepare cleanup."""
-        patcher = patch.object(obj, key, val)  # this is unittest.mock.patch
+        patcher = patch.object(obj, key, val)
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
@@ -627,12 +588,9 @@ class BaseCase(case.TestCase):
         try:
             user = self.env["res.users"].sudo().search([("login", "=", login)])
             assert user, f"Login {login} not found"
-            # switch user (the uid setter rebuilds self.env and the
-            # transaction's default_env)
             self.uid = user.id
             yield
         finally:
-            # back
             self.uid = old_uid
             self.env = old_env
 
@@ -668,25 +626,15 @@ class BaseCase(case.TestCase):
         with ExitStack() as init:
             if self.env:
                 init.enter_context(self.env.cr.savepoint())
-                # exception may be a class or a tuple of classes; issubclass
-                # rejects a tuple as its first argument, so handle each form.
                 if isinstance(exception, tuple):
                     clear_cache = any(issubclass(exc, AccessError) for exc in exception)
                 else:
                     clear_cache = issubclass(exception, AccessError)
                 if clear_cache:
-                    # The savepoint() above calls flush(), which leaves the
-                    # record cache with lots of data.  This can prevent
-                    # access errors to be detected. In order to avoid this
-                    # issue, we clear the cache before proceeding.
                     self.env.cr.clear()
 
             with ExitStack() as inner:
                 cm = inner.enter_context(super().assertRaises(exception, msg=msg))
-                # *moves* the cleanups from init to inner, this ensures the
-                # savepoint gets rolled back when `yield` raises `exception`,
-                # but still allows the initialisation to be protected *and* not
-                # interfered with by `assertRaises`.
                 inner.push(init.pop_all())
 
                 yield cm
@@ -819,7 +767,6 @@ class BaseCase(case.TestCase):
         The second form is convenient when used with :func:`users`.
         """
         if self.warm:
-            # mock random in order to avoid random bus gc
             with patch("random.random", lambda: 1):
                 login = self.env.user.login
                 expected = counters.get(login, default)
@@ -833,7 +780,6 @@ class BaseCase(case.TestCase):
                     self.env.cr.flush()
                 count = self.cr.sql_log_count - count0
                 if count != expected:
-                    # add some info on caller to allow semi-automatic update of query count
                     _frame, filename, linenum, funcname, _lines, _index = (
                         inspect.stack()[2]
                     )
@@ -841,7 +787,6 @@ class BaseCase(case.TestCase):
                     if "/odoo/addons/" in filename:
                         filename = filename.rsplit("/odoo/addons/", 1)[1]
                     if count > expected:
-                        # add a subtest in order to continue the test_method in case of failures
                         with self.subTest():
                             self.fail(
                                 "Query count more than expected for user %s: %d > %d in %s at %s:%s"
@@ -867,8 +812,6 @@ class BaseCase(case.TestCase):
                             linenum,
                         )
         else:
-            # flush before and after during warmup, in order to reproduce the
-            # same operations, otherwise the caches might not be ready!
             if flush:
                 self.env.flush_all()
                 self.env.cr.flush()
@@ -944,7 +887,6 @@ class BaseCase(case.TestCase):
                     case odoo.fields.Monetary() as field if (
                         currency_field_name := field.get_currency_field(record)
                     ):
-                        # don't round if there's no currency set
                         if c := record[currency_field_name]:
                             record_value = Approx(record_value, c, decorate=False)
 
@@ -960,7 +902,6 @@ class BaseCase(case.TestCase):
             standardMsg, _, diffMsg = str(e).rpartition("\n")
             if "self.maxDiff" not in diffMsg:
                 raise
-            # move out of handler to avoid exception chaining
 
         diffMsg = "".join(
             difflib.unified_diff(
@@ -972,7 +913,6 @@ class BaseCase(case.TestCase):
         )
         self.fail(self._formatMessage(None, standardMsg + "\n" + diffMsg))
 
-    # turns out this thing may not be quite as useful as we thought...
     def assertItemsEqual(self, a: Any, b: Any, msg: str | None = None) -> None:
         """Assert that two sequences contain the same elements."""
         self.assertCountEqual(a, b, msg=msg)
@@ -982,8 +922,6 @@ class BaseCase(case.TestCase):
         self.assertIsNotNone(n1, msg)
         self.assertIsNotNone(n2, msg)
         self.assertEqual(n1.tag, n2.tag, msg)
-        # Because lxml.attrib is an ordereddict for which order is important
-        # to equality, even though *we* don't care
         self.assertEqual(dict(n1.attrib), dict(n2.attrib), msg)
         self.assertEqual((n1.text or "").strip(), (n2.text or "").strip(), msg)
         self.assertEqual((n1.tail or "").strip(), (n2.tail or "").strip(), msg)
@@ -1049,18 +987,12 @@ class BaseCase(case.TestCase):
             )
 
         patches = [
-            # New cursor should point to the test's cursor
             patch.object(registry, "cursor", _patched_cursor),
-            # Disable locking and signaling
             patch.object(Registry, "_lock", DummyRLock()),
-            patch.object(registry, "setup_signaling", return_value=None),  # noop
+            patch.object(registry, "setup_signaling", return_value=None),
             patch.object(registry, "check_signaling", return_value=registry),
         ]
 
-        # bus.websocket.acquire_cursor() opens a cursor via db_connect(db_name)
-        # directly instead of Registry(db_name).cursor(), bypassing the
-        # registry.cursor patch above. Redirect it to the test's cursor too so
-        # websocket code stays within the test transaction.
         try:
             from odoo.addons.bus import websocket as bus_websocket
         except ImportError:
@@ -1226,7 +1158,6 @@ class Like:
             [re.escape(part.strip()) for part in self.pattern.split("...")]
         )
 
-    # A Like instance is equal to many strings, so it has no usable hash key.
     __hash__ = None
 
     def __eq__(self, other: object) -> bool:
@@ -1252,7 +1183,7 @@ class WhitespaceInsensitive(str):
         return re.sub(r"\s+", " ", self) == re.sub(r"\s+", " ", other)
 
 
-class Approx:  # noqa: PLW1641
+class Approx:
     """A wrapper for approximate float comparisons. Uses float_compare under
     the hood.
 
@@ -1309,9 +1240,6 @@ class TransactionCase(BaseCase):
     @classmethod
     def _gc_filestore(cls) -> None:
         """Garbage-collect the filestore outside of the test cursor."""
-        # Attachments created/unlinked during tests accumulate on disk. Crons
-        # don't run during tests, so gc manually — and check the filesystem
-        # outside the test cursor.
         with Registry(get_db_name()).cursor() as cr:
             gc_env = api.Environment(cr, api.SUPERUSER_ID, {})
             gc_env["ir.attachment"]._gc_file_store_unsafe()
@@ -1361,12 +1289,6 @@ class TransactionCase(BaseCase):
         cls.cr = cls.registry.cursor()
         cls.addClassCleanup(cast("Cursor", cls.cr).close)
 
-        # Planner-stats floor, class-transaction layer: autovacuum can undo the
-        # committed pre-suite floors mid-suite (VACUUM rewrites reltuples=0 for
-        # tables whose rows only ever roll back), degrading hot queries back
-        # into cartesian nested-loop plans. Re-seed uncommitted: visible to the
-        # whole class, rolled back with it, and the stats locks keep autovacuum
-        # from resetting the re-seeded tables while the class runs.
         seed_planner_stats(cls.cr)
 
         def check_cursor_stack():
@@ -1397,8 +1319,6 @@ class TransactionCase(BaseCase):
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
 
-        # Speed up CryptContext: tests create many users/passwords; avoid hashing
-        # with many rounds.
         def _crypt_context(self):
             return CryptContext(
                 ["pbkdf2_sha512", "plaintext"],
@@ -1428,20 +1348,14 @@ class TransactionCase(BaseCase):
                 )
 
         self.addCleanup(_check_registry_lock)
-        # restore environments after the test to avoid invoking flush() with an
-        # invalid environment (inexistent user id) from another test
         envs = self.env.transaction.envs
         for env in list(envs):
             self.addCleanup(env.clear)
-        # restore the set of known environments as it was at setUp
         self.addCleanup(envs.update, list(envs))
         self.addCleanup(envs.clear)
 
         self.addCleanup(self.muted_registry_logger(self.registry.clear_all_caches))
 
-        # This prevents precommit functions and data from piling up
-        # until cr.flush is called in 'assertRaises' clauses
-        # (these are not cleared in self.env.clear or envs.clear)
         cr = self.env.cr
 
         def _reset(cb, funcs, data):
@@ -1461,7 +1375,6 @@ class TransactionCase(BaseCase):
                 deepcopy(callback.data),
             )
 
-        # flush everything in setUpClass before introducing a savepoint
         self.env.flush_all()
 
         savepoint = Savepoint(self.cr)
@@ -1472,8 +1385,6 @@ class TransactionCase(BaseCase):
         """Make all new cursors opened on this database registry reuse the
         one currently used by the tests. See ``registry_enter_test_mode``.
         """
-        # entering the test mode should flush/invalidate all changes in the
-        # current environment because changes happen inside other cursors
         env = self.env
         env.flush_all()
         self.registry_enter_test_mode(register_cleanup=False)
@@ -1520,7 +1431,6 @@ class SingleTransactionCase(BaseCase):
 
         cls.cr = cls.registry.cursor()
         cls.addClassCleanup(cast("Cursor", cls.cr).close)
-        # Same class-transaction planner-stats floor as TransactionCase.
         seed_planner_stats(cls.cr)
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
@@ -1545,7 +1455,6 @@ def users(*logins: str) -> Callable:
         def with_users(self: Any, *args: Any, **kwargs: Any) -> None:
             old_uid = self.uid
             try:
-                # retrieve users
                 Users = self.env["res.users"].with_context(active_test=False)
                 user_id = {
                     user.login: user.id
@@ -1555,12 +1464,9 @@ def users(*logins: str) -> Callable:
                 assert not missing, f"No user with login {missing}"
                 for login in logins:
                     with self.subTest(login=login):
-                        # switch user and execute func
                         self.uid = user_id[login]
                         func(self, *args, **kwargs)
                         self.env.flush_all()
-                    # Invalidate the cache between subtests, in order to not reuse
-                    # the former user's cache (`test_read_mail`, `test_write_mail`)
                     self.env.invalidate_all()
             finally:
                 self.uid = old_uid
@@ -1583,12 +1489,10 @@ def warmup(func: Callable, /) -> Callable:
     def warmup(self: Any, *args: Any, **kwargs: Any) -> None:
         self.env.flush_all()
         self.env.invalidate_all()
-        # run once to warm up the caches
         self.warm = False
         with contextlib.closing(self.cr.savepoint(flush=False)):
             func(self, *args, **kwargs)
             self.env.flush_all()
-        # run once for real
         self.env.invalidate_all()
         self.warm = True
         func(self, *args, **kwargs)
@@ -1680,14 +1584,6 @@ class freeze_time:
     stop = __exit__
 
 
-# Replace freezegun's entry point process-wide: hundreds of test files
-# import freezegun directly and rely on getting the Odoo-aware wrapper above
-# (class decoration via cls.freeze_time + TransactionCase integration).
-# Server processes only import odoo.tests lazily in test mode, so in
-# practice the patch stays test-scoped.
 freezegun.freeze_time = freeze_time
 
-# HTTP layer — extracted to http.py (like the Chrome CDP client before it,
-# see browser.py); re-imported here so odoo.tests.common.HttpCase & co.
-# remain valid import and mock targets.
-from .http import HttpCase, JsonRpcException, Opener, Transport  # noqa: E402
+from .http import HttpCase, JsonRpcException, Opener, Transport

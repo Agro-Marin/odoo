@@ -34,7 +34,7 @@ from odoo.tools import OrderedSet, config
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks
 
-from . import lifecycle  # mutated for ``server_phoenix`` (single source of truth)
+from . import lifecycle
 from ._base_server import _SIGHUP_AVAILABLE, CommonServer
 from ._cron import (
     CRON_TRIGGER_CHANNEL,
@@ -55,11 +55,6 @@ from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
 
-# Cadence of the main-loop limit monitor (``process_limit``) while no limit is
-# breached.  Decoupled from ``SLEEP_INTERVAL`` (60 s), which delayed
-# ``limit_time_real`` / memory-soft-limit enforcement by up to a minute; the
-# check is microseconds, so 5 s costs nothing (the prefork master polls every
-# 4 s).  Once a breach is detected, ``run()`` switches to a 1 s drain loop.
 LIMIT_MONITOR_INTERVAL_S = 5.0
 
 
@@ -67,52 +62,30 @@ class ThreadedServer(CommonServer):
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.main_thread_id = threading.current_thread().ident
-        # Number of quit signals received; ``run()`` exits its loop once > 0.
         self.quit_signals_received = 0
 
         self.httpd = None
         self.limits_reached_threads = set()
         self.limit_reached_time = None
-        # True only for a ``--stop-after-init`` batch run (set in ``run``); it
-        # suppresses the interactive "Hit CTRL-C again" shutdown hint, which is
-        # misleading when there is no long-running loop left to interrupt.
         self._stop_after_init = False
-        # Cached psutil.Process — see Worker.start for rationale.
         self._process_handle = psutil.Process(os.getpid())
 
     def signal_handler(self, sig: int, frame: Any) -> None:
         if sig in [signal.SIGINT, signal.SIGTERM]:
-            # shutdown on kill -INT or -TERM
             self.quit_signals_received += 1
             if self.quit_signals_received > 1:
-                # Forced shutdown.  ``os.write`` to fd 2 is async-signal-safe;
-                # ``sys.stderr.write`` could deadlock on the buffer lock.
                 os.write(2, b"Forced shutdown.\n")
                 os._exit(0)
-            # interrupt run() to start shutdown
             raise KeyboardInterrupt
         if hasattr(signal, "SIGXCPU") and sig == signal.SIGXCPU:
-            # async-signal-safe write (see the forced-shutdown note above).
             os.write(2, b"CPU time limit exceeded! Shutting down immediately\n")
             os._exit(0)
         elif _SIGHUP_AVAILABLE and sig == signal.SIGHUP:
-            # restart on kill -HUP (POSIX only); write through ``lifecycle`` so
-            # every reader sees the same binding.
             lifecycle.server_phoenix = True
             self.quit_signals_received += 1
-            # interrupt run() to start shutdown
             raise KeyboardInterrupt
 
     def process_limit(self) -> None:
-        # Memory is a PROCESS-level condition, re-evaluated every tick: RSS can
-        # fall back after a transient large allocation (image/PDF/report render,
-        # a base64 dump) is freed and its arena returned to the OS.  Track it in
-        # a plain per-tick flag, NOT by adding the main thread to
-        # ``limits_reached_threads`` — that set is pruned only by ``is_alive()``,
-        # and the main thread is always alive, so a single spike used to latch a
-        # since-recovered server permanently into reload.  This mirrors the
-        # prefork ``Worker.check_limits``, which recycles only while CURRENTLY
-        # over the soft limit.
         memory = over_memory_soft_limit(
             self._process_handle, config["limit_memory_soft"]
         )
@@ -123,15 +96,7 @@ class ThreadedServer(CommonServer):
         now = time.monotonic()
         for thread in threading.enumerate():
             thread_type = getattr(thread, "type", None)
-            # Limit cron, job and HTTP threads (websockets excluded).  Match on
-            # ``type``, not ``daemon``: HTTP threads are daemon, so a
-            # ``not daemon`` filter would drop them and make ``limit_time_real``
-            # inert.
             if thread_type in ("http", "cron", "job"):
-                # Snapshot start_time once: the worker nulls it between units of
-                # work, so reading it twice could race into ``now - None`` ->
-                # TypeError and crash the monitor loop (it only catches
-                # KeyboardInterrupt).  The window is wide on a free-threaded build.
                 start_time = getattr(thread, "start_time", None)
                 if start_time:
                     thread_execution_time = now - start_time
@@ -153,9 +118,6 @@ class ThreadedServer(CommonServer):
                             thread_limit_time_real,
                         )
                         self.limits_reached_threads.add(thread)
-        # Clean-up threads that are no longer alive
-        # e.g. threads that exceeded their real time,
-        # but which finished before the server could restart.
         for thread in list(self.limits_reached_threads):
             if not thread.is_alive():
                 self.limits_reached_threads.remove(thread)
@@ -198,42 +160,20 @@ class ThreadedServer(CommonServer):
         (``IrCron._process_jobs`` / ``IrJob._process_jobs``); ``channel`` the
         PG NOTIFY channel armed on the recycled ``postgres`` connection.
         """
-        # Steve Reich timing style with thundering-herd mitigation: workers
-        # LISTEN so a NOTIFY can wake them at will, else they wake every
-        # SLEEP_INTERVAL + jitter (a chorus effect that spreads wakeups out).
-        # A short random sleep after a NOTIFY keeps them all from polling PG at
-        # the same instant (the thundering herd).
 
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
 
-        # Sentinels returned by ``_run_cron`` to let the caller log the
-        # actual exit reason rather than always saying "max age reached".
         RECYCLE_MAX_AGE = "max_age"
         RECYCLE_CONN_LOST = "connection_lost"
 
         def _run_cron(cr):
             pg_conn = cr.connection
-            # Arm LISTEN on our channel (no-op on a replica).  This connection is
-            # recycled on the age limit, so the idle-session timeout is left as
-            # configured (unlike the prefork workers' persistent connection).
             arm_cron_listen(cr, cron_logger, channel=channel)
             cr.commit()
-            # Monotonic timestamps so wall-clock jumps (NTP, DST) can't
-            # mis-schedule the full scan; -inf so the first tick always scans.
             check_all_time = float("-inf")
             all_db_names = []
             alive_time = time.monotonic()
-            # The first pass must NOT wait out a full ``SLEEP_INTERVAL`` before
-            # it ever looks at the database: with nothing to select on at boot
-            # (no NOTIFY yet), a 60 s timeout means a threaded server does no
-            # cron work for its first minute even when jobs are already overdue.
-            # Measured before this: server up at T, first cron pass at T+60 s.
-            # Poll once immediately, then settle into the steady-state cadence.
-            # ``PreforkServer`` already avoids this by capping its wait at half
-            # the cron watchdog.  The jitter sleep below still staggers the
-            # threads, and ``ir.cron`` claims jobs with ``FOR UPDATE SKIP
-            # LOCKED``, so a simultaneous first pass cannot double-run a job.
             first_pass = True
             with selectors.DefaultSelector() as _sel:
                 _sel.register(pg_conn, selectors.EVENT_READ)
@@ -244,27 +184,19 @@ class ThreadedServer(CommonServer):
                 ):
                     _sel.select(timeout=0 if first_pass else SLEEP_INTERVAL + number)
                     first_pass = False
-                    # Random stagger after wake so concurrent crons don't all
-                    # poll PG at once (shared constant with ``WorkerCron.sleep``).
                     time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
                     try:
                         notified = drain_cron_notifies(pg_conn, channel=channel)
                     except Exception:
                         if pg_conn.closed:
-                            # Sentinel so the outer loop logs "connection lost"
-                            # rather than "max age reached".
                             return RECYCLE_CONN_LOST
                         raise
 
                     if time.monotonic() - SLEEP_INTERVAL > check_all_time:
-                        # check all databases
-                        # last time we checked them was `now - SLEEP_INTERVAL`
                         check_all_time = time.monotonic()
-                        # process notified databases first, then the other ones
                         all_db_names = OrderedSet(cron_database_list())
                         db_names = order_notified_first(notified, all_db_names)
                     else:
-                        # restrict to notified databases only
                         db_names = notified.intersection(all_db_names)
                         if not db_names:
                             continue
@@ -282,29 +214,15 @@ class ThreadedServer(CommonServer):
                                 exc_info=True,
                             )
                         finally:
-                            # ALWAYS clear the stamp.  ``process_limit`` reads it
-                            # on every tick for ``cron``/``job`` threads, and a
-                            # ``BaseException`` escapes the ``except Exception``
-                            # above while the outer loop keeps this long-lived
-                            # thread alive — so a stamp left behind is never
-                            # cleared again and the thread looks permanently over
-                            # ``limit_time_real_cron``, driving ``run()`` into a
-                            # spurious full-server reload.
                             thread.start_time = None
             return RECYCLE_MAX_AGE
 
-        # Consecutive failed (re)connects; drives the exponential backoff so a
-        # sustained PG outage doesn't flood the log or hammer PG.  Reset after
-        # any full cron cycle completes.  Mirrors ``WorkerCron``'s policy.
         reconnect_attempts = 0
         while True:
             try:
                 conn = db.db_connect("postgres")
                 with contextlib.closing(conn.cursor()) as cr:
                     reason = _run_cron(cr)
-                # No explicit ``connection.close()``: ``"postgres"`` is never
-                # pooled, so closing the cursor already discards the connection
-                # — the recycle we want.
                 reconnect_attempts = 0
                 if reason == RECYCLE_CONN_LOST:
                     cron_logger.warning("Postgres connection lost, reconnecting...")
@@ -316,10 +234,6 @@ class ThreadedServer(CommonServer):
             except SystemExit:
                 raise
             except (psycopg.OperationalError, PoolError) as exc:
-                # PG unreachable (outage, restart, failover): expected and
-                # transient.  WARN — not CRITICAL — and back off exponentially so
-                # a multi-minute outage produces a handful of warnings, not a
-                # 12/min CRITICAL flood that trips pagers keyed on CRITICAL.
                 reconnect_attempts += 1
                 backoff = capped_backoff(reconnect_attempts)
                 cron_logger.warning(
@@ -330,17 +244,6 @@ class ThreadedServer(CommonServer):
                 )
                 time.sleep(backoff)
             except Exception:
-                # Genuinely unexpected: keep CRITICAL, but still back off so a
-                # persistent fault can't spin the log either.
-                #
-                # ``Exception``, NOT ``BaseException``: this loop must not
-                # swallow control-flow exceptions raised to unwind it.
-                # ``KeyboardInterrupt`` is the live case — under
-                # ``BaseException`` a Ctrl-C on a threaded server was caught,
-                # logged as an "uncaught error", and retried forever instead of
-                # stopping the cron thread.  ``SystemExit`` is re-raised above
-                # for the same reason; anything else deriving straight from
-                # ``BaseException`` is by definition not a cron fault to retry.
                 reconnect_attempts += 1
                 backoff = capped_backoff(reconnect_attempts)
                 cron_logger.critical(
@@ -380,15 +283,6 @@ class ThreadedServer(CommonServer):
                 self.interface, self.port, self.app
             )
         except SystemExit:
-            # werkzeug reports a failed bind (EADDRINUSE, EACCES, an interface
-            # that does not resolve) by ``print``-ing to sys.stderr and calling
-            # ``sys.exit(1)`` -- see werkzeug.serving.BaseWSGIServer.__init__.
-            # Nothing of that reaches a logger, so under ``--logfile`` the only
-            # report goes to the terminal (or to /dev/null) while the log itself
-            # ends with an ordinary "Initialization done, shutting down": a
-            # server that never bound its port is indistinguishable from a clean
-            # run, and the only other signal is the exit status. Restate it
-            # through the logger, then let the exit propagate unchanged.
             self.logger.critical(
                 "Failed to bind the HTTP server to %s:%s -- the address is "
                 "unavailable (already in use, or not permitted). Nothing will "
@@ -408,9 +302,6 @@ class ThreadedServer(CommonServer):
         if os.name == "posix":
             signal.signal(signal.SIGINT, self.signal_handler)
             signal.signal(signal.SIGTERM, self.signal_handler)
-            # No SIGCHLD handler: ThreadedServer forks no worker children (only
-            # pg_dump/pg_restore subprocesses, reaped by ``subprocess.run``), so
-            # one would only cause spurious main-loop wakeups.
             signal.signal(signal.SIGHUP, self.signal_handler)
             signal.signal(signal.SIGXCPU, self.signal_handler)
             signal.signal(signal.SIGQUIT, dumpstacks)
@@ -424,7 +315,6 @@ class ThreadedServer(CommonServer):
             )
 
         if config["test_enable"] or (config["http_enable"] and not stop):
-            # some tests need the http daemon to be available...
             self.http_spawn()
 
     def stop(self) -> None:
@@ -439,9 +329,6 @@ class ThreadedServer(CommonServer):
         if lifecycle.server_phoenix:
             self.logger.info("Initiating server reload")
         elif self._stop_after_init:
-            # Batch run (``--stop-after-init``): the work is already done and no
-            # signal-wait loop was ever entered, so don't print the interactive
-            # "Hit CTRL-C again" hint that only makes sense for a live server.
             self.logger.info("Initialization done, shutting down")
         else:
             self.logger.info("Initiating shutdown")
@@ -450,22 +337,12 @@ class ThreadedServer(CommonServer):
             )
 
         if self.httpd:
-            # ``shutdown()`` stops the accept loop; werkzeug's ``serve_forever``
-            # then closes the listen socket itself (its ``finally`` calls
-            # ``server_close``), so no explicit close is needed here.
             self.httpd.shutdown()
 
         super().stop()
 
-        # Start the 1s grace clock HERE, not before ``httpd.shutdown()`` /
-        # ``super().stop()``: those can burn most of a second (werkzeug's
-        # shutdown poll, the on-stop hooks' pool/bus teardown), which would leave
-        # application non-daemon threads zero join time despite the docstring's
-        # "up to one second".
         stop_time = time.monotonic()
 
-        # Join non-daemon threads before exit, busy-waiting so a second signal
-        # can still force shutdown (``Thread.join`` masks signals).
         me = threading.current_thread()
         self.logger.debug("current thread: %r", me)
         for thread in threading.enumerate():
@@ -477,7 +354,6 @@ class ThreadedServer(CommonServer):
                 and thread not in self.limits_reached_threads
             ):
                 while thread.is_alive() and (time.monotonic() - stop_time) < 1:
-                    # Busy-wait (join masks signals) for requests to finish, up to 1s.
                     self.logger.debug("join and sleep")
                     thread.join(0.05)
                     time.sleep(0.05)
@@ -510,7 +386,6 @@ class ThreadedServer(CommonServer):
         skip cleanup and silently downgrade a reload to a crash.
         """
         rc: int | None = None
-        # Record batch mode so ``stop()`` picks the right shutdown message.
         self._stop_after_init = stop
         try:
             with Registry._lock:
@@ -522,8 +397,6 @@ class ThreadedServer(CommonServer):
                     from odoo.tests.result import _logger as logger
 
                     with Registry.registries._lock:
-                        # ``db_name`` not ``db``: avoid shadowing the module-level
-                        # ``from odoo import db`` in scope here.
                         for db_name, registry in Registry.registries.items():
                             report = registry._assertion_report
                             log = (
@@ -541,8 +414,6 @@ class ThreadedServer(CommonServer):
             self.cron_spawn()
             self.job_spawn()
 
-            # Wait for a first signal to be handled. (time.sleep will be
-            # interrupted by the signal handler)
             while self.quit_signals_received == 0:
                 self.process_limit()
                 if self.limit_reached_time:
@@ -551,8 +422,6 @@ class ThreadedServer(CommonServer):
                         not has_other_valid_requests
                         or (time.monotonic() - self.limit_reached_time) > SLEEP_INTERVAL
                     ):
-                        # Wait (up to 1 min) until only the limit-exceeding
-                        # requests remain, then reload.
                         self.logger.info(
                             "Dumping stacktrace of limit exceeding threads before reloading"
                         )
@@ -562,9 +431,6 @@ class ThreadedServer(CommonServer):
                             ]
                         )
                         self.reload()
-                        # ``reload`` sends SIGHUP: the handler sets
-                        # ``server_phoenix`` and bumps ``quit_signals_received``,
-                        # so the loop exits and the server restarts.
                     else:
                         time.sleep(1)
                 else:
@@ -603,18 +469,13 @@ class EventServer(CommonServer):
         super().__init__(app)
         self.port = config["gevent_port"]
         self.httpd = None
-        # Set here (not lazily in ``watchdog``) so ``process_limits`` can't hit
-        # an ``AttributeError`` if call order changes.
         self.ppid = os.getppid()
-        # Cached psutil.Process — see Worker.start for rationale.
         self._process_handle = psutil.Process(self.pid)
 
     def process_limits(self) -> None:
         restart = False
         new_ppid = os.getppid()
         if self.ppid != new_ppid:
-            # Log the reparenting itself (old -> new ppid), not ``self.pid``
-            # which is unchanged and useless for diagnosing what happened.
             self.logger.warning("Parent changed: %s -> %s", self.ppid, new_ppid)
             restart = True
         limit_memory_soft = (
@@ -622,7 +483,6 @@ class EventServer(CommonServer):
         )
         memory = over_memory_soft_limit(self._process_handle, limit_memory_soft)
         if memory is not None:
-            # RSS not VMS: see the ``memory_info`` docstring.
             self.logger.warning("RSS memory soft-limit reached: %s bytes", memory)
             restart = True
         if restart:
@@ -632,7 +492,14 @@ class EventServer(CommonServer):
         """Periodically check memory and parent PID; send SIGTERM if limits exceeded."""
         self.ppid = os.getppid()
         while True:
-            self.process_limits()
+            try:
+                self.process_limits()
+            except Exception:
+                self.logger.warning(
+                    "Evented watchdog check failed; retrying in %ss",
+                    beat,
+                    exc_info=True,
+                )
             time.sleep(beat)
 
     def _quit_signal_handler(self, sig: int, frame: Any) -> None:
@@ -649,7 +516,6 @@ class EventServer(CommonServer):
 
     def start(self) -> None:
         if os.name == "posix":
-            # SIGINT/SIGTERM → graceful stop (see ``_quit_signal_handler``).
             signal.signal(signal.SIGINT, self._quit_signal_handler)
             signal.signal(signal.SIGTERM, self._quit_signal_handler)
             signal.signal(signal.SIGQUIT, dumpstacks)
@@ -662,12 +528,6 @@ class EventServer(CommonServer):
             ).start()
 
         try:
-            # ``make_server`` (binds ``gevent_port``) and the readiness log are
-            # INSIDE the try: the quit handlers and the watchdog thread are
-            # already installed above, so a SIGTERM (or a parent-change kill)
-            # landing here would otherwise raise ``KeyboardInterrupt`` past
-            # ``start()`` — an unhandled traceback that ``_note_worker_exit``
-            # counts as a young crash, arming the shared respawn backoff.
             self.httpd = werkzeug.serving.make_server(
                 self.interface,
                 self.port,
@@ -684,43 +544,18 @@ class EventServer(CommonServer):
         except SystemExit:
             raise
         except KeyboardInterrupt:
-            # A SIGINT/SIGTERM (``_quit_signal_handler``) that lands in the
-            # window BEFORE (or during ``make_server``, before) the loop is
-            # entered: werkzeug's ``serve_forever`` swallows any
-            # KeyboardInterrupt raised inside it (and closes the listen socket in
-            # its ``finally``), returning normally instead — so both graceful
-            # paths fall through to the log below.  Without this arm, the
-            # pre-loop window would fall to ``except BaseException``: CRITICAL +
-            # ``exit(1)`` on a routine stop (restart flapping, false alerts).
             pass
         except BaseException as exc:
             self.logger.critical("Uncaught error in main loop", exc_info=True)
             raise SystemExit(1) from exc
-        # Reached on every graceful stop, whichever path absorbed the
-        # KeyboardInterrupt (werkzeug mid-serve, or the arm above pre-serve).
         self.logger.info("Evented/WebSocket service stopped")
 
     def stop(self) -> None:
-        # ``self.httpd`` is ``None`` until ``start()`` builds it; guard so a
-        # ``stop()`` after an early ``start()`` failure doesn't mask the real
-        # error.
         if self.httpd:
-            # ``server_close()``, NOT ``shutdown()``: ``serve_forever`` runs on
-            # THIS thread, so when ``run``'s ``finally`` gets here the loop
-            # either already exited (werkzeug's ``serve_forever`` closed the
-            # listen socket in its own ``finally``; closing again is a no-op)
-            # or never started (a signal in the window between ``make_server``
-            # and ``serve_forever``).  ``shutdown()`` in that second case waits
-            # forever on an event only ``serve_forever`` sets — a shutdown hang
-            # (stdlib docs: "must be called while serve_forever() is running in
-            # another thread, or it will deadlock").  ``server_close()``
-            # releases the socket in both cases.
             self.httpd.server_close()
         super().stop()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
-        # ``finally`` guarantees ``stop()``'s ``on_stop`` hooks run on every
-        # exit path from ``start()`` (signal, watchdog recycle, uncaught error).
         try:
             self.start()
         finally:

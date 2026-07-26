@@ -35,8 +35,6 @@ it saved little and broke the DB-free test suite, which relies on the eager
 ``http``.)  Import order is not load-bearing.
 """
 
-# .apidoc title: RPC Services
-
 from . import common
 from . import db
 from . import lifecycle

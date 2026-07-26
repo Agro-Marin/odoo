@@ -58,7 +58,6 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
         return node
 
     def visit_List(self, node: ast.List) -> ast.expr:
-        # same implementation as for tuples
         return self.visit_Tuple(node)
 
     def visit_Tuple(self, node: ast.Tuple | ast.List) -> ast.expr:
@@ -66,7 +65,6 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             return self.generic_visit(node)
         value_node = node.elts[2]
         if isinstance(value_node, (ast.Tuple, ast.List)):
-            # convert values one by one
             value_node.elts = [
                 self.visit_Tuple(
                     ast.Tuple([ast.Constant("x"), ast.Constant("="), el])
@@ -76,12 +74,9 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             return node
         value = self.visit(value_node)
         if isinstance(value, str):
-            # remove now
             value = value.removeprefix("now ")
-            # remove today (if possible)
             if value.startswith("today ") and re.search(r"=\d+[dmy]|=[a-z]", value):
                 value = value.removeprefix("today ")
-            # update the operator?
             if "!" in value:
                 value = value.replace("!", "")
                 operator = node.elts[1].value
@@ -149,7 +144,6 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             if value := values.pop(name, None):
                 build(value, suffix, eq=True)
         if values:
-            # not everything was parsed
             return None
         return result
 
@@ -175,16 +169,13 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
                 _,
             ):
                 if isinstance(value, ast.Name) and value.id == "time":
-                    # time.strftime is sometimes called directly
                     value = "now"
                 else:
                     value = self.visit(value)
                 if isinstance(value, str):
                     if len(format) <= 10:
                         value = value.replace("now", "today")
-                    if (
-                        "-01" in format
-                    ):  # some people format the date by setting day to 1
+                    if "-01" in format:
                         value += " =1d"
             case ast.Name(id="relativedelta"), [], kws:
                 value = self.parse_offset_keywords(kws)
@@ -252,7 +243,6 @@ def upgrade(file_manager: FileManager) -> None:
         ):
             continue
         content = file.content
-        # tree = etree.fromstring(content)  # does not support declarations
         try:
             tree = etree.parse(io.BytesIO(bytes(content, "utf-8")))
         except Exception as e:
@@ -273,7 +263,6 @@ def upgrade(file_manager: FileManager) -> None:
             except NoChange as e:
                 _logger.debug("No change %s", e)
             except Exception:
-                # check if contains dynamic part
                 level = (
                     logging.INFO
                     if re.search(r"%\([a-z0-9\.]+\)[sd]", domain)
@@ -283,7 +272,9 @@ def upgrade(file_manager: FileManager) -> None:
         if not replacements:
             continue
 
-        def replacement_attr(match: re.Match[str], replacements: dict = replacements) -> str:
+        def replacement_attr(
+            match: re.Match[str], replacements: dict = replacements
+        ) -> str:
             value = etree.fromstring(f"<x {match[0]} />").attrib["domain"]
             domain = replacements.get(no_whitespace(value))
             if not domain:
@@ -294,7 +285,9 @@ def upgrade(file_manager: FileManager) -> None:
             raw_value = repr(domain).strip('"')
             return f"{match[1]}{raw_value}{match[3]}"
 
-        def replacement_tag(match: re.Match[str], replacements: dict = replacements) -> str:
+        def replacement_tag(
+            match: re.Match[str], replacements: dict = replacements
+        ) -> str:
             value = etree.fromstring(f"<x>{match[2]}</x>").text
             domain = replacements.get(no_whitespace(value))
             if not domain:

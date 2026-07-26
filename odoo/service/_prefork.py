@@ -31,7 +31,7 @@ from odoo.tools import config
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks, stripped_sys_argv
 
-from . import lifecycle  # mutated for ``server_phoenix`` (single source of truth)
+from . import lifecycle
 from ._base_server import CommonServer
 from ._env import env_float
 from ._helpers import empty_pipe
@@ -40,12 +40,6 @@ from .lifecycle import _reexec, preload_registries
 
 _logger = logging.getLogger("odoo.service.server")
 
-# Default deadline (seconds) for a graceful worker shutdown: after SIGINT,
-# workers get this long to finish and exit before the master escalates to
-# SIGKILL.  Without a ceiling, a worker that ignores SIGINT and has no watchdog
-# (``limit_time_real <= 0``) would spin the graceful-stop loop forever, hanging
-# shutdown and reload.  Overridable via ``ODOO_GRACEFUL_STOP_TIMEOUT`` (align
-# with systemd ``TimeoutStopSec`` when raising it for long-request deployments).
 GRACEFUL_STOP_TIMEOUT_S = 60.0
 
 
@@ -63,18 +57,9 @@ def _graceful_stop_timeout(logger: logging.Logger) -> float:
     )
 
 
-# Fork-storm throttle.  A worker that crashes before serving real work would
-# otherwise be refilled every main-loop iteration (a dying child's SIGCHLD wakes
-# ``sleep`` at once), pinning CPU and flooding the log.  A worker surviving at
-# least ``WORKER_MIN_HEALTHY_LIFETIME_S`` clears the throttle; consecutive early
-# crashes grow a ``2 ** n`` respawn backoff capped at
-# ``WORKER_RESPAWN_BACKOFF_CAP_S``, during which ``process_spawn`` holds off.
 WORKER_MIN_HEALTHY_LIFETIME_S = 30.0
 WORKER_RESPAWN_BACKOFF_CAP_S = 30.0
 
-# Grace (seconds) the master gives the evented subprocess to exit after SIGTERM
-# before escalating to SIGKILL (``_stop_long_polling``).  Overridable via
-# ``ODOO_EVENTED_STOP_TIMEOUT``; 0 restores the legacy immediate-SIGKILL.
 EVENTED_STOP_TIMEOUT_S = 5.0
 
 
@@ -87,49 +72,27 @@ class PreforkServer(CommonServer):
 
     def __init__(self, app: Any) -> None:
         super().__init__(app)
-        # config
         self.population = config["workers"]
-        # ``limit_time_real <= 0`` means "no real-time watchdog".  Gate on
-        # ``> 0`` (not ``or None``, which let a negative through): a non-positive
-        # ``watchdog_timeout`` would make ``process_timeout`` SIGKILL brand-new
-        # workers at once, a respawn loop.
         self.timeout = (
             config["limit_time_real"] if config["limit_time_real"] > 0 else None
         )
         self.limit_request = config["limit_request"]
-        # ``limit_time_real_cron``: > 0 is the cron watchdog, 0 disables it, and
-        # ANY negative value inherits ``limit_time_real`` (the documented -1
-        # semantic).  Letting another negative (say -5) through as a literal
-        # timeout would make ``process_timeout`` SIGKILL every cron worker on
-        # its first beat — and a master-watchdog kill pops the worker before
-        # the reap, bypassing the fast-death throttle: an undamped fork loop.
         cron_timeout = config["limit_time_real_cron"]
         self.cron_timeout = self.timeout if cron_timeout < 0 else cron_timeout or None
-        # working vars
         self.beat = 4
         self.socket = None
         self.workers_http = {}
         self.workers_cron = {}
         self.workers_job = {}
         self.workers = {}
-        # {pid: psutil.Process} captured by ``stop_workers_gracefully`` while the
-        # workers are still alive, so ``_sweep_stale_workers`` can tell one of
-        # ours from a process that merely inherited a recycled pid.
         self._drain_procs: dict[int, psutil.Process] = {}
-        # Worker spawns over this server's lifetime (logs/diagnostics only).
         self.generation = 0
         self.queue = deque()
         self.long_polling_pid = None
-        # The ``Popen`` handle for that pid, kept so it can be reconciled once the
-        # child is reaped (the master reaps it via ``waitpid(-1)``/psutil, behind
-        # subprocess's back); without that, ``Popen.__del__`` warns "still
-        # running" and parks the handle on ``subprocess._active``.
         self.long_polling_popen: subprocess.Popen | None = None
-        self.long_polling_spawn_time = 0.0  # for the fork-storm throttle
-        # Fork-storm throttle (see the WORKER_* constants and process_spawn):
-        # consecutive early worker crashes push an exponential respawn backoff.
+        self.long_polling_spawn_time = 0.0
         self._consecutive_fast_deaths = 0
-        self._respawn_not_before = 0.0  # monotonic deadline; 0.0 => spawn freely
+        self._respawn_not_before = 0.0
 
     def pipe_new(self) -> tuple[int, int]:
         """Create a new non-blocking, close-on-exec pipe pair."""
@@ -157,17 +120,11 @@ class PreforkServer(CommonServer):
                 raise
 
     def signal_handler(self, sig: int, frame: Any) -> None:
-        # SIGCHLD is coalesced by the kernel; one pending SIGCHLD drives a
-        # full ``waitpid(-1, WNOHANG)`` loop in ``process_zombie``, so a
-        # single slot is enough regardless of how many children died.
         if sig == signal.SIGCHLD:
             if signal.SIGCHLD not in self.queue:
                 self.queue.append(sig)
                 self.pipe_ping(self.pipe)
             return
-        # Every other queued signal is an operator control signal and must never
-        # be dropped.  The old queue cap existed to survive SIGCHLD storms, which
-        # the single-slot dedup above already absorbs, so no cap is needed.
         self.queue.append(sig)
         self.pipe_ping(self.pipe)
 
@@ -194,50 +151,57 @@ class PreforkServer(CommonServer):
                 if fd not in keep:
                     with contextlib.suppress(OSError):
                         os.close(fd)
-        # Parent's master wakeup pipe: child never reads or writes it.
         for fd in self.pipe:
             if fd not in keep:
                 with contextlib.suppress(OSError):
                     os.close(fd)
 
+    def _note_spawn_failure(self) -> None:
+        """Arm the respawn backoff after a spawn that failed BEFORE forking.
+
+        A ``pipe2``/``fork``/``Popen`` failure (EMFILE/ENFILE/EAGAIN/ENOMEM)
+        creates no child, so ``process_zombie`` never reaps one and
+        ``_note_worker_exit`` — the only other place that arms the throttle —
+        never runs.  Without this, ``process_spawn`` re-attempts every ``beat``
+        (~4s), each try logging a full traceback, precisely while fd/memory
+        pressure is highest.  Mirror the reaped-child throttle (same counter,
+        same ``2 ** n`` cap) so a sustained resource outage yields a handful of
+        warnings on a widening backoff instead of a steady flood; a worker that
+        later boots and lives ``WORKER_MIN_HEALTHY_LIFETIME_S`` clears it via
+        ``_note_worker_exit``, exactly as a crash-loop recovery does.
+        """
+        self._consecutive_fast_deaths += 1
+        backoff = min(2.0**self._consecutive_fast_deaths, WORKER_RESPAWN_BACKOFF_CAP_S)
+        self._respawn_not_before = time.monotonic() + backoff
+        self.logger.warning(
+            "worker spawn failed before fork (attempt %d); holding respawn for %.0fs",
+            self._consecutive_fast_deaths,
+            backoff,
+        )
+
     def worker_spawn(self, klass: type, workers_registry: dict) -> Worker | None:
         """Fork a new worker of the given class and register it."""
         self.generation += 1
-        # ``klass(self)`` is INSIDE the guard, not before it: ``Worker.__init__``
-        # calls ``pipe_new()`` twice, and ``pipe2`` fails with EMFILE/ENFILE under
-        # fd exhaustion — the same transient class as a failing ``fork()``, and
-        # the same failure this loop must survive rather than take the master
-        # down with.  Constructing outside also leaked the first pipe's two fds
-        # when the second one raised, which is fd pressure added to fd pressure.
         worker = None
         try:
             worker = klass(self)
             pid = os.fork()
         except OSError:
-            # ``pipe2()``/``fork()`` can fail transiently (EMFILE/EAGAIN/ENOMEM).
-            # Letting it reach ``run()``'s catch-all would stop the master over a
-            # momentary spike.  Release the fds, log, and return None so
-            # ``process_spawn`` retries next iteration.
             if worker is not None:
                 worker.close()
-            self.logger.exception(
-                "worker spawn failed (pipe/fork); skipping, will retry"
+            self.logger.debug(
+                "worker spawn failed (pipe/fork); skipping, will retry",
+                exc_info=True,
             )
+            self._note_spawn_failure()
             return None
         if pid != 0:
             worker.pid = pid
-            worker.spawn_time = time.monotonic()  # for the fork-storm throttle
+            worker.spawn_time = time.monotonic()
             self.workers[pid] = worker
             workers_registry[pid] = worker
             return worker
         else:
-            # Detach from the master's queueing signal handler BEFORE closing its
-            # pipe fds: a signal in this window would run the inherited
-            # ``master.signal_handler``, ``pipe_ping`` a closed fd, and raise
-            # ``OSError(EBADF)`` — a sporadic worker death.  Termination signals →
-            # SIG_DFL; SIGCHLD/SIGTTIN/SIGTTOU → SIG_IGN (their SIG_DFL for
-            # TTIN/TTOU is *Stop*, which a stray SIGTTOU would trigger).
-            # Worker.start re-installs the real handlers moments later.
             for _sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
                 with contextlib.suppress(OSError, ValueError):
                     signal.signal(_sig, signal.SIG_DFL)
@@ -249,8 +213,6 @@ class PreforkServer(CommonServer):
             try:
                 worker.run()
             except SystemExit as exc:
-                # Translate SystemExit's varied .code semantics to a numeric
-                # os._exit code: int → use as-is; None → 0; anything else → 1.
                 if isinstance(exc.code, int):
                     exit_code = exc.code
                 else:
@@ -263,9 +225,6 @@ class PreforkServer(CommonServer):
                     exc_info=exc,
                 )
                 exit_code = 1
-            # ``os._exit`` (not ``sys.exit``): after fork, atexit handlers and
-            # stdio flushing share fds with the parent and could double-write
-            # logs or trip non-fork-safe destructors.
             os._exit(exit_code)
 
     def long_polling_spawn(self) -> None:
@@ -281,13 +240,15 @@ class PreforkServer(CommonServer):
         try:
             popen = subprocess.Popen(cmd)
         except OSError:
-            self.logger.exception(
-                "long-polling subprocess spawn failed; will retry next cycle"
+            self.logger.debug(
+                "long-polling subprocess spawn failed; will retry",
+                exc_info=True,
             )
+            self._note_spawn_failure()
             return
         self.long_polling_pid = popen.pid
-        self.long_polling_popen = popen  # reconciled when the pid is reaped
-        self.long_polling_spawn_time = time.monotonic()  # fork-storm throttle
+        self.long_polling_popen = popen
+        self.long_polling_spawn_time = time.monotonic()
 
     def _reconcile_long_polling_popen(self, returncode: int | None) -> None:
         """Mark the evented child's ``Popen`` finished after it was reaped.
@@ -343,16 +304,11 @@ class PreforkServer(CommonServer):
             if sig in [signal.SIGINT, signal.SIGTERM]:
                 raise KeyboardInterrupt
             if sig == signal.SIGHUP:
-                # restart on kill -HUP.  Write through lifecycle (canonical).
                 lifecycle.server_phoenix = True
                 raise KeyboardInterrupt
             if sig == signal.SIGTTIN:
-                # increase number of workers
                 self.population += 1
             elif sig == signal.SIGTTOU:
-                # decrease number of workers; clamp at 0 so an over-zealous
-                # operator can't drive population negative (which would stop the
-                # spawn loop and drain the server to zero workers).
                 self.population = max(self.population - 1, 0)
 
     def process_zombie(self) -> None:
@@ -393,7 +349,6 @@ class PreforkServer(CommonServer):
         if pid == self.long_polling_pid:
             name = "Long-polling (evented) subprocess"
             lifetime = time.monotonic() - self.long_polling_spawn_time
-            # process_zombie reaped this pid via waitpid(-1); reconcile the handle.
             self._reconcile_long_polling_popen(os.waitstatus_to_exitcode(status))
         else:
             worker = self.workers.get(pid)
@@ -448,16 +403,11 @@ class PreforkServer(CommonServer):
                 self.worker_kill(pid, signal.SIGKILL)
 
     def process_spawn(self) -> None:
-        # Fork-storm throttle: while a respawn backoff is active (a worker just
-        # crashed young), skip refilling slots this cycle.  The main loop keeps
-        # turning, so spawning resumes automatically once the deadline passes.
         if time.monotonic() < self._respawn_not_before:
             return
-        # Before spawning any process, check the registry signaling
         registries = Registry.registries.snapshot
 
         def check_registries():
-            # check the registries on the first call only!
             if not registries:
                 return
             for db_name, registry in list(registries.items()):
@@ -465,10 +415,6 @@ class PreforkServer(CommonServer):
                     with registry.cursor() as cr:
                         registry.check_signaling(cr)
                 except Exception:
-                    # A transient PG outage at respawn time must NOT take down the
-                    # supervisor: ``registry.cursor()`` can raise PoolError, which
-                    # would reach run()'s catch-all and stop the master.  Freshly
-                    # forked workers re-check signaling anyway, so log and continue.
                     _logger.warning(
                         "Could not check signaling for database %r during worker "
                         "spawn; skipping this cycle.",
@@ -476,15 +422,11 @@ class PreforkServer(CommonServer):
                         exc_info=True,
                     )
             registries.clear()
-            # Close all opened cursors
             db.close_all()
 
         if config["http_enable"]:
             while len(self.workers_http) < self.population:
                 check_registries()
-                # ``worker_spawn`` returns None on a transient ``fork()`` failure
-                # (nothing registered); return so this loop can't spin on the
-                # unchanged len — the next main-loop iteration retries.
                 if self.worker_spawn(WorkerHTTP, self.workers_http) is None:
                     return
             if not self.long_polling_pid:
@@ -502,14 +444,11 @@ class PreforkServer(CommonServer):
     def sleep(self) -> None:
         """Wait for worker pings or internal wakeups, updating watchdog timestamps."""
         try:
-            # map of fd -> worker
             fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
-            # check for ping or internal wakeups
             with selectors.DefaultSelector() as sel:
                 for fd in list(fds) + [self.pipe[0]]:
                     sel.register(fd, selectors.EVENT_READ)
                 ready = sel.select(self.beat)
-            # update worker watchdogs
             for key, _ in ready:
                 fd = key.fileobj
                 if fd in fds:
@@ -520,11 +459,7 @@ class PreforkServer(CommonServer):
                 raise
 
     def start(self) -> None:
-        # wakeup pipe, python doesn't throw EINTR when a syscall is interrupted
-        # by a signal simulating a pseudo SA_RESTART. We write to a pipe in the
-        # signal handler to overcome this behaviour
         self.pipe = self.pipe_new()
-        # set signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)
@@ -548,25 +483,15 @@ class PreforkServer(CommonServer):
                 )
 
             if os.environ.get("ODOO_HTTP_SOCKET_FD"):
-                # reload
                 self.socket = socket.socket(
                     fileno=int(os.environ.pop("ODOO_HTTP_SOCKET_FD"))
                 )
-                # ``fork_and_reload`` cleared FD_CLOEXEC so the fd survived execve
-                # into this master; re-set it so the listen socket doesn't leak
-                # into future exec'd subprocesses.
                 self._set_socket_cloexec()
             elif config.http_socket_activation:
-                # socket activation
                 SD_LISTEN_FDS_START = 3
-                # ``socket.socket(fileno=)`` detects the family via SO_DOMAIN, so
-                # an IPv6 systemd socket is wrapped as AF_INET6, not garbage AF_INET.
                 self.socket = socket.socket(fileno=SD_LISTEN_FDS_START)
-                # systemd passes the fd without FD_CLOEXEC; set it so exec'd
-                # subprocesses don't inherit the socket.
                 self._set_socket_cloexec()
             else:
-                # default
                 family = socket.AF_INET
                 if ":" in self.interface:
                     family = socket.AF_INET6
@@ -587,14 +512,7 @@ class PreforkServer(CommonServer):
         self.logger.info("Reloading server")
         pid = os.fork()
         if pid != 0:
-            # Hand the listening socket to the re-exec'd master so the port stays
-            # bound across the reload.  A node with ``http_enable = False`` (a
-            # dedicated cron/job worker) never created ``self.socket``; skip the
-            # fd handoff entirely there — dereferencing ``None.fileno()`` would
-            # raise AFTER the fork, crashing this master and SIGTERM-ing every
-            # worker mid-job while the child waits out the full reload timeout.
             if self.socket is not None:
-                # keep the http listening socket open during _reexec() to ensure uptime
                 http_socket_fileno = self.socket.fileno()
                 flags = fcntl.fcntl(http_socket_fileno, fcntl.F_GETFD)
                 fcntl.fcntl(
@@ -602,9 +520,8 @@ class PreforkServer(CommonServer):
                 )
                 os.environ["ODOO_HTTP_SOCKET_FD"] = str(http_socket_fileno)
             os.environ["ODOO_READY_SIGHUP_PID"] = str(pid)
-            _reexec()  # stops execution
+            _reexec()
 
-        # child process handles old server shutdown
         self.logger.info("Waiting for new server to start ...")
         phoenix_hatched = False
 
@@ -614,9 +531,6 @@ class PreforkServer(CommonServer):
 
         signal.signal(signal.SIGHUP, sighup_handler)
 
-        # How long the old master waits for the new one to signal readiness.
-        # Default 60s (big-DB upgrades / asset rebuilds may need more, via
-        # ``ODOO_RELOAD_TIMEOUT``); floored at 1s so "0" can't disable the wait.
         timeout_s = env_float(
             "ODOO_RELOAD_TIMEOUT", 60.0, minimum=1.0, logger=self.logger
         )
@@ -655,7 +569,6 @@ class PreforkServer(CommonServer):
         try:
             proc = psutil.Process(pid)
         except psutil.NoSuchProcess:
-            # Already gone (reaped elsewhere); still reconcile the handle.
             self._reconcile_long_polling_popen(None)
             return
         timeout_s = env_float(
@@ -666,8 +579,6 @@ class PreforkServer(CommonServer):
         )
         with contextlib.suppress(ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
-        # ``psutil.Process.wait`` reaps our child and returns its code (``None``
-        # for a non-child on the reload path); reconcile the ``Popen`` with it.
         code: int | None = None
         try:
             code = proc.wait(timeout=timeout_s)
@@ -680,8 +591,6 @@ class PreforkServer(CommonServer):
             )
             with contextlib.suppress(ProcessLookupError):
                 os.kill(pid, signal.SIGKILL)
-            # Bounded reap of the SIGKILLed child; SIGKILL is uncatchable, so
-            # a further timeout means only that someone else must reap it.
             with contextlib.suppress(psutil.TimeoutExpired):
                 code = proc.wait(timeout=5)
         finally:
@@ -693,40 +602,19 @@ class PreforkServer(CommonServer):
 
         self._stop_long_polling()
 
-        # Snapshot the keys with ``list``: ``worker_kill`` may ``worker_pop`` an
-        # already-dead worker (ESRCH), mutating ``self.workers`` mid-loop.
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGINT)
 
-        is_main_server = (
-            self.pid == os.getpid()
-        )  # False if server reload, cannot reap children -> use psutil
+        is_main_server = self.pid == os.getpid()
         processes = {}
         if not is_main_server:
-            # Snapshot here too: ``worker_kill`` above may have popped entries.
             for pid in list(self.workers):
                 with contextlib.suppress(psutil.NoSuchProcess):
                     processes[pid] = psutil.Process(pid)
-        # Published for the post-drain sweep in ``stop()``.  These handles are
-        # built *now*, while the workers are known alive, so they carry each
-        # process's creation time: ``is_running()`` on one of them is False for a
-        # recycled PID, not merely for a dead one.  Re-deriving a bare
-        # ``psutil.Process(pid)`` later would bind to whatever holds the pid then
-        # and lose exactly that distinction.
         self._drain_procs = processes
 
         self.beat = 0.1
-        # This drain is the terminal phase of an ALREADY-decided stop or reload
-        # (the phoenix branch cleared the flag before forking; a plain shutdown
-        # keeps whatever the first signal set).  ``process_signals`` below sets
-        # ``server_phoenix`` on a SIGHUP, so a stray second HUP mid-drain would
-        # flip the outcome: a draining old-master child would then re-exec a
-        # doomed extra server (it has no ODOO_HTTP_SOCKET_FD → full boot →
-        # EADDRINUSE), and a plain shutdown would silently become a restart.
-        # Snapshot the decision and restore it after the loop.
         phoenix_decided = lifecycle.server_phoenix
-        # After the graceful-stop timeout the master force-kills any survivor so
-        # a worker that ignores SIGINT with no watchdog can't hang this loop.
         stop_timeout = _graceful_stop_timeout(self.logger)
         deadline = time.monotonic() + stop_timeout
         escalated = False
@@ -752,10 +640,6 @@ class PreforkServer(CommonServer):
                     stop_timeout,
                     list(self.workers),
                 )
-                # Raw SIGKILL, not ``worker_kill`` (which pops before the child is
-                # reaped): keep each worker registered so the next
-                # ``process_zombie`` / psutil pass reaps and pops it, leaving no
-                # zombie.  SIGKILL is uncatchable, so the loop ends next tick.
                 for pid in list(self.workers):
                     with contextlib.suppress(ProcessLookupError):
                         os.kill(pid, signal.SIGKILL)
@@ -763,7 +647,6 @@ class PreforkServer(CommonServer):
             self.sleep()
             self.process_timeout()
 
-        # Undo any phoenix flip a stray SIGHUP made during the drain (above).
         lifecycle.server_phoenix = phoenix_decided
 
     def _sweep_stale_workers(self) -> None:
@@ -787,42 +670,15 @@ class PreforkServer(CommonServer):
 
     def stop(self, graceful: bool = True) -> None:
         if lifecycle.server_phoenix:
-            # PreforkServer reloads gracefully, disable outdated mechanism.
-            # Write through lifecycle (canonical).
             lifecycle.server_phoenix = False
 
             if not self.fork_and_reload():
-                # New server never signalled readiness in time.  Do NOT kill the
-                # old workers — that would leave zero listeners on the port.
-                # This process (the ``fork_and_reload`` child) returns here and
-                # exits via ``run()``'s loop break; the workers stay children of
-                # the re-exec'd new master, serving under it if it binds, else
-                # orphaned until the service manager restarts the unit.
                 self.logger.error(
                     "Reload aborted: new server failed to come up within timeout. "
                     "Old workers kept alive; this (old) master is exiting."
                 )
                 return
             self.stop_workers_gracefully()
-            # The drain can break out early ("Forced shutdown." on a second
-            # INT/TERM arriving mid-drain) with workers still registered.  This
-            # code runs in the ``fork_and_reload`` CHILD, which is only a sibling
-            # of those workers — their parent is the original master pid, which
-            # ``_reexec``'d in place and is now the NEW master.  So a survivor is
-            # not orphaned; it is silently adopted by the new master, which knows
-            # nothing about it: it keeps accepting on the shared inherited listen
-            # socket while running the OLD code, on top of the full fresh
-            # population the new master spawns.  Sweep them, mirroring the
-            # trailing sweep on the plain-shutdown path below.  ``os.kill`` does
-            # not require parentage, so this works from the sibling.
-            #
-            # But not being the parent also means we can never *reap* them, so
-            # ``self.workers`` is a snapshot that cannot self-correct: the new
-            # master reaps each worker and the kernel is then free to hand that
-            # pid to an unrelated process.  Signalling a stale entry would
-            # SIGTERM that stranger.  Gate every kill on the psutil handle taken
-            # during the drain, which pins the creation time and so distinguishes
-            # "still our worker" from "pid reused".
             self._sweep_stale_workers()
 
             self.logger.info("Old server stopped")
@@ -835,15 +691,6 @@ class PreforkServer(CommonServer):
             self.stop_workers_gracefully()
         else:
             self.logger.info("Stopping forcefully")
-            # The evented child is NOT in ``self.workers`` (it is a subprocess,
-            # not a forked worker), so the SIGTERM sweep below never reaches it.
-            # Today it does eventually notice, because its own watchdog kills it
-            # ~4 s after ``os.getppid()`` changes — but that is an accident of
-            # another component's polling, not this path doing its job, and it
-            # leaves ``gevent_port`` bound for those seconds, which is long
-            # enough for a supervisor's immediate restart to fail on EADDRINUSE.
-            # Stop it explicitly; ``_stop_long_polling`` is bounded (SIGTERM,
-            # short wait, SIGKILL) so it cannot stall this crash path.
             self._stop_long_polling()
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGTERM)
@@ -858,13 +705,10 @@ class PreforkServer(CommonServer):
             self.stop()
             return rc
 
-        # Empty the cursor pool, we dont want them to be shared among forked workers.
         db.close_all()
 
         ready_pid = os.environ.pop("ODOO_READY_SIGHUP_PID", None)
         if ready_pid:
-            # Set by ``fork_and_reload``; a corrupt or stale value must not crash
-            # the freshly-execed master before it binds the socket.
             try:
                 os.kill(int(ready_pid), signal.SIGHUP)
             except (ValueError, ProcessLookupError, PermissionError) as e:

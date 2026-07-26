@@ -8,13 +8,12 @@ from pathlib import Path
 from psycopg.errors import InsufficientPrivilege
 
 import odoo
-import odoo.release  # noqa: F401 — side-effect: populates odoo.release namespace used by report_configuration
+import odoo.release
 from odoo.service import db, server
 from odoo.tools import config
 
 from . import Command
 
-# Also use the `odoo` logger for the main script.
 _logger = logging.getLogger("odoo")
 
 
@@ -41,7 +40,7 @@ def report_configuration() -> None:
 
     This function assumes the configuration has been initialized.
     """
-    import odoo.addons  # namespace package, dynamic paths
+    import odoo.addons
 
     _logger.info("Odoo version %s", odoo.release.version)
     if Path(config["config"]).is_file():
@@ -96,10 +95,6 @@ def main(args: list[str]) -> None:
     check_postgres_user()
     report_configuration()
 
-    # Serving from a system database or the creation template would
-    # initialize Odoo tables inside it (load_modules bootstraps any
-    # uninitialized database it is pointed at), corrupting cluster
-    # infrastructure the moment the registry is preloaded.
     protected_dbs = db.SYSTEM_DBS | {config["db_template"]}
     for db_name in config["db_name"]:
         if db_name in protected_dbs:
@@ -110,8 +105,6 @@ def main(args: list[str]) -> None:
             db._create_empty_database(db_name)
             config["init"]["base"] = True
         except InsufficientPrivilege as err:
-            # INFO on purpose: avoids noisy warnings on build environments
-            # with restricted database access.
             _logger.info(
                 "Could not determine if database %s exists, skipping auto-creation: %s",
                 db_name,

@@ -23,8 +23,6 @@ if typing.TYPE_CHECKING:
 
     from odoo.db import BaseCursor
 
-# The LISTEN/NOTIFY channels.  Defined once so publishers (``ir.cron`` /
-# ``ir.job``) and consumers cannot drift on the channel names.
 CRON_TRIGGER_CHANNEL = "cron_trigger"
 JOB_QUEUE_CHANNEL = "job_queue"
 
@@ -83,19 +81,19 @@ def order_notified_first(notified: Iterable[str], all_dbs: Iterable[str]) -> lis
 
     De-duplicates both inputs by first occurrence, so a database listed twice —
     whether in ``notified`` or ``all_dbs`` — is still processed only once per
-    cron pass.  Today's callers pass de-duplicated ``OrderedSet``s, so this is a
-    correct-by-construction guard, not a behavior change for them.
+    cron pass.  Today's callers pass de-duplicated ``OrderedSet`` instances, so
+    this is a correct-by-construction guard, not a behavior change for them.
     """
     all_list = list(all_dbs)
     all_set = set(all_list)
     notified_set = set(notified)
     emitted: set[str] = set()
     result: list[str] = []
-    for db in notified:  # notified-and-served, notified order, de-duplicated
+    for db in notified:
         if db in all_set and db not in emitted:
             emitted.add(db)
             result.append(db)
-    for db in all_list:  # remaining served dbs, original order, de-duplicated
+    for db in all_list:
         if db not in notified_set and db not in emitted:
             emitted.add(db)
             result.append(db)

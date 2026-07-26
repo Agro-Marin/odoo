@@ -12,9 +12,6 @@ from . import Command
 
 _logger = logging.getLogger(__name__)
 
-# Directory names and file suffixes that should never ship in a module zip.
-# VCS metadata can leak credentials; build caches and dependency trees inflate
-# uploads 10-100x with no runtime benefit.
 EXCLUDED_DIR_NAMES = frozenset(
     {
         ".git",
@@ -32,9 +29,9 @@ EXCLUDED_DIR_NAMES = frozenset(
         "venv",
         ".env",
         ".idea",
-        ".vscode",  # IDE metadata
+        ".vscode",
         "dist",
-        "build",  # common build outputs
+        "build",
     }
 )
 EXCLUDED_SUFFIXES = frozenset(
@@ -47,9 +44,6 @@ EXCLUDED_SUFFIXES = frozenset(
         ".bak",
     }
 )
-# Matched against the file NAME, not the suffix: for a dotfile like
-# `.DS_Store`, Path.suffix is '' (the leading dot marks a hidden file, not an
-# extension), so a suffix check never fires.
 EXCLUDED_FILE_NAMES = frozenset(
     {
         ".DS_Store",
@@ -57,23 +51,14 @@ EXCLUDED_FILE_NAMES = frozenset(
     }
 )
 
-# Hosts that deploy treats as local and therefore defaults to http://.
-# Exact host match only (substring matches would let 'localhost.evil.com'
-# bypass TLS).
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
 
-# (connect, read) timeouts. requests has no default, so a stuck server would
-# hang forever. Connect fails fast; the upload read is unbounded because the
-# server installs synchronously and large modules take minutes.
 _LOGIN_TIMEOUT = (10, 30)
 _UPLOAD_TIMEOUT = (10, None)
 
 
 def _should_skip(filepath: Path, module_dir: Path) -> bool:
     """Return True if ``filepath`` should be excluded from the deploy zip."""
-    # Match parent components against EXCLUDED_DIR_NAMES, never the basename: a
-    # module file named `build`/`dist` must still ship. Redundant with
-    # zip_module's walk, which already prunes excluded dirs in place.
     rel_parts = filepath.relative_to(module_dir).parts
     if any(p in EXCLUDED_DIR_NAMES for p in rel_parts[:-1]):
         return True
@@ -115,14 +100,12 @@ class Deploy(Command):
         force: bool = False,
     ) -> str:
         print("Uploading module file...")
-        # urlencode the db name: '&'/'#' would inject extra query params. db may
-        # be "" (server uses a db-filter, --db omitted); quote(None) would raise.
         encoded_db = urllib.parse.quote(db or "", safe="")
         self.session.get(
             f"{url}/web/login?db={encoded_db}",
             allow_redirects=False,
             timeout=_LOGIN_TIMEOUT,
-        )  # this sets the db in the session
+        )
         endpoint = url + "/base_import_module/login_upload"
         post_data = {
             "login": login,
@@ -158,18 +141,13 @@ class Deploy(Command):
         os.close(fd)
         try:
             print("Zipping module directory...")
-            # ZIP_DEFLATED: the default ZIP_STORED uploads uncompressed, much larger.
             with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED) as zfile:
-                # walk() so excluded trees are pruned in place and never
-                # traversed; rglob would enumerate every file only to discard it.
                 for dirpath, dirnames, filenames in module_dir.walk():
                     kept_dirs = []
                     for dirname in dirnames:
                         if dirname in EXCLUDED_DIR_NAMES:
                             continue
                         if (dirpath / dirname).is_symlink():
-                            # walk(follow_symlinks=False) would not descend
-                            # anyway; prune loudly instead of silently.
                             print(
                                 f"WARNING: skipping symlink {dirpath / dirname}",
                                 file=sys.stderr,
@@ -180,8 +158,6 @@ class Deploy(Command):
                     for filename in filenames:
                         filepath = dirpath / filename
                         if filepath.is_symlink():
-                            # zfile.write embeds the target's content; a link
-                            # outside the module must not leak into the upload.
                             print(
                                 f"WARNING: skipping symlink {filepath}",
                                 file=sys.stderr,
@@ -224,8 +200,6 @@ class Deploy(Command):
             default="admin",
             help="Password (default=admin)",
         )
-        # SSL verification is off by default — this is dev tooling (default URL
-        # is http://localhost:8069). Use --verify-ssl for HTTPS targets.
         parser.add_argument(
             "--verify-ssl", action="store_true", help="Verify SSL certificate"
         )
@@ -235,22 +209,15 @@ class Deploy(Command):
             help='Force init even if module is already installed. (will update `noupdate="1"` records)',
         )
 
-        # No empty-args guard: argparse already errors with "the following
-        # arguments are required: path".
         args = parser.parse_args(args=cmdargs)
 
         try:
             if not args.url.lower().startswith(("http://", "https://")):
-                # Local hosts default to http, remote to https. Parse via a
-                # synthesised authority to match the host exactly (not by
-                # substring) and to cover IPv6 loopback '[::1]'.
                 parsed = urllib.parse.urlsplit(f"//{args.url}", scheme="")
                 hostname = (parsed.hostname or "").lower()
                 scheme = "http" if hostname in _LOCAL_HOSTS else "https"
                 args.url = f"{scheme}://{args.url}"
 
-            # Decide AFTER URL resolution so it reflects the actual scheme:
-            # a user passing 'https://host' directly must still get the warning.
             if not args.verify_ssl:
                 self.session.verify = False
                 if args.url.lower().startswith("https://"):
@@ -259,8 +226,6 @@ class Deploy(Command):
                         "Pass --verify-ssl to verify the server certificate.",
                         file=sys.stderr,
                     )
-                    # One clear warning is enough; without this, urllib3
-                    # repeats an InsecureRequestWarning for every request.
                     import urllib3
 
                     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -273,11 +238,7 @@ class Deploy(Command):
                 args.db,
                 force=args.force,
             )
-            # The upload endpoint may return an empty body on success; a blank
-            # line reads as "something went wrong", so say it plainly.
             print(result or "Module deployed successfully.")
         except Exception as e:
-            # Keep the full traceback at DEBUG: a programming error would
-            # otherwise surface only as a bare "ERROR: <msg>" with no stack.
             _logger.debug("deploy failed", exc_info=True)
             sys.exit(f"ERROR: {e}")

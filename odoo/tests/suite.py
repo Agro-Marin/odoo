@@ -31,7 +31,7 @@ class TestSuite(BaseTestSuite):
     subclassing, do not forget to call the base class constructor.
     """
 
-    def run(self, result: OdooTestResult, debug: bool = False) -> OdooTestResult:  # type: ignore[override]
+    def run(self, result: OdooTestResult, debug: bool = False) -> OdooTestResult:
         """Run all tests in the suite, managing class setup and teardown."""
         for test in self:
             if result.shouldStop:
@@ -132,10 +132,6 @@ class _ErrorHolder:
     Used to insert arbitrary errors into a test suite run.
     """
 
-    # Inspired by the ErrorHolder from Twisted:
-    # http://twistedmatrix.com/trac/browser/trunk/twisted/trial/runner.py
-
-    # attribute used by TestResult._exc_info_to_string
     failureException = None
 
     def __init__(self, description: str) -> None:
@@ -157,8 +153,6 @@ class _ErrorHolder:
 
     def run(self, result: OdooTestResult) -> None:
         """No-op: error holders are not meant to be run directly."""
-        # could call result.addError(...) - but this test-like object
-        # shouldn't be run anyway
 
     def __call__(self, result: OdooTestResult) -> None:
         return self.run(result)

@@ -21,23 +21,18 @@ re-exported here:
 
 import logging
 
-# Server classes (CommonServer is the shared base; the three flavors live in
-# the two sibling modules below).
 from ._base_server import (
-    _ON_STOP_FUNCS,  # noqa: F401 — re-export (tests reach srv._ON_STOP_FUNCS)
-    _SIGHUP_AVAILABLE,  # noqa: F401 — re-export (tests reach srv._SIGHUP_AVAILABLE)
+    _ON_STOP_FUNCS,
+    _SIGHUP_AVAILABLE,
     CommonServer,
 )
 from ._prefork import PreforkServer
 from ._threaded import EventServer, ThreadedServer
 
-# ``FSWatcherBase`` lives in the private ``_watcher`` module; re-export it here
-# so tests and external callers have a stable, non-underscored import path.
 from ._watcher import (
-    FSWatcherBase,  # noqa: F401 — public re-export (tests reach srv.FSWatcherBase)
+    FSWatcherBase,
 )
 
-# Worker classes — re-exported from ``_worker``.
 from ._worker import (
     CpuTimeLimitExceeded,
     Worker,
@@ -46,9 +41,6 @@ from ._worker import (
     WorkerJob,
 )
 
-# Lifecycle entry points — re-exported so ``cli/shell.py`` (``server.start``),
-# ``http/application.py`` (``load_server_wide_modules``) and the iot_drivers
-# ``/restart`` helper (``server.restart``) keep working.
 from .lifecycle import (
     load_server_wide_modules,
     preload_registries,
@@ -56,8 +48,6 @@ from .lifecycle import (
     start,
 )
 
-# WSGI handlers — re-exported for backwards compat (addons/, cli/, bus/ all
-# import these from ``odoo.service.server``).
 from .wsgi import (
     BaseWSGIServerNoBind,
     CommonRequestHandler,
@@ -69,31 +59,23 @@ from .wsgi import (
 _logger = logging.getLogger(__name__)
 
 
-__all__ = (  # noqa: RUF022 — grouped by origin (server/worker/wsgi/lifecycle); flat alphabetical loses that semantic
-    # Server classes (CommonServer from ._base_server; flavors from ._threaded/._prefork)
+__all__ = (
     "CommonServer",
     "EventServer",
     "PreforkServer",
     "ThreadedServer",
-    # Worker classes (re-exported from ._worker)
     "CpuTimeLimitExceeded",
     "Worker",
     "WorkerCron",
     "WorkerHTTP",
     "WorkerJob",
-    # WSGI handlers (re-exported from .wsgi)
     "BaseWSGIServerNoBind",
     "CommonRequestHandler",
     "LoggingBaseWSGIServerMixIn",
     "RequestHandler",
     "ThreadedWSGIServerReloadable",
-    # Lifecycle entry points (re-exported from .lifecycle)
     "load_server_wide_modules",
     "preload_registries",
     "restart",
     "start",
 )
-# The ``_helpers`` names (memory_info / empty_pipe / cron_database_list /
-# SLEEP_INTERVAL / CRON_NOTIFY_JITTER_MAX_S) are private dependencies of the
-# server modules and are intentionally NOT re-exported; import them from
-# ``odoo.service._helpers`` directly.

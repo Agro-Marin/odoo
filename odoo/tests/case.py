@@ -38,7 +38,7 @@ class _Outcome:
         except SkipTest as e:
             self.success = False
             self.result.addSkip(test_case, str(e))
-        except BaseException:  # KeyboardInterrupt was re-raised above
+        except BaseException:
             exc_info = sys.exc_info()
             self.success = False
 
@@ -48,8 +48,6 @@ class _Outcome:
                 exc_info = (exception_type, exception, tb)
             self.test._addError(self.result, test_case, exc_info)
 
-            # explicitly break a reference cycle:
-            # exc_info -> frame -> exc_info
             exc_info = None
 
     def _complete_traceback(
@@ -57,7 +55,6 @@ class _Outcome:
     ) -> types.TracebackType:
         Traceback = type(initial_tb)
 
-        # make the set of frames in the traceback
         tb_frames = set()
         tb = initial_tb
         while tb:
@@ -65,25 +62,22 @@ class _Outcome:
             tb = tb.tb_next
         tb = initial_tb
 
-        # find the common frame by searching the last frame of the current_stack present in the traceback.
         current_frame = inspect.currentframe()
         common_frame = None
         while current_frame:
             if current_frame in tb_frames:
-                common_frame = current_frame  # we want to find the last frame in common
+                common_frame = current_frame
             current_frame = current_frame.f_back
 
-        if not common_frame:  # not really useful but safer
+        if not common_frame:
             _logger.warning(
                 "No common frame found with current stack, displaying full stack"
             )
             tb = initial_tb
         else:
-            # remove the tb_frames until the common_frame is reached (keep the current_frame tb since the line is more accurate)
             while tb and tb.tb_frame != common_frame:
                 tb = tb.tb_next
 
-        # add all current frame elements under the common_frame to tb
         current_frame = common_frame.f_back
         while current_frame:
             tb = Traceback(
@@ -91,10 +85,6 @@ class _Outcome:
             )
             current_frame = current_frame.f_back
 
-        # remove traceback root part (odoo_bin, main, loading, ...), as
-        # everything above the testCase is not useful. Cut at '_callTestMethod',
-        # '_callSetUp', '_callTearDown' or '_callCleanup' rather than the test
-        # method, since the error may not come from the test method itself.
         while tb:
             code = tb.tb_frame.f_code
             if PurePath(code.co_filename).name == "case.py" and code.co_name in (
@@ -107,7 +97,7 @@ class _Outcome:
             tb = tb.tb_next
 
         _logger.warning("No root frame found, displaying full stacks")
-        return initial_tb  # this shouldn't be reached
+        return initial_tb
 
 
 class TestCase(_TestCase):
@@ -116,7 +106,6 @@ class TestCase(_TestCase):
     __unittest_skip_why__ = ""
     _moduleSetUpFailed = False
 
-    # pylint: disable=super-init-not-called
     def __init__(self, methodName: str = "runTest") -> None:
         """Create an instance of the class that will use the named test
         method when executed. Raises a ValueError if the instance does
@@ -125,15 +114,10 @@ class TestCase(_TestCase):
         self._testMethodName = methodName
         self._outcome = None
         if methodName != "runTest" and not hasattr(self, methodName):
-            # we allow instantiation with no explicit method name
-            # but not an *incorrect* or missing method name
             raise ValueError(f"no such test method in {self.__class__}: {methodName}")
         self._cleanups = []
         self._subtest = None
 
-        # Map types to custom assertEqual functions that will compare
-        # instances of said type in more detail to generate a more useful
-        # error message.
         self._type_equality_funcs = {}
         self.addTypeEqualityFunc(dict, "assertDictEqual")
         self.addTypeEqualityFunc(list, "assertListEqual")
@@ -222,9 +206,7 @@ class TestCase(_TestCase):
                 or testMethod.__unittest_skip_why__
                 or ""
             )
-        except (
-            AttributeError
-        ):  # testMethod may not have a __unittest_skip__ or __unittest_skip_why__
+        except AttributeError:
             pass
         if skip:
             result.addSkip(self, skip_why)
@@ -249,7 +231,6 @@ class TestCase(_TestCase):
         finally:
             result.stopTest(self)
 
-            # clear the outcome, no more needed
             self._outcome = None
 
     def doCleanups(self) -> None:

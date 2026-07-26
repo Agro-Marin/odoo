@@ -16,12 +16,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# The two queries driving the recursive auto-install marking in initialize().
-# Module-level constants so their selection logic is testable directly against
-# fixture rows (see base/tests/test_module.py::TestAutoInstallQueries).
-#
-# Candidates: auto_install modules whose auto_install_required dependencies
-# are all marked 'to install'.
 _AUTO_INSTALL_CANDIDATES_QUERY = """
     SELECT m.name FROM ir_module_module m
     WHERE m.auto_install
@@ -39,10 +33,6 @@ _AUTO_INSTALL_CANDIDATES_QUERY = """
           )
     )"""
 
-# Closure: a module being installed ('to install', or in the candidate array
-# %s) may have *non-required* dependencies that would not be auto-installed on
-# their own.  Pull those in too, so the full dependency closure of every
-# to-be-installed module also ends up marked 'to install'.
 _AUTO_INSTALL_CLOSURE_QUERY = """
     SELECT d.name FROM ir_module_module_dependency d
     JOIN ir_module_module m ON (d.module_id = m.id)
@@ -82,12 +72,11 @@ def initialize(cr: Cursor) -> None:
         raise OSError(m) from e
 
     with odoo.tools.misc.file_open(f) as base_sql_file:
-        cr.execute(base_sql_file.read())  # pylint: disable=sql-injection
+        cr.execute(base_sql_file.read())
 
-    # Collect batched rows for COPY at end (avoids 500-2000 individual INSERTs)
-    all_data_rows = []  # ir_model_data rows
-    all_dep_rows = []  # ir_module_module_dependency rows
-    category_cache: dict[str, int] = {}  # shared across modules (few distinct paths)
+    all_data_rows = []
+    all_dep_rows = []
+    category_cache: dict[str, int] = {}
 
     for info in odoo.modules.Manifest.all_addon_manifests():
         module_name = info.name
@@ -125,7 +114,7 @@ def initialize(cr: Cursor) -> None:
             ),
         )
         row = cr.fetchone()
-        assert row is not None  # for typing
+        assert row is not None
         module_id = row[0]
 
         all_data_rows.append(
@@ -142,7 +131,6 @@ def initialize(cr: Cursor) -> None:
             (module_id, d, d in (info["auto_install"] or ())) for d in dependencies
         )
 
-    # Batch insert all ir_model_data and dependency rows via COPY
     if all_data_rows:
         cr.copy_from(
             "ir_model_data",
@@ -157,13 +145,11 @@ def initialize(cr: Cursor) -> None:
         )
 
     if odoo.tools.config.get("skip_auto_install"):
-        # even if skip_auto_install is enabled we still want to have base
         cr.execute(
             """UPDATE ir_module_module SET state='to install' WHERE name = 'base'"""
         )
         return
 
-    # Install recursively all auto-installing modules
     while True:
         cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
         to_auto_install = [x[0] for x in cr.fetchall()]
@@ -206,7 +192,6 @@ def create_categories(
         if category_cache is not None and xml_id in category_cache:
             p_id = category_cache[xml_id]
             continue
-        # search via xml_id (because some categories are renamed)
         cr.execute(
             "SELECT res_id FROM ir_model_data WHERE name=%s AND module=%s AND model=%s",
             (xml_id, "base", "ir.module.category"),
@@ -222,7 +207,7 @@ def create_categories(
                 (Json({"en_US": cat_name}), p_id),
             )
             row = cr.fetchone()
-            assert row is not None  # for typing
+            assert row is not None
             p_id = row[0]
             cr.execute(
                 """
@@ -240,9 +225,9 @@ def create_categories(
 
 
 class FunctionStatus(IntEnum):
-    MISSING = 0  # function is not present (falsy)
-    PRESENT = 1  # function is present but not indexable (not immutable)
-    INDEXABLE = 2  # function is present and indexable (immutable)
+    MISSING = 0
+    PRESENT = 1
+    INDEXABLE = 2
 
 
 def has_unaccent(cr: BaseCursor) -> FunctionStatus:
@@ -263,9 +248,6 @@ def has_unaccent(cr: BaseCursor) -> FunctionStatus:
     result = cr.fetchone()
     if not result:
         return FunctionStatus.MISSING
-    # The `provolatile` of unaccent allows to know whether the unaccent function
-    # can be used to create index (it should be 'i' - means immutable), see
-    # https://www.postgresql.org/docs/current/catalog-pg-proc.html.
     return FunctionStatus.INDEXABLE if result[0] == "i" else FunctionStatus.PRESENT
 
 
@@ -276,9 +258,6 @@ def has_trigram(cr: BaseCursor) -> bool:
     pg_trgm module but any similar function will be picked by Odoo.
 
     """
-    # Scope to current_schema to match has_unaccent and avoid cross-schema
-    # false positives when the function exists elsewhere but the index would
-    # be built on the current-schema reference.
     cr.execute("""
         SELECT 1 FROM pg_proc
         WHERE proname = 'word_similarity'
@@ -315,8 +294,6 @@ def initialize_db(
     :param country_code: ISO country code for company configuration
     :param phone: Phone number for the company
     """
-    # country_timezones() keys are uppercase ISO codes (per babel/CLDR), so
-    # normalize the user-supplied value before any lookup that bypasses ilike.
     normalized_country = country_code.upper() if country_code else None
 
     saved_load_language = odoo.tools.config.get("load_language")
@@ -338,10 +315,6 @@ def initialize_db(
                 )
                 if country:
                     company_values = {"country_id": country.id}
-                    # Only override the currency if the country actually has
-                    # one set; otherwise `country.currency_id.id` would be
-                    # `False` (empty recordset .id) and silently clear the
-                    # company's currency.
                     if country.currency_id:
                         company_values["currency_id"] = country.currency_id.id
                     env["res.company"].browse(1).write(company_values)
@@ -358,7 +331,6 @@ def initialize_db(
             if login and "@" in login:
                 env["res.company"].browse(1).write({"email": login})
 
-            # Update admin's password and lang and login
             values = {"password": user_password, "lang": lang}
             if login:
                 values["login"] = login
@@ -372,8 +344,6 @@ def initialize_db(
         _logger.exception("CREATE DATABASE failed:")
         raise
     finally:
-        # Restore so subsequent Registry.new() calls in the same process
-        # do not see the leftover language.
         if saved_load_language is None:
             odoo.tools.config.pop("load_language", None)
         else:

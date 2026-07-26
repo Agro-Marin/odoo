@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-import odoo  # to expose in the shell
+import odoo
 from odoo import api
 from odoo.modules.registry import Registry
 from odoo.service import server
@@ -63,8 +63,6 @@ class Shell(Command):
     """Start odoo in an interactive shell"""
 
     supported_shells = ("ipython", "ptpython", "bpython", "python")
-    # Importable module per REPL, for availability probing. `python` is the
-    # stdlib fallback, always available.
     _REPL_MODULES = {"ipython": "IPython", "ptpython": "ptpython", "bpython": "bpython"}
 
     @classmethod
@@ -77,7 +75,7 @@ class Shell(Command):
         """
         module = cls._REPL_MODULES.get(shell)
         if module is None:
-            return True  # the stdlib console
+            return True
         try:
             return importlib.util.find_spec(module) is not None
         except ImportError, ValueError:
@@ -99,8 +97,6 @@ class Shell(Command):
             help="Specify a preferred REPL to use in shell mode. "
             f"Supported REPLs are: {self.supported_shells}",
         )
-        # parse_known_args: shell-specific args go to parsed_args,
-        # everything else is forwarded to config.parse_config for server startup
         parsed_args, remaining = parser.parse_known_args(args)
         self._shell_file = parsed_args.shell_file
         self._shell_interface = parsed_args.shell_interface
@@ -113,7 +109,7 @@ class Shell(Command):
     def console(self, local_vars: dict[str, Any]) -> None:
         if not os.isatty(sys.stdin.fileno()):
             local_vars["__name__"] = "__main__"
-            exec(sys.stdin.read(), local_vars)  # noqa: S102 — intentional REPL exec
+            exec(sys.stdin.read(), local_vars)
             return None
 
         if "env" not in local_vars:
@@ -125,16 +121,12 @@ class Shell(Command):
 
         preferred_interface = self._shell_interface
         if preferred_interface:
-            # Order-preserving dedupe: avoid trying python twice when it's the
-            # explicit choice.
             shells_to_try = list(dict.fromkeys([preferred_interface, "python"]))
         else:
             shells_to_try = self.supported_shells
 
         for shell in shells_to_try:
             if not self._repl_available(shell):
-                # Surface the fallback when the user explicitly requested this
-                # shell; otherwise the switch to python is silent and confusing.
                 if shell == preferred_interface:
                     _logger.warning(
                         "Requested shell %r is not installed; falling back.",
@@ -145,8 +137,6 @@ class Shell(Command):
                 shell_func = getattr(self, shell)
                 return shell_func(local_vars, pythonstartup)
             except Exception:
-                # Includes ImportError from inside an *installed* REPL (broken
-                # plugin/extension): a real error, not "not installed".
                 _logger.warning("Could not start '%s' shell.", shell)
                 _logger.debug("Shell error:", exc_info=True)
         return None
@@ -206,8 +196,6 @@ class Shell(Command):
                 env = api.Environment(cr, uid, ctx)
                 local_vars["env"] = env
                 local_vars["self"] = env.user
-                # context_get() already opened a transaction; roll back so
-                # odoo.tests.shell.run_tests doesn't warn about it later.
                 cr.rollback()
                 self.console(local_vars)
                 cr.rollback()

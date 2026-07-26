@@ -21,26 +21,13 @@ if TYPE_CHECKING:
 
     from odoo.db import BaseCursor
 
-# Log under the public module name so operators filtering on ``odoo.service.db``
-# still see these records after the extraction from ``db.py``.
 _logger = logging.getLogger("odoo.service.db")
 
 
-# PostgreSQL cluster-infrastructure databases.  Never valid as an Odoo
-# database: ``postgres`` is the maintenance DB every tool connects to (and PG
-# will happily drop it), ``template0``/``template1`` seed ``CREATE DATABASE``.
-# Consumed by the CLI (``odoo-bin db``/``start``) to refuse creating over or
-# dropping them.
 SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
 
-# Enforced by the HTTP controller and service layer alike.  First char
-# alphanumeric; the rest may add _ . - (``*`` so a single-char name is valid).
 DBNAME_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*\Z"
 
-# PostgreSQL silently truncates identifiers past NAMEDATALEN-1 = 63 bytes, so a
-# 64+ char name would land under a different name in ``pg_database``.  Reject at
-# validation time instead.  The pattern is ASCII-only, so char count == byte
-# count.
 DBNAME_MAX_LENGTH = 63
 
 _DBNAME_ERROR_MSG = (
@@ -64,6 +51,44 @@ def validate_db_name(name: str) -> None:
         raise ValueError(_DBNAME_TOO_LONG_MSG.format(name=name, length=len(name)))
     if not re.match(DBNAME_PATTERN, name):
         raise ValueError(_DBNAME_ERROR_MSG.format(name=name))
+
+
+def rpc_db_exposed(db_name: object) -> bool:
+    """Whether an RPC verb may act on ``db_name`` at all.
+
+    The RPC services take the database name as a PARAMETER from a caller that
+    has not authenticated yet — ``common.authenticate``/``login`` and
+    ``object.execute_kw`` both reach ``Registry(db)``, building a registry and
+    a connection pool, BEFORE any credential is verified.  This is the cheapest
+    gate that can refuse a name the operator never declared servable, before
+    that cost is paid.
+
+    Two rules, both host-independent:
+
+    * the PG system databases and the creation template are never servable
+      (the same floor ``http.helpers.db_filter`` and ``db._rpc_db_exist``
+      apply);
+    * when ``--database`` is set it IS the exposed-database allowlist — the
+      meaning ``db_filter`` and ``list_dbs`` already give it — so a name
+      outside it is refused.
+
+    ``--db-filter`` is deliberately NOT applied here.  It maps a *hostname* to
+    a database, and ``http.dispatch_rpc`` runs inside ``borrow_request()``,
+    which POPS the request off the stack — so no host is available at this
+    point, and a dbfilter of ``^%h$`` would be evaluated against an empty host
+    and refuse every RPC login on a virtual-host deployment.  An RPC caller
+    names its database explicitly; host-based routing is not the right axis for
+    it.
+
+    With ``--database`` unset (no declared allowlist) every non-system name is
+    allowed, i.e. the pre-existing behaviour is unchanged.
+    """
+    if not isinstance(db_name, str) or not db_name:
+        return False
+    if db_name in SYSTEM_DBS or db_name == odoo.tools.config["db_template"]:
+        return False
+    exposed = odoo.tools.config["db_name"]
+    return not exposed or db_name in exposed
 
 
 class DatabaseExists(Warning):

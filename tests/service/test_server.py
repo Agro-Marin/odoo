@@ -15,6 +15,7 @@ Run with::
 
 import errno
 import http.server
+import logging
 import os
 import signal
 import threading
@@ -183,6 +184,32 @@ class TestFSWatcherBase:
         mock_restart.assert_called_once()
         assert result is True
 
+    def test_second_change_does_not_trigger_a_second_restart(
+        self, srv, watcher, tmp_path
+    ):
+        """One reload per watcher, latched in the base class.
+
+        ``lifecycle.server_phoenix`` is the authoritative "already reloading"
+        flag, but ``restart()`` only SENDS the signal — the flag is set later,
+        by the SIGHUP handler on the main thread.  A burst of saves (an IDE
+        writing several files, a ``git checkout``) therefore raced that window.
+        ``FSWatcherInotify`` happened to be safe because its loop ends on the
+        ``True`` return; ``FSWatcherWatchdog.dispatch`` discards the return
+        value, so it kept firing.  The latch makes both correct by construction.
+        """
+        a, b = tmp_path / "a.py", tmp_path / "b.py"
+        a.write_text("x = 1\n")
+        b.write_text("y = 2\n")
+        with (
+            patch("odoo.service.lifecycle.server_phoenix", False),
+            patch("odoo.service.lifecycle.restart") as mock_restart,
+        ):
+            first = watcher.handle_file(str(a))
+            second = watcher.handle_file(str(b))
+        assert first is True
+        assert second is None
+        mock_restart.assert_called_once()
+
     def test_syntax_error_suppresses_restart(self, srv, watcher, tmp_path):
         bad = tmp_path / "bad.py"
         bad.write_text("def (\n")
@@ -231,6 +258,79 @@ class TestFSWatcherBase:
 # ---------------------------------------------------------------------------
 # PreforkServer.process_signals()
 # ---------------------------------------------------------------------------
+
+
+class TestEventServerWatchdogSurvivesErrors:
+    """The evented watchdog thread is the ONLY enforcement of the memory soft
+    limit and the parent-death check for that subprocess.
+
+    ``process_limits`` touches psutil and ``os.kill``, both of which can fail
+    transiently (process vanished, ``/proc`` read error, a signal racing).  The
+    exception escaped the ``while True`` loop, so the thread died and both
+    checks stopped being enforced for the rest of the process's life — silently.
+    """
+
+    def test_transient_failure_does_not_retire_the_watchdog(self, srv):
+        server = srv.EventServer.__new__(srv.EventServer)
+        server.logger = logging.getLogger("test.evented.watchdog")
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise psutil.NoSuchProcess(1234)
+
+        class _StopLoop(Exception):
+            pass
+
+        def fake_sleep(_beat):
+            if len(calls) >= 2:
+                raise _StopLoop
+
+        with (
+            patch.object(server, "process_limits", flaky),
+            patch.object(_threaded.time, "sleep", fake_sleep),
+            patch.object(os, "getppid", return_value=1),
+        ):
+            with pytest.raises(_StopLoop):
+                server.watchdog(beat=0)
+        assert len(calls) == 2, "watchdog stopped checking after one failure"
+
+
+class TestReexecNtServiceRestart:
+    """``_reexec`` must not start a SECOND server after the SCM restarted one.
+
+    On Windows the SCM branch runs ``net stop && net start`` and then fell
+    through to ``os.execve``.  When the SCM restart succeeds a fresh instance is
+    already coming up, so the re-exec would put two servers on the same port and
+    database.  When it FAILS, falling through is the right fallback — otherwise
+    the operator gets a reload that silently did nothing.
+    """
+
+    def _run(self, scm_returncode):
+        from odoo.service import lifecycle
+
+        with (
+            patch.object(
+                lifecycle.osutil, "is_running_as_nt_service", return_value=True
+            ),
+            patch.object(
+                lifecycle.subprocess, "call", return_value=scm_returncode
+            ) as mock_call,
+            patch.object(lifecycle.os, "execve") as mock_execve,
+        ):
+            lifecycle._reexec()
+        return mock_call, mock_execve
+
+    def test_successful_scm_restart_does_not_also_reexec(self):
+        mock_call, mock_execve = self._run(0)
+        mock_call.assert_called_once()
+        mock_execve.assert_not_called()
+
+    def test_failed_scm_restart_falls_back_to_reexec(self):
+        mock_call, mock_execve = self._run(2)
+        mock_call.assert_called_once()
+        mock_execve.assert_called_once()
 
 
 class TestPreforkServerProcessSignals:
@@ -1363,10 +1463,42 @@ class TestPreforkRespawnBackoff:
         fake_worker = MagicMock()
         klass = MagicMock(return_value=fake_worker)
         monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EAGAIN")))
+        before = time.monotonic()
         result = prefork_server.worker_spawn(klass, {})
         assert result is None
         fake_worker.close.assert_called_once()
         assert prefork_server.workers == {}
+        # A pre-fork failure creates no child to reap, so it must arm the respawn
+        # throttle itself — else process_spawn re-attempts (and re-logs) every
+        # ~4s beat while the fd/memory pressure that caused it is still on.
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > before
+
+    def test_repeated_fork_failures_grow_the_backoff(
+        self, prefork_server, monkeypatch
+    ):
+        """Consecutive pre-fork failures widen the hold, same as young crashes."""
+        prefork_server.generation = 0
+        klass = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EMFILE")))
+        prefork_server.worker_spawn(klass, {})
+        first_hold = prefork_server._respawn_not_before - time.monotonic()
+        prefork_server.worker_spawn(klass, {})
+        second_hold = prefork_server._respawn_not_before - time.monotonic()
+        assert prefork_server._consecutive_fast_deaths == 2
+        assert second_hold > first_hold
+
+    def test_fork_failure_hold_is_capped(self, prefork_server, monkeypatch):
+        prefork_server.generation = 0
+        prefork_server._consecutive_fast_deaths = 20  # 2**20 >> cap
+        klass = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(os, "fork", MagicMock(side_effect=OSError("EMFILE")))
+        t = time.monotonic()
+        prefork_server.worker_spawn(klass, {})
+        assert (
+            prefork_server._respawn_not_before - t
+            <= _prefork.WORKER_RESPAWN_BACKOFF_CAP_S + 0.5
+        )
 
     def test_long_polling_spawn_oserror_does_not_propagate(
         self, prefork_server, monkeypatch
@@ -1382,9 +1514,14 @@ class TestPreforkRespawnBackoff:
             "Popen",
             MagicMock(side_effect=OSError("EAGAIN")),
         )
+        before = time.monotonic()
         # Must not raise.
         prefork_server.long_polling_spawn()
         assert prefork_server.long_polling_pid is None
+        # Same throttle as ``worker_spawn``: without it the master exec-storms
+        # the evented child every cycle under resource pressure.
+        assert prefork_server._consecutive_fast_deaths == 1
+        assert prefork_server._respawn_not_before > before
 
 
 class TestPreforkGracefulStopEscalation:
@@ -1661,6 +1798,115 @@ class TestCommonRequestHandlerLogError:
         ):
             log_handler.log_error("Some other error: %s", "detail")
         mock_super.assert_called_once()
+
+
+class TestCommonRequestHandlerSendHeader:
+    """``send_header()``: dedup Date/Server, never crash on a malformed value."""
+
+    @pytest.fixture()
+    def handler(self, srv):
+        h = object.__new__(srv.CommonRequestHandler)
+        h._sent_date_header = None
+        h._sent_server_header = None
+        return h
+
+    def _send(self, handler, pairs):
+        sent: list[tuple[str, str]] = []
+        with patch.object(
+            werkzeug.serving.WSGIRequestHandler,
+            "send_header",
+            lambda self, k, v: sent.append((k, v)),
+        ):
+            for k, v in pairs:
+                handler.send_header(k, v)
+        return sent
+
+    def test_identical_date_sent_once(self, srv, handler):
+        d = "Thu, 01 Jan 2026 00:00:00 GMT"
+        sent = self._send(handler, [("Date", d), ("Date", d)])
+        assert sent == [("Date", d)]
+
+    def test_same_instant_different_format_sent_once(self, srv, handler):
+        # GMT (aware) vs -0000 (parses NAIVE) — the historical TypeError trigger.
+        sent = self._send(
+            handler,
+            [
+                ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
+                ("Date", "Thu, 01 Jan 2026 00:00:00 -0000"),
+            ],
+        )
+        assert sent == [("Date", "Thu, 01 Jan 2026 00:00:00 GMT")]
+
+    def test_naive_date_five_seconds_apart_does_not_crash(self, srv, handler):
+        with patch("odoo.service.wsgi._logger") as log:
+            sent = self._send(
+                handler,
+                [
+                    ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
+                    ("Date", "Thu, 01 Jan 2026 00:00:05 -0000"),
+                ],
+            )
+        # Genuinely different instants -> both sent, one warning, no exception.
+        assert len(sent) == 2
+        log.warning.assert_called_once()
+
+    def test_malformed_second_date_does_not_crash(self, srv, handler):
+        with patch("odoo.service.wsgi._logger") as log:
+            sent = self._send(
+                handler,
+                [
+                    ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
+                    ("Date", "not-a-real-date"),
+                ],
+            )
+        # Can't prove equality -> send both rather than drop one; warn, no 500.
+        assert len(sent) == 2
+        log.warning.assert_called_once()
+
+    def test_malformed_first_date_does_not_crash(self, srv, handler):
+        with patch("odoo.service.wsgi._logger"):
+            sent = self._send(
+                handler,
+                [("Date", "garbage"), ("Date", "Thu, 01 Jan 2026 00:00:00 GMT")],
+            )
+        assert len(sent) == 2
+
+    def test_duplicate_server_header_sent_once(self, srv, handler):
+        sent = self._send(handler, [("Server", "odoo"), ("Server", "odoo")])
+        assert sent == [("Server", "odoo")]
+
+    def test_case_insensitive_date_keyword(self, srv, handler):
+        d = "Thu, 01 Jan 2026 00:00:00 GMT"
+        sent = self._send(handler, [("date", d), ("DATE", d)])
+        assert len(sent) == 1
+
+
+class TestParseHttpDate:
+    """``_parse_http_date()``: aware datetime or None, never raises."""
+
+    def test_gmt_is_aware(self, srv):
+        from odoo.service.wsgi import _parse_http_date  # noqa: PLC0415
+
+        dt = _parse_http_date("Thu, 01 Jan 2026 00:00:00 GMT")
+        assert dt is not None and dt.tzinfo is not None
+
+    def test_minus_zero_zero_zero_zero_normalised_to_aware(self, srv):
+        from odoo.service.wsgi import _parse_http_date  # noqa: PLC0415
+
+        dt = _parse_http_date("Thu, 01 Jan 2026 00:00:00 -0000")
+        assert dt is not None and dt.tzinfo is not None  # naive -> pinned UTC
+
+    def test_garbage_returns_none(self, srv):
+        from odoo.service.wsgi import _parse_http_date  # noqa: PLC0415
+
+        assert _parse_http_date("definitely not a date") is None
+
+    def test_two_forms_of_same_instant_are_equal(self, srv):
+        from odoo.service.wsgi import _parse_http_date  # noqa: PLC0415
+
+        a = _parse_http_date("Thu, 01 Jan 2026 00:00:00 GMT")
+        b = _parse_http_date("Thu, 01 Jan 2026 00:00:00 -0000")
+        assert a == b  # the subtraction the override does can't TypeError
 
 
 class TestCommonRequestHandlerLogRequest:
