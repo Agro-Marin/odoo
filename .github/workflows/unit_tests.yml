@@ -36,6 +36,12 @@ on:
       - 'pytest.ini'
       - 'crates/odoo_rust/**'
       - '.github/workflows/unit_tests.yml'
+      # The other two Tier-2 paths, and the sources they cover. Without these
+      # a change to odoo/http or odoo/service would not trigger the suite that
+      # tests it.
+      - 'odoo/http/**'
+      - 'odoo/service/**'
+      - 'tests/service/**'
 
 permissions:
   contents: read
@@ -97,7 +103,16 @@ jobs:
       - name: Run _field_access (Tier-1, Rust-backed)
         run: python -m pytest odoo/libs/_field_access/tests -q
 
-      - name: Run model_test_env self-tests (Tier-2, real import — separate run)
+      - name: Run the Tier-2 suites (real import — one separate invocation)
         # MUST be a separate invocation: the Tier-1 conftests above register
         # process-global sys.modules stubs that would shadow `import odoo`.
-        run: python -m pytest odoo/orm/tests -q
+        #
+        # ALL THREE PATHS, deliberately. This step used to pass only
+        # `odoo/orm/tests`, which is exactly what pytest.ini warns against:
+        # the other two are in no other tier's `testpaths`, so omitting them
+        # skipped them SILENTLY while the step reported success. That left the
+        # http layer and the whole service layer — RPC dispatch, the database
+        # service, the dump scanner, the prefork supervisor — ungated in CI,
+        # including the regression tests for a restore RCE and an
+        # unauthenticated database-existence oracle.
+        run: python -m pytest odoo/orm/tests odoo/http/tests tests/service -q

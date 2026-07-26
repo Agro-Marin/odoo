@@ -15,21 +15,16 @@ def upgrade(file_manager: FileManager) -> None:
     ind = " " * 4
 
     def build_sql_object(match: re.Match[str]) -> str:
-        # get the tuple of expressions
         try:
             constraints = ast.literal_eval("[" + match.group(1) + "]")
         except SyntaxError:
-            # skip if we cannot match
             return match.group(0)
         result = []
         for name, definition, *messages in constraints:
             message = messages[0] if messages else ""
             constructor = "Constraint"
             if message:
-                # format on 2 lines
-                message_repr = json.dumps(
-                    message
-                )  # so that the message is in double quotes
+                message_repr = json.dumps(message)
                 args = f"\n{ind * 2}{definition!r},\n{ind * 2}{message_repr},\n{ind}"
             elif len(definition) > 60:
                 args = f"\n{ind * 2}{definition!r}"

@@ -9,14 +9,12 @@ from pathlib import Path
 from typing import NoReturn
 
 import odoo.cli
-import odoo.init  # noqa: F401 — side-effect import: Python version check + GC tuning
+import odoo.init
 from odoo.modules import initialize_sys_path, load_script
 from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
-# \Z (not $): $ also matches before a trailing newline, so a name like
-# 'db\n' would be accepted and travel into the import machinery.
 COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*\Z")
 PROG_NAME = Path(sys.argv[0]).name
 DEFAULT_COMMAND = "server"
@@ -74,7 +72,6 @@ def get_single_database(
         error_handler(
             "No database specified. Use -d/--database or set db_name in the config file."
         )
-        # Guard the fall-through for a handler that returns (not NoReturn).
         return None
 
     if len(db_names) > 1:
@@ -85,8 +82,6 @@ def get_single_database(
         return None
 
     db_name = db_names[0]
-    # Lazy import: odoo.service pulls psycopg and the api layer; the
-    # dispatcher must stay cheap to start (same policy as odoo_env below).
     from odoo.service._db_helpers import SYSTEM_DBS
 
     if db_name in SYSTEM_DBS or db_name == config["db_template"]:
@@ -112,7 +107,6 @@ def odoo_env(
     :param uid: acting user (default ``SUPERUSER_ID``)
     :param new_registry: build a fresh registry via ``Registry.new()``
     """
-    # Lazy imports to keep startup cheap.
     from odoo import SUPERUSER_ID
     from odoo.api import Environment
     from odoo.modules.registry import Registry
@@ -141,8 +135,6 @@ class Command:
     epilog: str | None = None
 
     def __init__(self) -> None:
-        # Built lazily by the `parser` property. Not cached_property, so a
-        # subclass can build it eagerly in __init__ (e.g. to add subparsers).
         self._parser: argparse.ArgumentParser | None = None
 
     def run(self, args: list[str]) -> None:
@@ -176,8 +168,6 @@ class Command:
             raise ValueError(
                 f"Command name {cls.name!r} must match Module name {module!r}"
             )
-        # Catch a missing override at import, not first run. An inherited
-        # override (Leaf <- Mid) is Mid.run, not Command.run, so it passes.
         if cls.run is Command.run:
             raise TypeError(
                 f"Command subclass {cls.__qualname__!r} must override "
@@ -278,8 +268,6 @@ class DatabaseCommand(Command, register=False):
         """
         extra_args = None
         if getattr(parsed_args, "data_dir", None):
-            # let a platform enforce --data-dir even when the config file is
-            # user-controlled (the odoorc file remains the preferred way)
             extra_args = ["-D", parsed_args.data_dir]
         config_args = build_config_args(
             parsed_args.config, parsed_args.db_name, extra_args=extra_args
@@ -338,8 +326,6 @@ def load_addons_commands(command: str | None = None) -> None:
             found_command = fullpath.stem
             if not Command.is_valid_name(found_command):
                 continue
-            # loading as odoo.cli and not odoo.addons.{module}.cli
-            # so it doesn't load odoo.addons.{module}.__init__
             fq_name = f"odoo.cli.{found_command}"
             if fq_name in mapping:
                 _logger.warning(
@@ -355,29 +341,20 @@ def load_addons_commands(command: str | None = None) -> None:
         try:
             load_script(fullpath, fq_name)
         except ImportError as e:
-            # Optional-dependency failures are recoverable; debug-log only.
             _logger.debug("Could not load CLI command %s: %s", fq_name, e)
         except Exception as e:
-            # `odoo-bin help` loads every addon's cli/*.py; one broken file
-            # must not break discovery for all. Warn and keep going.
             _logger.warning("Failed to load CLI command %s: %s", fq_name, e)
 
 
 def find_command(name: str) -> type[Command] | None:
     """Get command by name."""
 
-    # Reject invalid names early: a dotted name like 'db.init' would raise
-    # ModuleNotFoundError for a *parent* module, which the guard below refuses
-    # to swallow — surfacing a traceback for what is just an unknown command.
     if not Command.is_valid_name(name):
         return None
 
-    # built-in commands
     if command := commands.get(name):
         return command
 
-    # import from odoo.cli — suppress ONLY "this module doesn't exist", not
-    # ImportError raised from inside an existing command module.
     expected_module = f"odoo.cli.{name}"
     try:
         __import__(expected_module)
@@ -388,7 +365,6 @@ def find_command(name: str) -> type[Command] | None:
         if name in commands:
             return commands[name]
 
-    # import from odoo.addons.*.cli
     load_addons_commands(command=name)
     return commands.get(name)
 
@@ -408,31 +384,21 @@ def build_bootstrap_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = sys.argv[1:]
 
-    # Extract --addons-path before dispatch so addon commands are discoverable
-    # (e.g. for --help); accepts both `=PATH` and ` PATH` forms in any position.
-    # Use the private _parse_config: the public parse_config flushes warnings to
-    # stderr, breaking test_unknown_command's exact-stderr assertion.
     boot_parser = build_bootstrap_parser()
     bootstrap, args = boot_parser.parse_known_args(args)
-    # Record the raw value (None when absent); the flag is gone from `args`.
     odoo.cli.BOOTSTRAP_ADDONS_PATH = bootstrap.addons_path
     if bootstrap.addons_path is not None:
         config._parse_config([f"--addons-path={bootstrap.addons_path}"])
 
     if args and not args[0].startswith("-"):
-        # Command specified, search for it
         command_name = args[0]
         args = args[1:]
     elif "-h" in args or "--help" in args:
-        # No command specified, but help is requested
         command_name = "help"
         args = [x for x in args if x not in ("-h", "--help")]
     else:
-        # No command specified, default command used
         command_name = DEFAULT_COMMAND
 
-    # Set before find_command: importing a command module can transitively read
-    # COMMAND at import time (odoo.tests.common); setting it later would show None.
     odoo.cli.COMMAND = command_name
     if command := find_command(command_name):
         command().run(args)

@@ -155,6 +155,17 @@ class TestGetPublicMethod:
             with pytest.raises(AttributeError):
                 mod.get_public_method(fake_model, "not_callable")
 
+    @pytest.mark.parametrize("name", [123, b"write", None, ("write",), 4.0])
+    def test_non_string_method_name_raises_attribute_error(
+        self, mod, fake_model, name
+    ) -> None:
+        """A non-str RPC ``method`` param (reachable via JSON-RPC) must surface as
+        AttributeError — the canonical "method not found" signal — not the
+        TypeError that ``getattr(cls, name)`` / ``name.startswith`` would raise."""
+        with patch.object(mod, "BaseModel", _FakeBaseModel):
+            with pytest.raises(AttributeError):
+                mod.get_public_method(fake_model, name)
+
     def test_public_method_returned(self, mod, fake_model) -> None:
         with patch.object(mod, "BaseModel", _FakeBaseModel):
             method = mod.get_public_method(fake_model, "public_method")
@@ -1119,6 +1130,98 @@ class TestDispatchValidation:
     def test_too_few_params_raises_typeerror(self, mod):
         with pytest.raises(TypeError):
             mod.dispatch("execute", ["db", 1, "pw"])  # < 5 positional args
+
+    def test_unexposed_database_refused_before_registry(self, mod):
+        """``execute_kw`` takes ``db`` off the wire and verifies credentials
+        INSIDE the registry's cursor — so without an exposure gate an
+        unauthenticated caller can make the server build a registry and a pool
+        for any reachable database just by naming it.
+
+        ``AccessDenied`` (not a distinct error class) so an unexposed name is
+        indistinguishable from a wrong credential.
+        """
+        from odoo.exceptions import AccessDenied
+        from odoo.tools import config
+
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError("Registry must not be built for an unexposed db")
+
+        with patch.dict(config.options, {"db_name": ["served_db"]}), \
+             patch.object(mod, "Registry", side_effect=_must_not_run):
+            with pytest.raises(AccessDenied):
+                mod.dispatch(
+                    "execute", ["other_db", 1, "pw", "res.partner", "read", [1]]
+                )
+
+    @pytest.mark.parametrize("db", ["postgres", "template1"])
+    def test_system_database_refused_before_registry(self, mod, db):
+        """Never servable, and ``Registry.new`` objects with a ``ValueError``
+        the RPC layer would surface as a 500 rather than AccessDenied."""
+        from odoo.exceptions import AccessDenied
+
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError("Registry must not be built for a system db")
+
+        with patch.object(mod, "Registry", side_effect=_must_not_run):
+            with pytest.raises(AccessDenied):
+                mod.dispatch("execute", [db, 1, "pw", "res.partner", "read", [1]])
+
+    def test_exposed_database_still_reaches_the_registry(self, mod):
+        """The gate must not break the normal path: with ``--database`` unset
+        (no declared allowlist) every ordinary name still goes through, and
+        with it set the listed name does too."""
+        from odoo.tools import config
+
+        for options in ({"db_name": []}, {"db_name": ["served_db"]}):
+            with patch.dict(config.options, options), \
+                 patch.object(mod, "Registry", side_effect=RuntimeError("reached")):
+                with pytest.raises(RuntimeError, match="reached"):
+                    mod.dispatch(
+                        "execute", ["served_db", 1, "pw", "res.partner", "read", [1]]
+                    )
+
+    def test_absent_database_answers_access_denied(self, mod):
+        """"Database does not exist" must be indistinguishable from bad creds.
+
+        ``/xmlrpc/2/object`` is ``auth="none"`` and the credential check runs
+        INSIDE the registry's cursor, so an absent database answered with a
+        distinct error class while an existing one answered ``AccessDenied`` —
+        the same per-name existence oracle ``common.exp_authenticate`` closes.
+        Closing it only there would have left this verb as the way around it.
+        """
+        from odoo.exceptions import AccessDenied
+
+        with patch.object(
+            mod,
+            "Registry",
+            side_effect=psycopg.errors.InvalidCatalogName('database "x" ...'),
+        ):
+            with pytest.raises(AccessDenied):
+                mod.dispatch(
+                    "execute", ["gone_db", 1, "pw", "res.partner", "read", [1]]
+                )
+
+    @pytest.mark.parametrize("exc_factory, match", [
+        (lambda: psycopg.OperationalError("PG is down"), "PG is down"),
+        (lambda: __import__("odoo.db", fromlist=["PoolError"]).PoolError("saturated"),
+         "saturated"),
+    ])
+    def test_real_outages_are_not_masked_as_access_denied(
+        self, mod, exc_factory, match
+    ):
+        """ONLY the "does not exist" class collapses.
+
+        A downed PG or a saturated pool says something true about an EXISTING
+        database that an operator needs to see, and neither is an existence
+        signal — masking them as ``AccessDenied`` would turn every outage into a
+        phantom credentials problem.
+        """
+        with patch.object(mod, "Registry", side_effect=exc_factory()):
+            with pytest.raises(Exception, match=match) as excinfo:
+                mod.dispatch("execute", ["a_db", 1, "pw", "res.partner", "read", [1]])
+        from odoo.exceptions import AccessDenied
+
+        assert not isinstance(excinfo.value, AccessDenied)
 
     def test_bool_uid_rejected_before_registry(self, mod):
         # int(True) == 1 would silently bind uid to admin; reject it with a

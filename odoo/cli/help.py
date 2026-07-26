@@ -32,9 +32,6 @@ class Help(Command):
         load_addons_commands()
 
         padding = max((len(cmd_name) for cmd_name in commands), default=0) + 2
-        # First docstring line only: a multi-line docstring on an addon
-        # command would otherwise break the table layout. Fall back to the
-        # `description` attribute for (addon) commands without a docstring.
         name_desc = [
             (
                 cmd_name,

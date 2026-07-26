@@ -65,11 +65,6 @@ def _inlier_indices(
     return [i for i, x in enumerate(data) if lower <= x <= upper]
 
 
-# ---------------------------------------------------------------------------
-# BenchmarkStats — unified dataclass for all benchmark suites
-# ---------------------------------------------------------------------------
-
-
 @dataclass(slots=True)
 class BenchmarkStats:
     """Statistical summary of benchmark results.
@@ -82,7 +77,6 @@ class BenchmarkStats:
     iterations: int
     total_samples: int
 
-    # Timing (µs)
     mean_us: float
     median_us: float
     std_dev_us: float
@@ -94,23 +88,17 @@ class BenchmarkStats:
     p95_us: float
     p99_us: float
 
-    # Query stats
     query_count_mean: float
     query_count_min: int
     query_count_max: int
 
-    # Time breakdown (µs)
-    db_time_us: float  # mean DB time
-    python_time_us: float  # mean Python time (total − DB)
-    db_ratio: float  # DB time as fraction of total (0..1)
+    db_time_us: float
+    python_time_us: float
+    db_ratio: float
 
-    # Variance
-    cv: float  # coefficient of variation (std_dev / mean)
+    cv: float
 
-    # Raw data (µs)
     raw_times_us: list[float] = field(default_factory=list, repr=False)
-
-    # -- millisecond properties -----------------------------------------------
 
     @property
     def mean_ms(self) -> float:
@@ -164,14 +152,10 @@ class BenchmarkStats:
     def python_ratio(self) -> float:
         return 1 - self.db_ratio
 
-    # -- serialization --------------------------------------------------------
-
     def to_dict(self) -> dict:
         d = asdict(self)
         d.pop("raw_times_us", None)
         return d
-
-    # -- human-readable summaries ---------------------------------------------
 
     def summary(self, unit: str = "auto") -> str:
         """Return a human-readable summary.
@@ -257,7 +241,6 @@ def compute_stats(
     """
     indices = _inlier_indices(times_us) or range(len(times_us))
     clean_times = [times_us[i] for i in indices]
-    # joint trim only when the lists are parallel per-iteration samples
     clean_db_times = (
         [db_times_us[i] for i in indices]
         if len(db_times_us) == len(times_us)
@@ -314,15 +297,14 @@ def run_benchmark(
 ) -> BenchmarkStats:
     """Run a benchmark function and return statistical results.
 
-    Args:
-        name: Descriptive name for the benchmark.
-        func: Function to benchmark (no arguments).
-        iterations: Number of measured iterations.
-        warmup: Number of warmup iterations (excluded from stats).
-        setup: Called before each iteration (including warmup).
-        teardown: Called after each iteration (including warmup).
-        invalidate: Called before each iteration to clear caches (e.g.
-            ``env.invalidate_all``).  Pass ``None`` to skip.
+    :param name: descriptive name for the benchmark
+    :param func: function to benchmark (no arguments)
+    :param iterations: number of measured iterations
+    :param warmup: number of warmup iterations (excluded from stats)
+    :param setup: called before each iteration (including warmup)
+    :param teardown: called after each iteration (including warmup)
+    :param invalidate: called before each iteration to clear caches (e.g.
+        ``env.invalidate_all``); ``None`` to skip
     """
     times_us: list[float] = []
     query_counts: list[int] = []
@@ -348,11 +330,6 @@ def run_benchmark(
             db_times_us.append(timer.db_time_us)
 
     return compute_stats(name, times_us, query_counts, db_times_us)
-
-
-# ---------------------------------------------------------------------------
-# PerfTimer — nanosecond-precision timer for micro-benchmarks
-# ---------------------------------------------------------------------------
 
 
 class PerfTimer:
@@ -421,11 +398,6 @@ class PerfTimer:
             f"mean={mean:>10.1f}µs  cv={result['cv']:.2f}"
         )
         return result
-
-
-# ---------------------------------------------------------------------------
-# BenchmarkTimer — context manager with query tracking
-# ---------------------------------------------------------------------------
 
 
 class BenchmarkTimer:
@@ -501,11 +473,6 @@ class BenchmarkTimer:
     def python_time_ms(self) -> float:
         """Time spent in Python (non-DB) in milliseconds."""
         return self.elapsed_ms - self.db_time_ms
-
-
-# ---------------------------------------------------------------------------
-# JSON persistence for before/after comparison
-# ---------------------------------------------------------------------------
 
 
 def save_results(results: list[dict], path: str) -> None:

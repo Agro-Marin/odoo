@@ -38,11 +38,9 @@ import psutil
 import psycopg
 
 if os.name == "posix":
-    # Unix only for workers
     import fcntl
     import resource
 
-# Optional process names for workers
 try:
     from setproctitle import setproctitle
 except ImportError:
@@ -56,7 +54,6 @@ from odoo.db import PoolError
 from odoo.modules.registry import Registry
 from odoo.tools import OrderedSet, config
 
-# Process-control helpers and cron timing constants (see ``_cron`` and ``_helpers``).
 from ._cron import (
     CRON_TRIGGER_CHANNEL,
     JOB_QUEUE_CHANNEL,
@@ -74,13 +71,12 @@ from ._helpers import (
     over_memory_soft_limit,
 )
 
-# No-bind werkzeug server used by ``WorkerHTTP`` to serve one accepted connection.
 from .wsgi import BaseWSGIServerNoBind, http_socket_timeout
 
 if TYPE_CHECKING:
     from .server import PreforkServer
 
-_logger = logging.getLogger("odoo.service.server")  # preserve operator log filters
+_logger = logging.getLogger("odoo.service.server")
 
 
 class CpuTimeLimitExceeded(Exception):
@@ -96,10 +92,6 @@ class CpuTimeLimitExceeded(Exception):
 class Worker:
     """Workers"""
 
-    # How long ``run()`` waits for the work thread to wind down after a SIGXCPU
-    # recycle before closing the resources that thread may still be using.
-    # Short: this is a best-effort handoff on an already-doomed worker, and the
-    # master is waiting to replenish the slot.
     _CPU_LIMIT_JOIN_GRACE_S = 1.0
 
     def __init__(self, multi: PreforkServer) -> None:
@@ -109,22 +101,15 @@ class Worker:
         try:
             self.eintr_pipe = multi.pipe_new()
         except BaseException:
-            # The first pipe is already open, but a half-built ``Worker`` never
-            # reaches the caller, so its ``close()`` can never run: release those
-            # two fds here or they leak.  This path is reached on EMFILE/ENFILE —
-            # i.e. precisely when leaking fds makes the next spawn likelier to
-            # fail too, and ``PreforkServer.process_spawn`` retries every cycle.
             for fd in self.watchdog_pipe:
                 with contextlib.suppress(OSError):
                     os.close(fd)
             raise
         self.wakeup_fd_r, self.wakeup_fd_w = self.eintr_pipe
-        # Can be set to None if no watchdog is desired.
         self.watchdog_timeout = multi.timeout
         self.ppid = os.getpid()
         self.pid = None
         self.alive = True
-        # should we rename into lifetime ?
         self.request_max = multi.limit_request
         self.request_count = 0
         self.logger = _logger.getChild(self.__class__.__name__)
@@ -151,9 +136,6 @@ class Worker:
         self.alive = False
 
     def signal_time_expired_handler(self, n: int, stack: Any) -> None:
-        # Async-signal-safe: do NOT log here — ``logger`` would deadlock if the
-        # interrupted thread held the logging lock.  The raise unwinds to
-        # ``worker_spawn``, which logs the typed exception, so nothing is lost.
         raise CpuTimeLimitExceeded(
             f"CPU time limit ({config['limit_time_cpu']}s) exceeded"
         )
@@ -162,44 +144,31 @@ class Worker:
         """Wait for wakeup events or timeout, draining the wakeup pipe."""
         try:
             self._selector.select(timeout=self.multi.beat)
-            # clear wakeup pipe if we were interrupted
             empty_pipe(self.wakeup_fd_r)
         except OSError as e:
             if e.args[0] != errno.EINTR:
                 raise
 
     def check_limits(self) -> None:
-        # If our parent changed suicide
         if self.ppid != os.getppid():
             self.logger.info("Parent changed")
             self.alive = False
-        # ``limit_request <= 0`` means unlimited; the guard stops ``0 >= 0`` from
-        # killing the worker before it serves anything (respawn loop).
         if self.request_max > 0 and self.request_count >= self.request_max:
             self.logger.info("Max request (%s) reached.", self.request_count)
             self.alive = False
-        # Recycle a worker that leaked memory (``over_memory_soft_limit`` skips
-        # the ``/proc`` read when ``limit_memory_soft`` is 0).
         memory = over_memory_soft_limit(
             self._process_handle, config["limit_memory_soft"]
         )
         if memory is not None:
             self.logger.info("RSS memory soft-limit reached: %s bytes.", memory)
-            self.alive = False  # Commit suicide after the request.
+            self.alive = False
 
-        # Update RLIMIT_CPU so limit_time_cpu applies per unit of work.  0
-        # disables it; arming it at the already-consumed CPU time would SIGXCPU
-        # the worker at once.
         limit_time_cpu = config["limit_time_cpu"]
         if limit_time_cpu > 0:
             r = resource.getrusage(resource.RUSAGE_SELF)
             cpu_time = r.ru_utime + r.ru_stime
             _soft, hard = resource.getrlimit(resource.RLIMIT_CPU)
             soft = int(cpu_time + limit_time_cpu)
-            # A finite hard cap (container/systemd ``LimitCPU=``) makes ``soft >
-            # hard`` once cumulative CPU nears it; ``setrlimit`` raises
-            # ``ValueError`` on soft > hard, which would surface as a spurious
-            # "Exception occurred, exiting..." crash near the cap.  Clamp instead.
             if hard != resource.RLIM_INFINITY and soft > hard:
                 soft = hard
             resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
@@ -212,17 +181,11 @@ class Worker:
         self.pid = os.getpid()
         self.setproctitle()
         self.logger.info("Alive")
-        # Reseed the random number generator
         random.seed()
-        # Cache the psutil.Process handle: ``check_limits`` runs every
-        # ``master.beat`` (4s) and a fresh Process each time adds a ``/proc``
-        # read.  PID is constant for the process lifetime.
         self._process_handle = psutil.Process(self.pid)
         if self.multi.socket:
-            # Prevent fd inheritance: close_on_exec
             flags = fcntl.fcntl(self.multi.socket, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
             fcntl.fcntl(self.multi.socket, fcntl.F_SETFD, flags)
-            # reset blocking status
             self.multi.socket.setblocking(0)
 
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -250,10 +213,6 @@ class Worker:
         exits cleanly or is interrupted by SIGXCPU / a runloop fault.
         """
         self.start()
-        # A runloop fault is RECORDED here for the main thread to re-raise, not
-        # raised from the daemon thread (where it would go to
-        # ``threading.excepthook`` and the worker would exit 0 on a crash).
-        # Visible after ``t.join()`` (which establishes happens-before).
         self._runloop_exc: BaseException | None = None
         t = threading.Thread(
             name=f"Worker {self.__class__.__name__} ({self.pid}) workthread",
@@ -264,8 +223,6 @@ class Worker:
         try:
             t.join()
             if self._runloop_exc is not None:
-                # ``_runloop`` already logged the detail; raise a bare
-                # SystemExit(1) so ``worker_spawn`` exits 1 without re-logging.
                 raise SystemExit(1)
             self.logger.info(
                 "Exiting cleanly. request_count: %s, registry count: %s.",
@@ -273,23 +230,10 @@ class Worker:
                 len(Registry.registries),
             )
         except CpuTimeLimitExceeded:
-            # SIGXCPU fires on the main thread (the runloop daemon blocks it), so
-            # it lands here, interrupting ``t.join()``.  A CPU-limit recycle is an
-            # ENFORCED, expected recycle — the same class as the memory-soft and
-            # max-age recycles, which exit 0 ("Exiting cleanly").  Return cleanly
-            # (exit 0) so ``worker_spawn`` does not log it CRITICAL-with-traceback
-            # nor let ``_note_worker_exit`` treat a young CPU-heavy worker as a
-            # crash and arm the fork-storm respawn backoff.
             self.logger.warning(
                 "CPU time limit (%ss) exceeded; recycling worker.",
                 config["limit_time_cpu"],
             )
-            # SIGXCPU unwound the JOIN, not the runloop: that daemon thread is
-            # still live and may be inside ``select()`` on the selector — or, for
-            # WorkerCron, mid-query on ``dbcursor`` — that ``stop()`` below is
-            # about to close.  Ask it to wind down and give it a moment, so the
-            # common case is a clean handoff rather than a race that ``os._exit``
-            # merely papers over.  Bounded: we exit regardless.
             self.alive = False
             t.join(timeout=self._CPU_LIMIT_JOIN_GRACE_S)
             if t.is_alive():
@@ -322,8 +266,6 @@ class Worker:
                     break
                 self.process_work()
         except BaseException as exc:
-            # Record for ``run`` to re-raise on the main thread (a raise here
-            # would be swallowed by ``threading.excepthook``).
             self.logger.exception("Exception occurred, exiting...")
             self._runloop_exc = exc
 
@@ -334,23 +276,15 @@ class WorkerHTTP(Worker):
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
-        # Shared with the threaded/evented servers (``RequestHandler.setup``) so
-        # every deployment gets the same idle-connection posture from one knob —
-        # see ``wsgi.http_socket_timeout`` for what it defends against.  Prefer a
-        # buffering reverse proxy over a large value.
         self.sock_timeout = http_socket_timeout()
 
     def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
         client.setblocking(1)
         client.settimeout(self.sock_timeout)
         client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        # Prevent fd inheritance close_on_exec
         flags = fcntl.fcntl(client, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
         fcntl.fcntl(client, fcntl.F_SETFD, flags)
-        # do request using BaseWSGIServerNoBind monkey patched with socket
         self.server.socket = client
-        # tolerate broken pipe when the http client closes the socket before
-        # receiving the full reply
         with contextlib.suppress(BrokenPipeError):
             self.server.process_request(client, addr)
         self.request_count += 1
@@ -372,22 +306,14 @@ class WorkerHTTP(Worker):
 class WorkerCron(Worker):
     """Cron workers"""
 
-    # LISTEN/NOTIFY channel this worker wakes up on; ``WorkerJob`` points the
-    # same machinery at the job-queue channel.
     listen_channel = CRON_TRIGGER_CHANNEL
 
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
         self.alive_time = time.monotonic()
-        self.watchdog_timeout = (
-            multi.cron_timeout
-        )  # Use a distinct value for CRON Worker
-        # process_work() below process a single database per call.
-        # self.db_queue keeps track of the databases to process (in order, from left to right).
+        self.watchdog_timeout = multi.cron_timeout
         self.db_queue: deque[str] = deque()
         self.db_count: int = 0
-        # Consecutive PG reconnect failures; drives the exponential backoff in
-        # ``process_work``.
         self._reconnect_attempts: int = 0
 
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
@@ -399,12 +325,8 @@ class WorkerCron(Worker):
         pinging between each.  Uses a decrementing counter (not
         ``time.monotonic``) so tests that no-op ``time.sleep`` still terminate.
         """
-        # Half-beat cadence so a ping always lands before the master's next
-        # poll; floor 0.5s so a near-zero ``beat`` doesn't burn CPU.
         tick = max(self.multi.beat / 2, 0.5)
         remaining = total_seconds
-        # ``and self.alive``: abort the remaining chunks on a graceful stop so
-        # the backoff can't delay the master's drain loop.
         while remaining > 0 and self.alive:
             self.multi.pipe_ping(self.watchdog_pipe)
             chunk = min(tick, remaining)
@@ -421,29 +343,17 @@ class WorkerCron(Worker):
         IrCron._process_jobs(db_name)
 
     def sleep(self) -> None:
-        # Really sleep once all the databases have been processed.
         if not self.db_queue:
-            # While a reconnect is outstanding (PG outage), ``_pg_selector``'s
-            # PG fd is closed and no NOTIFY can arrive, so a full-interval select
-            # would idle up to ~60s ON TOP OF each reconnect backoff, ~doubling
-            # recovery latency.  ``process_work`` already paces the retries via
-            # its exponential backoff, so return promptly and let it try again.
             if self._reconnect_attempts > 0:
                 return
 
-            interval = SLEEP_INTERVAL + self.pid % 10  # chorus effect
+            interval = SLEEP_INTERVAL + self.pid % 10
 
-            # Cap the select to half the watchdog (when set) so a ping always
-            # lands before the master SIGKILLs this idle worker; ``None`` (limit
-            # disabled) leaves it uncapped.
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
 
-            # Wait for an OS signal (wakeup pipe) or a Postgres NOTIFY.
             try:
                 self._pg_selector.select(timeout=interval)
-                # Random stagger after wake so concurrent workers don't all poll
-                # PG at once (shared constant with the threaded cron path).
                 time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
                 empty_pipe(self.wakeup_fd_r)
             except OSError as e:
@@ -490,9 +400,6 @@ class WorkerCron(Worker):
         dbconn = db.db_connect("postgres")
         cursor = dbconn.cursor()
         try:
-            # Arm LISTEN (no-op on a replica).  disable_idle_timeout: this
-            # connection sits idle waiting for NOTIFY and must survive PG 18's
-            # idle-session reaper.
             arm_cron_listen(
                 cursor,
                 self.logger,
@@ -500,7 +407,6 @@ class WorkerCron(Worker):
                 disable_idle_timeout=True,
             )
             cursor.commit()
-            # Selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
             selector = selectors.DefaultSelector()
             selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
             selector.register(cursor.connection, selectors.EVENT_READ)
@@ -510,7 +416,6 @@ class WorkerCron(Worker):
             with contextlib.suppress(Exception):
                 cursor.close()
             raise
-        # All steps succeeded — publish atomically, closing the prior selector.
         if hasattr(self, "_pg_selector"):
             self._pg_selector.close()
         self.dbcursor = cursor
@@ -521,11 +426,6 @@ class WorkerCron(Worker):
         self.logger.debug("polling for jobs")
 
         if not self.db_queue:
-            # ``cron_database_list`` and the notify drain both touch PG, so both
-            # sit inside the reconnect path: a ``PoolError`` escaping here would
-            # reach ``_runloop`` -> SystemExit(1) and the master would re-fork
-            # every ~4s (a fork storm).  ``PoolError`` is how the pool wraps
-            # connection failures (not an ``OperationalError`` subclass).
             try:
                 db_names = OrderedSet(cron_database_list())
                 notified = drain_cron_notifies(
@@ -537,10 +437,6 @@ class WorkerCron(Worker):
                     self.dbcursor.connection.close()
                 with contextlib.suppress(Exception):
                     self.dbcursor.close()
-                # Stay alive and escalate the backoff (up to 60s) rather than
-                # dying: a respawn resets the counter, so a sustained outage
-                # would churn forks forever.  ``_sleep_with_watchdog`` keeps
-                # pinging so the master doesn't SIGKILL us mid-backoff.
                 try:
                     self._connect_postgres()
                     self._reconnect_attempts = 0
@@ -549,30 +445,24 @@ class WorkerCron(Worker):
                     self._backoff_after_failed_connect(
                         self._reconnect_attempts, "Reconnect to postgres", exc
                     )
-                return  # skip this cycle; notifies polled on next iteration
-            # notified databases first, then the rest (shared ordering)
+                return
             self.db_queue.extend(order_notified_first(notified, db_names))
             self.db_count = len(self.db_queue)
             if not self.db_count:
                 return
 
-        # pop the leftmost element (because notified databases appear first)
         db_name = self.db_queue.popleft()
         self.setproctitle(db_name)
 
         try:
             self._process_db(db_name)
         except Exception:
-            # Isolate per-database faults: ``_process_db`` can re-raise e.g.
-            # psycopg.ProgrammingError, which would otherwise kill this worker
-            # mid-queue.  Log and keep serving the other databases.
             self.logger.warning(
                 "Uncaught error while processing jobs for database %s",
                 db_name,
                 exc_info=True,
             )
 
-        # dont keep cursors in multi database mode
         if self.db_count > 1:
             db.close_db(db_name)
 
@@ -589,29 +479,19 @@ class WorkerCron(Worker):
             )
 
     def start(self) -> None:
-        os.nice(10)  # mommy always told me to be nice with others...
+        os.nice(10)
         Worker.start(self)
-        # WorkerCron sleeps on _pg_selector; _selector (only wakeup_fd_r) is
-        # redundant here — release it immediately.
         self._selector.close()
         del self._selector
         if self.multi.socket:
             self.multi.socket.close()
-        # ``env_int`` (not raw ``int(...)``) so a malformed/non-positive value
-        # doesn't kill the worker at boot; anything invalid keeps the default LRU.
         registries_size = env_int(
             "ODOO_REGISTRY_LRU_SIZE_CRON", 0, minimum=0, logger=self.logger
         )
         if registries_size > 0:
             Registry.registries.count = registries_size
 
-        # Retry the initial PG connect with exponential backoff, else booting
-        # while PG is down raises out of ``Worker.run()`` and the master
-        # fork-storms replacements until PG returns.
         attempts = 0
-        # ``while self.alive`` (not ``while True``) so a graceful stop during a
-        # boot-time PG outage lets the worker exit instead of hanging the
-        # master's drain.
         while self.alive:
             try:
                 self._connect_postgres()
@@ -626,9 +506,6 @@ class WorkerCron(Worker):
         super().stop()
         if hasattr(self, "_pg_selector"):
             self._pg_selector.close()
-        # ``self.dbcursor`` exists only once ``_connect_postgres`` succeeded; the
-        # guard avoids masking the real exception with an ``AttributeError`` if
-        # the boot backoff loop was interrupted.
         if hasattr(self, "dbcursor"):
             with contextlib.suppress(Exception):
                 self.dbcursor.connection.close()

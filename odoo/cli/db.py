@@ -54,8 +54,6 @@ class Db(Command):
         ("--db_sslmode",),
     )
 
-    # Help text per long flag, rendered in `db --help` and every subcommand's
-    # help. Keyed by the long form (`flags[-1]`), like _connection_dest_flags.
     _CONNECTION_HELP = {
         "--config": "use a specific configuration file",
         "--data-dir": "directory where to store Odoo data",
@@ -98,7 +96,7 @@ class Db(Command):
         """
         dest_flags = {}
         for flags in cls._CONNECTION_FLAGS:
-            long_flag = flags[-1]  # the long form is always declared last
+            long_flag = flags[-1]
             dest_flags[long_flag.lstrip("-").replace("-", "_")] = long_flag
         return dest_flags
 
@@ -108,16 +106,12 @@ class Db(Command):
         sys.exit(2)
 
     def __init__(self) -> None:
-        # Parser built eagerly, like `module` and `i18n` — the other
-        # subcommand-style commands; `run` only parses and dispatches.
         super().__init__()
         parser = self.parser
         self._add_connection_flags(parser)
         parser.set_defaults(func=self._exit_missing_subcommand)
 
         subs = parser.add_subparsers()
-
-        # INIT ----------------------------------
 
         init = subs.add_parser(
             "init",
@@ -168,8 +162,6 @@ class Db(Command):
                 $ odoo-bin module install --help
         """)
 
-        # LOAD ----------------------------------
-
         load = subs.add_parser(
             "load",
             help="Load a dump file.",
@@ -208,8 +200,6 @@ class Db(Command):
             help="zip or pg_dump file to load",
         )
 
-        # DUMP ----------------------------------
-
         dump = subs.add_parser(
             "dump",
             help="Create a dump with filestore.",
@@ -242,8 +232,6 @@ class Db(Command):
             help="dump the zip without the filestore (default: included)",
         )
 
-        # DUPLICATE -----------------------------
-
         duplicate = subs.add_parser(
             "duplicate",
             help="Duplicate a database including filestore.",
@@ -267,8 +255,6 @@ class Db(Command):
             help="database to copy `source` to, must not exist unless `-f` is specified in which case it will be dropped first",
         )
 
-        # RENAME --------------------------------
-
         rename = subs.add_parser(
             "rename", help="Rename a database including filestore."
         )
@@ -291,13 +277,9 @@ class Db(Command):
             help="database to rename `source` to, must not exist unless `-f` is specified, in which case it will be dropped first",
         )
 
-        # DROP ----------------------------------
-
         drop = subs.add_parser("drop", help="Delete a database including filestore")
         drop.set_defaults(func=self.drop)
         drop.add_argument("database", help="database to delete")
-
-        # LIST ----------------------------------
 
         list_parser = subs.add_parser(
             "list",
@@ -308,16 +290,12 @@ class Db(Command):
         )
         list_parser.set_defaults(func=self.list)
 
-        # Accept connection flags after the subcommand too; SUPPRESS keeps an
-        # absent one from overwriting a value passed before it.
         for sub in (init, load, dump, duplicate, rename, drop, list_parser):
             self._add_connection_flags(sub, on_subparser=True)
 
     def run(self, cmdargs: list[str]) -> None:
         args = self.parser.parse_args(cmdargs)
 
-        # Rebuild config flags from the namespace via the dest->flag map;
-        # subcommand-specific keys aren't in the map, so they're skipped.
         dest_flags = self._connection_dest_flags()
         config_args: list[str] = []
         for key, value in vars(args).items():
@@ -325,15 +303,12 @@ class Db(Command):
                 continue
             config_args.extend([dest_flags[key], value])
         config.parse_config(config_args, setup_logging=True)
-        # force db management active to bypass check when only a
-        # `check_db_management_enabled` version is available.
         config["list_db"] = True
         report_configuration()
 
         args.func(args)
 
     def init(self, args: argparse.Namespace) -> None:
-        # No input to validate before creating, so check and drop together.
         self._check_target_free(args.database, force=args.force)
         self._drop_if_exists(args.database)
         exp_create_database(
@@ -348,20 +323,12 @@ class Db(Command):
 
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
-        # Fail fast on an occupied target, but don't drop it yet: dropping up
-        # front destroyed the database even when the fetch 404'd or the file
-        # turned out not to be a dump. Drop only after the input is validated.
         self._check_target_free(db_name, force=args.force)
 
         url = urllib.parse.urlparse(args.dump_file)
-        # ExitStack keeps the spooled temp file open until the function exits:
-        # restore_db reads it after the requests.get block closes.
         with ExitStack() as stack:
             if url.scheme:
                 eprint(f"Fetching {args.dump_file}...", end="")
-                # Short connect timeout catches bad URLs; unlimited read for
-                # multi-GB dumps. Stream to a spooled file to keep the whole
-                # response out of RAM.
                 r = stack.enter_context(
                     requests.get(args.dump_file, timeout=(10, None), stream=True)
                 )
@@ -385,7 +352,6 @@ class Db(Command):
                     " and `psql` to execute sql dumps or scripts."
                 )
 
-            # Input validated — only now is it safe to clear the target.
             if args.force:
                 self._drop_if_exists(db_name)
             restore_db(
@@ -396,15 +362,8 @@ class Db(Command):
             )
 
     def dump(self, args: argparse.Namespace) -> None:
-        # Read-only, so refuse only the PG system databases — they are never
-        # Odoo databases, and dump_db would only fail later with a raw
-        # traceback (no ir_* tables). The configured db_template is allowed,
-        # unlike in the destructive subcommands: a seed template may be a
-        # legitimate Odoo database, and dumping it is how it gets backed up.
         if args.database in SYSTEM_DBS:
             sys.exit(f"Refusing to touch system database {args.database}.")
-        # Fail fast with a clean message instead of dump_db's raw traceback on
-        # a missing database; this is a single catalog round-trip.
         self._check_source_exists(args.database)
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
@@ -413,8 +372,6 @@ class Db(Command):
                 with Path(args.dump_path).open("wb") as f:
                     dump_db(args.database, f, args.dump_format, args.filestore)
             except BaseException:
-                # A truncated file is indistinguishable from a valid dump by
-                # name; remove it so a failed run can't be restored by mistake.
                 Path(args.dump_path).unlink(missing_ok=True)
                 raise
 
@@ -422,20 +379,15 @@ class Db(Command):
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_if_exists(args.target)
-        # _duplicate_database, not exp_duplicate_database: this CLI is local
-        # trusted tooling, not the RPC surface the exposed-databases allowlist
-        # gate exists to protect. Same reasoning as drop()/_drop_if_exists.
         _duplicate_database(
             args.source, args.target, neutralize_database=args.neutralize
         )
 
     def rename(self, args: argparse.Namespace) -> None:
-        # Renaming a system database away is as destructive as dropping it.
         self._check_not_protected(args.source)
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_if_exists(args.target)
-        # _rename_database, not exp_rename — same reasoning as duplicate() above.
         _rename_database(args.source, args.target)
         if args.neutralize:
             with db_connect(args.target).cursor() as cr:
@@ -443,14 +395,10 @@ class Db(Command):
 
     def drop(self, args: argparse.Namespace) -> None:
         self._check_not_protected(args.database)
-        # _drop_database, not exp_drop: same reasoning as _drop_if_exists
-        # below — this CLI is local trusted tooling, not the RPC surface
-        # exp_drop's exposed-databases allowlist exists to gate.
         if not _drop_database(args.database):
             sys.exit(f"Database {args.database} does not exist.")
 
     def list(self, _args: argparse.Namespace) -> None:
-        # force=True: run() sets list_db anyway; this is local trusted tooling.
         for db_name in list_dbs(force=True):
             print(db_name)
 

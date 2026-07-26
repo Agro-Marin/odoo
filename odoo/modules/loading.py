@@ -40,36 +40,12 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# The module graph loads with automatic GC disabled (Registry.new /
-# disabling_gc), so cyclic garbage accumulates until the load finishes. Rather
-# than a full gc.collect() per module (100-500ms each), load_module_graph sweeps
-# only once the young-generation backlog crosses this threshold, and collects
-# generation 1 (young objects plus one old-space increment on 3.14's incremental
-# collector) to bound both per-sweep cost and peak memory.
-#
-# Survivors are then gc.freeze()'d: most are module code, manifests and registry
-# structures that live for the whole load, and re-traversing that growing heap
-# cost ~0.8s/sweep (~3min of pure GC on a 470-module upgrade). Freezing excludes
-# them, so each sweep only scans objects allocated since the last one.
-# load_module_graph unfreezes in a finally once the graph is done.
-#
-# But cyclic garbage alive at one sweep and dying later gets frozen too and would
-# accumulate (~8GB extra peak RSS on that upgrade). So every _GC_FULL_CYCLE_EVERY-th
-# sweep unfreezes, runs a full collection, and refreezes.
 _GC_YOUNG_BACKLOG_LIMIT = 100_000
 _GC_FULL_CYCLE_EVERY = 16
 
 
-# Format version of ir_module_module.data_file_checksums; bump to invalidate
-# every stored entry when the loader's semantics change.
-# 2: digests moved from sha256 to the tools.hashing content algorithm.
 _DATA_FILE_CHECKSUM_VERSION = 2
 
-# Raw markers whose presence makes an XML data file "dynamic": its conversion
-# has effects beyond upserting the records it declares (<function> calls
-# arbitrary model methods, <delete> may search live records), so it must be
-# reconverted on every upgrade even when its content is unchanged.  A marker
-# inside a comment merely forfeits the skip for that file — safe direction.
 _DYNAMIC_XML_MARKERS = (b"<function", b"<delete")
 
 
@@ -109,9 +85,6 @@ def load_data(
     disables the skip globally and ``--reinit`` forces a full re-assertion of
     a module (reinit loads with ``mode == "init"``, which never skips).
     """
-    # demo_xml is also iterated for kind="demo" — the load_demo guard checks
-    # both keys, so a module declaring only 'demo_xml' would otherwise have
-    # its demo data silently dropped.
     keys = ("init_xml", "data") if kind == "data" else ("demo", "demo_xml")
 
     registry = env.registry
@@ -119,7 +92,6 @@ def load_data(
         kind == "data"
         and mode == "update"
         and tools.config["skip_unchanged_data_files"]
-        # the column is added by base's own upgrade; until then, load normally
         and odoo.tools.sql.column_exists(
             env.cr, "ir_module_module", "data_file_checksums"
         )
@@ -188,8 +160,6 @@ def load_data(
 
             _logger.info("loading %s/%s", package.name, filename)
             recorder: set[str] = set()
-            # save/restore instead of plain del: a <function> in the file may
-            # nest another load_data (e.g. an immediate module install)
             previous_recorder = getattr(registry, "_xmlid_recorder", None)
             registry._xmlid_recorder = recorder
             try:
@@ -232,7 +202,6 @@ def load_demo(
                 load_data(env(su=True), idref, mode, kind="demo", package=package)
         return True
     except Exception:
-        # If we could not install demo data for this module
         _logger.warning(
             "Module %s demo data failed to install, installed without demo data",
             package.name,
@@ -276,9 +245,6 @@ def _warn_models_without_access_rules(
     concrete_models = [model for model in model_names if not registry[model]._abstract]
     if not concrete_models:
         return
-    # NOT EXISTS instead of NOT IN: the latter returns no rows if the subquery
-    # ever produces a NULL (current schema disallows it, but a future ALTER
-    # TABLE could silently break this).
     env.cr.execute(
         """
         SELECT m.model FROM ir_model m
@@ -313,11 +279,12 @@ def load_module_graph(
 ) -> None:
     """Load, upgrade and install not-yet-loaded module nodes in ``graph`` for ``env.registry``.
 
-    :param env:
+    :param env: environment whose registry is populated
     :param graph: graph of module nodes to load
     :param update_module: whether to update modules or not
-    :param report:
-    :param set models_to_check:
+    :param report: test result collecting the tests run while loading
+    :param models_to_check: accumulator of model names to re-check afterwards;
+        updated in place
     :param install_demo: whether to attempt installing demo data for newly installed modules
     """
     if models_to_check is None:
@@ -329,7 +296,6 @@ def load_module_graph(
     module_count = len(graph)
     _logger.info("loading %d modules...", module_count)
 
-    # register, instantiate and initialize models for each modules
     t0 = time.time()
     loading_extra_query_count = odoo.db.sql_counter
     loading_cursor_query_count = env.cr.sql_log_count
@@ -373,9 +339,7 @@ def load_module_graph(
             if update_operation:
                 if update_operation == "upgrade":
                     if package.name != "base":
-                        registry._setup_models__(
-                            env.cr, [], skip_if_clean=True
-                        )  # incremental setup
+                        registry._setup_models__(env.cr, [], skip_if_clean=True)
                     migrations.migrate_module(package, "pre")
                 if package.name != "base":
                     env.flush_all()
@@ -386,9 +350,7 @@ def load_module_graph(
                 py_module = sys.modules[f"odoo.addons.{module_name}"]
                 pre_init = package.manifest.get("pre_init_hook")
                 if pre_init:
-                    registry._setup_models__(
-                        env.cr, [], skip_if_clean=True
-                    )  # incremental setup
+                    registry._setup_models__(env.cr, [], skip_if_clean=True)
                     getattr(py_module, pre_init)(env)
 
             model_names = registry.load(package)
@@ -397,9 +359,7 @@ def load_module_graph(
                 model_names = registry.descendants(model_names, "_inherit", "_inherits")
                 models_updated |= model_names
                 models_to_check -= model_names
-                registry._setup_models__(
-                    env.cr, [], skip_if_clean=True
-                )  # incremental setup
+                registry._setup_models__(env.cr, [], skip_if_clean=True)
                 registry.init_models(
                     env.cr,
                     model_names,
@@ -407,21 +367,12 @@ def load_module_graph(
                     update_operation == "install",
                 )
             elif update_module and package.state != "to remove":
-                # The current module has simply been loaded. The models extended by this module
-                # and for which we updated the schema, must have their schema checked again.
-                # This is because the extension may have changed the model,
-                # e.g. adding required=True to an existing field, but the schema has not been
-                # updated by this module because it's not marked as 'to upgrade/to install'.
                 model_names = registry.descendants(model_names, "_inherit", "_inherits")
                 models_to_check |= model_names & models_updated
             elif update_module and package.state == "to remove":
-                # For all models extended (with _inherit) in the package to uninstall, we need to
-                # update ir.model / ir.model.fields alongside not-null SQL constraints.
                 models_to_check |= model_names
 
             if update_operation:
-                # Can't put this line out of the loop: ir.module.module will be
-                # registered by init_models() above.
                 module = env["ir.module.module"].browse(module_id)
                 module._check()
 
@@ -431,8 +382,7 @@ def load_module_graph(
                     load_data(env, idref, "init", kind="data", package=package)
                     if install_demo and package.demo_installable:
                         package.demo = load_demo(env, package, idref, "init")
-                else:  # 'upgrade' or 'reinit'
-                    # upgrading the module information
+                else:
                     module.write(module.get_values_from_terp(package.manifest))
                     mode = "update" if update_operation == "upgrade" else "init"
                     load_data(env, idref, mode, kind="data", package=package)
@@ -446,7 +396,6 @@ def load_module_graph(
 
                 migrations.migrate_module(package, "post")
 
-                # Update translations for all installed languages
                 overwrite = tools.config["overwrite_existing_translations"]
                 module._update_translations(overwrite=overwrite)
 
@@ -458,7 +407,6 @@ def load_module_graph(
                     if post_init:
                         getattr(py_module, post_init)(env)
                 elif update_operation == "upgrade":
-                    # validate the views that have not been checked yet
                     env["ir.ui.view"]._validate_module_views(module_name)
 
                 _warn_models_without_access_rules(
@@ -469,9 +417,6 @@ def load_module_graph(
 
                 ver = adapt_version(package.manifest["version"])
                 values = {"state": "installed", "db_version": ver}
-                # stamp the directory checksum consumed by button_upgrade's
-                # unchanged-module skip; the column appears with base's own
-                # upgrade, so guard until then
                 if odoo.tools.sql.column_exists(
                     env.cr, "ir_module_module", "content_checksum"
                 ):
@@ -497,11 +442,8 @@ def load_module_graph(
                 suite = loader.make_suite([module_name], "at_install")
                 if suite.countTestCases():
                     if not update_operation:
-                        registry._setup_models__(
-                            env.cr, [], skip_if_clean=True
-                        )  # incremental setup
+                        registry._setup_models__(env.cr, [], skip_if_clean=True)
                     registry.check_null_constraints(env.cr)
-                    # Python tests
                     tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
                     test_results = loader.run_suite(suite, global_report=report)
                     assert report is not None, "Missing report during tests"
@@ -509,7 +451,6 @@ def load_module_graph(
                     test_time = time.time() - tests_t0
                     test_queries = odoo.db.sql_counter - tests_q0
 
-                    # tests may have reset the environment
                     module = env["ir.module.module"].browse(module_id)
 
             extra_queries = (
@@ -538,22 +479,8 @@ def load_module_graph(
                     test_results.testsRun,
                 )
 
-            # Drop the transaction record cache between modules: later modules
-            # do not need the records this one loaded, and the cache is cyclic
-            # (records <-> env), so anything left in it would survive the sweep
-            # below and be pinned by gc.freeze until the end of the load.
-            # _setup_models__ used to do this implicitly on every module; its
-            # skip_if_clean fast path no longer does.
             env.invalidate_all()
 
-            # Once the young-gen backlog is large enough, sweep cyclic garbage
-            # and freeze the survivors so the next sweep skips them (see
-            # _GC_YOUNG_BACKLOG_LIMIT). Clear the ormcaches first: the setup fast
-            # path no longer wipes them per module, so left alone they accumulate
-            # every xmlid/translation lookup (gigabytes on a full upgrade) and get
-            # pinned by the freeze; they refill on demand from cheap queries. Every
-            # Nth sweep runs a full unfreeze/collect/freeze cycle to reclaim
-            # garbage frozen by earlier sweeps (see _GC_FULL_CYCLE_EVERY).
             if gc.get_count()[0] > _GC_YOUNG_BACKLOG_LIMIT:
                 registry._caches.clear_all()
                 gc_sweeps += 1
@@ -565,9 +492,6 @@ def load_module_graph(
                 gc.freeze()
 
     finally:
-        # return the frozen survivors to the old generation (see
-        # _GC_YOUNG_BACKLOG_LIMIT above): after the load, the normal GC
-        # must see the full heap again
         gc.unfreeze()
 
     _logger.runbot(
@@ -576,7 +500,7 @@ def load_module_graph(
         time.time() - t0,
         env.cr.sql_log_count - loading_cursor_query_count,
         odoo.db.sql_counter - loading_extra_query_count,
-    )  # extra queries: tests, notify, any other closed cursor
+    )
 
 
 def _check_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
@@ -588,9 +512,8 @@ def _check_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
             (list(mod_names),),
         )
         row = cr.fetchone()
-        assert row is not None  # for typing
+        assert row is not None
         if row[0] != len(mod_names):
-            # find out what module name(s) are incorrect:
             cr.execute("SELECT name FROM ir_module_module")
             incorrect_names = mod_names.difference(name for [name] in cr.fetchall())
             _logger.warning(
@@ -617,6 +540,8 @@ def load_modules(
     :param install_modules: A collection of module names to install.
     :param reinit_modules: A collection of module names to reinitialize.
     :param new_db_demo: Whether to install demo data for new database. Defaults to ``False``
+    :param models_to_check: accumulator of model names to re-check afterwards;
+        updated in place
     """
     if models_to_check is None:
         models_to_check = OrderedSet()
@@ -624,10 +549,6 @@ def load_modules(
     initialize_sys_path()
 
     with registry.cursor() as cr:
-        # prevent endless wait for locks on schema changes (during online
-        # installs) if a concurrent transaction has accessed the table;
-        # connection settings are automatically reset when the connection is
-        # borrowed from the pool
         cr.execute("SET SESSION lock_timeout = '15s'")
         if not modules_db.is_initialized(cr):
             if not update_module:
@@ -647,7 +568,6 @@ def load_modules(
                 ("to upgrade", "base", "installed"),
             )
 
-        # STEP 1: LOAD BASE (must be done before module dependencies can be computed for later steps)
         graph = ModuleGraph(cr, mode="update" if update_module else "load")
         graph.extend(["base"])
         if not graph:
@@ -661,13 +581,11 @@ def load_modules(
                 )
 
         if update_module and tools.sql.table_exists(cr, "ir_model_fields"):
-            # determine the fields which are currently translated in the database
             cr.execute(
                 "SELECT model || '.' || name, translate FROM ir_model_fields WHERE translate IS NOT NULL"
             )
             registry._database_translated_fields = dict(cr.fetchall())
 
-            # determine the fields which are currently company dependent in the database
             if odoo.tools.sql.column_exists(cr, "ir_model_fields", "company_dependent"):
                 cr.execute(
                     "SELECT model || '.' || name FROM ir_model_fields WHERE company_dependent IS TRUE"
@@ -687,26 +605,18 @@ def load_modules(
             install_demo=new_db_demo,
         )
 
-        # Read load_language from ALL config layers, not just argv: a value
-        # written to the runtime layer (initialize_db) or the config file was
-        # silently ignored here while res_lang._install_lang saw it. Track
-        # application per registry so a multi-DB run loads the language into
-        # every database and a later reload of the same registry does not
-        # re-import it.
         load_lang = tools.config.get("load_language")
         lang_pending = bool(load_lang) and not getattr(
             registry, "_load_language_done", False
         )
         if lang_pending or update_module:
-            # some base models are used below, so make sure they are set up
-            registry._setup_models__(cr, [], skip_if_clean=True)  # incremental setup
+            registry._setup_models__(cr, [], skip_if_clean=True)
 
         if lang_pending:
             for lang in load_lang.split(","):
                 tools.translate.load_language(cr, lang)
             registry._load_language_done = True
 
-        # STEP 2: Mark other modules to be loaded/updated
         if update_module:
             Module = env["ir.module.module"]
             _logger.info("updating modules list")
@@ -765,8 +675,6 @@ def load_modules(
             )
             Module.invalidate_model(["state"])
 
-        # STEP 3: Load marked modules (skipping base which was done in STEP 1)
-        # loop this step in case extra modules' states are changed to 'to install'/'to update' during loading
         while True:
             if update_module:
                 states = ("installed", "to upgrade", "to remove", "to install")
@@ -793,12 +701,9 @@ def load_modules(
                 break
 
         if update_module:
-            # set up the registry without the patch for translated fields
             database_translated_fields = registry._database_translated_fields
             registry._database_translated_fields = {}
-            registry._setup_models__(cr, [], skip_if_clean=True)  # incremental setup
-            # determine which translated fields should no longer be translated,
-            # and make their model fix the database schema
+            registry._setup_models__(cr, [], skip_if_clean=True)
             models_to_untranslate = set()
             for full_name in database_translated_fields:
                 model_name, field_name = full_name.rsplit(".", 1)
@@ -814,7 +719,6 @@ def load_modules(
         registry.loaded = True
         registry._setup_models__(cr)
 
-        # check that all installed modules have been loaded by the registry
         Module = env["ir.module.module"]
         modules = Module.search_fetch(
             Module._get_modules_to_load_domain(), ["name"], order="name"
@@ -826,17 +730,11 @@ def load_modules(
                 missing,
             )
 
-        # STEP 4: execute migration end-scripts
         if update_module:
             migrations = MigrationManager(cr, graph)
             for package in graph:
                 migrations.migrate_module(package, "end")
 
-        # Check that module dependencies have been properly installed after
-        # a migration/upgrade.  When update_module is False (normal worker
-        # startup), modules in 'to install' are expected — they were scheduled
-        # via the UI but the server was not started with -u.  Only escalate to
-        # ERROR when we actually attempted to process them (update_module=True).
         cr.execute(
             "SELECT name, state FROM ir_module_module WHERE state IN ('to install', 'to upgrade')"
         )
@@ -865,32 +763,22 @@ def load_modules(
                     to_install,
                 )
 
-        # STEP 5: apply remaining constraints in case of an upgrade
         registry.finalize_constraints(cr)
 
-        # STEP 6: Finish and cleanup installations
         if registry.updated_modules:
             cr.execute("SELECT model from ir_model")
             for (model,) in cr.fetchall():
                 if model in registry:
                     env[model]._check_removed_columns(log=True)
-                elif _logger.isEnabledFor(
-                    logging.INFO
-                ):  # more an info that a warning...
+                elif _logger.isEnabledFor(logging.INFO):
                     _logger.runbot(
                         "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
                         model,
                     )
 
-            # Cleanup orphan records
             env["ir.model.data"]._process_end(registry.updated_modules)
-            # Cleanup cron
             vacuum_cron = env.ref("base.autovacuum_job", raise_if_not_found=False)
             if vacuum_cron:
-                # trigger after a small delay to give time for assets to regenerate.
-                # _trigger expects a naive UTC datetime; build it from a
-                # timezone-aware UTC instant so the trigger fires at the right
-                # wall clock even if the host's TZ is not set to UTC.
                 trigger_at = datetime.datetime.now(datetime.UTC).replace(
                     tzinfo=None
                 ) + datetime.timedelta(minutes=1)
@@ -898,10 +786,7 @@ def load_modules(
 
             env.flush_all()
 
-        # STEP 7: Uninstall modules to remove
         if update_module:
-            # Remove records referenced from ir_model_data for modules to be
-            # removed (and removed the references from ir_model_data).
             cr.execute(
                 "SELECT name, id FROM ir_module_module WHERE state=%s",
                 ("to remove",),
@@ -918,14 +803,8 @@ def load_modules(
 
                 Module = env["ir.module.module"]
                 Module.browse(modules_to_remove.values()).module_uninstall()
-                # Recursive reload, should only happen once, because there should be no
-                # modules to remove next time
                 cr.commit()
                 _logger.info("Reloading registry once more after uninstalling modules")
-                # The new Registry is published in the global Registry cache
-                # keyed by cr.dbname, so subsequent Registry(dbname) calls see
-                # it. We don't bind it locally — the caller's reference is
-                # stale anyway and we return immediately.
                 Registry.new(
                     cr.dbname,
                     update_module=update_module,
@@ -933,15 +812,7 @@ def load_modules(
                 )
                 return
 
-        # STEP 8: Verify extended fields on every model
-        # This will fix the schema of all models in a situation such as:
-        #   - module A is loaded and defines model M;
-        #   - module B is installed/upgraded and extends model M;
-        #   - module C is loaded and extends model M;
-        #   - module B and C depend on A but not on each other;
-        # The changes introduced by module C are not taken into account by the upgrade of B.
         if update_module:
-            # We need to fix custom fields for which we have dropped the not-null constraint.
             cr.execute(
                 """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
             )
@@ -949,7 +820,6 @@ def load_modules(
                 model_name for (model_name,) in cr.fetchall() if model_name in registry
             )
         if models_to_check:
-            # Doesn't check models that didn't exist anymore, it might happen during uninstallation
             models_to_check = [model for model in models_to_check if model in registry]
             registry.init_models(
                 cr,
@@ -957,7 +827,6 @@ def load_modules(
                 {"models_to_check": True, "update_custom_fields": True},
             )
 
-        # STEP 9: verify custom views on every model
         if update_module:
             View = env["ir.ui.view"]
             for model in registry:
@@ -971,16 +840,10 @@ def load_modules(
         else:
             _logger.error("At least one test failed when loading the modules.")
 
-        # STEP 10: call _register_hook on every model
-        # This is done *exactly once* when the registry is being loaded. See the
-        # management of those hooks in `Registry._setup_models__`: all the calls to
-        # _setup_models__() done here do not mess up with hooks, as registry.ready
-        # is False.
         for model in env.values():
             model._register_hook()
         env.flush_all()
 
-        # STEP 11: check that we can trust nullable columns
         registry.check_null_constraints(cr)
 
         if update_module:
@@ -994,12 +857,6 @@ def load_modules(
 
 def reset_modules_state(db_name: str) -> None:
     """Resets modules flagged as "to x" to their original state"""
-    # Warning, this function was introduced in response to commit 763d714
-    # which locks cron jobs for dbs which have modules marked as 'to %'.
-    # The goal of this function is to be called ONLY when module
-    # installation/upgrade/uninstallation fails, which is the only known case
-    # for which modules can stay marked as 'to %' for an indefinite amount
-    # of time
     db = odoo.db.db_connect(db_name)
     with db.cursor() as cr:
         if not odoo.tools.sql.table_exists(cr, "ir_module_module"):

@@ -32,23 +32,13 @@ def check_session(
     using constant-time comparison, and updates the device log on success.
     """
     session._delete_old_sessions()
-    # Make sure we don't use a deleted session that can be saved again
     if "deletion_time" in session and session["deletion_time"] <= time.time():
         return False
-    # Returns ``False`` for a deleted/falsy uid.
     expected = compute_session_token(session, env)
-    # Both operands must be non-empty strings before consteq: it (and the
-    # underlying hmac.compare_digest) raises TypeError on None/bool, turning a
-    # corrupted-session error into a 500.
     actual = session.session_token
     if not expected or not isinstance(actual, str) or not consteq(expected, actual):
         return False
     if request:
-        # The token already validated, so the session IS valid; device-log
-        # bookkeeping is non-essential.  A failure here must not reject it: the
-        # caller (``ir_http._authenticate_explicit``) turns any exception into
-        # ``AccessDenied``, spuriously logging out a valid user (and swallowing a
-        # retryable conflict before ``retrying`` sees it).  Log and continue.
         try:
             env["res.device.log"]._update_device(request)
         except Exception:

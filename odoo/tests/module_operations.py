@@ -30,7 +30,7 @@ INSTALL_BLACKLIST = {
     "payment_alipay",
     "payment_payulatam",
     "payment_payumoney",
-}  # deprecated modules (cannot be installed manually through button_install anymore)
+}
 
 
 def install(db_name: str, module_id: int, module_name: str) -> None:
@@ -60,7 +60,6 @@ def cycle(db_name: str, module_id: int, module_name: str) -> None:
 
 def addons_path(value: str) -> Any:
     """Validate and return an addons path value."""
-    # pass the real option so skip warnings blame --addons-path, not -i
     return config._check_addons_path(
         config.options_index["addons_path"], "--addons-path", value
     )
@@ -210,7 +209,6 @@ def test_cycle(args: argparse.Namespace) -> None:
 
         modules = env["ir.module.module"].search([]).filtered(valid)
 
-        # order modules in topological order
         modules = modules.browse(
             topological_sort(
                 {module.id: module.dependencies_id.depend_id.ids for module in modules}
@@ -251,13 +249,10 @@ def test_uninstall(args: argparse.Namespace) -> None:
 def test_standalone(args: argparse.Namespace) -> None:
     """Try to launch standalone scripts tagged with @standalone."""
     odoo.service.db._check_faketime_mode(args.database)
-    # load the registry once for script discovery
     registry = Registry(args.database)
     for module_name in registry._init_modules:
-        # import tests for loaded modules
         odoo.tests.loader.get_test_modules(module_name)
 
-    # fetch and filter scripts to test
     funcs = list(
         unique(
             func for tag in args.standalone.split(",") for func in standalone_tests[tag]
@@ -287,8 +282,6 @@ def test_standalone(args: argparse.Namespace) -> None:
         time.time() - start_time,
     )
     if failures:
-        # keep running every script, but do not exit 0 when some failed —
-        # callers that only check the return code used to see success
         sys.exit(1)
 
 
@@ -296,8 +289,6 @@ if __name__ == "__main__":
     args = parse_args()
 
     config["db_name"] = threading.current_thread().dbname = args.database
-    # handle paths options; --data-dir is meaningful on its own (filestore,
-    # sessions), it must not be silently ignored when --addons-path is absent
     if args.data_dir:
         config["data_dir"] = args.data_dir
     if args.addons_path:

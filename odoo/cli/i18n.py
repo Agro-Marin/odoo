@@ -32,8 +32,6 @@ class I18n(DatabaseCommand):
 
     def __init__(self) -> None:
         super().__init__()
-        # On the main parser too, so `i18n -c cfg export …` works like
-        # `i18n export -c cfg …` (same both-levels pattern as `db`).
         self.add_config_arguments(self.parser)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
@@ -150,14 +148,11 @@ class I18n(DatabaseCommand):
     def run(self, cmdargs: list[str]) -> None:
         parsed_args = self.parser.parse_args(args=cmdargs)
         self.bootstrap_config(parsed_args)
-        # func is bound via set_defaults on each subparser (same idiom as
-        # `db` and `module`), so an unhandled subcommand is unrepresentable.
         parsed_args.func(parsed_args)
 
     def _get_languages(
         self, env: Any, language_codes: list[str], active_test: bool = True
     ) -> Any:
-        # active_test=False so inactive languages still match and can be logged below
         Lang = env["res.lang"].with_context(active_test=False)
         languages = Lang.search(
             Domain.OR(
@@ -167,9 +162,6 @@ class I18n(DatabaseCommand):
                 ]
             )
         )
-        # Matched on iso_code OR code (see Domain.OR above), so subtract both
-        # from the not-found set. Subtracting iso_code alone would wrongly flag
-        # a full code like 'en_US' (iso 'en') as not found.
         matched_codes = set(languages.mapped("iso_code")) | set(
             languages.mapped("code")
         )
@@ -216,8 +208,6 @@ class I18n(DatabaseCommand):
             if not language:
                 self.import_parser.error("No valid language has been provided")
             if len(language) > 1:
-                # e.g. an iso_code shared by several active languages;
-                # `language.code` below requires a singleton.
                 self.import_parser.error(
                     f"-l {parsed_args.language!r} matches several languages "
                     f"({', '.join(language.mapped('code'))}); use the full code"
@@ -255,7 +245,6 @@ class I18n(DatabaseCommand):
             parsed_args.languages.remove("pot")
 
         with odoo_env(parsed_args.db_name, readonly=True) as env:
-            # Search all requested modules so missing/uninstalled ones can be logged below
             modules = env["ir.module.module"].search_fetch(
                 [("name", "in", parsed_args.modules)], ["name", "state"]
             )
@@ -284,8 +273,6 @@ class I18n(DatabaseCommand):
                 self.export_parser.error("No valid language has been provided")
 
             if parsed_args.output:
-                # Single --output implies a single language; reject multi-match.
-                # An empty resolved recordset is valid when combined with --pot.
                 if len(languages) > 1:
                     self.export_parser.error(
                         f"--output requires a single language; got "
@@ -294,10 +281,7 @@ class I18n(DatabaseCommand):
                 lang_code = languages.code if languages else None
                 self._export_file(env, module_names, lang_code, parsed_args.output)
             else:
-                # Po(t) files in the modules' i18n folders
                 for module_name in module_names:
-                    # Installed in the DB but absent from the current
-                    # addons path: Path(None, ...) would raise TypeError.
                     module_path = get_module_path(module_name)
                     if not module_path:
                         self.export_parser.error(

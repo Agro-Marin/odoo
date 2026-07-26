@@ -37,11 +37,9 @@ def run_tests(
     from odoo.service.lifecycle import server
 
     if not server.httpd:
-        # some tests need the http daemon to be available...
         server.http_spawn()
 
     if env.cr.connection.info.transaction_status != TransactionStatus.IDLE:
-        # rollback the cr in case it holds a database lock which may cause deadlock while running tests
         _logger.warning("Rolling back the transaction before testing")
         env.cr.rollback()
 
@@ -51,8 +49,6 @@ def run_tests(
     if reload_tests:
         _clear_loaded_test_modules()
 
-    # restore in a finally: leaving test_enable set after a failed run would
-    # leave the whole shell session in test mode (test cursors, test dispatch)
     old_test_tags = odoo.tools.config["test_tags"]
     old_test_enable = odoo.tools.config["test_enable"]
     odoo.tools.config["test_tags"] = test_tags
@@ -72,11 +68,9 @@ def _run_tests(db_name: str, modules: list[str]) -> OdooTestResult:
     """Run at_install and post_install test suites for the given modules."""
     report = OdooTestResult()
 
-    # Run at_install tests
     with Registry._lock:
         registry = Registry(db_name)
         try:
-            # best effort to restore the test environment
             registry.loaded = False
             registry.ready = False
             at_install_suite = make_suite(modules, "at_install")
@@ -87,7 +81,6 @@ def _run_tests(db_name: str, modules: list[str]) -> OdooTestResult:
             registry.loaded = True
             registry.ready = True
 
-    # Run post_install tests
     post_install_suite = make_suite(modules, "post_install")
     if post_install_suite.countTestCases():
         _logger.info("Starting post_install tests")

@@ -2232,7 +2232,7 @@ def upgrade(file_manager: FileManager) -> None:
         lambda: defaultdict(
             lambda: defaultdict(lambda: defaultdict(fp=set(), replaces=set()))
         )
-    )  # {module_name: {coa_name: { tax_x: {fp: {fiscal_position_1,fiscal_position_2}, replaces: {tax1}}}}
+    )
     for i, file in enumerate(fiscal_position_data_files, start=1):
         file_manager.print_progress(i, nb_fiscal_position_files, file.path)
 
@@ -2279,8 +2279,6 @@ def upgrade(file_manager: FileManager) -> None:
             src_tax = row.pop(SRC_FIELD)
             dest_tax = row.pop(DEST_FIELD)
             if row_nb == 1:
-                # Row 1: if its country doesn't match the module, clone it into a
-                # generic domestic FP; otherwise treat it as the domestic FP itself.
                 dom_fp_data = {
                     **row,
                     "id": domestic_fp_id,

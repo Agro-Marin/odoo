@@ -31,9 +31,8 @@ _logger = logging.getLogger(__name__)
 
 class WatchedFileHandler(logging.handlers.WatchedFileHandler):
     def __init__(self, filename: str) -> None:
-        self.errors = None  # py38
+        self.errors = None
         super().__init__(filename)
-        # Unfix bpo-26789, in case the fix is present
         self._builtin_open = None
 
     def _open(self) -> IO[str]:
@@ -75,7 +74,6 @@ class PostgreSQLHandler(logging.Handler):
             tools.mute_logger("odoo.db"),
             db.db_connect(dbname, allow_uri=True).cursor() as cr,
         ):
-            # preclude risks of deadlocks
             cr.execute("SET LOCAL statement_timeout = 1000")
             msg = str(record.msg)
             if record.args:
@@ -83,7 +81,6 @@ class PostgreSQLHandler(logging.Handler):
             traceback = getattr(record, "exc_text", "")
             if traceback:
                 msg = f"{msg}\n{traceback}"
-            # we do not use record.levelname because it may have been changed by ColoredFormatter.
             levelname = logging.getLevelName(record.levelno)
 
             val = (
@@ -127,8 +124,6 @@ class PostgreSQLHandler(logging.Handler):
 
 
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, _NOTHING, DEFAULT = range(10)
-# The background is set with 40 plus the number of the color, and the foreground with 30
-# These are the sequences needed to get colored output
 RESET_SEQ: Final[str] = "\033[0m"
 COLOR_SEQ: Final[str] = "\033[1;%dm"
 BOLD_SEQ: Final[str] = "\033[1m"
@@ -171,7 +166,6 @@ class PerfFilter(logging.Filter):
                 )
             delattr(threading.current_thread(), "query_count")
         elif tools.config["db_replica_host"] or "replica" in tools.config["dev_mode"]:
-            # replica mode carries a 4th (cursor-mode) placeholder column
             record.perf_info = "- - - -"
         else:
             record.perf_info = "- - -"
@@ -237,16 +231,14 @@ class JSONFormatter(logging.Formatter):
         if ignore_record_keys is not None:
             self.ignore_record_keys = set(ignore_record_keys)
         else:
-            # drop keys derived from others; keep the formatted 'message'
-            # since msg/args can't be reformatted once JSON-serialized
             self.ignore_record_keys = {
-                "msecs",  # derived from created
-                "relativeCreated",  # derived from created
-                "asctime",  # derived from created
-                "filename",  # derived from pathname
-                "module",  # derived from filename (pathname)
-                "msg",  # formatted in message
-                "args",  # formatted in message
+                "msecs",
+                "relativeCreated",
+                "asctime",
+                "filename",
+                "module",
+                "msg",
+                "args",
             }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -283,8 +275,6 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(record_json, default=str)
 
     def _get_default_record_keys(self, record: logging.LogRecord) -> list:
-        # parenthesised so '-' applies after '|'; the unparenthesised upstream
-        # form binds '-' first and leaves the ignored keys in the output
         return list((record.__dict__.keys() | {"message"}) - self.ignore_record_keys)
 
 
@@ -328,55 +318,44 @@ showwarning: object = None
 
 
 def init_logger() -> None:
-    global showwarning  # noqa: PLW0603
+    global showwarning
     if logging.getLogRecordFactory() is LogRecord:
         return
 
     logging.setLogRecordFactory(LogRecord)
 
     logging.captureWarnings(True)
-    # after logging.captureWarnings so we override its hook, not the reverse
     showwarning = warnings.showwarning
     warnings.showwarning = showwarning_with_traceback
 
-    # enable deprecation warnings (disabled by default)
     warnings.simplefilter("default", category=DeprecationWarning)
-    # https://github.com/urllib3/urllib3/issues/2680
     warnings.filterwarnings(
         "ignore",
         r"^\'urllib3.contrib.pyopenssl\' module is deprecated.+",
         category=DeprecationWarning,
     )
-    # ignore a bunch of warnings we can't really fix ourselves
     for module in [
-        "babel.util",  # deprecated parser module, no release yet
-        "zeep.loader",  # zeep using defusedxml.lxml
-        "ofxparse",  # ofxparse importing ABC from collections
-        "astroid",  # deprecated imp module (fixed in 2.5.1)
-        "requests_toolbelt",  # importing ABC from collections (fixed in 0.9)
+        "babel.util",
+        "zeep.loader",
+        "ofxparse",
+        "astroid",
+        "requests_toolbelt",
     ]:
         warnings.filterwarnings("ignore", category=DeprecationWarning, module=module)
 
-    # rsjmin triggers this with Python 3.10+ (that warning comes from the C code and has no `module`)
     warnings.filterwarnings(
         "ignore",
         r"^PyUnicode_FromUnicode\(NULL, size\) is deprecated",
         category=DeprecationWarning,
     )
-    # the SVG guesser thing always compares str and bytes, ignore it
     warnings.filterwarnings("ignore", category=BytesWarning, module="odoo.tools.image")
 
-    # need to be adapted later but too muchwork for this pr.
     warnings.filterwarnings(
         "ignore",
         r"^datetime.datetime.utcnow\(\) is deprecated and scheduled for removal in a future version.*",
         category=DeprecationWarning,
     )
 
-    # pkg_ressouce is used in google-auth < 1.23.0 (removed in https://github.com/googleapis/google-auth-library-python/pull/596)
-    # unfortunately, in ubuntu jammy and noble, the google-auth version is 1.5.1
-    # starting from noble, the default pkg_ressource version emits a warning on import, triggered when importing
-    # google-auth
     warnings.filterwarnings(
         "ignore",
         r"pkg_resources is deprecated as an API.+",
@@ -388,7 +367,6 @@ def init_logger() -> None:
         category=DeprecationWarning,
     )
 
-    # This warning is triggered library only during the python precompilation which does not occur on readonly filesystem
     warnings.filterwarnings(
         "ignore",
         r"invalid escape sequence",
@@ -409,21 +387,15 @@ def init_logger() -> None:
     if log_config:
         with Path(log_config).open("rb") as fobj:
             conf = json.load(fobj)
-            # loggers are created at import time; disabling existing loggers
-            # would silence everything created before this config is loaded
             conf["disable_existing_loggers"] = False
         logging.config.dictConfig(conf)
-        # unless the config opts back in, its handlers fully replace Odoo's
         if not conf.get("keep_odoo_default", False):
             return
 
-    # create a format for log messages and dates
     format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
-    # Normal Handler on stderr
     handler = logging.StreamHandler()
 
     if tools.config["syslog"]:
-        # SysLog Handler
         if os.name == "nt":
             handler = logging.handlers.NTEventLogHandler(
                 f"{release.description} {release.version}"
@@ -435,10 +407,8 @@ def init_logger() -> None:
         format = f"{release.description} {release.version}:%(dbname)s:%(levelname)s:%(name)s:%(message)s"
 
     elif tools.config["logfile"]:
-        # LogFile Handler
         logf = tools.config["logfile"]
         try:
-            # We check we have the right location for the log files
             logpath = Path(logf)
             logpath.parent.mkdir(parents=True, exist_ok=True)
             if os.name == "posix":
@@ -450,10 +420,6 @@ def init_logger() -> None:
                 "ERROR: couldn't create the logfile directory. Logging to the standard output.\n"
             )
 
-    # Check that handler.stream has a fileno() method: when running Odoo
-    # behind Apache with mod_wsgi, handler.stream will have type mod_wsgi.Log,
-    # which has no fileno() method. (mod_wsgi.Log is what is being bound to
-    # sys.stderr when the logging.StreamHandler is being constructed above.)
     def is_a_tty(stream):
         return hasattr(stream, "fileno") and os.isatty(stream.fileno())
 
@@ -490,7 +456,6 @@ def init_logger() -> None:
         )
         logging.getLogger().addHandler(postgresqlHandler)
 
-    # Configure loggers levels
     pseudo_config = PSEUDOCONFIG_MAPPER.get(tools.config["log_level"], [])
 
     logconfig = tools.config["log_handler"]
@@ -525,15 +490,11 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
 }
 
 logging.RUNBOT = 25
-logging.addLevelName(logging.RUNBOT, "INFO")  # displayed as info in log
-# addLevelName also remaps name->level ("INFO" -> 25), which would break stdlib
-# lookups by name (assertLogs(level="INFO"), setLevel("INFO")) into filtering out
-# real INFO (20) records. Restore the canonical name->level entry; the display
-# alias above stays. ("odoo:RUNBOT" specs resolve via the module attribute.)
+logging.addLevelName(logging.RUNBOT, "INFO")
 logging._nameToLevel["INFO"] = logging.INFO
 IGNORE: Final[frozenset[str]] = frozenset(
     {
-        "Comparison between bytes and int",  # a.foo != False or some shit, we don't care
+        "Comparison between bytes and int",
     }
 )
 
@@ -549,11 +510,9 @@ def showwarning_with_traceback(
     if category is BytesWarning and message.args[0] in IGNORE:
         return None
 
-    # find the stack frame matching (filename, lineno)
     filtered = []
     for frame in traceback.extract_stack():
         if frame.name == "__call__" and frame.filename.endswith("/odoo/http.py"):
-            # we don't care about the frames above our wsgi entrypoint
             filtered.clear()
         if "importlib" not in frame.filename:
             filtered.append(frame)

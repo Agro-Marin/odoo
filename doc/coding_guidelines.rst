@@ -2151,9 +2151,53 @@ Running the standalone (Tier 1 / Tier 2) suites takes **two** invocations:
    # the ones that did run.
    pytest odoo/orm/tests odoo/http/tests tests/service
 
+   # Contract suite — needs a reachable PostgreSQL plus psql/pg_dump on PATH,
+   # so it cannot live in the database-free tiers above.  Fast (<1s).
+   pytest tests/contract
+
+   # Process suite — boots real odoo-bin processes.  POSIX + PostgreSQL. ~20s.
+   pytest tests/process
+
 The ``sys.modules`` stub bootstrap shared by the standalone suites lives in
 ``odoo/_testing_bootstrap.py``; each suite's ``conftest.py`` is a thin wrapper
 around it.
+
+**Contract tests.** ``tests/contract/`` (and its database-free half,
+``tests/service/test_contracts.py``) pin the behaviour of our *dependencies*
+— psycopg's exception hierarchy, what ``pg_dump`` really emits, how ``psql``
+lexes a meta-command's arguments, whether ``Popen`` closes its pipes — rather
+than our own logic.  They exist because every defect found in the July 2026
+service-layer audit was an assumption mismatch and not a logic error: the mocks
+were internally consistent, thoroughly exercised, and encoded the wrong external
+behaviour, with nothing comparing them to the real thing.  Write one whenever
+code branches on how a dependency behaves; assert the dependency directly, so a
+version bump fails in a test that *names the assumption* instead of silently
+re-opening the defect several modules downstream.
+
+The suite skips when a dependency is missing, so it is safe to run anywhere —
+but a contract suite that silently skips reports green while comparing nothing.
+CI must set ``ODOO_CONTRACT_REQUIRE_DEPS=1``, which turns a missing dependency
+into a failure there while leaving it a skip locally.
+
+**Process tests.** ``tests/process/`` boots real ``odoo-bin`` processes and
+asserts on what an outside observer can see — a listening port, a process tree,
+an HTTP response.  It is deliberately TINY.  Almost everything about the service
+layer is covered far more cheaply by the mock-based suites in ``tests/service``,
+and this exists only for properties that emerge from real processes and vanish
+the moment anything is mocked: a listen socket surviving a re-exec, a master
+replacing a killed child, a bounded thread pool under real half-open sockets.
+
+Before adding one, check whether ``tests/service`` already covers the decision
+logic — it usually does — and add a process test only for the composed
+behaviour those decisions exist to protect.  Two rules keep the suite from
+rotting into a flaky one that gets disabled:
+
+* Assert on observables (pid sets, port state, HTTP responses), never on
+  internal state — otherwise it is a slower unit test.
+* Readiness is a **served request**, never a log line.  ``ThreadedServer.run``
+  spawns the WSGI server and logs "HTTP service (werkzeug) running" *before*
+  ``preload_registries``, both under ``Registry._lock``, so the socket accepts
+  and the log claims readiness while requests still block.
 
 6.1 Test Classes
 ^^^^^^^^^^^^^^^^

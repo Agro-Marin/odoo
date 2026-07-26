@@ -57,7 +57,6 @@ def stub_odoo_packages(conftest_file: str) -> None:
     """
     tests_dir = Path(conftest_file).resolve().parent
 
-    # Collect the package directories between the tests/ dir and the odoo root.
     intermediates: list[Path] = []
     current = tests_dir.parent
     while current.name and current.name != "odoo":
@@ -69,7 +68,6 @@ def stub_odoo_packages(conftest_file: str) -> None:
             f"could not locate the 'odoo' package root above {conftest_file!r}"
         )
 
-    # Register parents first: odoo, then each child down to the suite's package.
     _stub_package("odoo", current)
     name = "odoo"
     for package_dir in reversed(intermediates):

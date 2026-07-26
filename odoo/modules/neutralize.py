@@ -24,9 +24,6 @@ def get_installed_modules(cursor: Cursor) -> list[str]:
 
 def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
     for module in modules:
-        # An installed module missing from the addons path (e.g. neutralize run
-        # without the enterprise dir) would have its neutralize.sql silently
-        # skipped below; warn so the operator knows neutralization is incomplete.
         if Manifest.for_addon(module, display_warning=False) is None:
             _logger.warning(
                 "Module %r is installed but not found on the addons path; its "
@@ -38,10 +35,6 @@ def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
         filename = f"{module}/data/neutralize.sql"
         with suppress(FileNotFoundError):
             with file_open(filename) as file:
-                # Skip whitespace-only files: an empty string is not a query,
-                # and consumers should not have to filter it out. (psycopg 3
-                # tolerates executing "", so this is contract hygiene, not
-                # crash prevention.)
                 if content := file.read().strip():
                     yield content
 

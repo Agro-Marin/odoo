@@ -17,7 +17,6 @@ import odoo.tools
 
 _logger = logging.getLogger(__name__)
 
-# The odoo library is supposed already configured.
 HOST = "127.0.0.1"
 
 
@@ -37,10 +36,6 @@ def env_int(varname: str, default: int) -> int:
 def get_db_name() -> str:
     """Return the configured test database name."""
     dbnames = odoo.tools.config["db_name"]
-    # If the database name is not provided on the command-line,
-    # use the one on the thread (which means if it is provided on
-    # the command-line, this will break when installing another
-    # database from XML-RPC).
     if not dbnames and hasattr(threading.current_thread(), "dbname"):
         return threading.current_thread().dbname
     if not dbnames:

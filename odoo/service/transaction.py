@@ -20,30 +20,18 @@ from psycopg import IntegrityError, OperationalError, errors
 from odoo.db.errors import PG_RETRY_EXCEPTIONS, PG_RETRY_SQLSTATES
 from odoo.exceptions import ConcurrencyError, ValidationError
 
-# ``odoo.http`` is imported lazily inside ``retrying`` (``odoo.http._serve``
-# imports ``retrying``, so a top-level import would cycle).
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from odoo.api import Environment
 
-_logger = logging.getLogger("odoo.service.model")  # preserve operator log filters
+_logger = logging.getLogger("odoo.service.model")
 
-# The retry vocabulary lives in ``odoo.db.errors`` (the lowest layer the cursor
-# and this loop share) so the SQLSTATE and exception lists can't drift.  Aliased
-# here because addons catch the same set via ``odoo.service.model``.
 PG_CONCURRENCY_ERRORS_TO_RETRY = PG_RETRY_SQLSTATES
 PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
 
-# Ceiling (seconds) on any single inter-retry sleep.  The backoff stays
-# exponential (``random.uniform(0, 2 ** tryno)``) but is capped so a late retry
-# can't pin its pooled connection for the full 16 s.  ``env.cr`` holds a pool
-# slot across the whole ``retrying`` call; under a serialization storm — exactly
-# when retries fire — many workers sleeping on the uncapped tail saturate the
-# pool and turn transient contention into a cluster-wide stall.  2 s keeps
-# meaningful jitter while bounding the hold.
 MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 
 
@@ -98,6 +86,26 @@ def _rewind_request_files_for_retry(request: typing.Any, exc: BaseException) -> 
     rewind_uploaded_files(request.httprequest, cause=exc)
 
 
+def _reset_request_for_retry(request: typing.Any) -> None:
+    """Undo the aborted attempt's in-request side effects before replaying it.
+
+    Retry-path only, and for the same reason as the rewind above: the handler is
+    about to run a *second* time and must start where the first one did.  The
+    rolled-back attempt may have escalated the environment
+    (``request.update_env(su=True)`` survives every ``ir.http._auth_method_*``)
+    or staged response headers — ``Set-Cookie`` accumulates, so a cookie set
+    before the failing write would be emitted once per attempt.
+
+    Delegates to :meth:`odoo.http.Request._reset_for_replay`, the same primitive
+    the RO→RW cursor upgrade uses, so the two replay paths cannot drift.  Guarded
+    because ``retrying`` also serves non-HTTP callers (``bus.websocket`` passes a
+    websocket request object that has no such method).
+    """
+    reset = getattr(request, "_reset_for_replay", None)
+    if reset is not None:
+        reset()
+
+
 def _reset_env_state(env: Environment) -> None:
     """Roll back the process-global registry/transaction bookkeeping after a
     failed attempt, so stale invalidation flags don't leak into the next request.
@@ -141,34 +149,27 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
     :param env: The environment where the registry and the cursor
         are taken.
     """
-    # Lazy import — see module docstring for the circular-import rationale.
     from odoo import http
+
     try:
         for tryno in range(1, MAX_TRIES_ON_CONCURRENCY_FAILURE + 1):
             tryleft = MAX_TRIES_ON_CONCURRENCY_FAILURE - tryno
             try:
                 result = func()
                 if not env.cr.closed:
-                    env.cr.flush()  # submit the changes to the database
+                    env.cr.flush()
                 break
             except (IntegrityError, OperationalError, ConcurrencyError) as exc:
                 if env.cr.closed:
-                    # ``closed`` (the property) covers both wrapper close and a
-                    # dead underlying connection; retrying either would just burn
-                    # the backoff budget.
                     raise
                 with suppress(Exception):
                     env.cr.rollback()
                 _reset_env_state(env)
                 request = http.request
                 if request:
-                    # Session re-fetch on EVERY failure path; the upload rewind
-                    # waits until a retry is certain (see both helpers).
                     _refresh_request_session(request)
                 if isinstance(exc, IntegrityError):
                     if env.cr.closed:
-                        # Connection died between the integrity error and
-                        # rollback — can't query constraint details.
                         raise
                     raise _integrity_error_to_validation(env, exc) from exc
 
@@ -177,10 +178,6 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 elif isinstance(exc, ConcurrencyError):
                     error = repr(exc)
                 else:
-                    # Non-concurrency OperationalError: connection reset,
-                    # statement timeout, disk full, etc. Log the class and
-                    # sqlstate (if any) so operators can act on the raw cause
-                    # instead of a bare psycopg traceback.
                     _logger.info(
                         "OperationalError not retryable: %s (sqlstate=%s)",
                         type(exc).__name__,
@@ -193,6 +190,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
 
                 if request:
                     _rewind_request_files_for_retry(request, exc)
+                    _reset_request_for_retry(request)
                 wait_time = random.uniform(
                     0.0, min(2**tryno, MAX_CONCURRENCY_BACKOFF_SECONDS)
                 )
@@ -207,29 +205,18 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
         _reset_env_state(env)
         raise
 
-    # The commit runs in its OWN guarded block, NOT inside the retry loop: a
-    # failure here (deferred-constraint ``IntegrityError`` at COMMIT, a failing
-    # post-commit hook, a dropped connection) must not re-run ``func`` — the
-    # statements/hooks already ran, so a retry would double their side effects.
-    # It still gets the same rollback/reset cleanup and ``ValidationError``
-    # translation an in-loop failure would.
     try:
         if not env.cr.closed:
-            env.cr.commit()  # effectively commits and execute post-commits
+            env.cr.commit()
     except Exception as exc:
         _reset_env_state(env)
         if not env.cr.closed and isinstance(exc, IntegrityError):
-            # Build the translation under ``suppress`` so a failure inside it
-            # (dead cursor, missing diag) falls through to the raw error.
             translated = None
             with suppress(Exception):
                 translated = _integrity_error_to_validation(env, exc)
             if translated is not None:
                 raise translated from exc
         raise
-    # When the cursor is closed the commit above was skipped, so the transaction
-    # never landed; signalling invalidation would broadcast a cluster-wide
-    # reload for a change that was never committed.
     if not env.cr.closed:
         env.registry.signal_changes()
     return result

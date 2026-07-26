@@ -122,6 +122,92 @@ class TestExpAuthenticateExceptionAbsorption:
         ):
             assert common_mod.exp_authenticate("any_db", "u", "p", None) is False
 
+    def test_invalid_catalog_name_returns_false_not_raise(self, common_mod):
+        """"Database does not exist" must collapse to ``False``, like every other
+        connect failure.
+
+        Regression, and a subtle one: the catch used to be
+        ``psycopg.OperationalError``, but ``odoo.db.pool`` deliberately
+        *translates* a connect-phase failure into its precise SQLSTATE class
+        (``_probe_connectable`` / ``_database_absent``, added so an absent DB
+        fails fast in any server locale instead of burning the ~30s retry).
+        ``InvalidCatalogName`` is a ``ProgrammingError``, NOT an
+        ``OperationalError`` — so that improvement silently turned this
+        ``auth="none"`` verb into a per-name database EXISTENCE ORACLE:
+        a missing DB raised an RPC Fault while an existing one returned
+        ``False``.  Measured against a live PG 18 cluster before the fix.
+        """
+        import psycopg
+
+        assert not issubclass(
+            psycopg.errors.InvalidCatalogName, psycopg.OperationalError
+        ), "premise of this test: InvalidCatalogName is not an OperationalError"
+        with patch.object(
+            common_mod,
+            "Registry",
+            side_effect=psycopg.errors.InvalidCatalogName('database "x" does not exist'),
+        ):
+            assert common_mod.exp_authenticate("no_such_db", "u", "p", None) is False
+
+    @pytest.mark.parametrize(
+        "exc_name", ["InsufficientPrivilege", "InvalidPassword", "TooManyConnections"]
+    )
+    def test_any_psycopg_error_returns_false(self, common_mod, exc_name):
+        """The catch is the whole ``psycopg.Error`` tree, not a hand-kept list.
+
+        Each of these is a different SQLSTATE the pool can surface from a
+        connect, and each classifies under a different psycopg base class.  The
+        no-enumeration invariant must not depend on someone remembering to add
+        the next one.
+        """
+        import psycopg
+
+        with patch.object(
+            common_mod, "Registry", side_effect=getattr(psycopg.errors, exc_name)("nope")
+        ):
+            assert common_mod.exp_authenticate("any_db", "u", "p", None) is False
+
+    def test_unexpected_db_error_is_logged_loudly_even_though_answer_is_false(
+        self, common_mod, caplog
+    ):
+        """Broadening the catch must not make real faults invisible.
+
+        Catching all of ``psycopg.Error`` is what keeps the wire answer uniform,
+        but it also swallows a genuine server-side fault — a module raising
+        ``ProgrammingError`` while the registry loads, a half-migrated schema.
+        The RPC answer stays ``False``; the operator still gets a WARNING.
+        """
+        import logging
+
+        import psycopg
+
+        with caplog.at_level(logging.DEBUG, logger="odoo.service.common"):
+            with patch.object(
+                common_mod,
+                "Registry",
+                side_effect=psycopg.errors.UndefinedTable("relation ... does not exist"),
+            ):
+                assert common_mod.exp_authenticate("some_db", "u", "p", None) is False
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warnings, "an unexpected database error must not vanish at DEBUG"
+        assert "unexpected database error" in warnings[0].getMessage()
+
+    @pytest.mark.parametrize("exc_factory", [
+        lambda: __import__("psycopg").errors.InvalidCatalogName("no such db"),
+        lambda: __import__("psycopg").OperationalError("PG down"),
+    ])
+    def test_routine_connect_failures_stay_quiet(
+        self, common_mod, caplog, exc_factory
+    ):
+        """A "no such database" probe is attacker-drivable — it must not let an
+        unauthenticated caller flood the log at WARNING."""
+        import logging
+
+        with caplog.at_level(logging.DEBUG, logger="odoo.service.common"):
+            with patch.object(common_mod, "Registry", side_effect=exc_factory()):
+                assert common_mod.exp_authenticate("any_db", "u", "p", None) is False
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
     def test_unrelated_keyerror_propagates(self, common_mod):
         """Programming errors must NOT be silently swallowed.
 
@@ -188,6 +274,89 @@ class TestExpAuthenticateNotAnOdooDatabase:
             common_mod, "Registry", return_value=_NotOdooRegistry()
         ):
             assert common_mod.exp_authenticate("bare_db", "admin", "admin", None) is False
+
+
+class TestExpAuthenticateNeverServableNames:
+    """Cluster-infrastructure names are refused BEFORE ``Registry`` is built.
+
+    ``postgres`` / ``template0`` / ``template1`` and the configured
+    ``db_template`` can never be Odoo databases, so no login against them can
+    succeed.  ``Registry.new`` does refuse them already — with ``ValueError``
+    ("Refusing to build a registry over system or template database"), which is
+    neither a ``psycopg.Error`` nor a ``PoolError``.  So it escaped
+    ``exp_authenticate`` and these names answered with an RPC ERROR while every
+    other name answered ``False`` (measured: ``exp_authenticate("postgres", ...)``
+    raised ``ValueError`` before this guard).  Same non-uniform-answer defect as
+    the ``InvalidCatalogName`` case, different exception class.
+
+    ``db._rpc_db_exist`` floors exactly these names out of the wire-facing
+    ``db_exist``; this is the same floor on the sibling verb.
+    """
+
+    @pytest.mark.parametrize("db", ["postgres", "template0", "template1"])
+    def test_system_dbs_refused_without_connecting(self, common_mod, db):
+        def _must_not_run(*args, **kwargs):  # pragma: no cover - must not run
+            raise AssertionError(f"Registry({db!r}) must not be built")
+
+        with patch.object(common_mod, "Registry", side_effect=_must_not_run):
+            assert common_mod.exp_authenticate(db, "admin", "admin", None) is False
+
+    def test_unlisted_database_refused_when_database_option_is_set(self, common_mod):
+        """``--database`` IS the exposed-database allowlist.
+
+        ``db_filter`` and ``list_dbs`` already give it that meaning; applying it
+        here stops an unauthenticated caller from making the server build a
+        registry and a pool for a database this instance was never told to
+        serve (a shared cluster's other tenants, for instance).
+        """
+        from odoo.tools import config
+
+        def _must_not_run(*a, **kw):  # pragma: no cover - must not run
+            raise AssertionError("Registry must not be built for an unlisted db")
+
+        with patch.dict(config.options, {"db_name": ["served_db"]}), \
+             patch.object(common_mod, "Registry", side_effect=_must_not_run):
+            assert common_mod.exp_authenticate("other_db", "a", "b", None) is False
+
+    def test_listed_database_still_reaches_the_registry(self, common_mod):
+        """The gate must not break real logins: a listed name — and ANY name
+        when ``--database`` is unset — still goes through to the registry."""
+        from odoo.tools import config
+
+        for options in ({"db_name": []}, {"db_name": ["served_db"]}):
+            with patch.dict(config.options, options), \
+                 patch.object(
+                     common_mod, "Registry", side_effect=RuntimeError("reached")
+                 ):
+                with pytest.raises(RuntimeError, match="reached"):
+                    common_mod.exp_authenticate("served_db", "a", "b", None)
+
+    def test_dbfilter_is_not_applied(self, common_mod):
+        """``--db-filter`` maps a HOSTNAME to a database, and ``dispatch_rpc``
+        runs inside ``borrow_request()`` which pops the request off the stack —
+        so no host is available here.  Applying it would evaluate ``^%h$``
+        against an empty host and refuse every RPC login on a virtual-host
+        deployment.  An RPC caller names its database explicitly.
+        """
+        from odoo.tools import config
+
+        with patch.dict(config.options, {"dbfilter": "^nomatch$", "db_name": []}), \
+             patch.object(
+                 common_mod, "Registry", side_effect=RuntimeError("reached")
+             ):
+            with pytest.raises(RuntimeError, match="reached"):
+                common_mod.exp_authenticate("any_db", "a", "b", None)
+
+    def test_configured_template_refused_without_connecting(self, common_mod):
+        """A CUSTOM ``db_template`` (this workspace ships one) is equally unservable."""
+        from odoo.tools import config
+
+        def _must_not_run(*args, **kwargs):  # pragma: no cover - must not run
+            raise AssertionError("Registry(db_template) must not be built")
+
+        with patch.dict(config.options, {"db_template": "tpl_custom"}), \
+             patch.object(common_mod, "Registry", side_effect=_must_not_run):
+            assert common_mod.exp_authenticate("tpl_custom", "a", "b", None) is False
 
 
 # ---------------------------------------------------------------------------

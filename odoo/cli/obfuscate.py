@@ -20,10 +20,6 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# Personally-identifiable columns processed by default; --no-default-fields
-# drops them, --fields/--file add to them, and --allfields overrides them.
-# Keep in sync with the unobfuscate default: a run that covers fewer fields
-# than were obfuscated leaves encrypted data behind.
 DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
     ("mail_tracking_value", "old_value_char"),
     ("mail_tracking_value", "old_value_text"),
@@ -117,15 +113,10 @@ class Obfuscate(DatabaseCommand):
         super().__init__()
         self.cr: Cursor | None = None
         self.dbname: str = ""
-        # (table, column) -> 'string'/'json', loaded in one catalog query by
-        # _prefetch_field_kinds / get_all_fields. None until then, when
-        # check_field falls back to a per-field probe.
         self._field_kinds: dict[tuple[str, str], str] | None = None
 
     @_ensure_cr
     def _ensure_pgcrypto(self) -> None:
-        # Idempotent; no explicit BEGIN — psycopg opens an implicit
-        # transaction on first execute (autocommit=False).
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     @_ensure_cr
@@ -160,8 +151,6 @@ class Obfuscate(DatabaseCommand):
             ):
                 return True
         except psycopg.errors.ExternalRoutineInvocationException as e:
-            # SQLSTATE 39000: pgp_sym_decrypt with a wrong key — the "invalid
-            # password" case. Other errors must propagate, not masquerade as it.
             _logger.info("Password check failed: %s", e)
         return False
 
@@ -171,7 +160,6 @@ class Obfuscate(DatabaseCommand):
         self.cr.execute("DELETE FROM ir_config_parameter WHERE key='odoo_cyph_pwd'")
 
     def cypher_string(self, sql_field: SQL, password: str) -> SQL:
-        # don't double cypher fields
         return SQL(
             """CASE WHEN starts_with(%(field_name)s, 'odoo_cyph_') THEN %(field_name)s ELSE 'odoo_cyph_'||encode(pgp_sym_encrypt(%(field_name)s, %(pwd)s), 'base64') END""",
             field_name=sql_field,
@@ -189,7 +177,6 @@ class Obfuscate(DatabaseCommand):
     def _kind_of(udt_name: str) -> str | None:
         """Map a PostgreSQL ``udt_name`` to the obfuscation kind."""
         if udt_name in ("text", "varchar"):
-            # Doesn't work for selection fields ...
             return "string"
         if udt_name == "jsonb":
             return "json"
@@ -223,7 +210,6 @@ class Obfuscate(DatabaseCommand):
         """Return the processing kind for ``table.column``: ``'string'``,
         ``'json'``, or None when the column is absent or unsupported."""
         if self._field_kinds is not None:
-            # Prefetched: a miss == absent or unsupported, same as the query.
             return self._field_kinds.get((table, field))
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
         self.cr.execute(qry, [table, field])
@@ -232,8 +218,6 @@ class Obfuscate(DatabaseCommand):
         return None
 
     def get_all_fields(self) -> list[tuple[str, str]]:
-        # Use starts_with(table_name, 'ir_') — LIKE 'ir_%' would also match
-        # tables like 'irrelevant' because '_' is a LIKE wildcard.
         qry = (
             "SELECT table_name, column_name, udt_name FROM information_schema.columns"
             " WHERE table_schema = current_schema"
@@ -243,8 +227,6 @@ class Obfuscate(DatabaseCommand):
         )
         self.cr.execute(qry)
         rows = self.cr.fetchall()
-        # Cache the type the query already returned, so convert_table doesn't
-        # re-probe each column via check_field.
         self._field_kinds = {
             (table, column): kind
             for table, column, udt in rows
@@ -261,10 +243,6 @@ class Obfuscate(DatabaseCommand):
         unobfuscate: bool = False,
     ) -> None:
         cypherings = []
-        # Per-field "this row needs work" predicates. Without a WHERE, the
-        # UPDATE rewrites every tuple even when the CASE leaves it unchanged —
-        # a full table rewrite (WAL, bloat, locks) on big tables. OR-ing these
-        # skips already-processed and NULL rows.
         conditions = []
         cyph_fct = self.uncypher_string if unobfuscate else self.cypher_string
 
@@ -275,7 +253,6 @@ class Obfuscate(DatabaseCommand):
                 cypher_query = cyph_fct(sql_field, pwd)
                 cypherings.append(SQL("%s=%s", SQL.identifier(field), cypher_query))
                 if unobfuscate:
-                    # NULL-safe: starts_with(NULL, …) is NULL, falsy in OR.
                     conditions.append(SQL("starts_with(%s, 'odoo_cyph_')", sql_field))
                 else:
                     conditions.append(
@@ -286,11 +263,6 @@ class Obfuscate(DatabaseCommand):
                         )
                     )
             elif field_type == "json":
-                # Encrypt each key seen in the column via a nested jsonb_set.
-                # The CASE guard is load-bearing: jsonb_set(d, path, NULL)
-                # returns NULL for the whole row when a key another row has is
-                # missing here, wiping the column. `d->>key IS NOT NULL` skips
-                # the jsonb_set when the key is absent or holds JSON null.
                 new_field_value = sql_field
                 self.cr.execute(
                     SQL(
@@ -314,8 +286,6 @@ class Obfuscate(DatabaseCommand):
                         new_field_value,
                     )
                 cypherings.append(SQL("%s=%s", sql_field, new_field_value))
-                # jsonb rows can't be cheaply tested for "already cyphered";
-                # at least skip rows where the whole column is NULL.
                 conditions.append(SQL("%s IS NOT NULL", sql_field))
 
         if cypherings:
@@ -327,7 +297,6 @@ class Obfuscate(DatabaseCommand):
             )
             self.cr.execute(query)
             if with_commit:
-                # Next execute reopens an implicit txn; pgcrypto persists.
                 self.commit()
 
     def _vacuum_tables(self, tables: dict[str, set[str]]) -> None:
@@ -386,7 +355,6 @@ class Obfuscate(DatabaseCommand):
         try:
             pwd = getpass.getpass("Cypher password: ")
         except KeyboardInterrupt:
-            # A deliberate ^C is a cancel, not a missing-password usage error.
             sys.exit("\nCancelled by user.")
         except EOFError:
             pwd = ""
@@ -463,8 +431,6 @@ class Obfuscate(DatabaseCommand):
             help="Don't ask for manual confirmation.",
         )
 
-        # No empty-args guard: a bare invocation fails with "No database
-        # specified" from bootstrap_config below.
         opt = parser.parse_args(cmdargs)
 
         if opt.allfields and not opt.unobfuscate:
@@ -478,10 +444,6 @@ class Obfuscate(DatabaseCommand):
         pwd = self._resolve_password(opt)
 
         try:
-            # Plain pooled connection, not Registry(...): this only runs raw
-            # SQL, while a registry build loads every module's models (minutes)
-            # and needs a loadable registry a damaged dump may lack. Trade-off:
-            # no upfront Odoo-db check; the first query fails instead.
             with db_connect(self.dbname).cursor() as cr:
                 self.cr = cr
                 self._ensure_pgcrypto()
@@ -494,8 +456,6 @@ class Obfuscate(DatabaseCommand):
                     if opt.allfields:
                         fields = self.get_all_fields()
                     else:
-                        # One catalog query for all selected tables, so the
-                        # validation below and convert_table are dict lookups.
                         self._prefetch_field_kinds({t for t, _ in fields})
                         invalid_fields = [
                             f for f in fields if not self.check_field(f[0], f[1])
@@ -543,10 +503,6 @@ class Obfuscate(DatabaseCommand):
                                 True,
                             )
 
-                        # A field-scoped run may leave other columns encrypted;
-                        # keep the marker so later runs can still validate the
-                        # password. Deleting it makes check_pwd accept ANY
-                        # password (no row -> True) and fail mid-UPDATE.
                         partial_run = (
                             bool(opt.fields or opt.file or opt.exclude)
                             and not opt.allfields
@@ -560,9 +516,6 @@ class Obfuscate(DatabaseCommand):
                             )
 
                         if opt.vacuum:
-                            # VACUUM FULL can't run in a transaction block, so
-                            # commit first; _vacuum_tables uses a dedicated
-                            # autocommit connection. clear_pwd reopens a txn.
                             self.commit()
                             self._vacuum_tables(tables)
                         if not partial_run:
@@ -591,8 +544,6 @@ class Obfuscate(DatabaseCommand):
                     )
 
         except psycopg.errors.ExternalRoutineInvocationException as e:
-            # pgp_sym_decrypt failed mid-UPDATE: data encrypted with another
-            # password (reachable when the marker is absent).
             _logger.debug("Decryption failure", exc_info=True)
             sys.exit(
                 "ERROR: decryption failed — the data was obfuscated with a "
@@ -602,8 +553,5 @@ class Obfuscate(DatabaseCommand):
             _logger.debug("Unexpected obfuscation failure", exc_info=True)
             sys.exit(f"ERROR: {e}")
         finally:
-            # Cursor already released by the with-block; drop our reference so
-            # _ensure_cr detects reuse of a closed cursor (e.g. reused instance).
             self.cr = None
-            # Invalidate the schema cache so a reused instance re-probes.
             self._field_kinds = None

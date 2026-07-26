@@ -10,10 +10,12 @@ Run with::
 
 import io
 import os
+import pathlib
 import subprocess
 import sys
 import tempfile
 import threading
+import warnings
 import zipfile
 from contextlib import ExitStack
 from subprocess import CompletedProcess
@@ -611,6 +613,128 @@ class TestDumpWaitTimeoutGuard:
         with patch.dict(os.environ, {"ODOO_PG_DUMP_WAIT_TIMEOUT": "garbage"}):
             with pytest.raises(RuntimeError, match="disk-full-during-copy"):
                 db_mod._run_pg_dump_streaming(cmd, dict(os.environ), _ExplodingStream())
+
+
+class TestDumpStreamingClosesItsPipes:
+    """``_run_pg_dump_streaming`` must close BOTH pipes it opened.
+
+    Only ``proc.stdout`` was closed; ``Popen`` closes neither by itself, so the
+    stderr pipe was left to the garbage collector.  On the SUCCESS path
+    refcounting hides that (``proc`` dies with the frame), which is why the fd
+    count never grew and the only symptom was a ``ResourceWarning`` per dump.
+
+    On the FAILURE path it does not hide it: the raised exception's traceback
+    pins this frame — and ``proc`` with it — for as long as the caller holds the
+    exception, which is what the HTTP error path and ``_logger.exception`` do.
+    Measured on this GIL build before the fix: 10 failed streaming dumps whose
+    errors were still referenced retained 10 pipe fds.
+    """
+
+    def test_no_resource_warning_and_both_pipes_closed(self, db_mod):
+        cmd = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'dump'); sys.stderr.write('warn')",
+        ]
+        out = io.BytesIO()
+        opened: list = []
+        real_popen = subprocess.Popen
+
+        def _tracking_popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            opened.append(proc)
+            return proc
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            with patch.object(db_mod.subprocess, "Popen", _tracking_popen):
+                db_mod._run_pg_dump_streaming(cmd, dict(os.environ), out)
+
+        assert out.getvalue() == b"dump"
+        assert len(opened) == 1
+        proc = opened[0]
+        assert proc.stdout.closed, "stdout pipe left open"
+        assert proc.stderr.closed, "stderr pipe left open"
+        leaked = [w for w in caught if issubclass(w.category, ResourceWarning)]
+        assert not leaked, f"unclosed file(s): {[str(w.message) for w in leaked]}"
+
+    def test_failed_dump_does_not_retain_fds_while_error_is_held(self, db_mod):
+        """The failure path is where the leak is actually observable.
+
+        The traceback of the raised error keeps this frame — and the ``Popen``
+        — alive for as long as the caller references the exception, so
+        refcounting does NOT reclaim the pipe.  This is the real regression
+        guard; the success-path test above only catches the ResourceWarning.
+        """
+
+        class _ExplodingStream:
+            def write(self, _data: bytes) -> int:
+                raise RuntimeError("disk-full-during-copy")
+
+        cmd = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'x' * 100000)",
+        ]
+
+        def open_fds():
+            return {p.name for p in pathlib.Path(f"/proc/{os.getpid()}/fd").iterdir()}
+
+        held = []
+        before = open_fds()
+        for _ in range(5):
+            try:
+                db_mod._run_pg_dump_streaming(cmd, dict(os.environ), _ExplodingStream())
+            except RuntimeError as exc:
+                held.append(exc)  # what a logging / HTTP error path does
+        retained = open_fds() - before
+        assert not retained, (
+            f"{len(retained)} fd(s) retained by 5 failed dumps whose errors are "
+            f"still referenced"
+        )
+        assert len(held) == 5
+
+
+class TestDumpStderrDrainIsBounded:
+    """A grandchild holding the stderr pipe must not hang the dump forever.
+
+    The stderr drain thread was joined with NO timeout.  pg_dump's stderr can be
+    inherited by a process that outlives it (a wrapper script, a sudo/ssh hop in
+    a remote-dump setup), so the drain never sees EOF and the ``finally`` blocked
+    indefinitely — silently defeating the wall-clock ceiling this whole function
+    is built around, *after* the stall timer had already done its job.
+    """
+
+    def test_orphan_holding_stderr_does_not_block_the_dump(self, db_mod, monkeypatch):
+        monkeypatch.setattr(db_mod, "_STDERR_DRAIN_JOIN_S", 1.0)
+        # Child writes the "dump", leaves a grandchild holding stderr open, exits.
+        child = (
+            "import subprocess, sys\n"
+            "sys.stdout.buffer.write(b'dump-bytes'); sys.stdout.buffer.flush()\n"
+            # stdout to DEVNULL: the grandchild must hold ONLY stderr, or the
+            # dump would block in copyfileobj instead (a different bug).
+            "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'],"
+            " stdout=subprocess.DEVNULL, stderr=sys.stderr)\n"
+        )
+        cmd = [sys.executable, "-c", child]
+        out = io.BytesIO()
+        result: dict = {}
+
+        def _run():
+            try:
+                db_mod._run_pg_dump_streaming(cmd, dict(os.environ), out)
+                result["ok"] = True
+            except BaseException as exc:
+                result["exc"] = exc
+
+        t = threading.Thread(target=_run)
+        t.start()
+        t.join(timeout=30)
+        assert not t.is_alive(), (
+            "streaming dump hung: the stderr drain join is still unbounded"
+        )
+        assert result.get("ok"), f"dump failed unexpectedly: {result.get('exc')!r}"
+        assert out.getvalue() == b"dump-bytes"
 
 
 class TestDumpStallSigkillEscalation:
@@ -2243,6 +2367,77 @@ class TestDumpSqlMetaCommandScanner:
             os.unlink(path)
 
 
+class TestDumpSqlMetaCommandArguments:
+    """An ALLOWED meta-command does not make its argument inert.
+
+    The scanner used to accept ``\\restrict`` / ``\\unrestrict`` / ``\\.`` on the
+    verb alone and then resume **SQL** lexing on the rest of the line.  psql does
+    neither: it lexes that text as the command's ARGUMENT, with its own quoting
+    and with backtick command substitution.  Both divergences were live RCE
+    bypasses of this whole module (verified against psql 18.4):
+
+    * ``\\restrict `cmd` `` — psql runs ``cmd`` in a SHELL while expanding the
+      argument, BEFORE it validates it.  The ``\\restrict`` then fails, so the
+      restore aborts — after the command has already run.
+    * ``\\restrict /*`` + ``\\unrestrict /*`` — psql takes ``/*`` as the restrict
+      key and is back in ordinary SQL on line 3, while the scanner is inside a
+      nested block comment for the remainder of the file: every later ``\\!`` was
+      skipped as "comment", and psql exited **0**, so the restore reported
+      success.
+
+    Real ``pg_dump`` output carries exactly ``\\restrict <alphanumeric key>``,
+    the matching ``\\unrestrict``, and ``\\.`` alone on its line — so pinning the
+    argument shape closes both without touching a legitimate backup.
+    """
+
+    # -- allowed verb, argument no pg_dump would ever emit --
+    @pytest.mark.parametrize("sql", [
+        "\\restrict `touch /tmp/pwn`\n",              # shell via backtick expansion
+        "\\unrestrict `touch /tmp/pwn`\n",            # ... same on the closing verb
+        "\\restrict /*\n\\unrestrict /*\n\\! id\n",   # block-comment desync
+        "\\restrict $$\n\\unrestrict $$\n\\! id\n",   # dollar-quote desync
+        "\\restrict '\n\\! id\n",                     # single-quote desync
+        "\\restrict \"\n\\! id\n",                    # double-quote desync
+        "\\unrestrict /*\n\\! id\n",
+        "\\. /*\n\\! id\n",                           # \. is argument-less
+        "\\. `touch /tmp/pwn`\n",
+        "\\restrict\n",                               # key is required
+        "\\restrict k1 extra\n",                      # only one key, nothing after
+    ])
+    def test_flags_malformed_meta_command_arguments(self, db_mod, sql):
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_report_names_the_argument_not_just_the_verb(self, db_mod):
+        """The verb alone ("\\restrict") would read as a false positive on the
+        pg_dump wrapper; the operator has to see the argument to act on it."""
+        hit = db_mod._find_disallowed_psql_meta_command("\\restrict `id`\n")
+        assert hit is not None
+        assert "`id`" in hit[1]
+
+    # -- the shapes a real pg_dump emits must still pass --
+    @pytest.mark.parametrize("sql", [
+        "\\restrict abc123\nSELECT 1;\n\\unrestrict abc123\n",
+        # the real key measured on a 75k-line pg_dump: 63 base62 characters
+        "\\restrict tH7nmJAc12qRGNgZNXhGPXxv78E3UN0d5YagNMhRvb9i2u49YBGiEpyi0gW9RHO\n",
+        "\\restrict abc123\r\n",                      # CRLF dump
+        "\\restrict abc123",                          # no trailing newline (EOF)
+        "COPY t (a) FROM stdin;\n1\n\\.\nSELECT 1;\n",  # \. alone on its line
+    ])
+    def test_allows_real_pg_dump_shapes(self, db_mod, sql):
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_argument_text_is_not_lexed_as_sql(self, db_mod):
+        """The scanner must not carry a lexical context out of argument text.
+
+        A quote in a REJECTED argument is moot (the restore stops), so this pins
+        the positive case: after a well-formed ``\\restrict`` the scanner is back
+        in plain SQL and still catches what follows.
+        """
+        sql = "\\restrict k1\nSELECT 1;\n\\! id\n"
+        hit = db_mod._find_disallowed_psql_meta_command(sql)
+        assert hit == (3, "\\!")
+
+
 class TestDumpSqlScannerLineBound:
     """The scanner's "peak is one line" guarantee only holds if the line length
     is enforced — the attacker picks it.
@@ -2288,6 +2483,47 @@ class TestDumpSqlScannerLineBound:
         monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", "not-a-number")
         path = self._write(tmp_path, "SELECT 1;\n")
         db_mod._assert_dump_sql_safe(path)  # must not raise
+
+
+    def test_overlong_copy_data_line_is_accepted(self, db_mod, tmp_path, monkeypatch):
+        """The cap applies to SQL-context lines only.  A COPY-DATA line over the
+        cap — e.g. an in-database ``ir.attachment.db_datas`` row — is bulk data
+        psql reads verbatim (never lexed, the ``\\.`` terminator is 2 chars), so
+        refusing it would block a legitimate dump.  Stream past it instead."""
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
+        big = "QUJD" * (2 * 1024 * 1024)  # ~8 MB, over the 4 MB cap
+        path = self._write(
+            tmp_path,
+            "CREATE TABLE ir_attachment (id int, db_datas text);\n"
+            "COPY ir_attachment (id, db_datas) FROM stdin;\n"
+            f"1\t{big}\n\\.\nSELECT 1;\n",
+        )
+        db_mod._assert_dump_sql_safe(path)  # must not raise
+
+    def test_overlong_copy_data_does_not_blind_a_later_meta_command(
+        self, db_mod, tmp_path, monkeypatch
+    ):
+        """Streaming past an over-cap COPY-DATA line must not swallow the ``\\!``
+        that follows once a short ``\\.`` closes the data block: the attacker's
+        only way out of copy-data mode is a 2-char ``\\.`` line, which is scanned
+        normally, so the meta-command after it is still caught."""
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
+        big = "QUJD" * (2 * 1024 * 1024)
+        path = self._write(
+            tmp_path,
+            f"COPY t (a) FROM stdin;\n{big}\n\\.\n\\! touch /tmp/pwn\n",
+        )
+        with pytest.raises(RuntimeError, match="meta-command"):
+            db_mod._assert_dump_sql_safe(path)
+
+    def test_overlong_sql_line_still_refused(self, db_mod, tmp_path, monkeypatch):
+        """Outside copy-data context, an over-cap line is still unscannable within
+        the bound and absent from any real dump — refuse it (the drain path must
+        NOT apply here)."""
+        monkeypatch.setenv("ODOO_DUMP_SCAN_MAX_LINE", str(4 * 1024 * 1024))
+        path = self._write(tmp_path, "SELECT '" + "A" * (8 * 1024 * 1024) + "';\n")
+        with pytest.raises(RuntimeError, match="longer than"):
+            db_mod._assert_dump_sql_safe(path)
 
 
 class TestRestoreArchiveExpansionBound:
@@ -2469,6 +2705,60 @@ class TestDumpSqlScannerLexerDivergence:
     ):
         """A ``;`` inside a string literal is not the statement terminator."""
         sql = "COPY t FROM stdin WITH (DELIMITER ';');\n1\n\\.\nSELECT 1;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    # COPY-data mode must be decided from the LEXED token stream, never from
+    # the raw line text.  Each case below is a statement psql executes WITHOUT
+    # entering COPY-data mode while the line happens to contain the substring
+    # "FROM stdin"; arming the switch on it made the scanner skip every
+    # following line as "data" while psql went on interpreting them.  Verified
+    # against PostgreSQL 18: psql ran the ``\!`` and still exited 0, so the
+    # restore reported success.
+    # ------------------------------------------------------------------
+
+    def test_copy_to_stdout_with_from_stdin_in_line_comment_is_not_data(self, db_mod):
+        sql = "COPY (SELECT 1) TO STDOUT; -- FROM stdin\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_copy_to_stdout_with_from_stdin_in_block_comment_is_not_data(self, db_mod):
+        sql = "COPY (SELECT 1) TO STDOUT /* FROM stdin */;\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_copy_to_stdout_with_from_stdin_in_string_literal_is_not_data(self, db_mod):
+        sql = "COPY (SELECT 'FROM stdin') TO STDOUT;\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_from_stdin_after_the_terminating_semicolon_is_not_data(self, db_mod):
+        """``FROM stdin`` belonging to a LATER (unterminated) statement must not
+        retro-arm the COPY that already ended at its ``;``."""
+        sql = "COPY (SELECT 1) TO STDOUT; SELECT 'x' FROM stdin\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_statement_not_starting_with_copy_never_enters_data_mode(self, db_mod):
+        """Only a statement whose FIRST token is ``COPY`` can make the server
+        answer PGRES_COPY_IN."""
+        sql = "SELECT * FROM stdin;\n\\! touch /tmp/pwn\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_quoted_copy_identifier_is_not_the_copy_command(self, db_mod):
+        sql = '"COPY" t FROM stdin;\n\\! touch /tmp/pwn\n'
+        assert db_mod._find_disallowed_psql_meta_command(sql) is not None
+
+    def test_copy_from_stdin_is_case_insensitive(self, db_mod):
+        """The real pg_dump shape must be recognised whatever the casing."""
+        sql = "copy T (a) FrOm StDiN;\n1\tdata\\x\n\\.\nSELECT 1;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_copy_preceded_by_a_comment_on_the_same_line_still_enters_data_mode(
+        self, db_mod
+    ):
+        """A comment contributes no token, so ``COPY`` is still the statement's
+        first one — the data block's backslashes stay data."""
+        sql = "/* c */ COPY t (a) FROM stdin;\n1\t\\N\n\\.\nSELECT 1;\n"
+        assert db_mod._find_disallowed_psql_meta_command(sql) is None
+
+    def test_copy_from_stdin_spanning_two_lines_still_enters_data_mode(self, db_mod):
+        sql = "COPY t (a)\n  FROM stdin;\n1\t\\N\n\\.\nSELECT 1;\n"
         assert db_mod._find_disallowed_psql_meta_command(sql) is None
 
     def test_e_prefix_inside_an_identifier_is_not_an_escape_string(self, db_mod):

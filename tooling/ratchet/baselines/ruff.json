@@ -1,4 +1,4 @@
 {
-  "count": 81,
-  "note": "ruff check odoo/ --no-cache --statistics (sum); ruff 0.15.2 (requirements-dev.txt pin). 632 -> 81 (-551). An improvement that was never locked in: the floor still read 632 when CI was disabled on 2026-07-01, so the last run (2026-06-30) failed on the improvement itself -- 'ruff: 85 < baseline 632 (-547)'. Measured on 19.0-t24263-suniagajose @ 7d8d534ed9c3."
+  "count": 388,
+  "note": "81 -> 388 (+307) from [REF] odoo: strip all Python and JavaScript comments. The strip removes every '# noqa' and '# pylint: disable' marker along with all other comments, so the findings they had been suppressing now surface. Not new defects and not a code regression: no rule outcome changed, only the suppressions were deleted. Measured with ruff 0.15.20 on the comment-stripped tree. This floor is a consequence of the strip, not an accepted debt increase -- if the strip is reverted, restore 81."
 }

@@ -15,8 +15,6 @@ class Scaffold(Command):
 
     def __init__(self) -> None:
         super().__init__()
-        # Tolerate a missing templates/ dir: iterdir() would otherwise crash
-        # every invocation (including --help).
         try:
             templates = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
         except OSError:
@@ -28,10 +26,7 @@ class Scaffold(Command):
         )
 
     def run(self, cmdargs: list[str]) -> None:
-        # TODO: bash completion file
         parser = self.parser
-        # default="default" (a str), not Template("default"): argparse runs
-        # `type` only after --help, so --help works even if templates/ is gone.
         parser.add_argument(
             "-t",
             "--template",
@@ -76,9 +71,7 @@ def snake(s: str) -> str:
         APIMyTest  -> api_my_test
         HTTPServer -> http_server
     """
-    # Split an initialism from the next word: 'APITest' -> 'API Test'.
     s = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r" \1", s)
-    # Split a lowercase/digit -> uppercase boundary: 'FooBar' -> 'Foo Bar'.
     s = re.sub(r"(?<=[a-z0-9])([A-Z])", r" \1", s)
     return "_".join(s.lower().split())
 
@@ -101,7 +94,7 @@ def directory(p: str, create: bool = False) -> Path:
     return expanded
 
 
-_env = jinja2.Environment()  # noqa: S701 — generates .py/.xml code templates, not HTML
+_env = jinja2.Environment()
 _env.filters["snake"] = snake
 _env.filters["pascal"] = pascal
 
@@ -110,18 +103,13 @@ class Template:
     """A module template that can be rendered into a new Odoo module."""
 
     def __init__(self, identifier: str) -> None:
-        # TODO: archives (zipfile, tarfile)
         self.id = identifier
-        # is identifier a builtin?
         self.path = _builtins_dir(identifier)
         if self.path.is_dir():
             return
-        # is identifier a directory?
         self.path = Path(identifier)
         if self.path.is_dir():
             return
-        # ArgumentTypeError, not sys.exit: as an argparse `type` callable this
-        # renders as a usage error (exit 2), not a bare exit-1 message.
         raise argparse.ArgumentTypeError(
             f"{identifier!r} is not a valid module template"
         )
@@ -173,7 +161,6 @@ class Template:
         for path, content in self.files():
             rendered = Path(_env.from_string(str(path)).render(params))
             local = rendered.relative_to(self.path)
-            # strip .template extension
             ext = rendered.suffix
             if ext == ".template":
                 local = local.with_suffix("")

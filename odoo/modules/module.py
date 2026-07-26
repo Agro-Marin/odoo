@@ -23,17 +23,12 @@ import odoo.addons
 try:
     from packaging.requirements import InvalidRequirement, Requirement
 except ImportError:
-    # The Error-suffix lint is suppressed on the class below: the name must
-    # mirror packaging.requirements.InvalidRequirement, which this shadows when
-    # `packaging` is unavailable.
-    class InvalidRequirement(Exception):  # type: ignore[no-redef]
-        ...
 
-    class Requirement:  # type: ignore[no-redef]
+    class InvalidRequirement(Exception): ...
+
+    class Requirement:
         def __init__(self, pydep):
-            if not re.fullmatch(
-                r"[\w\-]+", pydep
-            ):  # check that we have no versions or marker in pydep
+            if not re.fullmatch(r"[\w\-]+", pydep):
                 msg = f"Package `packaging` is required to parse `{pydep}` external dependency and is not installed"
                 raise ImportError(msg)
             self.marker = None
@@ -54,48 +49,39 @@ __all__ = [
     "module_content_checksum",
 ]
 
-# re.ASCII restricts \w to [A-Za-z0-9_] — module names must be ASCII because
-# they are imported as Python package names and used as filesystem directory
-# names; allowing Unicode here would let parts of the loader accept what later
-# stages cannot import.
 MODULE_NAME_RE = re.compile(r"^\w{1,256}$", re.ASCII)
 MANIFEST_NAMES = ["__manifest__.py"]
 README = ["README.rst", "README.md", "README.txt", "README"]
 
 _DEFAULT_MANIFEST = {
-    # Mandatory fields (with no defaults):
-    # - author
-    # - license
-    # - name
-    # Derived fields are computed in the Manifest class.
     "application": False,
-    "bootstrap": False,  # web
+    "bootstrap": False,
     "assets": {},
     "auto_install": False,
     "category": "Uncategorized",
     "cloc_exclude": [],
-    "configurator_snippets": {},  # website themes
-    "configurator_snippets_addons": {},  # website themes
+    "configurator_snippets": {},
+    "configurator_snippets_addons": {},
     "countries": [],
     "data": [],
     "demo": [],
     "demo_xml": [],
     "depends": [],
-    "description": "",  # defaults to README file
+    "description": "",
     "external_dependencies": {},
     "init_xml": [],
     "installable": True,
-    "images": [],  # website
-    "images_preview_theme": {},  # website themes
-    "live_test_url": "",  # website themes
-    "new_page_templates": {},  # website themes
+    "images": [],
+    "images_preview_theme": {},
+    "live_test_url": "",
+    "new_page_templates": {},
     "post_init_hook": "",
     "post_load": "",
     "pre_init_hook": "",
     "sequence": 100,
     "summary": "",
     "test": [],
-    "theme_customizations": {},  # themes
+    "theme_customizations": {},
     "update_xml": [],
     "uninstall_hook": "",
     "version": "1.0",
@@ -103,9 +89,6 @@ _DEFAULT_MANIFEST = {
     "website": "",
 }
 
-# matches field definitions like
-#     partner_id: base.ResPartner = fields.Many2one
-#     partner_id = fields.Many2one[base.ResPartner]
 TYPED_FIELD_DEFINITION_RE = re.compile(
     r"""
     \b (?P<field_name>\w+) \s*
@@ -155,10 +138,6 @@ class UpgradeHook:
         target: types.ModuleType | None = None,
     ) -> importlib.machinery.ModuleSpec | None:
         if re.match(r"^odoo\.addons\.base\.maintenance\.migrations\b", fullname):
-            # We can't trigger a DeprecationWarning in this case.
-            # In order to be cross-versions, the multi-versions upgrade scripts (0.0.0 scripts),
-            # the tests, and the common files (utility functions) still needs to import from the
-            # legacy name.
             return importlib.util.spec_from_loader(fullname, self)
         return None
 
@@ -176,7 +155,6 @@ class UpgradeHook:
         else:
             canonical = importlib.import_module(canonical_name)
 
-        # Alias: make the legacy name resolve to the canonical module object
         sys.modules[module.__name__] = canonical
 
 
@@ -186,7 +164,6 @@ def initialize_sys_path() -> None:
     and explicit directories.
     """
     for path in (
-        # tools.config.addons_base_dir,  # already present
         tools.config.addons_data_dir,
         *tools.config["addons_path"],
         tools.config.addons_community_dir,
@@ -194,7 +171,6 @@ def initialize_sys_path() -> None:
         if os.access(path, os.R_OK) and path not in odoo.addons.__path__:
             odoo.addons.__path__.append(path)
 
-    # hook odoo.upgrade on upgrade-path
     legacy_upgrade_path = str(
         Path(tools.config.addons_base_dir, "base/maintenance/migrations")
     )
@@ -202,41 +178,30 @@ def initialize_sys_path() -> None:
         if up not in odoo.upgrade.__path__:
             odoo.upgrade.__path__.append(up)
 
-    # create deprecated module alias from odoo.addons.base.maintenance.migrations to odoo.upgrade
     spec = importlib.machinery.ModuleSpec(
         "odoo.addons.base.maintenance", None, is_package=True
     )
     maintenance_pkg = importlib.util.module_from_spec(spec)
-    maintenance_pkg.migrations = odoo.upgrade  # type: ignore[attr-defined]
+    maintenance_pkg.migrations = odoo.upgrade
     sys.modules["odoo.addons.base.maintenance"] = maintenance_pkg
     sys.modules["odoo.addons.base.maintenance.migrations"] = odoo.upgrade
 
-    # If the addons path changed, drop memoized manifests so a now-reachable
-    # module is no longer masked by a negative lookup and edited manifests are
-    # re-read. Only on change: this runs often, and re-parsing ~1600 manifests
-    # when the path is stable is pure waste.
     current_addons_path = tuple(odoo.addons.__path__)
     if getattr(initialize_sys_path, "_last_addons_path", None) != current_addons_path:
         Manifest.clear_caches()
         initialize_sys_path._last_addons_path = current_addons_path
 
-    # hook for upgrades and namespace freeze (once, at single-threaded startup)
-    if not getattr(initialize_sys_path, "called", False):  # only initialize once
-        odoo.addons.__path__._path_finder = lambda *a: None  # prevent path invalidation
-        odoo.upgrade.__path__._path_finder = lambda *a: (
-            None
-        )  # prevent path invalidation
+    if not getattr(initialize_sys_path, "called", False):
+        odoo.addons.__path__._path_finder = lambda *a: None
+        odoo.upgrade.__path__._path_finder = lambda *a: None
         sys.meta_path.insert(0, UpgradeHook())
-        initialize_sys_path.called = True  # type: ignore[attr-defined]
+        initialize_sys_path.called = True
 
 
 @typing.final
 class Manifest(Mapping[str, typing.Any]):
     """The manifest data of a module."""
 
-    # Keys whose values are computed from class attributes/properties rather
-    # than stored in the parsed manifest dict.  Kept in one place so __getitem__
-    # and __iter__ cannot drift out of sync.
     _COMPUTED_KEYS = (
         "description",
         "icon",
@@ -300,11 +265,8 @@ class Manifest(Mapping[str, typing.Any]):
         if key in self._COMPUTED_KEYS:
             return getattr(self, key)
         val = self.__manifest_cached[key]
-        # Immutable types need no defensive copy
         if isinstance(val, (str, int, bool, float)):
             return val
-        # deepcopy so callers mutating the returned list/dict cannot corrupt the
-        # cached_property cache.
         return copy.deepcopy(val)
 
     def raw_value(self, key: str) -> typing.Any:
@@ -317,7 +279,7 @@ class Manifest(Mapping[str, typing.Any]):
         ``cached_property``). Force it during graph construction so manifest
         validation errors surface up-front rather than mid-loop.
         """
-        self.__manifest_cached  # noqa: B018 — populate the cached_property
+        self.__manifest_cached
 
     def __iter__(self) -> typing.Iterator[str]:
         manifest = self.__manifest_cached
@@ -356,10 +318,6 @@ class Manifest(Mapping[str, typing.Any]):
     def __repr__(self) -> str:
         return f"Manifest({self.name})"
 
-    # Cache of *found* manifests, keyed by module name. Misses are not cached, so
-    # a module appearing later on the path (or an edited manifest) is not masked
-    # by a stale negative result. Dropped by clear_caches() when the addons path
-    # is (re)configured (see initialize_sys_path()).
     _manifest_cache: dict[str, Manifest] = {}
 
     @staticmethod
@@ -390,7 +348,6 @@ class Manifest(Mapping[str, typing.Any]):
         :param display_warning: log a warning if the module is not found
         """
         if not MODULE_NAME_RE.match(module_name):
-            # invalid module name
             return None
         if mod := Manifest._get_manifest_from_addons(module_name):
             return mod
@@ -414,11 +371,6 @@ class Manifest(Mapping[str, typing.Any]):
             except OSError:
                 pass
             except (SyntaxError, ValueError) as e:
-                # ast.literal_eval raises SyntaxError for unparseable input and
-                # ValueError for valid syntax containing non-literal nodes
-                # (function calls, names, etc.).  Both indicate a broken
-                # manifest authored by a developer; surface the message at
-                # WARNING so an operator running default log levels notices.
                 _logger.warning(
                     "Failed to parse the manifest file at %r: %s",
                     path,
@@ -428,10 +380,6 @@ class Manifest(Mapping[str, typing.Any]):
                 try:
                     return Manifest(path=path, manifest_content=manifest_content)
                 except ValueError:
-                    # Invalid module name (e.g. dir like 'foo-bar' that
-                    # happens to contain a parseable __manifest__.py): skip
-                    # silently so all_addon_manifests() does not crash
-                    # bootstrap on stray directories.
                     _logger.debug(
                         "Manifest at %r has invalid module name, skipped",
                         path,
@@ -461,13 +409,10 @@ def get_module_path(module: str, display_warning: bool = True) -> str | None:
     Search the addons paths and return the first path where the given
     module is found.
     """
-    # TODO deprecate
     mod = Manifest.for_addon(module, display_warning=display_warning)
     return mod.path if mod else None
 
 
-# Directories and file suffixes with no bearing on a module's installed
-# behaviour, excluded from module_content_checksum.
 _CHECKSUM_IGNORE_DIRS = frozenset({"__pycache__", ".git"})
 _CHECKSUM_IGNORE_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
 
@@ -564,7 +509,6 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
     Return a new dictionary with cleaned and validated keys.
     """
 
-    # Shallow copy + fresh containers for mutable defaults (all are empty lists/dicts)
     manifest = {
         k: (v.copy() if isinstance(v, (list, dict)) else v)
         for k, v in _DEFAULT_MANIFEST.items()
@@ -572,14 +516,8 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
     manifest.update(manifest_content)
 
     if not manifest.get("author"):
-        # Although contributors and maintainer are not documented, it is
-        # not uncommon to find them in manifest files, use them as
-        # alternative.
         author = manifest.get("contributors") or manifest.get("maintainer") or ""
         if isinstance(author, (list, tuple)):
-            # Render lists as a comma-joined string instead of Python repr;
-            # `str(["A", "B"])` would produce "['A', 'B']", which is what
-            # ends up in the ir_module_module.author column.
             author = ", ".join(str(a) for a in author)
         else:
             author = str(author)
@@ -600,33 +538,18 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
     if module == "base":
         manifest["depends"] = []
     elif not manifest["depends"]:
-        # prevent the hack `'depends': []` except 'base' module
         manifest["depends"] = ["base"]
 
     depends = manifest["depends"]
-    # Reject strings before the Collection check: str IS a Collection, so
-    # `'depends': 'base'` (forgot the brackets) would silently be iterated
-    # character by character downstream ('b', 'a', 's', 'e' as module names).
     if isinstance(depends, str):
         raise TypeError(
             f"module {module}: 'depends' must be a list of module names; got"
             f" string {depends!r} (did you forget the brackets, e.g."
             f" ['{depends}']?)"
         )
-    # depends comes from the developer-authored manifest; a non-Collection is a
-    # programmer error, so assert is appropriate.
     assert isinstance(depends, Collection)
 
-    # auto_install is either `False` (by default) in which case the module
-    # is opt-in, either a list of dependencies in which case the module is
-    # automatically installed if all dependencies are (special case: [] to
-    # always install the module), either `True` to auto-install the module
-    # in case all dependencies declared in `depends` are installed.
     auto_install = manifest["auto_install"]
-    # Reject strings explicitly: `isinstance(str, Iterable)` is True, and
-    # `set("sale")` would silently become `{'s', 'a', 'l', 'e'}`, producing
-    # an opaque assertion further down.  A typo'd `'auto_install': 'sale'`
-    # (forgot the brackets) should fail with a message that names the cause.
     if isinstance(auto_install, str):
         raise TypeError(
             f"module {module}: 'auto_install' must be a bool or a list/tuple/set"
@@ -652,11 +575,6 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
     try:
         manifest["version"] = adapt_version(str(manifest["version"]))
     except ValueError:
-        # Degrade instead of raising: a raise here propagates through every
-        # all-manifests consumer (db.initialize, update_list, graph build), so
-        # one stray third-party addon with e.g. version "1.0-beta" anywhere on
-        # the addons path would prevent bootstrapping ANY database.  Marking it
-        # uninstallable quarantines the module and its dependents instead.
         if manifest["installable"]:
             _logger.warning(
                 "The module %s has an invalid version %r, setting installable=False",
@@ -711,11 +629,6 @@ def load_odoo_module(module_name: str) -> None:
     try:
         __import__(qualname)
 
-        # Call the module's post-load hook. This can be done before any model or
-        # data has been initialized. This is ok as the post-load hook is for
-        # server-wide (instead of registry-specific) functionalities.
-        # Guard against a missing manifest: `None.get` would raise an
-        # AttributeError that the circular-import handler below misreports.
         manifest = Manifest.for_addon(module_name)
         if manifest and (post_load := manifest.get("post_load")):
             getattr(sys.modules[qualname], post_load)()
@@ -755,21 +668,13 @@ def adapt_version(version: str) -> str:
         raise ValueError(
             f"Invalid version {version!r}, must have between 2 and 5 parts"
         )
-    # Validate that every part is an integer (release.major_version is always
-    # numeric "<major>.0", so a part that fails here is genuinely malformed).
     try:
         for part in parts:
             int(part)
     except ValueError as e:
         raise ValueError(f"Invalid version {version!r}") from e
     serie = release.major_version
-    # Compare against ``serie + "."``, not ``serie``: a bare ``startswith(serie)``
-    # also matches lookalikes like "19.05"/"19.01", leaving them unprefixed so
-    # check_version later rejects them and the module silently becomes
-    # installable=False. A version exactly equal to the serie ("19.0") is already
-    # serie-qualified and must not be double-prefixed.
     if len(parts) <= 3 and version != serie and not version.startswith(serie + "."):
-        # prefix the bare module version with the server serie
         return f"{serie}.{version}"
     return version
 
@@ -779,14 +684,10 @@ def check_version(version: str, should_raise: bool = True) -> bool:
     try:
         version = adapt_version(version)
     except ValueError:
-        # honour should_raise for structurally malformed versions too;
-        # otherwise the flag lies to callers probing arbitrary input
         if should_raise:
             raise
         return False
     serie = release.major_version
-    # Accept exactly the serie ("19.0"): adapt_version leaves it as-is (a
-    # bare-serie module version is valid, meaning the series itself).
     if version == serie or version.startswith(serie + "."):
         return True
     if should_raise:
@@ -819,10 +720,6 @@ def check_python_external_dependency(pydep: str) -> None:
         version = importlib.metadata.version(requirement.name)
     except importlib.metadata.PackageNotFoundError as e:
         try:
-            # Fall back to treating the requirement as an importable module name
-            # (legacy manifests sometimes list e.g. "PIL" instead of the PyPI
-            # distribution "Pillow").  Import the *name*, not the raw spec string
-            # -- importlib.import_module("PIL>=1.0") would always fail.
             importlib.import_module(requirement.name)
             _logger.warning(
                 "python external dependency on '%s' does not appear to be a valid PyPI package. Using a PyPI package name is recommended.",

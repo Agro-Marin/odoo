@@ -25,8 +25,6 @@ class Neutralize(DatabaseCommand):
 
         dbname = self.bootstrap_config(parsed_args)
 
-        # Python logging writes to stderr; it does not contaminate the SQL
-        # emitted to stdout in --stdout mode, so log unconditionally.
         _logger.info("Starting %s database neutralization", dbname)
 
         try:

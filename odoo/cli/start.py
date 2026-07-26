@@ -26,9 +26,6 @@ class Start(Command):
 
     def run(self, cmdargs: list[str]) -> None:
         config.parser.prog = self.prog
-        # default=None, not ".": an explicit `-p .` must win over the
-        # $VIRTUAL_ENV fallback below, which only applies when the flag
-        # was omitted.
         self.parser.add_argument(
             "-p",
             "--path",
@@ -46,23 +43,16 @@ class Start(Command):
 
         args, _unknown = self.parser.parse_known_args(args=cmdargs)
 
-        # When in a virtualenv, by default use its path rather than the cwd
         if args.path is None:
             args.path = os.environ.get("VIRTUAL_ENV") or "."
         project_path = Path(os.path.expandvars(args.path)).expanduser().resolve()
         db_name = None
         if is_path_in_module(project_path):
-            # started in a module so we choose this module name for database
             db_name = project_path.name
-            # go to the parent's directory of the module root
             project_path = project_path.parent.resolve()
 
-        # check if one of the subfolders has at least one module
         mods = self.get_module_list(project_path)
         if mods and not _has_arg(cmdargs, "--addons-path"):
-            # main()'s bootstrap parser already consumed any user --addons-path
-            # (so it's absent from cmdargs; _has_arg only catches direct calls
-            # that bypass main()). Merge user paths first instead of replacing.
             addons_paths = [str(project_path)]
             if bootstrap_value := odoo.cli.BOOTSTRAP_ADDONS_PATH:
                 user_paths = [p for p in bootstrap_value.split(",") if p]
@@ -75,8 +65,6 @@ class Start(Command):
             args.db_name = db_name or project_path.name
             cmdargs.extend(("-d", args.db_name))
 
-        # The name is often derived from a directory name; refuse the PG
-        # system databases before creating over (or serving from) one.
         if args.db_name in SYSTEM_DBS:
             sys.exit(
                 f"Refusing to use system database `{args.db_name}`; "
@@ -91,16 +79,10 @@ class Start(Command):
             sys.exit(f"Could not create database `{args.db_name}`. ({e})")
 
         if not _has_arg(cmdargs, "--db-filter"):
-            # re.escape prevents regex meta-chars in db_name ('.', '-', '+')
-            # from matching unrelated databases.
             cmdargs.append(f"--db-filter=^{re.escape(args.db_name)}$")
 
-        # Remove --path /-p options from the command arguments
         def is_path_arg(index: int, args: list[str]) -> bool:
             arg = args[index]
-            # Match `-p X`, `--path X`, `--path=X`, and the concatenated `-pX`.
-            # Leaking `-pX` is worse than a parse error: the server maps `-p` to
-            # --http-port, so a numeric path would silently change the port.
             if arg == "--path" or arg.startswith(("--path=", "-p")):
                 return True
             return index > 0 and args[index - 1] in ("-p", "--path")

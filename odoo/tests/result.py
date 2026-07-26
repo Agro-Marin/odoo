@@ -20,10 +20,6 @@ if TYPE_CHECKING:
 
 __unittest = True
 
-# `env_int` so that an empty-but-set variable, common in CI, does not crash
-# this import with ValueError.  A non-positive value (like unset) means "no
-# limit": halting after zero failures is meaningless, and the old `max(1, 0)`
-# silently turned 0 into "halt after the first failure".
 _max_failed = env_int("ODOO_TEST_MAX_FAILED_TESTS", 0)
 ODOO_TEST_MAX_FAILED_TESTS = _max_failed if _max_failed > 0 else sys.maxsize
 
@@ -83,7 +79,6 @@ class OdooTestResult:
         self.testsRun = 0
         self.skipped = 0
         self.tb_locals = False
-        # custom
         self.time_start = None
         self.queries_start = None
         self._soft_fail = False
@@ -119,8 +114,6 @@ class OdooTestResult:
     def startTest(self, test: case.TestCase) -> None:
         """Called when the given test is about to be run."""
         if not self._soft_fail:
-            # soft (non-final) retry attempts re-enter here; counting them
-            # inflated "of N tests" beyond the number of logical tests
             self.testsRun += 1
         self.log(
             logging.INFO,
@@ -190,12 +183,10 @@ class OdooTestResult:
     def _exc_info_to_string(self, err: tuple, test: case.TestCase) -> str:
         """Converts a sys.exc_info()-style tuple of values into a string."""
         exctype, value, tb = err
-        # Skip test runner traceback levels
         while tb and self._is_relevant_tb_level(tb):
             tb = tb.tb_next
 
         if exctype is test.failureException:
-            # Skip assert*() traceback levels
             length = self._count_relevant_tb_levels(tb)
         else:
             length = None
@@ -271,9 +262,6 @@ class OdooTestResult:
         except ValueError:
             caller_infos = "(unknown file)", 0, "(unknown function)", None
         fn, lno, func, sinfo = caller_infos
-        # using logger.log makes it difficult to spot-replace findCaller in
-        # order to provide useful location information (the problematic spot
-        # inside the test function), so use lower-level functions instead
         if logger.isEnabledFor(level):
             record = logger.makeRecord(
                 logger.name,
@@ -299,7 +287,7 @@ class OdooTestResult:
         counts = collections.Counter()
         for test, stat in self.stats.items():
             r = _TEST_ID.match(test)
-            if not r:  # upgrade has tests at weird paths, ignore them
+            if not r:
                 continue
 
             stats_tree[r["module"]] += stat
@@ -334,8 +322,6 @@ class OdooTestResult:
                 f".{tc._testMethodName} {test._subDescription()}"
             )
         if isinstance(test, case.TestCase):
-            # Module name is already in the logger — avoid duplicating it.
-            # Only for TestCase; we can receive _ErrorHolder or other special cases.
             return f"{test.__class__.__qualname__}.{test._testMethodName}"
         return str(test)
 
@@ -348,8 +334,6 @@ class OdooTestResult:
         try:
             yield
         finally:
-            # record even when the wrapped setup/teardown raises: a failing
-            # setUpClass otherwise vanished from the stats report
             self.stats[test_id] += Stat(
                 time=time.monotonic() - time_start,
                 queries=db.sql_counter - queries_before,
@@ -358,8 +342,6 @@ class OdooTestResult:
     def logError(self, flavour: str, test: case.TestCase, error: tuple) -> None:
         err = self._exc_info_to_string(error, test)
         caller_infos = self.getErrorCallerInfo(error, test)
-        # INFO on purpose: the separator line must never itself register as
-        # an error (log-based tooling counts ERROR records)
         self.log(logging.INFO, "=" * 70, test=test, caller_infos=caller_infos)
         self.log(
             logging.ERROR,
@@ -380,13 +362,11 @@ class OdooTestResult:
         :returns: a tuple (fn, lno, func, sinfo) matching the logger findCaller format or None
         """
 
-        # only handle TestCase here. test can be an _ErrorHolder in some case (setup/teardown class errors)
         if not isinstance(test, case.TestCase):
             return None
 
         _, _, error_traceback = error
 
-        # move upwards the subtest hierarchy to find the real test
         while isinstance(test, case._SubTest) and test.test_case:
             test = test.test_case
 
@@ -394,9 +374,6 @@ class OdooTestResult:
         file_tb = None
         filename = inspect.getfile(type(test))
 
-        # Prefer the deepest frame inside the test method (or setUp/tearDown),
-        # falling back to the deepest frame in the test's file (covers errors
-        # raised from cleanups/helpers defined in the same module).
         while error_traceback:
             code = error_traceback.tb_frame.f_code
             if code.co_name in (test._testMethodName, "setUp", "tearDown"):

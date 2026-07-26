@@ -1,0 +1,131 @@
+name: Contract + Process Suites
+
+# The two suites that need real external dependencies rather than a database
+# full of Odoo data (see doc/coding_guidelines.rst §6.0):
+#
+#   * tests/contract  — compares our ASSUMPTIONS about psycopg, psql and
+#     pg_dump against those programs. Every defect found in the service-layer
+#     audit was an assumption mismatch, not a logic error, and each was invisible
+#     to a mock-based test because the mock encoded the same wrong belief. Needs
+#     a reachable PostgreSQL plus the psql/pg_dump CLIENTS.
+#   * tests/process   — boots real odoo-bin processes to assert the handful of
+#     properties that vanish the moment anything is mocked: a listen socket
+#     surviving a re-exec, a master replacing a killed child, a bounded thread
+#     pool under real half-open sockets.
+#
+# Neither can live in unit_tests.yml: that workflow is the database-free lane
+# and must stay that way.
+#
+# Client version matters. pg_dump refuses to dump a server NEWER than itself,
+# and `\restrict` (which the restore scanner's allowlist is pinned against)
+# only appears in pg_dump 17.6+. ubuntu-latest ships an older client, so the
+# PGDG repo is added to install a client matching the PostgreSQL 18 service.
+#
+# WARN-ONLY (Phase 1): continue-on-error keeps this informational for its first
+# runs, mirroring the phased rollout of freethreading.yml / py_typecheck.yml.
+# Flip to blocking (remove continue-on-error) once it has been green a few
+# times — these suites gate real security regressions and should not stay
+# advisory.
+
+on:
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      - 'odoo/service/**'
+      - 'odoo/db/**'
+      - 'tests/contract/**'
+      - 'tests/process/**'
+      - 'requirements*.txt'
+      - '.github/workflows/service_suites.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-process:
+    name: contract + process (PostgreSQL 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true  # Phase 1 warn-only — remove once consistently green
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Both suites — and the odoo-bin processes the process suite launches —
+      # connect with odoo's db_host unset, i.e. through libpq's own defaults.
+      # These are what point that at the service container.
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: odoo
+      PGPASSWORD: odoo
+      # A skip-guarded suite that silently skips reports green while comparing
+      # nothing. This turns a missing dependency into a FAILURE here, while
+      # leaving it a skip on a developer's machine.
+      ODOO_CONTRACT_REQUIRE_DEPS: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build + install the odoo_rust extension
+        # `import odoo` pulls it in transitively; both suites import odoo.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'maturin>=1.0,<2.0'
+          maturin build --release --manifest-path crates/odoo_rust/Cargo.toml --out dist
+          python -m pip install --no-index --find-links dist odoo_rust
+
+      - name: Install PostgreSQL 18 client tools
+        # psql and pg_dump are the programs under test in tests/contract, so
+        # they must match the server: an older pg_dump refuses a newer server
+        # outright, and only 17.6+ emits the \restrict wrapper the scanner's
+        # allowlist is pinned against.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates gnupg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-18
+          pg_dump --version && psql --version
+
+      - name: Install system + Python dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev
+          pip install --quiet -r requirements.txt "pytest==9.0.2"
+
+      - name: Contract suite (psycopg / psql / pg_dump)
+        run: python -m pytest tests/contract -q
+
+      - name: Process suite (real odoo-bin processes)
+        # Separate step so a failure is attributable: the contract suite
+        # compares programs, this one supervises processes.
+        run: python -m pytest tests/process -q

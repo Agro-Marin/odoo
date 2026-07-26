@@ -9,7 +9,15 @@ from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
 from odoo.modules.registry import Registry
 
+from ._db_helpers import rpc_db_exposed
+
 _logger = logging.getLogger(__name__)
+
+_EXPECTED_CONNECT_FAILURES: tuple[type[BaseException], ...] = (
+    psycopg.OperationalError,
+    psycopg.errors.InvalidCatalogName,
+    PoolError,
+)
 
 RPC_VERSION_1: dict[str, Any] = {
     "server_version": odoo.release.version,
@@ -36,8 +44,7 @@ def exp_authenticate(
     caller cannot use the exception type to enumerate which databases exist or
     are Odoo-initialized:
 
-    * **Missing DB** — ``Registry(db)`` raises ``PoolError`` (or
-      ``psycopg.OperationalError`` on pool-bypassing paths).
+    * **Missing DB** — ``Registry(db)`` raises from the pool's connect path.
     * **Existing-but-not-Odoo DB** — ``res.users`` absent from the registry, so
       ``env["res.users"]`` would raise a telltale ``KeyError``.
     * **Empty / non-string DB name** — ``db_connect`` does not validate it; a
@@ -45,52 +52,57 @@ def exp_authenticate(
     * **Malformed ``user_agent_env``** — non-dict raises ``TypeError`` from
       ``{**user_agent_env, ...}``.
 
-    The pool (``odoo.db.pool.borrow``) wraps every ``getconn`` failure in
-    ``PoolError``; ``psycopg.OperationalError`` covers the direct-connect paths
-    used by ``neutralize`` and migrate scripts.
+    The connect-failure arm catches ``psycopg.Error``, NOT the narrower
+    ``psycopg.OperationalError`` it once did.  ``odoo.db.pool`` deliberately
+    *translates* a connect-phase failure into the precise SQLSTATE class
+    (``_probe_connectable`` / ``_database_absent``), and the one that matters
+    here — ``InvalidCatalogName``, "database does not exist" — is a
+    ``ProgrammingError``, not an ``OperationalError``.  So an absent database
+    used to propagate out of this function as an RPC Fault while an existing one
+    returned ``False``: a per-name existence oracle on an ``auth="none"`` verb
+    (``/jsonrpc``, ``/xmlrpc/common``), which is exactly the invariant above.
+    Measured before this change: absent -> ``InvalidCatalogName``; existing
+    non-Odoo -> ``False``; existing Odoo -> ``False``.  Catching the whole
+    ``psycopg.Error`` tree keeps the invariant from silently regressing again
+    the next time the pool classifies an error more precisely.
     """
-    # Reject malformed inputs upfront so the no-leak invariant holds without a
-    # blanket ``except Exception`` (which would mask programming errors): a
-    # non-str ``db`` / ``user_agent_env`` would otherwise leak an
-    # AssertionError / TypeError distinguishable from AccessDenied.
     if not isinstance(db, str) or not db:
         return False
     if not isinstance(login, str) or not isinstance(password, str):
-        # Left unchecked, a non-str login/password can raise a non-AccessDenied
-        # type from deep inside ``authenticate``, breaking the invariant above.
         return False
     if user_agent_env is None:
         user_agent_env = {}
     elif not isinstance(user_agent_env, dict):
         return False
+    if not rpc_db_exposed(db):
+        return False
     try:
         registry = Registry(db)
-    except (psycopg.OperationalError, PoolError):
-        _logger.debug(
-            "exp_authenticate: registry unavailable for %r", db, exc_info=True
-        )
+    except (psycopg.Error, PoolError) as exc:
+        if isinstance(exc, _EXPECTED_CONNECT_FAILURES):
+            _logger.debug(
+                "exp_authenticate: registry unavailable for %r", db, exc_info=True
+            )
+        else:
+            _logger.warning(
+                "exp_authenticate: unexpected database error for %r; answering "
+                "False to keep the RPC response uniform",
+                db,
+                exc_info=True,
+            )
         return False
-    # ``Registry(db)`` succeeds for any PG database that opens, including
-    # non-Odoo ones (``postgres``, ``template1``, ...).  The explicit membership
-    # check keeps ``env["res.users"]`` from raising a telltale ``KeyError`` that
-    # would distinguish "exists but not Odoo" from "doesn't exist".
     if "res.users" not in registry.models:
-        _logger.debug(
-            "exp_authenticate: %r is reachable but not an Odoo database", db
-        )
+        _logger.debug("exp_authenticate: %r is reachable but not an Odoo database", db)
         return False
     with registry.cursor() as cr:
         env = odoo.api.Environment(cr, None, {})
-        env.transaction.default_env = env  # force default_env
+        env.transaction.default_env = env
         try:
             credential = {
                 "login": login,
                 "password": password,
                 "type": "password",
             }
-            # ``interactive=False`` MUST come after the ``**user_agent_env``
-            # unpack (later keys win) so a caller cannot pass ``interactive=True``
-            # and trigger MFA prompts with no client to satisfy them.
             return env["res.users"].authenticate(
                 credential, {**user_agent_env, "interactive": False}
             )["uid"]
@@ -123,8 +135,6 @@ def dispatch(method: str, params: list | tuple) -> Any:
     return handler(*params)
 
 
-# Public allowlist: explicit is safer than reflection.  ``db.py`` uses the same
-# pattern (plus ``_REQUIRES_MASTER_PASSWORD`` for its admin-only methods).
 _DISPATCH: dict[str, Callable] = {
     "login": exp_login,
     "authenticate": exp_authenticate,

@@ -9,12 +9,6 @@ RELEASE_LEVELS_DISPLAY: Final[dict[str, str]] = {
     FINAL: "",
 }
 
-# version_info format: (MAJOR, MINOR, MICRO, RELEASE_LEVEL, SERIAL, SUFFIX)
-# inspired by Python's own sys.version_info, in order to be
-# properly comparable using normal operators, for example:
-#  (6,1,0,'beta',0) < (6,1,0,'candidate',1) < (6,1,0,'candidate',2)
-#  (6,1,0,'candidate',2) < (6,1,0,'final',0) < (6,1,2,'final',0)
-# NOTE: during release, the MAJOR version can become an arbitrary string ('saas~xx')
 version_info: Final[tuple[int, int, int, str, int, str]] = (19, 0, 0, FINAL, 0, "")
 series: str = ".".join(str(s) for s in version_info[:2])
 serie = major_version = series

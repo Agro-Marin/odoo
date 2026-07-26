@@ -18,26 +18,19 @@ from odoo.tools import config
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# ``signal.SIGHUP`` is POSIX-only.
 _SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 
-# All server classes log under ``odoo.service.server`` so operator log filters
-# keep working regardless of which module defines the class.
 _logger = logging.getLogger("odoo.service.server")
 
 
-# Process-global on-stop callbacks: they fire once per process regardless of
-# which server class runs, so they live at module scope, not on the class.
 _ON_STOP_FUNCS: list[Callable] = []
 
 
 class CommonServer:
     def __init__(self, app: Any) -> None:
         self.app = app
-        # config
         self.interface: str = config["http_interface"] or "0.0.0.0"
         self.port: int = config["http_port"]
-        # runtime
         self.pid: int = os.getpid()
         self.logger = _logger.getChild(self.__class__.__name__)
 
@@ -58,8 +51,5 @@ class CommonServer:
                 self.logger.debug("on_close call %s", func)
                 func()
             except Exception:
-                # A hook may be a ``functools.partial`` (no ``__name__``); the
-                # ``repr`` fallback keeps this handler from raising and aborting
-                # the remaining hooks.
                 name = getattr(func, "__name__", repr(func))
                 self.logger.warning("Exception in %s", name, exc_info=True)
