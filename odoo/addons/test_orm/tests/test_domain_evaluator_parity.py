@@ -15,9 +15,19 @@ evaluation, so a record can pass the in-memory check and fail the SQL one.
 These tests pin the three drifts a differential sweep over
 ``(field, operator, value)`` triples surfaced, plus a general parity sweep so
 the next one fails here instead of in production.
+
+:class:`TestDomainEvaluatorParityGenerated` adds a seeded generator on top:
+hand-written cases only cover shapes someone thought of, and all three drifts
+above were combinations of an ordinary field with an ordinary comparand. The
+generator draws from the same value pool that produced them -- string
+comparands, fractional comparands on integer columns, falsy values -- and
+composes them with and/or/not.
 """
 
+import random
+
 from odoo.exceptions import UserError
+from odoo.orm.domain import Domain
 from odoo.tests.common import TransactionCase
 
 
@@ -525,3 +535,134 @@ class TestDomainIdComparand(TransactionCase):
             with self.subTest(domain=domain):
                 self.assertEqual(View.search(domain).ids, ["hello"])
                 self.assertEqual(rows.filtered_domain(domain).ids, ["hello"])
+
+
+class TestDomainEvaluatorParityGenerated(TransactionCase):
+    """Seeded generative parity sweep.
+
+    Deterministic: a fixed seed and its own fixture, so a failure reproduces
+    exactly and reports the offending domain.
+    """
+
+    SEED = 20260726
+    DOMAINS = 400
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Partner = cls.env["res.partner"]
+        cls.records = cls.Partner.create(
+            [
+                {"name": "G-null"},
+                {"name": "G-empty", "comment": "", "ref": "", "color": 0},
+                {"name": "G-zero", "color": 0, "partner_latitude": 0.0, "ref": "0"},
+                {"name": "G-neg", "color": -3, "partner_latitude": -1.5, "ref": "-1"},
+                {"name": "G-one", "color": 1, "partner_latitude": 1.0, "ref": "1"},
+                {"name": "G-two", "color": 2, "partner_latitude": 2.5, "ref": "2"},
+                {"name": "G-three", "color": 3, "partner_latitude": 3.0, "ref": "R3"},
+                {"name": "G-ten", "color": 10, "partner_latitude": 10.5, "ref": "r10"},
+                {"name": "G-type", "color": 5, "type": "invoice", "employee": True},
+                {"name": "G-dup", "color": 5, "ref": "R3", "comment": "note"},
+                {"name": "G-uni", "color": 7, "ref": "Ünïcøde", "comment": "nöte"},
+                {"name": "G-pct", "color": 8, "ref": "50%_off", "comment": "a_b%c"},
+            ]
+        )
+        cls.env.flush_all()
+
+    # (field, operators, values) -- the value pools deliberately mix types, which
+    # is what every drift this module pins had in common.
+    def _specs(self):
+        num_ops = ["=", "!=", "<", "<=", ">", ">="]
+        # the inequality operators belong on the text fields too: the drift this
+        # module pins for Char/Html was ``('html_field', '<', 'note')``, and the
+        # comparand coercion they share is only reached for < <= > >=
+        text_ops = [
+            "=",
+            "!=",
+            "in",
+            "not in",
+            "like",
+            "not like",
+            "ilike",
+            "=like",
+            *num_ops,
+        ]
+        return [
+            (
+                "color",
+                num_ops + ["in", "not in"],
+                [0, 1, 2, 3, -3, 2.5, -1.5, "2", "0", False],
+            ),
+            ("partner_latitude", num_ops, [0.0, 1.0, 2.5, -1.5, 3, "1", False]),
+            ("ref", text_ops, ["R3", "r10", "", "0", "%", "_", "Ünïcøde", False, 3]),
+            ("comment", text_ops, ["note", "nöte", "a_b%c", "", False]),
+            ("name", text_ops, ["G-one", "g-", "%", "", False]),
+            ("type", ["=", "!=", "in", "not in"], ["invoice", "contact", "", False]),
+            ("employee", ["=", "!=", "in", "not in"], [True, False]),
+            ("active", ["=", "!=", "in", "not in"], [True, False]),
+        ]
+
+    def _condition(self, rng, specs):
+        fname, ops, values = rng.choice(specs)
+        op = rng.choice(ops)
+        if op in ("in", "not in"):
+            value = rng.sample(values, rng.randint(1, min(3, len(values))))
+        else:
+            value = rng.choice(values)
+        return Domain(fname, op, value)
+
+    def _domain(self, rng, specs, depth=0):
+        if depth >= 2 or rng.random() < 0.5:
+            return self._condition(rng, specs)
+        parts = [self._domain(rng, specs, depth + 1) for _ in range(rng.randint(2, 3))]
+        roll = rng.random()
+        if roll < 0.4:
+            return Domain.AND(parts)
+        if roll < 0.8:
+            return Domain.OR(parts)
+        return ~parts[0]
+
+    def _evaluate(self, model, records, domain):
+        """Return ``(error_name, ids)`` for one evaluator, never raising.
+
+        A domain the ORM refuses is a legitimate outcome; what must not differ
+        is *which* evaluator refuses it.
+        """
+        with self.env.cr.savepoint(flush=False):
+            try:
+                if model is not None:
+                    scoped = Domain("id", "in", records.ids) & domain
+                    return None, set(model.search(scoped).ids)
+                return None, set(records.filtered_domain(domain).ids)
+            except Exception as error:
+                return type(error).__name__, None
+
+    def test_generated_domains_agree_between_evaluators(self):
+        """Both evaluators accept and select the same records, or both refuse."""
+        rng = random.Random(self.SEED)
+        specs = self._specs()
+        records = self.records.with_context(active_test=False)
+        model = self.Partner.with_context(active_test=False)
+        refused = 0
+        for index in range(self.DOMAINS):
+            domain = self._domain(rng, specs)
+            with self.subTest(index=index, domain=list(domain)):
+                sql_error, sql_ids = self._evaluate(model, records, domain)
+                py_error, py_ids = self._evaluate(None, records, domain)
+                context = f"on {list(domain)!r} (seed={self.SEED}, index={index})"
+                self.assertEqual(
+                    sql_error is None,
+                    py_error is None,
+                    f"one evaluator refused and the other did not {context}: "
+                    f"search={sql_error or 'ok'} filtered_domain={py_error or 'ok'}",
+                )
+                if sql_error is None:
+                    self.assertEqual(sql_ids, py_ids, f"evaluators disagree {context}")
+                else:
+                    refused += 1
+        self.assertLess(
+            refused,
+            self.DOMAINS // 2,
+            "most generated domains were refused — the generator stopped "
+            "exercising the evaluators",
+        )
