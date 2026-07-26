@@ -2,6 +2,7 @@
 
 from odoo import Command
 from odoo.tests import tagged, users
+
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
