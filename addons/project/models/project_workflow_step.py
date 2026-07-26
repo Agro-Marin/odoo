@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Any
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Command
 
@@ -169,7 +170,7 @@ class ProjectWorkflowStep(models.Model):
         return bool(resolved)
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> ProjectWorkflowStep:
+    def create(self, vals_list: list[ValuesType]) -> ProjectWorkflowStep:
         """Enforce mutual exclusivity between personal and project stages.
 
         If ``project_ids`` is set, ``user_id`` is cleared.  If neither is

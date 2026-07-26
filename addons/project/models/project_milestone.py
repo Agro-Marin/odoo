@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.tools import format_date
 
 from .project_task import CLOSED_STATES
@@ -215,7 +216,7 @@ class ProjectMilestone(models.Model):
     def _get_data_list(self) -> list[dict]:
         return [ms._get_data() for ms in self]
 
-    def copy(self, default: dict | None = None) -> Self:
+    def copy(self, default: ValuesType | None = None) -> Self:
         default = dict(default or {})
         new_milestones = super().copy(default)
         milestone_mapping = self.env.context.get("milestone_mapping", {})

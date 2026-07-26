@@ -1,6 +1,7 @@
 from typing import Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 
 
 class ProjectCollaborator(models.Model):
@@ -43,7 +44,7 @@ class ProjectCollaborator(models.Model):
             collaborator.display_name = f"{collaborator.project_id.display_name} - {collaborator.partner_id.display_name}"
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         collaborator = self.env["project.collaborator"].search([], limit=1)
         project_collaborators = super().create(vals_list)
         if not collaborator:

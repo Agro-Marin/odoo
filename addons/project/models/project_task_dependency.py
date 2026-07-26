@@ -14,6 +14,7 @@ compatibility; this model adds metadata for advanced scheduling.
 from collections import defaultdict
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 
 
@@ -124,7 +125,7 @@ class ProjectTaskDependency(models.Model):
                 stack.extend(downstream.get(current, ()))
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> ProjectTaskDependency:
+    def create(self, vals_list: list[ValuesType]) -> ProjectTaskDependency:
         """Sync new typed dependencies to the M2M predecessor_ids."""
         records = super().create(vals_list)
         records._sync_to_m2m()

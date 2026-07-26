@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 from odoo.libs.numbers import float_utils
@@ -1626,7 +1627,7 @@ class ProjectProject(models.Model):
         )
         return True
 
-    def copy_data(self, default: dict | None = None) -> list[dict]:
+    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         copy_from_template = self.env.context.get("copy_from_template")
@@ -1654,7 +1655,7 @@ class ProjectProject(models.Model):
                 )
         return vals_list
 
-    def copy(self, default: dict | None = None) -> Self:
+    def copy(self, default: ValuesType | None = None) -> Self:
         default = dict(default or {})
         # Since we dont want to copy the milestones if the original project has the feature disabled, we set the milestones to False by default.
         default["milestone_ids"] = False
@@ -1799,7 +1800,7 @@ class ProjectProject(models.Model):
         return res
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         # Prevent double project creation
         self = self.with_context(mail_create_nosubscribe=True)
         if any("label_tasks" in vals and not vals["label_tasks"] for vals in vals_list):

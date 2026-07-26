@@ -7,13 +7,14 @@ that single behaviour so the four copies cannot drift apart.
 """
 
 from odoo import models
+from odoo.api import ValuesType
 
 
 class ProjectPmMixin(models.AbstractModel):
     _name = "project.pm.mixin"
     _description = "Project PM Record Mixin"
 
-    def copy_data(self, default: dict | None = None) -> list[dict]:
+    def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         """Append '(copy)' to the ``name`` of each duplicated record."""
         vals_list = super().copy_data(default=default)
         return [

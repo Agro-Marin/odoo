@@ -1,7 +1,7 @@
 from random import randint
-from typing import Any
 
 from odoo import api, fields, models
+from odoo.api import DomainType, ValuesType
 from odoo.fields import Domain
 from odoo.tools import SQL
 
@@ -72,12 +72,12 @@ class ProjectTags(models.Model):
     @api.model
     def search_read(
         self,
-        domain: list | None = None,
+        domain: DomainType | None = None,
         fields: list[str] | None = None,
         offset: int = 0,
         limit: int | None = None,
         order: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ValuesType]:
         if "project_id" in self.env.context:
             tag_ids = [id_ for id_, _label in self.name_search()]
             domain = Domain.AND([domain, [("id", "in", tag_ids)]])
@@ -114,7 +114,7 @@ class ProjectTags(models.Model):
     def name_search(
         self,
         name: str = "",
-        domain: list | None = None,
+        domain: DomainType | None = None,
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:

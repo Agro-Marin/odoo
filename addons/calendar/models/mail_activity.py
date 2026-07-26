@@ -54,7 +54,7 @@ class MailActivity(models.Model):
         }
         return action
 
-    def _action_done(self, feedback=False, attachment_ids=False):
+    def _action_done(self, feedback=False, attachment_ids=None):
         # Add feedback to the internal event 'notes', which is not synchronized with the activity's 'note'
         if feedback:
             for event in self.calendar_event_id:

@@ -2,6 +2,7 @@ import operator
 from typing import Any, Self
 
 from odoo import Command, _, api, fields, models
+from odoo.api import ValuesType
 
 
 class ProjectShareWizard(models.TransientModel):
@@ -98,7 +99,7 @@ class ProjectShareWizard(models.TransientModel):
             wizard.existing_partner_ids = wizard.collaborator_ids.partner_id
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         wizards = super().create(vals_list)
         for wizard in wizards:
             collaborator_ids_to_add = []

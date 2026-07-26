@@ -15,7 +15,7 @@ from odoo.fields import Domain
 from odoo.tools import config, date_utils, split_every
 from odoo.tools.image import image_data_uri
 
-from odoo.addons.account.tools import dict_to_xml
+from odoo.tools.xml_utils import dict_to_xml
 
 # Holds the maximum amount of records that can be sent in a single submission.
 SUBMISSION_MAX_SIZE = 100

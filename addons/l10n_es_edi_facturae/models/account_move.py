@@ -12,10 +12,11 @@ from odoo.exceptions import UserError
 from odoo.tools import float_round, float_repr, float_compare, date_utils, SQL
 from odoo.tools.xml_utils import cleanup_xml_node, find_xml_value
 from odoo.tools.sql import column_exists, create_column
-from odoo.addons.l10n_es_edi_facturae.xml_utils import (
-    NS_MAP,
-    _canonicalize_node,
-    _reference_digests,
+from odoo.addons.l10n_es_edi_facturae.xml_utils import NS_MAP
+from odoo.libs.xml.dsig import (
+    XmlSigError,
+    canonicalize_signed_info,
+    fill_reference_digests,
 )
 
 PHONE_CLEAN_TABLE = str.maketrans({" ": None, "-": None, "(": None, ")": None, "+": None})
@@ -878,10 +879,15 @@ class AccountMove(models.Model):
         signature = self.env['ir.qweb']._render('l10n_es_edi_facturae.template_xades_signature', signature_data)
         signature = cleanup_xml_node(signature, remove_blank_nodes=False)
         root.append(signature)
-        _reference_digests(signature.find("ds:SignedInfo", namespaces=NS_MAP))
+        # dsig raises XmlSigError to stay Odoo-free; surface it as a UserError
+        # here, keeping the URI/node detail that makes it diagnosable.
+        try:
+            fill_reference_digests(signature.find("ds:SignedInfo", namespaces=NS_MAP))
+        except XmlSigError as err:
+            raise UserError(str(err)) from err  # pylint: disable=missing-gettext
 
         signed_info_xml = signature.find("ds:SignedInfo", namespaces=NS_MAP)
-        signature.find("ds:SignatureValue", namespaces=NS_MAP).text = certificate_sudo._sign(_canonicalize_node(signed_info_xml)).decode()
+        signature.find("ds:SignatureValue", namespaces=NS_MAP).text = certificate_sudo._sign(canonicalize_signed_info(signed_info_xml)).decode()
         return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True)
 
     def _get_invoice_legal_documents(self, filetype, allow_fallback=False):

@@ -3,7 +3,7 @@ from lxml import etree
 from odoo import models, Command, _
 from odoo.tools import html2plaintext
 from odoo.addons.account_edi_ubl_cii.tools import Order
-from odoo.addons.account.tools import dict_to_xml
+from odoo.tools.xml_utils import dict_to_xml
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
 
 

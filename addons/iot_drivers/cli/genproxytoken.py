@@ -2,7 +2,7 @@ import secrets
 import sys
 import textwrap
 
-from odoo.tools.password import pbkdf2_sha512_hash
+from odoo.libs.password import pbkdf2_sha512_hash
 
 from odoo.cli import Command
 from odoo.tools import config

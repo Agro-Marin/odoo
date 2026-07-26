@@ -3,6 +3,7 @@ from typing import Any, Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.fields import Domain
 from odoo.tools import format_amount, formatLang
 
@@ -123,7 +124,7 @@ class ProjectUpdate(models.Model):
     # ORM Override
     # ---------------------------------
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         updates = super().create(vals_list)
         for update in updates:
             project = update.project_id
