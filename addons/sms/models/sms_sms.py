@@ -4,9 +4,10 @@ import logging
 from itertools import batched
 from uuid import uuid4
 
-from odoo import api, fields, models, tools, _
-from odoo.addons.sms.tools.sms_api import SmsApi
+from odoo import _, api, fields, models, tools
 from odoo.libs.web.urls import urljoin as url_join
+
+from odoo.addons.sms.tools.sms_api import SmsApi
 
 _logger = logging.getLogger(__name__)
 
@@ -168,7 +169,7 @@ class SmsSms(models.Model):
 
     def _split_batch(self):
         batch_size = self._get_send_batch_size()
-        yield from batched(self.ids, batch_size)
+        yield from batched(self.ids, batch_size, strict=False)
 
     def _send(self, unlink_failed=False, unlink_sent=True, raise_exception=False):
         """Send SMS after checking the number (presence and formatting)."""
@@ -207,7 +208,8 @@ class SmsSms(models.Model):
         all_sms_sudo = self.env['sms.sms'].sudo().search([('uuid', 'in', results_uuids)]).with_context(sms_skip_msg_notification=True)
 
         for (iap_state, failure_reason), results_group in tools.groupby(results, key=lambda result: (result['state'], result.get('failure_reason'))):
-            sms_sudo = all_sms_sudo.filtered(lambda s: s.uuid in {result['uuid'] for result in results_group})
+            group_uuids = {result['uuid'] for result in results_group}
+            sms_sudo = all_sms_sudo.filtered(lambda s, group_uuids=group_uuids: s.uuid in group_uuids)
             if success_state := self.IAP_TO_SMS_STATE_SUCCESS.get(iap_state):
                 sms_sudo.sms_tracker_id._action_update_from_sms_state(success_state)
                 to_delete = {'to_delete': True} if unlink_sent else {}

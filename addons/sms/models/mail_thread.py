@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
 
-from odoo import api, Command, models, fields
-from odoo.addons.sms.tools.sms_tools import sms_content_to_rendered_html
+from odoo import Command, api, fields, models
 from odoo.tools import html2plaintext
+
+from odoo.addons.sms.tools.sms_tools import sms_content_to_rendered_html
 
 _logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class MailThread(models.AbstractModel):
         if number_field or (partner_ids is False and sms_numbers is None):
             info = self._sms_get_recipients_info(force_field=number_field)[self.id]
             info_partner_ids = info['partner'].ids if info['partner'] else False
-            info_number = info['sanitized'] if info['sanitized'] else info['number']
+            info_number = info['sanitized'] or info['number']
             if info_partner_ids and info_number:
                 sms_pid_to_number[info_partner_ids[0]] = info_number
             if info_partner_ids:
@@ -174,7 +174,7 @@ class MailThread(models.AbstractModel):
         sms_all = self.env['sms.sms'].sudo()
 
         # pre-compute SMS data
-        body = sms_content or html2plaintext(msg_vals['body'] if 'body' in msg_vals else message.body)
+        body = sms_content or html2plaintext(msg_vals.get('body', message.body))
         sms_base_vals = {
             'body': body,
             'mail_message_id': message.id,

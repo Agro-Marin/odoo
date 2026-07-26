@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from contextlib import contextmanager
 from datetime import UTC
@@ -18,7 +18,7 @@ from odoo.addons.sms.tools.sms_api import SmsApi
 class MockSMS(common.HttpCase):
 
     def tearDown(self):
-        super(MockSMS, self).tearDown()
+        super().tearDown()
         self._clear_sms_sent()
 
     # ------------------------------------------------------------
@@ -93,7 +93,7 @@ class MockSMS(common.HttpCase):
                                 'Please contact the author of the app. '
                                 'The url it tried to contact was ' + local_endpoint
                             )
-                        elif error == 'credit':
+                        if error == 'credit':
                             error = 'insufficient_credit'
                         res = {
                             'uuid': number['uuid'],
@@ -111,6 +111,7 @@ class MockSMS(common.HttpCase):
                             })
                         result.append(res)
                 return result
+            return None
 
         def _sms_sms_create(model, *args, **kwargs):
             res = sms_create_origin(model, *args, **kwargs)
@@ -262,7 +263,7 @@ class SMSCase(MockSMS):
           :param content: SMS content
           :param mail_message_values: dictionary of expected mail message fields values
         """
-        partners = self.env['res.partner'].concat(*list(p['partner'] for p in recipients_info if p.get('partner')))
+        partners = self.env['res.partner'].concat(*[p['partner'] for p in recipients_info if p.get('partner')])
         numbers = [p['number'] for p in recipients_info if p.get('number')]
         # special case of void notifications: check for False / False notifications
         if not partners and not numbers:
@@ -301,7 +302,7 @@ class SMSCase(MockSMS):
             if number is None and partner:
                 number = partner._phone_format()
 
-            notif = notifications.filtered(lambda n: n.res_partner_id == partner and n.sms_number == number and n.notification_status == state)
+            notif = notifications.filtered(lambda n, partner=partner, number=number, state=state: n.res_partner_id == partner and n.sms_number == number and n.notification_status == state)
 
             debug_info = ''
             if not notif:
@@ -363,7 +364,7 @@ class SMSCommon(MailCommon, SMSCase):
         cls.test_numbers_san = [phone_validation.phone_format(number, 'BE', '32', force_format='E164') for number in cls.test_numbers]
 
         # some numbers for mass testing
-        cls.mass_numbers = ['04561%s2%s3%s' % (x, x, x) for x in range(0, 10)]
+        cls.mass_numbers = ['04561%s2%s3%s' % (x, x, x) for x in range(10)]
         cls.mass_numbers_san = [phone_validation.phone_format(number, 'BE', '32', force_format='E164') for number in cls.mass_numbers]
 
     @classmethod
@@ -371,7 +372,7 @@ class SMSCommon(MailCommon, SMSCase):
         return cls.env['sms.template'].create({
             'name': 'Test Template',
             'model_id': cls.env['ir.model']._get(model).id,
-            'body': body if body else 'Dear {{ object.display_name }} this is an SMS.'
+            'body': body or 'Dear {{ object.display_name }} this is an SMS.'
         })
 
     def _make_webhook_jsonrpc_request(self, statuses):

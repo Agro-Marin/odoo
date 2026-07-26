@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import exceptions
+from odoo.tools.translate import LazyTranslate, _
+
 from odoo.addons.iap.tools import iap_tools
-from odoo.tools.translate import _, LazyTranslate
 
 _lt = LazyTranslate(__name__)
 
@@ -47,7 +48,7 @@ class SmsApiBase:
         return {}
 
     def _send_sms_batch(self, messages, delivery_reports_url=False):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _set_company(self, company):
         self.company = company

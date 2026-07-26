@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from markupsafe import Markup
 
-from odoo.tests.common import TransactionCase, users
-from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.exceptions import AccessError
 from odoo.tests import tagged
-from odoo.tools import mute_logger, convert_file
+from odoo.tests.common import TransactionCase, users
+from odoo.tools import convert_file, mute_logger
+
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged('post_install', '-at_install')
@@ -18,13 +18,14 @@ class TestSmsTemplateAccessRights(TransactionCase):
         cls.user_admin = mail_new_test_user(cls.env, login='user_system', groups='base.group_user,base.group_system')
         cls.basic_user = mail_new_test_user(cls.env, login='user_employee', groups='base.group_user')
         sms_enabled_models = cls.env['ir.model'].search([('is_mail_thread', '=', True), ('transient', '=', False)])
-        vals = []
-        for model in sms_enabled_models:
-            vals.append({
+        vals = [
+            {
                 'name': 'SMS Template ' + model.name,
                 'body': 'Body Test',
                 'model_id': model.id,
-            })
+            }
+            for model in sms_enabled_models
+        ]
         cls.sms_templates = cls.env['sms.template'].create(vals)
 
         cls.sms_dynamic_template = cls.env['sms.template'].sudo().create({

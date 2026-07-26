@@ -2,9 +2,10 @@
 
 from unittest.mock import patch
 
-from odoo.addons.sms.models.mail_thread import MailThread
-from odoo.addons.sms.tests.common import SMSCommon, SMSCase
 from odoo.tests import tagged
+
+from odoo.addons.sms.models.mail_thread import MailThread
+from odoo.addons.sms.tests.common import SMSCase, SMSCommon
 
 
 @tagged('at_install')
