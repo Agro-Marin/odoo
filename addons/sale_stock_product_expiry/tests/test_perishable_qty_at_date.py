@@ -1,7 +1,9 @@
 from freezegun import freeze_time
+
 from odoo import Command
-from odoo.addons.stock.tests.common import TestStockCommon
 from odoo.tests import HttpCase, tagged
+
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 @tagged('post_install', '-at_install')
