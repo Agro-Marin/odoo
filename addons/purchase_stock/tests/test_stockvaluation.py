@@ -47,7 +47,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
         invoice_form.invoice_date = invoice_form.date
-        invoice_form.purchase_vendor_bill_id = self.env["purchase.bill.union"].browse(
+        invoice_form.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(
             -order.id
         )
         with invoice_form.invoice_line_ids.edit(0) as line_form:
@@ -123,7 +123,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
         invoice_form.invoice_date = invoice_form.date
-        invoice_form.purchase_vendor_bill_id = self.env["purchase.bill.union"].browse(
+        invoice_form.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(
             -order.id
         )
         with invoice_form.invoice_line_ids.edit(0) as line_form:
@@ -199,7 +199,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
         invoice_form.invoice_date = invoice_form.date
-        invoice_form.purchase_vendor_bill_id = self.env["purchase.bill.union"].browse(
+        invoice_form.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(
             -order.id
         )
         with invoice_form.invoice_line_ids.edit(0) as line_form:
@@ -441,7 +441,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
                 self.env["account.move"].with_context(default_move_type="in_invoice")
             )
             bill_form.invoice_date = bill_form.date
-            bill_form.purchase_vendor_bill_id = self.env["purchase.bill.union"].browse(
+            bill_form.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(
                 -po.id
             )
             bill = bill_form.save()
@@ -609,7 +609,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
         bill01_form.invoice_date = bill01_form.date
-        bill01_form.purchase_vendor_bill_id = self.env["purchase.bill.union"].browse(
+        bill01_form.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(
             -po.id
         )
         bill01 = bill01_form.save()
@@ -621,7 +621,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
         bill02_form.invoice_date = bill02_form.date
-        bill02_form.purchase_vendor_bill_id = self.env["purchase.bill.union"].browse(
+        bill02_form.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(
             -po.id
         )
         bill02 = bill02_form.save()

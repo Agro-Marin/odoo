@@ -30,8 +30,8 @@ def register_storage(cls: type[AttachmentStorage]) -> type[AttachmentStorage]:
 def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
     """Return the read-side backend owning *key*, dispatched by URI scheme.
 
-    Keys without a scheme (the plain ``ab/<sha1>`` sharded layout) belong to
-    the local filestore. A schemed key whose backend is NOT registered (e.g.
+    Keys without a scheme (the plain sharded ``[<algo>/]ab/<digest>`` layout)
+    belong to the local filestore. A schemed key whose backend is NOT registered (e.g.
     ``s3://`` rows left after uninstalling the backend) also falls back to the
     filestore, but warns once per scheme so the inevitable read failure is
     blamed on the missing backend, not the filestore.
@@ -107,7 +107,9 @@ class AttachmentStorage:
         inline (db, empty content) return the inline fragment
         (:meth:`_inline_datas_values`) without external I/O.
 
-        :param str checksum: SHA-1 hex digest of *data*
+        :param str checksum: content hex digest of *data*, as produced by
+            ``ir.attachment._content_checksum`` (algorithm-agnostic: a backend
+            must treat it as an opaque key, never assume a length or algorithm)
         """
         raise NotImplementedError
 
@@ -187,7 +189,7 @@ class DbStorage(AttachmentStorage):
 
 @register_storage
 class FileStorage(AttachmentStorage):
-    """Content-addressed local filestore (``<shard>/<sha1>`` keys).
+    """Content-addressed local filestore (``[<algo>/]<shard>/<digest>`` keys).
 
     I/O delegates to the model's ``_file_*`` primitives: they are the
     historical override surface and several test suites patch them

@@ -78,9 +78,9 @@ Top-level layout of `core/addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 23 `.py` — HTTP endpoints (21 Controller classes) | `ROUTE_MAP.md` |
 | `models/` | 22 `.py` — ORM extensions (web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 658 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 665 JavaScript/OWL source files across 234 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 17 vendored JS libraries — DO NOT MODIFY | versions table below |
-| `static/tests/` | 434 `.js` (incl. 378 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
+| `static/tests/` | 491 `.js` (incl. 435 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
 | `tests/` | 44 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 | `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) | — |
@@ -94,15 +94,15 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | App entry points: main.js, start.js (env.js, session.js, module_loader.js, service_worker.js at src/ root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/), lib/ lazy ESM loaders (chartjs, fullcalendar) | 111 JS |
+| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/), lib/ lazy ESM loaders (chartjs, fullcalendar) | 114 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, colorpicker, etc.) — shrank by ~15 after tree utilities moved to core/ | 74 JS |
 | **Services** | `services/` | Data & input singletons: orm, hotkey, field, file_upload, sortable, debug, web_vitals, multi_company_recovery, form_dialog_stack, slow_rpc, etc. | 37 JS |
 | **UI** | `ui/` | Overlay services & components: dialog, popover, tooltip, notification, effects, block | 19 JS |
-| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants | 112 JS |
+| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants | 110 JS |
 | **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 151 JS |
-| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 56 JS |
-| **Search** | `search/` | Search bar, facets, filters, group-by, favorites, embedded actions bar | 32 JS |
-| **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 42 JS |
+| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 61 JS |
+| **Search** | `search/` | Search bar, facets, filters, group-by, favorites, embedded actions bar | 33 JS |
+| **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 44 JS |
 | **Public** | `public/` | Public (anonymous) page features | 11 JS |
 > **The `legacy/` namespace was fully retired (2026-07-23).** The Resig `Class`
 > inheritance system, `publicWidget`, `PublicRoot` and the `root.widget` alias
@@ -201,6 +201,7 @@ Services are registered in `registry.category("services")` and injected via `use
 | `sortable` | `services/sortable_service.js` | Drag-and-drop sorting |
 | `tree_processor` | `services/tree_processor_service.js` | Tree data structure processor (deps: `field`, `name`) |
 | `web.frequent.emoji` | `services/frequent_emoji_service.js` | Emoji frequency tracking (dotted namespace key) |
+| `service_worker` | `webclient/service_worker_service.js` | Registers `/web/service-worker.js` (scope `/odoo`), promotes waiting workers via `SKIP_WAITING`, polls for updates, and exposes `activated` — a promise that settles on EVERY exit path (mail's push (un)subscribe awaits it inside a `Mutex`, so a pending one wedges that mutex for the session). Deliberately under `webclient/` and not `services/`: the manifest also puts `services/**` in `web.assets_frontend`, so a service there would register this backend worker on every public page. |
 | `lazy_session` | `webclient/session_service.js` | Lazy-loaded session info (profile_session, profile_collectors, etc.). Consumed by `profiling` service — refactoring this breaks profiling startup. |
 | `multi_company_recovery` | `services/multi_company_recovery_service.js` | Recovers from `AccessError` when the server context carries `suggested_company`. `recoverFromLifecycleError` reloads after activating; `recoverFromSaveError` mutates the model context and activates with `reload:false` to preserve input. Used by FormController's onError paths. |
 | `form_dialog_stack` | `services/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog` (an earlier bus-event API, `AppEvent.FORM_DIALOG_ADD/REMOVE`, was removed — no external listener ever materialized); exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
@@ -374,8 +375,8 @@ and the version string in the source file.
 | Python (controllers) | 23 (21 Controller classes + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 22 (21 model files + `__init__.py`) |
 | Python (tests) | 44 |
-| JavaScript (src) | 658 |
-| JavaScript (tests) | 434 (incl. 378 `*.test.js` Hoot suites) |
+| JavaScript (src) | 663 |
+| JavaScript (tests) | 491 (incl. 435 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 91 |
 | SCSS/CSS | 202 (25 in `static/src/scss/` shared base; remaining 177 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 277 (12 views + 3 data + 262 OWL templates) |

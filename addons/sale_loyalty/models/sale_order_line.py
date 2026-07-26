@@ -70,7 +70,7 @@ class SaleOrderLine(models.Model):
         vals = {
             'points_cost': 0,
             'price_unit': 0,
-            'technical_price_unit': 0,
+            'price_unit_auto': 0,
         }
         if complete:
             vals.update({

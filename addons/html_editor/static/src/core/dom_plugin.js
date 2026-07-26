@@ -17,7 +17,7 @@ import {
 } from "../utils/dom.js";
 import {
     allowsParagraphRelatedElements,
-    getDeepestPosition,
+    getDeepestEditablePosition,
     isContentEditable,
     isContentEditableAncestor,
     isEditorTab,
@@ -534,7 +534,11 @@ export class DomPlugin extends Plugin {
 
         if (!this.config.allowInlineAtRoot && this.isEditionBoundary(lastPosition[0])) {
             // Correct the position if it happens to be in the editable root.
-            lastPosition = getDeepestPosition(...lastPosition);
+            // Must stay editable-aware: the plain `getDeepestPosition` descends
+            // into `contenteditable="false"` subtrees, which parks the caret
+            // inside a protected embed (and then no hint, power buttons or
+            // typing work in the block that follows it).
+            lastPosition = getDeepestEditablePosition(...lastPosition);
         }
         this.dependencies.selection.setSelection(
             { anchorNode: lastPosition[0], anchorOffset: lastPosition[1] },

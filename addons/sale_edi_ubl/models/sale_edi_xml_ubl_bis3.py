@@ -98,7 +98,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
             'cbc:Note': {'_text': html2plaintext(sale_order.notes)} if sale_order.notes else None,
             'cbc:DocumentCurrencyCode': {'_text': vals['currency_name']},
             'cac:ValidityPeriod': {
-                'cbc:EndDate': {'_text': sale_order.validity_date},
+                'cbc:EndDate': {'_text': sale_order.date_validity},
             },
             'cac:OriginatorDocumentReference': {
                 'cbc:ID': {'_text': sale_order.client_order_ref}
@@ -302,7 +302,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
 
         vals['vals'].update({
             'order_type_code': 220,
-            'validity_date': sale_order.validity_date,
+            'validity_date': sale_order.date_validity,
             'originator_document_reference': sale_order.client_order_ref,
             'customer_party_vals': self._get_partner_party_vals(customer, role='customer'),
             'supplier_party_vals': self._get_partner_party_vals(supplier, role='supplier'),
@@ -352,7 +352,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
         lines_vals, line_logs = self._import_lines(order, tree, './{*}OrderLine/{*}LineItem', document_type='order', tax_type='sale')
         # adapt each line to sale.order.line
         for line in lines_vals:
-            line['product_uom_qty'] = line.pop('quantity')
+            line['product_qty'] = line.pop('quantity')
             # remove invoice line fields
             line.pop('deferred_start_date', False)
             line.pop('deferred_end_date', False)

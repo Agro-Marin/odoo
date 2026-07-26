@@ -16,6 +16,14 @@ from odoo.tools.translate import JAVASCRIPT_TRANSLATION_COMMENT
 _logger = logging.getLogger(__name__)
 
 
+# ASCII tab / CR / LF are stripped from a URL *anywhere in the string* by the
+# WHATWG URL parser every browser implements, before any other parsing happens.
+# ``urlsplit`` strips them too, so any guard that inspects the RAW string must
+# strip them first or it inspects a different URL than both the browser and
+# ``urlsplit`` will see.
+_URL_IGNORED_CHARS = ("\t", "\r", "\n")
+
+
 def _is_local_url(url: str | None) -> bool:
     """Return True if *url* is a safe local redirect target.
 
@@ -24,9 +32,25 @@ def _is_local_url(url: str | None) -> bool:
     """
     if not url or not isinstance(url, str):
         return False
+    # Normalize FIRST, then guard. The raw-string guards below (backslash,
+    # leading "//") used to run before this strip, so embedded tabs/newlines
+    # hid the very pattern they look for: "/\t\t//evil.com" passed the
+    # ``startswith("//")`` check, and ``urlsplit`` — which strips the tabs —
+    # then reported an empty netloc for the resulting "///evil.com", so the URL
+    # was judged local. A browser resolves "///evil.com" to the host evil.com
+    # (its "special authority ignore slashes" state skips *any* run of leading
+    # slashes, unlike RFC-3986 ``urlsplit``, which reports an empty authority).
+    for char in _URL_IGNORED_CHARS:
+        url = url.replace(char, "")
+    if not url:
+        return False
     # Browsers normalize a leading "\" or "\\" to "//", turning it into a
     # protocol-relative open redirect; urlsplit (RFC 3986) does not perform
     # that normalization, so backslashes must be rejected explicitly here.
+    #
+    # ``startswith("//")`` also covers the "///host" divergence noted above:
+    # any URL beginning with two or more slashes is authority-bearing to a
+    # browser regardless of what ``urlsplit`` reports.
     if "\\" in url or url.startswith("//"):
         return False
     parsed = urlsplit(url)

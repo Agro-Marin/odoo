@@ -17,6 +17,7 @@ import {
 import {
     areSimilarElements,
     isContentEditable,
+    isContentEditableAncestor,
     isElement,
     isEmptyBlock,
     isEmptyTextNode,
@@ -436,6 +437,21 @@ export class FormatPlugin extends Plugin {
                         cb(className),
                     ),
                 );
+
+            // Special case: if the parent node is unsplittable and fully
+            // selected, the span has to go outside of it — the loop below
+            // stops at unsplittable parents, so without this the format would
+            // nest inside (e.g. a font size applied to a whole link produced
+            // `<a><span>…</span></a>` instead of `<span><a>…</a></span>`).
+            if (
+                parentNode &&
+                !isBlock(parentNode) &&
+                this.dependencies.split.isUnsplittable(parentNode) &&
+                this.dependencies.selection.areNodeContentsFullySelected(parentNode) &&
+                !isContentEditableAncestor(parentNode)
+            ) {
+                inlineAncestors.push(parentNode);
+            }
 
             while (
                 parentNode &&

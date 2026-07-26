@@ -16,22 +16,22 @@ class TestBuyGiftCard(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': 'Ordinary Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             (0, False, {
                 'product_id': self.product_gift_card.id,
                 'name': 'Gift Card Product',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self.assertEqual(len(order.line_ids.ids), 2)
         self.assertEqual(len(order._get_reward_coupons()), 0)
         order._update_programs_and_rewards()
         self.assertEqual(len(order._get_reward_coupons()), 1)
-        order.line_ids[1].product_uom_qty = 2
+        order.line_ids[1].product_qty = 2
         order._update_programs_and_rewards()
         self.assertEqual(len(order._get_reward_coupons()), 2)
-        order.line_ids[1].product_uom_qty = 1
+        order.line_ids[1].product_qty = 1
         order._update_programs_and_rewards()
         self.assertEqual(len(order._get_reward_coupons()), 1)
 

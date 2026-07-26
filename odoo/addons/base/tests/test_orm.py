@@ -473,3 +473,73 @@ class TestCompanyDependent(TransactionCase):
                                 f'delete cascade logic and remove/override the ondelete="cascade" of {comodel_field}'
                             ),
                         )
+
+
+class TestReadFormatPrefetch(TransactionCase):
+    """``_read_format`` must stay batched on a cold recordset.
+
+    Its scalar phase reads straight from the field cache and falls back to a
+    singleton record on a miss. That fallback was written assuming ``fetch()``
+    had already run -- true for :meth:`read`, but ``_read_format`` is also
+    called directly, and it advertises reading from cache "avoiding a query
+    when possible". On a cold recordset every record missed, and because the
+    singleton carried only its own id as prefetch, each one issued its own
+    ``WHERE id IN (<single id>)``: an N+1 growing with the recordset.
+
+    Only scalar fields were affected -- relational/html/translated ones take
+    the record phase, which iterates ``self`` and keeps its prefetch -- so the
+    assertions below deliberately use plain stored scalars.
+    """
+
+    SCALARS = {"name", "active", "create_date"}
+
+    def _cold(self, records):
+        records.env.flush_all()
+        records.env.invalidate_all()
+        return records.browse(records.ids)
+
+    def test_read_format_does_not_scale_with_record_count(self):
+        few = self.env["res.partner"].create([{"name": f"few {i}"} for i in range(2)])
+        many = self.env["res.partner"].create(
+            [{"name": f"many {i}"} for i in range(20)]
+        )
+
+        with self.assertQueryCount(__system__=1):
+            self._cold(few)._read_format(self.SCALARS)
+
+        # 10x the records must not mean 10x the queries.
+        with self.assertQueryCount(__system__=1):
+            self._cold(many)._read_format(self.SCALARS)
+
+    def test_read_format_matches_read(self):
+        """Batching must not change what is returned."""
+        partners = self.env["res.partner"].create(
+            [{"name": f"cmp {i}"} for i in range(5)]
+        )
+        fnames = sorted(self.SCALARS)
+        from_read_format = self._cold(partners)._read_format(set(fnames))
+        from_read = self._cold(partners).read(fnames)
+        self.assertEqual(from_read_format, from_read)
+
+    def test_read_format_missing_record_still_dropped(self):
+        """A deleted record must still be skipped, not raise."""
+        partners = self.env["res.partner"].create(
+            [{"name": f"gone {i}"} for i in range(3)]
+        )
+        victim = partners[1]
+        victim.unlink()
+        result = self._cold(partners)._read_format(self.SCALARS)
+        self.assertEqual([vals["id"] for vals in result], (partners - victim).ids)
+
+    def test_read_format_on_new_records(self):
+        """In-memory records must still work.
+
+        The fallback's tuple-wrapped ``browse`` exists because
+        ``NewId.__bool__`` is False; widening its prefetch must not disturb
+        that, and a NewId never triggers a fetch anyway.
+        """
+        Partner = self.env["res.partner"]
+        # `new()` takes one dict; union the singletons to exercise the loop.
+        new_records = Partner.new({"name": "new a"}) | Partner.new({"name": "new b"})
+        result = new_records._read_format({"name"})
+        self.assertEqual([vals["name"] for vals in result], ["new a", "new b"])

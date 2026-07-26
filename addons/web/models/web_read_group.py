@@ -9,7 +9,7 @@ Temporal expansion, group filling, and field-type formatters live in
 """
 
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 from odoo import api, models
@@ -224,19 +224,9 @@ class Base(models.AbstractModel):
                 ]
 
             order_searches = ", ".join(order_specs)
-            recordset_groups = [
-                (
-                    self.search(
-                        domain & sub_search["domain"],
-                        order=order_searches,
-                        limit=sub_search["limit"],
-                        offset=sub_search["offset"],
-                    )
-                    if sub_search["group"]["__count"]
-                    else self.browse()
-                )
-                for sub_search in records_opening_info
-            ]
+            recordset_groups = self._search_opened_groups(
+                records_opening_info, domain, order_searches
+            )
 
             all_records = self.browse().union(*recordset_groups)
             # Key on each dict's own id rather than zipping against ``_ids``:
@@ -264,6 +254,115 @@ class Base(models.AbstractModel):
             "groups": groups,
             "length": length,
         }
+
+    def _search_opened_groups(
+        self,
+        records_opening_info: list[dict[str, Any]],
+        domain: Domain,
+        order_searches: str,
+    ) -> list[Any]:
+        """Return one recordset per entry of *records_opening_info*, in order.
+
+        Each opened group needs its own page of records — its own domain, its
+        own ``limit``/``offset`` (the client saves and replays per-group
+        pagination), and possibly its own progress-bar filter. That is one
+        ``search()`` per opened group: a fan-out linear in the number of opened
+        groups, all of it sequential round trips.
+
+        The bound on that fan-out is not as tight as the module constants
+        suggest. ``MAX_NUMBER_RESTORED_GROUPS`` caps it at 200 by default, but
+        ``_open_groups`` lets the ``max_number_opened_groups`` context key raise
+        BOTH caps, and ``account_reports`` sets it to 100000 — so for those
+        views the fan-out is bounded only by the number of groups in the data.
+
+        This batches the fan-out into a single round trip per chunk while
+        keeping each group's SELECT *byte-for-byte identical* to what
+        ``search()`` would emit: the per-group query (with its own ORDER BY,
+        LIMIT and OFFSET, and the record rules ``_search`` injects) becomes a
+        subquery, and only the transport is shared. Row selection and tie
+        resolution are therefore unchanged, which matters because the
+        within-group order is a CONTRACT with the client's page-2 fetch (see
+        the caller's comment) — a formulation that replaced LIMIT/OFFSET with a
+        ROW_NUMBER window would risk resolving ties differently (top-N heapsort
+        vs. full sort) and reintroduce the cross-page duplicate/loss bug.
+
+        ``ROW_NUMBER() OVER ()`` numbers each subquery's rows so the caller's
+        order survives the UNION ALL. It is computed inside the subquery scan,
+        before the append, so no reordering step sits between the sort and the
+        numbering.
+        """
+        # One un-batched search is already one round trip: batching a single
+        # group only adds a subquery wrapper. Keep the plain path.
+        to_fetch = [
+            (index, sub_search)
+            for index, sub_search in enumerate(records_opening_info)
+            if sub_search["group"]["__count"]
+        ]
+        result: list[Any] = [self.browse()] * len(records_opening_info)
+        if not to_fetch:
+            return result
+        if len(to_fetch) == 1:
+            index, sub_search = to_fetch[0]
+            result[index] = self.search(
+                domain & sub_search["domain"],
+                order=order_searches,
+                limit=sub_search["limit"],
+                offset=sub_search["offset"],
+            )
+            return result
+
+        ids_by_index: dict[int, list[int]] = {}
+        for chunk in self._chunk_opened_groups(to_fetch):
+            parts = []
+            for index, sub_search in chunk:
+                query = self._search(
+                    domain & sub_search["domain"],
+                    order=order_searches,
+                    limit=sub_search["limit"],
+                    offset=sub_search["offset"],
+                )
+                if query.is_empty():
+                    continue
+                parts.append(
+                    SQL(
+                        "(SELECT %s AS __gidx,"
+                        " ROW_NUMBER() OVER () AS __rn,"
+                        " __g.id AS __id FROM (%s) AS __g)",
+                        index,
+                        query.select(),
+                    )
+                )
+            if not parts:
+                continue
+            rows = self.env.execute_query(
+                SQL(
+                    "SELECT __gidx, __id FROM (%s) AS __u ORDER BY __gidx, __rn",
+                    SQL(" UNION ALL ").join(parts),
+                )
+            )
+            for group_index, record_id in rows:
+                ids_by_index.setdefault(group_index, []).append(record_id)
+
+        for index, record_ids in ids_by_index.items():
+            # ``browse`` on the batched ids: the plain ``search()`` path builds
+            # the same recordset, and every consumer below either unions these
+            # or walks ``_ids``.
+            result[index] = self.browse(record_ids)
+        return result
+
+    # Number of per-group subqueries combined into one statement. Unbounded
+    # batching would hand PostgreSQL a statement with one subquery per opened
+    # group (up to 100000 with the account_reports context), whose parse/plan
+    # cost grows with the statement rather than with the data. Chunking keeps
+    # the statement bounded while still removing all but 1/CHUNK of the round
+    # trips.
+    _OPENED_GROUPS_SQL_CHUNK = 50
+
+    def _chunk_opened_groups(self, to_fetch: list) -> Iterator[list]:
+        """Yield *to_fetch* in slices of ``_OPENED_GROUPS_SQL_CHUNK``."""
+        size = self._OPENED_GROUPS_SQL_CHUNK
+        for start in range(0, len(to_fetch), size):
+            yield to_fetch[start : start + size]
 
     def _formatted_read_group_with_length(
         self, domain, groupby, aggregates, offset=0, limit=None, order=None

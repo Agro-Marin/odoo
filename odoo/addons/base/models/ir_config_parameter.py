@@ -64,6 +64,32 @@ class IrConfig_Parameter(models.Model):
         return default if value is None else value
 
     @api.model
+    def get_param_int(self, key: str, default: int) -> int:
+        """Retrieve *key* as an ``int``, falling back to *default* when unusable.
+
+        Parameter values are free-form text an administrator can edit, so every
+        numeric parameter needs the same guard: a non-numeric (or absent) value
+        must degrade to the default rather than raise out of whatever request
+        happens to read it. That guard was open-coded at each call site, each
+        with its own ``try``/``except`` and its own idea of what to log.
+
+        :param str key: the parameter key
+        :param int default: value returned when the parameter is missing or is
+            not a valid integer (the bad value is logged once per read)
+        :return: the parameter as an ``int``, or *default*
+        """
+        raw = self.get_param(key)
+        if raw is False or raw is None or raw == "":
+            return default
+        try:
+            return int(raw)
+        except TypeError, ValueError:
+            _logger.warning(
+                "Invalid %s value: %r, falling back to %r", key, raw, default
+            )
+            return default
+
+    @api.model
     @ormcache("key", cache="stable")
     def _get_param(self, key: str) -> str | None:
         # we bypass the ORM because get_param() is used in some field's depends,

@@ -38,12 +38,12 @@ class TestUnlinkReward(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': 'Ordinary Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             Command.create({
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
         ]})
         order._update_programs_and_rewards()

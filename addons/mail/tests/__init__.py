@@ -19,6 +19,7 @@ from . import test_mail_hardening_v8
 from . import test_mail_hardening_v9
 from . import test_mail_hardening_v10
 from . import test_mail_hardening_v11
+from . import test_mail_hardening_v12
 from . import test_mail_audit_v6
 from . import test_mail_audit_v6b
 from . import test_mail_message_search

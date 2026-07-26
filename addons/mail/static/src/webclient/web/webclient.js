@@ -16,6 +16,11 @@ patch(WebClient.prototype, {
         super.setup();
         this.orm = useService("orm");
         this.notification = useService("notification");
+        // The service worker's activation gate. It used to be a field on this
+        // component (``this.serviceWorkerActivatedDeferred``) that mail reached
+        // through this very patch; it is now a declared service, so the
+        // contract this Mutex depends on is explicit rather than incidental.
+        this.serviceWorker = useService("service_worker");
         // Serialize push (un)subscription: WEB_CLIENT_READY and the
         // notification-permission `change` handler can both fire, and an
         // overlapping subscribe/unsubscribe (or a subscribe racing its own
@@ -84,7 +89,7 @@ patch(WebClient.prototype, {
     },
 
     async _doSubscribePush(numberTry = 1) {
-        await this.serviceWorkerActivatedDeferred;
+        await this.serviceWorker.activated;
         const pushManager = await this.pushManager();
         if (!pushManager) {
             return;
@@ -171,7 +176,7 @@ patch(WebClient.prototype, {
     },
 
     async _doUnsubscribePush() {
-        await this.serviceWorkerActivatedDeferred;
+        await this.serviceWorker.activated;
         const pushManager = await this.pushManager();
         if (!pushManager) {
             return;

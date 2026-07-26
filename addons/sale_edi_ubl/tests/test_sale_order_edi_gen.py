@@ -23,14 +23,14 @@ class TestSaleOrderEDIGen(TestSaleCommon):
                 Command.create({
                     'product_id': self.product_a.id,
                     'name': 'Product A description',
-                    'product_uom_qty': 10.0,
+                    'product_qty': 10.0,
                     'price_unit': 50.0,
                     'discount': 10.0,
                 }),
                 Command.create({
                     'product_id': self.product_a.id,
                     'name': 'Product A description',
-                    'product_uom_qty': 1.0,
+                    'product_qty': 1.0,
                     'price_unit': 10.0,
                 })
             ]

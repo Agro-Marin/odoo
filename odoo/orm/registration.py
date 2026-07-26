@@ -646,8 +646,15 @@ def _add_manual_models(env: Environment):
         env.registry._discard_fields(list(removed_fields))
 
     # can't use self._fields for translated fields: not set up yet
+    # prepare=False: ``ir_model`` is extended by many modules (mail, sms, bus,
+    # web, spreadsheet, ...), so this SELECT * changes result shape whenever one
+    # of them installs. Cached as a prepared plan, the next such ALTER makes
+    # every later registry setup on that connection raise
+    # "cached plan must not change result type" -- reproducible today on a full
+    # `-i mail --test-enable` run, which fails TestFetchmail.tearDownClass.
     env.cr.execute(
-        "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'"
+        "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'",
+        prepare=False,
     )
     for model_data in env.cr.dictfetchall():
         attrs = env["ir.model"]._instantiate_attrs(model_data)

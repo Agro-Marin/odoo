@@ -429,6 +429,20 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/tests/tours/**/*",
             ),
+            # utils.js is the TOUR-runtime implementation of the
+            # `@web/../tests/utils` API; it ships in web.assets_tests next to
+            # tours/** (and in the tour bundles that list it explicitly).
+            # mail/static/tests/mail_test_helpers_contains.js aliases that same
+            # specifier for the hoot runtime, so leaving both in this bundle
+            # makes the winner depend on bundle order -- i.e. on whether `mail`
+            # happens to be installed -- and a suite silently switches
+            # implementation under itself. Nothing here may import
+            # `@web/../tests/utils`: web's own hoot DSL is `contains` from
+            # @web/../tests/web_test_helpers.
+            (
+                "remove",
+                "web/static/tests/utils.js",
+            ),
         ],
         "web.assets_clickbot": [
             "web/static/src/webclient/clickbot/clickbot.js",

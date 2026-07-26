@@ -15,7 +15,6 @@ delegators with the historical method names, and seam-level tests patch
 this class directly.
 """
 
-import hashlib
 import logging
 from collections.abc import Sequence
 from typing import Protocol
@@ -34,6 +33,7 @@ from odoo.tools.assets.esm_graph import (
     _extract_esm_exports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
+from odoo.tools.hashing import cache_hash
 
 __all__ = ["BridgeShimManager", "NativeModuleLike"]
 
@@ -115,9 +115,7 @@ class BridgeShimManager:
         for spec, content in shims_by_spec.items():
             # 128 truncated bits: a collision would silently serve the
             # wrong module, so don't flirt with the 64-bit birthday bound.
-            content_hash = hashlib.sha256(
-                content.encode("utf-8"),
-            ).hexdigest()[:32]
+            content_hash = cache_hash(content.encode("utf-8"))[:32]
             url = f"/web/assets/esm/bridges/{content_hash}.js"
             url_by_spec[spec] = url
             content_by_url[url] = content  # identical content dedupes here

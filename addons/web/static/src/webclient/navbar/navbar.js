@@ -138,8 +138,24 @@ export class NavBar extends Component {
         );
     }
 
-    // This dummy setter is only here to prevent conflicts between the
-    // Enterprise NavBar extension and the Website NavBar patch.
+    // Load-bearing no-op setter — NOT redundant with the getter above.
+    //
+    // ``website`` overrides this accessor with ``patch(NavBar.prototype, {get
+    // currentAppSections() {...}})``. A POJO declaring only a getter produces
+    // the descriptor ``{get, set: undefined}``, which ``Object.defineProperty``
+    // would install verbatim, wiping any setter the target had.
+    // ``core/utils/patch.js`` guards that ("get/set are defined together"): when
+    // an extension supplies only one half it inherits the other from the
+    // ancestor descriptor. But inheritance can only propagate a setter that
+    // exists SOMEWHERE in the chain — this is that source. Drop it and the
+    // property becomes getter-only for every patcher downstream, so any
+    // ``this.currentAppSections = ...`` throws in strict mode.
+    //
+    // No such assignment exists today anywhere in odoo/addons or enterprise
+    // (checked 2026-07-25), so this is insurance rather than an active fix —
+    // but its absence is invisible to the test suite, precisely because nothing
+    // assigns. Retire both setters together, and only with a grep over the
+    // deployed addons, not on the strength of a green run.
     set currentAppSections(_) {}
 
     get isScopedApp() {
@@ -162,8 +178,8 @@ export class NavBar extends Component {
             .reverse();
     }
 
-    // This dummy setter is only here to prevent conflicts between the
-    // Enterprise NavBar extension and the Website NavBar patch.
+    // Load-bearing no-op setter — see the note on ``set currentAppSections``.
+    // ``website`` patches this accessor with a getter-only extension too.
     set systrayItems(_) {}
 
     /**
@@ -305,10 +321,13 @@ export class NavBar extends Component {
             return;
         }
         const deltaX = this.swipeStartX - ev.changedTouches[0].clientX;
+        // Disarm on every touchend, not just an activating one: a below-
+        // threshold gesture used to leave the start point armed, so a later
+        // touchend with no matching touchstart measured against a stale origin.
+        this.swipeStartX = null;
         if (deltaX < SWIPE_ACTIVATION_THRESHOLD) {
             return;
         }
         this._closeAppMenuSidebar();
-        this.swipeStartX = null;
     }
 }

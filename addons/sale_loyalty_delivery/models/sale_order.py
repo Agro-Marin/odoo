@@ -41,7 +41,7 @@ class SaleOrder(models.Model):
             'points_cost': reward.required_points if not reward.clear_wallet else self._get_real_points_for_coupon(coupon),
             'product_id': reward.discount_line_product_id.id,
             'price_unit': -min(max_discount, delivery_line.price_unit or 0),
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'order_id': self.id,
             'is_reward_line': True,
             'sequence': max(self.line_ids.filtered(lambda x: not x.is_reward_line).mapped('sequence'), default=0) + 1,

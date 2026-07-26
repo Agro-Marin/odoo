@@ -251,6 +251,49 @@ describe("new", () => {
         expect(".o_technical_modal").toHaveCount(0);
     });
 
+    test("a failed replacement's pending slot is cleared by _removeDialog alone", async () => {
+        // Pins the single-owner invariant documented in ControllerComponent's
+        // onError: removing the failed dialog must, on its own, clear the
+        // pending slot and hand the stolen onClose back. A second copy of that
+        // recovery used to sit in onError and was proven unreachable; this test
+        // fails if the recovery is ever removed from `_removeDialog` and left
+        // to a caller.
+        class FailingClientAction extends Component {
+            static template = xml`<div/>`;
+            static props = ["*"];
+            setup() {
+                throw new Error("replacement failed");
+            }
+        }
+        registry.category("actions").add("failing_slot_owner", FailingClientAction);
+
+        await mountWithCleanup(WebClient);
+        const actionService = getService("action");
+        await actionService.doAction(5, {
+            onClose: () => expect.step("committed on_close"),
+        });
+        expect(".o_technical_modal").toHaveCount(1);
+
+        await expect(
+            actionService.doAction({
+                type: "ir.actions.client",
+                tag: "failing_slot_owner",
+                target: "new",
+            }),
+        ).rejects.toThrow();
+        await animationFrame();
+
+        // The pending slot is empty and the committed dialog got its callback
+        // back — both done by `_removeDialog`, with no help from onError.
+        expect(actionService.nextDialog).toBe(null);
+        expect(actionService.dialog).not.toBe(null);
+        expect(typeof actionService.dialog.onClose).toBe("function");
+        expect.verifySteps([]);
+
+        await actionService.doAction({ type: "ir.actions.act_window_close" });
+        expect.verifySteps(["committed on_close"]);
+    });
+
     test("discarded pending replacement hands the committed on_close back", async () => {
         // `_dispatchTargetNew` steals the committed dialog's onClose into
         // `nextDialog.stolenOnClose` and deletes it, on the contract that it
@@ -264,8 +307,10 @@ describe("new", () => {
         // caller never learns the wizard flow ended.
         //
         // The sibling cases are covered above: B superseded by C, and B
-        // crashing (which recovers via ControllerComponent's onError branch).
-        // This is the transition neither covers.
+        // crashing. Both of those recover inside `_removeDialog` too —
+        // ControllerComponent's onError only calls the failed dialog's
+        // `remove()`, which reaches `_removeDialog` synchronously. This is the
+        // transition neither covers.
         const def = new Deferred();
         class SlowDialogAction extends Component {
             static template = xml`<div class="slow_dialog_action"/>`;

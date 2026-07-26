@@ -10,7 +10,7 @@
  * field would otherwise produce the junk class `o_badge_color_false`, so the
  * guard returns an empty string and lets callers apply their own fallback.
  *
- * @param {import("@web/model/relational_model/record").Record} record
+ * @param {import("@web/model/relational_model/record").RelationalRecord} record
  * @param {string | undefined} colorField Name of the integer color field, if any.
  * @returns {string} `o_badge_color_<n>` for an integer index, otherwise `""`.
  */

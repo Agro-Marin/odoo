@@ -20,7 +20,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': 'Ordinary Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         before_gift_card_payment = order.amount_total
@@ -40,7 +40,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_B.id,
                 'name': 'Ordinary Product b',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         before_gift_card_payment = order.amount_total
@@ -60,7 +60,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': 'Ordinary Product A',
-                'product_uom_qty': 20.0,
+                'product_qty': 20.0,
             })
         ]})
         before_gift_card_payment = order.amount_total
@@ -80,7 +80,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_C.id,
                 'name': 'Ordinary Product C',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self.env['loyalty.program'].create({
@@ -120,7 +120,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_C.id,
                 'name': 'Ordinary Product C',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self.env['loyalty.program'].create({
@@ -175,7 +175,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_B.id,
                 'name': 'Ordinary Product b',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
                 'price_unit': 200.0,
             })
         ]
@@ -247,7 +247,7 @@ class TestPayWithGiftCard(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': "Ordinary Product A",
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(order, gift_card.code)

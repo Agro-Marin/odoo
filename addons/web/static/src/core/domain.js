@@ -140,7 +140,11 @@ export class Domain {
          * from-scratch recomputation at every connector was O(N²) overall
          * and recursed to depth O(N) on the prefix chain.
          * @param {AST[]} elements
-         * @returns {number[]}
+         * @returns {{ sizes: number[], fullyRemoved: boolean[] }} ``sizes[idx]``
+         *   is the span of the subtree rooted at ``idx``; ``fullyRemoved[idx]``
+         *   is true when every leaf of that subtree is in ``keysToRemove``.
+         *   (Was annotated ``number[]`` — correct before ``fullyRemoved`` was
+         *   folded into the same right-to-left pass, stale ever since.)
          */
         function computeSubtreeSizes(elements) {
             const sizes = new Array(elements.length).fill(0);

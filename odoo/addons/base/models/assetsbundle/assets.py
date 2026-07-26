@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment
 from .common import (
     _CSS_STRING_OR_COMMENT,
+    _SCSS_STRING_OR_COMMENT,
     AssetError,
     AssetNotFoundError,
     XMLAssetError,
@@ -354,6 +355,13 @@ class StylesheetAsset(WebAsset):
     # so the masking minifier and ``_rewrite_css_outside_strings`` share one
     # tokenizer and cannot drift on what they treat as opaque.
     _CSS_TOKEN_RE = _CSS_STRING_OR_COMMENT
+    # Opaque spans for the whole-text rewrites in :meth:`_fetch_content`, which
+    # run on the asset's *source*. Plain CSS and SCSS need different tokenizers
+    # (``//`` is a comment in one and ordinary text in the other), so this is
+    # kept separate from ``_CSS_TOKEN_RE`` — that one also masks for
+    # :meth:`_minify_css_body`, which always sees *compiled* CSS and must keep
+    # reading the ``//`` in ``https://`` as text.
+    _SOURCE_TOKEN_RE = _CSS_STRING_OR_COMMENT
 
     def __init__(
         self, *args: Any, rtl: bool = False, autoprefix: bool = False, **kw: Any
@@ -393,7 +401,7 @@ class StylesheetAsset(WebAsset):
 
             if self.rx_import:
                 content = _rewrite_css_outside_strings(
-                    self.rx_import, _rewrite_import, content
+                    self.rx_import, _rewrite_import, content, self._SOURCE_TOKEN_RE
                 )
 
             def _rewrite_url(match: re.Match[str]) -> str:
@@ -411,7 +419,9 @@ class StylesheetAsset(WebAsset):
                 normalised = posixpath.normpath(f"{web_dir}/{body}")
                 return f"url({q}{normalised}{q}"
 
-            content = _rewrite_css_outside_strings(self.rx_url, _rewrite_url, content)
+            content = _rewrite_css_outside_strings(
+                self.rx_url, _rewrite_url, content, self._SOURCE_TOKEN_RE
+            )
 
             # remove charset declarations, we only support utf-8
             return self.rx_charset.sub("", content)
@@ -489,6 +499,9 @@ class PreprocessedCSS(StylesheetAsset):
     """Base for stylesheet dialects compiled through an external CLI."""
 
     rx_import = None
+    # ``_fetch_content`` rewrites this asset's URLs while it is still
+    # preprocessor source, i.e. before the compiler strips ``//`` comments.
+    _SOURCE_TOKEN_RE = _SCSS_STRING_OR_COMMENT
 
     # Largest bundles take tens of seconds on the CLI fallback path; generous,
     # but a hung compiler must not pin a worker.

@@ -8,6 +8,26 @@ import { _t, translationIsReady } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getOrigin } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
+
+/**
+ * Whether the current user is someone a style-compilation error is actionable
+ * for.
+ *
+ * A failed SCSS compilation is an administrator/developer problem to fix
+ * database-wide, so the sticky, un-actionable notification only makes sense for
+ * people who can act on it. Exported as a named policy rather than left inline
+ * in {@link scssErrorNotificationService}: the service around it can only be
+ * exercised through a browser tour (it scrapes `document.styleSheets`), so an
+ * inline check was in practice untestable — and it silently invalidated the
+ * frontend tour, which runs as the public user and had asserted the toast
+ * appeared for everyone.
+ *
+ * @returns {boolean}
+ */
+export function canActOnScssErrors() {
+    return Boolean(user.isAdmin || odoo.debug);
+}
+
 export const scssErrorNotificationService = {
     dependencies: ["notification"],
     /**
@@ -20,12 +40,9 @@ export const scssErrorNotificationService = {
         if (browser.location.origin === "null") {
             return;
         }
-        // A failed SCSS compilation is an administrator/developer problem to
-        // fix database-wide, so the sticky, un-actionable notification only
-        // makes sense for users who can act on it: administrators, or anyone
-        // in developer/debug mode. Bail early for everyone else so regular
-        // users never get a "Style error" toast they can't resolve.
-        if (!user.isAdmin && !odoo.debug) {
+        // Bail before scraping stylesheets for anyone who could not act on the
+        // result anyway (see canActOnScssErrors).
+        if (!canActOnScssErrors()) {
             return;
         }
         const assets = [...document.styleSheets].filter(

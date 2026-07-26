@@ -181,8 +181,22 @@ class InMemoryCursor(BaseCursor):
 
     # Query execution — fixture-backed
 
-    def execute(self, query, params=None, log_exceptions: bool = True) -> None:
+    def execute(
+        self,
+        query,
+        params=None,
+        log_exceptions: bool = True,
+        prepare: bool | None = None,
+    ) -> None:
         """Return a registered fixture for *query*, or fail loud.
+
+        The signature must mirror :meth:`BaseCursor.execute`, including
+        ``prepare``: callers legitimately pass it (``_add_manual_models`` opts
+        its ``ir_model`` SELECT out of the prepared-statement cache), and an
+        override that drops the argument turns such a call into a
+        ``TypeError`` here while working fine against PostgreSQL. There is no
+        psycopg statement cache behind a fixture, so the value is accepted and
+        ignored.
 
         ORM CRUD — create/write/read/search/unlink, including the Many2many
         relation-table operations — is served by the in-memory backend and

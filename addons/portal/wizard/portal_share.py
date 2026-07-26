@@ -54,17 +54,26 @@ class PortalShare(models.TransientModel):
                 wizard.resource_ref = None
 
     def _get_portal_record(self):
-        """Return the active record if it is a ``portal.mixin`` instance, else an empty recordset.
+        """Return the active record when it is a shareable ``portal.mixin`` one.
 
         Shared helper for ``_compute_share_link`` and ``_compute_access_warning``.
+
+        :return: the record, or an empty ``portal.mixin`` recordset when there
+                 is none to share. Returning an empty recordset rather than
+                 ``None`` keeps the result usable with the ORM idioms callers
+                 expect (``record.access_warning`` on the empty set yields
+                 ``False`` instead of raising ``AttributeError``), while still
+                 being falsy for the ``if record`` checks already in place.
+        :rtype: portal.mixin
         """
         self.ensure_one()
+        empty = self.env["portal.mixin"]
         if not self.res_model or self.res_model not in self.env:
-            return None
+            return empty
         res_model = self.env[self.res_model]
         if isinstance(res_model, self.pool["portal.mixin"]) and self.res_id:
             return res_model.browse(self.res_id)
-        return None
+        return empty
 
     @api.depends("res_model", "res_id")
     def _compute_share_link(self):
@@ -108,8 +117,9 @@ class PortalShare(models.TransientModel):
     def _send_public_link(self, partners=None):
         """Send the per-record share link with an HMAC-signed pid to each partner.
 
-        Used when the recipient already has portal access or the record carries
-        an ``access_token`` — no signup involved.
+        Used for recipients who can already log in, and for everyone when
+        self-signup is closed. See :meth:`_get_public_link_partners` for the
+        split (and for why the record's ``access_token`` plays no part in it).
         """
         if partners is None:
             partners = self.partner_ids
@@ -136,27 +146,48 @@ class PortalShare(models.TransientModel):
             )[partner.id]
             self._post_share_email(partner, share_link)
 
-    def action_send_mail(self):
-        """Dispatch each recipient to either the public link or the signup link.
+    def _get_public_link_partners(self):
+        """Split the recipients: who gets a plain share link vs a signup link.
 
-        Partners that already have a user — or any partner when the record itself
-        has an ``access_token`` — get the public share link in a batch. The rest
-        receive a signup link if invitation scope is set to ``b2c``.
+        A partner who already has a user can just follow the tokenised link. A
+        partner who has none is better served by a signup link, which lands them
+        on the same record *and* lets them create the account they will need for
+        any follow-up — but only where self-signup is actually open (``b2c``);
+        otherwise the signup link would dead-end and the plain link is all we
+        can offer.
+
+        This deliberately does **not** consider the record's ``access_token``.
+        That test used to gate the whole split, and it could never fail: the
+        wizard's form shows ``share_link``, whose compute calls
+        ``_portal_ensure_token()``, so simply *opening* the dialog mints the
+        token and pins the branch to "everyone gets the public link" — for this
+        share and every later one on the same record. The signup path was
+        therefore dead code, and recipients without an account silently stopped
+        being invited to create one. Token presence is in any case not a
+        property of the recipient: every ``portal.mixin`` record can mint one on
+        demand, so it says nothing about who needs signup.
+
+        :return: the subset of ``partner_ids`` to send the public link to
+        :rtype: res.partner
         """
+        self.ensure_one()
         signup_enabled = (
             self.env["ir.config_parameter"]
             .sudo()
             .get_param("auth_signup.invitation_scope")
             == "b2c"
         )
+        if not signup_enabled:
+            return self.partner_ids
+        return self.partner_ids.filtered(lambda partner: partner.user_ids)
 
-        if getattr(self.resource_ref, "access_token", False) or not signup_enabled:
-            partner_ids = self.partner_ids
-        else:
-            partner_ids = self.partner_ids.filtered(lambda x: x.user_ids)
-        # if partner already user or record has access token send common link in batch to all user
-        self._send_public_link(partner_ids)
-        # when partner not user send individual mail with signup token
-        self._send_signup_link(self.partner_ids - partner_ids)
+    def action_send_mail(self):
+        """Dispatch each recipient to either the public link or the signup link."""
+        self.ensure_one()
+        public_link_partners = self._get_public_link_partners()
+        # Partner already has a user (or signup is closed): common share link.
+        self._send_public_link(public_link_partners)
+        # Partner has no user yet: individual mail carrying a signup token.
+        self._send_signup_link(self.partner_ids - public_link_partners)
 
         return {"type": "ir.actions.act_window_close"}

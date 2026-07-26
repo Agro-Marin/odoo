@@ -1,7 +1,6 @@
 import ast
 import copy
 import functools
-import hashlib
 import importlib
 import importlib.machinery
 import importlib.metadata
@@ -17,6 +16,7 @@ from pathlib import Path
 
 import odoo.upgrade
 from odoo import release, tools
+from odoo.tools.hashing import ALGO_TAG, cache_hasher, update_from_file
 
 import odoo.addons
 
@@ -473,7 +473,7 @@ _CHECKSUM_IGNORE_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
 
 
 def module_content_checksum(module: str) -> str | None:
-    """Return a sha256 hexdigest over the module directory's content.
+    """Return an algorithm-tagged hexdigest over the module directory's content.
 
     Covers every regular file (relative path and bytes) except caches and
     editor droppings, in sorted order, so the digest is stable across
@@ -482,11 +482,16 @@ def module_content_checksum(module: str) -> str | None:
     whose code and data did not change since their last successful upgrade
     (see ``button_upgrade``); deliberately *not* cached — a running server
     may see the directory change under it on deploy.
+
+    The ``<algo>:`` prefix makes the digest self-describing: a value stamped
+    by a different algorithm compares unequal, so the module is re-upgraded
+    rather than skipped on stale evidence.  Switching algorithms therefore
+    costs one upgrade pass per module, never a wrong skip.
     """
     path = get_module_path(module, display_warning=False)
     if not path:
         return None
-    digest = hashlib.sha256()
+    digest = cache_hasher()
     root = Path(path)
     files = sorted(
         p
@@ -498,11 +503,9 @@ def module_content_checksum(module: str) -> str | None:
     for p in files:
         digest.update(str(p.relative_to(root)).encode())
         digest.update(b"\0")
-        with p.open("rb") as fp:
-            while chunk := fp.read(1 << 20):
-                digest.update(chunk)
+        update_from_file(digest, p)
         digest.update(b"\0")
-    return digest.hexdigest()
+    return f"{ALGO_TAG}:{digest.hexdigest()}"
 
 
 def get_resource_from_path(path: str) -> tuple[str, str, str] | None:

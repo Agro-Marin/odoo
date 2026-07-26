@@ -140,7 +140,11 @@ describe("visibility", () => {
         expect(getContent(el)).toBe(
             `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
         );
-        await expectElementCount(".o_we_power_buttons:not(.invisible)", 1);
+        // This fork hides the container with `d-none`, not upstream's
+        // `invisible`; probing the old class made the assertion vacuous (it
+        // matched whether or not the buttons were shown) and let the wait
+        // resolve before the debounced update had run.
+        await expectElementCount(".o_we_power_buttons:not(.d-none)", 1);
 
         // setupEditor triggers updatePowerButtons via
         // layout_geometry_change_handlers, followed by a debounced update via

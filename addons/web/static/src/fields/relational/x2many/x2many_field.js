@@ -266,8 +266,14 @@ export class X2ManyField extends Component {
      * @returns {typeof import("@odoo/owl").Component | undefined}
      */
     get kanbanRenderer() {
+        // ``this.constructor`` is typed ``Function`` by TS (it cannot know the
+        // instance's own class), which hides the static side entirely. Assert
+        // the declaring class rather than ``any``: this keeps ``components``
+        // checked against the static getter declared above, and subclass
+        // overrides still resolve at runtime through the prototype chain.
+        const ctor = /** @type {typeof X2ManyField} */ (this.constructor);
         return (
-            this.constructor.components.KanbanRenderer ??
+            ctor.components.KanbanRenderer ??
             (views.contains("kanban") ? views.get("kanban").Renderer : undefined)
         );
     }

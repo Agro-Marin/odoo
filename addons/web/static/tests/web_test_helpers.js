@@ -176,6 +176,7 @@ export {
     selectFieldDropdownItem,
 } from "./_framework/view_test_helpers.js";
 export {
+    mountActionHost,
     mountWebClient,
     useTestClientAction,
 } from "./_framework/webclient_test_helpers.js";

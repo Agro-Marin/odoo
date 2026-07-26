@@ -133,7 +133,7 @@ class SaleOrder(models.Model):
                     'price_total': sum(lines.mapped('price_total')),
                     'discount': 0.0,
                     'name': lines[0].name_short if lines.reward_id.reward_type != 'product' else lines[0].name,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'product_uom_id': lines[0].product_uom_id.id,
                     'order_id': order.id,
                     'is_reward_line': True,
@@ -147,7 +147,7 @@ class SaleOrder(models.Model):
         super(SaleOrder, self)._compute_cart_info()
         for order in self:
             reward_lines = order.website_order_line.filtered(lambda line: line.is_reward_line)
-            order.cart_quantity -= int(sum(reward_lines.mapped('product_uom_qty')))
+            order.cart_quantity -= int(sum(reward_lines.mapped('product_qty')))
 
     def get_promo_code_error(self, delete=True):
         error = request.session.get('error_promo_code')

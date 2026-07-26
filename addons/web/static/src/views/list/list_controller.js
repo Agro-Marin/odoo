@@ -66,13 +66,31 @@ export class ListController extends MultiRecordController {
         allowOpenAction: true,
     };
 
+    /** @type {Record<string, any>} */
+    optionalActiveFields;
+
+    /**
+     * Actions deferred until mouseup, so a click that would trigger a save can
+     * be replayed once the pointer is released elsewhere.
+     *
+     * Declared as a field purely so its type is `(() => void)[]` rather than
+     * `… | undefined`: TypeScript only credits the CONSTRUCTOR for definite
+     * assignment, and this is assigned in `setup()`. Safe for an OWL component
+     * because OWL constructs first and calls `setup()` afterwards
+     * (`owl.js`: `new C(...)` then `component.setup()`), so the field
+     * initialiser cannot clobber the value `setup()` assigns. That ordering is
+     * the OPPOSITE for `Model` subclasses, whose base constructor calls
+     * `this.setup(...)` itself — never use this pattern there.
+     * See `machine_doc_v1/JSDOC_TYPE_TIGHTENING.md` Pattern 7.
+     *
+     * @type {(() => void)[]}
+     */
+    nextActionsAfterMouseup;
+
     /**
      * Initialize list-specific state, model, pager, scroll restoration, and hooks.
      * @override
      */
-    /** @type {Record<string, any>} */
-    optionalActiveFields;
-
     setup() {
         super.setup();
 

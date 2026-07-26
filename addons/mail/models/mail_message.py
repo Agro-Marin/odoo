@@ -1940,14 +1940,23 @@ class MailMessage(models.Model):
         record_by_message = self._record_by_message()
         # Check access to the linked record before displaying a notification
         # about it (e.g. after a company switch the user may have lost access).
-        # Batch the check per model with _filtered_access — one ir.rule query per
-        # model instead of a has_access() per message — which is also fail-closed
-        # for cascade-deleted records (they drop out instead of raising).
+        # Batch the check per model with _filtered_access — one ir.rule query
+        # per model instead of a has_access() per message.
         ids_by_model = defaultdict(list)
         for record in record_by_message.values():
             ids_by_model[record._name].append(record.id)
         accessible_ids_by_model = {
-            model: set(self.env[model].browse(ids)._filtered_access("read")._ids)
+            # ``.exists()`` first: a message outlives the record it points at,
+            # so ``_record_by_message`` deliberately hands back unverified
+            # browse records (its other callers guard with ``except
+            # MissingError``). ``_filtered_access`` is documented as
+            # ``filtered(has_access)`` and reads fields through
+            # ``filtered_domain``, so a cascade-deleted row raises MissingError
+            # instead of dropping out. One existence query per model makes the
+            # drop-out real while keeping the per-model batching.
+            model: set(
+                self.env[model].browse(ids).exists()._filtered_access("read")._ids
+            )
             for model, ids in ids_by_model.items()
         }
         for message in self:

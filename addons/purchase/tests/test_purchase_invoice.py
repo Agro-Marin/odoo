@@ -365,7 +365,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         currency, the amount of each AML is converted to the bill's currency
         """
         PurchaseOrderLine = self.env["purchase.order.line"]
-        PurchaseBillUnion = self.env["purchase.bill.match"]
+        PurchaseBillMatch = self.env["purchase.bill.match"]
         ResCurrencyRate = self.env["res.currency.rate"]
         usd = self.env.ref("base.USD")
         eur = self.env.ref("base.EUR")
@@ -403,10 +403,10 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
-        move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(
+        move_form.purchase_vendor_bill_id = PurchaseBillMatch.browse(
             -purchase_orders[0].id
         )
-        move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(
+        move_form.purchase_vendor_bill_id = PurchaseBillMatch.browse(
             -purchase_orders[1].id
         )
         move = move_form.save()
@@ -740,14 +740,14 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
-        PurchaseBillUnion = self.env["purchase.bill.match"]
-        move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(
+        PurchaseBillMatch = self.env["purchase.bill.match"]
+        move_form.purchase_vendor_bill_id = PurchaseBillMatch.browse(
             -purchase_orders[0].id
         )
-        move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(
+        move_form.purchase_vendor_bill_id = PurchaseBillMatch.browse(
             -purchase_orders[1].id
         )
-        move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(
+        move_form.purchase_vendor_bill_id = PurchaseBillMatch.browse(
             -purchase_orders[2].id
         )
         invoice = move_form.save()

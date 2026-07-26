@@ -47,6 +47,22 @@ const SERVER_STATE_VALUES = {
             currency_id: 1,
         },
     ],
+    /**
+     * Companies the user may NOT act in, present only so the company switcher
+     * can draw the tree that links the allowed ones (the server's
+     * ``user_companies.disallowed_ancestor_companies``, built by
+     * ``ir_http.py:_get_company_hierarchy``).
+     *
+     * Empty by default, matching a flat single-level company setup. Tests that
+     * exercise the hierarchy (disabled rows, select-all filtering, selection
+     * cascading through a disallowed node) set it alongside ``companies``.
+     * ``child_ids`` on either list must only reference ids present in one of
+     * the two — the server clips them to the hierarchy, and the client's
+     * ``getCompany()`` lookup relies on that.
+     *
+     * @type {{ id: number; name: string; [key: string]: any }[]}
+     */
+    disallowedAncestorCompanies: [],
     /** @type {{ id: number; name: string; position: string; symbol: string; [key: string]: any }[]} */
     currencies: [
         {
@@ -85,6 +101,7 @@ const SERVER_STATE_VALUES_SCHEMA = {
     companies: { type: Array, element: Object },
     currencies: { type: Array, element: Object },
     db: String,
+    disallowedAncestorCompanies: { type: Array, element: Object },
     debug: String,
     groupId: [Number, { value: false }],
     lang: String,

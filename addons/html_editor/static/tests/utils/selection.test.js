@@ -13,41 +13,36 @@ import { setSelection } from "../_helpers/selection.js";
 import { insertText } from "../_helpers/user_actions.js";
 
 describe("ensureFocus", () => {
-    // TODO @phoenix: unskipped when ensureFocus is add in the code base
-    test.todo(
-        "should preserve the focus on the child of this.editable when executing a powerbox command even if it is enclosed in a contenteditable=false",
-        async () => {
-            await testEditor({
-                contentBefore: unformat(`
+    test("should preserve the focus on the child of this.editable when executing a powerbox command even if it is enclosed in a contenteditable=false", async () => {
+        await testEditor({
+            contentBefore: unformat(`
                 <div contenteditable="false"><div contenteditable="true">
                     <p>[]<br></p>
                 </div></div>
                 <p><br></p>`),
-                stepFunction: async (editor) => {
-                    const sel = document.getSelection();
-                    const element = sel.anchorNode;
-                    await dispatch(editor.editable, "keydown", { key: "/" });
-                    await insertText(editor, "/");
-                    await dispatch(editor.editable, "keyup", { key: "/" });
-                    await insertText(editor, "h2");
-                    await dispatch(element, "keyup", { key: "2" });
-                    await dispatch(editor.editable, "keydown", { key: "Enter" });
-                    const activeElement = document.activeElement;
-                    editor.shared.selection.setCursorStart(
-                        activeElement.lastElementChild,
-                    );
-                    // TODO @phoenix still need it ?
-                    // await nextTickFrame();
-                },
-                contentAfter: unformat(`
+            stepFunction: async (editor) => {
+                const sel = document.getSelection();
+                const element = sel.anchorNode;
+                await dispatch(editor.editable, "keydown", { key: "/" });
+                await insertText(editor, "/");
+                await dispatch(editor.editable, "keyup", { key: "/" });
+                await insertText(editor, "h2");
+                await dispatch(element, "keyup", { key: "2" });
+                await dispatch(editor.editable, "keydown", { key: "Enter" });
+                const activeElement = document.activeElement;
+                editor.shared.selection.setCursorStart(activeElement.lastElementChild);
+                // TODO @phoenix still need it ?
+                // await nextTickFrame();
+            },
+            contentAfter: unformat(`
                 <div contenteditable="false"><div contenteditable="true">
                     <h2>[]<br></h2>
                 </div></div>
                 <p><br></p>`),
-            });
-        },
-    );
+        });
+    });
 
+    // TODO @phoenix: unskipped when ensureFocus is add in the code base
     test.todo(
         "should preserve the focus on the child of this.editable even if it is enclosed in a contenteditable=false",
         async () => {

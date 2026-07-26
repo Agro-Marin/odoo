@@ -59,11 +59,14 @@ export class BurgerMenu extends Component {
             return;
         }
         const deltaX = ev.changedTouches[0].clientX - this.swipeStartX;
+        // Disarm on every touchend, not just an activating one: a below-
+        // threshold gesture used to leave the start point armed, so a later
+        // touchend with no matching touchstart measured against a stale origin.
+        this.swipeStartX = null;
         if (deltaX < SWIPE_ACTIVATION_THRESHOLD) {
             return;
         }
         this._closeBurger();
-        this.swipeStartX = null;
     }
 }
 

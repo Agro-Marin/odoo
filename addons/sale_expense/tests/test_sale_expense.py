@@ -20,7 +20,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             'line_ids': [Command.create({
                 'name': self.company_data['product_delivery_no'].name,
                 'product_id': self.company_data['product_delivery_no'].id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'price_unit': self.company_data['product_delivery_no'].list_price,
             })],
         })

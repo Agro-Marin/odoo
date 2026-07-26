@@ -60,7 +60,7 @@ class CustomerPortal(sale_portal.CustomerPortal):
                             'custom_product_template_attribute_value_id': pcav.custom_product_template_attribute_value_id.id,
                             'custom_value': pcav.custom_value,
                         } for pcav in linked_line.product_custom_attribute_value_ids],
-                        'quantity': linked_line.product_uom_qty,
+                        'quantity': linked_line.product_qty,
                         'combo_item_id': linked_line.combo_item_id.id,
                         'parent_product_template_id': line.product_id.product_tmpl_id.id,
                     })
@@ -68,7 +68,7 @@ class CustomerPortal(sale_portal.CustomerPortal):
             cart_values = Cart_controller.add_to_cart(
                 product_id=line.product_id.id,
                 product_template_id=line.product_id.product_tmpl_id.id,
-                quantity=line.product_uom_qty,
+                quantity=line.product_qty,
                 product_custom_attribute_values=[{
                     'custom_product_template_attribute_value_id': pcav.custom_product_template_attribute_value_id.id,
                     'custom_value': pcav.custom_value,

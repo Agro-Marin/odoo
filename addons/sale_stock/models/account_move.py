@@ -11,19 +11,19 @@ class AccountMove(models.Model):
     # COMPUTE METHODS
     # ------------------------------------------------------------
 
-    @api.depends("line_ids.sale_line_ids.order_id")
+    @api.depends("line_ids.sale_line_ids.order_id.incoterm_location")
     def _compute_incoterm_location(self):
+        # base_order_stock owns the body; this override only declares the sale
+        # dependency. Odoo unions @api.depends across every override of a
+        # compute, so purchase_stock's declaration survives alongside this one.
         super()._compute_incoterm_location()
-        for move in self:
-            sale_locations = move.line_ids.sale_line_ids.order_id.mapped(
-                "incoterm_location",
-            )
-            incoterm_res = next(
-                (incoterm for incoterm in sale_locations if incoterm), False
-            )
-            # if multiple purchase order we take an incoterm that is not false
-            if incoterm_res:
-                move.incoterm_location = incoterm_res
+
+    def _get_order_incoterm_locations(self):
+        # Extends base_order_stock: contribute the sale orders' incoterms.
+        return [
+            *super()._get_order_incoterm_locations(),
+            *self.line_ids.sale_line_ids.order_id.mapped("incoterm_location"),
+        ]
 
     @api.depends("line_ids.sale_line_ids.order_id.date_effective")
     def _compute_delivery_date(self):

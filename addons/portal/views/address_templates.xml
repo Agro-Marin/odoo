@@ -400,7 +400,17 @@
                 <span class="px-3">or</span>
                 <hr class="w-100" />
             </div>
-            <button id="save_address" class="btn btn-primary w-100 w-md-auto order-1 order-md-3">
+            <!-- type="button", not the default "submit": /my/address/submit answers
+                 JSON, so a native submission navigates the customer onto a raw
+                 `{"redirectUrl": ...}` document. Submission goes through the
+                 `portal.customer_address` interaction, which reads the endpoint off
+                 `data-submit-url`. Having no submit button also suppresses implicit
+                 submission (Enter in a field), which would leak the same JSON. -->
+            <button
+                id="save_address"
+                type="button"
+                class="btn btn-primary w-100 w-md-auto order-1 order-md-3"
+            >
                 <t name="save_address_label">Save Address</t>
                 <i class="fw-light fa-solid fa-angle-right ms-2" />
             </button>

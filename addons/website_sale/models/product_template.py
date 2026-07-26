@@ -117,8 +117,20 @@ class ProductTemplate(models.Model):
         string="Publish Date",
         compute='_compute_publish_date',
         store=True,
-        required=True,
-        default=fields.Datetime.now,
+        # `precompute` so the value is part of the INSERT rather than a later
+        # UPDATE; `_compute_publish_date` assigns every record, so a template
+        # always carries a date in practice.
+        #
+        # Deliberately NOT `required=True`. This module bolts the column onto
+        # `product_template`, a table owned by `product`, and a NOT NULL there
+        # is only honourable once `website_sale` is in the registry. Any module
+        # that loads earlier and creates a template -- every at_install suite
+        # built on `ProductCommon`, for instance -- goes through a registry
+        # without this field, so the column is absent from its INSERT and the
+        # constraint fires on data the module cannot even know about. The
+        # invariant belongs to the compute, not to a constraint another
+        # module's load order can violate.
+        precompute=True,
     )
 
     product_template_image_ids = fields.One2many(
@@ -204,7 +216,18 @@ class ProductTemplate(models.Model):
     @api.depends('is_published')
     def _compute_publish_date(self):
         """Set `publish_date` to the moment of (re-)publishing."""
-        self.filtered('is_published').publish_date = fields.Datetime.now()
+        # Every record must be assigned: the field is stored AND `required=True`,
+        # and a stored compute takes precedence over the field default, so the
+        # `default=fields.Datetime.now` above never applies. Leaving unpublished
+        # records untouched left the column NULL and any `product.template`
+        # created unpublished died on the not-null constraint -- which is every
+        # `ProductCommon`-based test once `website_sale` is installed.
+        now = fields.Datetime.now()
+        for template in self:
+            # Unpublishing must not erase when it was last published, so only
+            # (re-)publishing moves the date; an unset one still needs a value.
+            if template.is_published or not template.publish_date:
+                template.publish_date = now
 
     @api.depends('product_variant_ids', 'product_variant_ids.base_unit_count')
     def _compute_base_unit_count(self):

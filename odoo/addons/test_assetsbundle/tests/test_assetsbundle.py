@@ -3118,4 +3118,18 @@ class TestErrorManagement(HttpCase):
             }
         )
         with mute_logger("odoo.addons.base.models.assetsbundle"):
-            self.start_tour("/", "css_error_tour_frontend")
+            # Public session + `?debug=1`, and both halves are load-bearing.
+            #
+            # A style-compilation failure is only surfaced to someone who could
+            # fix it (`canActOnScssErrors`: administrator or debug mode), so as
+            # a plain visitor this tour could only ever time out. But logging in
+            # as an administrator does not work either: `/` then redirects to
+            # the backend, which loads `web.assets_web_*` and never
+            # `web.assets_frontend` — the very bundle this test breaks on
+            # purpose. Debug mode is the only way to satisfy both at once.
+            #
+            # The "a regular visitor is shown nothing" half of that policy has
+            # no tour (asserting an absence is inherently racy here); it is
+            # pinned as a unit test in
+            # web/static/tests/services/scss_error_display.test.js.
+            self.start_tour("/?debug=1", "css_error_tour_frontend")

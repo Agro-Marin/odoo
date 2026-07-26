@@ -224,7 +224,10 @@ class SaleOrder(models.Model):
             'order_id': self.id,
             'name': so_description,
             'price_unit': price_unit,
-            'product_uom_qty': 1,
+            # `product_qty`, the writable quantity: `product_uom_qty` is computed
+            # from it and discards anything written here (see
+            # base_order/models/order_line_amount_mixin.py).
+            'product_qty': 1,
             'product_id': carrier.product_id.id,
             'tax_ids': [(6, 0, taxes_ids)],
             'is_delivery': True,

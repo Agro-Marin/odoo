@@ -186,7 +186,7 @@ class ReadMixin(_ModelStubs):
                     if not vals:
                         continue
                     try:
-                        record = self.browse((ids[idx],))
+                        record = self._read_format_miss_record(ids[idx])
                         vals[name] = field.convert_to_read(
                             record[name], record, use_display_name
                         )
@@ -198,11 +198,10 @@ class ReadMixin(_ModelStubs):
                         continue
                     cache_value = field_cache.get(id_, _SENTINEL)
                     if cache_value is _SENTINEL or cache_value is _PENDING:
-                        # Cache miss after fetch(): record missing or a NewId.
-                        # Fall back to __get__ via singleton.  Wrap in a tuple —
-                        # NewId.__bool__ is False, so bare browse() would be empty.
+                        # Cache miss: record missing, a NewId, or simply a cold
+                        # recordset. Fall back to __get__ via singleton.
                         try:
-                            record = self.browse((id_,))
+                            record = self._read_format_miss_record(id_)
                             vals[name] = field.convert_to_read(
                                 record[name], record, use_display_name
                             )
@@ -298,6 +297,41 @@ class ReadMixin(_ModelStubs):
                         vals.clear()
 
         return [vals for record, vals in data if vals]
+
+    def _read_format_miss_record(self, id_):
+        """Singleton for ``_read_format``'s scalar cache-miss fallback.
+
+        Wrapped in a tuple because ``NewId.__bool__`` is False, so a bare
+        ``browse()`` would yield an empty recordset.
+
+        ``with_prefetch`` is what keeps the fallback batched. The scalar phase
+        was written assuming ``fetch()`` already ran (as :meth:`read` does), so
+        a miss meant one odd record. But ``_read_format`` is also called
+        directly — it advertises reading from cache "avoiding a query when
+        possible" — and on a cold recordset *every* record misses. A plain
+        ``self.browse((id_,))`` carries only its own id as prefetch, so each
+        miss issued ``WHERE id IN (<one id>)``: one SELECT per record, i.e. an
+        N+1 that grew with the recordset (measured on ``mail.message``: 20
+        records, 20 queries). Batching the miss collapses that to one query.
+
+        The prefetch set is deliberately ``self._ids`` and *not*
+        ``self._prefetch_ids``: these are the records being formatted, so this
+        is exactly the data the caller is about to read. ``_prefetch_ids`` is
+        the ambient set the recordset was browsed with and may hold up to
+        ``PREFETCH_MAX`` unrelated ids — widening to it would let a one-record
+        format pull a thousand rows of every stored column, trading an N+1 for
+        an occasional very large query.
+
+        Relational/translated/html fields never had the problem: they take
+        ``_read_format``'s record phase, which iterates ``self`` directly and so
+        keeps its prefetch.
+
+        Safe against access errors: :meth:`Field._get_cache_miss` already
+        catches ``AccessError`` from a batched fetch and retries the single
+        record, so widening the batch cannot turn a readable record into a
+        failing one.
+        """
+        return self.browse((id_,)).with_prefetch(self._ids)
 
     def _fetch_field(self, field: Field) -> None:
         """Fetch ``field`` for ``self`` from the database into cache."""

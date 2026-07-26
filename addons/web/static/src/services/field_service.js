@@ -69,10 +69,7 @@ export const fieldService = {
             const fields = await orm
                 .cache({ type: "disk", immutable: true })
                 .retry(1)
-                .call(resModel, "fields_get", [
-                    options.fieldNames,
-                    options.attributes,
-                ]);
+                .call(resModel, "fields_get", [options.fieldNames, options.attributes]);
             return { ...fields };
         }
 

@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class StockPicking(models.Model):
@@ -33,17 +34,22 @@ class StockPicking(models.Model):
             # picking and move should have a link to the SO to see the picking on the stat button.
             picking.purchase_id = picking.move_ids.purchase_line_id.order_id
 
+    def _days_to_arrive_domain(self):
+        # A purchase transfer counts unless the goods went back to the vendor.
+        # Backs both the compute and the search below, so they cannot drift apart.
+        return self._effective_transfer_domain() & Domain(
+            "location_dest_id.usage",
+            "!=",
+            "supplier",
+        )
+
     @api.depends("state", "location_dest_id.usage", "date_done")
     def _compute_days_to_arrive(self):
-        for picking in self:
-            if (
-                picking.state == "done"
-                and picking.location_dest_id.usage != "supplier"
-                and picking.date_done
-            ):
-                picking.days_to_arrive = picking.date_done
-            else:
-                picking.days_to_arrive = False
+        # Arithmetic lives in base_order_stock; only the domain is purchase-specific.
+        self._compute_effective_transfer_date(
+            "days_to_arrive",
+            self._days_to_arrive_domain(),
+        )
 
     def _get_source_order_date(self):
         # Extends base_order_stock: contribute the purchase branch of delay_pass.
@@ -55,7 +61,13 @@ class StockPicking(models.Model):
 
     @api.model
     def _search_days_to_arrive(self, operator, value):
-        return [("date_done", operator, value)]
+        # Mirrors _compute_days_to_arrive: without the domain this matched any
+        # transfer with a date_done, deliveries and vendor returns included.
+        return self._search_effective_transfer_date(
+            operator,
+            value,
+            self._days_to_arrive_domain(),
+        )
 
     @api.model
     def _get_source_order_date_paths(self):

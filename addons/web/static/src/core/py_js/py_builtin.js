@@ -469,7 +469,12 @@ export const BUILTINS = {
                 `bad operand type for abs(): '${pyTypeName(value)}'`,
             );
         }
-        return Math.abs(value);
+        // ``Number(...)`` is the bool-is-int coercion, not a cast to silence
+        // tsc: the guard above deliberately admits booleans because Python's
+        // ``bool`` IS an ``int`` subclass, so ``abs(True)`` must evaluate to 1.
+        // ``Math.abs`` would coerce anyway; doing it explicitly states that the
+        // boolean branch is intended rather than tolerated.
+        return Math.abs(Number(value));
     },
 
     /**

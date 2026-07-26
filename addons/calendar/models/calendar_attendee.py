@@ -150,9 +150,25 @@ class CalendarAttendee(models.Model):
         if mail_template.attachment_ids:
 
             # Setting res_model to ensure attachments are linked to the msg (otherwise only internal users are allowed link attachments)
-            attachments_values = [a.copy_data({'res_id': 0, 'res_model': 'mail.compose.message'})[0] for a in mail_template.attachment_ids]
-            attachments_values *= len(self)
-            attendee_attachment_ids = self.env['ir.attachment'].create(attachments_values).ids
+            #
+            # `copy()`, not `copy_data()` + `create()`: duplicating an
+            # `ir.attachment` is split across the two. `copy_data` carries the
+            # bytes only for database-stored content; filestore-backed content is
+            # relinked to its existing file by `copy()` afterwards, deliberately
+            # without reading it. Building the values and creating them here
+            # skipped that relink, so every attendee received an attachment with
+            # no content -- checksum unset, file_size 0 -- for any template
+            # attachment held in the filestore, which is the normal case.
+            #
+            # One copy per attendee rather than one batched create: the relink
+            # costs no bytes, and going through the API that actually duplicates
+            # an attachment is what stops this regressing again.
+            attendee_attachment_ids = []
+            for _attendee in self:
+                attendee_attachment_ids += mail_template.attachment_ids.copy({
+                    'res_id': 0,
+                    'res_model': 'mail.compose.message',
+                }).ids
 
             # Map attendees to their respective attachments
             template_attachment_count = len(mail_template.attachment_ids)

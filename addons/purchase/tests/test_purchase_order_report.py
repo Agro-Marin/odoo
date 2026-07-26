@@ -75,7 +75,7 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         #         self.purchase_id = self.purchase_vendor_bill_id.purchase_order_id
         #     self.purchase_vendor_bill_id = False
         # purchase_vendor_bill_id = fields.Many2one('purchase.bill.match'
-        # class PurchaseBillUnion(models.Model):
+        # class PurchaseBillMatch(models.Model):
         #     _name = 'purchase.bill.match'
         #     ...
         #     def init(self):

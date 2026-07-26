@@ -60,11 +60,11 @@ class TestConcurrencyPromoCode(BaseCase):
             cls.order_lines = env['sale.order.line'].create([{
                     'order_id': cls.order_partner_1.id,
                     'product_id': cls.product.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }, {
                     'order_id': cls.order_partner_2.id,
                     'product_id': cls.product.id,
-                    'product_uom_qty': 3,
+                    'product_qty': 3,
                 },
             ])
 

@@ -4,7 +4,6 @@
 /** @module @web/webclient/actions/action_service - Action manager that routes server/client actions to views, dialogs, and URL redirects */
 
 import { reactive } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { router as _router } from "@web/core/browser/router";
 import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
@@ -34,6 +33,8 @@ import { executeServerAction } from "./action_executors/server.js";
 import { buildActionInfo, buildViewInfo } from "./action_info_builders.js";
 import { loadAction, makeController, preprocessAction } from "./action_loader.js";
 import { getActionParams, makeActionState } from "./action_state.js";
+import { actionStorage } from "./action_storage.js";
+import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import { buildBreadcrumbs, controllersFromState } from "./breadcrumb_manager.js";
 import { makeControllerComponent } from "./controller_component.js";
 import { loadState } from "./load_state.js";
@@ -56,6 +57,26 @@ actionRegistry.addValidation((entry) => typeof entry === "function");
 // `({ action, options, env })` to execute outside the standard client flow.
 actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
 
+/**
+ * The router surface the action layer actually consumes — deliberately NOT
+ * ``typeof router``.
+ *
+ * ``makeActionManager(env, router)`` is public: ``web_studio``'s editor
+ * (``enterprise/web_studio/.../editor.js``) passes a hand-built stub with
+ * exactly these four members, because Studio's manager must not touch the real
+ * URL. Typing the parameter as the concrete ``router`` singleton would reject
+ * that legitimate caller and overstate the dependency; these four are the whole
+ * contract (verified 2026-07-25 — the only ``router.*`` accesses anywhere in
+ * ``webclient/actions/`` are ``current``, ``pushState``, ``stateToUrl`` and the
+ * one ``hideKeyFromUrl`` call in the constructor).
+ *
+ * @typedef {Object} RouterLike
+ * @property {Object} current the current parsed URL state
+ * @property {(state: Object, options?: Object) => void} pushState
+ * @property {(state: Object) => string} stateToUrl
+ * @property {(key: string) => void} hideKeyFromUrl
+ */
+
 /** @typedef {number|false} ActionId */
 /** @typedef {Object} ActionDescription */
 /** @typedef {"current" | "fullscreen" | "new" | "main" | "self"} ActionMode */
@@ -72,6 +93,7 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
 /** @typedef {Action & { type: "ir.actions.act_url" }} ActURLAction */
 /** @typedef {Action & { type: "ir.actions.client" }} ClientAction */
 /** @typedef {Action & { type: "ir.actions.server" }} ServerAction */
+/** @typedef {Action & { type: "ir.actions.report" }} ReportAction */
 /** @typedef {Object} Controller */
 /** @typedef {Object} BaseView */
 /** @typedef {Object} ActionProps */
@@ -114,6 +136,50 @@ export { ControllerNotFoundError, standardActionServiceProps };
 // where it's consumed by the ControllerComponent class.
 
 /**
+ * THE SIBLING CONTRACT
+ * ====================
+ *
+ * The modules this file delegates to (``action_executors/*``,
+ * ``breadcrumb_manager``, ``load_state``, ``action_button_executor``,
+ * ``controller_component``, ``reports/report_executor``, ``action_loader``,
+ * ``action_info_builders``, ``action_cache_invalidation``) all take the
+ * ActionManager INSTANCE as their last parameter. That is deliberate and must
+ * not be narrowed to the collaborators each one happens to need today:
+ *
+ *  - ``enterprise/web_studio/.../editor.js`` does ``Object.assign(action,
+ *    { doAction })``, and siblings call ``am.doAction()`` LATE-BOUND. Capturing
+ *    ``doAction`` at construction time would silently break Studio's
+ *    interception.
+ *  - ``_loadAction`` / ``_executeCloseAction`` / ``_getBreadcrumbs`` are used as
+ *    test seams via fake ``am`` object literals.
+ *
+ * What was missing is a statement of WHICH members are the sanctioned surface,
+ * so "what may a sibling touch?" stopped being answerable only by grep. As of
+ * 2026-07-25 the siblings reach exactly these 26 members:
+ *
+ *   read-only, collaborators : env · router · keepLast
+ *   read-only, state         : controllerStack · dialog · nextDialog ·
+ *                              breadcrumbCache
+ *   public API               : doAction · doActionButton · switchView ·
+ *                              restore · pushState
+ *   internal helpers         : _updateUI · _makeController · _loadAction ·
+ *                              _confirmLeave · _nextId · _getView ·
+ *                              _getViewInfo · _getActionInfo · _getActionParams ·
+ *                              _getBreadcrumbs · _controllersFromState ·
+ *                              _removeDialog · _executeCloseAction
+ *   mutable counters         : _loadStateGeneration
+ *
+ * Only five sites WRITE manager state, and each is documented where it happens:
+ *   ``controller_component.js``  controllerStack (commit on mount / restore on
+ *                                error), dialog + nextDialog (the two-slot
+ *                                commit — see ``_removeDialog``)
+ *   ``action_cache_invalidation.js``  breadcrumbCache (flush by replacement —
+                                see the NOTE in breadcrumb_cache.js)
+ *   ``load_state.js``            _loadStateGeneration (navigation intent)
+ *
+ * Adding a member to this surface means adding it to this list. Anything not
+ * listed is private to this file.
+ *
  * Action manager — routes ``doAction`` / button clicks / URL state changes
  * to the appropriate action executor, maintains the breadcrumb controller
  * stack, manages the dialog overlay, and synchronizes URL state.
@@ -125,7 +191,7 @@ export { ControllerNotFoundError, standardActionServiceProps };
 export class ActionManager {
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {import("@web/core/browser/router").Router} [router]
+     * @param {RouterLike} [router]
      */
     constructor(env, router = _router) {
         // -------------------------------------------------------------------
@@ -133,7 +199,7 @@ export class ActionManager {
         // -------------------------------------------------------------------
         this.env = env;
         this.router = router;
-        this.breadcrumbCache = {};
+        this.breadcrumbCache = new BreadcrumbCache();
         // rejectSuperseded: a doAction/switchView/restore superseded by a
         // newer navigation rejects its awaiter with a SupersededError (swallowed
         // by the error service) instead of hanging forever. This is what makes
@@ -186,7 +252,12 @@ export class ActionManager {
         // (not on the class) so executor modules can import it without a
         // circular dependency on this module.
 
-        /** @type {Record<string, (action: Object, options: ActionOptions) => Promise>} */
+        // ``| void``: not every executor is async. ``act_url`` and
+        // ``act_window_close`` are plain functions with bare ``return;`` paths
+        // (an empty url, no dialog to close), so the map's value type must
+        // admit a non-Promise result — ``doAction`` returns whatever comes back
+        // and its own ``@returns`` already allows ``void``.
+        /** @type {Record<string, (action: Object, options: ActionOptions) => Promise<any> | void>} */
         // Dispatch straight to the ``action_executors/*`` module functions.
         // ``_executeCloseAction`` keeps a thin method wrapper because it has an
         // external caller (``action_button_executor``) and is mocked in tests;
@@ -350,6 +421,33 @@ export class ActionManager {
         return this.keepLast.generation !== generation;
     }
 
+    /**
+     * Ask every mounted controller for permission to leave, then re-check that
+     * no newer navigation started while we waited.
+     *
+     * Both halves are mandatory and must stay together.
+     * ``clearUncommittedChanges`` can block indefinitely (a save dialog
+     * awaiting the user) and it awaits OUTSIDE the KeepLast, so the KeepLast
+     * cannot arbitrate that window: the caller must snapshot the navigation
+     * generation before the await and re-check it after. Centralising both
+     * here means a new transition path cannot add the consent await and forget
+     * the re-check — the failure mode being a stale controller mounting on top
+     * of a newer one (see the ``concurrency.test.js`` suite, which covers this
+     * for each of the four entry points).
+     *
+     * Internal — also called by sibling ``action_executors/*`` with the
+     * ActionManager instance as ``this``. No ``@private`` tag: TS reads it as
+     * strict class-private and would block sibling-module access.
+     *
+     * @param {{ forceLeave?: boolean }} [options]
+     * @returns {Promise<boolean>} ``true`` if the caller may proceed
+     */
+    async _confirmLeave(options = {}) {
+        const navGeneration = this._navGeneration();
+        const canProceed = await clearUncommittedChanges(this.env, options);
+        return canProceed && !this._isSupersededNav(navGeneration);
+    }
+
     async _loadAction(actionRequest, context = {}) {
         return loadAction(actionRequest, context);
     }
@@ -463,8 +561,9 @@ export class ActionManager {
      *  - {@link _dispatchInline} otherwise (drives ACTION_MANAGER:UPDATE
      *    so the action_container swaps in the new controller).
      *
-     * The historical "DAM Remarks" TODO on globalState handling survives
-     * in ``_dispatchInline`` where it semantically belongs.
+     * The historical "DAM Remarks" TODO on globalState handling lived in
+     * ``_dispatchInline``; it is now answered in place (globalState IS used
+     * by client actions).
      *
      * Internal — called by sibling ``action_executors/*`` and
      * ``reports/report_executor.js`` with the ActionManager instance as
@@ -479,6 +578,16 @@ export class ActionManager {
      * @param {Function} [options.onClose]
      * @param {boolean} [options.noEmptyTransition]
      * @param {Function} [options.onActionReady]
+     * @param {boolean} [options.isBreadcrumbRestore] this dispatch is a
+     *   user-initiated breadcrumb click, so the URL still points at the
+     *   CURRENTLY-DISPLAYED controller (``pushState`` only runs on mount). If
+     *   the restored controller then errors before mounting, roll back to that
+     *   displayed stack rather than to the truncated ``newStack`` tip, making
+     *   the failed click a no-op and keeping the URL consistent. A ``loadState``
+     *   dispatch runs AFTER the browser already changed the URL and must
+     *   degrade within that URL's stack, so it deliberately does NOT set this.
+     *   Read here, consumed by ``ControllerComponent``'s ``onError`` via
+     *   ``controllerContext.restoreStackOnError``.
      * @returns {Promise<any>}
      */
     async _updateUI(controller, options = {}) {
@@ -495,7 +604,15 @@ export class ActionManager {
         // breadcrumb restore that then errors before mounting, ``onError`` uses
         // this snapshot to return to the displayed controller (see restore()).
         const previousStack = this.controllerStack;
-        if (action.target !== "new" && "newStack" in options) {
+        // Truthiness, NOT ``"newStack" in options``: the ``in`` test is true for
+        // an explicitly-undefined key, so ``doAction(x, {newStack: undefined})``
+        // used to assign ``undefined`` to ``controllerStack`` and corrupt the
+        // manager irrecoverably (every later ``.length`` / ``.at(-1)`` throws).
+        // No in-tree caller does that — ``load_state`` and ``restore`` always
+        // pass an array — but ``doAction`` is public API reached by Studio and
+        // custom addons, and the guard costs nothing. The unsoundness of the
+        // ``in`` narrowing is exactly what tsc flags on the assignment below.
+        if (action.target !== "new" && options.newStack) {
             this.controllerStack = options.newStack;
         }
         const index = this._computeStackIndex(options);
@@ -661,11 +778,9 @@ export class ActionManager {
      * clear, then triggers ACTION_MANAGER:UPDATE so the
      * action_container swaps in the new controller.
      *
-     * The ``"TODO DAM Remarks"`` block survives here — it's a long-
-     * standing open question about globalState's value for client
-     * actions. Resolution would require a separate audit of every
-     * ``getGlobalState`` implementer; outside the scope of this
-     * mechanical extraction.
+     * The ``"TODO DAM Remarks"`` block that used to sit here asked whether
+     * globalState matters for client actions. Audited and answered in place:
+     * it does.
      *
      * @param {Object} controllerContext shared dispatch context
      * @param {Object} options the original ``_updateUI`` options
@@ -695,12 +810,30 @@ export class ActionManager {
             controller.props.state = controller.exportedState;
         }
 
-        // TODO DAM Remarks:
-        // this thing seems useless for client actions.
-        // restore and switchView (at least) use this --> cannot be done in switchView only
-        // if prop globalState has been passed in doAction, since the action is new the prop won't be overridden in l655.
-        // if globalState is not useful for client actions --> maybe use that thing in useSetupView instead of useSetupAction?
-        // a good thing: the Object.assign seems to reflect the use of "externalState" in legacy Model class --> things should be fine.
+        // The long-standing "TODO DAM" here asked whether globalState is
+        // useless for client actions, and therefore whether this belongs in
+        // ``useSetupView`` rather than ``useSetupAction``. Audited 2026-07-25:
+        // it is NOT useless, so it stays where it is.
+        //
+        // ``getGlobalState`` has four implementers — ``with_search``,
+        // ``search_panel``, ``model``, and ``documents``' view hook — and
+        // ``with_search`` is mounted by registered CLIENT ACTIONS, not only by
+        // ``View``: ``mrp_mps_client_action``
+        // (enterprise/mrp_mps/.../main_action.js) and ``mrp_display``
+        // (enterprise/mrp_workorder/.../mrp_display_action.js) both list
+        // ``WithSearch`` in their ``static components``. The recorder reaches
+        // them because ``ControllerComponent`` puts ``__getGlobalState__`` in
+        // the child sub-env for every controller whose Component is not
+        // ``View``, and ``WithSearch``'s ``useSetupAction({getGlobalState})``
+        // registers against it. So a client action's search facets/filters
+        // survive a breadcrumb restore exactly as a view's do.
+        //
+        // Corroborating: ``web_studio``'s ``studio_view.js`` explicitly sets
+        // ``__getGlobalState__: null`` in its sub-env to opt OUT — which would
+        // be pointless if client actions never participated.
+        //
+        // Moving this to ``useSetupView`` would silently drop search state for
+        // those actions. Don't, without re-running that audit.
         if (currentController?.getGlobalState) {
             const globalState = Object.assign(
                 {},
@@ -832,8 +965,13 @@ export class ActionManager {
             actionLog("dispatch", action.type, action.id || action.tag || "");
             return this._actionExecutors[action.type](action, options);
         }
-        const handler = actionHandlersRegistry.get(action.type, null);
-        if (handler !== null) {
+        // ``undefined`` rather than ``null`` as the miss sentinel: the registry's
+        // generated types declare the default parameter as
+        // ``<ItemShape> | undefined``, and the two are interchangeable here —
+        // ``action_handlers`` validates every entry as a function, so a stored
+        // value can never itself be nullish.
+        const handler = actionHandlersRegistry.get(action.type, undefined);
+        if (handler !== undefined) {
             actionLog("handler", action.type);
             return handler({ env: this.env, action, options });
         }
@@ -896,17 +1034,8 @@ export class ActionManager {
                 view,
             });
 
-        if (!newWindow) {
-            const navGeneration = this._navGeneration();
-            const canProceed = await clearUncommittedChanges(this.env);
-            if (!canProceed) {
-                return;
-            }
-            if (this._isSupersededNav(navGeneration)) {
-                // A newer doAction/switchView/restore started while the save
-                // dialog was up; abort so this stale switch can't mount over it.
-                return;
-            }
+        if (!newWindow && !(await this._confirmLeave())) {
+            return;
         }
 
         Object.assign(
@@ -957,14 +1086,7 @@ export class ActionManager {
                 : "No controller to restore";
             throw new ControllerNotFoundError(msg);
         }
-        const navGeneration = this._navGeneration();
-        const canProceed = await clearUncommittedChanges(this.env);
-        if (!canProceed) {
-            return;
-        }
-        if (this._isSupersededNav(navGeneration)) {
-            // A newer navigation started while the save dialog was up; abort so
-            // this stale restore can't mount over it.
+        if (!(await this._confirmLeave())) {
             return;
         }
         const controller = this.controllerStack[index];
@@ -1026,7 +1148,7 @@ export class ActionManager {
         }
 
         const newState = makeActionState(cStack);
-        browser.sessionStorage.setItem("current_state", JSON.stringify(newState));
+        actionStorage.setCurrentState(newState);
 
         cStack.at(-1).state = newState;
         this.router.pushState(newState, Object.assign({ replace: true }, options));
@@ -1048,7 +1170,7 @@ export class ActionManager {
  * {@link ActionManager} instance fulfills that surface.
  *
  * @param {import("@web/env").OdooEnv} env
- * @param {import("@web/core/browser/router").Router} [router]
+ * @param {RouterLike} [router]
  * @returns {ActionManager}
  */
 export function makeActionManager(env, router = _router) {

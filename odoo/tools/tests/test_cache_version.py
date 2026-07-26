@@ -1,6 +1,6 @@
 """Byte-compatibility and contract tests for the canonical ``__version`` hash.
 
-``odoo.tools.cache_version._canonical_sha256`` was switched from stdlib ``json``
+``odoo.tools.cache_version._canonical_digest`` was switched from stdlib ``json``
 to orjson (Rust) for speed.  The client rpc cache (``rpc_cache.js``) compares two
 *server-emitted* ``__version`` strings for O(1) equality and **never recomputes**
 the hash itself, so the runtime contract is only:
@@ -21,12 +21,12 @@ No Odoo ORM / database dependency — runs under the standalone pytest suite.
 """
 
 import datetime
-import hashlib
 import json
 import math
 import unittest
 
-from odoo.tools.cache_version import _canonical_bytes, _canonical_sha256
+from odoo.tools.cache_version import _canonical_bytes, _canonical_digest
+from odoo.tools.hashing import cache_hash
 
 
 def _stdlib_canonical(value):
@@ -80,11 +80,17 @@ class TestByteIdentity(unittest.TestCase):
                 self.assertEqual(_canonical_bytes(value), _stdlib_canonical(value))
 
     def test_digest_matches_old_implementation(self):
+        """The digest of the orjson bytes equals the digest of the stdlib bytes.
+
+        This pins the *serialization* swap, not the hash: it must hold for
+        whichever algorithm ``tools.hashing`` selected, so it compares two
+        digests of the same family rather than a hardcoded sha256.
+        """
         for value in BYTE_IDENTICAL_PAYLOADS:
             with self.subTest(value=repr(value)[:60]):
                 self.assertEqual(
-                    _canonical_sha256(value),
-                    hashlib.sha256(_stdlib_canonical(value)).hexdigest(),
+                    _canonical_digest(value),
+                    cache_hash(_stdlib_canonical(value)),
                 )
 
 
@@ -94,19 +100,19 @@ class TestContract(unittest.TestCase):
     def test_key_order_invariant(self):
         a = {"a": 1, "b": 2, "c": {"x": 9, "y": 8}}
         b = {"c": {"y": 8, "x": 9}, "b": 2, "a": 1}
-        self.assertEqual(_canonical_sha256(a), _canonical_sha256(b))
+        self.assertEqual(_canonical_digest(a), _canonical_digest(b))
 
     def test_key_order_invariant_non_ascii(self):
         a = {"x": "café", "y": "naïve", "z": "Société"}
         b = {"z": "Société", "y": "naïve", "x": "café"}
-        self.assertEqual(_canonical_sha256(a), _canonical_sha256(b))
+        self.assertEqual(_canonical_digest(a), _canonical_digest(b))
 
     def test_deterministic(self):
         v = {"length": 3, "records": [{"id": 1, "name": "x"}]}
-        self.assertEqual(_canonical_sha256(v), _canonical_sha256(dict(v)))
+        self.assertEqual(_canonical_digest(v), _canonical_digest(dict(v)))
 
     def test_digest_is_hex_sha256(self):
-        digest = _canonical_sha256({"a": 1})
+        digest = _canonical_digest({"a": 1})
         self.assertEqual(len(digest), 64)
         int(digest, 16)  # raises if not hex
 
@@ -120,7 +126,7 @@ class TestContract(unittest.TestCase):
         ]
         for v in hostile:
             with self.subTest(value=repr(v)[:60]):
-                self.assertEqual(len(_canonical_sha256(v)), 64)
+                self.assertEqual(len(_canonical_digest(v)), 64)
 
 
 class TestIntentionalDivergences(unittest.TestCase):

@@ -24,7 +24,7 @@ class TestSaleCouponMultiwebsite(TestSaleCouponNumbersCommon):
         self.env['sale.order.line'].create({
             'product_id': self.largeCabinet.id,
             'name': 'Large Cabinet',
-            'product_uom_qty': 2.0,
+            'product_qty': 2.0,
             'order_id': order.id,
         })
 

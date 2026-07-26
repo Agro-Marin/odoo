@@ -624,8 +624,15 @@ File storage with pluggable backends (see `ir_attachment_storage.py`:
 `AttachmentStorage` / `DbStorage` / `FileStorage`, `@register_storage`).
 Two dispatch axes: `ir_attachment.location` selects where NEW content is
 written (`_storage_backend()`); existing content follows its store key,
-resolved by URI scheme via `_backend_for_key()` (plain `ab/<sha1>` keys →
+resolved by URI scheme via `_backend_for_key()` (plain sharded keys →
 local filestore). The `_file_*` methods are local-filestore primitives.
+
+Filestore keys are **algorithm-tagged**: `b3/<shard>/<digest>` for the
+BLAKE3 content digest (`odoo/tools/hashing.py`), and the historical
+untagged `<shard>/<sha1>` when the extension is absent. Both layouts
+coexist — reads follow the stored `store_fname`, so a digest change needs
+no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
+`ir_attachment.rehash_legacy_keys_limit` is set (default: off).
 
 **Fields:**
 - `name` (Char, required), `description` (Text)
@@ -637,7 +644,8 @@ local filestore). The `_file_*` methods are local-filestore primitives.
 - `datas` (Binary, computed/inverse) — Base64 encoded
 - `db_datas` (Binary) — Database storage field
 - `store_fname` (Char, indexed) — Filestore path
-- `file_size` (Integer), `checksum` (Char, size=40), `mimetype` (Char)
+- `file_size` (Integer), `checksum` (Char, size=64 — BLAKE3 hex; legacy
+  rows keep their 40-char sha1 until re-keyed), `mimetype` (Char)
 - `index_content` (Text) — Extracted text for full-text search
 
 **Key Methods:**
@@ -649,6 +657,12 @@ local filestore). The `_file_*` methods are local-filestore primitives.
 - `force_storage()` — Migrate all attachments to configured storage
 - `_file_read(fname, size)`, `_file_write(bin_value, checksum)`, `_file_delete(fname)`
 - `_gc_file_store()` — Autovacuum: runs every backend's `autovacuum()`
+- `_gc_rehash_legacy_keys(limit)` — Autovacuum: opt-in re-keying of rows
+  still on a legacy digest; no-op unless `rehash_legacy_keys_limit` is set
+- `_content_checksum(bin_data)` / `_file_store_path(checksum)` — content
+  digest and the tagged store key derived from it
+- `_verify_content_collision()` — whether a dedup hit re-reads the stored
+  file; defaults on for sha1, off for BLAKE3, overridable by parameter
 - `_mimetype_from_values(values)` — Detect MIME type
 - `_postprocess_contents(values)` — Image auto-resizing
 - `create_unique(values_list)` — Create only if checksum+size unique

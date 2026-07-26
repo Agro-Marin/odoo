@@ -397,6 +397,40 @@ class TestIsLocalUrl(BaseCase):
         self.assertFalse(self._is_local_url("https://evil.com"))
         self.assertFalse(self._is_local_url("http://evil.com/odoo"))
 
+    def test_embedded_tab_newline_rejected(self):
+        """Tab/CR/LF hidden inside the URL must not mask the "//" guard.
+
+        Browsers (WHATWG URL) strip ASCII tab/CR/LF from anywhere in a URL
+        *before* parsing it, so "/\\t\\t//evil.com" becomes "///evil.com" —
+        which a browser resolves to the host evil.com (its "special authority
+        ignore slashes" state skips any run of leading slashes). The guard
+        must therefore strip those characters before inspecting the string;
+        checking the raw value let this vector through.
+        """
+        for vector in (
+            "/\t\t//evil.com",
+            "/\r\r//evil.com",
+            "/\n\n//evil.com",
+            "/\t/\t/evil.com",
+            "\t//evil.com",
+        ):
+            with self.subTest(vector=vector):
+                self.assertFalse(self._is_local_url(vector))
+
+    def test_multiple_leading_slashes_rejected(self):
+        """A run of leading slashes is authority-bearing to a browser.
+
+        ``urlsplit`` reports an empty netloc for ``///evil.com``, but a browser
+        resolves it to the host ``evil.com``.
+        """
+        self.assertFalse(self._is_local_url("///evil.com"))
+        self.assertFalse(self._is_local_url("////evil.com"))
+
+    def test_whitespace_only_rejected(self):
+        """A URL that normalizes to the empty string is not a valid target."""
+        self.assertFalse(self._is_local_url("\t"))
+        self.assertFalse(self._is_local_url("\r\n"))
+
     def test_empty_and_none_rejected(self):
         """Empty string and None must be rejected."""
         self.assertFalse(self._is_local_url(""))

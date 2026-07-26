@@ -3,6 +3,7 @@
 from . import test_addresses
 from . import test_apikeys_policy
 from . import test_controller_robustness
+from . import test_input_coercion
 from . import test_login
 from . import test_message_format_portal
 from . import test_pager

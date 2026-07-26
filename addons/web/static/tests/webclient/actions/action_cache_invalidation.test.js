@@ -16,6 +16,7 @@ import {
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { installActionCacheInvalidation } from "@web/webclient/actions/action_cache_invalidation";
+import { BreadcrumbCache } from "@web/webclient/actions/breadcrumb_cache";
 import { WebClient } from "@web/webclient/webclient";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
@@ -165,7 +166,7 @@ test("installActionCacheInvalidation returns a disposer that removes the listene
     // an ir.actions write no longer clears the /web/action/load cache. Before the
     // fix, the install happened in the ActionManager ctor and nothing disposed
     // it, leaking one listener per Studio entry.
-    const am = { breadcrumbCache: {}, controllerStack: [] };
+    const am = { breadcrumbCache: new BreadcrumbCache(), controllerStack: [] };
     const uninstall = installActionCacheInvalidation(am);
 
     const cleared = [];

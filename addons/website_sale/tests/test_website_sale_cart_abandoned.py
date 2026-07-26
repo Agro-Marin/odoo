@@ -63,7 +63,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         add_order_line = [[0, 0, {
             'name': 'The Product',
             'product_id': product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }]]
         cls.payment_method_id = cls.env.ref('payment.payment_method_unknown').id
         cls.so0before = cls.env['sale.order'].create({
@@ -169,7 +169,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         order_line = [[0, 0, {
             'name': 'The Product',
             'product_id': product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }]]
         abandoned_sale_order = self.env['sale.order'].create({
             'partner_id': self.customer.id,
@@ -215,7 +215,7 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         order_line = [[0, 0, {
             'name': 'The Product',
             'product_id': free_product_product.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
         }]]
         self.env['sale.order'].create({
             'partner_id': self.customer.id,

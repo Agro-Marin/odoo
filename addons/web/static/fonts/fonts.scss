@@ -1,93 +1,140 @@
 // ------------------------------------------------------------------
+// 'Odoo Unicode Support Noto' — script fallback faces
+// ------------------------------------------------------------------
+// Fallback family that 'o-add-unicode-support-font()' (see
+// web/static/src/scss/utils.scss) splices into font stacks so scripts Lato
+// does not cover still render.
+//
+// These faces are declared here rather than from inside 'lato-font()' on
+// purpose. Emitting them per Lato weight/style pair requested a Noto file for
+// every cell of Lato's 5x2 matrix, but the CDN publishes a narrower and
+// per-script matrix: no Hairline (100) anywhere, no light italic, and no
+// italics at all for Hebrew or Arabic — neither script has italic forms. That
+// asked for 16 files that do not exist, and each miss surfaced as a
+// "Font-face 'Odoo Unicode Support Noto' cannot be loaded" warning on every
+// PDF render. Keep the map below to faces the CDN actually serves.
+//
+// The CDN origin is spelled out in each url() rather than held in a variable:
+// StylesheetAsset.rx_url only skips a url whose body literally starts with a
+// scheme, so behind an interpolation these absolute URLs would be rewritten
+// into /web/static/fonts/https://fonts.odoocdn.com/...
+$o-noto-scripts: (
+    "NotoSans": (
+        // Cyrillic
+        "range": "U+0400-04FF, U+0500-052F",
+        "faces": (
+            ("Lig", 300, normal),
+            ("Reg", 400, normal),
+            ("RegIta", 400, italic),
+            ("Bol", 700, normal),
+            ("BolIta", 700, italic),
+            ("Bla", 900, normal),
+            ("BlaIta", 900, italic)
+        ),
+    ),
+    "NotoSansHebrew": (
+        "range": "U+0590-05FF, U+FB1D-FB4F",
+        "faces": (
+            ("Lig", 300, normal),
+            ("Reg", 400, normal),
+            ("Bol", 700, normal),
+        ),
+    ),
+    "NotoSansArabic": (
+        "range": "U+0600-06FF, U+0750-077F, U+08A0-08FF",
+        "faces": (
+            ("Lig", 300, normal),
+            ("Reg", 400, normal),
+            ("Bol", 700, normal),
+            ("Bla", 900, normal),
+        ),
+    ),
+);
+
+@each $-family, $-script in $o-noto-scripts {
+    @each $-face in map-get($-script, "faces") {
+        $-type: nth($-face, 1);
+        @font-face {
+            font-family: "Odoo Unicode Support Noto";
+            src:
+                url("https://fonts.odoocdn.com/fonts/noto/#{$-family}-#{$-type}.woff2")
+                    format("woff2"),
+                url("https://fonts.odoocdn.com/fonts/noto/#{$-family}-#{$-type}.woff")
+                    format("woff"),
+                url("https://fonts.odoocdn.com/fonts/noto/#{$-family}-#{$-type}.ttf")
+                    format("truetype");
+            font-weight: nth($-face, 2);
+            font-style: nth($-face, 3);
+            unicode-range: #{map-get($-script, "range")};
+        }
+    }
+}
+
+// ------------------------------------------------------------------
 // Lato
 // ------------------------------------------------------------------
-$lato-font-path: './lato';
+$lato-font-path: "./lato";
 
 @mixin lato-font($type, $weight, $style) {
-    // Cyrillic: U+0400-04FF, U+0500-052F
     @font-face {
-        font-family: 'Odoo Unicode Support Noto';
-        src: url('https://fonts.odoocdn.com/fonts/noto/NotoSans-#{$type}.woff2') format('woff2'),
-             url('https://fonts.odoocdn.com/fonts/noto/NotoSans-#{$type}.woff') format('woff'),
-             url('https://fonts.odoocdn.com/fonts/noto/NotoSans-#{$type}.ttf') format('truetype');
-        font-weight: $weight;
-        font-style: $style;
-        unicode-range: U+0400-04FF, U+0500-052F;
-    }
-    // Hebrew: U+0590-05FF, U+FB1D-FB4F
-    @font-face {
-        font-family: 'Odoo Unicode Support Noto';
-        src: url('https://fonts.odoocdn.com/fonts/noto/NotoSansHebrew-#{$type}.woff2') format('woff2'),
-             url('https://fonts.odoocdn.com/fonts/noto/NotoSansHebrew-#{$type}.woff') format('woff'),
-             url('https://fonts.odoocdn.com/fonts/noto/NotoSansHebrew-#{$type}.ttf') format('truetype');
-        font-weight: $weight;
-        font-style: $style;
-        unicode-range: U+0590-05FF, U+FB1D-FB4F;
-    }
-    // Arabic: U+0600-06FF, U+0750-077F
-    @font-face {
-        font-family: 'Odoo Unicode Support Noto';
-        src: url('https://fonts.odoocdn.com/fonts/noto/NotoSansArabic-#{$type}.woff2') format('woff2'),
-             url('https://fonts.odoocdn.com/fonts/noto/NotoSansArabic-#{$type}.woff') format('woff'),
-             url('https://fonts.odoocdn.com/fonts/noto/NotoSansArabic-#{$type}.ttf') format('truetype');
-        font-weight: $weight;
-        font-style: $style;
-        unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF;
-    }
-
-    @font-face {
-        font-family: 'Lato';
-        src: url('#{$lato-font-path}/Lato-#{$type}-webfont.eot');
-        src: url('#{$lato-font-path}/Lato-#{$type}-webfont.eot?#iefix') format('embedded-opentype'),
-             url('#{$lato-font-path}/Lato-#{$type}-webfont.woff') format('woff'),
-             url('#{$lato-font-path}/Lato-#{$type}-webfont.ttf') format('truetype'),
-             url('#{$lato-font-path}/Lato-#{$type}-webfont.svg#Lato') format('svg');
+        font-family: "Lato";
+        src: url("#{$lato-font-path}/Lato-#{$type}-webfont.eot");
+        src:
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.eot?#iefix")
+                format("embedded-opentype"),
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.woff") format("woff"),
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.ttf") format("truetype"),
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.svg#Lato") format("svg");
         font-weight: $weight;
         font-style: $style;
     }
     @font-face {
-        font-family: 'Lato-#{$type}';
-        src: url('#{$lato-font-path}/Lato-#{$type}-webfont.eot');
-        src: url('#{$lato-font-path}/Lato-#{$type}-webfont.eot?#iefix') format('embedded-opentype'),
-             url('#{$lato-font-path}/Lato-#{$type}-webfont.woff') format('woff'),
-             url('#{$lato-font-path}/Lato-#{$type}-webfont.ttf') format('truetype'),
-             url('#{$lato-font-path}/Lato-#{$type}-webfont.svg#Roboto') format('svg');
+        font-family: "Lato-#{$type}";
+        src: url("#{$lato-font-path}/Lato-#{$type}-webfont.eot");
+        src:
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.eot?#iefix")
+                format("embedded-opentype"),
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.woff") format("woff"),
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.ttf") format("truetype"),
+            url("#{$lato-font-path}/Lato-#{$type}-webfont.svg#Roboto") format("svg");
     }
 }
 
 @mixin lato-font-pair($type, $weight) {
-    @include lato-font('#{$type}', $weight, normal);
-    @include lato-font('#{$type}Ita', $weight, italic);
+    @include lato-font("#{$type}", $weight, normal);
+    @include lato-font("#{$type}Ita", $weight, italic);
 }
 
-@include lato-font-pair('Hai', 100);
-@include lato-font-pair('Lig', 300);
-@include lato-font-pair('Reg', 400);
-@include lato-font-pair('Bol', 700);
-@include lato-font-pair('Bla', 900);
+@include lato-font-pair("Hai", 100);
+@include lato-font-pair("Lig", 300);
+@include lato-font-pair("Reg", 400);
+@include lato-font-pair("Bol", 700);
+@include lato-font-pair("Bla", 900);
 
 // ------------------------------------------------------------------
 // Google fonts
 // ------------------------------------------------------------------
-$google-font-path: './google';
+$google-font-path: "./google";
 
 @mixin google-font($family, $type, $weight, $style) {
     @font-face {
         font-family: $family;
-        src: url('#{$google-font-path}/#{$family}/#{$family}-#{$type}.ttf') format('truetype');
+        src: url("#{$google-font-path}/#{$family}/#{$family}-#{$type}.ttf")
+            format("truetype");
         font-weight: $weight;
         font-style: $style;
     }
 }
 
 @mixin google-font-pair($family) {
-    @include google-font('#{$family}', 'Regular', 400, normal);
+    @include google-font("#{$family}", "Regular", 400, normal);
+    @include google-font("#{$family}", "Bold", 700, normal);
 }
 
-@include google-font-pair('Montserrat');
-@include google-font-pair('Open_Sans');
-@include google-font-pair('Oswald');
-@include google-font-pair('Raleway');
-@include google-font-pair('Roboto');
-@include google-font-pair('Tajawal');
-@include google-font-pair('Fira_Mono');
+@include google-font-pair("Montserrat");
+@include google-font-pair("Open_Sans");
+@include google-font-pair("Oswald");
+@include google-font-pair("Raleway");
+@include google-font-pair("Roboto");
+@include google-font-pair("Tajawal");
+@include google-font-pair("Fira_Mono");

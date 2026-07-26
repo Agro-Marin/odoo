@@ -6,7 +6,7 @@
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { UPDATE_METHODS } from "@web/services/orm_service";
+import { onModelMutation } from "@web/services/orm_service";
 
 /**
  * @typedef {Object} IrFilter
@@ -65,19 +65,12 @@ export const viewService = {
             "ir.actions.server",
             "ir.model.fields",
         ];
-        rpcBus.addEventListener(RpcEvent.RESPONSE, (/** @type {CustomEvent} */ ev) => {
-            // ``ev.detail`` itself may be null (synthetic test fires or a
-            // malformed event). Optional-chain it before reading ``.data``
-            // so the listener never throws on the shared bus.
-            if (!ev.detail?.data?.params) {
-                return;
-            }
-            const { model, method } = ev.detail.data.params;
-            if (GET_VIEWS_MODELS.includes(model)) {
-                if (UPDATE_METHODS.includes(method)) {
-                    rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
-                }
-            }
+        // A write REFUSED by the server (RPCError) is filtered out by
+        // ``onModelMutation`` — nothing changed, so dropping the whole
+        // get_views cache would just force needless refetches. A write whose
+        // response was lost still fires, since the arch may have committed.
+        onModelMutation(GET_VIEWS_MODELS, () => {
+            rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
         });
 
         /**

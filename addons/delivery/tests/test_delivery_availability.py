@@ -26,7 +26,7 @@ class TestDeliveryAvailability(DeliveryCommon, SaleCommon):
         cls.product_line = cls.sale_order.line_ids.filtered(
             lambda sol: sol.product_id == cls.product,
         )
-        cls.product_line.product_uom_qty = 1.0
+        cls.product_line.product_qty = 1.0
 
     def test_00_order_with_heavy_product_simple(self):
         self.carrier.write({

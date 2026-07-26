@@ -3,8 +3,11 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useRef, useState, xml } from "@odoo/owl";
-import { dragenterFiles, dropFiles } from "@web/../tests/utils";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+// web's own hoot DSL, not `@web/../tests/utils`: that specifier is the
+// tour-runtime helper, and under hoot it only ever resolved because `mail`
+// aliases it -- web must not source test helpers from an addon it does not
+// depend on.
+import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useDropzone } from "@web/components/dropzone/dropzone_hook";
 
 class Host extends Component {
@@ -20,13 +23,13 @@ test("dropzone overlay appears while dragging files and handles the drop", async
     expect(".o-Dropzone").toHaveCount(0);
 
     const files = [new File(["hello"], "hello.txt", { type: "text/plain" })];
-    await dragenterFiles(".test-dropzone-host", files);
+    await contains(".test-dropzone-host").dragEnterFiles(files);
     // The overlay is added through the overlay service: its container renders
     // on the next animation frame.
     await animationFrame();
     expect(".o-Dropzone").toHaveCount(1);
 
-    await dropFiles(".o-Dropzone", files);
+    await contains(".o-Dropzone").dropFiles(files);
     await animationFrame();
     expect.verifySteps(["drop"]);
     expect(".o-Dropzone").toHaveCount(0);
@@ -44,7 +47,7 @@ test("dropzone overlay is removed when its owner is destroyed mid-drag", async (
     const parent = await mountWithCleanup(Parent);
 
     const files = [new File(["hello"], "hello.txt", { type: "text/plain" })];
-    await dragenterFiles(".test-dropzone-host", files);
+    await contains(".test-dropzone-host").dragEnterFiles(files);
     await animationFrame();
     expect(".o-Dropzone").toHaveCount(1);
 

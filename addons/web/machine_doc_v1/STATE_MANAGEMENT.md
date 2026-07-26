@@ -113,6 +113,21 @@ file uploads, emoji frequency, currency rates, user preferences.
 - `ui/notification/notification_service.js` — reactive notification dict
 - `services/frequent_emoji_service.js` — reactive usage counters with localStorage sync
 
+### Browser-storage schemas have a single owner
+
+Two groups of keys survive a reload, and each is owned by exactly one module —
+never read or written by raw string literal from anywhere else:
+
+| Module | Keys | Notes |
+|---|---|---|
+| `webclient/actions/action_storage.js` | `current_action`, `current_state`, `current_lang` | The action-restore cache. Reads are **total**: missing, empty, or corrupt all resolve to `{}`, because the URL is the source of truth. `withTemporaryEntry()` performs the synchronous swap that seeds a new tab (sessionStorage is copied into an auxiliary browsing context at open time). |
+| `webclient/menus/menu_storage.js` | `webclient_menus`, `webclient_menus_version`, `webclient_menus_hash` | The menu tree cache. Written as a unit with the **version last** (it gates reuse on the next boot); a corrupt read discards the whole trio. |
+
+Both were previously open-coded across six to eight modules with divergent parse
+policies — a corrupt `current_state` used to throw where a corrupt
+`current_action` was caught, silently costing the user their breadcrumb stack on
+a URL restore.
+
 ## Pattern 3: `SignalStore` Base Class — Model Entities
 
 Classes extending `SignalStore` (`core/utils/reactive.js`) auto-wrap
@@ -431,8 +446,9 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 `update: "always"` consumers ask the cache to revalidate against the server on
 every read; the cache calls back with `(value, hasChanged)`.
 
-Opted-in endpoints inject a `__version` field (sha256 of
-canonical JSON) into their dict return value.  The cache compares versions
+Opted-in endpoints inject a `__version` field (content digest of
+canonical JSON — `odoo.tools.hashing.cache_hash`: BLAKE3, sha256 without the
+extension) into their dict return value.  The cache compares versions
 when both sides carry one (O(1), ~2,000× faster on the bench than the
 `JSON.stringify` comparison), falls back to
 `jsonEqual` otherwise.  Backward-compatible in both directions: old server +
@@ -440,7 +456,7 @@ new client → fallback path; new server + old client → unknown field ignored.
 
 | Surface | File | Role |
 |---|---|---|
-| Decorator | `addons/odoo/odoo/tools/cache_version.py` `versioned` / `versioned_envelope` | Stamps `__version = sha256(json.dumps(result, sort_keys=True, default=str, separators=(",", ":")))` on dict returns (`versioned`); or stashes hash on `http.request._response_version` for non-dict returns (`versioned_envelope`). Located under `odoo.tools` so any addon can import without manifest dependency gymnastics. |
+| Decorator | `addons/odoo/odoo/tools/cache_version.py` `versioned` / `versioned_envelope` | Stamps `__version = cache_hash(canonical_json(result))` (sorted keys, compact separators, `default=str`; see `odoo/tools/hashing.py` for the algorithm) on dict returns (`versioned`); or stashes hash on `http.request._response_version` for non-dict returns (`versioned_envelope`). Located under `odoo.tools` so any addon can import without manifest dependency gymnastics. |
 | Consumer | `addons/odoo/addons/web/static/src/core/network/rpc_cache.js` `payloadChanged` | Replaces direct `jsonEqual(prev, curr)` in the `hasChanged` computation. Prefers `__version === __version` when both sides have it. |
 
 **Currently opted-in endpoints** (Phases 1 + 2 + 3 + 4a):
@@ -458,7 +474,7 @@ new client → fallback path; new server + old client → unknown field ignored.
 
 | Form | When | Mechanism | Survives JSON round-trip? |
 |---|---|---|---|
-| `@versioned` | Method returns a `dict` | Mutates the dict in-place: `result["__version"] = sha256(...)` | Yes — `__version` is a JSON key |
+| `@versioned` | Method returns a `dict` | Mutates the dict in-place: `result["__version"] = cache_hash(...)` | Yes — `__version` is a JSON key |
 | `@versioned_envelope` | Method returns a `list`, scalar, or anything non-dict | Stashes hash on `http.request._response_version`; dispatcher (`core/odoo/http/dispatcher.py` `_response`) lifts it as `version` sibling-of-`result` in the JSON-RPC envelope; `rpc.js` re-attaches as `result.__version` for objects/arrays | RAM: yes (`structuredClone` preserves array own-props). IndexedDB: no (`JSON.stringify` drops array own-props on encrypt); self-heals on next refresh |
 
 The client-side `payloadChanged` reads `result[VERSION_FIELD]` uniformly — agnostic

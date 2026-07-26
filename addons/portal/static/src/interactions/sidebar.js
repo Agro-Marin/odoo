@@ -27,7 +27,21 @@ export class Sidebar extends Interaction {
     setDelayLabel() {
         const timeagoEls = this.el.querySelectorAll(".o_portal_sidebar_timeago");
         for (const timeagoEl of timeagoEls) {
-            const dateTime = deserializeDate(timeagoEl.getAttribute("datetime")).startOf("day");
+            const raw = timeagoEl.getAttribute("datetime");
+            if (!raw) {
+                // The element is still emitted when its date field is empty (an
+                // invoice with no due date): QWeb drops a False `t-att-datetime`
+                // attribute entirely, so getAttribute returns null. Luxon parses
+                // that into an *invalid* DateTime rather than throwing, whose
+                // diff is NaN — and NaN fails both the `=== 0` and `> 0` tests,
+                // so it fell through to the overdue branch and rendered the
+                // literal "NaN days overdue".
+                continue;
+            }
+            const dateTime = deserializeDate(raw).startOf("day");
+            if (!dateTime.isValid) {
+                continue;
+            }
             const today = DateTime.now().startOf("day");
             const diff = dateTime.diff(today).as("days");
             if (diff === 0) {

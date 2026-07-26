@@ -211,6 +211,42 @@ addons/web/static/src/views/list/list_confirmation_dialog.js
 addons/web/static/src/views/view_dialogs/form_view_dialog.js
 addons/web/static/src/views/view_dialogs/select_create_dialog.js
 
+# --- webclient/actions ---
+# The action layer. The five still-unlisted modules carry the directory's whole
+# remaining type debt (12 errors): controller_component.js (5),
+# action_loader.js (2), action_state.js (2), reports/report_action.js (2),
+# action_install_kiosk_pwa.js (1).
+#
+# NB for whoever clears those: prefer the RELATIVE specifier when importing a
+# type from a sibling in this directory. tsc treats `@web/webclient/actions/x`
+# and `./x.js` as different modules, so mixing the two spellings inside one file
+# makes structurally identical typedefs mutually unassignable (this bit
+# action_executors/act_url.js — see the note at the top of that file).
+addons/web/static/src/webclient/actions/action_service.js
+addons/web/static/src/webclient/actions/action_constants.js
+addons/web/static/src/webclient/actions/action_views.js
+addons/web/static/src/webclient/actions/action_storage.js
+addons/web/static/src/webclient/actions/action_clear_changes.js
+addons/web/static/src/webclient/actions/breadcrumb_cache.js
+addons/web/static/src/webclient/actions/action_container.js
+addons/web/static/src/webclient/actions/action_dialog.js
+addons/web/static/src/webclient/actions/skeleton_view.js
+addons/web/static/src/webclient/actions/client_actions.js
+addons/web/static/src/webclient/actions/debug_items.js
+addons/web/static/src/webclient/actions/action_info_builders.js
+addons/web/static/src/webclient/actions/breadcrumb_manager.js
+addons/web/static/src/webclient/actions/load_state.js
+addons/web/static/src/webclient/actions/action_cache_invalidation.js
+addons/web/static/src/webclient/actions/action_button_executor.js
+addons/web/static/src/webclient/actions/action_executors/act_url.js
+addons/web/static/src/webclient/actions/action_executors/act_window.js
+addons/web/static/src/webclient/actions/action_executors/client.js
+addons/web/static/src/webclient/actions/action_executors/close.js
+addons/web/static/src/webclient/actions/action_executors/server.js
+addons/web/static/src/webclient/actions/reports/utils.js
+addons/web/static/src/webclient/actions/reports/report_hook.js
+addons/web/static/src/webclient/actions/reports/report_executor.js
+
 # --- entrypoint ---
 addons/web/static/src/env.js
 addons/web/static/src/session.js

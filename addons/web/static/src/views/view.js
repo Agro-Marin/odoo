@@ -202,6 +202,22 @@ export class View extends Component {
     static components = { WithSearch };
     static searchMenuTypes = ["filter", "groupBy", "favorite"];
     static canOrderByCount = false;
+
+    /**
+     * Monotonic epoch for {@link loadView}: a slow older `loadViews` RPC must
+     * not resolve after a newer one and clobber the resolved Controller with
+     * stale data. Each `loadView` captures this and bails if superseded.
+     *
+     * Declared as a field so its type is `number`, not `number | undefined`:
+     * it is assigned in `setup()`, which TypeScript does not credit for
+     * definite assignment. Safe here because OWL constructs the component and
+     * calls `setup()` afterwards — see Pattern 7 in
+     * `machine_doc_v1/JSDOC_TYPE_TIGHTENING.md`, and do NOT copy this onto a
+     * `Model` subclass (its base constructor calls `setup()` itself).
+     *
+     * @type {number}
+     */
+    loadViewId;
     static defaultProps = {
         display: {},
         context: {},

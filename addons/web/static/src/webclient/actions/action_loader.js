@@ -17,6 +17,28 @@ const actionRegistry = registry.category("actions");
 /** @import { Action } from "@web/webclient/actions/action_service" */
 
 /**
+ * Resolve a client action from the ``actions`` registry by registry key or by
+ * its declared ``path``.
+ *
+ * The URL can name a client action either way, so both `action_state`
+ * (rebuilding an action request from the URL) and `breadcrumb_manager`
+ * (rebuilding virtual controllers from the URL) need the same two-step lookup.
+ * It used to be spelled out identically in both, differing only in the name of
+ * the variable holding the key.
+ *
+ * @param {string | number} key registry key or ``path`` of a client action
+ * @returns {[string, Object] | []} ``[registryKey, clientAction]``, or ``[]``
+ *  when nothing matches — destructurable either way
+ */
+export function resolveClientAction(key) {
+    if (actionRegistry.contains(key)) {
+        return [/** @type {string} */ (key), actionRegistry.get(key)];
+    }
+    // No index: the registry is small and this runs once per URL restore.
+    return actionRegistry.getEntries().find((entry) => entry[1].path === key) ?? [];
+}
+
+/**
  * Given an id, xmlid, tag (key of the client action registry), or directly
  * an object describing an action, return the action description.
  *

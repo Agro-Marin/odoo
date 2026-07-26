@@ -41,8 +41,14 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
     :param dict url_args : additional parameters to add as query params to page url
     :returns dict
     """
+    # A page holds at least one item. ``step`` comes from callers as a page size
+    # (often a controller's ``_items_per_page`` or a request-derived value), and
+    # 0 or a negative value has no meaning as one: 0 raised ZeroDivisionError and
+    # a negative made ``page_count`` negative, which then clamped ``page`` to a
+    # negative number and produced ``/page/-3`` links.
+    step = max(1, step)
     # Python 3 division yields float; math.ceil returns int — no outer cast needed.
-    page_count = math.ceil(total / step)
+    page_count = math.ceil(max(0, total) / step)
 
     page = max(1, min(int(page if str(page).isdigit() else 1), page_count))
 
@@ -117,9 +123,9 @@ def get_records_pager(ids, current):
 
     :param list[int] ids: ordered record ids (the navigation sequence)
     :param current: single recordset positioned within ``ids``
-    :return: dict with ``prev_record`` / ``next_record`` URLs (or the recordset
-             itself when the URL field is empty, or ``False`` when there is no
-             neighbour on that side). Empty dict if ``current`` is not in
+    :return: dict with ``prev_record`` / ``next_record`` URLs, each ``False``
+             when that side has no navigable neighbour (none at all, or one
+             whose URL field is empty). Empty dict if ``current`` is not in
              ``ids`` or the model has neither ``website_url`` nor ``access_url``.
     :rtype: dict
     """
@@ -145,14 +151,21 @@ def get_records_pager(ids, current):
 def _pager_url(record, attr_name):
     """Build a portal pager URL for a single neighbour.
 
-    Preserves the historical contract: ``False`` for missing neighbours (so
-    Qweb ``t-if`` keeps working) and the recordset itself when the URL field
-    is empty.
+    Returns ``False`` both for a missing neighbour and for a neighbour whose
+    URL field is empty, so QWeb's ``t-if`` / ``'disabled' if not prev_record``
+    branches in ``portal.record_pager`` both work.
+
+    The empty-URL case used to return the *recordset*, which QWeb then
+    stringified straight into the attribute — emitting
+    ``<a href="sale.order(42,)">``: a link to a path that cannot exist, plus a
+    gratuitous disclosure of the model name and record id in the page source.
+    A neighbour with no reachable URL is not navigable, which is exactly what
+    the template's disabled state already expresses.
     """
     if not record:
-        return record
+        return False
     if not record[attr_name]:
-        return record
+        return False
     if attr_name == "access_url":
         return f"{record[attr_name]}?access_token={record._portal_ensure_token()}"
     return record[attr_name]
@@ -177,6 +190,25 @@ def _parse_record_id(raw_id):
         return int(raw_id)
     except TypeError, ValueError:
         raise NotFound from None
+
+
+def _parse_bool_param(raw_value):
+    """Coerce a user-supplied flag (query/form string) into a bool.
+
+    ``str2bool`` raises ``ValueError`` outside its accepted vocabulary, so
+    feeding it a raw request value made ``?use_delivery_as_billing=xyz`` an
+    HTTP 500. Every template in-tree emits a value it accepts, so this is not
+    a spontaneous failure; it is reachable by editing the URL, by a stale or
+    third-party link, and by any override that forwards an unvalidated value.
+
+    Unlike a record id — for which "not an id" genuinely means 404 — an
+    unparseable flag has an obvious safe reading: the option was not enabled.
+    Only a recognisably true value turns it on.
+
+    :param raw_value: raw request value (str, bool, or falsy)
+    :rtype: bool
+    """
+    return str2bool(raw_value or "false", default=False)
 
 
 def _build_url_w_params(url_string, query_params, remove_duplicates=True):
@@ -484,7 +516,7 @@ class CustomerPortal(Controller):
             **self._prepare_address_form_values(
                 partner_sudo,
                 address_type=address_type,
-                use_delivery_as_billing=str2bool(use_delivery_as_billing or "false"),
+                use_delivery_as_billing=_parse_bool_param(use_delivery_as_billing),
                 **query_params,
             ),
             "page_name": "address_form",
@@ -634,7 +666,7 @@ class CustomerPortal(Controller):
                  an error message.
         :rtype: res.partner, dict
         """
-        use_delivery_as_billing = str2bool(use_delivery_as_billing or "false")
+        use_delivery_as_billing = _parse_bool_param(use_delivery_as_billing)
 
         # Parse form data into address values, and extract incompatible data as extra form data.
         address_values, extra_form_data = self._parse_form_data(form_data)
@@ -1381,7 +1413,11 @@ class CustomerPortal(Controller):
 
         ReportAction = request.env["ir.actions.report"].sudo()
 
-        if hasattr(model, "company_id"):
+        # ``in _fields`` rather than ``hasattr``: hasattr on a recordset swallows
+        # *any* exception the attribute access raises (a failing related-field
+        # compute, an AccessError), silently skipping the multi-company guard
+        # below instead of surfacing the problem.
+        if "company_id" in model._fields:
             if len(model.company_id) > 1:
                 raise UserError(_("Multi company reports are not supported."))
             ReportAction = ReportAction.with_company(model.company_id)

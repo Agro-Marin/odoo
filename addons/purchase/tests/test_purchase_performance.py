@@ -15,6 +15,10 @@ combining two testing approaches:
    - Async stack sampling for bottleneck identification
 
 Run tests:
+    # The query-count classes are `-standard`: they must be asked for by tag,
+    # and their database must not carry modules that extend the measured flow
+    # (see the comment above them). The profiling/scaling classes are unaffected.
+
     # Run all performance tests
     ./odoo-bin -u purchase -d testdb --test-enable --test-tags=purchase_perf
 
@@ -63,10 +67,19 @@ def prepare(func, /):
 
 # =============================================================================
 # QUERY COUNT REGRESSION TESTS
+#
+# The baselines below are calibrated for `purchase` on its own. They are
+# `-standard` — run only when asked for by tag, as the module docstring
+# documents — because a query count is only meaningful against a pinned set of
+# installed modules, and nothing here pins it: `purchase_stock` is
+# ``auto_install``, and it extends `action_confirm()` with `_create_picking()`,
+# so on any database carrying stock these counts are several times the numbers
+# asserted here. Left standard they would fail in the ordinary configuration
+# rather than in the exceptional one, which trains everyone to ignore them.
 # =============================================================================
 
 
-@tagged("purchase_perf", "po_create_perf", "-at_install", "post_install")
+@tagged("purchase_perf", "po_create_perf", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
     """Query count tests for Purchase Order creation operations.
 
@@ -220,7 +233,7 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
             self.env["purchase.order"].create(vals_list)
 
 
-@tagged("purchase_perf", "po_write_perf", "-at_install", "post_install")
+@tagged("purchase_perf", "po_write_perf", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
     """Query count tests for Purchase Order write operations."""
 
@@ -289,7 +302,7 @@ class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
             lines.write({"product_qty": 15})
 
 
-@tagged("purchase_perf", "po_confirm_perf", "-at_install", "post_install")
+@tagged("purchase_perf", "po_confirm_perf", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
     """Query count tests for Purchase Order confirmation."""
 

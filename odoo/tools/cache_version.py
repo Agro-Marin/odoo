@@ -1,6 +1,6 @@
 """Content-hash stamping for cacheable read responses.
 
-Decorated endpoints emit a ``__version`` sha256 hex digest that the client-side
+Decorated endpoints emit a ``__version`` content hex digest that the client-side
 rpc cache (``web/static/src/core/network/rpc_cache.js`` ``payloadChanged``)
 compares in O(1) instead of the default ``JSON.stringify`` deep compare on every
 ``update: "always"`` revalidation.
@@ -22,11 +22,12 @@ survive non-JSON-native values (datetimes, sets, Decimals). See
 ``__version`` stamp" for the full contract, opted-in endpoints, and history.
 """
 
-import hashlib
 import json
 from functools import wraps
 
 import orjson
+
+from .hashing import cache_hash
 
 __all__ = ["versioned", "versioned_envelope"]
 
@@ -94,13 +95,20 @@ def _canonical_bytes(value):
         ).encode()
 
 
-def _canonical_sha256(value):
-    """Return the SHA-256 hex digest of ``value``'s canonical JSON form."""
-    return hashlib.sha256(_canonical_bytes(value)).hexdigest()
+def _canonical_digest(value):
+    """Return the hex digest of ``value``'s canonical JSON form.
+
+    The algorithm is whatever :mod:`odoo.tools.hashing` selected (BLAKE3, else
+    sha256) — both are 64 hex chars, and the client only ever compares two
+    server-emitted digests (``rpc_cache.js`` never recomputes one), so a change
+    of algorithm costs one self-healing cache refresh, exactly like the
+    serialization change documented above.
+    """
+    return cache_hash(_canonical_bytes(value))
 
 
 def versioned(method):
-    """Inject ``__version`` (sha256 of canonical JSON) into dict returns.
+    """Inject ``__version`` (digest of canonical JSON) into dict returns.
 
     No-op for non-dict returns and for dicts that already carry a
     ``__version`` key (idempotent — lets a method opt out by setting the
@@ -118,7 +126,7 @@ def versioned(method):
             # ``__version`` -> no-op" branch would then pin that first digest
             # forever -- and (b) mean the returned dict no longer hashes to its
             # own stamp.  A shallow copy is enough; only the top level gains a key.
-            result = {**result, "__version": _canonical_sha256(result)}
+            result = {**result, "__version": _canonical_digest(result)}
         return result
 
     return wrapper
@@ -148,7 +156,7 @@ def versioned_envelope(method):
         # ``result`` is skipped entirely off the HTTP path instead of being
         # computed and discarded.
         if request:
-            request._response_version = _canonical_sha256(result)
+            request._response_version = _canonical_digest(result)
         return result
 
     return wrapper
