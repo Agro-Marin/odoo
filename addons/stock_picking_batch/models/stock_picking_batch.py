@@ -2,7 +2,7 @@
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -72,6 +72,7 @@ class StockPickingBatch(models.Model):
             return super()._compute_display_name()
         for batch in self:
             batch.display_name = f"{batch.name}: {batch.description}" if batch.description else batch.name
+        return None
 
     @api.depends('picking_type_id')
     def _compute_show_lots_text(self):
@@ -168,7 +169,7 @@ class StockPickingBatch(models.Model):
         new_move_lines = self[0].move_line_ids
         for picking in self.picking_ids:
             old_move_lines = picking.move_line_ids
-            picking.move_line_ids = new_move_lines.filtered(lambda ml: ml.picking_id.id == picking.id)
+            picking.move_line_ids = new_move_lines.filtered(lambda ml, picking=picking: ml.picking_id.id == picking.id)
             move_lines_to_unlink = old_move_lines - new_move_lines
             if move_lines_to_unlink:
                 move_lines_to_unlink.unlink()
@@ -291,6 +292,7 @@ class StockPickingBatch(models.Model):
         self.ensure_one()
         if self.state not in ('done', 'cancel'):
             return self.move_line_ids.action_put_in_pack(package_id=package_id, package_type_id=package_type_id, package_name=package_name)
+        return None
 
     def action_view_reception_report(self):
         action = self.picking_ids[0].action_view_reception_report()
@@ -325,7 +327,7 @@ class StockPickingBatch(models.Model):
 
     def action_merge(self):
         if not self:
-            return
+            return None
         if len(self) < 2:
             raise UserError(self.env._('Please select at least two batch/wave transfers to merge.'))
         if len(self.picking_type_id) > 1:
@@ -372,7 +374,7 @@ class StockPickingBatch(models.Model):
             'domain': [('id', 'in', self.picking_ids.move_line_ids.ids)],
             'context': {
                 'default_company_id': self.company_id.id,
-                'default_picking_id': self.picking_ids and self.picking_ids[0].id or False,
+                'default_picking_id': (self.picking_ids and self.picking_ids[0].id) or False,
                 'picking_ids': self.picking_ids.ids,
                 'show_lots_text': self.show_lots_text,
                 'picking_code': self.picking_type_code,

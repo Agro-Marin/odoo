@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from odoo import _, Command, fields, models
+from odoo import Command, _, fields, models
 from odoo.fields import Domain
 from odoo.tools.misc import OrderedSet
 
@@ -121,7 +121,7 @@ class StockMoveLine(models.Model):
     def _is_auto_waveable(self):
         self.ensure_one()
         if not self.picking_id \
-           or (self.picking_id.state != 'assigned' or self.product_uom_id.is_zero(self.quantity)) and not self.env.context.get('skip_auto_waveable')  \
+           or ((self.picking_id.state != 'assigned' or self.product_uom_id.is_zero(self.quantity)) and not self.env.context.get('skip_auto_waveable'))  \
            or self.batch_id.is_wave \
            or not self.picking_type_id._is_auto_wave_grouped() \
            or (self.picking_type_id.wave_group_by_category and self.product_id.categ_id not in self.picking_type_id.wave_category_ids):  # noqa: SIM103
@@ -276,7 +276,7 @@ class StockMoveLine(models.Model):
         """ Create new waves for the move lines that could not be added to existing waves. """
         picking_types = self.picking_type_id
         for picking_type in picking_types:
-            lines = self.filtered(lambda l: l.picking_type_id == picking_type)
+            lines = self.filtered(lambda l, picking_type=picking_type: l.picking_type_id == picking_type)
             domains = [Domain([
                 ('id', 'in', lines.ids),
                 ('company_id', 'in', self.company_id.ids),
@@ -383,7 +383,7 @@ class StockMoveLine(models.Model):
                 'picking_type_id': picking_type.id,
                 'description': remaining_line._get_auto_wave_description(nearest_parent_locations[remaining_line]),
             } for remaining_line in remaining_lines])
-            for (line, wave) in zip(remaining_lines, remaining_waves):
+            for (line, wave) in zip(remaining_lines, remaining_waves, strict=True):
                 line._add_to_wave(wave)
 
     def _get_auto_wave_description(self, nearest_parent_location=False):
@@ -400,5 +400,4 @@ class StockMoveLine(models.Model):
         if self.picking_type_id.wave_group_by_location:
             description_items.append(nearest_parent_location.complete_name)
 
-        description = ', '.join(description_items)
-        return description
+        return ', '.join(description_items)
