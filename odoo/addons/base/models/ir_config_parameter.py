@@ -2,10 +2,9 @@ import logging
 import uuid
 from typing import Any, Self
 
-import psycopg.errors
-
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.db import insert_or_existing
 from odoo.exceptions import ValidationError
 from odoo.tools import config, mute_logger, ormcache
 
@@ -105,31 +104,33 @@ class IrConfig_Parameter(models.Model):
         :return: the previous value of the parameter or False if it did
                  not exist.
         :rtype: str | bool
+
+        The insert can still violate ``ir_config_parameter_key_uniq``;
+        :func:`~odoo.db.insert_or_existing` resolves that race, and a row it
+        recovers takes the update path below.  Retrying the ``create`` instead
+        only violated the constraint a second time, and ``retrying`` turns an
+        ``IntegrityError`` into a ``ValidationError`` rather than replaying — so
+        the caller got "Key must be unique." and lost the write.
         """
         param = self.search([("key", "=", key)])
-        if param:
-            old = param.value
-            if value is not False and value is not None:
-                if str(value) != old:
-                    param.write({"value": value})
-            else:
-                param.unlink()
-            return old
-        if value is False or value is None:
-            return False
-        try:
-            with self.env.cr.savepoint():
-                self.create({"key": key, "value": value})
-        except psycopg.errors.UniqueViolation:
-            param = self.search([("key", "=", key)])
-            if not param:
-                self.create({"key": key, "value": value})
+        if not param:
+            if value is False or value is None:
                 return False
-            old = param.value
-            if str(value) != old:
-                param.write({"value": value})
-            return old
-        return False
+            param, created = insert_or_existing(
+                self.env.cr,
+                lambda: self.create({"key": key, "value": value}),
+                lambda: self.search([("key", "=", key)]),
+                conflict=f"ir.config_parameter {key!r}",
+            )
+            if created:
+                return False
+
+        old = param.value
+        if value is False or value is None:
+            param.unlink()
+        elif str(value) != old:
+            param.write({"value": value})
+        return old
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

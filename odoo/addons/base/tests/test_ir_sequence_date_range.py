@@ -243,9 +243,13 @@ class TestIrSequenceDateRangeClamp(TransactionCase):
 
 
 class TestIrSequenceDateRangeConcurrentCreate(TransactionCase):
-    """A UniqueViolation on the range insert (two transactions both
-    search-missed and created the same range) must be recovered by returning
-    the existing range instead of surfacing the raw constraint error.
+    """A UniqueViolation on the range insert must return the existing range
+    instead of surfacing the raw constraint error, whenever that range is
+    visible to this transaction.
+
+    When it is not -- a genuinely concurrent creation, which no snapshot-bound
+    search can observe -- the caller gets a retryable error instead; see
+    ``TestIrSequenceDateRangeConcurrency`` in ``test_ir_sequence.py``.
     """
 
     @mute_logger("odoo.db")

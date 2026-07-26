@@ -18,7 +18,7 @@ from psycopg.postgres import types as _pg_types
 from psycopg_pool import PoolTimeout
 
 from odoo import api
-from odoo.db import db_connect
+from odoo.db import db_connect, insert_or_existing
 from odoo.db import pool as pool_module
 from odoo.db import utils as _db_utils
 from odoo.db.cursor import (
@@ -41,12 +41,14 @@ from odoo.db.pool import (
 )
 from odoo.db.reaper import checked_out as reaper_checked_out
 from odoo.db.utils import categorize_query, connection_info_for
+from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
 from odoo.service.db import exp_drop
 from odoo.tests import common
 from odoo.tests.common import BaseCase, HttpCase
 from odoo.tests.cursor import TestCursor
 from odoo.tools import SQL
+from odoo.tools.misc import mute_logger
 
 ADMIN_USER_ID = common.ADMIN_USER_ID
 
@@ -5185,3 +5187,75 @@ class TestSaturatedPoolNamesItsHolders(BaseCase):
             len(self.pool._checkouts), 2, "the failed borrow must not be tracked"
         )
         self.assertEqual(self.pool.stats.borrows_failed, 1)
+
+
+class TestInsertOrExisting(BaseCase):
+    """The three outcomes of an insert that hits a unique constraint."""
+
+    TABLE = "_test_insert_or_existing"
+
+    def setUp(self):
+        super().setUp()
+        self.registry = Registry(common.get_db_name())
+        self.addCleanup(self._drop)
+        with self.registry.cursor() as cr:
+            cr.execute(
+                f'CREATE TABLE "{self.TABLE}"'
+                " (id serial PRIMARY KEY, k text UNIQUE, v text)"
+            )
+
+    def _drop(self):
+        with self.registry.cursor() as cr:
+            cr.execute(f'DROP TABLE IF EXISTS "{self.TABLE}"')
+
+    def _insert(self, cr, key, value):
+        def insert():
+            cr.execute(
+                f'INSERT INTO "{self.TABLE}" (k, v) VALUES (%s, %s) RETURNING id',
+                (key, value),
+            )
+            return cr.fetchone()[0]
+
+        def find():
+            cr.execute(f'SELECT id FROM "{self.TABLE}" WHERE k = %s', (key,))
+            row = cr.fetchone()
+            return row[0] if row else None
+
+        return insert_or_existing(cr, insert, find, conflict=f"key {key!r}")
+
+    def test_clean_insert_reports_created(self):
+        with self.registry.cursor() as cr:
+            row_id, created = self._insert(cr, "fresh", "v1")
+            self.assertTrue(created)
+            self.assertTrue(row_id)
+
+    @mute_logger("odoo.db.cursor")
+    def test_conflict_with_a_visible_row_returns_it(self):
+        """A row this transaction can already see is recovered, not an error."""
+        with self.registry.cursor() as cr:
+            first, created = self._insert(cr, "dup", "v1")
+            self.assertTrue(created)
+            second, created = self._insert(cr, "dup", "v2")
+            self.assertFalse(created)
+            self.assertEqual(second, first)
+
+    @mute_logger("odoo.db.cursor")
+    def test_conflict_with_a_concurrent_row_is_retryable(self):
+        """A row committed after this snapshot began cannot be recovered to.
+
+        ``ROLLBACK TO SAVEPOINT`` keeps the ``REPEATABLE READ`` snapshot, so
+        ``find`` is blind to the winner however it is written; the caller has to
+        replay the request instead.
+        """
+        with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
+            cr_b.execute(f'SELECT count(*) FROM "{self.TABLE}"')  # pin B's snapshot
+            self._insert(cr_a, "raced", "winner")
+            cr_a.commit()
+
+            with self.assertRaises(ConcurrencyError):
+                self._insert(cr_b, "raced", "loser")
+
+            # what ``retrying`` does: the replay sees the winner and recovers
+            cr_b.rollback()
+            _row, created = self._insert(cr_b, "raced", "loser")
+            self.assertFalse(created)

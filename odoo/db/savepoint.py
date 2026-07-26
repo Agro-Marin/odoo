@@ -16,7 +16,10 @@ dependency one-directional.
 from __future__ import annotations
 
 import itertools
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol, Self
+
+import psycopg.errors
 
 if TYPE_CHECKING:
     from .cursor import BaseCursor
@@ -165,3 +168,58 @@ class _FlushingSavepoint(Savepoint):
             raise
         finally:
             super()._close(rollback)
+
+
+def insert_or_existing[T](
+    cr: Any,
+    insert: Callable[[], T],
+    find: Callable[[], T],
+    *,
+    conflict: str,
+) -> tuple[T, bool]:
+    """Run *insert*, falling back to *find* when a unique constraint rejects it.
+
+    The one correct shape for "create this row unless it already exists" under
+    Odoo's ``REPEATABLE READ`` cursors, where the obvious spelling is wrong in a
+    way that only shows up under concurrency:
+
+    * *insert* runs inside a savepoint, so a rejection leaves the caller's
+      transaction usable rather than aborted;
+    * ``ROLLBACK TO SAVEPOINT`` does **not** refresh the transaction snapshot,
+      so *find* can only see a row this transaction could already see -- one an
+      earlier statement missed, or one it wrote itself.  It is the right
+      recovery for that case and returns it;
+    * a row a *concurrent* transaction committed after this snapshot began is
+      invisible to *find* no matter what, so there is nothing local to recover
+      to.  That raises :class:`~odoo.exceptions.ConcurrencyError`, which
+      ``odoo.service.transaction.retrying`` answers by replaying the whole
+      request against a fresh snapshot.
+
+    Re-running *insert*, or returning whatever empty value *find* produced, were
+    both tried in this codebase and both surfaced as user-visible failures --
+    a duplicate-key error and a query against ``id = False`` respectively.
+
+    Callers that must tell the two apart -- "no previous value" reads very
+    differently from "here is the previous value" -- get it from the returned
+    flag rather than by watching *insert*: the constraint is enforced when the
+    savepoint flushes, which can be after *insert* has returned, so a flag it
+    sets itself says the row was created when it was not.
+
+    :param insert: performs the insert and returns the new row
+    :param find: looks the row up again; falsy when this snapshot cannot see it
+    :param conflict: what collided, for the ``ConcurrencyError`` message
+    :return: ``(row, created)`` -- *created* is ``False`` when *find* supplied
+        the row
+    """
+    from odoo.exceptions import ConcurrencyError
+
+    try:
+        with cr.savepoint():
+            return insert(), True
+    except psycopg.errors.UniqueViolation:
+        existing = find()
+        if not existing:
+            raise ConcurrencyError(
+                f"{conflict} was created by a concurrent transaction"
+            ) from None
+        return existing, False
