@@ -44,6 +44,31 @@ MIN_ROUNDS = 600_000
 
 LOGIN_FAILURES_PRUNE_THRESHOLD = 1000
 
+_RELATION_ONLY_COMMANDS = frozenset(
+    {Command.UNLINK, Command.LINK, Command.CLEAR, Command.SET}
+)
+"""x2many commands that write the relation and never the comodel record.
+
+On a many2many these only add or drop rows of the relation table. On a
+one2many the same commands write the inverse column of the comodel row, so
+:meth:`ResUsers._escapes_own_record` rejects one2many outright rather than
+consulting this set.
+"""
+
+
+def _is_private_address(source: str | None) -> bool:
+    """Whether *source* is an RFC 1918-style address, for the proxy hint.
+
+    ``REMOTE_ADDR`` is not guaranteed to be an IP literal -- a unix socket
+    leaves it empty and some front-ends put a host name there -- and this is
+    reached while *rejecting* a login, so a parse failure here would turn a
+    rate-limit response into a 500 for the very traffic being throttled.
+    """
+    try:
+        return ipaddress.ip_address(source).is_private
+    except ValueError:
+        return False
+
 
 def _jsonable(o: object) -> bool:
     try:
@@ -147,7 +172,22 @@ class ResUsers(models.Model):
 
     @property
     def SELF_WRITEABLE_FIELDS(self) -> list[str]:
-        """Fields a user may write on their own record; override to extend."""
+        """Fields a user may write on their own record; override to extend.
+
+        Listing a field here grants a ``sudo()`` write of the user's own row,
+        so prefer scalars. A relational field is accepted but only partly
+        served: :meth:`_escapes_own_record` withholds the escalation from any
+        write that would mutate a comodel record, which is every one2many
+        command and the destructive many2many ones. Relational self-service
+        that must create or delete belongs in a dedicated method doing its own
+        access check, the way ``res.users.apikeys`` does with
+        :meth:`~ResUsersApikeys.remove`.
+
+        ``api_key_ids`` is deliberately absent: it is a one2many with no
+        legitimate write path (keys are minted by ``api_key_wizard`` and
+        revoked by ``remove()``, both identity-checked), and while it was
+        listed any user could destroy or re-parent another user's key by id.
+        """
         return [
             "signature",
             "action_id",
@@ -157,7 +197,6 @@ class ResUsers(models.Model):
             "image_1920",
             "lang",
             "tz",
-            "api_key_ids",
             "phone",
         ]
 
@@ -911,6 +950,42 @@ class ResUsers(models.Model):
             self.env["res.users.settings"].sudo().create(setting_vals)
         return users
 
+    def _escapes_own_record(self, vals: dict[str, Any]) -> bool:
+        """Whether writing *vals* would reach past the user's own row.
+
+        :meth:`write` escalates a self-service write to ``sudo()``, but an
+        x2many command is applied to the *comodel*: without this guard, listing
+        a relational field in ``SELF_WRITEABLE_FIELDS`` silently upgrades a
+        field permission into unchecked create/update/delete on another model's
+        records, chosen by id. Only the commands that touch the relation itself
+        stay inside the grant, and only on a many2many -- every one2many command
+        writes the comodel row carrying the inverse, and ``CREATE``/``UPDATE``/
+        ``DELETE`` (plus their ``dict`` and bare-id shorthands) mutate comodel
+        records by definition.
+
+        Escaping writes are not refused here, only denied the escalation: they
+        fall through to the caller's own rights, so a user who legitimately may
+        write ``res.users`` still succeeds and everyone else gets the usual
+        :class:`~odoo.exceptions.AccessError`.
+        """
+        for fname, value in vals.items():
+            field = self._fields.get(fname)
+            if field is None or field.type not in ("one2many", "many2many"):
+                continue
+            if field.type == "one2many":
+                return True
+            if isinstance(value, models.BaseModel) or not value:
+                continue
+            if not isinstance(value, (list, tuple)):
+                return True
+            for command in value:
+                if isinstance(command, (list, tuple)):
+                    if not command or command[0] not in _RELATION_ONLY_COMMANDS:
+                        return True
+                elif not isinstance(command, int):
+                    return True
+        return False
+
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("active") and SUPERUSER_ID in self._ids:
             raise UserError(_("You cannot activate the superuser."))
@@ -923,12 +998,16 @@ class ResUsers(models.Model):
             self.partner_id.action_unarchive()
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]
-            if all(key in writeable for key in vals):
-                if "company_id" in vals:
-                    if vals["company_id"] not in self.env.user.company_ids.ids:
-                        del vals["company_id"]
-                        if not vals:
-                            return True
+            if all(key in writeable for key in vals) and not self._escapes_own_record(
+                vals
+            ):
+                if (
+                    "company_id" in vals
+                    and vals["company_id"] not in self.env.user.company_ids.ids
+                ):
+                    vals = {k: v for k, v in vals.items() if k != "company_id"}
+                    if not vals:
+                        return True
                 self = self.sudo()
 
         res = super().write(vals)
@@ -1519,7 +1598,7 @@ class ResUsers(models.Model):
                 failures,
                 previous,
             )
-            if ipaddress.ip_address(source).is_private:
+            if _is_private_address(source):
                 _logger.warning(
                     "The rate-limited IP address %s is classified as private "
                     "and *might* be a proxy. If your Odoo is behind a proxy, "

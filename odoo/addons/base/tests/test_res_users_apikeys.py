@@ -151,19 +151,30 @@ class TestResUsersApikeys(TransactionCase):
         with self.assertRaises(AccessDenied):
             self._cached_auth(key)
 
-    def test_api_key_ids_delete_invalidates_cached_credentials(self):
-        """AK-T5b: deleting a key through res.users.api_key_ids (a
-        SELF_WRITEABLE_FIELDS one2many, Command.delete) bypasses _remove()
-        entirely; the unlink() override itself must clear the cache."""
+    def test_api_key_ids_not_writable_through_self_service(self):
+        """AK-T5b: ``api_key_ids`` must not be self-writable.
+
+        ``res.users.write`` escalates to ``sudo()`` once every key of ``vals``
+        is in SELF_WRITEABLE_FIELDS, and an x2many command runs against the
+        comodel. While ``api_key_ids`` was listed, any user could pass an
+        arbitrary key id — record ids are sequential, so enumerable — and have
+        it deleted (``Command.delete``) or re-parented onto themselves
+        (``Command.link``) under sudo, defeating both the read-only ACL on
+        ``res.users.apikeys`` and the owner check in :meth:`_remove`.
+        Revocation goes through ``_remove()``, never through the user form.
+        """
         exp = fields.Datetime.now() + timedelta(hours=1)
-        key = self.Apikeys.with_user(self.user)._generate(None, "k", exp)
-        self._cached_auth(key)
-        key_rec = self.Apikeys.sudo().search([("user_id", "=", self.user.id)])
-        self.user.with_user(self.user).write(
-            {"api_key_ids": [Command.delete(key_rec.id)]}
-        )
-        with self.assertRaises(AccessDenied):
-            self._cached_auth(key)
+        victim = new_test_user(self.env, login="ak_victim")
+        self.Apikeys.with_user(victim)._generate(None, "victim key", exp)
+        victim_key = self.Apikeys.sudo().search([("user_id", "=", victim.id)])
+
+        attacker = self.user.with_user(self.user)
+        for command in (Command.delete(victim_key.id), Command.link(victim_key.id)):
+            with self.assertRaises(AccessError):
+                attacker.write({"api_key_ids": [command]})
+
+        self.assertTrue(victim_key.exists(), "the victim's key was destroyed")
+        self.assertEqual(victim_key.user_id, victim, "the victim's key was stolen")
 
     def test_gc_invalidates_cached_credentials(self):
         """AK-T5c: the GC's raw DELETE bypasses unlink(); a key memoised while
