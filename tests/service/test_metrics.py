@@ -9,6 +9,7 @@ Run with::
     python -m pytest tests/service/test_metrics.py -v
 """
 
+import os
 import re
 from unittest.mock import MagicMock, patch
 
@@ -158,13 +159,17 @@ class TestPrometheusExposition:
             text = mod.render_prometheus()
         declared, errors = parse_exposition(text)
         assert not errors, errors
+        pid = os.getpid()
         assert declared["odoo_pool_borrows_total"] == "counter"
         assert declared["odoo_pool_budget_maxconn"] == "gauge"
         assert (
-            'odoo_pool_borrow_wait_seconds_bucket{pool="read_write",le="+Inf"} 12'
+            f'odoo_pool_borrow_wait_seconds_bucket{{pid="{pid}",pool="read_write",'
+            'le="+Inf"} 12' in text
+        )
+        assert (
+            f'odoo_db_pool_pool_size{{pid="{pid}",pool="read_write",database="prod"}} 5'
             in text
         )
-        assert 'odoo_db_pool_pool_size{pool="read_write",database="prod"} 5' in text
 
     def test_database_names_are_escaped_in_labels(self, mod):
         """A label value is attacker-influenced: database names are user-chosen."""
@@ -195,9 +200,30 @@ class TestPrometheusExposition:
 
         with patch.object(lifecycle, "server", server):
             text = mod.render_prometheus()
-        assert "odoo_long_polling_alive 0" in text
+        assert f'odoo_long_polling_alive{{pid="{os.getpid()}"}} 0' in text
         _, errors = parse_exposition(text)
         assert not errors, errors
+
+    def test_every_series_carries_the_serving_pid(self, mod):
+        """Under prefork a scrape lands on whichever worker won ``accept(2)``.
+
+        Each worker owns its own pools and counters, so without a ``pid`` label
+        one series name would carry a different worker's numbers on every
+        scrape — and a monotonic counter that jumps backwards reads to
+        Prometheus as a process restart.
+        """
+        health = {"read_write": {"pool": {"borrows": 3}, "per_database": {}}}
+        from odoo import db
+
+        with patch.object(db, "pool_health", return_value=health):
+            text = mod.render_prometheus()
+        samples = [
+            line for line in text.splitlines() if line and not line.startswith("#")
+        ]
+        assert samples
+        expected = f'pid="{os.getpid()}"'
+        unlabelled = [line for line in samples if expected not in line]
+        assert not unlabelled, unlabelled
 
     def test_render_survives_a_failing_subsystem(self, mod):
         """A scrape that raises is a monitoring outage stacked on the incident."""

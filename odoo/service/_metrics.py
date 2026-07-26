@@ -18,6 +18,7 @@ Naming follows the exposition conventions: ``odoo_`` prefix, base SI units,
 
 from __future__ import annotations
 
+import os
 import threading
 from typing import Any
 
@@ -38,11 +39,17 @@ def _labels(pairs: dict[str, str]) -> str:
 
 
 class _Exposition:
-    """Accumulates metric families, emitting each ``HELP``/``TYPE`` header once."""
+    """Accumulates metric families, emitting each ``HELP``/``TYPE`` header once.
 
-    def __init__(self) -> None:
+    ``base_labels`` are merged into every sample.  That is what carries the
+    ``pid`` — see :func:`render_prometheus` for why every series in this payload
+    needs one.
+    """
+
+    def __init__(self, base_labels: dict[str, str] | None = None) -> None:
         self._lines: list[str] = []
         self._declared: set[str] = set()
+        self._base = dict(base_labels or {})
 
     def add(
         self,
@@ -58,7 +65,7 @@ class _Exposition:
             self._lines.append(f"# HELP {name} {help}")
             self._lines.append(f"# TYPE {name} {kind}")
         rendered = int(value) if isinstance(value, bool) else value
-        self._lines.append(f"{name}{_labels(labels or {})} {rendered}")
+        self._lines.append(f"{name}{_labels(self._base | (labels or {}))} {rendered}")
 
     def render(self) -> str:
         return "\n".join(self._lines) + "\n"
@@ -162,6 +169,10 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
             "odoo_pool_budget_exhausted_total",
             "Times the shared connection budget was exhausted.",
         ),
+        "leaks_reported": (
+            "odoo_pool_leaks_reported_total",
+            "Times a connection was found held past db_leak_detection.",
+        ),
     }
     gauges = {
         "pools": ("odoo_pool_pools", "Per-DSN pools currently open."),
@@ -175,6 +186,14 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
         ),
         "budget_available": ("odoo_pool_budget_available", "Unclaimed budget slots."),
         "budget_in_use": ("odoo_pool_budget_in_use", "Budget slots currently held."),
+        "checked_out": (
+            "odoo_pool_checked_out",
+            "Connections currently checked out by a borrower.",
+        ),
+        "checked_out_oldest_seconds": (
+            "odoo_pool_checked_out_oldest_seconds",
+            "Age of the longest-held checkout; a rising floor is a leak.",
+        ),
     }
 
     stats = health.get("pool") or {}
@@ -223,13 +242,28 @@ def _add_pool_family(exp: _Exposition, mode: str, health: dict) -> None:
 def render_prometheus() -> str:
     """Render this process's metrics in the Prometheus text exposition format.
 
+    Every series carries a ``pid`` label because every number here belongs to
+    ONE process.  Under prefork the master closes its pools and the workers
+    accept independently, so a scrape is answered by whichever worker won
+    ``accept(2)`` — without ``pid`` the same series name would carry a different
+    worker's counters on each scrape, and a monotonic counter that jumps
+    backwards reads to Prometheus as a process restart.  Labelled per pid, each
+    worker is its own correctly-monotonic series.
+
+    The consequence is worth stating plainly: this endpoint reports the SERVING
+    process, not the deployment.  A scrape samples one worker, so per-worker
+    series appear and vanish as workers recycle, and instance-wide totals must
+    be aggregated across pids (``sum by (pool) (odoo_pool_borrows_total)``) with
+    the usual caveat that a recycled worker's counter disappears.  A
+    ``workers = 0`` deployment has exactly one pid and none of this applies.
+
     Never raises: a scrape that fails is a monitoring outage on top of whatever
     it was meant to observe, so a subsystem that cannot report is simply absent
     from the output.
     """
     from odoo import db
 
-    exp = _Exposition()
+    exp = _Exposition({"pid": str(os.getpid())})
     exp.add("odoo_up", 1, help="1 when the metrics endpoint is serving.")
 
     try:
