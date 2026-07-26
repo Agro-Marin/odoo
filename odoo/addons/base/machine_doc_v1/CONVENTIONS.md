@@ -296,9 +296,11 @@ See `machine_doc_v1/TEST_TAGS.md` for full reference.
    company in a parent-child chain. It's computed, stored, and recursive. Many
    business modules (accounting, sales) use it for grouping.
 
-7. **Company-dependent fields** — Fields with `company_dependent=True` store
-   different values per company via `ir.property`. Changing company context
-   returns different values for the same record.
+7. **Company-dependent fields** — Fields with `company_dependent=True` store one
+   `jsonb` column keyed by company id; `ir.property` was removed in Odoo 17 and
+   does not exist in this codebase. Changing company context returns different
+   values for the same record. Per-company fallbacks come from `ir.default`
+   (see `IrDefault._get_field_column_fallbacks`).
 
 8. **`res.config.settings` is transient** — Settings records are created fresh
    each time the settings form opens. `default_get()` loads current state,
