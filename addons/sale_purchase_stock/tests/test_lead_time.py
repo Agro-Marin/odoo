@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import timedelta
 
 from odoo import Command, fields
 from odoo.tests import tagged
+
 from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
 
 
@@ -13,7 +13,7 @@ class TestLeadTime(TestCommonSalePurchaseNoChart):
 
     @classmethod
     def setUpClass(cls):
-        super(TestLeadTime, cls).setUpClass()
+        super().setUpClass()
 
         cls.buy_route = cls.env.ref('purchase_stock.route_warehouse0_buy')
         cls.mto_route = cls.env.ref('stock.route_warehouse0_mto')

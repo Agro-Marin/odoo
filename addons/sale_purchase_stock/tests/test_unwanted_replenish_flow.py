@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
+
 from odoo import Command
-from odoo.tests import common, Form, tagged
+from odoo.tests import Form, common, tagged
+
 
 @tagged('post_install', '-at_install')
 class TestWarnUnwantedReplenish(common.TransactionCase):
@@ -13,8 +15,8 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         cls.buy_route = cls.env.ref('purchase_stock.route_warehouse0_buy')
 
         # Create a vendor (& suppliers) and a customer
-        cls.vendor = cls.env['res.partner'].create(dict(name='Vendor'))
-        cls.customer = cls.env['res.partner'].create(dict(name='Customer'))
+        cls.vendor = cls.env['res.partner'].create({'name': 'Vendor'})
+        cls.customer = cls.env['res.partner'].create({'name': 'Customer'})
 
         # Create a "A" and a "B" Product :
         # No Stock
