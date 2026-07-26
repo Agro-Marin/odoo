@@ -56,32 +56,20 @@ def validate_db_name(name: str) -> None:
 def rpc_db_exposed(db_name: object) -> bool:
     """Whether an RPC verb may act on ``db_name`` at all.
 
-    The RPC services take the database name as a PARAMETER from a caller that
-    has not authenticated yet — ``common.authenticate``/``login`` and
-    ``object.execute_kw`` both reach ``Registry(db)``, building a registry and
-    a connection pool, BEFORE any credential is verified.  This is the cheapest
-    gate that can refuse a name the operator never declared servable, before
-    that cost is paid.
+    RPC callers name the database as a parameter before authenticating, and both
+    ``common.authenticate`` and ``object.execute_kw`` reach ``Registry(db)`` —
+    building a registry and a pool — before any credential is checked.  This is
+    the cheapest gate that refuses a name the operator never declared servable.
 
-    Two rules, both host-independent:
+    Two host-independent rules: PG system databases and the creation template
+    are never servable; and when ``--database`` is set it IS the allowlist.
+    With it unset, every non-system name is allowed.
 
-    * the PG system databases and the creation template are never servable
-      (the same floor ``http.helpers.db_filter`` and ``db._rpc_db_exist``
-      apply);
-    * when ``--database`` is set it IS the exposed-database allowlist — the
-      meaning ``db_filter`` and ``list_dbs`` already give it — so a name
-      outside it is refused.
-
-    ``--db-filter`` is deliberately NOT applied here.  It maps a *hostname* to
-    a database, and ``http.dispatch_rpc`` runs inside ``borrow_request()``,
-    which POPS the request off the stack — so no host is available at this
-    point, and a dbfilter of ``^%h$`` would be evaluated against an empty host
-    and refuse every RPC login on a virtual-host deployment.  An RPC caller
-    names its database explicitly; host-based routing is not the right axis for
-    it.
-
-    With ``--database`` unset (no declared allowlist) every non-system name is
-    allowed, i.e. the pre-existing behaviour is unchanged.
+    ``--db-filter`` is deliberately not applied: it maps a hostname to a
+    database, but ``http.dispatch_rpc`` runs inside ``borrow_request()``, which
+    pops the request off the stack — so a dbfilter of ``^%h$`` would evaluate
+    against an empty host and refuse every RPC login on a virtual-host
+    deployment.
     """
     if not isinstance(db_name, str) or not db_name:
         return False

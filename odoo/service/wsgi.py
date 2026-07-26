@@ -44,23 +44,15 @@ _logger = logging.getLogger("odoo.service.server")
 def http_socket_timeout() -> float:
     """Per-operation socket timeout for one served HTTP connection.
 
-    Single source of truth for every server flavor: ``WorkerHTTP`` applies it to
-    each accepted socket in prefork, and ``RequestHandler.setup`` applies it on
-    the threaded and evented servers.  Sharing one knob (and one default) keeps
-    the deployments from drifting into different DoS postures.
+    Single source of truth for every server flavor, so deployments cannot drift
+    into different DoS postures: without it a handler thread blocks forever in
+    ``rfile.readline()`` while holding one of the bounded ``max_http_threads``
+    slots, which a handful of slowloris connections turns into an
+    unauthenticated denial of service.
 
-    Without it, a handler thread blocks forever in ``rfile.readline()`` waiting
-    for a request line that never arrives, while still holding one of the
-    bounded ``max_http_threads`` slots.  Measured on the threaded server: six
-    connections sending nine bytes each (``GET /slow``, no CRLF) drained the pool
-    to 0/4 and every subsequent request timed out — an unauthenticated denial of
-    service costing the attacker almost nothing.  Prefork was never exposed
-    because it has always set this; the threaded path used to set a timeout only
-    under ``--test-enable``.
-
-    This is a per-operation deadline, not a request deadline: a slow upload keeps
-    resetting it as long as bytes keep arriving.  Floor 0.1s — ``0`` would put the
-    socket in non-blocking mode and break every request.
+    Per-operation, not per-request: a slow upload keeps resetting it as long as
+    bytes keep arriving.  Floor 0.1s — ``0`` would put the socket in
+    non-blocking mode and break every request.
     """
     return env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
 
@@ -229,21 +221,13 @@ class RequestHandler(CommonRequestHandler):
     def _is_websocket_upgrade(self) -> bool:
         """Whether the in-flight request asked for a websocket upgrade.
 
-        Reads ``self.headers`` DEFENSIVELY.  ``BaseHTTPRequestHandler`` assigns
-        that attribute only after it has parsed the request line, but a MALFORMED
-        request line makes it call ``send_error(400)`` — and therefore
-        ``send_header`` / ``end_headers`` — while ``self.headers`` is still
-        unset.  werkzeug's ``WSGIRequestHandler.__getattr__`` then forwards the
-        lookup to ``super()``, which has no ``headers`` either, so the override
-        raised ``AttributeError: 'super' object has no attribute 'headers'`` from
-        inside the error path: the 400 response died half-written and the client
-        got NOTHING back, while the server logged a traceback at ERROR.
-
-        That is reachable unauthenticated by anyone who can open a socket — a
-        browser sent to ``https://host:8069``, a TLS probe, a port scanner, a
-        misconfigured health check — on both servers that use this handler (the
-        threaded dev/test server and the evented long-polling subprocess).
-        ``log_request`` already guards ``self.path`` the same way.
+        Reads ``self.headers`` defensively: a malformed request line makes
+        ``BaseHTTPRequestHandler`` call ``send_error(400)`` — and so
+        ``send_header``/``end_headers`` — before ``self.headers`` is assigned,
+        and werkzeug's ``__getattr__`` forwards the lookup to a ``super()`` that
+        has none either.  The resulting ``AttributeError`` killed the 400
+        half-written, reachable by anyone who can open a socket.
+        ``log_request`` guards ``self.path`` the same way.
         """
         headers = getattr(self, "headers", None)
         return headers is not None and headers.get("Upgrade") == "websocket"

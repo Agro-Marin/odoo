@@ -46,6 +46,15 @@ def env_int(
     return _parse(name, default, int, "an integer", minimum, logger)
 
 
+def env_str(name: str, default: str = "") -> str:
+    """Read env var ``name`` as a stripped string, falling back to ``default``.
+
+    Whitespace-only is treated as unset: a unit file with ``Environment=X=``
+    would otherwise arm a feature with an empty secret.
+    """
+    return (os.environ.get(name) or "").strip() or default
+
+
 def _parse(
     name: str,
     default: float,
@@ -88,4 +97,4 @@ def _parse(
     return value
 
 
-__all__ = ("env_float", "env_int")
+__all__ = ("env_float", "env_int", "env_str")
