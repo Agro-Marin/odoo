@@ -1361,11 +1361,16 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
                     )
                 ) from None
 
-        elif self.store and record._origin and not (self.compute and self.readonly):
+        elif self.store and record._has_origin and not (self.compute and self.readonly):
             recs = self._to_prefetch(record)
+            origin_prefetch = recs._origin._prefetch_ids
+            spawn = type(recs)._spawn
+            recs_env = recs.env
             try:
                 for rec in recs:
-                    if rec_origin := rec._origin:
+                    rec_id = rec._ids[0]
+                    if origin_id := (rec_id or getattr(rec_id, "origin", None)):
+                        rec_origin = spawn(recs_env, (origin_id,), origin_prefetch)
                         value = self.convert_to_cache(
                             rec_origin[self.name], rec, validate=False
                         )

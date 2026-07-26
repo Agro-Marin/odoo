@@ -357,7 +357,7 @@ class _RelationalMulti(_Relational):
                     return comodel.browse((it and NewId(it),))
             else:
                 browse = comodel.browse
-            if record._origin:
+            if record._has_origin:
                 ids = OrderedSet(record.with_context(active_test=False)[self.name]._ids)
             else:
                 ids = OrderedSet()
