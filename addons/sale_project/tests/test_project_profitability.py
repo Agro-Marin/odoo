@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
 
 from odoo import Command
-from odoo.tests import tagged
 from odoo.libs.numbers.float_utils import float_compare
+from odoo.tests import tagged
 
+from odoo.addons.project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon as Common,
+)
 from odoo.addons.sale.tests.common import TestSaleCommon
-from odoo.addons.project.tests.test_project_profitability import TestProjectProfitabilityCommon as Common
 
 
 class TestProjectProfitabilityCommon(Common):

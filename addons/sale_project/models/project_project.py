@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.fields import Domain
-from odoo.tools import Query, SQL
+from odoo.tools import SQL, Query
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
@@ -16,14 +16,13 @@ class ProjectProject(models.Model):
     _inherit = 'project.project'
 
     def _domain_sale_line_id(self):
-        domain = Domain.AND([
+        return Domain.AND([
             self.env['sale.order.line']._get_lines_sellable_domain(),
             self.env['sale.order.line']._domain_sale_line_service(),
             [
                 ('partner_id', '=?', unquote("partner_id")),
             ],
         ])
-        return domain
 
     allow_billable = fields.Boolean("Billable")
     sale_line_id = fields.Many2one(
@@ -180,7 +179,8 @@ class ProjectProject(models.Model):
     def create(self, vals_list):
         projects = super().create(vals_list)
         sol_ids = set()
-        for project, vals in zip(projects, vals_list):
+        # create() returns one project per vals, so the two are equal-length and aligned
+        for project, vals in zip(projects, vals_list, strict=True):
             if (vals.get('sale_line_id')):
                 sol_ids.add(vals['sale_line_id'])
             if project.sale_order_id and not project.sale_order_id.project_id:
@@ -281,7 +281,7 @@ class ProjectProject(models.Model):
 
         if section_name in ['other_invoice_revenues', 'downpayments']:
             action = self.env["ir.actions.actions"]._for_xml_id("account.action_move_out_invoice_type")
-            action['domain'] = domain if domain else []
+            action['domain'] = domain or []
             action['context'] = {
                 **ast.literal_eval(action['context']),
                 'default_partner_id': self.partner_id.id,
@@ -294,7 +294,7 @@ class ProjectProject(models.Model):
             return action
 
         if section_name == 'cost_of_goods_sold':
-            action = {
+            return {
                 'name': _('Cost of Goods Sold Items'),
                 'type': 'ir.actions.act_window',
                 'res_model': 'account.move.line',
@@ -302,7 +302,6 @@ class ProjectProject(models.Model):
                 'domain': [('move_id', '=', res_id), ('display_type', '=', 'cogs')],
                 'context': {'create': False, 'edit': False},
             }
-            return action
 
         return super().action_profitability_items(section_name, domain, res_id)
 

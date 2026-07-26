@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError, AccessError
+from odoo import _, api, fields, models
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 from odoo.tools.misc import unquote
@@ -12,7 +12,7 @@ class ProjectTask(models.Model):
     _inherit = "project.task"
 
     def _domain_sale_line_id(self):
-        domain = Domain.AND([
+        return Domain.AND([
             self.env['sale.order.line']._get_lines_sellable_domain(),
             self.env['sale.order.line']._domain_sale_line_service(),
             [
@@ -21,7 +21,6 @@ class ProjectTask(models.Model):
                 ('partner_id', '=?', unquote('partner_id')),
             ],
         ])
-        return domain
 
     sale_order_id = fields.Many2one('sale.order', 'Sales Order', compute='_compute_sale_order_id', store=True, help="Sales order to which the task is linked.", group_expand="_group_expand_sales_order")
     sale_line_id = fields.Many2one(

@@ -1,5 +1,4 @@
-from odoo.tests import TransactionCase
-from odoo.tests import Form
+from odoo.tests import Form, TransactionCase
 
 
 class TestSaleOrderAccess(TransactionCase):

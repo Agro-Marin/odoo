@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _, SUPERUSER_ID
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -121,9 +121,9 @@ class ProductTemplate(models.Model):
         for product in self:
             if product.service_tracking == 'no' and (product.project_id or product.project_template_id):
                 raise ValidationError(_('The product %s should not have a project nor a project template since it will not generate project.', product.name))
-            elif product.service_tracking == 'task_global_project' and product.project_template_id:
+            if product.service_tracking == 'task_global_project' and product.project_template_id:
                 raise ValidationError(_('The product %s should not have a project template since it will generate a task in a global project.', product.name))
-            elif product.service_tracking in ['task_in_project', 'project_only'] and product.project_id:
+            if product.service_tracking in ['task_in_project', 'project_only'] and product.project_id:
                 raise ValidationError(_('The product %s should not have a global project since it will generate a project.', product.name))
 
     @api.onchange('service_tracking')
