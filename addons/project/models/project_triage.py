@@ -35,6 +35,11 @@ class ProjectTriage(models.Model):
         string="Triage Owner",
         required=True,
         index=True,
+        # A bucket belongs to its owner and outlives nothing: deleting the user
+        # deletes their buckets, like the sibling `project.task.triage.user_id`.
+        # `required=True` alone would default to `restrict`, and since every user
+        # gets a default set of buckets that made every user undeletable.
+        ondelete="cascade",
         # Triage buckets are personal: creating one without an explicit owner
         # (e.g. the kanban column quick-create in My Tasks, which only sends a
         # name) must assign the current user, not crash on the NOT NULL.
