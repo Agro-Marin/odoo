@@ -51,8 +51,7 @@ class StockPickingType(models.Model):
         return action
 
     def action_wave(self):
-        action = self._get_action('stock_picking_batch.action_picking_tree_wave')
-        return action
+        return self._get_action('stock_picking_batch.action_picking_tree_wave')
 
     @api.model
     def _is_auto_batch_grouped(self):
@@ -98,7 +97,7 @@ class StockPicking(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         pickings = super().create(vals_list)
-        for picking, vals in zip(pickings, vals_list):
+        for picking, vals in zip(pickings, vals_list, strict=True):
             if vals.get('batch_id'):
                 if not picking.batch_id.picking_type_id:
                     picking.batch_id.picking_type_id = picking.picking_type_id[0]
@@ -148,7 +147,7 @@ class StockPicking(models.Model):
         res = super().button_validate()
         to_assign_ids = set()
         # Having non-done pickings after the `super()` call means it stopped early,
-        # so we shouldn’t remove the pickings from batches yet.
+        # so we shouldn't remove the pickings from batches yet.
         if not any(picking.state == 'done' for picking in self):
             return res
         if self and self.env.context.get('pickings_to_detach'):

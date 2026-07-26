@@ -9,8 +9,7 @@ class StockMove(models.Model):
 
     def _search_picking_for_assignation_domain(self):
         domain = super()._search_picking_for_assignation_domain()
-        domain = Domain.AND([domain, ['|', ('batch_id', '=', False), ('batch_id.is_wave', '=', False)]])
-        return domain
+        return Domain.AND([domain, ['|', ('batch_id', '=', False), ('batch_id.is_wave', '=', False)]])
 
     def _action_cancel(self):
         res = super()._action_cancel()

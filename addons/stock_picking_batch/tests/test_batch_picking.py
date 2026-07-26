@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
-from odoo.tools import float_round
-
 from odoo.exceptions import UserError
 from odoo.tests import Form, HttpCase, tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools import float_round
 
 
 class TestBatchPicking(TransactionCase):
@@ -737,7 +735,7 @@ class TestBatchPicking(TransactionCase):
             'picking_ids': [Command.link(picking.id)],
             'description': description,
             'user_id': self.env.user.id,
-        } for description, picking in zip(descriptions, pickings)])
+        } for description, picking in zip(descriptions, pickings, strict=True)])
         batch_1, batch_2, batch_3 = batches
 
         batch_1.action_confirm()
