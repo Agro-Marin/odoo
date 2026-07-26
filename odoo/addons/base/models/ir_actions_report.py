@@ -50,6 +50,24 @@ from odoo.addons.base.models.report_paperformat import PAPER_SIZE_BY_KEY
 
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _effective_port(parsed: Any) -> int:
+    """Return the port *parsed* addresses, filling in the scheme's default."""
+    return parsed.port or _DEFAULT_PORTS.get(parsed.scheme or "http", 80)
+
+
+def _verifies_tls(url: str) -> bool:
+    """Whether the report fetcher must validate *url*'s TLS certificate.
+
+    Always, except when talking to the loopback interface. The fetch carries a
+    session cookie for the requesting user, so skipping validation hands that
+    cookie to anyone on the path; a self-signed certificate is only routine for
+    a server calling itself, where there is no path to sit on.
+    """
+    return urlparse(url).hostname not in _LOOPBACK_HOSTS
+
 
 def _is_blocked_fetch_ip(hostname: str | None) -> bool:
     """True if ``hostname`` is an IP literal in a private/reserved range.
@@ -487,6 +505,23 @@ class OdooURLFetcher(URLFetcher):
             root.session_store.save(self._temp_session)
             self._session_cookie = self._temp_session.sid
 
+    def _is_same_origin(self, parsed: Any) -> bool:
+        """Whether *parsed* addresses this database's own front-end.
+
+        Host AND effective port must match: :meth:`_fetch_via_http` attaches a
+        live session cookie, and matching on hostname alone sent it to whatever
+        listened on any other port of the same machine. Loopback names are
+        interchangeable with each other, but only when the base URL is itself
+        loopback -- otherwise a template naming ``localhost`` on a public
+        deployment would still be handed the cookie.
+        """
+        base = self._parsed_base
+        if _effective_port(parsed) != _effective_port(base):
+            return False
+        if parsed.hostname == base.hostname:
+            return True
+        return {parsed.hostname, base.hostname} <= _LOOPBACK_HOSTS
+
     def fetch(
         self, url: str, headers: dict[str, str] | None = None
     ) -> URLFetcherResponse:
@@ -496,11 +531,7 @@ class OdooURLFetcher(URLFetcher):
         if parsed.scheme and parsed.scheme not in ("http", "https", ""):
             return super().fetch(url, headers)
 
-        is_local = (
-            not parsed.hostname
-            or parsed.hostname == self._parsed_base.hostname
-            or parsed.hostname in _LOOPBACK_HOSTS
-        )
+        is_local = not parsed.hostname or self._is_same_origin(parsed)
         if not is_local:
             if _is_blocked_fetch_ip(parsed.hostname):
                 _logger.warning(
@@ -781,7 +812,7 @@ class OdooURLFetcher(URLFetcher):
             cookies = (
                 {"session_id": self._session_cookie} if self._session_cookie else {}
             )
-            resp = self._do_get(full_url, cookies)
+            resp = self._do_get(full_url, cookies, verify=_verifies_tls(full_url))
             try:
                 resp.raise_for_status()
                 content_type = resp.headers.get(
@@ -797,17 +828,23 @@ class OdooURLFetcher(URLFetcher):
             return super().fetch(full_url)
 
     @staticmethod
-    def _do_get(url: str, cookies: dict[str, str]) -> requests.Response:
+    def _do_get(
+        url: str, cookies: dict[str, str], verify: bool = True
+    ) -> requests.Response:
         """Issue a GET request, handling the test-mode lock and cookie.
 
         During tests the main thread holds ``_registry_test_lock``, but the HTTP
         worker serving this request needs it to open a ``TestCursor``. So: set
         the ``test_request_key`` cookie (for ``assertCanOpenTestCursor``) and
         temporarily release the lock so the worker can acquire it.
+
+        :param verify: validate the TLS certificate (see :func:`_verifies_tls`);
+            this request carries a live session cookie, so it must not be
+            downgraded to an unauthenticated channel off the loopback interface.
         """
         current_test = modules.module.current_test
         if not current_test:
-            return requests.get(url, cookies=cookies, timeout=10, verify=False)
+            return requests.get(url, cookies=cookies, timeout=10, verify=verify)
 
         from odoo.tests.common import TEST_CURSOR_COOKIE_NAME, release_test_lock
 
@@ -819,7 +856,7 @@ class OdooURLFetcher(URLFetcher):
         current_test.http_request_key = key
         try:
             with release_test_lock():
-                return requests.get(url, cookies=cookies, timeout=10, verify=False)
+                return requests.get(url, cookies=cookies, timeout=10, verify=verify)
         finally:
             current_test.http_request_key = saved_key
 

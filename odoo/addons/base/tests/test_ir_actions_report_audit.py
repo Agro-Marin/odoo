@@ -697,3 +697,77 @@ class TestFetcherHttpFallback(TransactionCase):
         self.assertEqual(captured["type"], "QR")
         self.assertEqual(captured.get("barBorder"), "0")
         self.assertEqual(captured.get("quiet"), "1")
+
+
+@tagged("post_install", "-at_install")
+class TestReportFetcherOrigin(TransactionCase):
+    """_fetch_via_http attaches a live session cookie, so its notion of "local"
+    is a security boundary, not a routing convenience.
+
+    Matching on hostname alone made every port of the base host local, so a
+    report resource such as ``https://erp.example.com:9999/x`` handed the
+    cookie to whatever listened there -- and the request also ran with
+    ``verify=False``, so the same cookie survived an unvalidated TLS session.
+    """
+
+    def _fetcher(self, base_url):
+        fetcher = OdooURLFetcher(self.env, base_url=base_url)
+        fetcher._session_cookie = "SESSIONSECRET"
+        return fetcher
+
+    def _route(self, fetcher, url):
+        """Return ('local', verify) or ('parent', None) for *url*."""
+        seen = {}
+
+        def do_get(target, cookies, verify=True):
+            seen["local"] = verify
+            response = MagicMock()
+            response.headers = {"Content-Type": "image/png"}
+            response.content = b"x"
+            return response
+
+        fetcher._do_get = do_get
+        with patch.object(
+            URLFetcher, "fetch", lambda self, u, headers=None: MagicMock()
+        ):
+            fetcher.fetch(url)
+        return ("local", seen["local"]) if "local" in seen else ("parent", None)
+
+    def test_cookie_only_reaches_the_exact_origin(self):
+        fetcher = self._fetcher("https://erp.example.com")
+        self.assertEqual(self._route(fetcher, "/web/content/1"), ("local", True))
+        self.assertEqual(
+            self._route(fetcher, "https://erp.example.com/web/content/1"),
+            ("local", True),
+        )
+        for foreign in (
+            "https://erp.example.com:9999/web/content/1",
+            "http://erp.example.com/web/content/1",
+            "http://localhost:8069/web/content/1",
+            "https://evil.example.net/pixel.png",
+        ):
+            self.assertEqual(
+                self._route(fetcher, foreign),
+                ("parent", None),
+                f"{foreign} was treated as this database's own origin",
+            )
+        fetcher.cleanup()
+
+    def test_tls_verification_is_waived_only_for_loopback(self):
+        """A server calling itself may use a self-signed certificate; anything
+        else must validate, since the request carries the session cookie."""
+        loopback = self._fetcher("http://localhost:8069")
+        self.assertEqual(
+            self._route(loopback, "http://localhost:8069/web/content/1"),
+            ("local", False),
+        )
+        loopback.cleanup()
+
+    def test_private_address_literals_stay_refused(self):
+        fetcher = self._fetcher("https://erp.example.com")
+        with (
+            self.assertRaises(ValueError),
+            mute_logger("odoo.addons.base.models.ir_actions_report"),
+        ):
+            self._route(fetcher, "http://169.254.169.254/latest/meta-data/")
+        fetcher.cleanup()
