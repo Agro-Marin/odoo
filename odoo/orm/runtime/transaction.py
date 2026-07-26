@@ -8,7 +8,7 @@ lazily on the first ``Environment.__new__`` for a cursor with no transaction yet
 import logging
 import typing
 from contextlib import suppress
-from weakref import WeakSet
+from weakref import WeakSet, WeakValueDictionary
 from weakref import ref as weakref_ref
 
 from odoo.tools import OrderedSet, reset_cached_properties
@@ -29,6 +29,56 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.api")
 
 MAX_FIXPOINT_ITERATIONS = 1000
+
+
+class _EnvironmentSet(WeakSet):
+    """The transaction's live environments, plus an index for O(1) lookup.
+
+    ``Environment.__new__`` reuses an existing environment for the same
+    ``(uid, su, context)``.  Scanning this set to find it is O(live
+    environments) on every ``with_context`` / ``sudo`` / ``with_company``,
+    which is 2.5 us at one environment and 143 us at a thousand, so the lookup
+    is indexed instead.
+
+    The index lives *inside* the collection because the set is mutated from
+    outside the ORM: ``odoo.tests.common`` clears it on cleanup and re-adds
+    only the environments that predate the test, deliberately retiring the
+    ones a test created.  A parallel index would keep serving those, and their
+    ``user`` / ``company`` / ``companies`` cached properties are stale -- which
+    surfaced as record rules filtering on the wrong company.  :meth:`lookup`
+    additionally confirms membership, so a mutator that bypasses :meth:`add`
+    (``remove``, ``difference_update``, ...) can only cost a rebuilt
+    environment, never hand back a retired one.
+    """
+
+    __slots__ = ("_index",)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.data = OrderedSet()
+        self._index: WeakValueDictionary[tuple, Environment] = WeakValueDictionary()
+
+    @staticmethod
+    def key(uid: typing.Any, su: bool, context: typing.Any) -> tuple:
+        """Return the index key identifying an environment."""
+        return (uid, su, context)
+
+    def add(self, env: Environment) -> None:
+        super().add(env)
+        self._index[self.key(env.uid, env.su, env.context)] = env
+
+    def clear(self) -> None:
+        super().clear()
+        self._index.clear()
+
+    def discard(self, env: Environment) -> None:
+        super().discard(env)
+        self._index.pop(self.key(env.uid, env.su, env.context), None)
+
+    def lookup(self, key: tuple) -> Environment | None:
+        """Return the live environment registered under *key*, if any."""
+        env = self._index.get(key)
+        return env if env is not None and env in self else None
 
 
 class Transaction:
@@ -56,8 +106,7 @@ class Transaction:
         self.registry = registry
         self.storage = storage
         self.backend = InMemoryBackend(storage) if storage is not None else None
-        self.envs: WeakSet[Environment] = WeakSet()
-        self.envs.data = OrderedSet()
+        self.envs: _EnvironmentSet = _EnvironmentSet()
         self.default_env: Environment | None = None
         self._last_env: weakref_ref[Environment] | None = None
 
@@ -76,6 +125,16 @@ class Transaction:
 
         self.cache = Cache(self)
         self._ref_cache: dict[tuple[str, int], bool] = {}
+        """``{(model, id): True}`` for xml-ids :meth:`Environment.ref` proved to
+        exist, saving it one ``exists()`` query per lookup (1.1 us cached vs
+        59.6 us, one query each).
+
+        Sound only because a positive cannot go stale within a transaction:
+        cursors run at ``REPEATABLE READ``, so a delete committed elsewhere is
+        invisible here, and an ORM ``unlink()`` clears this map through
+        :meth:`invalidate_field_data`.  Deleting rows with raw SQL and then
+        calling ``ref()`` on them returns a browse of the dead id instead of
+        raising -- invalidate after such a delete, as with any other cache."""
 
         self._n1_tracker: NplusOneTracker | None = (
             NplusOneTracker() if _n1_enabled else None

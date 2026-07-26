@@ -67,6 +67,22 @@ class Environment(Mapping[str, "BaseModel"]):
     transaction: Transaction
 
     def __new__(cls, cr: BaseCursor, uid: int, context: dict, su: bool = False):
+        """Return the existing environment for these parameters, or a new one.
+
+        Reuse is resolved in two steps: ``transaction._last_env`` (the same
+        environment is asked for repeatedly on a hot path), then
+        ``transaction.envs.lookup``, which indexes the live environments by
+        ``(uid, su, context)`` instead of scanning them -- see
+        :class:`~odoo.orm.runtime.transaction._EnvironmentSet`.
+
+        A lookup miss builds a new environment; it never falls back to a scan.
+        That rests on ``frozendict`` hashing by value (``freehash`` recurses
+        into mappings and iterables), so two equal contexts land on the same
+        bucket and ``__eq__`` separates collisions.  The framework already
+        depends on that wherever a context reaches an ``ormcache`` key or
+        :meth:`cache_key`; a context value that defeated it would break those
+        first, and here it would only cost a duplicate environment.
+        """
         if not isinstance(cr, BaseCursor):
             raise TypeError(
                 f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
@@ -93,24 +109,21 @@ class Environment(Mapping[str, "BaseModel"]):
             and (_last.context is context or _last.context == context)
         ):
             return _last
-        for env in transaction.envs:
-            if (
-                env.cr is cr
-                and env.uid == uid
-                and env.su == su
-                and (env.context is context or env.context == context)
-            ):
-                transaction._last_env = weakref_ref(env)
-                return env
+        frozen_context = (
+            context if isinstance(context, frozendict) else frozendict(context)
+        )
+        envs = transaction.envs
+        env = envs.lookup(envs.key(uid, su, frozen_context))
+        if env is not None and env.cr is cr:
+            transaction._last_env = weakref_ref(env)
+            return env
 
         self = object.__new__(cls)
         self.cr, self.uid, self.su = cr, uid, su
-        self.context = (
-            context if isinstance(context, frozendict) else frozendict(context)
-        )
+        self.context = frozen_context
         self.transaction = transaction
 
-        transaction.envs.add(self)
+        envs.add(self)
         transaction._last_env = weakref_ref(self)
         if transaction.default_env is None and uid and isinstance(uid, int):
             transaction.default_env = self
