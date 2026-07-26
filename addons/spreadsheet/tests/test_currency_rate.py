@@ -16,7 +16,7 @@ fake_now_utc = "2020-01-01 21:00:00"
 class TestCurrencyRates(TransactionCase):
     @classmethod
     def setUpClass(cls):
-        super(TestCurrencyRates, cls).setUpClass()
+        super().setUpClass()
         usd = cls.env.ref("base.USD")
         eur = cls.env.ref("base.EUR")
         cad = cls.env.ref("base.CAD")

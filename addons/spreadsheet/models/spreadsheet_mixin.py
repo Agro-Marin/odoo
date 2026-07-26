@@ -1,17 +1,18 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-import io
-import zipfile
 import base64
+import io
 import json
 import re
-
+import zipfile
 from collections import defaultdict
 
-from odoo import api, fields, models, _, tools
-from odoo.exceptions import ValidationError, MissingError
+from odoo import _, api, fields, models, tools
+from odoo.exceptions import MissingError, ValidationError
 
-from odoo.addons.spreadsheet.utils.validate_data import fields_in_spreadsheet, menus_xml_ids_in_spreadsheet
+from odoo.addons.spreadsheet.utils.validate_data import (
+    fields_in_spreadsheet,
+    menus_xml_ids_in_spreadsheet,
+)
 
 
 class SpreadsheetMixin(models.AbstractModel):
@@ -32,8 +33,8 @@ class SpreadsheetMixin(models.AbstractModel):
         for spreadsheet in self.filtered("spreadsheet_binary_data"):
             try:
                 data = json.loads(base64.b64decode(spreadsheet.spreadsheet_binary_data).decode())
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                raise ValidationError(_("Uh-oh! Looks like the spreadsheet file contains invalid data."))
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                raise ValidationError(_("Uh-oh! Looks like the spreadsheet file contains invalid data.")) from e
             if not (tools.config['test_enable'] or tools.config['test_file']):
                 continue
             if data.get("[Content_Types].xml"):
