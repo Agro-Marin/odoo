@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 import psycopg
@@ -74,3 +75,55 @@ class TestWebController(HttpCase):
             payload = response.json()
             self.assertEqual(payload["status"], "fail")
             self.assertEqual(payload["checks"]["data_dir"], "fail")
+
+
+@tagged("web_http", "web_metrics")
+class TestWebMetrics(HttpCase):
+    """``/web/metrics`` is off unless ``ODOO_METRICS_TOKEN`` arms it.
+
+    The payload names every database this process serves, so an open endpoint
+    would hand out exactly the enumeration ``db._rpc_db_exist`` and
+    ``common.exp_authenticate`` are built to refuse.
+    """
+
+    def test_absent_without_a_token(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ODOO_METRICS_TOKEN", None)
+            response = self.url_open("/web/metrics")
+        self.assertEqual(response.status_code, 404)
+
+    def test_absent_even_when_a_token_is_offered(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ODOO_METRICS_TOKEN", None)
+            response = self.url_open(
+                "/web/metrics", headers={"Authorization": "Bearer anything"}
+            )
+        self.assertEqual(response.status_code, 404)
+
+    def test_rejects_a_missing_or_wrong_token(self):
+        with patch.dict(os.environ, {"ODOO_METRICS_TOKEN": "right"}):
+            self.assertEqual(self.url_open("/web/metrics").status_code, 401)
+            self.assertEqual(
+                self.url_open(
+                    "/web/metrics", headers={"Authorization": "Bearer wrong"}
+                ).status_code,
+                401,
+            )
+            self.assertEqual(
+                self.url_open(
+                    "/web/metrics", headers={"Authorization": "Basic right"}
+                ).status_code,
+                401,
+            )
+
+    def test_serves_the_exposition_with_a_valid_token(self):
+        with patch.dict(os.environ, {"ODOO_METRICS_TOKEN": "right"}):
+            response = self.url_open(
+                "/web/metrics", headers={"Authorization": "Bearer right"}
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/plain", response.headers["Content-Type"])
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        body = response.text
+        self.assertIn("odoo_up 1", body)
+        self.assertIn("# TYPE odoo_pool_borrows_total counter", body)

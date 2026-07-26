@@ -459,15 +459,11 @@ def _retry_terminate_then_ddl(
     """Terminate-then-act variant of :func:`_retry_on_object_in_use`.
 
     Used by DROP / DUPLICATE / RENAME, which are entitled to evict the sessions
-    standing in their way: they are about to destroy or rewrite
-    ``terminate_target``, so a connection to it is already doomed.
+    in their way: a connection to a database they are about to destroy or
+    rewrite is already doomed.  The eviction re-runs on every attempt because a
+    fresh request can reconnect before the DDL lands.
 
-    ``_drop_conn`` evicts best-effort (it needs superuser or
-    ``pg_signal_backend``), and a fresh request can reconnect before the DDL
-    lands, which is why the eviction is re-run on every attempt rather than once
-    up front.
-
-    CREATE deliberately does NOT use this variant — see
+    CREATE deliberately does not use this variant — see
     :func:`_create_empty_database`.
     """
     _retry_on_object_in_use(
@@ -856,17 +852,12 @@ def _write_zip_dump(
 ) -> None:
     """Write the v8+ zip backup of ``db_name`` straight into ``stream``.
 
-    Members are produced in place — ``manifest.json``, then ``dump.sql`` streamed
-    from ``pg_dump``'s stdout through the deflater, then the filestore read from
-    where it lives.  Nothing is staged on disk first, which is the point: the
-    previous implementation assembled the whole backup in a
-    ``TemporaryDirectory`` (``shutil.copytree`` of the entire filestore plus the
-    UNCOMPRESSED ``dump.sql``) and only then zipped that tree.  ``TMPDIR`` is
-    frequently a tmpfs — it is a 16 GiB one on this workspace — so that staging
-    copy was charged to RAM: a 201 MiB filestore drove ``/tmp`` usage up 204 MiB
-    (measured; 3 MiB with ``with_filestore=False``, which isolates the copytree
-    as the cause).  Peak temp space is now the compressed archive alone, and only
-    when the caller passes no ``stream``.
+    Members are produced in place — ``manifest.json``, ``dump.sql`` streamed from
+    ``pg_dump``'s stdout through the deflater, then the filestore read where it
+    lives.  Nothing is staged first: assembling the backup in a temporary
+    directory charged a full copy of the filestore plus the uncompressed SQL to
+    ``TMPDIR``, which is frequently a tmpfs and therefore to RAM.  Peak temp
+    space is now the compressed archive alone, and only when ``stream`` is None.
     """
     with zipfile.ZipFile(
         stream, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True
@@ -1310,37 +1301,19 @@ def exp_db_exist(db_name: str) -> bool:
 def _rpc_db_exist(db_name: str) -> bool:
     """RPC-facing ``db_exist``: answers only for databases this instance exposes.
 
-    The plain ``exp_db_exist`` stays ungated for in-process callers that must
-    ask about a database they are ABOUT to create or that is deliberately
-    outside the allowlist (``restore_db``'s collision pre-check, the shell-gated
-    ``odoo db`` CLI) — the same split as ``_drop_database``/``exp_drop``.  The
-    wire-facing verb cannot afford that, for two reasons:
+    Unexposed-but-existing names answer ``False``, indistinguishable by design
+    from names that do not exist.  ``exp_db_exist`` stays ungated for in-process
+    callers, the same split as ``_drop_database``/``exp_drop``.
 
-    * **Enumeration.** ``db_exist`` is reachable unauthenticated (``/jsonrpc``,
-      ``/xmlrpc/2/db``, ``auth="none"``).  Ungated it is a per-name existence
-      oracle, which is exactly what ``list_db = False`` and
-      ``common.exp_authenticate``'s collapse-everything-to-``False`` are there
-      to deny: an attacker who cannot call ``list`` just dictionary-attacks
-      ``db_exist`` instead, over every database owned by the PG role — on a
-      shared cluster, other tenants' included.
-    * **Resource amplification.** ``exp_db_exist`` connects, so each probe of an
-      existing database creates a per-DSN pool (its own PG backends plus
-      psycopg-pool worker threads) that lives until the idle reaper sweeps it.
-      A probe loop over known names keeps them all resident.  Filtering by name
-      BEFORE connecting means the RPC verb can no longer open a connection to a
-      database this instance does not serve.
+    The gate matters because this verb is reachable unauthenticated: ungated it
+    is a per-name existence oracle over every database owned by the PG role, and
+    ``exp_db_exist`` connects, so a probe loop would also leave a pool resident
+    per name.  Membership is ``list_dbs(True)`` so exposure rules cannot drift
+    from ``check_db_exposed``.
 
-    Membership is ``list_dbs(True)``, the same allowlist ``check_db_exposed``
-    uses for dump/rename/duplicate, so the exposure rules cannot drift.  An
-    unexposed-but-existing name answers ``False`` — indistinguishable, by
-    design, from a name that does not exist.
-
-    Deliberately NOT wrapped in ``check_db_management_enabled``: that decorator
-    raises ``AccessDenied`` when ``list_db = False``, which would turn a verb
-    contracted to return a bool into one that raises for *every* input, breaking
-    callers on the exact configuration this hardening targets.  It is redundant
-    besides — the ``list_dbs(True)`` allowlist above is what confines the answer,
-    and it applies whether or not database management is enabled.
+    Deliberately not wrapped in ``check_db_management_enabled``: that raises
+    ``AccessDenied`` when ``list_db = False``, which would turn a verb
+    contracted to return a bool into one that raises for every input.
     """
     if not odoo.tools.config["list_db"]:
         return False
@@ -1472,15 +1445,13 @@ def exp_list_lang() -> list:
 def _scan_countries() -> tuple[tuple[str, str], ...]:
     """Parse the bundled ``res.country`` XML once per process.
 
-    The answer is a constant of the installation — a shipped data file read from
-    ``config.root_path``, which cannot change while the process runs — but
-    ``list_countries`` is an ``auth="none"`` RPC verb (no master password), so an
-    uncached parse re-read 71 KB of XML on every anonymous call, measured at
-    1.17 ms.  Cached, the work happens once.
+    A shipped data file under ``config.root_path`` cannot change while the
+    process runs, and ``list_countries`` is an unauthenticated RPC verb, so an
+    uncached parse re-read the XML on every anonymous call.
 
-    Returns a tuple of tuples so the cached value cannot be mutated by a caller;
-    :func:`exp_list_countries` copies it back into the ``list``-of-``list`` shape
-    its RPC contract promises.
+    Returns tuples so the cached value cannot be mutated by a caller;
+    :func:`exp_list_countries` restores the list-of-lists its RPC contract
+    promises.
     """
     root = ET.parse(
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")

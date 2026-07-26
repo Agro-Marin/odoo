@@ -1,0 +1,241 @@
+"""Pure-pytest tests for ``odoo.service._metrics``.
+
+Covers the Prometheus exposition without a live server, database or scrape:
+gauge collection against stand-in server objects, exposition-format validity,
+label escaping, and the never-raise contract.
+
+Run with::
+
+    python -m pytest tests/service/test_metrics.py -v
+"""
+
+import re
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+@pytest.fixture(scope="module")
+def mod():
+    """Return ``odoo.service._metrics``, imported once per session."""
+    import odoo.service._metrics as m
+
+    return m
+
+
+METRIC_NAME = re.compile(r"^[a-zA-Z_:][a-zA-Z0-9_:]*$")
+SAMPLE = re.compile(
+    r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{.*\})? (-?[0-9.eE+]+|NaN|\+Inf|-Inf)$"
+)
+
+
+def parse_exposition(text: str) -> tuple[dict[str, str], list[str]]:
+    """Return ``(declared_types, errors)`` for a Prometheus text payload."""
+    declared: dict[str, str] = {}
+    sampled: set[str] = set()
+    errors: list[str] = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if not line:
+            continue
+        if line.startswith(("# HELP ", "# TYPE ")):
+            name = line.split(" ", 3)[2]
+            if not METRIC_NAME.match(name):
+                errors.append(f"{lineno}: invalid metric name {name!r}")
+            if line.startswith("# TYPE "):
+                if name in declared:
+                    errors.append(f"{lineno}: duplicate TYPE for {name}")
+                if name in sampled:
+                    errors.append(f"{lineno}: TYPE for {name} follows its samples")
+                declared[name] = line.rsplit(" ", 1)[1]
+            continue
+        match = SAMPLE.match(line)
+        if not match:
+            errors.append(f"{lineno}: unparseable sample {line!r}")
+            continue
+        name, labels = match.group(1), match.group(2)
+        sampled.add(name)
+        base = name.removesuffix("_bucket").removesuffix("_sum")
+        if name not in declared and base not in declared:
+            errors.append(f"{lineno}: sample {name} has no TYPE")
+        errors.extend(
+            f"{lineno}: invalid label name {key!r}"
+            for key in re.findall(r'([^,{ ]+)="', labels or "")
+            if not METRIC_NAME.match(key)
+        )
+    return declared, errors
+
+
+class TestServiceMetrics:
+    """``service_metrics`` reads the live server without ever being the failure."""
+
+    def test_no_server_yet_reports_flavor_none(self, mod):
+        """A scrape before ``lifecycle.start()`` must answer, not raise."""
+        from odoo.service import lifecycle
+
+        with patch.object(lifecycle, "server", None):
+            out = mod.service_metrics()
+        assert out["flavor"] == "none"
+        assert "registries" in out
+
+    def test_prefork_reports_worker_counts(self, mod):
+        from odoo.service import lifecycle
+
+        server = MagicMock()
+        type(server).__name__ = "PreforkServer"
+        server.workers = {1: object(), 2: object()}
+        server.workers_http = {1: object(), 2: object()}
+        server.workers_cron = {3: object()}
+        server.workers_job = {}
+        server.population = 4
+        server.generation = 17
+        server.long_polling_pid = 999
+
+        with patch.object(lifecycle, "server", server):
+            out = mod.service_metrics()
+        assert out["flavor"] == "prefork"
+        assert out["workers"] == {"http": 2, "cron": 1, "job": 0}
+        assert out["worker_population"] == 4
+        assert out["worker_generation"] == 17
+        assert out["long_polling_alive"] is True
+
+    def test_threaded_reports_thread_counts_and_slot_ceiling(self, mod):
+        import threading
+
+        from odoo.service import lifecycle
+
+        server = MagicMock(spec=["httpd", "limits_reached_threads"])
+        type(server).__name__ = "ThreadedServer"
+        server.httpd.max_http_threads = 31
+        server.limits_reached_threads = set()
+
+        marker = threading.current_thread()
+        original = getattr(marker, "type", None)
+        marker.type = "http"
+        try:
+            with patch.object(lifecycle, "server", server):
+                out = mod.service_metrics()
+        finally:
+            if original is None:
+                del marker.type
+            else:
+                marker.type = original
+
+        assert out["flavor"] == "threaded"
+        assert out["http_threads_max"] == 31
+        assert out["threads"]["http"] >= 1
+        assert set(out["threads"]) == {"http", "cron", "job"}
+
+
+class TestPrometheusExposition:
+    """The rendered payload must satisfy the text exposition format."""
+
+    def test_default_render_is_well_formed(self, mod):
+        declared, errors = parse_exposition(mod.render_prometheus())
+        assert not errors, errors
+        assert "odoo_up" in declared
+
+    def test_pool_counters_are_typed_as_counters(self, mod):
+        health = {
+            "read_write": {
+                "mode": "read/write",
+                "pool": {
+                    "borrows": 12,
+                    "borrows_failed": 1,
+                    "borrow_wait_seconds_total": 0.5,
+                    "borrow_wait_seconds_max": 0.25,
+                    "borrow_wait_seconds": {"le_0.001": 10, "le_+Inf": 12},
+                    "budget_maxconn": 64,
+                    "budget_in_use": 3,
+                    "budget_exhausted": 0,
+                    "pools": 2,
+                },
+                "per_database": {"prod": {"pool_size": 5, "requests_waiting": 0}},
+            }
+        }
+        from odoo import db
+
+        with patch.object(db, "pool_health", return_value=health):
+            text = mod.render_prometheus()
+        declared, errors = parse_exposition(text)
+        assert not errors, errors
+        assert declared["odoo_pool_borrows_total"] == "counter"
+        assert declared["odoo_pool_budget_maxconn"] == "gauge"
+        assert (
+            'odoo_pool_borrow_wait_seconds_bucket{pool="read_write",le="+Inf"} 12'
+            in text
+        )
+        assert 'odoo_db_pool_pool_size{pool="read_write",database="prod"} 5' in text
+
+    def test_database_names_are_escaped_in_labels(self, mod):
+        """A label value is attacker-influenced: database names are user-chosen."""
+        health = {
+            "read_write": {
+                "pool": {"borrows": 1},
+                "per_database": {'we"ird\\name': {"pool_size": 1}},
+            }
+        }
+        from odoo import db
+
+        with patch.object(db, "pool_health", return_value=health):
+            text = mod.render_prometheus()
+        _, errors = parse_exposition(text)
+        assert not errors, errors
+        assert r'database="we\"ird\\name"' in text
+
+    def test_booleans_render_as_one_and_zero(self, mod):
+        from odoo.service import lifecycle
+
+        server = MagicMock()
+        type(server).__name__ = "PreforkServer"
+        server.workers = {}
+        server.workers_http = server.workers_cron = server.workers_job = {}
+        server.population = 0
+        server.generation = 0
+        server.long_polling_pid = None
+
+        with patch.object(lifecycle, "server", server):
+            text = mod.render_prometheus()
+        assert "odoo_long_polling_alive 0" in text
+        _, errors = parse_exposition(text)
+        assert not errors, errors
+
+    def test_render_survives_a_failing_subsystem(self, mod):
+        """A scrape that raises is a monitoring outage stacked on the incident."""
+        from odoo import db
+
+        with (
+            patch.object(db, "pool_health", side_effect=RuntimeError("pool is gone")),
+            patch.object(mod, "service_metrics", side_effect=RuntimeError("no server")),
+        ):
+            text = mod.render_prometheus()
+        assert "odoo_up 1" in text
+        _, errors = parse_exposition(text)
+        assert not errors, errors
+
+
+class TestEnvStr:
+    """``env_str`` arms the metrics endpoint, so blank must mean disabled."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [(None, ""), ("", ""), ("   ", ""), ("  tok  ", "tok"), ("tok", "tok")],
+    )
+    def test_blank_is_treated_as_unset(self, raw, expected):
+        import os
+
+        from odoo.service._env import env_str
+
+        env = dict(os.environ)
+        env.pop("ODOO_TEST_TOKEN", None)
+        if raw is not None:
+            env["ODOO_TEST_TOKEN"] = raw
+        with patch.dict(os.environ, env, clear=True):
+            assert env_str("ODOO_TEST_TOKEN") == expected
+
+    def test_default_is_returned_when_unset(self):
+        import os
+
+        from odoo.service._env import env_str
+
+        with patch.dict(os.environ, {}, clear=True):
+            assert env_str("ODOO_TEST_TOKEN", "fallback") == "fallback"

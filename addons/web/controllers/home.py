@@ -13,9 +13,12 @@ from odoo.exceptions import AccessError
 from odoo.http import Response, request
 from odoo.libs.json import dumps as json_dumps
 from odoo.service import security
+from odoo.service._env import env_str
+from odoo.service._metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
+from odoo.service._metrics import render_prometheus
 from odoo.tools import config, str2bool
 from odoo.tools.json import orjson_default
-from odoo.tools.misc import hmac
+from odoo.tools.misc import consteq, hmac
 from odoo.tools.translate import LazyTranslate, _
 
 from .utils import (
@@ -339,6 +342,43 @@ class Home(http.Controller):
         return self._health_response(
             {"status": "pass" if status == 200 else "fail", "checks": checks},
             status,
+        )
+
+    @http.route("/web/metrics", type="http", auth="none", save_session=False)
+    def metrics(self) -> Response:
+        """Prometheus exposition of this process's operational counters.
+
+        Off unless ``ODOO_METRICS_TOKEN`` is set, and answers 404 rather than
+        401 when it is not: an endpoint that denies is an endpoint that exists,
+        and the default posture for a surface nobody enabled should be
+        indistinguishable from one that was never built.
+
+        The token travels as ``Authorization: Bearer`` and is compared in
+        constant time.  Gated rather than open because the payload names every
+        database this process serves, which on a shared cluster is exactly the
+        enumeration ``db._rpc_db_exist`` and ``common.exp_authenticate`` refuse.
+
+        Deliberately an env var, not a config key: ``ODOO_METRICS_TOKEN`` cannot
+        be written into a saved ``.conf`` by the database manager, so the secret
+        stays with the unit file that supplies it.
+        """
+        token = env_str("ODOO_METRICS_TOKEN")
+        if not token:
+            return request.not_found()
+        presented = request.httprequest.headers.get("Authorization", "")
+        scheme, _, offered = presented.partition(" ")
+        if scheme.lower() != "bearer" or not consteq(offered.strip(), token):
+            _logger.warning(
+                "Rejected /web/metrics scrape from %s: bad or missing bearer token",
+                request.httprequest.remote_addr,
+            )
+            return request.make_response(
+                "", [("Cache-Control", "no-store")], status=401
+            )
+        return request.make_response(
+            render_prometheus(),
+            [("Content-Type", METRICS_CONTENT_TYPE), ("Cache-Control", "no-store")],
+            status=200,
         )
 
     def _health_response(self, payload: dict[str, Any], status: int) -> Response:
