@@ -2846,3 +2846,40 @@ class CalendarTest(models.Model):
 
     def _compute_date(self):
         self.date_start = self.date_end = fields.Date.today()
+
+
+class TestOrmInverseWithUnlink(models.Model):
+    """Parent with children and a non-stored inversed field.
+
+    Writing the inversed field in the same ``write()`` that deletes a child
+    exercises the flush ``One2many.write_real`` performs before deleting: the
+    inverse must still be applied afterwards. ``res.company.country_id`` used to
+    play this role, but a company cannot be deleted once modules that reference
+    it with ``ondelete='restrict'`` are installed (40 such constraints on a full
+    database), which made the test depend on the module set.
+    """
+
+    _name = "test_orm.inverse.with.unlink"
+    _description = "Parent with a non-stored inversed field and children"
+
+    name = fields.Char()
+    stored_tag = fields.Char()
+    tag = fields.Char(compute="_compute_tag", inverse="_inverse_tag")
+    child_ids = fields.One2many("test_orm.inverse.with.unlink.child", "parent_id")
+
+    @api.depends("stored_tag")
+    def _compute_tag(self):
+        for record in self:
+            record.tag = record.stored_tag
+
+    def _inverse_tag(self):
+        for record in self:
+            record.stored_tag = record.tag
+
+
+class TestOrmInverseWithUnlinkChild(models.Model):
+    _name = "test_orm.inverse.with.unlink.child"
+    _description = "Child of a parent with a non-stored inversed field"
+
+    name = fields.Char()
+    parent_id = fields.Many2one("test_orm.inverse.with.unlink", ondelete="cascade")
