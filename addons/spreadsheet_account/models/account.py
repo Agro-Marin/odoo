@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date
 import calendar
+from datetime import date
+
 from dateutil.relativedelta import relativedelta
 
-from odoo import models, api, _
+from odoo import _, api, models
 from odoo.fields import Domain
 from odoo.tools import date_utils
 

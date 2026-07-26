@@ -4,6 +4,7 @@ from datetime import date
 
 from odoo.fields import Command, Domain
 from odoo.tests import tagged
+
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
