@@ -26,7 +26,10 @@ import os
 import socket
 import threading
 import traceback
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import timedelta
+from enum import StrEnum
 from typing import Any
 
 import psycopg.errors
@@ -55,26 +58,85 @@ CLAIM_MAX_ATTEMPTS = 10
 DONE_RETENTION = timedelta(days=7)
 FAILED_RETENTION = timedelta(days=30)
 
-WAIT_DEPS = "wait_deps"
-PENDING = "pending"
-STARTED = "started"
-DONE = "done"
-FAILED = "failed"
-CANCELLED = "cancelled"
+
+class JobState(StrEnum):
+    """The lifecycle of an ``ir.job`` row.
+
+    A ``StrEnum`` so a member is interchangeable with the string the column
+    holds -- comparisons against values read back from raw SQL just work --
+    while the set of legal states, their labels and the state *groups* below
+    have exactly one definition.  They used to be six bare module constants
+    whose groupings were then respelled as literals in every query.
+    """
+
+    WAIT_DEPS = "wait_deps"
+    PENDING = "pending"
+    STARTED = "started"
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
 
 STATES = [
-    (WAIT_DEPS, "Waiting Dependencies"),
-    (PENDING, "Pending"),
-    (STARTED, "Started"),
-    (DONE, "Done"),
-    (FAILED, "Failed"),
-    (CANCELLED, "Cancelled"),
+    (JobState.WAIT_DEPS, "Waiting Dependencies"),
+    (JobState.PENDING, "Pending"),
+    (JobState.STARTED, "Started"),
+    (JobState.DONE, "Done"),
+    (JobState.FAILED, "Failed"),
+    (JobState.CANCELLED, "Cancelled"),
 ]
+
+QUEUED_STATES = (JobState.WAIT_DEPS, JobState.PENDING, JobState.STARTED)
+"""States in which a job still owes work, and so holds its ``identity_key``."""
+
+DEAD_DEPENDENCY_STATES = (JobState.FAILED, JobState.CANCELLED)
+"""Dependency states that cascade-cancel whatever is waiting on them."""
+
+
+def _states_sql(states: tuple[JobState, ...]) -> str:
+    """Render *states* as a SQL ``IN`` list.
+
+    Returns plain text, not :class:`SQL`, because two of the call sites are
+    index predicates built at class-definition time -- and the ``ON CONFLICT``
+    arbiter has to spell the same predicate as the partial index it targets, so
+    both must come from here or they drift apart silently.  The values are
+    enum members this module defines; nothing external reaches the string.
+    """
+    return "(" + ", ".join(f"'{state.value}'" for state in states) + ")"
+
+
+QUEUED_STATES_SQL = _states_sql(QUEUED_STATES)
 
 
 def _advisory_key_sql(job_id: int) -> SQL:
     """Bigint advisory-lock key for a job id (single source for claim/reaper)."""
     return SQL("hashtextextended('ir_job:' || %s::text, 0)", job_id)
+
+
+@contextmanager
+def _job_session_lock(cr, job_id: int, *, blocking: bool = True) -> Iterator[bool]:
+    """Hold the session advisory lock naming *job_id* for the block.
+
+    Yields whether the lock was taken -- always ``True`` when *blocking*, the
+    ``pg_try_advisory_lock`` result otherwise -- and releases it on the way out
+    only if it was.  The lock is what proves a worker is alive
+    (:meth:`IrJob._reap_dead_jobs`), so the acquire/release pair must not drift
+    between its two call sites: releasing a lock never taken would decrement
+    somebody else's hold, and leaking one would make a finished job look
+    forever running.  It is session-scoped, so it deliberately survives the
+    ``commit`` the claim loop does inside the block.
+    """
+    if blocking:
+        cr.execute(SQL("SELECT pg_advisory_lock(%s)", _advisory_key_sql(job_id)))
+        acquired = True
+    else:
+        cr.execute(SQL("SELECT pg_try_advisory_lock(%s)", _advisory_key_sql(job_id)))
+        acquired = cr.fetchone()[0]
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            cr.execute(SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id)))
 
 
 class DelayedProxy:
@@ -193,7 +255,9 @@ class IrJob(models.Model):
     )
     uuid = fields.Char(readonly=True, index=True)
     channel = fields.Char(required=True, default="root", readonly=True)
-    state = fields.Selection(STATES, required=True, default=PENDING, index=True)
+    state = fields.Selection(
+        STATES, required=True, default=JobState.PENDING, index=True
+    )
     priority = fields.Integer(default=10, readonly=True)
     eta = fields.Datetime(
         string="Execute After", help="Earliest execution time (empty: ASAP)."
@@ -241,7 +305,7 @@ class IrJob(models.Model):
     _claim_idx = models.Index("(priority, create_date, id) WHERE state = 'pending'")
     _capacity_idx = models.Index("(channel) WHERE state = 'started'")
     _identity_uniq = models.UniqueIndex(
-        "(identity_key) WHERE state IN ('wait_deps', 'pending', 'started')"
+        f"(identity_key) WHERE state IN {QUEUED_STATES_SQL}"
         " AND identity_key IS NOT NULL",
         "A job with the same identity key is already queued.",
     )
@@ -355,7 +419,7 @@ class IrJob(models.Model):
             eta = fields.Datetime.now() + timedelta(seconds=eta)
 
         env = self.env
-        state = PENDING
+        state = JobState.PENDING
         dep_ids: list[int] = []
         if after:
             if after._name != self._name:
@@ -368,15 +432,15 @@ class IrJob(models.Model):
                 )
             )
             dep_states = {r[0] for r in env.cr.fetchall()}
-            if dep_states & {FAILED, CANCELLED}:
+            if dep_states & set(DEAD_DEPENDENCY_STATES):
                 raise UserError(
                     self.env._(
                         "Cannot enqueue after a failed or cancelled job; "
                         "requeue the dependency first."
                     )
                 )
-            if dep_states - {DONE}:
-                state = WAIT_DEPS
+            if dep_states - {JobState.DONE}:
+                state = JobState.WAIT_DEPS
 
         context = {
             key: env.context[key] for key in ALLOWED_CONTEXT_KEYS if key in env.context
@@ -384,7 +448,7 @@ class IrJob(models.Model):
         now = fields.Datetime.now()
         env.cr.execute(
             SQL(
-                """
+                f"""
                 INSERT INTO ir_job (
                     name, uuid, channel, state, priority, eta, identity_key,
                     model_name, method_name, record_ids, args, kwargs,
@@ -397,7 +461,7 @@ class IrJob(models.Model):
                     %s, %s, %s, %s
                 )
                 ON CONFLICT (identity_key)
-                    WHERE state IN ('wait_deps', 'pending', 'started')
+                    WHERE state IN {QUEUED_STATES_SQL}
                     AND identity_key IS NOT NULL
                     DO NOTHING
                 RETURNING id
@@ -428,7 +492,7 @@ class IrJob(models.Model):
             env.cr.execute(
                 SQL(
                     "SELECT id FROM ir_job WHERE identity_key = %s"
-                    " AND state IN ('wait_deps', 'pending', 'started')"
+                    f" AND state IN {QUEUED_STATES_SQL}"
                     " ORDER BY id DESC LIMIT 1",
                     identity_key,
                 )
@@ -443,7 +507,7 @@ class IrJob(models.Model):
                     dep_ids,
                 )
             )
-        if state == PENDING:
+        if state == JobState.PENDING:
             env.cr.postcommit.add(self._notifydb)
         return self.browse(row[0])
 
@@ -527,31 +591,22 @@ class IrJob(models.Model):
                 if job is None:
                     cr.rollback()
                     break
-                cr.execute(
-                    SQL("SELECT pg_advisory_lock(%s)", _advisory_key_sql(job["id"]))
-                )
-                cr.commit()
-                try:
-                    registry[IrJob._name]._run_claimed(cr, job)
+                with _job_session_lock(cr, job["id"]):
                     cr.commit()
-                except Exception as exc:
-                    cr.rollback()
-                    if not isinstance(exc, RetryableJobError):
-                        _logger.exception(
-                            "Job %s (%s.%s) failed",
-                            job["id"],
-                            job["model_name"],
-                            job["method_name"],
-                        )
-                    registry[IrJob._name]._record_failure(cr, job, exc)
-                    cr.commit()
-                finally:
-                    cr.execute(
-                        SQL(
-                            "SELECT pg_advisory_unlock(%s)",
-                            _advisory_key_sql(job["id"]),
-                        )
-                    )
+                    try:
+                        registry[IrJob._name]._run_claimed(cr, job)
+                        cr.commit()
+                    except Exception as exc:
+                        cr.rollback()
+                        if not isinstance(exc, RetryableJobError):
+                            _logger.exception(
+                                "Job %s (%s.%s) failed",
+                                job["id"],
+                                job["model_name"],
+                                job["method_name"],
+                            )
+                        registry[IrJob._name]._record_failure(cr, job, exc)
+                        cr.commit()
 
     @staticmethod
     def _claim_next(
@@ -810,12 +865,9 @@ class IrJob(models.Model):
             (DEAD_JOB_GRACE_S,),
         )
         for job_id, retry, max_retries in cr.fetchall():
-            cr.execute(
-                SQL("SELECT pg_try_advisory_lock(%s)", _advisory_key_sql(job_id))
-            )
-            if not cr.fetchone()[0]:
-                continue
-            try:
+            with _job_session_lock(cr, job_id, blocking=False) as acquired:
+                if not acquired:
+                    continue
                 if retry < max_retries:
                     cr.execute(
                         SQL(
@@ -840,11 +892,8 @@ class IrJob(models.Model):
                             job_id,
                         )
                     )
-                _logger.warning("Job %s: reaped from a dead worker", job_id)
-            finally:
-                cr.execute(
-                    SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id))
-                )
+                if cr.rowcount:
+                    _logger.warning("Job %s: reaped from a dead worker", job_id)
 
     @staticmethod
     def _release_dependents(cr, job_id: int) -> int:
@@ -958,10 +1007,10 @@ class IrJob(models.Model):
         domain = [
             "|",
             "&",
-            ("state", "in", (DONE, CANCELLED)),
+            ("state", "in", (JobState.DONE, JobState.CANCELLED)),
             ("done_at", "<", now - DONE_RETENTION),
             "&",
-            ("state", "=", FAILED),
+            ("state", "=", JobState.FAILED),
             ("done_at", "<", now - FAILED_RETENTION),
         ]
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
@@ -1024,15 +1073,15 @@ class IrJob(models.Model):
         """
         self.browse().check_access("write")
         for job in self:
-            if job.state not in (FAILED, CANCELLED):
+            if job.state not in DEAD_DEPENDENCY_STATES:
                 raise UserError(
                     self.env._("Only failed or cancelled jobs can be requeued.")
                 )
         for job in self:
-            waiting = any(dep.state != DONE for dep in job.depends_on_ids)
+            waiting = any(dep.state != JobState.DONE for dep in job.depends_on_ids)
             job.sudo().write(
                 {
-                    "state": WAIT_DEPS if waiting else PENDING,
+                    "state": JobState.WAIT_DEPS if waiting else JobState.PENDING,
                     "retry": 0,
                     "eta": False,
                     "done_at": False,
@@ -1048,10 +1097,12 @@ class IrJob(models.Model):
         """
         self.browse().check_access("write")
         for job in self:
-            if job.state not in (WAIT_DEPS, PENDING):
+            if job.state not in (JobState.WAIT_DEPS, JobState.PENDING):
                 raise UserError(
                     self.env._("Only waiting or pending jobs can be cancelled.")
                 )
-        self.sudo().write({"state": CANCELLED, "done_at": fields.Datetime.now()})
+        self.sudo().write(
+            {"state": JobState.CANCELLED, "done_at": fields.Datetime.now()}
+        )
         self.env.flush_all()
         type(self)._cancel_dependents(self.env.cr, self.ids)
