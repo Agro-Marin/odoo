@@ -11,6 +11,8 @@ from .ir_model_common import (
     ACCESS_ERROR_HEADER,
     ACCESS_ERROR_NOGROUP,
     ACCESS_ERROR_RESOLUTION,
+    access_mode_columns,
+    check_access_mode,
 )
 
 _logger = logging.getLogger(__name__)
@@ -23,12 +25,7 @@ class IrModelAccess(models.Model):
     _description = "Model Access"
     _order = "model_id,group_id,name,id"
     _allow_sudo_commands = False
-    _PERM_COLUMNS = {
-        "read": SQL("a.perm_read"),
-        "write": SQL("a.perm_write"),
-        "create": SQL("a.perm_create"),
-        "unlink": SQL("a.perm_unlink"),
-    }
+    _PERM_COLUMNS = access_mode_columns("a")
 
     name = fields.Char(required=True, index=True)
     active = fields.Boolean(
@@ -50,14 +47,7 @@ class IrModelAccess(models.Model):
     perm_create = fields.Boolean(string="Create Access")
     perm_unlink = fields.Boolean(string="Delete Access")
 
-    @classmethod
-    def _check_access_mode(cls, mode: str) -> None:
-        """Raise ``ValueError`` unless ``mode`` is one of the four CRUD access
-        modes (the keys of :attr:`_PERM_COLUMNS`)."""
-        if mode not in cls._PERM_COLUMNS:
-            raise ValueError(
-                f"Invalid access mode {mode!r}: expected one of {tuple(cls._PERM_COLUMNS)}."
-            )
+    _check_access_mode = staticmethod(check_access_mode)
 
     @api.model
     def group_names_with_access(self, model_name: str, access_mode: str) -> list[str]:

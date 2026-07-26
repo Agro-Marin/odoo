@@ -24,6 +24,28 @@ if TYPE_CHECKING:
 
 _lt = LazyTranslate(__name__)
 
+ACCESS_MODES = ("read", "write", "create", "unlink")
+"""The four CRUD access modes, in the order they are shown to users.
+
+The single definition of the vocabulary shared by ``ir.model.access`` and
+``ir.rule``: both store one ``perm_<mode>`` column per mode, both validate the
+mode they are handed, and both used to spell the set out for themselves.
+"""
+
+
+def check_access_mode(mode: str) -> None:
+    """Raise ``ValueError`` unless ``mode`` is one of :data:`ACCESS_MODES`."""
+    if mode not in ACCESS_MODES:
+        raise ValueError(
+            f"Invalid access mode {mode!r}: expected one of {ACCESS_MODES}."
+        )
+
+
+def access_mode_columns(alias: str) -> dict[str, SQL]:
+    """Map each access mode to its ``perm_<mode>`` column on table *alias*."""
+    return {mode: SQL.identifier(alias, f"perm_{mode}") for mode in ACCESS_MODES}
+
+
 ACCESS_ERROR_HEADER = {
     "read": _lt(
         "You are not allowed to access '%(document_kind)s' (%(document_model)s) records."
