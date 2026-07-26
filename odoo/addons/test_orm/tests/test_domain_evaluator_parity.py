@@ -25,6 +25,7 @@ composes them with and/or/not.
 """
 
 import random
+from unittest.mock import patch
 
 from odoo.exceptions import UserError
 from odoo.orm.domain import Domain
@@ -219,6 +220,103 @@ class TestDomainEvaluatorParity(TransactionCase):
             self.assertEqual(baseline_in | baseline_not_in, set(self.records.ids))
             self.assertFalse(baseline_in & baseline_not_in)
 
+    def test_display_name_null_comparand(self):
+        """A null comparand on ``display_name`` means "this record has no name".
+
+        ``display_name`` is not a column: ``search()`` goes through
+        ``_search_display_name``, which fans the comparand out over
+        ``_rec_names_search`` (``complete_name``/``email``/``ref``/``vat``/
+        ``company_registry`` on ``res.partner``), while ``filtered_domain()``
+        compares the computed value.
+
+        The fan-out reads "*any* of the name fields matches", and a negative
+        operator is its De Morgan dual — sound for a concrete comparand, wrong
+        for a null one.  A record has no display name only when **every** search
+        field is empty, so the aggregators must swap: ``('display_name', '!=',
+        False)`` used to become "``complete_name`` *and* ``email`` *and* ``ref``
+        *and* ``vat`` *and* ``company_registry`` are all set" and selected
+        essentially nothing, while ``filtered_domain()`` selected every named
+        record.  Since every partner here has a name, the positive test must
+        select none and the negative one all of them.
+        """
+        cases = [
+            ([("display_name", "=", False)], set()),
+            ([("display_name", "in", [False])], set()),
+            ([("display_name", "in", [None])], set()),
+            ([("display_name", "!=", False)], set(self.records.ids)),
+            ([("display_name", "not in", [False])], set(self.records.ids)),
+        ]
+        for domain, expected in cases:
+            with self.subTest(domain=domain):
+                self.assertParity(domain)
+                scoped = [("id", "in", self.records.ids), *domain]
+                got = set(
+                    self.Partner.with_context(active_test=False).search(scoped).ids
+                )
+                self.assertEqual(got, expected, f"wrong records for {domain!r}")
+
+    def test_display_name_mixed_null_and_match_comparand(self):
+        """A set mixing a name and a null is split, each half aggregated its own way.
+
+        ``('display_name', 'in', ['P-note', False])`` is "named P-note *or*
+        unnamed"; its negation is "not named P-note *and* named".  Collapsing
+        both halves into one aggregator (either one) gets one of the two wrong.
+        """
+        named = self.records.filtered(lambda r: r.display_name == "P-note")
+        self.assertTrue(named, "fixture must contain the record being matched")
+        for domain, expected in (
+            ([("display_name", "in", ["P-note", False])], set(named.ids)),
+            (
+                [("display_name", "not in", ["P-note", False])],
+                set(self.records.ids) - set(named.ids),
+            ),
+        ):
+            with self.subTest(domain=domain):
+                self.assertParity(domain)
+                scoped = [("id", "in", self.records.ids), *domain]
+                got = set(
+                    self.Partner.with_context(active_test=False).search(scoped).ids
+                )
+                self.assertEqual(got, expected, f"wrong records for {domain!r}")
+
+    def test_display_name_null_comparand_relational_rec_name(self):
+        """The null split also holds when ``_rec_names_search`` traverses a relation.
+
+        A relational entry contributes ``<relation>.display_name`` to the fan-out,
+        so "unset" for it means *the relation itself is unset* or *the target's
+        display name is empty* — testing only the traversed path would drop rows
+        whose relation is NULL, because ``any`` never matches those.
+
+        Real models rely on this shape (``account.move``'s
+        ``['name', 'partner_id.name', 'ref']``, ``fleet.vehicle``'s
+        ``['name', 'driver_id.name']``, ``discuss.channel.member``'s
+        ``['channel_id', 'partner_id', 'guest_id']``), so it is patched in here
+        rather than left to whichever addon happens to be installed.
+        """
+        country = self.env["res.country"].search([], limit=1)
+        self.assertTrue(country, "base data must provide a country")
+        self.records[1].country_id = country.id
+        self.env.flush_all()
+        model_cls = type(self.env["res.partner"])
+        for rec_names in (["name", "country_id"], ["name", "country_id.name"]):
+            with (
+                self.subTest(rec_names=rec_names),
+                patch.object(model_cls, "_rec_names_search", rec_names),
+            ):
+                self.assertParity([("display_name", "!=", False)])
+                self.assertParity([("display_name", "=", False)])
+                scoped = [("id", "in", self.records.ids)]
+                Partner = self.Partner.with_context(active_test=False)
+                self.assertEqual(
+                    set(Partner.search([*scoped, ("display_name", "!=", False)]).ids),
+                    set(self.records.ids),
+                    "every named record must satisfy 'display_name is set'",
+                )
+                self.assertFalse(
+                    Partner.search([*scoped, ("display_name", "=", False)]),
+                    "no named record may satisfy 'display_name is unset'",
+                )
+
     def _assert_same_outcome(self, domain):
         """Both evaluators must succeed with equal results, or both must fail."""
         scoped = [("id", "in", self.records.ids), *domain]
@@ -244,6 +342,307 @@ class TestDomainEvaluatorParity(TransactionCase):
             )
             return
         self.assertEqual(sql_ids, py_ids, f"evaluators disagree on {domain!r}")
+
+
+class TestDomainComparandTypeParity(TransactionCase):
+    """A comparand whose *type* does not match the column must mean one thing.
+
+    Each case below is a shape a web client or ``ir.filters`` entry produces on
+    its own, where the two evaluators used to read the same comparand
+    differently: the SQL side pushes it through the column conversion, the
+    Python side compares it raw and treats anything falsy as "unset".
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Partner = cls.env["res.partner"].with_context(active_test=False)
+        cls.country = cls.env["res.country"].search([], limit=1)
+        cls.assertTrue(cls, cls.country, "base data must provide a country")
+        cls.records = cls.env["res.partner"].create(
+            [
+                {"name": "T-plain"},
+                {"name": "T-country", "country_id": cls.country.id},
+                {"name": "0", "ref": "0"},
+            ]
+        )
+        cls.env.flush_all()
+
+    def assertSameOutcome(self, domain, msg=""):
+        """Both evaluators select the same records, or both refuse the domain."""
+        scoped = [("id", "in", self.records.ids), *domain]
+        sql_error = py_error = None
+        try:
+            with self.env.cr.savepoint(flush=False):
+                sql_ids = set(self.Partner.search(scoped).ids)
+        except (TypeError, ValueError, UserError) as exc:
+            sql_error = exc
+        try:
+            py_ids = set(self.records.filtered_domain(domain).ids)
+        except (TypeError, ValueError, UserError) as exc:
+            py_error = exc
+        if sql_error is not None or py_error is not None:
+            self.assertEqual(
+                sql_error is not None,
+                py_error is not None,
+                f"only one evaluator rejected {domain!r} {msg}: "
+                f"sql={sql_error!r} python={py_error!r}",
+            )
+            return None
+        self.assertEqual(sql_ids, py_ids, f"evaluators disagree on {domain!r} {msg}")
+        return sql_ids
+
+    def test_number_comparand_on_textual_field(self):
+        """``('name', '=', 0)`` compares against the string ``"0"``.
+
+        SQL rendered the comparand through the column conversion and matched the
+        record actually named ``"0"``; Python compared ``"0" == 0`` and matched
+        nothing.  Worse on a nullable column: ``('ref', '=', 0)`` selected *every*
+        row with an empty ``ref`` under ``filtered_domain()`` (a falsy comparand
+        reads as "unset" there) and none under ``search()``.
+        """
+        named_zero = self.records[2]
+        self.assertEqual(
+            self.assertSameOutcome([("name", "=", 0)]),
+            {named_zero.id},
+            "an integer comparand must match the record named '0'",
+        )
+        self.assertEqual(
+            self.assertSameOutcome([("ref", "=", 0)]),
+            {named_zero.id},
+            "an integer comparand must not be read as 'ref is unset'",
+        )
+        self.assertEqual(
+            self.assertSameOutcome([("name", "!=", 0)]),
+            set(self.records.ids) - {named_zero.id},
+        )
+        self.assertSameOutcome([("name", "=", 7)])
+
+    def test_falsy_id_comparand_on_many2one(self):
+        """A falsy id on a relational field means "no relation".
+
+        ``convert_to_column`` maps it to ``NULL``, so ``('country_id', '=', 0)``
+        was emitted as ``country_id IN (NULL)`` — matching nothing, not even the
+        ``IS NULL`` it had been turned into — while ``filtered_domain`` read the
+        falsy ``0`` as "unset" and returned the rows *without* a country.
+        """
+        no_country = self.records.filtered(lambda r: not r.country_id)
+        self.assertEqual(
+            self.assertSameOutcome([("country_id", "=", 0)]),
+            set(no_country.ids),
+        )
+        self.assertEqual(
+            self.assertSameOutcome([("country_id", "!=", 0)]),
+            set(self.records.ids) - set(no_country.ids),
+        )
+        # ordering against "no record" has no meaning: empty on both sides
+        for operator in (">", ">=", "<", "<="):
+            with self.subTest(operator=operator):
+                self.assertFalse(self.assertSameOutcome([("country_id", operator, 0)]))
+        # a real id is untouched
+        self.assertEqual(
+            self.assertSameOutcome([("country_id", "=", self.country.id)]),
+            set((self.records - no_country).ids),
+        )
+
+    def test_ordering_comparand_against_collection(self):
+        """An ordering operator needs a single comparand, never a collection."""
+        for domain in (
+            [("color", ">", [0, 1])],
+            [("id", "<", ["1"])],
+            [("type", ">", ["contact", "invoice"])],
+            [("name", ">", ["a", "b"])],
+        ):
+            with self.subTest(domain=domain):
+                self.assertSameOutcome(domain)
+                with self.assertRaises(TypeError):
+                    self.Partner.search(domain)
+                with self.assertRaises(TypeError):
+                    self.records.filtered_domain(domain)
+
+    def test_ordering_against_empty_collection_is_rejected(self):
+        """An empty collection is a malformed ordering comparand, not "match none".
+
+        Left as a comparison against NULL it looked harmless — empty on both
+        sides — but negated it diverged: SQL's three-valued ``NOT`` kept
+        excluding every row while Python's two-valued ``not`` admitted them all.
+        It is refused with the other malformed comparands instead, so the
+        negation never arises.
+        """
+        for fname in ("create_date", "color", "name"):
+            for domain in ([(fname, ">=", [])], ["!", (fname, ">=", [])]):
+                with self.subTest(domain=domain):
+                    self.assertSameOutcome(domain)
+                    with self.assertRaises(TypeError):
+                        self.Partner.search(domain)
+                    with self.assertRaises(TypeError):
+                        self.records.filtered_domain(domain)
+
+    def test_ordering_on_x2many_is_rejected(self):
+        """A to-many field holds a set: there is nothing to order against.
+
+        The SQL builder asserted ``expects 'any' operator`` deep in query
+        building — an ``AssertionError``, so it disappears under ``python -O`` —
+        while ``filtered_domain`` compared against the recordset and answered.
+
+        ``0`` is covered too: a falsy id is canonicalized to "no relation" for
+        the to-*one* types, and letting that run here first would make
+        ``('child_ids', '>', 0)`` quietly match nothing while
+        ``('child_ids', '>', 1)`` raised.
+        """
+        for fname in ("child_ids", "category_id"):
+            for operator in (">", ">=", "<", "<="):
+                for value in (1, 0):
+                    with self.subTest(fname=fname, operator=operator, value=value):
+                        domain = [(fname, operator, value)]
+                        with self.assertRaises(TypeError):
+                            self.Partner.search(domain)
+                        with self.assertRaises(TypeError):
+                            self.records.filtered_domain(domain)
+
+    def test_validation_does_not_depend_on_sibling_order(self):
+        """Whether a domain is legal must not depend on where the leaf sits.
+
+        ``filtered_domain`` built a predicate from the *raw* tree, so a leaf that
+        the optimizer discards — here because ``('ref', '=?', [])`` collapses the
+        ``|`` to TRUE — was still validated on the Python side and raised, while
+        ``search()`` optimized it away and succeeded.
+        """
+        malformed = ("child_ids", ">", [1])
+        domain = ["|", ("ref", "=?", []), malformed]
+        self.assertEqual(
+            self.assertSameOutcome(domain),
+            set(self.records.ids),
+            "a TRUE sibling must discard the malformed leaf in both evaluators",
+        )
+        # and on its own it is still refused by both
+        with self.assertRaises(TypeError):
+            self.Partner.search([malformed])
+        with self.assertRaises(TypeError):
+            self.records.filtered_domain([malformed])
+
+    def test_unrepresentable_id_comparand_matches_nothing(self):
+        """A comparand no id can equal selects nothing, rather than raising.
+
+        ``Id.filter_function`` already dropped such a value from an equality set
+        -- its docstring says this is "what the SQL side concludes too" -- but
+        the SQL side did not: ``_condition_to_sql`` converted every element and
+        ``Id.convert_to_column`` raised, so ``('id', '=', 'abc')`` aborted
+        ``search()`` while ``filtered_domain()`` matched nothing.  Reachable from
+        any ``any`` sub-domain keyed on ``id``.
+
+        An *ordering* comparison against the same value still raises on both
+        sides: there is no meaningful answer, and ``TestIdComparandValidation``
+        pins that the error stays a clean Python one.
+
+        The condition must be reached *unmerged*: scoping it with
+        ``('id', 'in', ids)`` would let ``_canonicalize_numeric_sets`` -- which
+        needs two same-field conditions -- drop the value before SQL sees it,
+        hiding the defect.  Hence the bare searches and the ``any`` sub-domain.
+        """
+        good = self.records[0].id
+        self.assertFalse(
+            self.Partner.search([("id", "=", "fz-a")]),
+            "an unrepresentable id must select nothing, not raise",
+        )
+        self.assertTrue(self.Partner.search([("id", "!=", "fz-a")]))
+        self.assertFalse(self.Partner.search([("id", "in", ["fz-a"])]))
+        self.assertEqual(
+            set(self.Partner.search([("id", "in", ["fz-a", good])]).ids), {good}
+        )
+        for domain, expected in (
+            ([("child_ids", "any", [("id", "=", "fz-a")])], set()),
+            ([("id", "=", "fz-a")], set()),
+            ([("id", "in", ["fz-a"])], set()),
+            ([("id", "!=", "fz-a")], set(self.records.ids)),
+            ([("id", "not in", ["fz-a"])], set(self.records.ids)),
+            ([("id", "in", ["fz-a", good])], {good}),
+            ([("id", "not in", ["fz-a", good])], set(self.records.ids) - {good}),
+            ([("id", "=", str(good))], {good}),
+        ):
+            with self.subTest(domain=domain):
+                self.assertEqual(self.assertSameOutcome(domain), expected)
+        for operator in (">", ">=", "<", "<="):
+            with self.subTest(operator=operator):
+                domain = [("id", operator, "fz-a")]
+                self.assertSameOutcome(domain)
+                with self.assertRaises(ValueError):
+                    self.Partner.search(domain)
+
+    def test_display_name_null_comparand_survives_a_search_override(self):
+        """A model extending ``_search_display_name`` still handles a null comparand.
+
+        ``res.country.state`` adds a match on the ``Name (Country)`` display
+        form.  The optimizer normalizes ``('display_name', '=', False)`` into
+        ``('display_name', 'in', {False})`` -- a *non-empty*, therefore truthy,
+        set -- so the override fed ``False`` to its regex and raised
+        ``TypeError: expected string or bytes-like object, got 'bool'`` out of
+        ``search()``, and out of any ``('state_id', 'any', ...)`` built from it.
+        """
+        State = self.env["res.country.state"]
+        for domain in (
+            [("display_name", "=", False)],
+            [("display_name", "!=", False)],
+            [("display_name", "in", [False])],
+        ):
+            with self.subTest(domain=domain):
+                State.search(domain)
+        for domain in (
+            [("state_id", "any", [("display_name", "=", False)])],
+            [("state_id", "not any", [("display_name", "=", False)])],
+        ):
+            with self.subTest(domain=domain):
+                self.assertSameOutcome(domain)
+
+    def test_cyclic_rec_names_search_stays_searchable(self):
+        """A self-referential ``_rec_names_search`` entry must not kill the field.
+
+        A relational entry expands to ``<path>.display_name``, which re-enters
+        ``_search_display_name`` on the comodel.  When that leads back to the
+        same model — ``['name', 'parent_id']``, the obvious spelling on any
+        hierarchical model — it nests one level per optimizer pass until the
+        depth guard fires, so *every* ``display_name`` search raised
+        ``ValueError: Domain nesting too deep``, ``ilike`` included.  That takes
+        ``name_search`` with it, and the message names neither the model nor the
+        offending entry.
+
+        The cyclic entry is dropped; the others keep working.
+        """
+        model_cls = type(self.env["res.partner"])
+        with patch.object(model_cls, "_rec_names_search", ["name", "parent_id"]):
+            self.assertEqual(
+                set(
+                    self.Partner.search(
+                        [
+                            ("id", "in", self.records.ids),
+                            ("display_name", "=", "T-plain"),
+                        ]
+                    ).ids
+                ),
+                {self.records[0].id},
+                "the non-cyclic entry must still resolve the name",
+            )
+            for operator, value in (
+                ("ilike", "T-"),
+                ("=", False),
+                ("!=", False),
+                ("not ilike", "zzz"),
+            ):
+                with self.subTest(operator=operator, value=value):
+                    self.Partner.search([("display_name", operator, value)])
+
+    def test_display_name_ordering_uses_the_primary_name(self):
+        """An ordering comparison on display_name has one referent.
+
+        Fanning it over every ``_rec_names_search`` entry ORs in ``email <= x``,
+        ``vat <= x``, … which only weakens the condition — ``('display_name',
+        '<=', 'M')`` matched every partner while ``filtered_domain`` (comparing
+        the computed name) matched a third of them.
+        """
+        for operator in ("<", "<=", ">", ">="):
+            for value in ("T-country", "T-plain"):
+                with self.subTest(operator=operator, value=value):
+                    self.assertSameOutcome([("display_name", operator, value)])
 
 
 class TestDomainComparandExactness(TransactionCase):

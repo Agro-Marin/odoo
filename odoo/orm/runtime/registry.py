@@ -410,9 +410,7 @@ class Registry(
         with closing(self.cursor()) as cr:
             self.has_unaccent = modules_db.has_unaccent(cr)
             self.has_trigram = modules_db.has_trigram(cr)
-            table = (
-                _get_unaccent_table(cr, self.db_name) if self.has_unaccent else None
-            )
+            table = _get_unaccent_table(cr, self.db_name) if self.has_unaccent else None
 
         self.unaccent = _unaccent if self.has_unaccent else _identity
         self.unaccent_python = (

@@ -25,6 +25,67 @@ from odoo.fields import Command, Domain
 from odoo.tests.common import TransactionCase, new_test_user
 
 
+class TestReadGroupGroupKeyRoundTrip(TransactionCase):
+    """A group's key, fed back through the domain layer, must select that group.
+
+    The web client scopes a group by ``[(field, '=', key)]``
+    (``web_read_group._read_group_format`` builds ``__extra_domain`` that way),
+    so a key the domain layer resolves differently from the grouping shows a
+    count it cannot reproduce when the group is opened.
+    """
+
+    def test_text_null_and_empty_string_are_one_group(self):
+        """NULL and ``''`` are the same value to the domain layer.
+
+        A text field's ``falsy_value`` is ``""``, and ``('ref', '=', '')`` and
+        ``('ref', '=', False)`` both select the NULL *and* the empty-string rows
+        (``_optimize_in_set_falsy_value``).  Grouping on the raw column split
+        them into two separate, visually identical "empty" groups of one record
+        each, while opening *either* showed both records.  Both spellings are
+        reachable through ordinary ORM writes: ``create({'ref': ''})`` stores
+        ``''`` and ``create({'ref': False})`` stores NULL.
+        """
+        partner = self.env["res.partner"]
+        records = partner.create(
+            [
+                {"name": "rg-null", "ref": False},
+                {"name": "rg-empty", "ref": ""},
+                {"name": "rg-set", "ref": "R"},
+            ]
+        )
+        self.env.flush_all()
+        domain = [("id", "in", records.ids)]
+
+        # the fixture must really hold both spellings, or the test proves nothing
+        self.env.cr.execute(
+            "SELECT COUNT(*) FROM res_partner WHERE id = ANY(%s) AND ref IS NULL",
+            (records.ids,),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 1, "expected one NULL ref")
+        self.env.cr.execute(
+            "SELECT COUNT(*) FROM res_partner WHERE id = ANY(%s) AND ref = ''",
+            (records.ids,),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 1, "expected one empty-string ref")
+
+        groups = partner._read_group(domain, ["ref"], ["id:array_agg", "__count"])
+        keys = [key for key, _ids, _count in groups]
+        self.assertEqual(
+            sorted(keys, key=repr),
+            sorted([False, "R"], key=repr),
+            "NULL and '' must form a single empty group, keyed False",
+        )
+        for key, ids, count in groups:
+            with self.subTest(key=key):
+                self.assertEqual(count, len(ids))
+                drilldown = partner.search([*domain, ("ref", "=", key)])
+                self.assertEqual(
+                    set(drilldown.ids),
+                    set(ids),
+                    "opening the group must show exactly the records it counted",
+                )
+
+
 class TestReadGroupAuditFixes(TransactionCase):
     def _read_group_deprecated(self, model, domain, fields, groupby, **kwargs):
         with warnings.catch_warnings():

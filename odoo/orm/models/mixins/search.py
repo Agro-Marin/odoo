@@ -30,6 +30,17 @@ _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
 
 
+def _is_unset_name(value: typing.Any) -> bool:
+    """Whether *value* spells "no display name" in a domain comparand.
+
+    ``False`` is the canonical spelling the optimizer normalizes onto; ``None``
+    is the JSON/RPC one; ``""`` is a Char's ``falsy_value``, which SQL aliases
+    with NULL.  ``0`` and other falsy non-strings are *not* null markers — they
+    are legitimate names to match against.
+    """
+    return value is False or value is None or value == ""
+
+
 class SearchMixin(_ModelStubs):
     """Mixin providing search and query functionality for BaseModel."""
 
@@ -175,10 +186,22 @@ class SearchMixin(_ModelStubs):
 
         Implements the search on the ``display_name`` field; may be overridden.
         Default implementation searches ``_rec_names_search`` or ``_rec_name``.
+
+        A *match* against a concrete comparand fans out over the search fields as
+        a disjunction ("any of the name fields matches"), and a negative operator
+        is its De Morgan dual.  A *null* comparand does not follow that reading:
+        a record has no display name only when **every** search field is unset,
+        so the two aggregators are swapped for that part of the comparand — see
+        :meth:`_search_display_name_unset`.  Mixed sets such as
+        ``('display_name', 'in', ['Alpha', False])`` are split into their match
+        part and their null part, each aggregated its own way, and recombined.
         """
         search_fnames = self._rec_names_search or (
             [self._rec_name] if self._rec_name else []
         )
+        search_fnames = [
+            fname for fname in search_fnames if not self._rec_names_search_cyclic(fname)
+        ]
         if not search_fnames:
             _logger.warning(
                 "Cannot search on display_name, no _rec_name or _rec_names_search defined on %s",
@@ -189,20 +212,50 @@ class SearchMixin(_ModelStubs):
             return (
                 Domain.FALSE if operator in Domain.NEGATIVE_OPERATORS else Domain.TRUE
             )
+        if operator in ("<", "<=", ">", ">="):
+            # An ordering comparison has exactly one referent: the record's
+            # primary name.  Fanning it out over the secondary search fields
+            # ORs in `email <= x`, `vat <= x`, ... which only ever *weakens* the
+            # condition -- on res.partner `('display_name', '<=', 'M')` matched
+            # every row, because some row always has a NULL-or-smaller vat.
+            # Neither aggregator is sound here (AND is as arbitrary as OR), so
+            # restrict to the leading entry, which is the field display_name is
+            # actually built from and reduces to `_rec_name` for the common
+            # single-field case.
+            search_fnames = search_fnames[:1]
+
+        negative = operator in Domain.NEGATIVE_OPERATORS
+        aggregator = Domain.AND if negative else Domain.OR
+
+        if operator in ("in", "not in", "=", "!="):
+            values = list(value) if isinstance(value, COLLECTION_TYPES) else [value]
+            match_values = [v for v in values if not _is_unset_name(v)]
+            if len(match_values) != len(values):
+                parts = [self._search_display_name_unset(search_fnames, negative)]
+                if match_values:
+                    parts.insert(
+                        0,
+                        self._search_display_name_match(
+                            operator, match_values, search_fnames
+                        ),
+                    )
+                return aggregator(parts)
+
+        return self._search_display_name_match(operator, value, search_fnames)
+
+    @api.model
+    def _search_display_name_match(
+        self, operator: str, value: typing.Any, search_fnames: Sequence[str]
+    ) -> Domain:
+        """Fan a non-null comparand out over ``search_fnames``.
+
+        The match half of :meth:`_search_display_name`: a disjunction over the
+        search fields (its De Morgan dual for a negative operator).
+        """
         aggregator = Domain.AND if operator in Domain.NEGATIVE_OPERATORS else Domain.OR
         domains = []
         for field_name in search_fnames:
-            model = self
-            segments = field_name.split(".")
-            for i, fname in enumerate(segments):
-                if model is None:
-                    raise ValueError(
-                        f"Invalid _rec_names_search entry {field_name!r} on "
-                        f"{self._name!r}: segment {segments[i - 1]!r} is "
-                        f"non-relational and cannot be traversed further"
-                    )
-                field = model._fields[fname]
-                model = self.env.get(field.comodel_name) if field.relational else None
+            field = self._rec_names_search_field(field_name)
             if field.relational:
                 domains.append([(field_name + ".display_name", operator, value)])
             elif operator.endswith("like"):
@@ -218,6 +271,107 @@ class SearchMixin(_ModelStubs):
                     typed_value = field.convert_to_write(value, self)
                     domains.append([(field_name, operator, typed_value)])
         return aggregator(domains)
+
+    @api.model
+    def _rec_names_search_cyclic(self, field_name: str) -> bool:
+        """Whether expanding *field_name* would re-enter this model.
+
+        A relational entry contributes ``<path>.display_name``, which the
+        optimizer turns into ``<path> any (display_name ...)`` and re-enters on
+        the comodel.  If following the comodels' own ``_rec_names_search`` leads
+        back here, that expansion never terminates: it nests one level per pass
+        until the depth guard fires, and *every* ``display_name`` search on the
+        model dies with ``ValueError: Domain nesting too deep`` — including the
+        plain ``ilike`` that ``name_search`` issues, so the field becomes
+        unsearchable and the message names neither the model nor the entry.
+
+        The obvious spelling is enough to trigger it: ``['name', 'parent_id']``
+        on any hierarchical model.  A mutual cycle (``a._rec_names_search =
+        ['b_id']`` and ``b._rec_names_search = ['a_id']``) does it too, so this
+        walks the graph rather than only comparing against ``self``.
+
+        The cyclic entry is dropped; the remaining ones still search.  The walk
+        is over model names with a visited set, and only runs for a relational
+        entry, which is rare.
+        """
+        field = self._rec_names_search_field(field_name)
+        if not field.relational or not field.comodel_name:
+            return False
+        seen = {self._name}
+        pending = [field.comodel_name]
+        while pending:
+            model_name = pending.pop()
+            if model_name == self._name:
+                return True
+            if model_name in seen or model_name not in self.env:
+                continue
+            seen.add(model_name)
+            comodel = self.env[model_name]
+            entries = comodel._rec_names_search or (
+                [comodel._rec_name] if comodel._rec_name else []
+            )
+            for entry in entries:
+                try:
+                    next_field = comodel._rec_names_search_field(entry)
+                except KeyError, ValueError:
+                    continue
+                if next_field.relational and next_field.comodel_name:
+                    pending.append(next_field.comodel_name)
+        return False
+
+    @api.model
+    def _rec_names_search_field(self, field_name: str) -> Field:
+        """Resolve a (possibly dotted) ``_rec_names_search`` entry to its last field."""
+        model = self
+        segments = field_name.split(".")
+        for i, fname in enumerate(segments):
+            if model is None:
+                raise ValueError(
+                    f"Invalid _rec_names_search entry {field_name!r} on "
+                    f"{self._name!r}: segment {segments[i - 1]!r} is "
+                    f"non-relational and cannot be traversed further"
+                )
+            field = model._fields[fname]
+            model = self.env.get(field.comodel_name) if field.relational else None
+        return field
+
+    @api.model
+    def _search_display_name_unset(
+        self, search_fnames: Sequence[str], negative: bool
+    ) -> Domain:
+        """Return the domain for "this record has no display name" (or its negation).
+
+        The display name is empty only when *every* search field is empty, so
+        this conjoins the per-field null tests — the opposite aggregator from the
+        match case.  Without the swap, ``('display_name', '!=', False)`` became
+        "all of ``complete_name``/``email``/``ref``/``vat``/… are set" and matched
+        almost nothing, while ``filtered_domain`` (which compares the computed
+        value) matched every named record.
+
+        An entry ending on a relational field is unset when *any* relation along
+        the path is unset, or when the target's display name is empty.  Testing
+        only the fully traversed path would silently exclude rows whose relation
+        is NULL, since ``any`` never matches those.
+        """
+        unset = Domain.AND(
+            self._search_display_name_unset_field(field_name)
+            for field_name in search_fnames
+        )
+        return ~unset if negative else unset
+
+    @api.model
+    def _search_display_name_unset_field(self, field_name: str) -> Domain:
+        """Return the domain for "this one ``_rec_names_search`` entry is empty"."""
+        if not self._rec_names_search_field(field_name).relational:
+            return Domain(field_name, "=", False)
+        segments = field_name.split(".")
+        prefixes = [".".join(segments[: i + 1]) for i in range(len(segments))]
+        return Domain.OR(
+            [
+                *(Domain(prefix, "=", False) for prefix in prefixes),
+                Domain(field_name + ".display_name", "=", False),
+            ]
+        )
 
     @api.model
     @api.readonly
