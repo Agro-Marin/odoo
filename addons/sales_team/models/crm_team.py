@@ -125,7 +125,7 @@ class CrmTeam(models.Model):
     def _constrains_company_members(self):
         for team in self.filtered('company_id'):
             invalid_members = team.crm_team_member_ids.filtered(
-                lambda m: team.company_id not in m.user_id.company_ids
+                lambda m, team=team: team.company_id not in m.user_id.company_ids
             )
             if invalid_members:
                 raise UserError(_("The following team members are not allowed in company '%(company)s' of the Sales Team '%(team)s': %(users)s",

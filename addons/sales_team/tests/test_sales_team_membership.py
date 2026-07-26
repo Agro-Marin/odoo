@@ -12,7 +12,7 @@ class TestMembership(TestSalesCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestMembership, cls).setUpClass()
+        super().setUpClass()
         cls.new_team = cls.env['crm.team'].create({
             'name': 'Test Specific',
             'sequence': 10,
@@ -109,7 +109,7 @@ class TestMembership(TestSalesCommon):
         self.assertFalse(memberships.filtered(lambda m: m.crm_team_id == sales_team_1).active)
         new_team_memberships = memberships.filtered(lambda m: m.crm_team_id == new_team)
         self.assertEqual(len(new_team_memberships), 2)  # subscribed, removed, then subscribed again
-        self.assertTrue(set(new_team_memberships.mapped('active')), set([False, True]))
+        self.assertTrue(set(new_team_memberships.mapped('active')), {False, True})
 
         # still avoid duplicated team / user entries
         with self.assertRaises(exceptions.UserError):

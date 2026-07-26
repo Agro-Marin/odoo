@@ -2,8 +2,8 @@
 
 from odoo import exceptions
 from odoo.tests import tagged, users
-from odoo.addons.mail.tests.common import mail_new_test_user
 
+from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.sales_team.tests.common import (
     SalesTeamCommon,
     TestSalesCommon,
@@ -17,7 +17,7 @@ class TestDefaultTeam(TestSalesCommon):
     @classmethod
     def setUpClass(cls):
         """Set up data for default team tests."""
-        super(TestDefaultTeam, cls).setUpClass()
+        super().setUpClass()
         cls.env['ir.config_parameter'].set_param('sales_team.membership_multi', True)
 
         # Salesmen organization

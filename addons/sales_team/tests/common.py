@@ -51,7 +51,7 @@ class TestSalesCommon(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSalesCommon, cls).setUpClass()
+        super().setUpClass()
         cls.env['ir.config_parameter'].set_param('sales_team.membership_multi', False)
 
         # Salesmen organization
@@ -121,7 +121,7 @@ class TestSalesMC(TestSalesCommon):
           * team_c2: company_2
           * team_mc: company_main
         """
-        super(TestSalesMC, cls).setUpClass()
+        super().setUpClass()
         cls.company_2 = cls.env['res.company'].create({
             'name': 'New Test Company',
             'email': 'company.2@test.example.com',
