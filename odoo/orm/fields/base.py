@@ -30,7 +30,7 @@ from odoo.tools.misc import PENDING, SENTINEL, ReadonlyDict, Sentinel, unique
 
 from .._recordset import base_model, is_model_class, is_recordset
 from ..domain import Domain
-from ..primitives import COLLECTION_TYPES, SUPERUSER_ID
+from ..primitives import COLLECTION_TYPES
 from ._field_convert import _FieldConvertMixin
 from ._field_description import _FieldDescriptionMixin
 from ._field_sql import _FieldSqlMixin
@@ -801,20 +801,14 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     def _company_dependent_fallback_raw(self, records: BaseModel) -> typing.Any:
         """Raw ``ir.default`` fallback for ``self`` on ``records``'s company.
 
-        Single authority for the fallback lookup: always resolved as the
-        SUPERUSER so that the write-side dedup (``convert_to_column_insert``),
-        the read-side COALESCE (:meth:`get_company_dependent_fallback`) and the
-        flush-side fallbacks (``ir.default._get_field_column_fallbacks``) all
-        agree.  Resolving with the current user instead would let a user-scoped
-        default alias a value to NULL that every reader then resolves to the
-        global default.
+        Single authority for the fallback lookup, resolved through
+        ``env._ir_defaults`` so that the write-side dedup
+        (``convert_to_column_insert``), the read-side COALESCE
+        (:meth:`get_company_dependent_fallback`) and the flush-side fallbacks
+        (``ir.default._get_field_column_fallbacks``) all share one scope.
         """
-        return (
-            records.env["ir.default"]
-            .with_user(SUPERUSER_ID)
-            .with_company(records.env.company)
-            ._get_model_defaults(records._name)
-            .get(self.name)
+        return records.env._ir_defaults._get_model_defaults(records._name).get(
+            self.name
         )
 
     def get_company_dependent_fallback(self, records: BaseModel) -> typing.Any:
