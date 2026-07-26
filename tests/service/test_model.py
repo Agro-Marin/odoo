@@ -14,11 +14,8 @@ Run with::
     python -m pytest tests/service/ -v
 """
 
-import random
-import time
-from collections.abc import Callable
 from contextlib import suppress
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import psycopg
 import psycopg.errors
@@ -505,7 +502,7 @@ class TestRetrying:
 
         with (
             patch("odoo.http") as mock_http,
-            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.random") as mock_random,
         ):
             mock_http.request = None
@@ -530,7 +527,7 @@ class TestRetrying:
 
         with (
             patch("odoo.http") as mock_http,
-            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.random") as mock_random,
         ):
             mock_http.request = None
@@ -555,7 +552,7 @@ class TestRetrying:
 
         with (
             patch("odoo.http") as mock_http,
-            patch("odoo.service.transaction.time") as mock_time,
+            patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.random") as mock_random,
         ):
             mock_http.request = None

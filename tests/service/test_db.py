@@ -66,9 +66,7 @@ def zip_dump():
             zf.writestr("dump.sql", "-- empty sql dump\n")
         tmp = f.name
     yield tmp
-    import os
-
-    os.unlink(tmp)
+    pathlib.Path(tmp).unlink()
 
 
 class TestRestoreDbPreFlight:
@@ -943,6 +941,7 @@ class TestCheckFaketimeMode:
     def test_noop_when_env_var_absent(self, db_mod):
         """Without the env var, the function must not touch the DB at all."""
         import os
+
         import odoo.tools
 
         os.environ.pop("ODOO_FAKETIME_TEST_MODE", None)
@@ -989,6 +988,7 @@ class TestCheckFaketimeMode:
     def test_active_when_all_gates_pass(self, db_mod):
         """Env var + test_enable + db listed: the DB write path is taken."""
         import datetime
+
         import odoo.tools
 
         fake_now = datetime.datetime(2026, 1, 1)
@@ -1023,6 +1023,7 @@ class TestCreateEmptyDatabaseTOCTOU:
     def test_duplicate_database_translates_to_databaseexists(self, db_mod):
         """A PG DuplicateDatabase error must surface as DatabaseExists."""
         import psycopg
+
         import odoo.tools
 
         fake_cr = MagicMock()
@@ -1083,7 +1084,7 @@ class TestRestoreDbZipSlip:
         made = []
 
         def _make(escaping_name: str) -> str:
-            fd = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+            fd = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)  # noqa: SIM115
             with zipfile.ZipFile(fd, "w") as zf:
                 zf.writestr("dump.sql", "SELECT 1;")
                 zf.writestr(escaping_name, b"payload")
@@ -1093,7 +1094,7 @@ class TestRestoreDbZipSlip:
 
         yield _make
         for path in made:
-            os.unlink(path)
+            pathlib.Path(path).unlink()
 
     @pytest.mark.parametrize(
         "escaping_name",
@@ -1139,7 +1140,7 @@ class TestExpRestoreBase64Decoder:
         captured = {}
 
         def _capture(db, dump_file, copy=False, neutralize_database=False):
-            with open(dump_file, "rb") as fh:
+            with pathlib.Path(dump_file).open("rb") as fh:
                 captured["bytes"] = fh.read()
 
         with patch.object(db_mod, "restore_db", side_effect=_capture):
@@ -1503,7 +1504,6 @@ class TestDropDatabaseRetry:
             if "DROP DATABASE" in str(sql):
                 if sum("DROP DATABASE" in c for c in call_log) == 1:
                     raise psycopg.errors.ObjectInUse("still connected")
-            return None
 
         drop_env.execute.side_effect = execute_side_effect
 
@@ -1522,7 +1522,6 @@ class TestDropDatabaseRetry:
         def execute_side_effect(sql, *args, **kwargs):
             if "DROP DATABASE" in str(sql):
                 raise psycopg.errors.ObjectInUse("forever in use")
-            return None
 
         drop_env.execute.side_effect = execute_side_effect
 
@@ -2027,7 +2026,6 @@ class TestExpRenameRollback:
                 rename_call_count += 1
                 if rename_call_count == 2:
                     raise RuntimeError("rollback rename also failed")
-            return None
 
         rename_env["cr"].execute.side_effect = execute_side_effect
 
@@ -2330,7 +2328,7 @@ class TestDumpSqlMetaCommandScanner:
             with pytest.raises(RuntimeError, match="Refusing to restore"):
                 db_mod._assert_dump_sql_safe(path)
         finally:
-            os.unlink(path)
+            pathlib.Path(path).unlink()
 
     def test_assert_dump_sql_safe_passes_clean_file(self, db_mod):
         with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as f:
@@ -2339,7 +2337,7 @@ class TestDumpSqlMetaCommandScanner:
         try:
             db_mod._assert_dump_sql_safe(path)
         finally:
-            os.unlink(path)
+            pathlib.Path(path).unlink()
 
 
 class TestDumpSqlMetaCommandArguments:
@@ -2782,6 +2780,7 @@ class TestCreateEmptyDatabaseHardening:
         create/restore), ``DatabaseExists`` is raised WITHOUT connecting to the
         pre-existing DB to run extensions/GRANT on it."""
         import psycopg
+
         from odoo.tools import SQL
 
         cm, _conn, _cr = self._mock_pg(
