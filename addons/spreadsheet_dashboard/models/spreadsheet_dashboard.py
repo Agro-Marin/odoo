@@ -61,7 +61,7 @@ class SpreadsheetDashboard(models.Model):
             with file_open(self.sample_dashboard_file_path) as f:
                 return json.load(f)
         except FileNotFoundError:
-            return
+            return None
 
     def _dashboard_is_empty(self):
         return any(self.env[model].search_count([], limit=1) == 0 for model in self.sudo().main_data_model_ids.mapped("model"))
@@ -77,6 +77,6 @@ class SpreadsheetDashboard(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if 'name' not in default:
-            for dashboard, vals in zip(self, vals_list):
+            for dashboard, vals in zip(self, vals_list, strict=True):
                 vals['name'] = _("%s (copy)", dashboard.name)
         return vals_list

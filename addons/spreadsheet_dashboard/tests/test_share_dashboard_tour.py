@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from .common import DashboardTestCommon
-
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
+
+from .common import DashboardTestCommon
+
 
 @tagged("post_install", "-at_install")
 class TestDashboardShareTour(DashboardTestCommon, HttpCase):
