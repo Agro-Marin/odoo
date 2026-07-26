@@ -92,6 +92,9 @@ class _StubModel:
     _name = "m"
     _auto = True
 
+    def _check_field_access(self, field, operation):
+        """No-op ACL hook; the stub declares no field groups."""
+
     def __init__(self):
         self._fields = {
             "a": _StubField("a"),

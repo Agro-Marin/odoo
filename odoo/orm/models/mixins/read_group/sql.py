@@ -80,6 +80,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             raise ValueError(f"Aggregate method is mandatory for {fname!r}")
 
         field = self._fields[fname]
+        self._check_field_access(field, "read")
         if func == "sum_currency":
             if field.type != "monetary":
                 raise ValueError(
@@ -152,6 +153,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
 
         field = self._fields[fname]
+        self._check_field_access(field, "read")
 
         if field.type == "properties":
             sql_expr = self._read_group_groupby_properties(

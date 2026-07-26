@@ -2095,6 +2095,7 @@ class TestOrmModel2Some_Access(models.Model):
 
     g_id = fields.Many2one("test_orm.model.some_access", domain='[("a", "=", g_d)]')
     g_d = fields.Integer(related="g_id.d")
+    g_a_restricted = fields.Integer(related="g_id.a", groups="base.group_erp_manager")
 
 
 class TestOrmModel3Some_Access(models.Model):
