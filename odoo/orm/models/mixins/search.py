@@ -323,6 +323,19 @@ class SearchMixin(_ModelStubs):
         given field.  The method also checks whether the field is accessible for
         reading.
 
+        A term the user may not read is **dropped** (empty result), not
+        refused.  Sequencing rows on a value the caller cannot see leaks it --
+        weakly, as relative order, but ``limit``/``offset`` walks that order
+        out record by record -- so the term must not reach the SQL.  Raising
+        instead is not an option here: this runs for the model's own
+        ``_order`` on a model-level (empty) recordset, and
+        ``_has_field_access`` may be record-sensitive (``res.users`` grants
+        ``SELF_READABLE_FIELDS`` only when ``self._origin == self.env.user``),
+        so an empty recordset fails closed and a user could no longer sort, or
+        open the preferences form for, their own record.  Dropping keeps those
+        flows working and still exposes nothing; :meth:`_search` restores a
+        deterministic order when this leaves nothing to sort by.
+
         :param direction: one of ``SQL("ASC")``, ``SQL("DESC")``, ``SQL()``
         :param nulls: one of ``SQL("NULLS FIRST")``, ``SQL("NULLS LAST")``, ``SQL()``
         """
@@ -330,6 +343,15 @@ class SearchMixin(_ModelStubs):
         field = self._fields.get(fname)
         if not field:
             raise ValueError(f"Invalid field {fname!r} on model {self._name!r}")
+
+        if not self._has_field_access(field, "read"):
+            _logger.debug(
+                "Ignoring ORDER BY %s.%s: not readable by user %s",
+                self._name,
+                field_name,
+                self.env.uid,
+            )
+            return SQL.EMPTY
 
         if field.type == "many2one":
             seen = self.env.context.get("__m2o_order_seen", ())
@@ -444,7 +466,16 @@ class SearchMixin(_ModelStubs):
         prof.mark("rules")
 
         if order:
-            query.order = self._order_to_sql(order, query)
+            # Every term may be dropped -- unreadable fields
+            # (:meth:`_order_field_to_sql`) or a many2one ordering cycle.  An
+            # unordered query makes limit/offset pagination repeat and skip
+            # rows, so fall back to the primary key rather than to whatever
+            # the database happens to return.  Only here: ``_order_to_sql``
+            # also serves read_group, where a bare id would not be in the
+            # GROUP BY.
+            query.order = self._order_to_sql(order, query) or SQL.identifier(
+                self._table, "id"
+            )
 
         if limit is not None and limit is not False:
             query.limit = 1 if limit is True else limit
