@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, api
+from odoo import api, fields, models
 
 
 class SaleOrder(models.Model):
@@ -28,7 +27,7 @@ class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
     def _compute_is_mto(self):
-        super(SaleOrderLine, self)._compute_is_mto()
+        super()._compute_is_mto()
         for line in self:
             if not line.display_qty_widget or line.is_mto:
                 continue

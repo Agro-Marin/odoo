@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-
-from odoo.tests import common, tagged, Form
+from odoo.tests import Form, common, tagged
 from odoo.tools import mute_logger
 
 
@@ -400,8 +398,8 @@ class TestDropship(common.TransactionCase):
         })
 
         # Trigger re-computes.
-        operation_type.default_location_src_id
-        operation_type.default_location_dest_id
+        _ = operation_type.default_location_src_id
+        _ = operation_type.default_location_dest_id
 
         self.assertEqual(operation_type.code, "outgoing")
 

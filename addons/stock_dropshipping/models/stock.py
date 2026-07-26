@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, models, fields
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 
@@ -12,7 +12,7 @@ class StockRule(models.Model):
         """ Do not group purchase order line if they are linked to different
         sale order line. The purpose is to compute the delivered quantities.
         """
-        return procurement.values.get('sale_line_id'), super(StockRule, self)._get_procurements_to_merge_groupby(procurement)
+        return procurement.values.get('sale_line_id'), super()._get_procurements_to_merge_groupby(procurement)
 
     def _get_partner_id(self, values, rule):
         route_id = self.env['ir.model.data']._xmlid_to_res_id('stock_dropshipping.route_drop_shipping')
