@@ -11,7 +11,7 @@ from odoo.addons.sales_team.tests.common import TestSalesMC
 class TestCornerCases(TransactionCase):
 
     def setUp(self):
-        super(TestCornerCases, self).setUp()
+        super().setUp()
         self.user_sales_leads = mail_new_test_user(
             self.env, login='user_sales_leads',
             name='Laetitia Sales Leads', email='crm_leads@test.example.com',

@@ -53,12 +53,12 @@ class CrmTeamMember(models.Model):
         ])
         duplicates = self.env['crm.team.member']
 
-        active_records = dict(
-            (membership.user_id.id, membership.crm_team_id.id)
+        active_records = {
+            membership.user_id.id: membership.crm_team_id.id
             for membership in self if membership.active
-        )
+        }
         for membership in self:
-            potential = existing.filtered(lambda m: m.user_id == membership.user_id and \
+            potential = existing.filtered(lambda m, membership=membership: m.user_id == membership.user_id and \
                 m.crm_team_id == membership.crm_team_id and m.id != membership.id
             )
             if not potential or len(potential) > 1:
@@ -183,7 +183,7 @@ class CrmTeamMember(models.Model):
         is_membership_multi = self.env['ir.config_parameter'].sudo().get_param('sales_team.membership_multi', False)
         if not is_membership_multi and vals.get('active'):
             self._synchronize_memberships([
-                dict(user_id=membership.user_id.id, crm_team_id=membership.crm_team_id.id)
+                {'user_id': membership.user_id.id, 'crm_team_id': membership.crm_team_id.id}
                 for membership in self
             ])
         return super().write(vals)
@@ -204,7 +204,7 @@ class CrmTeamMember(models.Model):
         existing_to_archive = self.env['crm.team.member']
         for values in user_team_ids:
             existing_to_archive += user_memberships.get(values['user_id'], self.env['crm.team.member']).filtered(
-                lambda m: m.crm_team_id.id != values['crm_team_id']
+                lambda m, values=values: m.crm_team_id.id != values['crm_team_id']
             )
 
         if existing_to_archive:
