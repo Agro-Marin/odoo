@@ -31,23 +31,44 @@ def get_iso_codes(lang: str) -> str:
     return lang
 
 
+@functools.cache
+def _scan_languages() -> tuple[tuple[str, str], ...]:
+    """Parse ``base/data/res.lang.csv`` once per process.
+
+    The file is shipped data resolved through the addons path, which is fixed
+    after startup, so the result is a constant of the installation.  It is worth
+    memoizing because ``scan_languages`` backs the ``list_lang`` RPC verb, which
+    is reachable with no authentication and no master password.
+
+    Deliberately lets a read failure PROPAGATE instead of returning the English
+    fallback itself: ``functools.cache`` stores return values, not exceptions, so
+    handling the error in here would pin a transient failure — a half-deployed
+    addons directory, a momentary EIO — as this process's permanent answer.
+    :func:`scan_languages` owns the fallback, and the next call retries the read.
+    """
+    with file_open("base/data/res.lang.csv") as csvfile:
+        reader = csv.reader(csvfile, delimiter=",", quotechar='"')
+        fields = next(reader)
+        code_index = fields.index("code")
+        name_index = fields.index("name")
+        result = [(row[code_index], row[name_index]) for row in reader]
+
+    return tuple(sorted(result or [("en_US", "English")], key=itemgetter(1)))
+
+
 def scan_languages() -> list[tuple[str, str]]:
     """Return all languages supported by Odoo for translation.
 
     :returns: a list of (lang_code, lang_name) pairs
+
+    A fresh list over the memoized :func:`_scan_languages` parse, so callers keep
+    the mutable sequence the signature promises without sharing the cached value.
     """
     try:
-        with file_open("base/data/res.lang.csv") as csvfile:
-            reader = csv.reader(csvfile, delimiter=",", quotechar='"')
-            fields = next(reader)
-            code_index = fields.index("code")
-            name_index = fields.index("name")
-            result = [(row[code_index], row[name_index]) for row in reader]
+        return list(_scan_languages())
     except Exception:
         _logger.error("Could not read res.lang.csv")
-        result = []
-
-    return sorted(result or [("en_US", "English")], key=itemgetter(1))
+        return [("en_US", "English")]
 
 
 def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
