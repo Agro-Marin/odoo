@@ -125,8 +125,14 @@ class ProjectTaskRecurrence(models.Model):
         list_copy_data = (
             tasks.with_context(copy_project=True, active_test=False).sudo().copy_data()
         )
-        list_fields_to_copy = tasks._read_format(self._get_recurring_fields_to_copy())
-        list_fields_to_postpone = tasks._read_format(
+        # Read as sudo, like the copy above: a portal collaborator closing a
+        # recurring task may write `state` but cannot read `recurrence_id`, and
+        # `_read_format` yields False rather than raising -- which silently
+        # detached every occurrence they created from its recurrence.
+        list_fields_to_copy = tasks.sudo()._read_format(
+            self._get_recurring_fields_to_copy()
+        )
+        list_fields_to_postpone = tasks.sudo()._read_format(
             self._get_recurring_fields_to_postpone()
         )
 
@@ -138,6 +144,9 @@ class ProjectTaskRecurrence(models.Model):
             strict=True,
         ):
             recurrence = recurrence_by_task[task]
+            # `_read_format` always emits `id`; neither list may leak the source
+            # task's id into the create values.
+            fields_to_copy.pop("id", None)
             fields_to_postpone.pop("id", None)
             create_values = {
                 "priority": "0",
