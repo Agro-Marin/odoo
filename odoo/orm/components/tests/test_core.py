@@ -28,6 +28,7 @@ _DELEGATIONS = [
     ("add_patch", "cache", "add_patch", 3, False),
     ("get_patches", "cache", "get_patches", 1, True),
     ("iter_field_items", "cache", "iter_field_items", 0, True),
+    ("iter_context_caches", "cache", "iter_context_caches", 1, True),
     ("clear_cache", "cache", "clear", 0, False),
     ("schedule", "engine", "schedule", 2, False),
     ("mark_done", "engine", "mark_done", 2, False),
@@ -221,6 +222,52 @@ class TestOrmCoreCompute(unittest.TestCase):
         core = OrmCore(engine=ComputeEngine(pending_factory=TrackingSet))
         sched = core.new_scheduler()
         self.assertIsInstance(sched.to_recompute["field"], TrackingSet)
+
+
+class TestOrmCoreFindPendingWrite(unittest.TestCase):
+    """``find_pending_write`` is the shared guard for every drop-without-flush."""
+
+    def setUp(self) -> None:
+        self.core = OrmCore()
+        self.f_a = FakeField("res.partner", "a")
+        self.f_b = FakeField("res.partner", "b")
+
+    def test_none_when_nothing_dirty(self) -> None:
+        self.assertIsNone(self.core.find_pending_write([self.f_a], [1, 2]))
+
+    def test_ids_none_matches_any_dirty_entry(self) -> None:
+        self.core.mark_dirty(self.f_a, [7])
+        self.assertEqual(
+            self.core.find_pending_write([self.f_a], None), (self.f_a, [7])
+        )
+
+    def test_reports_only_the_overlap(self) -> None:
+        self.core.mark_dirty(self.f_a, [1, 5, 9])
+        self.assertEqual(
+            self.core.find_pending_write([self.f_a], [9, 5]), (self.f_a, [5, 9])
+        )
+
+    def test_iterator_ids_survive_a_clean_first_field(self) -> None:
+        """A one-shot *ids* iterator must not be drained by an earlier field.
+
+        ``f_a`` is dirty but disjoint from *ids*, so its ``intersection(ids)``
+        consumed the generator; ``f_b``'s real overlap was then checked against
+        an exhausted iterator and the guard silently returned ``None`` — exactly
+        the "pending write dropped without flushing" case it exists to prevent.
+        """
+        self.core.mark_dirty(self.f_a, [99])
+        self.core.mark_dirty(self.f_b, [1])
+        found = self.core.find_pending_write([self.f_a, self.f_b], (i for i in (1, 2)))
+        self.assertEqual(found, (self.f_b, [1]))
+
+    def test_iterator_ids_match_list_ids(self) -> None:
+        self.core.mark_dirty(self.f_a, [99])
+        self.core.mark_dirty(self.f_b, [1])
+        fields = [self.f_a, self.f_b]
+        self.assertEqual(
+            self.core.find_pending_write(fields, iter([1, 2])),
+            self.core.find_pending_write(fields, [1, 2]),
+        )
 
 
 class TestOrmCoreLifecycle(unittest.TestCase):

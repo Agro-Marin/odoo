@@ -268,6 +268,81 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.assertIsNone(self.cache.get_patches("line_ids"))
 
 
+class TestFieldCacheShapeAndIterables(unittest.TestCase):
+    """Iterator-safety and mixed flat/nested shape decoding.
+
+    Two seams that used to fail silently:
+
+    * ``invalidate(context_dependent=True)`` walks *ids* once per sub-cache, so
+      a one-shot iterator was drained by the flat-key pass and every
+      per-context pass then saw nothing — the cache kept stale values with no
+      error anywhere.
+    * A field that was written to while it was not yet context-dependent (the
+      module-setup window) keeps a flat ``{id: value}`` entry alongside the
+      tuple-keyed sub-caches.  ``all_cached_ids`` skips those; consumers that
+      decoded the raw dict themselves iterated the *scalar value* instead.
+    """
+
+    def _mixed_cache(self) -> FieldCache:
+        cache = FieldCache()
+        data = cache.get_field_data("G")
+        data[("en_US",)] = {1: "one_en", 2: "two_en"}
+        data[("es_MX",)] = {1: "one_es", 3: "three_es"}
+        data[99] = "stale-flat-value"  # setup-window leftover: a bare str
+        return cache
+
+    def test_invalidate_context_dependent_accepts_an_iterator(self) -> None:
+        cache = FieldCache()
+        data = cache.get_field_data("G")
+        data[("en_US",)] = {1: "one_en", 2: "two_en"}
+        data[("es_MX",)] = {1: "one_es", 2: "two_es"}
+        cache.invalidate("G", (i for i in (1, 2)), context_dependent=True)
+        self.assertEqual(data[("en_US",)], {})
+        self.assertEqual(data[("es_MX",)], {})
+
+    def test_invalidate_context_dependent_iterator_matches_list(self) -> None:
+        def build():
+            cache = FieldCache()
+            data = cache.get_field_data("G")
+            data[("en_US",)] = {1: "a", 2: "b", 3: "c"}
+            data[("es_MX",)] = {1: "d", 3: "e"}
+            return cache, data
+
+        cache_list, data_list = build()
+        cache_list.invalidate("G", [1, 3], context_dependent=True)
+        cache_iter, data_iter = build()
+        cache_iter.invalidate("G", iter([1, 3]), context_dependent=True)
+        self.assertEqual(data_iter, data_list)
+
+    def test_all_cached_ids_skips_stale_flat_entry(self) -> None:
+        cache = self._mixed_cache()
+        ids = cache.all_cached_ids("G", context_dependent=True)
+        self.assertEqual(set(ids), {1, 2, 3})
+
+    def test_iter_context_caches_skips_stale_flat_entry(self) -> None:
+        cache = self._mixed_cache()
+        pairs = dict(cache.iter_context_caches("G"))
+        self.assertEqual(
+            pairs,
+            {
+                ("en_US",): {1: "one_en", 2: "two_en"},
+                ("es_MX",): {1: "one_es", 3: "three_es"},
+            },
+        )
+
+    def test_iter_context_caches_yields_live_sub_dicts(self) -> None:
+        cache = self._mixed_cache()
+        for _key, sub in cache.iter_context_caches("G"):
+            sub.pop(1, None)
+        data = cache.get_field_data("G")
+        self.assertEqual(data[("en_US",)], {2: "two_en"})
+        self.assertEqual(data[("es_MX",)], {3: "three_es"})
+
+    def test_iter_context_caches_on_unknown_field(self) -> None:
+        cache = FieldCache()
+        self.assertEqual(list(cache.iter_context_caches("nope")), [])
+
+
 class TestFieldCacheIntrospection(unittest.TestCase):
     """Test iteration and repr."""
 

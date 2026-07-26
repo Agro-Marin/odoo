@@ -21,7 +21,7 @@ import typing
 from pprint import pformat
 
 from odoo.exceptions import CacheMiss
-from odoo.tools import SQL, OrderedSet, Query, frozendict
+from odoo.tools import SQL, OrderedSet, Query
 from odoo.tools.misc import PENDING, SENTINEL
 
 if typing.TYPE_CHECKING:
@@ -32,8 +32,6 @@ if typing.TYPE_CHECKING:
     from .transaction import Transaction
 
 _logger = logging.getLogger("odoo.api")
-
-EMPTY_DICT = frozendict()
 
 
 class Cache:
@@ -75,7 +73,7 @@ class Cache:
                         )
                         for id_, val in key_cache.items()
                     }
-                    for key, key_cache in field_cache.items()
+                    for key, key_cache in core.iter_context_caches(field)
                 }
             else:
                 data[field] = {
@@ -211,11 +209,8 @@ class Cache:
         """
         ids: Iterable
         if all_contexts and field in model.pool.field_depends_context:
-            field_cache = (
-                self.transaction.core.get_field_data_or_none(field) or EMPTY_DICT
-            )
             ids = OrderedSet(
-                id_ for sub_cache in field_cache.values() for id_ in sub_cache
+                self.transaction.core.all_cached_ids(field, context_dependent=True)
             )
         else:
             ids = self._get_field_cache(model, field)
@@ -335,7 +330,7 @@ class Cache:
 
             model = env[field.model_name]
             if field in depends_context:
-                for context_keys, inner_cache in field_cache.items():
+                for context_keys, inner_cache in core.iter_context_caches(field):
                     context = dict(
                         zip(depends_context[field], context_keys, strict=True)
                     )

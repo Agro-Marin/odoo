@@ -31,6 +31,7 @@ descriptors, translations). OrmCore has zero Odoo imports and is testable with
 pure Python.
 """
 
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from .cache import FieldCache
@@ -38,7 +39,7 @@ from .compute import ComputeEngine
 from .recompute import RecomputeScheduler
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Iterator, Mapping
+    from collections.abc import Collection, Iterable, Mapping
 
 
 class OrmCore:
@@ -75,7 +76,7 @@ class OrmCore:
     def invalidate(
         self,
         field: Any,
-        ids: Collection | None = None,
+        ids: Iterable | None = None,
         *,
         context_dependent: bool,
     ) -> None:
@@ -94,6 +95,14 @@ class OrmCore:
         Spans all contexts. See :meth:`FieldCache.all_cached_ids`.
         """
         return self.cache.all_cached_ids(field, context_dependent=context_dependent)
+
+    def iter_context_caches(self, field: Any) -> Iterator[tuple[tuple, dict]]:
+        """Iterate ``(context_key, sub_cache)`` pairs of a context-dependent *field*.
+
+        Shape-aware companion of :meth:`all_cached_ids`; see
+        :meth:`FieldCache.iter_context_caches`.
+        """
+        return self.cache.iter_context_caches(field)
 
     def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*."""
@@ -120,7 +129,7 @@ class OrmCore:
         return self.cache.is_any_dirty()
 
     def find_pending_write(
-        self, fields: Iterable[Any], ids: Collection | None
+        self, fields: Iterable[Any], ids: Iterable | None
     ) -> tuple[Any, list] | None:
         """Return the first ``(field, dirty_ids)`` with a pending write, or ``None``.
 
@@ -138,7 +147,13 @@ class OrmCore:
 
         ``ids is None`` means "every record of the field", so any dirty entry
         counts.
+
+        *ids* is consumed once per dirty field, so a one-shot iterator is
+        materialized first; without that a later field is matched against an
+        exhausted iterator and the guard silently passes.
         """
+        if isinstance(ids, Iterator):
+            ids = tuple(ids)
         for field in fields:
             dirty_ids = self.cache.get_dirty(field)
             if not dirty_ids:
