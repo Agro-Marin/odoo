@@ -20,7 +20,6 @@ from unittest.mock import patch
 
 from odoo.db import lifecycle
 from odoo.db.lifecycle import (
-    _HEALTHCHECK_GRACE_PERIOD,
     _IDLE_SINCE_ATTR,
     _PREPARE_THRESHOLD,
     _PREPARED_MAX,
@@ -149,6 +148,8 @@ class TestResetConnection(unittest.TestCase):
 class TestCheckConnection(unittest.TestCase):
     """The grace window trades a probe round-trip for a bounded staleness risk."""
 
+    GRACE = 1.0
+
     def setUp(self):
         self.probed: list[object] = []
 
@@ -159,23 +160,38 @@ class TestCheckConnection(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def _check(self, conn, grace=GRACE):
+        with patch.object(lifecycle.tools, "config", {"db_healthcheck_grace": grace}):
+            _check_connection(conn)
+
     def test_recently_released_connection_skips_the_probe(self):
         conn = _FakeConn()
         setattr(conn, _IDLE_SINCE_ATTR, monotonic())
-        _check_connection(conn)
+        self._check(conn)
         self.assertEqual(self.probed, [], "a just-released connection was alive")
 
     def test_connection_idle_past_the_window_is_probed(self):
         conn = _FakeConn()
-        stale = monotonic() - (_HEALTHCHECK_GRACE_PERIOD + 1)
-        setattr(conn, _IDLE_SINCE_ATTR, stale)
-        _check_connection(conn)
+        setattr(conn, _IDLE_SINCE_ATTR, monotonic() - (self.GRACE + 1))
+        self._check(conn)
         self.assertEqual(self.probed, [conn])
 
     def test_unstamped_connection_fails_safe_to_the_probe(self):
         conn = _FakeConn()
-        _check_connection(conn)
+        self._check(conn)
         self.assertEqual(self.probed, [conn], "unknown liveness must be verified")
+
+    def test_zero_grace_probes_every_borrow(self):
+        conn = _FakeConn()
+        setattr(conn, _IDLE_SINCE_ATTR, monotonic())
+        self._check(conn, grace=0)
+        self.assertEqual(self.probed, [conn], "grace 0 must disable the window")
+
+    def test_a_wider_grace_spares_a_longer_idle_connection(self):
+        conn = _FakeConn()
+        setattr(conn, _IDLE_SINCE_ATTR, monotonic() - 30)
+        self._check(conn, grace=60)
+        self.assertEqual(self.probed, [])
 
 
 if __name__ == "__main__":

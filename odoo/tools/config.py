@@ -794,6 +794,38 @@ class configmanager:
             type="int",
         )
         group.add_option(
+            "--db_replica_max_lag",
+            dest="db_replica_max_lag",
+            type="float",
+            my_default=0.0,
+            env_name="ODOO_DB_REPLICA_MAX_LAG",
+            help="seconds of apply lag above which read-only requests are sent "
+            "to the primary instead of the replica. 0 (default) never checks, "
+            "so a replica serves reads however far behind it is. The lag is "
+            "sampled at most every max(1, value/4) seconds and the verdict "
+            "cached, so an enabled ceiling costs one extra query per sample, "
+            "not per request. Bounds apply lag only: WAL the standby has not "
+            "received is indistinguishable from an idle primary without asking "
+            "the primary, which would defeat the point of reading elsewhere",
+        )
+        group.add_option(
+            "--db_replica_user",
+            dest="db_replica_user",
+            my_default=None,
+            env_name="PGUSER_REPLICA",
+            help="specify the replica database user, when it differs from the "
+            "primary's. Empty (default) reuses db_user",
+        )
+        group.add_option(
+            "--db_replica_password",
+            dest="db_replica_password",
+            my_default=None,
+            env_name="PGPASSWORD_REPLICA",
+            cli_loadable=False,
+            help="specify the replica database password, when it differs from "
+            "the primary's. Empty (default) reuses db_password",
+        )
+        group.add_option(
             "--db_sslmode",
             dest="db_sslmode",
             type="choice",
@@ -810,6 +842,23 @@ class configmanager:
             help="specify the database ssl connection mode (see PostgreSQL documentation)",
         )
         group.add_option(
+            "--db_replica_sslmode",
+            dest="db_replica_sslmode",
+            type="choice",
+            my_default=None,
+            env_name="PGSSLMODE_REPLICA",
+            choices=[
+                "disable",
+                "allow",
+                "prefer",
+                "require",
+                "verify-ca",
+                "verify-full",
+            ],
+            help="specify the replica ssl connection mode, when it differs from "
+            "the primary's. Empty (default) reuses db_sslmode",
+        )
+        group.add_option(
             "--db_app_name",
             dest="db_app_name",
             my_default="odoo-{pid}",
@@ -821,12 +870,27 @@ class configmanager:
             dest="db_maxconn",
             type="int",
             my_default=64,
-            help="specify the maximum number of physical connections to PostgreSQL "
-            "checked out at once by this process. Shared by the read/write and "
-            "read-only pools together (not per-pool), so this is the number to "
-            "size PostgreSQL max_connections against — multiplied by the worker "
+            help="specify the maximum number of physical connections checked out "
+            "at once by this process, per PostgreSQL server. The read/write and "
+            "read-only pools share one budget while they target the same server "
+            "(no replica, test_enable, dev_mode=replica), and get one each once "
+            "db_replica_host resolves elsewhere — so this is the number to size "
+            "each server's max_connections against, multiplied by the worker "
             "count, plus the idle connections each per-database pool may keep "
-            "for db_conn_max_idle",
+            "for db_conn_max_idle. See db_maxconn_replica to size the replica "
+            "independently",
+        )
+        group.add_option(
+            "--db_maxconn_replica",
+            dest="db_maxconn_replica",
+            type="int",
+            my_default=None,
+            env_name="ODOO_DB_MAXCONN_REPLICA",
+            help="specify the maximum number of physical connections checked "
+            "out at once against the read replica. Empty (default) gives it the "
+            "same ceiling as db_maxconn. Ignored unless db_replica_host resolves "
+            "to a different host/port than db_host: when the read-only pool "
+            "targets the primary, both pools share that server's single budget",
         )
         group.add_option(
             "--db_maxconn_gevent",
@@ -904,7 +968,51 @@ class configmanager:
             help="issue DISCARD ALL when a connection returns to the pool, fully "
             "isolating session state (temp tables, GUCs, LISTEN, advisory locks) "
             "between borrowers at the cost of the prepared-statement cache. Enable "
-            "on multi-tenant hosts needing hard isolation (default off)",
+            "on multi-tenant hosts needing hard isolation (default off). Either way "
+            "a session reset costs one round-trip per transaction (measured ~29us "
+            "over a unix socket, ~25%% of a bare cursor open/query/commit/close "
+            "cycle; one network RTT elsewhere) — the price of not leaking session "
+            "state between borrowers",
+        )
+        group.add_option(
+            "--db_session_gucs",
+            dest="db_session_gucs",
+            my_default="jit=off,work_mem=16MB",
+            env_name="ODOO_DB_SESSION_GUCS",
+            help="comma-separated GUC=value pairs applied to every pooled "
+            "connection via the libpq options string. A GUC already set by the "
+            "operator (explicit options kwarg, URI ?options=, or PGOPTIONS) is "
+            "left alone, so this sets defaults rather than overriding "
+            "deployment choices. Values cannot contain a comma; set such GUCs "
+            "through PGOPTIONS instead. Set empty to apply none",
+        )
+        group.add_option(
+            "--db_leak_detection",
+            dest="db_leak_detection",
+            type="float",
+            my_default=0.0,
+            env_name="ODOO_DB_LEAK_DETECTION",
+            help="seconds a connection may stay checked out before the pool "
+            "logs it as a suspected leak. 0 (default) never warns. Which thread "
+            "holds each connection and where it was borrowed are recorded "
+            "either way — they cost less than the tracking itself and are what "
+            "let a db_maxconn exhaustion name its culprits — so this sets only "
+            "when to complain. Set to a few minutes where cursors are suspected "
+            "of outliving their request",
+        )
+        group.add_option(
+            "--db_healthcheck_grace",
+            dest="db_healthcheck_grace",
+            type="float",
+            my_default=1.0,
+            env_name="ODOO_DB_HEALTHCHECK_GRACE",
+            help="seconds a pooled connection released this recently skips the "
+            "liveness probe on the next borrow. The probe is a server round-trip "
+            "on every checkout; a connection released moments ago was provably "
+            "alive then. Raise on low-traffic multi-tenant hosts, where nearly "
+            "every borrow pays it, at the cost of handing out a connection that "
+            "died within the window (it fails on first use and is discarded). "
+            "0 probes every borrow (default 1.0)",
         )
         parser.add_option_group(group)
 

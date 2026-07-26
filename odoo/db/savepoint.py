@@ -16,7 +16,7 @@ dependency one-directional.
 from __future__ import annotations
 
 import itertools
-from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, Self
 
 if TYPE_CHECKING:
     from .cursor import BaseCursor
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 _savepoint_counter = itertools.count()
 
 
-@runtime_checkable
 class SavepointHost(Protocol):
     """What :class:`Savepoint` actually requires of the object it is given.
 
@@ -39,6 +38,11 @@ class SavepointHost(Protocol):
     Naming that contract makes both halves honest — ``execute`` is required,
     ``_savepoint_depth`` and ``_on_rollback_to_savepoint`` are the extras a full
     :class:`~odoo.db.cursor.BaseCursor` adds and a raw cursor does not.
+
+    Deliberately not ``@runtime_checkable``: nothing ``isinstance``-checks it,
+    and the decorator would advertise a structural check that would in any case
+    only verify ``execute`` exists — not the optional members that are the whole
+    reason this Protocol is written down.
     """
 
     def execute(self, query: Any, /, *args: Any, **kwargs: Any) -> Any:
@@ -62,6 +66,8 @@ class Savepoint:
     """
 
     __slots__ = ("_cr", "closed", "name")
+
+    _restores_orm_state: bool = False
 
     def __init__(self, cr: SavepointHost):
         self.name = f"sp{next(_savepoint_counter)}"
@@ -124,8 +130,6 @@ class _FlushingSavepoint(Savepoint):
 
     if TYPE_CHECKING:
         _cr: BaseCursor
-
-    _restores_orm_state: bool = False
 
     def __init__(self, cr: BaseCursor) -> None:
         cr.flush()

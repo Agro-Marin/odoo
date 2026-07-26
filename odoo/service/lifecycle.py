@@ -243,10 +243,16 @@ def _limit_malloc_arenas() -> None:
 def _connection_budget_demand() -> tuple[int, int]:
     """Return ``(processes, connections)`` this deployment may demand at once.
 
-    ``db_maxconn`` is a PER-PROCESS budget, so prefork multiplies it by every
-    child that opens pools: the HTTP workers, the cron and job workers, and the
-    evented subprocess (which uses ``db_maxconn_gevent`` when set).  The master
-    is excluded — it calls ``db.close_all()`` before its supervision loop.
+    ``db_maxconn`` is a PER-PROCESS, PER-SERVER budget, so prefork multiplies it
+    by every child that opens pools: the HTTP workers, the cron and job workers,
+    and the evented subprocess (which uses ``db_maxconn_gevent`` when set).  The
+    master is excluded — it calls ``db.close_all()`` before its supervision loop.
+
+    The figure returned is the demand on the **primary**, which is the server
+    this check can reach.  A configured read replica carries its own budget
+    against its own ``max_connections`` (see :func:`odoo.db._budget_for`) and is
+    not counted here: probing it would mean a connect to a possibly-absent host
+    on the boot path, which is not a trade a diagnostic should make.
     """
     maxconn = config["db_maxconn"]
     if not config["workers"]:
@@ -298,11 +304,12 @@ def _warn_on_connection_budget() -> None:
     if demand <= headroom:
         return
     _logger.warning(
-        "Connection budget exceeds the server: %d process(es) x db_maxconn may "
+        "Connection budget exceeds the primary: %d process(es) x db_maxconn may "
         "check out %d connections, but PostgreSQL allows %d (max_connections=%d "
         "minus superuser_reserved_connections=%d). Under load this surfaces as "
         "'FATAL: sorry, too many clients already'. Lower db_maxconn to %d or "
-        "less, reduce the worker count, or raise max_connections.",
+        "less, reduce the worker count, or raise max_connections. A read replica "
+        "is budgeted separately and is not included in this figure.",
         processes,
         demand,
         headroom,

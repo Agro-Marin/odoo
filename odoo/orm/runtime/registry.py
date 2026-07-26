@@ -15,6 +15,8 @@ import psycopg
 from psycopg import sql as psycopg_sql
 
 from odoo import db
+from odoo.db.breaker import CircuitBreaker
+from odoo.db.lag import LAG_SQL, ReplicaLagGate
 from odoo.libs import gc
 from odoo.libs.func import locked, reset_cached_properties
 from odoo.libs.lru import LRU
@@ -69,6 +71,14 @@ _CACHES_BY_KEY = {
 }
 
 _REPLICA_RETRY_TIME = 20 * 60
+"""Ceiling on the replica breaker's backoff.
+
+Was a flat window: one failure sent every readonly request to the primary for
+the full 20 minutes, with nothing re-checking, so a transient blip cost 20
+minutes of primary load and recovery was waited out rather than detected.  It is
+now the *maximum* a doubling backoff reaches, so the worst case is unchanged
+while a blip recovers in about a second.
+"""
 
 _SIGNALING_TABLES = tuple(
     f"orm_signaling_{cache_name}" for cache_name in ["registry", *_CACHES_BY_KEY]
@@ -316,7 +326,8 @@ class Registry(
         self.db_name = db_name
         self._db: Connection = db.db_connect(db_name, readonly=False)
         self._db_readonly: Connection | None = None
-        self._db_readonly_failed_time: float | None = None
+        self._replica_breaker = CircuitBreaker(max_cooldown=_REPLICA_RETRY_TIME)
+        self._replica_lag = ReplicaLagGate(config["db_replica_max_lag"] or 0.0)
         if (
             config["db_replica_host"]
             or config["test_enable"]
@@ -901,6 +912,36 @@ class Registry(
                 self._clear_cache_group(cache_name)
             self.cache_invalidated.clear()
 
+    def _sample_replica_lag(self, cr: BaseCursor) -> None:
+        """Measure the replica's apply lag on *cr* and update the gate.
+
+        Runs on a cursor already borrowed for the request, so an enabled ceiling
+        costs one extra query per sample interval rather than a connection.  A
+        measurement that raises is recorded as healthy: refusing reads because
+        the *question* failed would demote on no evidence, and a replica that
+        cannot answer is one whose failure the breaker sees on the next borrow.
+        """
+        try:
+            cr.execute(LAG_SQL)
+            measured = cr.fetchone()[0]
+        except Exception:
+            _logger.debug("Could not measure replica lag", exc_info=True)
+            measured = None
+        was_allowed = self._replica_lag.allows()
+        self._replica_lag.record(measured)
+        if was_allowed and not self._replica_lag.allows():
+            _logger.warning(
+                "Replica %.1fs behind (db_replica_max_lag=%.1fs); serving "
+                "readonly requests from the primary until it catches up",
+                self._replica_lag.last_lag,
+                self._replica_lag.max_lag,
+            )
+        elif not was_allowed and self._replica_lag.allows():
+            _logger.info(
+                "Replica caught up (%.1fs behind); resuming readonly cursors",
+                self._replica_lag.last_lag,
+            )
+
     def cursor(self, /, readonly: bool = False) -> BaseCursor:
         """Return a new cursor for the database. The cursor itself may be used
         as a context manager to commit/rollback and close automatically.
@@ -912,23 +953,33 @@ class Registry(
         if readonly and self._db_readonly is not None:
             thread = threading.current_thread()
             in_request = hasattr(thread, "cursor_mode")
-            if (
-                self._db_readonly_failed_time is None
-                or time.monotonic()
-                > self._db_readonly_failed_time + _REPLICA_RETRY_TIME
-            ):
+            lag = self._replica_lag
+            sample_due = lag.due_for_sample()
+            if (lag.allows() or sample_due) and self._replica_breaker.allow():
                 try:
                     cr = self._db_readonly.cursor()
-                    self._db_readonly_failed_time = None
-                    if in_request:
-                        thread.cursor_mode = "ro"
-                    return cr
                 except psycopg.OperationalError, db.PoolError:
-                    self._db_readonly_failed_time = time.monotonic()
+                    self._replica_breaker.record_failure()
                     _logger.warning(
-                        "Failed to open a readonly cursor, falling back to read-write cursor for %dmin %dsec",
-                        *divmod(_REPLICA_RETRY_TIME, 60),
+                        "Failed to open a readonly cursor, falling back to the "
+                        "read-write cursor and retrying the replica in %.0fs "
+                        "(failure %d)",
+                        self._replica_breaker.cooldown_remaining,
+                        self._replica_breaker.failures,
                     )
+                else:
+                    if not self._replica_breaker.closed:
+                        _logger.info(
+                            "Replica reachable again, resuming readonly cursors"
+                        )
+                    self._replica_breaker.record_success()
+                    if sample_due:
+                        self._sample_replica_lag(cr)
+                    if lag.allows():
+                        if in_request:
+                            thread.cursor_mode = "ro"
+                        return cr
+                    cr.close()
             if in_request:
                 thread.cursor_mode = "ro->rw"
         return self._db.cursor()

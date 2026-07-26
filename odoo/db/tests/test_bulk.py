@@ -14,7 +14,12 @@ binary/text encoding of exotic column types — lives in
 import unittest
 from typing import Any
 
-from odoo.db.bulk import _NUMERIC_OID, _TEXT_OID, _BulkAccessMixin
+from odoo.db.bulk import (
+    _NUMERIC_OID,
+    _TEXT_OID,
+    _BulkAccessMixin,
+    _table_identifier,
+)
 
 
 class TestCopyFromValidation(unittest.TestCase):
@@ -99,3 +104,78 @@ class TestTypeOidConstants(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTableIdentifier(unittest.TestCase):
+    """One resolution of the caller's table name, for every consumer of it.
+
+    ``copy_from`` used to reach the same table two incompatible ways: the lock
+    and the COPY quoted it as a single identifier, while the catalog lookups
+    passed the raw string through ``::regclass``/``pg_get_serial_sequence``,
+    which parse and case-fold.  Verified against PG 18: ``'MyTable'::regclass``
+    resolves ``mytable`` while ``COPY "MyTable"`` targets a different relation,
+    so binary COPY encoded with one table's types and wrote into another's
+    columns (``int4`` read as ``oid``: 4000000000 stored as -294967296).
+    """
+
+    def _rendered(self, table):
+        return _table_identifier(table).as_string(None)
+
+    def test_plain_name_is_quoted(self):
+        self.assertEqual(self._rendered("res_partner"), '"res_partner"')
+
+    def test_mixed_case_is_preserved_not_folded(self):
+        self.assertEqual(self._rendered("MyTable"), '"MyTable"')
+
+    def test_schema_qualified_name_becomes_two_identifiers(self):
+        self.assertEqual(self._rendered("s1.t"), '"s1"."t"')
+
+    def test_quotes_in_a_name_cannot_break_out(self):
+        self.assertEqual(self._rendered('ev"il'), '"ev""il"')
+
+
+class _FractionOnly(_BulkAccessMixin):
+    """Isolates the numeric-fraction rule from the dumper probe."""
+
+    def _can_dump_binary(self, oids):
+        return True
+
+
+class TestBinaryPaysOff(unittest.TestCase):
+    """Binary COPY is chosen on measured cost, not on 'is it possible'.
+
+    psycopg has no float-to-numeric binary dumper, so every numeric cell costs a
+    ``Decimal`` conversion.  Measured on 20k rows x 20 columns (PG 18, psycopg
+    3.3.4) binary beats text at 0-5 numeric columns (-60% to -9%) and loses from
+    6 (+15%, rising to +291% at 20), so the crossover sits at a quarter of the
+    row.
+    """
+
+    def setUp(self):
+        self.bulk: Any = _FractionOnly()
+
+    def _oids(self, numeric, total=20):
+        return [_NUMERIC_OID] * numeric + [_TEXT_OID] * (total - numeric)
+
+    def test_no_numeric_columns_uses_binary(self):
+        self.assertTrue(self.bulk._binary_pays_off(self._oids(0)))
+
+    def test_a_few_numeric_columns_still_uses_binary(self):
+        for n in (1, 2, 3, 4, 5):
+            with self.subTest(numeric=n):
+                self.assertTrue(self.bulk._binary_pays_off(self._oids(n)))
+
+    def test_numeric_heavy_rows_fall_back_to_text(self):
+        for n in (6, 8, 20):
+            with self.subTest(numeric=n):
+                self.assertFalse(self.bulk._binary_pays_off(self._oids(n)))
+
+    def test_all_numeric_falls_back_however_narrow_the_row(self):
+        self.assertFalse(self.bulk._binary_pays_off([_NUMERIC_OID]))
+
+    def test_an_undumpable_column_vetoes_binary_regardless_of_fraction(self):
+        class _NoDumper(_BulkAccessMixin):
+            def _can_dump_binary(self, oids):
+                return False
+
+        self.assertFalse(_NoDumper()._binary_pays_off([_TEXT_OID] * 20))

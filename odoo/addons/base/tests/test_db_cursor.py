@@ -26,7 +26,6 @@ from odoo.db.cursor import (
     _FlushingSavepoint,
 )
 from odoo.db.lifecycle import (
-    _HEALTHCHECK_GRACE_PERIOD,
     _IDLE_SINCE_ATTR,
     _RESET_SESSION_STATE_SQL,
 )
@@ -40,6 +39,7 @@ from odoo.db.pool import (
     _reset_connection,
     _SuppressKnownPoolWarnings,
 )
+from odoo.db.reaper import checked_out as reaper_checked_out
 from odoo.db.utils import categorize_query, connection_info_for
 from odoo.modules.registry import Registry
 from odoo.service.db import exp_drop
@@ -1617,8 +1617,8 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(pool._borrow_timeout, 12.5)
         self.assertEqual(pool._max_lifetime, 1234)
         self.assertEqual(pool._max_idle, 77)
-        self.assertEqual(pool._reap_idle_ttl, 88.0)
-        self.assertEqual(pool._reap_check_interval, 22.0)
+        self.assertEqual(pool._reaper.ttl, 88.0)
+        self.assertEqual(pool._reaper.check_interval, 22.0)
         pool.close_all()
 
     def test_tuning_defaults_match_constants(self):
@@ -1627,16 +1627,16 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(pool._borrow_timeout, pool_module._DEFAULT_BORROW_TIMEOUT)
         self.assertEqual(pool._max_lifetime, pool_module._DEFAULT_MAX_LIFETIME)
         self.assertEqual(pool._max_idle, pool_module._DEFAULT_MAX_IDLE)
-        self.assertEqual(pool._reap_idle_ttl, pool_module._DEFAULT_REAP_IDLE_TTL)
+        self.assertEqual(pool._reaper.ttl, pool_module._DEFAULT_REAP_IDLE_TTL)
         pool.close_all()
 
     def test_reap_check_interval_disabled_when_ttl_zero(self):
         pool = ConnectionPool(maxconn=1, reap_idle_ttl=0.0)
-        self.assertEqual(pool._reap_check_interval, 0.0)
+        self.assertEqual(pool._reaper.check_interval, 0.0)
         pool.close_all()
 
     def test_checked_out_formula(self):
-        """_checked_out is the single source of truth for size - available,
+        """reaper.checked_out is the single source of truth for size - available,
         tolerating missing stat keys (treated as 0)."""
 
         class _StubPool:
@@ -1647,18 +1647,14 @@ class TestPoolBasics(BaseCase):
                 return self._stats
 
         self.assertEqual(
-            ConnectionPool._checked_out(
-                _StubPool({"pool_size": 5, "pool_available": 2})
-            ),
+            reaper_checked_out(_StubPool({"pool_size": 5, "pool_available": 2})),
             3,
         )
         self.assertEqual(
-            ConnectionPool._checked_out(
-                _StubPool({"pool_size": 4, "pool_available": 4})
-            ),
+            reaper_checked_out(_StubPool({"pool_size": 4, "pool_available": 4})),
             0,
         )
-        self.assertEqual(ConnectionPool._checked_out(_StubPool({})), 0)
+        self.assertEqual(reaper_checked_out(_StubPool({})), 0)
 
     def test_repr_does_not_deadlock_under_lock(self):
         """__repr__ runs from logging inside _debug() while self._lock is held
@@ -2376,25 +2372,23 @@ class TestURIMalformedWarning(BaseCase):
 
 
 class TestClosedCursorAttributeAccess(BaseCase):
-    """Accessing ANY attribute on a closed cursor should raise InterfaceError
-    cleanly, without emitting a misleading DeprecationWarning about the
-    attribute name en route."""
+    """Accessing ANY attribute on a closed cursor reports the *closure*, not the
+    attribute name.  "Cursor already closed" is the actionable fact; an
+    ``AttributeError`` about the name would send the reader hunting for a typo
+    that is not there."""
 
     def test_unknown_attr_on_closed_cursor_raises_cleanly(self):
         cr = registry().cursor()
         cr.close()
-        with warnings.catch_warnings(record=True) as captured:
-            warnings.simplefilter("always")
-            with self.assertRaises(psycopg.InterfaceError):
-                cr.some_nonexistent_attr
-        dep_warnings = [
-            w for w in captured if issubclass(w.category, DeprecationWarning)
-        ]
-        self.assertEqual(
-            dep_warnings,
-            [],
-            "Closed-cursor attribute access should not emit DeprecationWarning",
-        )
+        with self.assertRaises(psycopg.InterfaceError):
+            cr.some_nonexistent_attr
+
+    def test_closure_is_reported_before_the_unknown_name(self):
+        cr = registry().cursor()
+        cr.close()
+        with self.assertRaises(psycopg.InterfaceError) as ctx:
+            _ = cr.row_factory
+        self.assertIn("closed", str(ctx.exception).lower())
 
 
 class TestCloseKeepsHealthyConnections(BaseCase):
@@ -2655,7 +2649,7 @@ class TestResetConnectionRestoresPrepare(BaseCase):
 class TestHealthCheckGracePeriod(BaseCase):
     """The per-borrow liveness probe (``_check_connection``) is a server
     round-trip, gated on an idle grace window: a connection released within
-    ``_HEALTHCHECK_GRACE_PERIOD`` skips it (provably alive then); a longer-idle
+    ``db_healthcheck_grace`` skips it (provably alive then); a longer-idle
     one is probed so a backend that died while parked (restart, failover,
     ``pg_terminate_backend``) is discarded before reaching a borrower.
     ``configure``/``reset`` stamp freshness; a missing stamp fails safe to probe.
@@ -2673,9 +2667,13 @@ class TestHealthCheckGracePeriod(BaseCase):
         probe.assert_not_called()
 
     def test_idle_connection_is_probed(self):
+        from odoo.tools import config
+
         conn = self._Bare()
         setattr(
-            conn, _IDLE_SINCE_ATTR, time.monotonic() - _HEALTHCHECK_GRACE_PERIOD - 1
+            conn,
+            _IDLE_SINCE_ATTR,
+            time.monotonic() - config["db_healthcheck_grace"] - 1,
         )
         with patch("odoo.db.pool._PsycopgPool.check_connection") as probe:
             _check_connection(conn)
@@ -4085,12 +4083,18 @@ class TestCopyFromBinaryNumeric(BaseCase):
 
 
 class TestCursorForwardingContract(BaseCase):
-    """Lock the cursor's public forwarding surface.  mypy covers ``odoo.db``
-    (``mypy.ini`` / ``.github/workflows/py_typecheck.yml``), but it cannot see
-    through ``__getattr__``, so the DeprecationWarning stays the only runtime
-    signal that a caller reached a non-forwarded psycopg attribute.  Pin the
-    contract: the curated forwards must not warn, a known non-forwarded attr
-    must, and dunder probes must do neither.
+    """Lock the cursor's public surface.
+
+    Anything outside it now RAISES rather than warning-and-forwarding.  The old
+    behaviour meant an unknown attribute silently worked, so a wrapper cursor
+    could reach raw psycopg through two layers of ``__getattr__`` with none of
+    the bookkeeping in between — which is how the ``TestCursor`` bulk-write
+    savepoint bypass survived.  A ``DeprecationWarning`` is invisible in a
+    passing run; an ``AttributeError`` is not.
+
+    Pin the contract: the curated forwards resolve, a non-forwarded psycopg
+    attribute raises, and dunder probes report absent without raising anything
+    a protocol negotiation would choke on.
     """
 
     FORWARDED = (
@@ -4104,33 +4108,29 @@ class TestCursorForwardingContract(BaseCase):
         "readonly",
     )
 
-    def test_forwarded_names_do_not_warn(self):
+    def test_forwarded_names_resolve(self):
         with registry().cursor() as cr:
             cr.execute("SELECT 1")
             for name in self.FORWARDED:
-                with warnings.catch_warnings(record=True) as w:
-                    warnings.simplefilter("always")
+                with self.subTest(name=name):
                     getattr(cr, name)
-                offenders = [
-                    str(x.message)
-                    for x in w
-                    if issubclass(x.category, DeprecationWarning)
-                    and "Odoo cursor API" in str(x.message)
-                ]
-                self.assertEqual(offenders, [], f"{name} unexpectedly warned")
 
-    def test_non_forwarded_attr_warns(self):
+    def test_non_forwarded_attr_raises(self):
         with registry().cursor() as cr:
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
+            with self.assertRaises(AttributeError) as ctx:
                 _ = cr.row_factory
-            msgs = [
-                str(x.message)
-                for x in w
-                if issubclass(x.category, DeprecationWarning)
-                and "Odoo cursor API" in str(x.message)
-            ]
-            self.assertEqual(len(msgs), 1, f"expected one warning, got {msgs}")
+            message = str(ctx.exception)
+            self.assertIn("row_factory", message)
+            self.assertIn("cr._obj.row_factory", message, "point at the escape hatch")
+
+    def test_it_no_longer_silently_forwards_to_psycopg(self):
+        """The whole point: reaching psycopg must be deliberate, not accidental."""
+        with registry().cursor() as cr:
+            with self.assertRaises(AttributeError):
+                _ = cr.scroll
+            self.assertTrue(
+                callable(cr._obj.scroll), "the deliberate route still works"
+            )
 
     UNDEFINED_DUNDERS = ("__len__", "__iter__", "__next__", "__fspath__")
 
@@ -4761,15 +4761,23 @@ class TestDdlInvalidatesPreparedPlan(BaseCase):
 
 
 class TestReplicaConnectionInfo(BaseCase):
-    """A read-only replica overrides only host/port (the registered
-    ``db_replica_*`` options); user/password/sslmode are inherited from the
-    primary ``db_*`` config, since no ``db_replica_user`` (etc.) option exists.
+    """Every connection keyword is replica-overridable, and inherits when unset.
+
+    Only host and port used to be, so a replica needing its own role — a
+    read-only login, or a managed instance with separate credentials — could not
+    be configured: the replica DSN silently carried the primary's user and
+    password, and the refused connection said nothing about why.
     """
 
-    def test_readonly_overrides_host_port_inherits_credentials(self):
+    def _saved(self, *keys):
         from odoo.tools import config
 
-        keys = (
+        saved = {k: config[k] for k in keys}
+        self.addCleanup(lambda: [config.__setitem__(k, v) for k, v in saved.items()])
+        return config
+
+    def test_readonly_overrides_every_keyword_when_set(self):
+        config = self._saved(
             "db_host",
             "db_port",
             "db_user",
@@ -4777,27 +4785,403 @@ class TestReplicaConnectionInfo(BaseCase):
             "db_sslmode",
             "db_replica_host",
             "db_replica_port",
+            "db_replica_user",
+            "db_replica_password",
+            "db_replica_sslmode",
         )
-        saved = {k: config[k] for k in keys}
-        try:
-            config["db_host"] = "primary.example"
-            config["db_port"] = 5432
-            config["db_user"] = "primary_user"
-            config["db_password"] = "primary_pw"
-            config["db_sslmode"] = "require"
-            config["db_replica_host"] = "replica.example"
-            config["db_replica_port"] = 5433
+        config["db_host"] = "primary.example"
+        config["db_port"] = 5432
+        config["db_user"] = "primary_user"
+        config["db_password"] = "primary_pw"
+        config["db_sslmode"] = "require"
+        config["db_replica_host"] = "replica.example"
+        config["db_replica_port"] = 5433
+        config["db_replica_user"] = "replica_user"
+        config["db_replica_password"] = "replica_pw"
+        config["db_replica_sslmode"] = "verify-full"
 
-            _, ro = connection_info_for("mydb", readonly=True)
-            self.assertEqual(ro["host"], "replica.example")
-            self.assertEqual(ro["port"], 5433)
-            self.assertEqual(ro["user"], "primary_user")
-            self.assertEqual(ro["password"], "primary_pw")
-            self.assertEqual(ro["sslmode"], "require")
+        _, ro = connection_info_for("mydb", readonly=True)
+        self.assertEqual(ro["host"], "replica.example")
+        self.assertEqual(ro["port"], 5433)
+        self.assertEqual(ro["user"], "replica_user")
+        self.assertEqual(ro["password"], "replica_pw")
+        self.assertEqual(ro["sslmode"], "verify-full")
 
-            _, rw = connection_info_for("mydb", readonly=False)
-            self.assertEqual(rw["host"], "primary.example")
-            self.assertEqual(rw["port"], 5432)
-        finally:
-            for k, v in saved.items():
-                config[k] = v
+        _, rw = connection_info_for("mydb", readonly=False)
+        self.assertEqual(rw["host"], "primary.example")
+        self.assertEqual(rw["user"], "primary_user")
+        self.assertEqual(rw["password"], "primary_pw")
+
+    def test_an_unset_replica_keyword_inherits_the_primary(self):
+        """So a deployment overrides exactly the keywords that differ."""
+        config = self._saved(
+            "db_host",
+            "db_port",
+            "db_user",
+            "db_password",
+            "db_sslmode",
+            "db_replica_host",
+            "db_replica_port",
+            "db_replica_user",
+            "db_replica_password",
+            "db_replica_sslmode",
+        )
+        config["db_host"] = "primary.example"
+        config["db_port"] = 5432
+        config["db_user"] = "shared_user"
+        config["db_password"] = "shared_pw"
+        config["db_sslmode"] = "require"
+        config["db_replica_host"] = "replica.example"
+        for key in (
+            "db_replica_port",
+            "db_replica_user",
+            "db_replica_password",
+            "db_replica_sslmode",
+        ):
+            config[key] = None
+
+        _, ro = connection_info_for("mydb", readonly=True)
+        self.assertEqual(ro["host"], "replica.example", "the one override applies")
+        self.assertEqual(ro["port"], 5432)
+        self.assertEqual(ro["user"], "shared_user")
+        self.assertEqual(ro["password"], "shared_pw")
+        self.assertEqual(ro["sslmode"], "require")
+
+
+class TestTestCursorContainsBulkWrites(common.TransactionCase):
+    """Bulk writes on a request cursor must land inside its rollback savepoint.
+
+    ``TestCursor`` creates that savepoint lazily on first use.  It used to hang
+    that off its own ``execute()`` override, so ``executemany`` /
+    ``execute_values`` / ``copy_from`` — which it does not override and which
+    reach the real cursor through ``__getattr__`` — wrote outside it and
+    survived the rollback, leaking rows into whatever ran next.  Only incidental
+    ordering hid this: the ORM issues a read before its first COPY, so
+    ``create()`` happened to be safe.
+
+    ``registry.cursor()`` only yields a ``TestCursor`` while registry test mode
+    is active, which is what ``HttpCase`` does per request; a plain
+    ``TransactionCase`` gets a real ``Cursor`` on its own transaction.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env.cr.execute(
+            'CREATE TABLE IF NOT EXISTS "_bulk_savepoint_probe" '
+            "(id serial primary key, k int)"
+        )
+        self.env.cr.execute('TRUNCATE "_bulk_savepoint_probe"')
+        self.env.flush_all()
+
+    def _survivors(self):
+        self.env.cr.execute('SELECT count(*) FROM "_bulk_savepoint_probe"')
+        return self.env.cr.fetchone()[0]
+
+    def _run_and_roll_back(self, write):
+        with self.enter_registry_test_mode():
+            cr = self.registry.cursor()
+            self.assertIsInstance(cr, TestCursor, "registry test mode is not active")
+            try:
+                write(cr)
+                self.assertIsNotNone(
+                    cr._savepoint, "the write did not open the rollback savepoint"
+                )
+            finally:
+                cr.close()
+        return self._survivors()
+
+    def test_execute_is_contained(self):
+        self.assertEqual(
+            self._run_and_roll_back(
+                lambda cr: cr.execute(
+                    'INSERT INTO "_bulk_savepoint_probe"(k) VALUES (1)'
+                )
+            ),
+            0,
+        )
+
+    def test_executemany_is_contained(self):
+        self.assertEqual(
+            self._run_and_roll_back(
+                lambda cr: cr.executemany(
+                    'INSERT INTO "_bulk_savepoint_probe"(k) VALUES (%s)', [(1,), (2,)]
+                )
+            ),
+            0,
+        )
+
+    def test_execute_values_is_contained(self):
+        self.assertEqual(
+            self._run_and_roll_back(
+                lambda cr: cr.execute_values(
+                    'INSERT INTO "_bulk_savepoint_probe"(k) VALUES %s', [(1,), (2,)]
+                )
+            ),
+            0,
+        )
+
+    def test_copy_from_is_contained(self):
+        self.assertEqual(
+            self._run_and_roll_back(
+                lambda cr: cr.copy_from("_bulk_savepoint_probe", ["k"], [(1,), (2,)])
+            ),
+            0,
+        )
+
+    def test_binary_copy_from_is_contained(self):
+        self.assertEqual(
+            self._run_and_roll_back(
+                lambda cr: cr.copy_from(
+                    "_bulk_savepoint_probe", ["k"], [(1,), (2,)], binary=True
+                )
+            ),
+            0,
+        )
+
+    def test_every_marked_entry_point_is_forwarded_by_the_wrapper(self):
+        """``Cursor`` marks its statement entry points; ``TestCursor`` must own
+        each one.  A hook on the shared real cursor cannot do this job: several
+        test cursors wrap one real cursor, so it would open whichever is
+        innermost rather than the one the caller holds."""
+        marked = {
+            name
+            for name in dir(Cursor)
+            if callable(getattr(Cursor, name, None))
+            and getattr(getattr(Cursor, name), "__code__", None) is not None
+            and "_before_statement" in getattr(Cursor, name).__code__.co_names
+        }
+        self.assertTrue(marked, "Cursor marks no statement entry points at all")
+        not_forwarded = sorted(marked - set(vars(TestCursor)))
+        self.assertEqual(
+            not_forwarded,
+            [],
+            "these reach the real cursor via __getattr__, skipping the savepoint",
+        )
+
+    def test_each_cursor_takes_its_own_savepoint(self):
+        """Two test cursors over one real cursor must not share a savepoint."""
+        with self.enter_registry_test_mode():
+            outer = self.registry.cursor()
+            self.addCleanup(outer.close)
+            outer.execute("SELECT 1")
+            inner = self.registry.cursor()
+            self.addCleanup(inner.close)
+            self.assertIsNone(inner._savepoint)
+            outer.execute("SELECT 1")
+            self.assertIsNone(
+                inner._savepoint,
+                "the outer cursor's statement opened the inner cursor's savepoint",
+            )
+            inner.execute("SELECT 1")
+            self.assertIsNotNone(inner._savepoint)
+            self.assertIsNot(inner._savepoint, outer._savepoint)
+
+
+class TestCopyFromTableIdentity(BaseCase):
+    """Every consumer of the table name must reach the same relation.
+
+    ``copy_from`` used to resolve it two incompatible ways: ``LOCK TABLE`` and
+    ``COPY`` quoted it as one identifier, while the catalog lookups passed the
+    raw string to ``::regclass`` / ``pg_get_serial_sequence``, which parse and
+    case-fold.  With both ``"MyTable"`` and ``mytable`` present, binary COPY
+    encoded with the second's column types and wrote into the first's columns —
+    silently, for wire-compatible pairs.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.db = db_connect(common.get_db_name())
+
+    def test_schema_qualified_table_round_trips(self):
+        with self.db.cursor() as cr:
+            cr.execute("DROP SCHEMA IF EXISTS _cf_s CASCADE")
+            cr.execute("CREATE SCHEMA _cf_s")
+            cr.execute("CREATE TABLE _cf_s.t (id serial primary key, v int)")
+            for binary in (False, True):
+                with self.subTest(binary=binary):
+                    cr.execute("TRUNCATE _cf_s.t")
+                    ids = cr.copy_from(
+                        "_cf_s.t",
+                        ["v"],
+                        [(1,), (2,)],
+                        returning_ids=True,
+                        binary=binary,
+                    )
+                    self.assertEqual(len(ids), 2)
+                    cr.execute("SELECT v FROM _cf_s.t ORDER BY v")
+                    self.assertEqual(cr.fetchall(), [(1,), (2,)])
+            cr.execute("DROP SCHEMA _cf_s CASCADE")
+            cr.rollback()
+
+    def test_mixed_case_table_is_not_confused_with_its_folded_twin(self):
+        with self.db.cursor() as cr:
+            cr.execute('DROP TABLE IF EXISTS "MyCaseTbl"')
+            cr.execute("DROP TABLE IF EXISTS mycasetbl")
+            cr.execute('CREATE TABLE "MyCaseTbl" (id serial primary key, v int4)')
+            cr.execute("CREATE TABLE mycasetbl (id serial primary key, v date)")
+            cr.copy_from("MyCaseTbl", ["v"], [(20000,)], binary=True)
+            cr.execute('SELECT v FROM "MyCaseTbl"')
+            self.assertEqual(
+                cr.fetchall(), [(20000,)], "types were read from the wrong relation"
+            )
+            cr.execute("SELECT count(*) FROM mycasetbl")
+            self.assertEqual(cr.fetchone()[0], 0)
+            cr.execute('DROP TABLE "MyCaseTbl"')
+            cr.execute("DROP TABLE mycasetbl")
+            cr.rollback()
+
+
+class TestCopyFromChoosesEncodingByCost(BaseCase):
+    """``binary=True`` means "use the faster encoding", not "use binary".
+
+    psycopg has no float-to-numeric binary dumper, so each numeric cell costs a
+    ``Decimal`` conversion; past about a quarter of the row that outweighs what
+    binary encoding saves.  The choice belongs here, where the column type OIDs
+    already are — the ORM used to duplicate it as "any numeric column at all",
+    which gave up a measured 9-56% on the ordinary Odoo row shape.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.db = db_connect(common.get_db_name())
+
+    def test_numeric_heavy_table_degrades_to_text_with_identical_rows(self):
+        with self.db.cursor() as cr:
+            cr.execute("DROP TABLE IF EXISTS _cf_num")
+            cr.execute(
+                "CREATE TABLE _cf_num (id serial primary key, "
+                "a numeric, b numeric, c numeric)"
+            )
+            rows = [(1.5, 2.25, 3.125), (0.1, 0.2, 0.3)]
+            oids = cr._get_column_type_oids("_cf_num", ["a", "b", "c"])
+            self.assertFalse(
+                cr._binary_pays_off(oids), "an all-numeric row must prefer text"
+            )
+            cr.copy_from("_cf_num", ["a", "b", "c"], rows, binary=True)
+            cr.execute("SELECT a, b, c FROM _cf_num ORDER BY a")
+            self.assertEqual(
+                cr.fetchall(),
+                [(0.1, 0.2, 0.3), (1.5, 2.25, 3.125)],
+                "the text fallback must insert exactly the same values",
+            )
+            cr.rollback()
+
+    def test_a_few_numeric_columns_still_use_binary(self):
+        with self.db.cursor() as cr:
+            cr.execute("DROP TABLE IF EXISTS _cf_mixed")
+            cols = ", ".join(f"c{i} int" for i in range(15))
+            cr.execute(
+                f"CREATE TABLE _cf_mixed (id serial primary key, {cols}, "
+                "amount numeric, tax numeric)"
+            )
+            names = [f"c{i}" for i in range(15)] + ["amount", "tax"]
+            oids = cr._get_column_type_oids("_cf_mixed", names)
+            self.assertTrue(
+                cr._binary_pays_off(oids),
+                "2 numeric columns in 17 is well under the crossover",
+            )
+            cr.rollback()
+
+
+class TestNoRedundantLockAfterDdl(BaseCase):
+    """DDL invalidates the catalog facts, not the table lock.
+
+    PostgreSQL holds a ``ROW EXCLUSIVE`` lock to the end of the transaction and
+    DDL does not end one, so re-issuing ``LOCK TABLE`` after a schema change is
+    a wasted round-trip.  ``ROLLBACK TO SAVEPOINT`` *does* release it, which is
+    why the lock ledger is still cleared there.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.db = db_connect(common.get_db_name())
+
+    def test_ddl_keeps_the_lock_ledger_but_drops_the_types(self):
+        with self.db.cursor() as cr:
+            cr.execute("DROP TABLE IF EXISTS _cf_lock")
+            cr.execute("CREATE TABLE _cf_lock (id serial primary key, k int)")
+            cr.copy_from("_cf_lock", ["k"], [(1,)], binary=True)
+            self.assertIn("_cf_lock", cr._schema_cache.locked_tables)
+            cr.execute("CREATE TABLE IF NOT EXISTS _cf_lock_other (x int)")
+            self.assertIn(
+                "_cf_lock",
+                cr._schema_cache.locked_tables,
+                "the ROW EXCLUSIVE lock is still held after unrelated DDL",
+            )
+            self.assertIsNone(
+                cr._schema_cache.get_column_types("_cf_lock", ["k"]),
+                "the catalog facts must not survive DDL",
+            )
+            cr.rollback()
+
+    def test_rollback_to_savepoint_clears_the_lock_ledger(self):
+        with self.db.cursor() as cr:
+            cr.execute("DROP TABLE IF EXISTS _cf_sp")
+            cr.execute("CREATE TABLE _cf_sp (id serial primary key, k int)")
+            cr.commit()
+            sp = cr.savepoint(flush=False)
+            cr.copy_from("_cf_sp", ["k"], [(1,)], binary=True)
+            self.assertIn("_cf_sp", cr._schema_cache.locked_tables)
+            sp.rollback()
+            self.assertNotIn(
+                "_cf_sp",
+                cr._schema_cache.locked_tables,
+                "ROLLBACK TO SAVEPOINT releases locks taken inside it",
+            )
+            sp.close()
+            cr.execute("DROP TABLE _cf_sp")
+            cr.commit()
+
+
+class TestSaturatedPoolNamesItsHolders(BaseCase):
+    """Budget exhaustion must say who is holding the permits.
+
+    ``ConnectionBudget`` reports *that* the process ran out; without the
+    checkout tracker, answering *who* required attaching a debugger to a
+    saturated worker.  The pool's own trade — one shared budget that can starve
+    itself — is only defensible if the failure is diagnosable.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.pool = ConnectionPool(maxconn=2, borrow_timeout=0.2)
+        self.info = connection_info_for(common.get_db_name())[1]
+        self.addCleanup(self.pool.close_all)
+
+    def test_exhaustion_error_names_the_oldest_checkouts(self):
+        held = [self.pool.borrow(self.info) for _ in range(2)]
+        self.addCleanup(lambda: [self.pool.give_back(c) for c in held])
+        with self.assertRaises(PoolError) as ctx:
+            self.pool.borrow(self.info)
+        message = str(ctx.exception)
+        self.assertIn("budget (2) reached", message)
+        self.assertIn("oldest checkouts:", message)
+        self.assertIn(threading.current_thread().name, message)
+        self.assertIn("test_db_cursor.py:", message, "the borrow site is captured")
+
+    def test_the_tracker_empties_when_connections_come_back(self):
+        conns = [self.pool.borrow(self.info) for _ in range(2)]
+        self.assertEqual(len(self.pool._checkouts), 2)
+        for conn in conns:
+            self.pool.give_back(conn)
+        self.assertEqual(len(self.pool._checkouts), 0)
+        self.assertEqual(self.pool._budget.in_use, 0)
+
+    def test_health_reports_the_live_checkout_gauges(self):
+        conn = self.pool.borrow(self.info)
+        self.addCleanup(self.pool.give_back, conn)
+        stats = self.pool.health()["pool"]
+        self.assertEqual(stats["checked_out"], 1)
+        self.assertGreaterEqual(stats["checked_out_oldest_seconds"], 0.0)
+        self.assertEqual(stats["budget_in_use"], 1)
+        self.assertEqual(stats["budget_exhausted"], 0)
+
+    def test_a_failed_borrow_leaves_no_phantom_checkout(self):
+        held = [self.pool.borrow(self.info) for _ in range(2)]
+        self.addCleanup(lambda: [self.pool.give_back(c) for c in held])
+        with self.assertRaises(PoolError):
+            self.pool.borrow(self.info)
+        self.assertEqual(
+            len(self.pool._checkouts), 2, "the failed borrow must not be tracked"
+        )
+        self.assertEqual(self.pool.stats.borrows_failed, 1)

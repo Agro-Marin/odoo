@@ -23,7 +23,6 @@ import psycopg
 from odoo.db.dsn import _normalize_dsn_key
 from odoo.db.pool import (
     _DIRECT_CONNECTION,
-    _LAST_BORROW_ATTR,
     _PROBE_CONNECT_TIMEOUT,
     ConnectionBudget,
     ConnectionPool,
@@ -33,6 +32,7 @@ from odoo.db.pool import (
     _remaining,
     _SuppressKnownPoolWarnings,
 )
+from odoo.db.reaper import _LAST_BORROW_ATTR, note_activity
 
 
 def _fake_pool_factory(*_a, **_k):
@@ -233,7 +233,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         pool = self._pool(ttl=0)
         pool._pools = {_key(database="db"): _FakePool()}
         setattr(next(iter(pool._pools.values())), _LAST_BORROW_ATTR, monotonic() - 1e6)
-        self.assertEqual(pool._collect_reapable_pools_locked(), [])
+        self.assertEqual(pool._reaper.collect(pool._pools), [])
 
     def test_reaps_only_pools_idle_past_the_ttl(self):
         pool = self._pool(ttl=10)
@@ -242,7 +242,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         setattr(stale, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="fresh"): fresh, _key(database="stale"): stale}
         self.assertEqual(
-            [dict(k)["database"] for k in pool._collect_reapable_pools_locked()],
+            [dict(k)["database"] for k in pool._reaper.collect(pool._pools)],
             ["stale"],
         )
 
@@ -253,7 +253,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         held = _FakePool(size=2, available=1)
         setattr(held, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="held"): held}
-        self.assertEqual(pool._collect_reapable_pools_locked(), [])
+        self.assertEqual(pool._reaper.collect(pool._pools), [])
 
     def test_excluded_key_is_never_reaped(self):
         pool = self._pool(ttl=10)
@@ -261,7 +261,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {k: p}
-        self.assertEqual(pool._collect_reapable_pools_locked(exclude_key=k), [])
+        self.assertEqual(pool._reaper.collect(pool._pools, exclude_key=k), [])
 
     def test_note_pool_activity_protects_a_returned_pool(self):
         """``give_back`` re-stamps the pool, so a connection held longer than the
@@ -270,18 +270,18 @@ class TestIdlePoolReaping(unittest.TestCase):
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="db"): p}
-        pool._note_pool_activity(p)
-        self.assertEqual(pool._collect_reapable_pools_locked(), [])
+        note_activity(p)
+        self.assertEqual(pool._reaper.collect(pool._pools), [])
 
     def test_reap_check_interval_is_derived_and_floored(self):
         self.assertEqual(
-            ConnectionPool(maxconn=4, reap_idle_ttl=400)._reap_check_interval, 100
+            ConnectionPool(maxconn=4, reap_idle_ttl=400)._reaper.check_interval, 100
         )
         self.assertEqual(
-            ConnectionPool(maxconn=4, reap_idle_ttl=0.4)._reap_check_interval, 1.0
+            ConnectionPool(maxconn=4, reap_idle_ttl=0.4)._reaper.check_interval, 1.0
         )
         self.assertEqual(
-            ConnectionPool(maxconn=4, reap_idle_ttl=0)._reap_check_interval, 0.0
+            ConnectionPool(maxconn=4, reap_idle_ttl=0)._reaper.check_interval, 0.0
         )
 
 
@@ -462,7 +462,7 @@ class TestConnectionBudgetSharing(unittest.TestCase):
         def spin():
             try:
                 for _ in range(2000):
-                    ConnectionPool._note_pool_activity(p)
+                    note_activity(p)
             except Exception as exc:
                 errors.append(exc)
 

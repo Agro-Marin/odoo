@@ -474,15 +474,12 @@ class CreateMixin(_ModelStubs):
 
             if use_copy:
                 copy_rows = self._build_insert_rows(stored_list, columns, col_fields)
-                use_binary = not any(
-                    field.column_type[0] == "numeric" for field in col_fields
-                )
                 batch_ids = cr.copy_from(
                     self._table,
                     columns,
                     copy_rows,
                     returning_ids=True,
-                    binary=use_binary,
+                    binary=True,
                 )
                 ids.extend(batch_ids)
                 if subprof.debug:
