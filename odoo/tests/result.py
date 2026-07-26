@@ -82,6 +82,7 @@ class OdooTestResult:
         self.time_start = None
         self.queries_start = None
         self._soft_fail = False
+        self._is_retry = False
         self.had_failure = False
         self.stats = collections.defaultdict(Stat)
         self.global_report = global_report
@@ -113,7 +114,7 @@ class OdooTestResult:
 
     def startTest(self, test: case.TestCase) -> None:
         """Called when the given test is about to be run."""
-        if not self._soft_fail:
+        if not self._is_retry:
             self.testsRun += 1
         self.log(
             logging.INFO,
@@ -212,6 +213,23 @@ class OdooTestResult:
 
     def __str__(self):
         return f"{self.failures_count} failed, {self.errors_count} error(s) of {self.testsRun} tests"
+
+    @contextlib.contextmanager
+    def retry(self) -> Generator[None]:
+        """Context manager: the enclosed run repeats a test already counted.
+
+        ``testsRun`` counts *tests*, not attempts. Gating the counter on
+        :meth:`soft_fail` instead looked equivalent but was not: a test that
+        passes on its first (soft) attempt breaks out of the retry loop having
+        never run un-soft, so with ``ODOO_TEST_FAILURE_RETRIES`` set an
+        all-green suite reported ``0 tests``.
+        """
+        previous = self._is_retry
+        self._is_retry = True
+        try:
+            yield
+        finally:
+            self._is_retry = previous
 
     @contextlib.contextmanager
     def soft_fail(self) -> Generator[None]:

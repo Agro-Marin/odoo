@@ -199,7 +199,7 @@ class Form:
         for node in tree.xpath(f".//field[count(ancestor::field) = {flevel}]"):
             field_name = node.get("name")
 
-            field_info = field_infos.get(field_name) or {"type": None}
+            field_info = dict(field_infos.get(field_name) or {"type": None})
             fields[field_name] = field_info
             fields_spec[field_name] = field_spec = {}
 
@@ -265,7 +265,7 @@ class Form:
 
         for related_field, start_field in daterange_field_names.items():
             if related_field not in modifiers:
-                field_info = field_infos.get(related_field) or {"type": None}
+                field_info = dict(field_infos.get(related_field) or {"type": None})
                 fields[related_field] = field_info
                 fields_spec[related_field] = {}
                 modifiers[related_field] = {
@@ -342,7 +342,18 @@ class Form:
         self._values._changed.update(self._view["fields"])
 
     def __getattr__(self, field_name: str) -> Any:
-        """Return the current value of the given field."""
+        """Return the current value of the given field.
+
+        Names that cannot be view fields are refused with ``AttributeError``,
+        the exception every protocol probe expects. Routing them to
+        :meth:`__getitem__` made ``hasattr(form, x)`` raise ``AssertionError``
+        instead of returning ``False``, and turned any access on a half-built
+        form — whose ``_view`` is not set yet — into a ``RecursionError``.
+        """
+        if field_name.startswith("_"):
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {field_name!r}"
+            )
         return self[field_name]
 
     def __getitem__(self, field_name: str) -> Any:

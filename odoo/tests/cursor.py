@@ -112,8 +112,10 @@ class TestCursor(BaseCursor):
         The savepoint cannot be taken by hooking the wrapped cursor instead:
         several test cursors share one real cursor, so a hook installed there
         would open whichever test cursor happens to be innermost, not the one
-        the caller is using.  ``TestCursorCoversEveryStatementApi`` pins the two
-        lists against each other so a new write API cannot quietly skip this.
+        the caller is using.
+        ``TestTestCursorContainsBulkWrites.test_every_marked_entry_point_is_forwarded_by_the_wrapper``
+        pins the two lists against each other so a new write API cannot quietly
+        skip this.
         """
         assert not self._closed, "Cannot use a closed cursor"
         self._check_savepoint()

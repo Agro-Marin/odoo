@@ -1,12 +1,16 @@
 import logging
+import pathlib
+import shutil
 import threading
 import time
+import unittest
 from unittest.mock import Mock, patch
 
 import requests
 from werkzeug.exceptions import BadRequest
 
 import odoo.http
+import odoo.tests.browser as browser_module
 from odoo.http import Controller, request, route
 from odoo.tests.common import (
     TEST_CURSOR_COOKIE_NAME,
@@ -373,3 +377,109 @@ class TestRequestRemainingAfterFirstCheck(TestRequestRemainingCommon):
                 )
             ],
         )
+
+
+@tagged("-at_install", "post_install")
+class TestChromeBrowserConstructionFailure(HttpCase):
+    """A constructor that fails after spawning Chrome must not leak it.
+
+    ``browser_js`` only registers ``browser.stop`` once the constructor has
+    returned, so anything raising between ``_chrome_start`` and the end of
+    ``_connect`` — a CDP command timing out, or the ``SkipTest`` raised when
+    the websocket handshake is refused — used to strand the whole browser
+    process tree and its profile directory.
+
+    The assertions target the instance that failed, captured on its way
+    through ``_chrome_start``.  Comparing before/after snapshots of the
+    machine's Chrome processes instead made the test race with any other
+    browser test running in the same session.
+    """
+
+    def _assert_failed_construction_cleans_up(self, break_it, expected_exception):
+        spawned = []
+        real_chrome_start = ChromeBrowser._chrome_start
+
+        def recording_chrome_start(browser, *args, **kwargs):
+            spawned.append(browser)
+            return real_chrome_start(browser, *args, **kwargs)
+
+        with (
+            patch.object(ChromeBrowser, "_chrome_start", recording_chrome_start),
+            break_it,
+            self.assertRaises(expected_exception),
+        ):
+            ChromeBrowser(self)
+
+        self.assertEqual(len(spawned), 1, "Chrome was never spawned")
+        browser = spawned[0]
+        self.addCleanup(shutil.rmtree, browser.user_data_dir, True)
+        self.assertIsNotNone(
+            browser.chrome.poll(), "the chrome process is still running"
+        )
+        self.assertFalse(
+            pathlib.Path(browser.user_data_dir).exists(),
+            "the chrome profile directory was left behind",
+        )
+
+    def test_failed_websocket_handshake_leaves_nothing_behind(self):
+        real_create_connection = browser_module.websocket.create_connection
+
+        def refused(*args, **kwargs):
+            connection = real_create_connection(*args, **kwargs)
+            connection.getstatus = lambda: 500
+            return connection
+
+        self._assert_failed_construction_cleans_up(
+            patch.object(browser_module.websocket, "create_connection", refused),
+            unittest.SkipTest,
+        )
+
+    def test_failed_cdp_command_leaves_nothing_behind(self):
+        real_request = ChromeBrowser._websocket_request
+
+        def flaky(browser, method, **kwargs):
+            if method == "Emulation.setDeviceMetricsOverride":
+                raise TimeoutError(method)
+            return real_request(browser, method, **kwargs)
+
+        self._assert_failed_construction_cleans_up(
+            patch.object(ChromeBrowser, "_websocket_request", flaky),
+            TimeoutError,
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestWaitReadyNavigation(TestChromeBrowser):
+    def test_navigation_during_polling_is_retried(self):
+        """A page navigating under an in-flight evaluate must not fail the wait.
+
+        ``_wait_ready`` polls while the page is still loading, so Chrome
+        answering "Inspected target navigated or closed" is the expected race,
+        not an error: it used to escape and abort the tour.
+        """
+        self.browser.navigate_to("about:blank")
+        real_request = ChromeBrowser._websocket_request
+        raised = []
+
+        def navigate_away_once(browser, method, **kwargs):
+            if method == "Runtime.evaluate" and not raised:
+                raised.append(method)
+                raise ChromeBrowserException("Inspected target navigated or closed")
+            return real_request(browser, method, **kwargs)
+
+        with patch.object(ChromeBrowser, "_websocket_request", navigate_away_once):
+            self.assertTrue(self.browser._wait_ready(timeout=10))
+        self.assertTrue(raised, "the race was never injected")
+
+    def test_other_cdp_errors_still_propagate(self):
+        """Only the navigation race is retried; real CDP errors must surface."""
+        self.browser.navigate_to("about:blank")
+
+        def broken(browser, method, **kwargs):
+            raise ChromeBrowserException("Some other protocol error")
+
+        with (
+            patch.object(ChromeBrowser, "_websocket_request", broken),
+            self.assertRaises(ChromeBrowserException),
+        ):
+            self.browser._wait_ready(timeout=10)

@@ -174,6 +174,18 @@ _registry_test_lock = RegistryRLock()
 _registry_test_lock.acquire()
 
 
+def current_test_tag() -> str:
+    """Return a printable tag for the running test.
+
+    ``odoo.modules.module.current_test`` is a test case only while a suite is
+    running; :func:`~odoo.tests.loader.run_suite` sets it to ``True``/``False``
+    around that. Reaching for ``.canonical_tag`` unconditionally turned every
+    diagnostic that used it into ``AttributeError: 'bool' object has no
+    attribute 'canonical_tag'``, hiding the failure it was meant to report.
+    """
+    return getattr(odoo.modules.module.current_test, "canonical_tag", "<no test>")
+
+
 @contextmanager
 def release_test_lock() -> Generator[None]:
     """Release the test lock in a context manager; reacquire when done."""
@@ -182,8 +194,10 @@ def release_test_lock() -> Generator[None]:
         yield
     finally:
         if not _registry_test_lock.acquire(timeout=60):
-            tag = odoo.modules.module.current_test.canonical_tag
-            sys.exit(f"Could not re-acquire the registry lock during {tag}, exiting...")
+            sys.exit(
+                f"Could not re-acquire the registry lock during "
+                f"{current_test_tag()}, exiting..."
+            )
 
 
 def standalone(*tags: str) -> Callable[[Callable], Callable]:
@@ -341,6 +355,49 @@ def _normalize_arch_for_assert(arch_string: str, parser_method: str = "xml") -> 
     return etree.tostring(arch_string, pretty_print=True, encoding="unicode")
 
 
+def _query_text(query: Any) -> str:
+    """Render a query as the text :meth:`BaseCase.assertQueries` compares.
+
+    Callers hand :class:`~odoo.db.Cursor` three shapes: a plain string, an
+    :class:`~odoo.tools.SQL` object, and — since the bulk-write paths landed —
+    a psycopg ``Composable``. Storing the object as-is let a ``Composed`` reach
+    ``_normalize_query`` / ``"\\n".join(...)``, turning a query-count mismatch
+    into ``TypeError: expected str instance, Composed found``: an unrelated
+    error at exactly the moment the real assertion message was needed.
+    """
+    if isinstance(query, SQL):
+        return query.code
+    if isinstance(query, str):
+        return query
+    if isinstance(query, bytes):
+        return query.decode()
+    return str(query)
+
+
+def _copy_from_text(table, columns, *args, **kwargs) -> str:
+    """Render a ``COPY`` bulk insert, which carries no query string of its own."""
+    columns_sql = ", ".join(f'"{column}"' for column in columns)
+    return f'COPY "{table}" ({columns_sql}) FROM STDIN'
+
+
+_STATEMENT_RECORDERS = {
+    "execute": lambda query, *args, **kwargs: _query_text(query),
+    "executemany": lambda query, *args, **kwargs: _query_text(query),
+    "copy": lambda statement, *args, **kwargs: _query_text(statement),
+    "copy_from": _copy_from_text,
+}
+
+_DELEGATING_STATEMENTS = {"execute_values"}
+"""Statement entry points that reach the server *through* :meth:`Cursor.execute`.
+
+Recording them as well would list every such call twice.  ``copy_from`` is
+deliberately not here: it runs its ``LOCK TABLE`` through ``execute`` (which is
+a real, separately-recorded statement) but streams the rows straight to
+``psycopg``'s ``copy``, so without its own recorder the write itself is
+invisible.
+"""
+
+
 class BlockedRequest(requests.exceptions.ConnectionError):
     pass
 
@@ -357,14 +414,26 @@ class BaseCase(case.TestCase):
     env: api.Environment = None
     cr: Cursor = None
 
+    test_tags: set[str] | None = None
+    """Tags used for selection; ``None`` until :meth:`__init_subclass__` assigns
+    the default, and left as ``None`` for classes outside ``odoo.addons``."""
+
+    test_module: str = ""
+
     def __init_subclass__(cls) -> None:
         """Assign default test tags ``standard`` and ``at_install`` to test
         cases not having them. Also sets ``test_module``, which tag
         selection (``TagsSelector.check``) matches ``/module`` specs against.
+
+        ``test_tags is None`` is the "never tagged" sentinel, and only addon
+        classes are ever given the default: assigning an empty set to the
+        framework's own bases (``TransactionCase``, ``HttpCase``, …) would
+        consume the sentinel, so every addon subclass of them would inherit
+        ``set()`` and silently drop out of test selection.
         """
         super().__init_subclass__()
         if cls.__module__.startswith("odoo.addons."):
-            if getattr(cls, "test_tags", None) is None:
+            if cls.test_tags is None:
                 cls.test_tags = {"standard", "at_install"}
             cls.test_module = cls.__module__.split(".")[2]
 
@@ -382,7 +451,7 @@ class BaseCase(case.TestCase):
         self.addTypeEqualityFunc(etree._Element, self.assertTreesEqual)
         self.addTypeEqualityFunc(html.HtmlElement, self.assertTreesEqual)
         if methodName != "runTest":
-            self.test_tags = self.test_tags | set(
+            self.test_tags = (self.test_tags or set()) | set(
                 self.get_method_additional_tags(getattr(self, methodName))
             )
 
@@ -420,20 +489,23 @@ class BaseCase(case.TestCase):
             result.had_failure = False
             if retry:
                 _logger.runbot(f"Retrying a failed test: {self}")
-            if retry < tests_run_count - 1:
-                with (
-                    warnings.catch_warnings(),
-                    result.soft_fail(),
-                    lower_logging(25, logging.INFO) as quiet_log,
-                ):
+            with ExitStack() as attempt:
+                if retry:
+                    attempt.enter_context(result.retry())
+
+                if retry == tests_run_count - 1:
                     super().run(cast("TestResult", result))
+                    if not result.wasSuccessful() and BaseCase._tests_run_count != 1:
+                        _logger.runbot("Disabling auto-retry after a failed test")
+                        BaseCase._tests_run_count = 1
+                    break
+
+                attempt.enter_context(warnings.catch_warnings())
+                attempt.enter_context(result.soft_fail())
+                quiet_log = attempt.enter_context(lower_logging(25, logging.INFO))
+                super().run(cast("TestResult", result))
                 if not (result.had_failure or quiet_log.had_error_log):
                     break
-            else:
-                super().run(cast("TestResult", result))
-                if not result.wasSuccessful() and BaseCase._tests_run_count != 1:
-                    _logger.runbot("Disabling auto-retry after a failed test")
-                    BaseCase._tests_run_count = 1
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -448,7 +520,13 @@ class BaseCase(case.TestCase):
         cls.addClassCleanup(check_remaining_processes)
 
         def check_remaining_patchers():
-            for patcher in _patch._active_patches:
+            """Stop every patcher a test left running.
+
+            Iterates a *copy*: ``_patch.stop()`` removes the patcher from
+            ``_active_patches``, so walking the live list skips every other
+            entry and leaks half of them into the next test class.
+            """
+            for patcher in list(_patch._active_patches):
                 _logger.warning(
                     "A patcher (targeting %s.%s) was remaining active at the end of %s, disabling it...",
                     patcher.target,
@@ -500,6 +578,12 @@ class BaseCase(case.TestCase):
         super().setUp()
         self.http_request_key: str = ""
         self.http_request_allow_all: bool = False
+        self.addCleanup(
+            setattr,
+            type(self),
+            "_registry_readonly_enabled",
+            self._registry_readonly_enabled,
+        )
 
     def cursor(self) -> Cursor:
         """Return a new cursor from the test registry."""
@@ -655,20 +739,40 @@ class BaseCase(case.TestCase):
         return None
 
     def _patchExecute(self, actual_queries, flush=True):
-        Cursor_execute = Cursor.execute
+        """Record every statement issued through the cursor.
 
-        def execute(self, query, params=None, log_exceptions=None, **kwargs):
-            actual_queries.append(query.code if isinstance(query, SQL) else query)
-            return Cursor_execute(self, query, params, log_exceptions, **kwargs)
+        Wraps *all* of ``Cursor``'s statement entry points, not just
+        ``execute``.  ``executemany``/``execute_values``/``copy_from``/``copy``
+        used to pass straight through, so a bulk create — which this fork
+        routes through ``COPY`` above ``COPY_THRESHOLD`` rows — recorded zero
+        queries and ``assertQueries`` cheerfully asserted a list with the write
+        itself missing.  ``TestPatchExecuteStatementApi`` pins
+        :data:`_STATEMENT_RECORDERS` against the entry points ``Cursor`` marks.
+
+        One entry is recorded per *call*, so a batched write is one line rather
+        than one per row; ``assertQueryCount`` keeps counting the SQL work
+        instead (an N-row ``executemany`` is N queries, an N-row ``COPY`` is 1).
+        """
+
+        def recorded(name, describe):
+            original = getattr(Cursor, name)
+
+            def wrapper(cr, *args, **kwargs):
+                actual_queries.append(describe(*args, **kwargs))
+                return original(cr, *args, **kwargs)
+
+            return patch.object(Cursor, name, wrapper)
 
         if flush:
             self.env.flush_all()
             self.env.cr.flush()
 
-        with (
-            patch("odoo.db.Cursor.execute", execute),
-            patch.object(self.env.registry, "unaccent", lambda x: x),
-        ):
+        with ExitStack() as patches:
+            for name, describe in _STATEMENT_RECORDERS.items():
+                patches.enter_context(recorded(name, describe))
+            patches.enter_context(
+                patch.object(self.env.registry, "unaccent", lambda x: x)
+            )
             yield actual_queries
             if flush:
                 self.env.flush_all()
@@ -780,8 +884,11 @@ class BaseCase(case.TestCase):
                     self.env.cr.flush()
                 count = self.cr.sql_log_count - count0
                 if count != expected:
-                    _frame, filename, linenum, funcname, _lines, _index = (
-                        inspect.stack()[2]
+                    caller = inspect.stack(0)[2]
+                    filename, linenum, funcname = (
+                        caller.filename,
+                        caller.lineno,
+                        caller.function,
                     )
                     filename = filename.replace("\\", "/")
                     if "/odoo/addons/" in filename:
@@ -1074,7 +1181,15 @@ class BaseCase(case.TestCase):
 
     @classmethod
     def set_registry_readonly_mode(cls, enabled: bool) -> None:
-        """Enable or disable readonly mode for test cursors."""
+        """Enable or disable readonly mode for test cursors.
+
+        The setting is restored at the end of the test that changed it (see
+        :meth:`BaseCase.setUp`), so a test which flips it — often in a loop
+        over both values — cannot leave the next test running against
+        read/write cursors where it asked for readonly. Calls made from
+        ``setUpClass`` still apply to the whole class, because the per-test
+        snapshot is taken after class setup.
+        """
         assert cls._registry_patched, "Registry is not patched"
 
         cls._registry_readonly_enabled = enabled
@@ -1082,7 +1197,7 @@ class BaseCase(case.TestCase):
     def assertCanOpenTestCursor(self) -> None:
         """Assert that we can currently open a test cursor."""
         if odoo.modules.module.current_test is not self:
-            message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {odoo.modules.module.current_test.canonical_tag}"
+            message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {current_test_tag()}"
             _logger.runbot(message)
             raise BadRequest(message)
         request = odoo.http.request

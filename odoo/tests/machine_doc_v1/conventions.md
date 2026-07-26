@@ -13,12 +13,14 @@
 Quick battery after touching this package (disposable DB):
 
 ```
---test-tags /base:TestTestSuite,/base:TestSelector,/base:TestSetTags,\
-/base:TestCursorStack,/base:TestBenchmarkStats,/base:TestFormCreate,\
-/base:TestHttpCase,/base:TestChromeBrowser,/base:TestChromeBrowserOddDimensions,\
-/base:TestRequestRemaining,/base:TestEnvInt,/base:TestAllowRequests,\
-+test_retry_success
+--test-tags /base/tests/test_test_suite.py,/base/tests/test_tests_tags.py,\
+/base/tests/test_form_create.py,/base/tests/test_http_case.py,\
+/base/tests/test_db_cursor.py,/base/tests/test_basecase.py
 ```
+
+The whole-file specs are deliberate: the classes pinning the framework's own
+behaviour live in those four files and are added to over time, so naming
+classes individually silently stops covering new ones.
 
 ## Tagging rules
 
@@ -57,6 +59,23 @@ Quick battery after touching this package (disposable DB):
   design (`assertCanOpenTestCursor`).
 - `assertQueriesContain` is **not** a subset check: exact query count,
   substring match per query.
+- `assertQueries`/`assertQueriesContain` record **every** statement entry point
+  (`common._STATEMENT_RECORDERS`), one entry per *call* — a bulk `create()`
+  above `COPY_THRESHOLD` shows as `COPY "table" (...) FROM STDIN`, an
+  `executemany` as its single query text. `execute_values` is listed in
+  `_DELEGATING_STATEMENTS` instead because it reaches the server through
+  `execute()`; recording it too would double-count. Adding a statement API to
+  `Cursor` without putting it in one of those two sets fails
+  `TestPatchExecuteStatementApi`. Captures are normalised to `str`, so a
+  psycopg `Composable` no longer turns a mismatch into a `TypeError`.
+  `assertQueryCount` still counts SQL *work* (N-row `executemany` = N,
+  N-row `COPY` = 1), so the two numbers legitimately differ.
+- `set_registry_readonly_mode` is restored at the end of the test that called
+  it (snapshot taken in `BaseCase.setUp`). Calls from `setUpClass` still apply
+  to the whole class. Do not hand-restore it in a `finally`.
+- `testsRun` counts tests, not attempts: `BaseCase.run` wraps retries in
+  `OdooTestResult.retry()`. Do not gate the counter on `soft_fail` — a test
+  that passes on its first (soft) attempt would never be counted at all.
 - `warmup`/`assertQueryCount`: the warm-up run executes the whole test body
   once with `self.warm = False`; assertions must be conditional on nothing —
   the framework skips the count checks itself.

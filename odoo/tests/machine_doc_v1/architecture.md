@@ -58,7 +58,9 @@ error at the exact file:line of the failing frame (`getErrorCallerInfo`).
 `BaseCase.run` re-runs a failed test up to `ODOO_TEST_FAILURE_RETRIES`
 times: non-final attempts run under `result.soft_fail()` +
 `lower_logging` (failures don't count, error logs are buffered); the final
-attempt counts for real. One real failure disables retries for the rest of
+attempt counts for real. Every attempt after the first also runs under
+`result.retry()`, which is what keeps `testsRun` counting *tests* rather
+than attempts. One real failure disables retries for the rest of
 the session (`BaseCase._tests_run_count = 1`). `@no_retry` opts a
 class/method out.
 
@@ -92,6 +94,11 @@ browser_js
 ```
 
 - The test thread awaits `browser._result` (a `concurrent.futures.Future`).
+- `ChromeBrowser.__init__` spawns Chrome, then does everything else in
+  `_connect()` under a `try/except: self.stop(); raise`. Keep new setup work
+  inside `_connect` — `browser_js` only registers `stop` as a cleanup once the
+  constructor has returned, so anything raising outside that guard strands the
+  browser process tree and its profile dir.
 - `browser.stop()` is **idempotent**; `browser_js` registers it twice on its
   ExitStack: early safety-net (covers setup failures — Chrome + profile dir
   would otherwise leak) and late happy-path (stop browser *before* waiting
@@ -107,6 +114,12 @@ browser_js
   (bool contract) and sleeps 50ms between polls.
 
 ## Form emulation (`form.py`)
+
+`_process_view` annotates each field's info dict (`edition_view`, `invisible`,
+and the one2many → many2many downgrade once the nesting budget runs out), so it
+**copies** the dict out of `_models_info` first: every nesting level shares that
+mapping, and on a self-referential o2m the innermost downgrade used to rewrite
+the outermost field's type.
 
 `Form` fetches the form view via `get_views`, parses modifiers
 (required/readonly/invisible/column_invisible) into python-evaluable
