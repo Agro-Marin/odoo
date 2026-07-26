@@ -1,4 +1,4 @@
 {
-  "count": 350,
-  "note": "388 -> 350 (-38): the 19.0-marin ORM audit. -9 from naming the field-trigger build barrier (_ensure_field_triggers, was a bare 'self._field_triggers' expression at 10 sites), -2 from publishing the graph metadata through ModelGraph.set_inverses/set_computed, and the rest from real fixes plus reasoned noqa where the rule is wrong (RSE102 would strip a call on a functools.partial; SIM300 on NewId tests would swap the reflected operator being tested). odoo/orm is down to a single finding. Measured with ruff 0.15.20 -- note requirements-dev.txt pins 0.15.2, which does not match the interpreter this floor was measured on."
+  "count": 349,
+  "note": "350 -> 349: measured at e904fd08fe0. The drop is not from that commit (a ruff-clean added test file, 349 before and after) but from 69818c10c52 and 403dad4407b, which lowered the count without moving the floor and left the gate red. Attributed here rather than claimed. Measured with ruff 0.15.20; requirements-dev.txt pins 0.15.2, still unreconciled."
 }
