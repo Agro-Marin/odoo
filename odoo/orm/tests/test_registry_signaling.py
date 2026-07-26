@@ -540,17 +540,6 @@ def test_registry_empty_db_name_rejected():
         Registry("")
 
 
-# --- per-database assertion report (CI exit code) -----------------------------
-#
-# ``odoo-bin --test-enable`` derives its exit code from
-# ``registry._assertion_report.wasSuccessful()``.  The report used to be created
-# per Registry INSTANCE, so any test that reloaded the registry published a
-# fresh empty report and erased every failure recorded before it: the run logged
-# "Module X: N failures" and "At least one test failed when loading the modules"
-# yet exited 0.  Reproduced end to end with a two-test module (one failing, one
-# calling ``Registry.new``): exit 1 without the reload, exit 0 with it.
-
-
 def test_assertion_report_is_none_outside_test_mode(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", False)
     assert registry_module._get_assertion_report("some_db") is None
@@ -562,8 +551,6 @@ def test_assertion_report_survives_a_registry_reload(monkeypatch):
 
     first = registry_module._get_assertion_report("db_a")
     assert first is not None
-    # a later Registry.new() for the SAME database must keep the same report,
-    # or the failures recorded so far vanish from the process exit code
     assert registry_module._get_assertion_report("db_a") is first
 
 

@@ -569,13 +569,8 @@ class TestDomainEvaluatorParityGenerated(TransactionCase):
         )
         cls.env.flush_all()
 
-    # (field, operators, values) -- the value pools deliberately mix types, which
-    # is what every drift this module pins had in common.
     def _specs(self):
         num_ops = ["=", "!=", "<", "<=", ">", ">="]
-        # the inequality operators belong on the text fields too: the drift this
-        # module pins for Char/Html was ``('html_field', '<', 'note')``, and the
-        # comparand coercion they share is only reached for < <= > >=
         text_ops = [
             "=",
             "!=",

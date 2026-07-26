@@ -38,8 +38,6 @@ def _iter_sources():
     for path in sorted(_FIELDS_DIR.rglob("*.py")):
         rel = path.relative_to(_FIELDS_DIR).as_posix()
         flat = re.sub(r"\s+", " ", path.read_text())
-        # A wrap puts the delimiters on their own lines, which collapses to
-        # ``not ( not ...  )``; drop the padding so the canonical form matches.
         flat = re.sub(r"\(\s+", "(", flat)
         flat = re.sub(r"\s+\)", ")", flat)
         yield rel, flat
