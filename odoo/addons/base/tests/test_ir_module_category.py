@@ -17,3 +17,31 @@ class TestModuleCategory(TransactionCase):
             category_a.write({"parent_id": category_c.id})
         with self.assertRaises(ValidationError):
             category_b.write({"parent_id": category_b.id})
+
+    def test_write_invalidates_group_hierarchy_cache(self):
+        """A category rename must refresh res.groups._get_view_group_hierarchy.
+
+        That hierarchy embeds each category's name and privilege order and is
+        memoised in the ``groups`` ormcache. res.groups.privilege cleared it on
+        every mutation but ir.module.category did not, so renaming or
+        reordering an application left the Access Rights tab showing the old
+        label until the registry was reloaded.
+        """
+        Groups = self.env["res.groups"]
+        category = self.env["ir.module.category"].search(
+            [("privilege_ids.group_ids", "!=", False)], limit=1
+        )
+        self.assertTrue(category, "no category with privileges to exercise")
+
+        def hierarchy_entry():
+            return next(
+                entry
+                for entry in Groups._get_view_group_hierarchy()["categories"]
+                if entry["id"] == category.id
+            )
+
+        self.assertEqual(hierarchy_entry()["name"], category.name)
+
+        category.write({"name": "Renamed Application"})
+        self.env.flush_all()
+        self.assertEqual(hierarchy_entry()["name"], "Renamed Application")
