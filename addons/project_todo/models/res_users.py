@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
 
-from odoo import _, api, fields, models, modules, SUPERUSER_ID
+from odoo import SUPERUSER_ID, _, api, fields, models, modules
 
 
 class ResUsers(models.Model):
