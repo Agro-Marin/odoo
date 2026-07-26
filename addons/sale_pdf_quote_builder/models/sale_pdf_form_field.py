@@ -113,7 +113,7 @@ class SalePdfFormField(models.Model):
                     "A form field set as used in product documents can't be linked to a quotation"
                     " document."
                 ))
-            elif doc_type == 'product_document' and form_field.quotation_document_ids:
+            if doc_type == 'product_document' and form_field.quotation_document_ids:
                 raise ValidationError(_(
                     "A form field set as used in quotation documents can't be linked to a product"
                     " document."
@@ -166,9 +166,10 @@ class SalePdfFormField(models.Model):
         if existing_mapping:
             form_fields_to_add = {
                 doc_type: {
-                    name: path for name, path in mapped_form_fields[doc_type].items()
+                    name: path for name, path in mapping.items()
                     if not existing_mapping.filtered(
-                        lambda ff: ff.document_type == doc_type and ff.name == name
+                        lambda ff, doc_type=doc_type, name=name:
+                            ff.document_type == doc_type and ff.name == name
                     )
                 } for doc_type, mapping in mapped_form_fields.items()
             }
@@ -215,5 +216,5 @@ class SalePdfFormField(models.Model):
                         existing_form_fields += document.form_field_ids[-1]
                     else:
                         document.form_field_ids = [Command.link(existing_form_fields.filtered(
-                            lambda form_field: form_field.name == field
+                            lambda form_field, field=field: form_field.name == field
                         ).id)]
