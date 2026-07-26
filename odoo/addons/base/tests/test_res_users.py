@@ -1060,24 +1060,25 @@ class TestCheckUidPasswdCacheContract(TransactionCase):
 class TestSelfWriteCompanyGuard(UsersCommonCase):
     """Self-write company_id range guard (RU-T4).
 
-    res.users.write silently drops a self-written company_id outside the user's own
-    company_ids (not an error), and applies one that is a member.
+    A self-written company_id outside the user's own company_ids is refused by
+    ``_check_user_company``; one that is a member applies.
     """
 
-    def test_self_write_company_id_non_member_is_dropped(self):
+    def test_self_write_company_id_non_member_is_refused(self):
+        """It used to be dropped from vals, so write() returned True having
+        ignored the request -- masking the constraint that already covers it.
+        """
         user = new_test_user(self.env, login="rut4_company", groups="base.group_user")
         other_company = self.env["res.company"].create({"name": "RU-T4 Other Co"})
         self.assertNotIn(other_company.id, user.company_ids.ids)
         original_company = user.company_id
 
         me = user.with_user(user)
-        self.assertTrue(me.write({"company_id": other_company.id}))
-        self.assertEqual(
-            user.company_id,
-            original_company,
-            "a self-written company_id outside company_ids must be dropped, "
-            "not applied (RU-T4)",
-        )
+        with self.assertRaises(ValidationError):
+            me.write({"company_id": other_company.id})
+            self.env.flush_all()
+        self.env.cr.precommit.clear()
+        self.assertEqual(user.company_id, original_company)
 
     def test_self_write_company_id_member_is_applied(self):
         company_b = self.env["res.company"].create({"name": "RU-T4 Co B"})
@@ -1094,7 +1095,7 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
         )
 
     def test_self_write_does_not_mutate_the_caller_vals(self):
-        """Dropping the company_id must not reach back into the caller's dict.
+        """A refused write must not reach back into the caller's dict either.
 
         The drop was a ``del vals["company_id"]`` on the very dict the caller
         passed in, so a caller reusing its vals (a loop over several users, a
@@ -1105,7 +1106,10 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
         other_company = self.env["res.company"].create({"name": "RU-T4 Untouched Co"})
         vals = {"company_id": other_company.id, "tz": "Europe/Brussels"}
 
-        user.with_user(user).write(vals)
+        with self.assertRaises(ValidationError):
+            user.with_user(user).write(vals)
+            self.env.flush_all()
+        self.env.cr.precommit.clear()
 
         self.assertEqual(
             vals,

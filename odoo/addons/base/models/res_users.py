@@ -987,6 +987,15 @@ class ResUsers(models.Model):
         return False
 
     def write(self, vals: dict[str, Any]) -> bool:
+        """Write, escalating a user's own row to ``sudo()`` for the self-service
+        field set (see :meth:`SELF_WRITEABLE_FIELDS`).
+
+        A ``company_id`` outside the user's ``company_ids`` is left in *vals*
+        for :meth:`_check_user_company` to reject. It used to be dropped here,
+        which made ``write()`` return ``True`` having ignored the request --
+        undetectable by the caller, and masking the very invariant that already
+        covers it, whose error names the companies actually allowed.
+        """
         if vals.get("active") and SUPERUSER_ID in self._ids:
             raise UserError(_("You cannot activate the superuser."))
         if vals.get("active") is False and self.env.uid in self._ids:
@@ -1001,13 +1010,6 @@ class ResUsers(models.Model):
             if all(key in writeable for key in vals) and not self._escapes_own_record(
                 vals
             ):
-                if (
-                    "company_id" in vals
-                    and vals["company_id"] not in self.env.user.company_ids.ids
-                ):
-                    vals = {k: v for k, v in vals.items() if k != "company_id"}
-                    if not vals:
-                        return True
                 self = self.sudo()
 
         res = super().write(vals)

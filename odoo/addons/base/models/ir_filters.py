@@ -59,7 +59,7 @@ class IrFilters(models.Model):
         "Constraint to ensure that the embedded_parent_res_id is only defined when an embedded_action_id is defined.",
     )
     _check_sort_json = models.Constraint(
-        "CHECK(sort IS NULL OR jsonb_typeof(sort::jsonb) = 'array')",
+        "CHECK(sort IS NULL OR sort IS JSON ARRAY)",
         "Invalid sort definition",
     )
 
@@ -69,6 +69,14 @@ class IrFilters(models.Model):
 
         Raw ORM create/write (server code, data files, future RPC) must validate
         too so the IRF-L1 guarantee holds at the write boundary (IRF-L2).
+
+        The ``sort`` column also carries ``_check_sort_json``, which PostgreSQL
+        evaluates on the INSERT itself -- before this runs. That check therefore
+        has to reject rather than fail: phrased as ``jsonb_typeof(sort::jsonb)``
+        it raised a bare ``invalid input syntax for type json`` on any non-JSON
+        text, a ``DataError`` no layer maps to a user-facing message, so a
+        malformed ``sort`` surfaced as a 500 instead of "Invalid sort
+        definition". ``IS JSON ARRAY`` answers false where the cast threw.
         """
         for filter_ in self:
             self._validate_serialized_fields(
