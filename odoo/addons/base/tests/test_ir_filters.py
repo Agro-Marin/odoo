@@ -1,8 +1,11 @@
 import ast
 import logging
 
+import psycopg.errors
+
 from odoo.exceptions import ValidationError
 from odoo.tests.common import ADMIN_USER_ID, TransactionCase, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
@@ -599,3 +602,52 @@ class TestCrossUserWrite(FiltersCase):
         )
         global_filter.with_user(self.USER_ID).write({"name": "edited by demo"})
         self.assertEqual(global_filter.name, "edited by demo")
+
+
+class TestSortColumnCheck(TransactionCase):
+    """The ``sort`` column check must reject, not fail.
+
+    PostgreSQL evaluates it on the INSERT itself, before ``@api.constrains``
+    gets a chance. Phrased as ``jsonb_typeof(sort::jsonb)`` it raised a bare
+    ``invalid input syntax for type json`` on any non-JSON text -- a DataError
+    no layer maps to a user-facing message, so a malformed sort surfaced as a
+    500 rather than "Invalid sort definition".
+    """
+
+    def _create(self, sort):
+        return self.env["ir.filters"].create(
+            {
+                "name": "sort check",
+                "model_id": "res.partner",
+                "domain": "[]",
+                "context": "{}",
+                "sort": sort,
+            }
+        )
+
+    def _assert_rejected(self, sort):
+        exc = None
+        with mute_logger("odoo.db"):
+            try:
+                with self.env.cr.savepoint():
+                    self._create(sort)
+                    self.env.flush_all()
+            except psycopg.errors.IntegrityError as error:
+                exc = error
+        self.assertIsNotNone(exc, f"sort={sort!r} was accepted")
+        self.assertEqual(
+            self.env["ir.filters"]._sql_error_to_message(exc),
+            "Invalid sort definition",
+        )
+
+    def test_non_json_text_is_rejected_with_a_message(self):
+        self._assert_rejected("not json")
+
+    def test_empty_string_is_rejected_with_a_message(self):
+        self._assert_rejected("")
+
+    def test_json_object_is_rejected_with_a_message(self):
+        self._assert_rejected('{"a": 1}')
+
+    def test_json_array_is_accepted(self):
+        self.assertEqual(self._create('["name asc"]').sort, '["name asc"]')
