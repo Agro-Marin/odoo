@@ -481,14 +481,25 @@ class RecomputeMixin(_ModelStubs):
                         record.env = env
                         record._ids = (id_,)
                         record._prefetch_ids = _no_prefetch
-                        vals_list.append(
-                            {
-                                f.name: col_val
-                                for f in id_to_fields[id_]
-                                if (col_val := f.get_column_update(record))
-                                is not PENDING
-                            }
-                        )
+                        vals = {}
+                        for f in id_to_fields[id_]:
+                            col_val = f.get_column_update(record)
+                            if col_val is not PENDING:
+                                vals[f.name] = col_val
+                            elif core.is_pending(f, id_):
+                                # Awaiting recomputation: hand the dirty flag
+                                # back (it was popped above) so the next pass
+                                # writes the value once it exists.  Dropping it
+                                # here is what silently lost the write.
+                                core.mark_dirty(f, (id_,))
+                            else:
+                                raise RuntimeError(
+                                    f"Cannot flush {f}: the cached value is "
+                                    f"PENDING on {self._name}({id_}) but the "
+                                    f"field is not scheduled for recomputation, "
+                                    f"so the value can never materialize"
+                                )
+                        vals_list.append(vals)
                 except KeyError as e:
                     raise RuntimeError(
                         f"Could not find all values of {self._name}({id_}) to flush them\n"
