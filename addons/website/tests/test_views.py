@@ -1511,7 +1511,10 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
         new_website_specific_child_view = Website.with_context(
             load_all_views=True, website_id=new_website.id
         ).viewref("_website_sale_comparison.product_add_to_compare")
-        new_website_specific_child_view.priority = 6
+        # Any value other than the generic's 16 and the 3 written below proves
+        # the point; it must stay above 16 so this view keeps applying after the
+        # sibling that adds the node its arch locates.
+        new_website_specific_child_view.priority = 26
         View._load_records(
             [
                 {
@@ -1534,7 +1537,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
         )
         self.assertEqual(
             new_website_specific_child_view.priority,
-            6,
+            26,
             "XML update should NOT be written on the specific view if the fields have been modified on that specific view",
         )
 

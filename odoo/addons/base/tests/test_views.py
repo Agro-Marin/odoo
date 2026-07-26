@@ -1,5 +1,7 @@
 import logging
+import os
 import re
+import tempfile
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -8,10 +10,12 @@ from unittest.mock import patch
 
 from lxml import etree
 from lxml.builder import E
+from markupsafe import Markup
 from psycopg import IntegrityError
 from psycopg.types.json import Json
 
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
+from odoo.fields import Domain
 from odoo.tests import common, tagged
 from odoo.tests.common import get_cache_key_counter
 from odoo.tools import mute_logger, safe_eval, view_validation
@@ -7598,3 +7602,457 @@ class ViewModifiers(ViewCase):
         self.assertFalse(tree.xpath('//div[@id="foo"]'))
         self.assertTrue(tree.xpath('//div[@id="bar"]'))
         self.assertFalse(tree.xpath('//div[@id="stuff"]'))
+
+
+@tagged("post_install", "-at_install")
+class TestViewArchRecovery(ViewCase):
+    """arch_prev is the only way back from an edit, so nothing may corrupt it
+    with translated text or clear it without actually restoring an arch.
+    """
+
+    def _translated_view(self):
+        view = self.assertValid(
+            '<form string="Partners"><field name="name"/></form>',
+            name="translated view",
+            model="res.partner",
+        )
+        self.env["res.lang"]._activate_lang("fr_FR")
+        view._update_field_translations(
+            "arch_db", {"fr_FR": {"Partners": "Partenaires"}}
+        )
+        view.invalidate_recordset()
+        return view
+
+    def test_arch_prev_is_language_neutral(self):
+        """A write in any language stores the source arch in arch_prev.
+
+        arch_prev is a plain Text field and reset_arch writes it back with
+        lang=None, so capturing the editing user's language would overwrite the
+        English source terms with their translation.
+        """
+        for field in ("arch", "arch_base", "arch_db"):
+            with self.subTest(field=field):
+                view = self._translated_view()
+                view.with_context(lang="fr_FR").write(
+                    {
+                        field: '<form string="Partenaires">'
+                        '<field name="name"/><field name="function"/></form>'
+                    }
+                )
+                view.invalidate_recordset()
+                self.assertIn("Partners", view.arch_prev)
+                self.assertNotIn("Partenaires", view.arch_prev)
+
+    def test_soft_reset_preserves_source_and_translation(self):
+        view = self._translated_view()
+        view.with_context(lang="fr_FR").write(
+            {
+                "arch": '<form string="Partenaires">'
+                '<field name="name"/><field name="function"/></form>'
+            }
+        )
+        view.invalidate_recordset()
+
+        view.reset_arch(mode="soft")
+        view.invalidate_recordset()
+
+        self.assertIn(
+            "Partners", view.with_context(lang="en_US").arch_db, "source arch corrupted"
+        )
+        self.assertIn(
+            "Partenaires",
+            view.with_context(lang="fr_FR").arch_db,
+            "translation destroyed",
+        )
+
+    def test_hard_reset_without_resolvable_file_is_a_true_noop(self):
+        """A hard reset that cannot produce a file arch must change nothing.
+
+        Clearing arch_prev there would also remove the only way back, and
+        clearing arch_updated would make dev-xml mode prefer a file that cannot
+        be resolved.
+        """
+        view = self.assertValid(
+            '<form string="Original"><field name="name"/></form>', name="unresolvable"
+        )
+        view.write({"arch_fs": "base/views/does_not_exist.xml"})
+        view.write({"arch": '<form string="Edited"><field name="name"/></form>'})
+        view.invalidate_recordset()
+        before = (view.arch_db, view.arch_prev, view.arch_updated)
+        self.assertTrue(before[1])
+
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            self.assertFalse(view.reset_arch(mode="hard"))
+        view.invalidate_recordset()
+
+        self.assertEqual((view.arch_db, view.arch_prev, view.arch_updated), before)
+
+    def test_hard_reset_from_file_still_works(self):
+        """Control: a view whose file declares it is restored, and reset_arch
+        reports it as reset.
+        """
+        view = self.env.ref("base.view_res_partner_filter")
+        original = view.arch_db
+        view.write({"arch": '<search><field name="name"/></search>'})
+        view.invalidate_recordset()
+        self.assertNotEqual(view.arch_db, original)
+
+        self.assertEqual(view.reset_arch(mode="hard"), view)
+        view.invalidate_recordset()
+        self.assertEqual(view.arch_db.strip(), original.strip())
+        self.assertFalse(view.arch_updated)
+
+    def test_get_arch_from_file_reports_unresolvable_as_none(self):
+        view = self.assertValid('<form><field name="name"/></form>', name="no arch_fs")
+        self.assertIsNone(view._get_arch_from_file())
+
+
+@tagged("post_install", "-at_install")
+class TestViewRevalidation(ViewCase):
+    """Fields deciding which views combine, and in which order, must be
+    revalidated on write: they can break an arch that was valid a moment ago.
+    """
+
+    def _tree(self):
+        parent = self.assertValid(
+            '<form><field name="name"/></form>', name="p", model="res.partner"
+        )
+        first = self.assertValid(
+            '<field name="name" position="after"><field name="function"/></field>',
+            name="c1",
+            inherit_id=parent.id,
+            model="res.partner",
+        )
+        second = self.assertValid(
+            '<field name="function" position="after"><field name="lang"/></field>',
+            name="c2",
+            inherit_id=parent.id,
+            model="res.partner",
+        )
+        first.write({"priority": 10})
+        second.write({"priority": 20})
+        return parent, first, second
+
+    def test_reordering_by_priority_is_rejected(self):
+        """c2 locates a node c1 adds, so demoting c2 below c1 breaks the tree."""
+        _parent, _first, second = self._tree()
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                second.write({"priority": 5})
+
+    def test_changing_mode_to_primary_is_validated(self):
+        """Demoting c1 out of the extension chain removes the node c2 locates."""
+        _parent, first, _second = self._tree()
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                first.write({"mode": "primary"})
+
+    def test_a_harmless_mode_change_is_still_allowed(self):
+        """Revalidation must reject only what actually breaks."""
+        parent = self.assertValid(
+            '<form><field name="name"/></form>', name="lonely p", model="res.partner"
+        )
+        child = self.assertValid(
+            '<field name="name" position="after"><field name="function"/></field>',
+            name="lonely c",
+            inherit_id=parent.id,
+            model="res.partner",
+        )
+        child.write({"mode": "primary"})
+        self.assertEqual(child.mode, "primary")
+
+    def test_rewriting_the_same_value_does_not_revalidate(self):
+        """Module loading rewrites these fields with identical values."""
+        _parent, first, _second = self._tree()
+        with patch.object(
+            type(self.View), "_check_xml", autospec=True, return_value=True
+        ) as checked:
+            first.write({"priority": 10, "mode": "extension"})
+        self.assertFalse(checked.called)
+
+    def test_record_loading_warns_instead_of_aborting(self):
+        """A module update rewriting priorities across thousands of views must
+        not abort the upgrade; the breakage still has to be visible.
+        """
+        _parent, _first, second = self._tree()
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_ui_view", level="WARNING"
+        ) as log_catcher:
+            second.with_context(ir_ui_view_loading_records=True).write({"priority": 5})
+        self.assertTrue(any("unable to combine" in line for line in log_catcher.output))
+
+    def test_an_already_broken_tree_stays_writable(self):
+        """A write is answerable for the breakage it introduces, not for
+        breakage that was already there.
+        """
+        _parent, _first, second = self._tree()
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            second.with_context(ir_ui_view_loading_records=True).write({"priority": 5})
+        # the tree is broken now; a further reorder must not raise
+        second.write({"priority": 4})
+        self.assertEqual(second.priority, 4)
+
+    def test_changing_the_value_revalidates(self):
+        _parent, first, _second = self._tree()
+        with patch.object(
+            type(self.View), "_check_xml", autospec=True, return_value=True
+        ) as checked:
+            first.write({"priority": 11})
+        self.assertTrue(checked.called)
+
+
+@tagged("post_install", "-at_install")
+class TestViewGroupsPostprocessing(ViewCase):
+    def test_groups_on_the_root_node_is_rejected(self):
+        """Removing the root would leave no arch to serve, so the attribute is
+        refused at write time and group_ids is offered instead.
+        """
+        self.assertInvalid(
+            '<form groups="base.group_system"><field name="name"/></form>',
+            "The root node of a view cannot carry a 'groups' attribute",
+            model="res.partner",
+        )
+
+    def test_unwrapping_a_t_groups_block_keeps_its_text(self):
+        """<t groups="..."> is dropped once the group check passes; its text and
+        tail belong to the parent afterwards.
+        """
+        group_key = self.env["res.groups"]._get_group_definitions().universe.key
+        node = etree.fromstring(
+            '<form><group><t __groups_key__="%s">HELLO<field name="name"/></t>'
+            'WORLD<field name="function"/></group></form>' % group_key
+        )
+        self.View._postprocess_access_rights(node)
+        arch = etree.tostring(node, encoding="unicode")
+        self.assertIn("HELLO", arch)
+        self.assertIn("WORLD", arch)
+        self.assertNotIn("<t", arch)
+
+    def test_unwrapping_a_childless_t_keeps_its_text(self):
+        group_key = self.env["res.groups"]._get_group_definitions().universe.key
+        node = etree.fromstring(
+            '<form><group><field name="name"/>'
+            '<t __groups_key__="%s">ONLYTEXT</t>TAIL</group></form>' % group_key
+        )
+        self.View._postprocess_access_rights(node)
+        arch = etree.tostring(node, encoding="unicode")
+        self.assertIn("ONLYTEXT", arch)
+        self.assertIn("TAIL", arch)
+
+
+@tagged("post_install", "-at_install")
+class TestViewArchSerialization(ViewCase):
+    def test_indentation_tabs_are_stripped(self):
+        view = self.assertValid(
+            '<form>\n\t<field name="name"/>\n</form>',
+            name="tabbed",
+            model="res.partner",
+        )
+        arch = self.env["res.partner"].get_view(view.id, "form")["arch"]
+        self.assertNotIn("\t", arch)
+
+    def test_tabs_inside_real_text_survive(self):
+        """The tab strip targets source indentation; a tab inside the view's own
+        text is content.
+        """
+        view = self.assertValid(
+            '<form><div>a\tb</div><field name="name"/></form>',
+            name="tab in text",
+            model="res.partner",
+        )
+        arch = self.env["res.partner"].get_view(view.id, "form")["arch"]
+        self.assertIn("a\tb", arch)
+
+
+@tagged("post_install", "-at_install")
+class TestViewCreateRobustness(ViewCase):
+    def test_unparseable_arch_without_name_reports_the_arch(self):
+        """create() used to KeyError on values['type'] once type inference had
+        failed and no name was supplied.
+        """
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                self.View.create({"model": "res.partner", "arch": "<form>"})
+
+    def test_non_string_arch_is_reported_as_a_view_error(self):
+        """lxml 5.0+/libxml2 2.12+ raise TypeError where older versions raised
+        ValueError; both must be reported as a view error.
+        """
+        arch = etree.Element("form")
+        arch.append(etree.Element("field", name="name"))
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises((ValidationError, UserError)):
+                self.View.create({"model": "res.partner", "arch": arch})
+
+    def test_encoding_declaration_is_rejected_on_every_arch_field(self):
+        """create() bypasses the arch inverse, and arch_db has no inverse at
+        all, so both need the check up front.
+        """
+        declared = (
+            "<?xml version='1.0' encoding='utf-8'?><form><field name=\"name\"/></form>"
+        )
+        for field in ("arch", "arch_base", "arch_db"):
+            with self.subTest(field=field, op="create"):
+                with self.assertRaises(UserError):
+                    self.View.create(
+                        {"name": "enc", "model": "res.partner", field: declared}
+                    )
+        view = self.assertValid(
+            '<form><field name="name"/></form>',
+            name="enc target",
+            model="res.partner",
+        )
+        for field in ("arch", "arch_base", "arch_db"):
+            with self.subTest(field=field, op="write"):
+                with self.assertRaises(UserError):
+                    view.write({field: declared})
+
+
+@tagged("post_install", "-at_install")
+class TestTemplateKeyCollision(ViewCase):
+    def _pair(self, key):
+        generic = self.View.create(
+            {
+                "name": "generic",
+                "type": "qweb",
+                "key": key,
+                "priority": 50,
+                "arch": '<t t-name="%s">GENERIC</t>' % key,
+            }
+        )
+        specific = self.View.create(
+            {
+                "name": "specific",
+                "type": "qweb",
+                "key": key,
+                "priority": 1,
+                "arch": '<t t-name="%s">SPECIFIC</t>' % key,
+            }
+        )
+        self.env.registry.clear_cache("templates")
+        self.env.cr.cache.pop("_compile_batch_", None)
+        return generic, specific
+
+    def test_a_view_sharing_a_key_stays_reachable_by_id(self):
+        """Several views may share a key (website COW does it by design). Only
+        the key is arbitrated by priority; an id always resolves to its view.
+        """
+        generic, specific = self._pair("base.collision_tpl")
+        fetched = self.View._fetch_template_views([generic.id, "base.collision_tpl"])
+        self.assertEqual(fetched[generic.id], generic)
+        self.assertEqual(fetched["base.collision_tpl"], specific)
+
+    def test_the_key_still_resolves_by_priority(self):
+        generic, specific = self._pair("base.collision_tpl2")
+        self.assertEqual(self.View._get_template_view("base.collision_tpl2"), specific)
+        self.assertEqual(self.View._get_template_view(generic.id), generic)
+
+    def test_a_mixed_batch_does_not_cache_an_existing_view_as_missing(self):
+        generic, _specific = self._pair("base.collision_tpl3")
+        self.View._preload_views([generic.id, "base.collision_tpl3"])
+        self.assertEqual(self.env["ir.qweb"]._render(generic.id, {}), Markup("GENERIC"))
+
+
+@tagged("post_install", "-at_install")
+class TestViewErrorReporting(ViewCase):
+    def test_error_quotes_the_offending_line(self):
+        """The location came from the node, and the context validator was the
+        one call site that forgot to pass it.
+        """
+        arch = (
+            "<form>\n"
+            + "".join("<div>%s</div>\n" % i for i in range(30))
+            + '<field name="function" context="{a b}"/>\n</form>'
+        )
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError) as catcher:
+                self.View.create({"name": "ctx", "model": "res.partner", "arch": arch})
+        self.assertIn('context="{a b}"', str(catcher.exception.args[0]))
+
+    def test_error_shows_the_arch_before_validation_mutated_it(self):
+        """_validate_view detaches sub-views as it recurses into them."""
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError) as catcher:
+                self.View.create(
+                    {
+                        "name": "sub",
+                        "model": "res.partner",
+                        "arch": '<form><field name="child_ids">'
+                        "<list><notebook/></list></field></form>",
+                    }
+                )
+        self.assertIn("notebook", str(catcher.exception.args[0]))
+
+    def test_untyped_view_reports_the_real_problem(self):
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError) as catcher:
+                self.View.create({"model": "res.partner", "arch": "<form>"})
+        self.assertIn(
+            "view type could not be determined", str(catcher.exception.args[0])
+        )
+
+    def test_private_view_error_names_the_view(self):
+        """The message used self.key, which is None for every non-qweb view."""
+        view = self.assertValid(
+            '<form><field name="name"/></form>',
+            name="private view",
+            model="res.partner",
+        )
+        with self.assertRaises(AccessError) as catcher:
+            view._check_view_access()
+        self.assertIn("private view", str(catcher.exception.args[0]))
+
+    def test_check_view_access_requires_a_single_view(self):
+        views = self.View.search([], limit=2)
+        with self.assertRaises(ValueError):
+            views._check_view_access()
+
+
+@tagged("post_install", "-at_install")
+class TestInheritingViewsQuery(ViewCase):
+    def test_cte_skips_columns_no_combination_step_reads(self):
+        fields = self.View._get_inheriting_views_fields()
+        for required in ("arch_db", "inherit_id", "mode", "priority", "model"):
+            self.assertIn(required, fields)
+        for excluded in ("arch_prev", "create_uid", "write_date"):
+            self.assertNotIn(excluded, fields)
+
+    def test_a_joining_domain_is_reported_against_the_hook(self):
+        """The recursive CTE inlines the domain's WHERE clause, so it cannot
+        carry a join.
+        """
+        view = self.env.ref("base.view_res_partner_filter")
+        with patch.object(
+            type(self.View),
+            "_get_inheriting_views_domain",
+            return_value=Domain("inherit_id.name", "!=", "zzz"),
+        ):
+            with self.assertRaises(ValueError) as catcher:
+                view._get_inheriting_views()
+        self.assertIn("_get_inheriting_views_domain", str(catcher.exception))
+
+
+class TestViewArchFileResolution(common.TransactionCase):
+    def test_a_qualified_xmlid_wins_over_a_bare_one(self):
+        """Candidates are tried in order of specificity. ORing them into one
+        XPath resolves by document order instead, letting a file's own short-id
+        record shadow a request for another module's record.
+        """
+        source = (
+            "<odoo>\n"
+            '  <record id="dup" model="ir.ui.view">'
+            '<field name="arch" type="xml"><form>SHORT</form></field></record>\n'
+            '  <record id="base.dup" model="ir.ui.view">'
+            '<field name="arch" type="xml"><form>QUALIFIED</form></field></record>\n'
+            "</odoo>"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as handle:
+            handle.write(source)
+            path = handle.name
+        self.addCleanup(os.unlink, path)
+
+        # base.dup exists verbatim: it must win over the bare "dup" record that
+        # precedes it in the document.
+        self.assertIn("QUALIFIED", ir_ui_view.get_view_arch_from_file(path, "base.dup"))
+        # other.dup does not: falling back to the bare "dup" is still correct.
+        self.assertIn("SHORT", ir_ui_view.get_view_arch_from_file(path, "other.dup"))
