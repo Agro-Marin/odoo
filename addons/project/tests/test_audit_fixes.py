@@ -419,33 +419,49 @@ class TestAuditFixesBatchB(TestProjectCommon):
         line = baseline.line_ids.filtered(lambda line: line.task_id == task)
         self.assertEqual(line.planned_start, begin)
 
-    def test_project_change_reopens_closed_task(self) -> None:
-        """Moving a task to another project must reopen it and drop its closure
-        date: it lands on the target project's default non-folded step, and in
-        this model state follows step, so a closed state there is invalid.
-
-        Pins the fix for the pre-existing TestTaskState.test_change_stage_or_project
-        failure (a canceled task stayed canceled after a project change).
+    def test_project_change_reopens_only_open_tasks(self) -> None:
+        """Re-homing drops a task onto the target project's default non-folded
+        step, so an *open* task reopens to in_progress. A closed one does not:
+        closed is sticky, the same contract `_compute_state` enforces, because a
+        bulk project reorganization must not destroy the closure history that
+        lead/cycle/throughput and deadline_met read.
         """
         source = self.env["project.project"].create({"name": "Src"})
         target = self.env["project.project"].create({"name": "Dst"})
-        task = self.env["project.task"].create(
-            {
-                "name": "was done",
-                "project_id": source.id,
-                "state": "done",
-                "date_closed": fields.Datetime.now(),
-            }
+        closed, open_task = self.env["project.task"].create(
+            [
+                {
+                    "name": "was done",
+                    "project_id": source.id,
+                    "state": "done",
+                    "date_closed": fields.Datetime.now(),
+                },
+                {
+                    "name": "still open",
+                    "project_id": source.id,
+                    "state": "changes_requested",
+                },
+            ]
         )
-        self.assertTrue(task.date_closed)
-        task.write({"project_id": target.id})
+        closed_at = closed.date_closed
+        self.assertTrue(closed_at)
+
+        (closed + open_task).write({"project_id": target.id})
+
         self.assertEqual(
-            task.state, "in_progress", "a re-homed task must reopen to an open state"
+            closed.state, "done", "a re-homed closed task must keep its state"
         )
-        self.assertFalse(
-            task.date_closed, "reopening must clear the stale closure date"
+        self.assertEqual(
+            closed.date_closed, closed_at, "re-homing must not clear the closure date"
         )
-        self.assertNotIn(task.step_id.fold, (True,), "must land on a non-folded step")
+        self.assertEqual(
+            open_task.state,
+            "in_progress",
+            "a re-homed open task must reopen onto the target's default step",
+        )
+        self.assertNotIn(
+            open_task.step_id.fold, (True,), "must land on a non-folded step"
+        )
 
     def test_project_copy_remaps_subtask_dependencies(self) -> None:
         """Copying a project must remap subtask dependencies onto the COPIED

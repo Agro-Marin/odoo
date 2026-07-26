@@ -101,7 +101,8 @@ class TestTaskState(TestProjectCommon):
         =========
         1) change task_1 to an open state and task_2 to a closed state
         2) change task_1 and task_2 stage, task_1 should go back to in_progress, task_2 should stay in its closing state
-        3) change task_1 and task_2 project, they should both go back to in_progress
+        3) change task_1 and task_2 project, task_1 should go back to in_progress,
+           task_2 should stay in its closing state
         """
         # 1) change task_1 to an open state and task_2 to a closed state
 
@@ -135,7 +136,7 @@ class TestTaskState(TestProjectCommon):
             "task_2 state should stay in its closed state",
         )
 
-        # 3) change task_1 and task_2 project, they should both go back to in_progress
+        # 3) change task_1 and task_2 project: task_1 reopens, task_2 stays closed
 
         # we make change the task_1 state back to an open state
         self.task_1.write(
@@ -153,8 +154,8 @@ class TestTaskState(TestProjectCommon):
         )
         self.assertEqual(
             self.task_2.state,
-            "in_progress",
-            "task_2 state should automatically switch back to in_progress when its project changes",
+            "canceled",
+            "task_2 state should remain canceled when its project changes",
         )
 
     def test_duplicate_dependent_task(self) -> None:
