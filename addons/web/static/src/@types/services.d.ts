@@ -51,6 +51,7 @@ declare module "services" {
     import { menuService } from "@web/webclient/menus/menu_service";
     import { profilingService } from "@web/webclient/debug/profiling/profiling_service";
     import { reloadCompanyService } from "@web/webclient/reload_company_service";
+    import { serviceWorkerService } from "@web/webclient/service_worker_service";
     import { shareTargetService } from "@web/webclient/share_target/share_target_service";
 
     type ExtractServiceFactory<T extends ServicesRegistryShape> = Awaited<ReturnType<T["start"]>>;
@@ -90,6 +91,7 @@ declare module "services" {
         reloadCompany: typeof reloadCompanyService;
         result_set_cache_invalidator: typeof resultSetCacheInvalidatorService;
         scss_error_display: typeof scssErrorNotificationService;
+        service_worker: typeof serviceWorkerService;
         shareTarget: typeof shareTargetService;
         slow_rpc: typeof slowRpcService;
         sortable: typeof sortableService;
