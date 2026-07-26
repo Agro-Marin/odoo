@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import timedelta
@@ -11,7 +10,7 @@ class TestSalePurchaseStockFlow(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestSalePurchaseStockFlow, cls).setUpClass()
+        super().setUpClass()
         cls.mto_route = cls.env.ref('stock.route_warehouse0_mto')
         cls.buy_route = cls.env.ref('purchase_stock.route_warehouse0_buy')
         cls.buy_route.product_selectable = True

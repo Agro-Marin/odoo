@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, api, models
@@ -23,7 +22,7 @@ class PurchaseOrderLine(models.Model):
         for re in res:
             if self.sale_line_id and re.get('location_final_id'):
                 final_loc = self.env['stock.location'].browse(re.get('location_final_id'))
-                if final_loc.usage == 'customer' or final_loc.usage == 'transit':
+                if final_loc.usage in {'customer', 'transit'}:
                     re['sale_line_id'] = self.sale_line_id.id
             if self.sale_line_id.route_ids:
                 re['route_ids'] = [Command.link(route_id) for route_id in self.sale_line_id.route_ids.ids]

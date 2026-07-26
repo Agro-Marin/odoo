@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
 from odoo.exceptions import AccessError
 from odoo.tests import tagged
+
+from odoo.addons.sale_purchase.tests.common import TestCommonSalePurchaseNoChart
 
 
 @tagged('post_install', '-at_install')
@@ -12,7 +12,7 @@ class TestAccessRights(TestCommonSalePurchaseNoChart):
 
     @classmethod
     def setUpClass(cls):
-        super(TestAccessRights, cls).setUpClass()
+        super().setUpClass()
 
         group_sale_user = cls.env.ref('sales_team.group_sale_salesman')
 
