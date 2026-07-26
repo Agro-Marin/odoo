@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import Command
-from odoo.tests import Form
-from odoo.addons.sale.tests.common import TestSaleCommon
-from odoo.exceptions import ValidationError
-from odoo.tests.common import tagged
 from psycopg.errors import NotNullViolation
+
+from odoo import Command
+from odoo.exceptions import ValidationError
+from odoo.tests import Form
+from odoo.tests.common import tagged
+
+from odoo.addons.sale.tests.common import TestSaleCommon
 
 
 @tagged('post_install', '-at_install')

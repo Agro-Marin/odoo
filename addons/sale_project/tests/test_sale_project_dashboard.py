@@ -1,6 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.sale_project.tests.test_project_profitability import TestProjectProfitabilityCommon as Common
+from odoo.addons.sale_project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon as Common,
+)
 
 
 class TestProjectDashboardCommon(Common):
@@ -63,8 +65,6 @@ class TestDashboardProject(TestProjectDashboardCommon):
 
     def test_get_sale_item_data_various_sols(self):
         """This test ensures that the sols are computed and put into the correct profitability sections"""
-        hour_uom_id = self.env.ref('uom.product_uom_hour').id
-        unit_uom_id = self.env.ref('uom.product_uom_unit').id
         sol_service_1, sol_service_2, sol_service_3, sol_service_4 = self.dashboardSaleOrderLine.create([{
                 'product_id': self.product_milestone.id,
                 'product_qty': 1,

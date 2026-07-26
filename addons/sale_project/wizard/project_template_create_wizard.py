@@ -1,4 +1,4 @@
-from odoo import api, Command, fields, models
+from odoo import Command, api, fields, models
 
 
 class ProjectTemplateCreateWizard(models.TransientModel):
