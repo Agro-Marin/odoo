@@ -1093,6 +1093,26 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
             "a self-written company_id that IS a member company must be applied",
         )
 
+    def test_self_write_does_not_mutate_the_caller_vals(self):
+        """Dropping the company_id must not reach back into the caller's dict.
+
+        The drop was a ``del vals["company_id"]`` on the very dict the caller
+        passed in, so a caller reusing its vals (a loop over several users, a
+        retry after a serialisation failure) silently lost the key for every
+        subsequent use.
+        """
+        user = new_test_user(self.env, login="rut4_novals", groups="base.group_user")
+        other_company = self.env["res.company"].create({"name": "RU-T4 Untouched Co"})
+        vals = {"company_id": other_company.id, "tz": "Europe/Brussels"}
+
+        user.with_user(user).write(vals)
+
+        self.assertEqual(
+            vals,
+            {"company_id": other_company.id, "tz": "Europe/Brussels"},
+            "write() mutated the caller's vals dict",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestAtLeastOneAdministrator(TransactionCase):
@@ -1386,3 +1406,121 @@ class TestDeviceIdentityAlignment(TransactionCase):
             [("session_identifier", "=", "sid_rdev_p4")]
         )
         self.assertEqual(survivors, newest, f"GC must delete hidden row {old.id}")
+
+
+@tagged("post_install", "-at_install")
+class TestSelfServiceEscalation(TransactionCase):
+    """The sudo() escalation in res.users.write must not reach past the row.
+
+    Listing a relational field in SELF_WRITEABLE_FIELDS used to hand the caller
+    unchecked create/update/delete on the comodel, by id: as long as every key
+    of ``vals`` was self-writable the whole write ran as superuser, and an
+    x2many command is applied to the comodel, not to res.users.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = new_test_user(cls.env, login="escalation_user")
+        cls.tag = cls.env["res.partner.category"].create({"name": "victim tag"})
+        cls.other = cls.env["res.partner"].create(
+            {"name": "other", "category_id": [Command.link(cls.tag.id)]}
+        )
+        cls.self_writeable = cls.env["res.users"]._self_accessible_fields()[1]
+
+    def _self_write(self, vals):
+        self.user.with_user(self.user).write(vals)
+
+    def test_no_one2many_is_self_writeable(self):
+        """The escalation is withheld from every one2many, so none should be
+        listed: a listed one2many would silently be half-served."""
+        fields_ = self.env["res.users"]._fields
+        listed = [
+            name
+            for name in self.self_writeable
+            if fields_.get(name) and fields_[name].type == "one2many"
+        ]
+        self.assertFalse(listed, "one2many fields cannot be self-written")
+
+    def test_one2many_command_is_not_escalated(self):
+        """A one2many command writes the comodel row holding the inverse."""
+        key = (
+            self.env["res.users.apikeys"]
+            .with_user(self.user)
+            ._generate(None, "k", datetime.now() + timedelta(hours=1))
+        )
+        self.assertTrue(key)
+        record = (
+            self.env["res.users.apikeys"]
+            .sudo()
+            .search([("user_id", "=", self.user.id)])
+        )
+        with patch.object(
+            type(self.env["res.users"]),
+            "SELF_WRITEABLE_FIELDS",
+            property(lambda s: ["api_key_ids"]),
+        ):
+            self.env.registry.clear_cache("stable")
+            with self.assertRaises(AccessError):
+                self._self_write({"api_key_ids": [Command.delete(record.id)]})
+        self.env.registry.clear_cache("stable")
+        self.assertTrue(record.exists(), "the key was destroyed by a self-write")
+
+    def test_destructive_many2many_command_is_not_escalated(self):
+        """Command.delete on a many2many unlinks the comodel record itself."""
+        with patch.object(
+            type(self.env["res.users"]),
+            "SELF_WRITEABLE_FIELDS",
+            property(lambda s: ["category_id"]),
+        ):
+            self.env.registry.clear_cache("stable")
+            for command in (
+                Command.delete(self.tag.id),
+                Command.create({"name": "forged"}),
+                Command.update(self.tag.id, {"name": "renamed"}),
+            ):
+                with self.assertRaises(AccessError):
+                    self._self_write({"category_id": [command]})
+        self.env.registry.clear_cache("stable")
+        self.assertTrue(self.tag.exists(), "the tag was destroyed by a self-write")
+        self.assertEqual(self.tag.name, "victim tag", "the tag was renamed")
+
+    def test_relation_only_many2many_command_is_escalated(self):
+        """Linking an existing tag touches the relation table only, so the
+        self-service grant still covers it (hr's category_ids relies on this)."""
+        with patch.object(
+            type(self.env["res.users"]),
+            "SELF_WRITEABLE_FIELDS",
+            property(lambda s: ["category_id"]),
+        ):
+            self.env.registry.clear_cache("stable")
+            self._self_write({"category_id": [Command.link(self.tag.id)]})
+            self.assertIn(self.tag, self.user.category_id)
+            self._self_write({"category_id": [Command.unlink(self.tag.id)]})
+            self.assertNotIn(self.tag, self.user.category_id)
+            self._self_write({"category_id": [Command.set(self.tag.ids)]})
+            self.assertEqual(self.user.category_id, self.tag)
+            self._self_write({"category_id": [Command.clear()]})
+            self.assertFalse(self.user.category_id)
+        self.env.registry.clear_cache("stable")
+        self.assertTrue(self.tag.exists(), "a relation edit destroyed the tag")
+
+    def test_shorthand_values_are_classified_by_effect(self):
+        """dict is a create and a bare id is a link, whatever the syntax."""
+        Users = self.env["res.users"]
+        self.assertTrue(
+            Users._escapes_own_record({"category_id": [{"name": "forged"}]}),
+            "the dict create shorthand must not be escalated",
+        )
+        self.assertFalse(
+            Users._escapes_own_record({"category_id": [self.tag.id]}),
+            "the bare-id link shorthand is a relation edit",
+        )
+        self.assertFalse(
+            Users._escapes_own_record({"category_id": self.tag}),
+            "assigning a recordset replaces the relation only",
+        )
+        self.assertFalse(
+            Users._escapes_own_record({"tz": "Europe/Brussels"}),
+            "scalars never escape the row",
+        )
