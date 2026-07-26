@@ -4,7 +4,7 @@ from datetime import datetime
 import psycopg.errors
 
 import odoo
-from odoo.exceptions import UserError
+from odoo.exceptions import ConcurrencyError, UserError
 from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase
@@ -504,3 +504,157 @@ class TestIrSequencePredictNextval(common.TransactionCase):
         seq.write({"number_next": 10})
         seq.invalidate_recordset(["number_next_actual"])
         self.assertEqual(seq.number_next_actual, 10)
+
+
+class TestIrSequenceDateRangeConcurrency(BaseCase):
+    """Concurrent first draw on a date-ranged sequence."""
+
+    SEQ_CODE = "test_sequence_date_range_race"
+    DATE = "2031-06-15"
+
+    def setUp(self):
+        super().setUp()
+        with environment() as env:
+            self.seq_id = (
+                env["ir.sequence"]
+                .create(
+                    {
+                        "code": self.SEQ_CODE,
+                        "name": "Test date-ranged sequence",
+                        "implementation": "no_gap",
+                        "use_date_range": True,
+                        "prefix": "R/%(range_year)s/",
+                        "padding": 4,
+                    }
+                )
+                .id
+            )
+        self.addCleanup(drop_sequence, self.SEQ_CODE)
+
+    @mute_logger("odoo.db")
+    def test_concurrent_range_creation_is_retryable(self):
+        """The loser of a date-range creation race asks for a request replay.
+
+        Both transactions see no range covering the date and both create one.
+        The loser used to swallow the UniqueViolation and re-``search``, which
+        cannot see the winner's row under ``REPEATABLE READ``, and drew from the
+        resulting empty recordset (``operator does not exist: integer =
+        boolean``).  It must raise ``ConcurrencyError`` instead, which
+        ``retrying`` replays.
+        """
+        registry = Registry(common.get_db_name())
+        with registry.cursor() as cr_a, registry.cursor() as cr_b:
+            env_a = odoo.api.Environment(cr_a, ADMIN_USER_ID, {})
+            env_b = odoo.api.Environment(cr_b, ADMIN_USER_ID, {})
+            # pin both snapshots while no date range exists yet
+            for env in (env_a, env_b):
+                env["ir.sequence.date_range"].search_count(
+                    [("sequence_id", "=", self.seq_id)]
+                )
+
+            value_a = env_a["ir.sequence"].browse(self.seq_id)._next(self.DATE)
+            self.assertEqual(value_a, "R/2031/0001")
+            cr_a.commit()
+
+            with self.assertRaises(ConcurrencyError):
+                env_b["ir.sequence"].browse(self.seq_id)._next(self.DATE)
+
+    @mute_logger("odoo.db")
+    def test_replay_after_concurrent_range_creation_succeeds(self):
+        """A replayed transaction sees the winner's range and draws from it."""
+        registry = Registry(common.get_db_name())
+        with registry.cursor() as cr_a, registry.cursor() as cr_b:
+            env_a = odoo.api.Environment(cr_a, ADMIN_USER_ID, {})
+            env_b = odoo.api.Environment(cr_b, ADMIN_USER_ID, {})
+            for env in (env_a, env_b):
+                env["ir.sequence.date_range"].search_count(
+                    [("sequence_id", "=", self.seq_id)]
+                )
+
+            env_a["ir.sequence"].browse(self.seq_id)._next(self.DATE)
+            cr_a.commit()
+
+            with self.assertRaises(ConcurrencyError):
+                env_b["ir.sequence"].browse(self.seq_id)._next(self.DATE)
+
+            # what ``retrying`` does: roll back, then run the request again
+            cr_b.rollback()
+            env_b = odoo.api.Environment(cr_b, ADMIN_USER_ID, {})
+            self.assertEqual(
+                env_b["ir.sequence"].browse(self.seq_id)._next(self.DATE),
+                "R/2031/0002",
+            )
+
+
+class TestIrSequenceStepInvariant(common.TransactionCase):
+    """``number_increment`` must be strictly positive, on every path.
+
+    A zero step made ``_update_nogap`` add nothing, so a ``no_gap`` sequence
+    re-issued one number forever -- silent duplicate document identifiers. The
+    ``standard`` path rejected the same value (its ``ALTER SEQUENCE`` could
+    not accept it) while ``create`` quietly coerced it to 1 and stored the 0,
+    so the two implementations disagreed about the same record.
+    """
+
+    def _create(self, **vals):
+        return self.env["ir.sequence"].create(
+            {"name": "step invariant", "padding": 3, **vals}
+        )
+
+    def test_no_gap_rejects_zero_step_on_create(self):
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            with mute_logger("odoo.db"):
+                self._create(implementation="no_gap", number_increment=0)
+                self.env.flush_all()
+
+    def test_no_gap_rejects_zero_step_on_write(self):
+        sequence = self._create(implementation="no_gap", number_increment=1)
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            with mute_logger("odoo.db"):
+                sequence.write({"number_increment": 0})
+                self.env.flush_all()
+
+    def test_standard_rejects_zero_step_on_create(self):
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            with mute_logger("odoo.db"):
+                self._create(implementation="standard", number_increment=0)
+                self.env.flush_all()
+
+    def test_negative_step_is_rejected_before_reaching_postgresql(self):
+        """A negative step used to reach ``CREATE SEQUENCE`` and come back as
+        an opaque ``START value cannot be greater than MAXVALUE``.
+        """
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            with mute_logger("odoo.db"):
+                self._create(implementation="standard", number_increment=-1)
+                self.env.flush_all()
+
+    def test_negative_padding_is_rejected(self):
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            with mute_logger("odoo.db"):
+                self._create(number_increment=1, padding=-2)
+                self.env.flush_all()
+
+    def test_violation_names_the_invariant(self):
+        exc = None
+        with mute_logger("odoo.db"):
+            try:
+                with self.env.cr.savepoint():
+                    self._create(implementation="no_gap", number_increment=0)
+                    self.env.flush_all()
+            except psycopg.errors.IntegrityError as error:
+                exc = error
+        self.assertEqual(
+            self.env["ir.sequence"]._sql_error_to_message(exc),
+            "The sequence step must be strictly positive.",
+        )
+
+    def test_positive_steps_still_draw_correctly(self):
+        no_gap = self._create(
+            implementation="no_gap", number_increment=2, number_next=5
+        )
+        self.assertEqual([no_gap._next() for _ in range(3)], ["005", "007", "009"])
+        standard = self._create(
+            implementation="standard", number_increment=3, number_next=10
+        )
+        self.assertEqual([standard._next() for _ in range(3)], ["010", "013", "016"])

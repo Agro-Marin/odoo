@@ -272,10 +272,10 @@ class IrAttachment(models.Model):
 
         backend = self._storage_backend()
         derived_values: dict[tuple[str, str], dict[str, Any]] = {}
-        for values in vals_list:
+        for index, values in enumerate(vals_list):
             has_content = self._normalize_content_vals(values)
 
-            values = self._check_contents(values)
+            values = vals_list[index] = self._check_contents(values)
             if has_content:
                 raw = values.pop("raw")
                 memo_key = (self._content_checksum(raw), values["mimetype"])

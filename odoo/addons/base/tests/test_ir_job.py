@@ -9,9 +9,13 @@ transaction, without workers or extra connections.
 from datetime import timedelta
 from unittest.mock import patch
 
+import odoo
 from odoo import api, fields
-from odoo.exceptions import RetryableJobError, UserError
-from odoo.tests.common import TransactionCase
+from odoo.exceptions import RetryableJobError, UserError, ValidationError
+from odoo.modules.registry import Registry
+from odoo.tests import common
+from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools import mute_logger
 
 from odoo.addons.base.models.ir_job import IrJob
 
@@ -29,6 +33,30 @@ def _ir_job_test_boom(self, retryable=False, seconds=None):
     raise ValueError("boom")
 
 
+def _isolate_queue(env):
+    """Hide the database's own queue state from the claim assertions.
+
+    ``_claim_next`` looks at the whole *database*, so these tests only hold on a
+    database whose queue is empty and unconfigured -- which a restored dump, a
+    developer's ``_job_ping`` or a deployment that simply raised the ``root``
+    channel's capacity is not.  Two independent kinds of state leak in:
+
+    * queued ``ir.job`` rows -- ``_claim`` returns someone else's job and the
+      assertions read the wrong row;
+    * ``ir.job.channel`` rows -- the capacity assertions assume the *implicit*
+      capacity of 1 for an unconfigured channel, so a configured ``root`` makes
+      them claim more than they expect.
+
+    Both are neutralised inside the test transaction and roll back with it, so
+    the real queue and its configuration are untouched.
+    """
+    env.cr.execute(
+        "UPDATE ir_job SET state = 'cancelled'"
+        " WHERE state IN ('wait_deps', 'pending', 'started')"
+    )
+    env.cr.execute("DELETE FROM ir_job_channel")
+
+
 class TestIrJob(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -38,6 +66,7 @@ class TestIrJob(TransactionCase):
             setattr(cls.partner_cls, func.__name__, func)
             cls.addClassCleanup(delattr, cls.partner_cls, func.__name__)
         cls.partner = cls.env["res.partner"].create({"name": "job target"})
+        _isolate_queue(cls.env)
 
     def _claim(self):
         return IrJob._claim_next(self.env.cr, "test:0")
@@ -363,3 +392,211 @@ class TestIrJob(TransactionCase):
             @api.job
             def public_method(self):
                 pass
+
+
+class TestIrJobDependencyCycle(TransactionCase):
+    """Dependency loops are refused, not left running forever."""
+
+    def setUp(self):
+        super().setUp()
+        _isolate_queue(self.env)
+
+    def test_direct_cycle_is_refused(self):
+        """a -> b -> a leaves both jobs in wait_deps for good, so refuse it.
+
+        ``_resolve_dependencies`` only promotes a job whose dependencies are all
+        ``done`` and ``_gc_jobs`` only prunes terminal states, so a cycle is
+        never run, never cancelled and never collected.
+        """
+        job_a = self.env["ir.job"].delayed()._job_ping("a")
+        job_b = self.env["ir.job"].delayed(after=job_a)._job_ping("b")
+        with self.assertRaises(ValidationError):
+            job_a.depends_on_ids = job_b
+
+    def test_indirect_cycle_is_refused(self):
+        """a -> b -> c -> a is caught too, not just the two-node case."""
+        job_a = self.env["ir.job"].delayed()._job_ping("a")
+        job_b = self.env["ir.job"].delayed(after=job_a)._job_ping("b")
+        job_c = self.env["ir.job"].delayed(after=job_b)._job_ping("c")
+        with self.assertRaises(ValidationError):
+            job_a.depends_on_ids = job_c
+
+    def test_cycle_via_the_reverse_side_is_refused(self):
+        """``dependent_ids`` writes the same rows from the other end.
+
+        Watching only ``depends_on_ids`` left this side open, so the same loop
+        could still be built through the reverse field.
+        """
+        job_a = self.env["ir.job"].delayed()._job_ping("a")
+        job_b = self.env["ir.job"].delayed(after=job_a)._job_ping("b")
+        with self.assertRaises(ValidationError):
+            job_b.dependent_ids = job_a
+
+    def test_self_dependency_is_refused(self):
+        """A job depending on itself never becomes runnable either."""
+        job = self.env["ir.job"].delayed()._job_ping("solo")
+        with self.assertRaises(ValidationError):
+            job.depends_on_ids = job
+
+    def test_diamond_dependencies_are_allowed(self):
+        """Fan-out/fan-in is not a cycle and must keep working."""
+        root = self.env["ir.job"].delayed()._job_ping("root")
+        left = self.env["ir.job"].delayed(after=root)._job_ping("left")
+        right = self.env["ir.job"].delayed(after=root)._job_ping("right")
+        join = self.env["ir.job"].delayed(after=left | right)._job_ping("join")
+        self.env.flush_all()
+        self.assertEqual(join.state, "wait_deps")
+        self.assertEqual(join.depends_on_ids, left | right)
+
+
+class TestIrJobClaimSnapshot(BaseCase):
+    """Claiming from a transaction whose snapshot predates another claim."""
+
+    def setUp(self):
+        super().setUp()
+        self.registry = Registry(common.get_db_name())
+        self.addCleanup(self._clear_jobs)
+        self._clear_jobs()
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            env["ir.job.channel"].create({"name": "claimtest", "capacity": 100})
+            cr.execute(
+                "INSERT INTO ir_job (channel, state, priority, model_name,"
+                " method_name, user_id, max_retries, retry, create_uid,"
+                " create_date, write_uid, write_date) VALUES"
+                " ('claimtest','pending',1,'ir.job','_job_ping',1,5,0,1,now(),1,now()),"
+                " ('claimtest','pending',2,'ir.job','_job_ping',1,5,0,1,now(),1,now())"
+            )
+
+    def _clear_jobs(self):
+        with self.registry.cursor() as cr:
+            cr.execute("DELETE FROM ir_job_dependency")
+            cr.execute("DELETE FROM ir_job WHERE channel = 'claimtest'")
+            cr.execute("DELETE FROM ir_job_channel WHERE name = 'claimtest'")
+
+    @mute_logger("odoo.db.cursor")
+    def test_claim_recovers_from_a_stale_snapshot(self):
+        """A claimer whose snapshot predates the winner's commit still claims.
+
+        ``pg_advisory_xact_lock`` is the claim transaction's first statement, so
+        it pins the ``REPEATABLE READ`` snapshot; whoever waits on the lock
+        resumes with a snapshot older than the winner's commit and its
+        ``UPDATE`` fails with ``40001``.  ``_claim_next`` must roll back for a
+        fresh snapshot and retry, not propagate -- the exception escaped
+        ``_claim_and_run_loop`` and ended the whole worker pass.
+        """
+        with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
+            cr_b.execute("SELECT count(*) FROM ir_job")  # pin B's snapshot
+
+            job_a = IrJob._claim_next(cr_a, "snap:a", channels=["claimtest"])
+            cr_a.commit()
+            self.assertIsNotNone(job_a)
+
+            job_b = IrJob._claim_next(cr_b, "snap:b", channels=["claimtest"])
+            cr_b.commit()
+            self.assertIsNotNone(job_b, "the stale-snapshot claimer got nothing")
+            self.assertNotEqual(job_b["id"], job_a["id"])
+
+
+class TestIrJobEnqueueTarget(TransactionCase):
+    """``delayed()`` must not accept a target it cannot persist."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner_cls = type(cls.env["res.partner"])
+        setattr(cls.partner_cls, _ir_job_test_append.__name__, _ir_job_test_append)
+        cls.addClassCleanup(delattr, cls.partner_cls, _ir_job_test_append.__name__)
+        _isolate_queue(cls.env)
+
+    def test_unsaved_records_are_refused(self):
+        """``ids`` drops ``NewId``, so this used to enqueue an empty target: a
+        job that ran against no record, did nothing and reported success.
+        """
+        unsaved = self.env["res.partner"].new({"name": "never saved"})
+        self.assertEqual(len(unsaved), 1)
+        self.assertEqual(unsaved.ids, [])
+        with self.assertRaises(UserError):
+            unsaved.delayed()._ir_job_test_append("x")
+
+    def test_saved_records_are_still_accepted(self):
+        partner = self.env["res.partner"].create({"name": "saved"})
+        job = partner.delayed()._ir_job_test_append("x")
+        self.assertEqual(job.record_ids, partner.ids)
+
+    def test_model_level_enqueue_is_still_accepted(self):
+        """An empty recordset is a legitimate model-level target."""
+        job = self.env["ir.job"].delayed()._job_ping("hi")
+        self.assertEqual(job.record_ids, [])
+
+
+class TestIrJobClaimCapacity(TransactionCase):
+    """The claim query's capacity decision, and that the ``saturated`` CTE
+    reproduces it for every channel shape.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        _isolate_queue(cls.env)
+
+    def _job(self, channel, state, priority, started=False):
+        job = self.env["ir.job"].create(
+            {
+                "channel": channel,
+                "state": state,
+                "priority": priority,
+                "model_name": "ir.job",
+                "method_name": "_job_ping",
+                "user_id": self.env.uid,
+                "max_retries": 0,
+            }
+        )
+        if started:
+            job.started_at = fields.Datetime.now()
+        return job
+
+    def test_capacity_is_respected_across_channel_shapes(self):
+        self.env["ir.job.channel"].create(
+            [
+                {"name": "cap2", "capacity": 2},
+                {"name": "cap3", "capacity": 3},
+                {"name": "off", "capacity": 9, "active": False},
+            ]
+        )
+        for channel, running in (("cap2", 2), ("cap3", 1), ("off", 1)):
+            for _ in range(running):
+                self._job(channel, "started", 1, started=True)
+        wanted = {}
+        for priority, channel in enumerate(
+            ("cap2", "off", "cap3", "implicit"), start=1
+        ):
+            wanted[channel] = self._job(channel, "pending", priority).id
+        self.env.flush_all()
+
+        claimed = []
+        while job := IrJob._claim_next(
+            self.env.cr, "cap:0", channels=["cap2", "cap3", "off", "implicit"]
+        ):
+            claimed.append(job["id"])
+
+        self.assertEqual(
+            claimed,
+            [wanted["cap3"], wanted["implicit"]],
+            "only the channels below capacity are claimable, in priority order",
+        )
+
+    def test_backlog_behind_a_saturated_channel_does_not_hide_a_runnable_job(self):
+        """The runnable job is worst-priority, so every blocked row is scanned
+        before it: the regression this guards is a per-row capacity recount.
+        """
+        self.env["ir.job.channel"].create({"name": "full", "capacity": 1})
+        self._job("full", "started", 1, started=True)
+        for _ in range(50):
+            self._job("full", "pending", 1)
+        runnable = self._job("free", "pending", 99).id
+        self.env.flush_all()
+
+        job = IrJob._claim_next(self.env.cr, "cap:1", channels=["full", "free"])
+        self.assertIsNotNone(job)
+        self.assertEqual(job["id"], runnable)
