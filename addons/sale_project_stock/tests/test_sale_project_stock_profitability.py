@@ -1,9 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, fields
-from odoo.addons.sale_project.tests.test_project_profitability import TestProjectProfitabilityCommon
-from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import ValuationReconciliationTestCommon
 from odoo.tests import tagged
+
+from odoo.addons.sale_project.tests.test_project_profitability import (
+    TestProjectProfitabilityCommon,
+)
+from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import (
+    ValuationReconciliationTestCommon,
+)
 
 
 @tagged('-at_install', 'post_install')
