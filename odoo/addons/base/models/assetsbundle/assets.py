@@ -244,24 +244,42 @@ class JavascriptAsset(WebAsset):
 class XMLAsset(WebAsset):
     """OWL template (.xml) asset, consumed as parsed elements by ``xml()``."""
 
-    @functools.cached_property
+    @property
     def _parsed_root(self) -> etree._Element:
-        """Parse the asset's XML source once; cache the root element.
+        """The asset's parsed root element, or raise the cached parse error.
 
         ``template_elements`` (the only production consumer) derives from this
         single parse, avoiding a parse/serialize/parse round-trip per file.
         """
+        result = self._parse_result
+        if isinstance(result, XMLAssetError):
+            raise result
+        return result
+
+    @functools.cached_property
+    def _parse_result(self) -> etree._Element | XMLAssetError:
+        """Parse once, caching the FAILURE as well as the success.
+
+        ``functools.cached_property`` does not memoize an exception, so a
+        raising ``_parsed_root`` re-read the file, re-parsed it and re-logged
+        the error on *every* access — and a broken template is read several
+        times per request (``generate_xml_bundle`` is reached from the legacy
+        IIFE and from each ESM template-bundle call site). Returning the error
+        instead of raising it makes the cache hold both outcomes, so the file is
+        read once and the operator gets one log line per bundle build, not one
+        per call site.
+        """
         try:
             raw = self._raw_source()
         except AssetError as e:
-            raise self._error(str(e)) from e
+            return self._error(str(e))
         parser = etree.XMLParser(
             ns_clean=True, remove_comments=True, resolve_entities=False
         )
         try:
             return etree.fromstring(raw.encode("utf-8"), parser=parser)
         except etree.XMLSyntaxError as e:
-            raise self._error(f"Invalid XML template: {e.msg}") from e
+            return self._error(f"Invalid XML template: {e.msg}")
 
     @functools.cached_property
     def template_elements(self) -> list[etree._Element]:
@@ -292,8 +310,28 @@ class StylesheetAsset(WebAsset):
         r"""@import\s+(?P<q>'|")(?!'|"|/|https?://)(?P<path>[^'"]*)(?P=q)"""
     )
     rx_url = re.compile(
-        r"""(?<!")url\s*\(\s*(?P<q>['"]|)(?!['"]|/|https?://|data:|\#\{str)(?P<body>[^'")\s]*)(?P=q)""",
+        r"""(?<!")url\s*\(\s*(?P<q>['"]|)"""
+        r"""(?!['"]|/|https?://|data:|\#\{str|\#(?!\{))"""
+        r"""(?P<body>[^'")\s]*)(?P=q)""",
     )
+    """Match a ``url(…)`` whose body is a *relative path* needing rewriting.
+
+    The lookahead skips what must be left alone:
+
+    * an already-absolute or protocol-relative href, and a ``data:`` payload;
+    * ``#{str…}`` — an interpolation calling ``str-replace``/``str-slice``,
+      whose arguments carry ``)`` and spaces that ``body`` cannot span;
+    * ``#`` NOT followed by ``{`` — a same-document reference
+      (``clip-path: url(#clip)``, ``mask: url(#m)``, ``behavior:
+      url(#default#VML)``). Prefixing one with the stylesheet's directory
+      resolves it to nothing and silently drops the effect.
+
+    ``#{`` itself must still MATCH: the rewrite runs on Sass *source*, and the
+    common shape is a path whose leading segment is interpolated
+    (``url("#{$lato-font-path}/Lato-Reg-webfont.eot")``, where
+    ``$lato-font-path`` is ``"./lato"``). Skipping those leaves a URL relative
+    to the *bundle* URL, so every Lato/Google web font 404s.
+    """
     rx_charset = re.compile(r'(@charset "[^"]+";)')
     _CSS_TOKEN_RE = _CSS_STRING_OR_COMMENT
     _SOURCE_TOKEN_RE = _CSS_STRING_OR_COMMENT
@@ -465,10 +503,8 @@ class ScssStylesheetAsset(PreprocessedCSS):
             "expanded" if self.bundle and self.bundle.is_debug_assets else "compressed"
         )
 
-    @property
-    def _sass_syntax(self) -> str:
-        """Sass syntax identifier for this asset type."""
-        return "scss"
+    _sass_syntax = "scss"
+    """Dart Sass syntax identifier; see :class:`SassStylesheetAsset`."""
 
     def minify(self) -> str:
         """Dart Sass output needs no regex pass.
@@ -526,6 +562,7 @@ class ScssStylesheetAsset(PreprocessedCSS):
         cmd = [
             sass,
             "--stdin",
+            "--indented" if self._sass_syntax == "indented" else "--no-indented",
             "--no-source-map",
             "--style",
             self.output_style,
@@ -539,3 +576,22 @@ class ScssStylesheetAsset(PreprocessedCSS):
         for path in load_paths:
             cmd.extend(["--load-path", path])
         return cmd
+
+
+class SassStylesheetAsset(ScssStylesheetAsset):
+    """Compile indented-syntax Sass (.sass) using Dart Sass.
+
+    ``sass`` was already advertised in ``STYLE_EXTENSIONS`` (so ``ir.asset``
+    globs collect ``.sass`` files and ``ir_qweb_assets`` links them as
+    stylesheets) and ``OdooSassImporter`` already switches syntax on the
+    ``.sass`` suffix — only the bundle-side entry point was missing, so such a
+    file reached :class:`AssetsBundle` and was dropped with a
+    ``bundle_file_skipped`` warning.
+
+    A bundle may not mix ``.sass`` and ``.scss``: the dialect's files are
+    concatenated into ONE document per bundle and neither the embedded
+    compiler nor the CLI reads two syntaxes in one document
+    (``CssPipeline.preprocess`` reports that as a CSS error).
+    """
+
+    _sass_syntax = "indented"

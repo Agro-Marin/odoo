@@ -1,7 +1,10 @@
+import functools
+import hashlib
 import logging
 import re
 import subprocess
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Literal, NotRequired, TypedDict
 
@@ -12,6 +15,62 @@ from odoo.libs.asset_log import get_asset_logger
 _logger = logging.getLogger("odoo.addons.base.models.assetsbundle")
 
 _bundle_log = get_asset_logger("bundle")
+
+_PIPELINE_SOURCES = (
+    Path(__file__).parent,
+    Path(__file__).parents[3] / "tools" / "assets",
+    Path(__file__).parents[3] / "tools" / "sass_embedded.py",
+)
+
+
+@functools.cache
+def _pipeline_fingerprint() -> str:
+    """Digest of the code that turns asset sources into bundle bytes.
+
+    A bundle's version is otherwise a hash of its members' URLs and mtimes
+    only, so it carries no notion of *how* those sources were compiled. Change
+    the pipeline without touching a single ``.scss`` and every already-persisted
+    attachment stays valid: the old, wrongly-compiled bundle is served forever.
+    That is not hypothetical — a fix to ``StylesheetAsset.rx_url`` in this
+    package kept serving the broken CSS until the attachments were deleted by
+    hand.
+
+    Mixing this digest into :meth:`AssetsBundle.get_checksum` makes a pipeline
+    change invalidate every bundle exactly once, the same way a source edit
+    does. The cost is one lazy walk of a handful of files per process.
+
+    Native-ESM artifacts need no such seed: their URLs are content-addressed
+    (``/web/assets/esm/<digest>/…``), so different output already means a
+    different URL.
+
+    Falls back to the release version if the sources cannot be read (frozen or
+    zipped deployment): a coarse fingerprint still beats none.
+    """
+    digest = hashlib.sha256()
+    files: list[Path] = []
+    for source in _PIPELINE_SOURCES:
+        if source.is_dir():
+            files.extend(source.glob("*.py"))
+        elif source.is_file():
+            files.append(source)
+    try:
+        for path in sorted(files):
+            digest.update(path.name.encode())
+            digest.update(path.read_bytes())
+    except OSError:
+        from odoo import release
+
+        _logger.warning(
+            "Could not read the asset pipeline sources to fingerprint them; "
+            "falling back to the release version. A pipeline change that does "
+            "not touch any asset file will not invalidate cached bundles."
+        )
+        return release.version
+    if not files:
+        from odoo import release
+
+        return release.version
+    return digest.hexdigest()
 
 
 def _sourcemap_source_root(asset_url: str) -> str:
@@ -122,6 +181,26 @@ _SCSS_STRING_OR_COMMENT = re.compile(
     re.DOTALL,
 )
 
+_URL_FUNCTION = r"""url\(\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^)'"\n]*)\)"""
+
+_SCSS_STATEMENT_SPANS = re.compile(
+    rf"""{_URL_FUNCTION}|{_SCSS_STRING_OR_COMMENT.pattern}""",
+    re.DOTALL,
+)
+"""Opaque spans for scanners that look for SCSS *statements* (``@import``).
+
+Extends :data:`_SCSS_STRING_OR_COMMENT` with the whole ``url(…)`` function, so
+the ``//`` of a protocol (``url(https://…)``) or of a protocol-relative href
+(``url(//cdn/x.png)``) is not mistaken for the start of a Sass line comment.
+Without it the scanner swallowed the rest of that line and every ``@import``
+after it on the same line escaped sanitising.
+
+NOT usable by the ``url()`` *rewriter* (:meth:`StylesheetAsset._fetch_content`):
+that pass must reach inside ``url(…)``, which is exactly what this hides.
+"""
+
+_PROTECTED_SPAN = "_odoo_protected_span"
+
 
 def _rewrite_css_outside_strings(
     target: re.Pattern,
@@ -133,8 +212,7 @@ def _rewrite_css_outside_strings(
 
     A single left-to-right scan consumes string-literal and comment spans first,
     so a ``url()`` / ``@import`` / ``appearance:`` written *inside* a
-    ``content: "…"`` value or a comment passes through untouched. ``target``'s
-    own capture groups reach ``repl`` unchanged; the scanner adds none.
+    ``content: "…"`` value or a comment passes through untouched.
 
     A real ``url("x")`` is still rewritten: its match *starts* at the ``url(``
     token (code), and only the inner ``"x"`` is a protected span the rewrite
@@ -142,17 +220,23 @@ def _rewrite_css_outside_strings(
 
     ``tokens`` selects which spans count as opaque. It defaults to the plain-CSS
     ``_CSS_STRING_OR_COMMENT``; pass ``_SCSS_STRING_OR_COMMENT`` when the text is
-    preprocessor *source*, so Sass ``//`` line comments are protected too.
+    preprocessor *source*, so Sass ``//`` line comments are protected too, or
+    :data:`_SCSS_STATEMENT_SPANS` to additionally treat ``url(…)`` as opaque.
+
+    The scanner wraps ``tokens`` in one named group, so a match is dispatched on
+    *which arm matched* rather than on what the matched text looks like. The old
+    prefix sniff (``token[:2] in ("/*", "//")``) silently mis-routed any token
+    arm that did not start with a comment or quote — which is every ``url(…)``
+    span. ``target``'s own groups therefore start at 2; read them **by name**
+    (``match.group("q")``), never by number.
     """
     scanner = re.compile(
-        f"(?s:{tokens.pattern})|{target.pattern}",
+        f"(?P<{_PROTECTED_SPAN}>(?s:{tokens.pattern}))|{target.pattern}",
         target.flags,
     )
 
     def _dispatch(match: re.Match) -> str:
-        token = match.group(0)
-        if token[:2] in ("/*", "//") or token[:1] in ("'", '"'):
-            return token
-        return repl(match)
+        span = match.group(_PROTECTED_SPAN)
+        return span if span is not None else repl(match)
 
     return scanner.sub(_dispatch, text)
