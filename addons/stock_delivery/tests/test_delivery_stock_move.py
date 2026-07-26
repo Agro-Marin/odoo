@@ -134,7 +134,7 @@ class TestStockMoveInvoice(TestSaleCommon):
         self.sale_prepaid.action_confirm()
         moves = self.sale_prepaid.picking_ids.move_ids
         # Ship
-        for ml, lot in zip(moves.move_line_ids, serial_numbers):
+        for ml, lot in zip(moves.move_line_ids, serial_numbers, strict=False):
             ml.write({'quantity': 1, 'lot_id': lot.id})
         self.picking = self.sale_prepaid.picking_ids._action_done()
         self.assertEqual(moves[0].move_line_ids[0].sale_price, 862.5, 'wrong shipping value')
@@ -162,12 +162,12 @@ class TestStockMoveInvoice(TestSaleCommon):
         so.action_confirm()
 
         # Deliver one product and create a backorder
-        self.assertEqual(sum([line.quantity for line in so.picking_ids.move_ids]), 2)
+        self.assertEqual(sum(line.quantity for line in so.picking_ids.move_ids), 2)
         so.picking_ids.move_ids[0].quantity = 1
         so.picking_ids.move_ids[0].picked = True
         Form.from_action(self.env, so.picking_ids.button_validate()).save().process()
         self.assertEqual(len(so.picking_ids), 2)
-        self.assertEqual(sum([line.quantity for line in so.picking_ids.move_ids]), 2)
+        self.assertEqual(sum(line.quantity for line in so.picking_ids.move_ids), 2)
 
         # Invoice the delivered product
         invoice = so._create_invoices()

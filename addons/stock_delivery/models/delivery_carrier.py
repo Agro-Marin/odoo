@@ -1,9 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, fields, models
-
 from odoo.exceptions import UserError, ValidationError
-from odoo.libs.numbers.float_utils import float_round
+from odoo.libs.numbers.float_utils import float_is_zero, float_round
 from odoo.tools.misc import groupby
 
 from .delivery_request_objects import DeliveryCommodity, DeliveryPackage
@@ -60,6 +59,7 @@ class DeliveryCarrier(models.Model):
             if self.get_return_label_from_portal:
                 pickings.return_label_ids.generate_access_token()
             return res
+        return None
 
     def get_return_label_prefix(self):
         return 'LabelReturn-%s' % self.delivery_type
@@ -90,6 +90,7 @@ class DeliveryCarrier(models.Model):
         self.ensure_one()
         if hasattr(self, '%s_cancel_shipment' % self.delivery_type):
             return getattr(self, '%s_cancel_shipment' % self.delivery_type)(pickings)
+        return None
 
     def _get_default_custom_package_code(self):
         """ Some delivery carriers require a prefix to be sent in order to use custom
@@ -106,8 +107,6 @@ class DeliveryCarrier(models.Model):
     # -------------------------------- #
 
     def _get_packages_from_order(self, order, default_package_type):
-        packages = []
-
         total_cost = 0
         for line in order.line_ids.filtered(lambda line: not line.is_delivery and not line.display_type):
             total_cost += self._product_price_to_company_currency(line.product_qty, line.product_id, order.company_id)
@@ -115,7 +114,7 @@ class DeliveryCarrier(models.Model):
         total_weight = order._get_estimated_weight() + default_package_type.base_weight
         order_weight = self.env.context.get('order_weight', False)
         total_weight = order_weight or total_weight
-        if total_weight == 0.0:
+        if float_is_zero(total_weight, precision_digits=self.env['decimal.precision'].precision_get('Stock Weight')):
             weight_uom_name = self.env['product.template']._get_weight_uom_name_from_ir_config_parameter()
             raise UserError(_("The package cannot be created because the total weight of the products in the picking is 0.0 %s", weight_uom_name))
         # If max weight == 0 => division by 0. If this happens, we want to have
@@ -134,16 +133,17 @@ class DeliveryCarrier(models.Model):
             commodity.monetary_value /= len(package_weights)
             commodity.qty = max(1, commodity.qty // len(package_weights))
 
-        for weight in package_weights:
-            packages.append(DeliveryPackage(
+        return [
+            DeliveryPackage(
                 order_commodities,
                 weight,
                 default_package_type,
                 total_cost=partial_cost,
                 currency=order.company_id.currency_id,
                 order=order,
-            ))
-        return packages
+            )
+            for weight in package_weights
+        ]
 
     def _get_packages_from_picking(self, picking, default_package_type):
         packages = []
@@ -162,7 +162,7 @@ class DeliveryCarrier(models.Model):
 
         # Create all packages.
         for package in picking.move_line_ids.result_package_id:
-            move_lines = picking.move_line_ids.filtered(lambda ml: ml.result_package_id == package)
+            move_lines = picking.move_line_ids.filtered(lambda ml, package=package: ml.result_package_id == package)
             commodities = self._get_commodities_from_stock_move_lines(move_lines)
             package_total_cost = 0.0
             for quant in package.quant_ids:
@@ -257,7 +257,7 @@ class DeliveryCarrier(models.Model):
         return False
 
     def fixed_cancel_shipment(self, pickings):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     # ----------------------------------- #
     # Based on rule delivery type methods #
@@ -279,4 +279,4 @@ class DeliveryCarrier(models.Model):
         return False
 
     def base_on_rule_cancel_shipment(self, pickings):
-        raise NotImplementedError()
+        raise NotImplementedError

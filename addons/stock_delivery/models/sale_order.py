@@ -38,12 +38,12 @@ class SaleOrder(models.Model):
 
     # to remove in master
     def _format_currency_amount(self, amount):
-        pre = post = u''
+        pre = post = ''
         if self.currency_id.position == 'before':
-            pre = u'{symbol}\N{NO-BREAK SPACE}'.format(symbol=self.currency_id.symbol or '')
+            pre = '{symbol}\N{NO-BREAK SPACE}'.format(symbol=self.currency_id.symbol or '')
         else:
-            post = u'\N{NO-BREAK SPACE}{symbol}'.format(symbol=self.currency_id.symbol or '')
-        return u' {pre}{0}{post}'.format(amount, pre=pre, post=post)
+            post = '\N{NO-BREAK SPACE}{symbol}'.format(symbol=self.currency_id.symbol or '')
+        return f' {pre}{amount}{post}'
 
 
 class SaleOrderLine(models.Model):

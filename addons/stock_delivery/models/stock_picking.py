@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import date
-from markupsafe import Markup
 import json
+from datetime import date
 
-from odoo import _, api, fields, models, SUPERUSER_ID
+from markupsafe import Markup
+
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -118,9 +119,9 @@ class StockPicking(models.Model):
                         user_id=pick.user_id.id or self.env.uid,
                         )
                 else:
-                    raise e
+                    raise
 
-        return super(StockPicking, self)._send_confirmation_email()
+        return super()._send_confirmation_email()
 
     def send_to_shipper(self):
         self.ensure_one()
@@ -207,13 +208,12 @@ class StockPicking(models.Model):
             self.message_post(body=msg)
             return self.env["ir.actions.actions"]._for_xml_id("stock_delivery.act_delivery_trackers_url")
 
-        client_action = {
+        return {
             'type': 'ir.actions.act_url',
             'name': "Shipment Tracking Page",
             'target': 'new',
             'url': self.carrier_tracking_url,
         }
-        return client_action
 
     def cancel_shipment(self):
         for picking in self:
