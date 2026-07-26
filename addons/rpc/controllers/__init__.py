@@ -16,8 +16,8 @@ def _check_request():
         request.env.cr.close()
 
 
-from .jsonrpc import JSONRPC  # noqa: E402
-from .xmlrpc import XMLRPC  # noqa: E402
+from .jsonrpc import JSONRPC
+from .xmlrpc import XMLRPC
 
 
 class RPC(XMLRPC, JSONRPC):
