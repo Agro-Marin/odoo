@@ -1,7 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from .common import DashboardTestCommon
 from odoo.exceptions import AccessError
+
+from .common import DashboardTestCommon
 
 EXCEL_FILES = [
     {
@@ -38,4 +39,4 @@ class DashboardSharing(DashboardTestCommon):
         dashboard = self.create_dashboard()
         share = self.share_dashboard(dashboard)
         with self.assertRaises(AccessError):
-            share.with_user(self.user).access_token
+            _ = share.with_user(self.user).access_token

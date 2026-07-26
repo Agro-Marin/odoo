@@ -1,6 +1,7 @@
 from odoo import http
 from odoo.http import request
 
+
 class DashboardShareRoute(http.Controller):
     @http.route(['/dashboard/share/<int:share_id>/<token>'], type='http', auth='public')
     def share_portal(self, share_id=None, token=None):

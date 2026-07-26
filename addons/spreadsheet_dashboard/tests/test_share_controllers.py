@@ -1,10 +1,11 @@
-import json
 import base64
+import json
 
 from odoo.tests.common import HttpCase
 from odoo.tools import mute_logger
 
 from .common import DashboardTestCommon
+
 
 class TestShareController(DashboardTestCommon, HttpCase):
     def test_dashboard_share_portal(self):
