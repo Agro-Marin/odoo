@@ -1786,9 +1786,14 @@ class TestDispatchInvariants:
 
     def test_db_name_handlers_gate_through_check_db_exposed(self, db_mod):
         """Every master-password handler acting on an EXISTING DB by name must
-        gate it — via ``check_db_exposed`` (the 4 raising handlers) or the
-        inline ``list_dbs(True)`` form (``exp_drop``, whose ``-> bool`` contract
-        is consumed by the web/CLI drop callers so it can't raise).
+        gate it through ``check_db_exposed`` — ONE gate, one reaction.
+
+        The inline ``list_dbs(True)`` form used to be accepted here as well,
+        because ``exp_drop`` returned ``False`` instead of raising.  It no
+        longer does, so the alternative is no longer permitted: allowing two
+        spellings of one rule is how the two drift apart, and they had — the
+        same unexposed name produced ``Access Denied`` from ``exp_dump`` and
+        ``Database %r was not found`` from ``exp_drop``.
 
         Derived from ``_REQUIRES_MASTER_PASSWORD`` minus ``_ALLOWLIST_EXEMPT``,
         NOT a hardcoded list — so a future ``exp_*`` added to the master-password
@@ -1799,7 +1804,7 @@ class TestDispatchInvariants:
         import inspect
         import textwrap
 
-        gate_calls = {"check_db_exposed", "list_dbs"}
+        gate_calls = {"check_db_exposed"}
         missing = []
         for method in db_mod._REQUIRES_MASTER_PASSWORD - self._ALLOWLIST_EXEMPT:
             fn = db_mod._DISPATCH[method]
@@ -1816,8 +1821,8 @@ class TestDispatchInvariants:
         assert not missing, (
             f"master-password handlers acting on an existing DB by name but "
             f"missing an allowlist gate: {sorted(missing)}. Gate via "
-            f"check_db_exposed (raise) or list_dbs(True) (exp_drop's form), or "
-            f"add to _ALLOWLIST_EXEMPT with a create-like/no-DB-name justification."
+            f"check_db_exposed, or add to _ALLOWLIST_EXEMPT with a "
+            f"create-like/no-DB-name justification."
         )
 
 
@@ -3436,3 +3441,73 @@ class TestPublicReadVerbsAreMemoized:
             )
         finally:
             locale_utils._scan_languages.cache_clear()
+
+
+class TestExpDropGate:
+    """``exp_drop`` refuses an unexposed database the way its siblings do.
+
+    It returned ``False`` instead of raising, which made the return value carry
+    two meanings — "not exposed" and "no such database" — and the web caller
+    (``web.controllers.database.drop``) collapsed both into
+    ``Database %r was not found``.  An operator dropping a database they could
+    see was told it did not exist, while ``exp_dump`` answered Access Denied for
+    that same name.  Returning ``False`` bought no secrecy: ``drop`` is
+    master-password gated, and a caller holding it can enumerate via ``list``.
+    """
+
+    def _patched(self, db_mod, exposed, dropped=True):
+        import odoo
+
+        return [
+            patch.object(odoo.tools, "config", _MockConfig({"list_db": True})),
+            patch.object(db_mod, "list_dbs", return_value=exposed),
+            patch.object(db_mod, "_drop_database", return_value=dropped),
+        ]
+
+    def test_unexposed_database_raises_access_denied(self, db_mod):
+        from odoo.exceptions import AccessDenied
+
+        with ExitStack() as stack:
+            for p in self._patched(db_mod, ["visible"]):
+                stack.enter_context(p)
+            with pytest.raises(AccessDenied):
+                db_mod.exp_drop("hidden")
+
+    def test_unexposed_database_is_never_actually_dropped(self, db_mod):
+        from odoo.exceptions import AccessDenied
+
+        with ExitStack() as stack:
+            for p in self._patched(db_mod, ["visible"])[:-1]:
+                stack.enter_context(p)
+            drop = stack.enter_context(patch.object(db_mod, "_drop_database"))
+            with pytest.raises(AccessDenied):
+                db_mod.exp_drop("hidden")
+        drop.assert_not_called()
+
+    def test_false_now_means_only_that_the_database_was_absent(self, db_mod):
+        """The disambiguation the change buys: one meaning per return value."""
+        with ExitStack() as stack:
+            for p in self._patched(db_mod, ["gone"], dropped=False):
+                stack.enter_context(p)
+            assert db_mod.exp_drop("gone") is False
+
+    def test_exposed_and_present_returns_true(self, db_mod):
+        with ExitStack() as stack:
+            for p in self._patched(db_mod, ["live"], dropped=True):
+                stack.enter_context(p)
+            assert db_mod.exp_drop("live") is True
+
+    def test_gate_matches_its_siblings_exactly(self, db_mod):
+        """Same allowlist, same reaction — the drift this closes."""
+        from odoo.exceptions import AccessDenied
+
+        with ExitStack() as stack:
+            for p in self._patched(db_mod, ["visible"]):
+                stack.enter_context(p)
+            stack.enter_context(patch.object(db_mod, "_rename_database"))
+            for call in (
+                lambda: db_mod.exp_drop("hidden"),
+                lambda: db_mod.exp_rename("hidden", "other"),
+            ):
+                with pytest.raises(AccessDenied):
+                    call()

@@ -620,15 +620,24 @@ def check_db_exposed(db_name: str) -> None:
 def exp_drop(db_name: str) -> bool:
     """Drop a database (public/RPC-facing, subject to ``list_db`` gate).
 
-    Refuses any ``db_name`` outside ``list_dbs(True)``, else the master password
-    alone would let an RPC caller drop any DB owned by this PG role.  The gate
-    lives here, not in ``_drop_database``, which rollback callers must bypass.
+    Refuses any ``db_name`` outside ``list_dbs(True)`` through the same
+    ``check_db_exposed`` its siblings use, else the master password alone would
+    let an RPC caller drop any DB owned by this PG role.  The gate lives here,
+    not in ``_drop_database``, which rollback callers must bypass.
+
+    Refusal RAISES rather than returning ``False``, which is what disambiguates
+    the return value: ``False`` now means one thing, "no such database".  It
+    used to mean that OR "exists but is not exposed", and the web caller
+    collapsed both into ``Database %r was not found`` — telling an operator a
+    database they can see does not exist, while ``exp_dump`` answered Access
+    Denied for the same name.  Returning ``False`` bought no secrecy either:
+    ``drop`` requires the master password, and any caller holding it can
+    enumerate outright via ``list``.
+
+    :raises odoo.exceptions.AccessDenied: if ``db_name`` is not exposed
+    :return: ``True`` if the database was dropped, ``False`` if it did not exist
     """
-    if db_name not in list_dbs(True):
-        _logger.warning(
-            "DROP DB: %s rejected, not in the list of exposed databases", db_name
-        )
-        return False
+    check_db_exposed(db_name)
     return _drop_database(db_name)
 
 
