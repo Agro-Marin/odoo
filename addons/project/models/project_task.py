@@ -8,6 +8,7 @@ from lxml import html
 from pytz import UTC
 
 from odoo import SUPERUSER_ID, _, api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Date, Domain
 from odoo.tools import (
@@ -1767,7 +1768,7 @@ class ProjectTask(models.Model):
             domain = ["!", ("id", "child_of", template_tasks.ids)]
         return domain
 
-    def copy_data(self, default=None) -> list[dict]:
+    def copy_data(self, default=None) -> list[ValuesType]:
         default = dict(default or {})
         default.update(
             {
@@ -2102,7 +2103,7 @@ class ProjectTask(models.Model):
                 {"workflow_step_ids": [Command.link(step_id) for step_id in step_ids]}
             )
 
-    def _load_records_create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
             if vals.get("recurring_task"):
                 rec_fields = vals.keys() & self._get_recurrence_fields()
@@ -2115,7 +2116,7 @@ class ProjectTask(models.Model):
         return super()._load_records_create(vals_list)
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         # Some values are determined by this override and must be written as
         # sudo for portal users, because they do not have access to these
         # fields. Other values must not be written as sudo.

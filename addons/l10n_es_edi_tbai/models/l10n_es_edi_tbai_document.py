@@ -15,10 +15,9 @@ from odoo.addons.certificate.tools import CertificateAdapter
 from odoo.addons.l10n_es_edi_tbai.models.l10n_es_edi_tbai_agencies import get_key
 from odoo.addons.l10n_es_edi_tbai.models.xml_utils import (
     NS_MAP,
-    calculate_references_digests,
-    canonicalize_node,
     cleanup_xml_signature,
 )
+from odoo.libs.xml.dsig import canonicalize_signed_info, fill_reference_digests
 from odoo.exceptions import UserError
 from odoo.tools import get_lang
 from odoo.libs.numbers.float_utils import float_repr, float_round
@@ -732,11 +731,11 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         xml_root.append(xml_sig)
 
         # Compute digest values for references
-        calculate_references_digests(xml_sig.find("SignedInfo", namespaces=NS_MAP))
+        fill_reference_digests(xml_sig.find("SignedInfo", namespaces=NS_MAP), algorithm='sha256')
 
         # Sign (writes into SignatureValue)
         signed_info_xml = xml_sig.find('SignedInfo', namespaces=NS_MAP)
-        xml_sig.find('SignatureValue', namespaces=NS_MAP).text = certificate_sudo._sign(canonicalize_node(signed_info_xml)).decode()
+        xml_sig.find('SignatureValue', namespaces=NS_MAP).text = certificate_sudo._sign(canonicalize_signed_info(signed_info_xml)).decode()
 
         return xml_root
 

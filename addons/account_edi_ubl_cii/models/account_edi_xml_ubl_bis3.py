@@ -4,7 +4,7 @@ from typing import Literal
 
 from odoo import _, api, models
 from odoo.tools.misc import formatLang, NON_BREAKING_SPACE
-from odoo.addons.account.tools import dict_to_xml
+from odoo.tools.xml_utils import dict_to_xml
 from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
 from odoo.addons.account_edi_ubl_cii.models.account_edi_xml_ubl_20 import UBL_NAMESPACES
 

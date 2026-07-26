@@ -11,10 +11,10 @@ class L10nInHrLeaveOptionalHoliday(models.Model):
     _order = 'date desc'
 
     @api.model
-    def default_get(self, field_list=None):
+    def default_get(self, fields):
         if self.env.company.country_id.code != "IN":
             raise UserError(_('You must be logged in an Indian company to use this feature'))
-        return super().default_get(field_list)
+        return super().default_get(fields)
 
     name = fields.Char(required=True)
     date = fields.Date(required=True)

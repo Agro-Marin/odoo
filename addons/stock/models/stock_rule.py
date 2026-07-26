@@ -25,12 +25,12 @@ class StockRule(models.Model):
     _check_company_auto = True
 
     @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
+    def default_get(self, fields):
+        res = super().default_get(fields)
         # Force a company even when the caller clears it via `default_company_id=False`:
         # a UI-created rule should default to the current company, not a company-less
         # one.
-        if "company_id" in fields_list and not res.get("company_id"):
+        if "company_id" in fields and not res.get("company_id"):
             res["company_id"] = self.env.company.id
         return res
 

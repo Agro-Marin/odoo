@@ -3,6 +3,7 @@
 from typing import Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 
 
 class ResUsers(models.Model):
@@ -19,7 +20,7 @@ class ResUsers(models.Model):
     )
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
         self._onboard_users_into_project(res)
         return res

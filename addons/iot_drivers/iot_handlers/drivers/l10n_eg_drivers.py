@@ -4,7 +4,7 @@ import json
 import logging
 import PyKCS11
 
-from odoo.tools.password import CryptContext
+from odoo.libs.password import CryptContext
 
 from odoo import http
 from odoo.tools.config import config

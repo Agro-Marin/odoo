@@ -52,7 +52,13 @@ class WebsocketController(Controller):
         This is mainly used by Odoo.sh."""
         request.env["ir.websocket"]._on_websocket_closed(request.cookies)
 
-    @route("/bus/websocket_worker_bundle", type="http", auth="public")
+    @route(
+        "/bus/websocket_worker_bundle",
+        type="http",
+        auth="public",
+        cors="*",
+        cors_credentials=True,
+    )
     def get_websocket_worker_bundle(self, v=None):  # pylint: disable=unused-argument
         """
         Serve the compiled, self-contained websocket worker bundle.
@@ -67,19 +73,17 @@ class WebsocketController(Controller):
         stale worker. A worker boots once per browser session, so the
         conditional request is negligible.
 
-        CORS: handled manually rather than via the route ``cors='*'``
-        decorator because ``Access-Control-Allow-Origin: *`` is forbidden by
-        the CORS spec when the request carries credentials (session cookie).
-        In prefork mode the HTTP workers (port 8069) and the gevent/WebSocket
-        server (port 8072) have different origins, so the JS client fetches
-        this bundle cross-origin *with* credentials and boots the worker from
-        a blob: URL — which is also why the bundle must be a SINGLE file:
-        module workers cannot resolve relative imports against a blob URL.
-        When an ``Origin`` header is present we echo it back and add
-        ``Access-Control-Allow-Credentials: true``. ``cors='*'`` writes to
-        ``future_response`` in ``pre_dispatch`` and is merged via ``extend``
-        in ``post_dispatch`` — it cannot be overridden from within a
-        controller, hence the manual approach here.
+        CORS: ``cors='*', cors_credentials=True``. In prefork mode the HTTP
+        workers (port 8069) and the gevent/WebSocket server (port 8072) have
+        different origins, so the JS client fetches this bundle cross-origin
+        *with* credentials and boots the worker from a blob: URL — which is also
+        why the bundle must be a SINGLE file: module workers cannot resolve
+        relative imports against a blob URL. ``Access-Control-Allow-Origin: *``
+        is forbidden by the CORS spec once credentials are sent, so
+        ``cors_credentials`` makes ``pre_dispatch`` echo the caller's ``Origin``
+        and add ``Allow-Credentials``/``Vary: Origin``. This used to be written
+        by hand here, because staged headers override whatever a controller sets
+        on its own response and the plain ``cors=`` option could not express it.
         """
         bundle = request.env["ir.qweb"]._get_websocket_worker_bundle()
         if bundle:
@@ -101,9 +105,4 @@ class WebsocketController(Controller):
             # path. Same-origin workers only — the cross-origin blob path
             # cannot work without a bundled file.
             response = request.redirect("/bus/static/src/workers/bus_worker_script.js")
-        origin = request.httprequest.headers.get("Origin")
-        if origin:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Vary"] = "Origin"
         return response

@@ -21,12 +21,12 @@ class ProductTemplate(models.Model):
     _check_company_domain = models.check_company_domain_parent_of
 
     @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
+    def default_get(self, fields):
+        res = super().default_get(fields)
         # uom_id is required: force the default unit both when it is simply
         # missing and when a caller explicitly passed `default_uom_id=False`
         # (which would otherwise clear the field default and break the NOT NULL).
-        if ("uom_id" in fields_list and not res.get("uom_id")) or self.env.context.get(
+        if ("uom_id" in fields and not res.get("uom_id")) or self.env.context.get(
             "default_uom_id"
         ) is False:
             res["uom_id"] = self._get_default_uom_id()

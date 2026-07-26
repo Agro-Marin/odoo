@@ -695,10 +695,10 @@ class AccountAccount(models.Model):
     # ------------------------------------------------------------------
 
     @api.model
-    def default_get(self, default_fields):
+    def default_get(self, fields):
         """If creating via a many2one, swap code/name when appropriate."""
         context = {}
-        if "name" in default_fields or "code" in default_fields:
+        if "name" in fields or "code" in fields:
             default_name = self.env.context.get("default_name")
             default_code = self.env.context.get("default_code")
             if default_name and not default_code:
@@ -720,9 +720,9 @@ class AccountAccount(models.Model):
         defaults = super(
             AccountAccount,
             self.with_context(**context),
-        ).default_get(default_fields)
+        ).default_get(fields)
 
-        if "code_mapping_ids" in default_fields and "code_mapping_ids" not in defaults:
+        if "code_mapping_ids" in fields and "code_mapping_ids" not in defaults:
             defaults["code_mapping_ids"] = [
                 Command.create({"company_id": c.id}) for c in self.env.user.company_ids
             ]
