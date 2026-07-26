@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, _
-from odoo.addons.sms.tools.sms_api import ERROR_MESSAGES, SmsApi
+from odoo import _, fields, models
 from odoo.exceptions import ValidationError
+
+from odoo.addons.sms.tools.sms_api import ERROR_MESSAGES, SmsApi
 
 
 class SmsAccountCode(models.TransientModel):

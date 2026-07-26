@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from ast import literal_eval
 from uuid import uuid4
 
-from odoo import api, fields, models, _
-from odoo.addons.sms.tools.sms_tools import sms_content_to_rendered_html
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+from odoo.addons.sms.tools.sms_tools import sms_content_to_rendered_html
 
 
 class SmsComposer(models.TransientModel):
@@ -159,7 +159,8 @@ class SmsComposer(models.TransientModel):
                 record = composer._get_records() if composer.res_model and composer.res_id else self.env.user
                 numbers = [number.strip() for number in composer.numbers.split(',')]
                 sanitized_numbers = [record._phone_format(number=number) for number in numbers]
-                invalid_numbers = [number for sanitized, number in zip(sanitized_numbers, numbers) if not sanitized]
+                # sanitized_numbers is built from numbers just above, so they are equal-length
+                invalid_numbers = [number for sanitized, number in zip(sanitized_numbers, numbers, strict=True) if not sanitized]
                 if invalid_numbers:
                     raise UserError(_('Following numbers are not correctly encoded: %s', repr(invalid_numbers)))
                 composer.sanitized_numbers = ','.join(sanitized_numbers)
@@ -183,7 +184,7 @@ class SmsComposer(models.TransientModel):
         if self.composition_mode in ('numbers', 'comment'):
             if self.comment_single_recipient and not self.recipient_single_valid:
                 raise UserError(_('Invalid recipient number. Please update it.'))
-            elif not self.comment_single_recipient and self.recipient_invalid_count:
+            if not self.comment_single_recipient and self.recipient_invalid_count:
                 raise UserError(_('%s invalid recipients', self.recipient_invalid_count))
         self._action_send_sms()
         return False
@@ -303,8 +304,7 @@ class SmsComposer(models.TransientModel):
         return done_ids
 
     def _prepare_recipient_values(self, records):
-        recipients_info = records._sms_get_recipients_info(force_field=self.number_field_name)
-        return recipients_info
+        return records._sms_get_recipients_info(force_field=self.number_field_name)
 
     def _prepare_body_values(self, records):
         additional_context = self._get_additional_render_context().get('body', {})
@@ -344,7 +344,7 @@ class SmsComposer(models.TransientModel):
             result[record.id] = {
                 'body': all_bodies[record.id],
                 'failure_type': failure_type,
-                'number': sanitized if sanitized else recipients['number'],
+                'number': sanitized or recipients['number'],
                 'partner_id': recipients['partner'].id,
                 'state': state,
                 'uuid': uuid4().hex,
@@ -393,10 +393,9 @@ class SmsComposer(models.TransientModel):
             elif template_id:
                 template = self.env['sms.template'].browse(template_id)
                 result['body'] = template.body
-        else:
-            if not body and template_id:
-                template = self.env['sms.template'].browse(template_id)
-                result['body'] = template.body
+        elif not body and template_id:
+            template = self.env['sms.template'].browse(template_id)
+            result['body'] = template.body
         return result
 
     def _get_records(self):
@@ -409,5 +408,4 @@ class SmsComposer(models.TransientModel):
         else:
             records = self.env[self.res_model]
 
-        records = records.with_context(mail_notify_author=True)
-        return records
+        return records.with_context(mail_notify_author=True)
