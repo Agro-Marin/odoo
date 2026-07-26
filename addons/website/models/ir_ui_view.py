@@ -544,9 +544,6 @@ class IrUiView(models.Model):
         else:
             return super().get_default_lang_code()
 
-    def _read_template_keys(self):
-        return super()._read_template_keys() + ["website_id"]
-
     @api.model
     def _save_oe_structure_hook(self):
         res = super()._save_oe_structure_hook()
