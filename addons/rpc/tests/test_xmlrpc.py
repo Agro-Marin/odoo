@@ -4,7 +4,6 @@ import datetime
 import time
 
 import odoo
-import odoo.tools
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.http import _request_stack
 from odoo.service import common as auth
@@ -30,15 +29,15 @@ class TestExternalAPI(SavepointCaseWithUserDemo):
 class TestXMLRPC(common.HttpCase):
 
     def setUp(self):
-        super(TestXMLRPC, self).setUp()
+        super().setUp()
         self.admin_uid = self.env.ref('base.user_admin').id
 
         ml_xml = mute_logger('odoo.addons.rpc.controllers.xmlrpc')
-        ml_xml.__enter__()  # noqa: PLC2801
+        ml_xml.__enter__()
         self.addCleanup(ml_xml.__exit__)
 
         ml_json = mute_logger('odoo.addons.rpc.controllers.jsonrpc')
-        ml_json.__enter__()  # noqa: PLC2801
+        ml_json.__enter__()
         self.addCleanup(ml_json.__exit__)
 
     def xmlrpc(self, model, method, *args, **kwargs):
