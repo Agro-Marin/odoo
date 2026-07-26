@@ -8,6 +8,8 @@ from odoo.fields import Domain
 from odoo.tools import SQL, config
 from odoo.tools.safe_eval import safe_eval
 
+from .ir_model_common import access_mode_columns, check_access_mode
+
 _logger = logging.getLogger(__name__)
 
 
@@ -15,12 +17,7 @@ class IrRule(models.Model):
     _name = "ir.rule"
     _description = "Record Rule"
     _order = "model_id DESC,id"
-    _PERM_COLUMNS = {
-        "read": SQL("r.perm_read"),
-        "write": SQL("r.perm_write"),
-        "create": SQL("r.perm_create"),
-        "unlink": SQL("r.perm_unlink"),
-    }
+    _PERM_COLUMNS = access_mode_columns("r")
     _allow_sudo_commands = False
 
     name = fields.Char()
@@ -128,10 +125,7 @@ class IrRule(models.Model):
 
     def _get_rules(self, model_name: str, mode: str = "read") -> Self:
         """Return all rules matching the model and mode for the current user."""
-        if mode not in self._PERM_COLUMNS:
-            raise ValueError(
-                f"Invalid mode {mode!r}: expected one of {tuple(self._PERM_COLUMNS)}."
-            )
+        check_access_mode(mode)
 
         if self.env.su:
             return self.browse(())
