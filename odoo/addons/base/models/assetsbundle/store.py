@@ -24,9 +24,28 @@ class AssetAttachmentStore:
     callback, leaving :class:`AssetsBundle` the source of truth for checksums.
     """
 
-    TRACKED_BUNDLES = ("web.assets_web",)
+    TRACKED_BUNDLES = {"web.assets_web"}
+    """Bundles whose rebuild broadcasts ``bundle_changed`` on the bus.
+
+    Extend with :meth:`register_tracked_bundle` rather than by editing this
+    set: an addon that ships its own top-level bundle needs the same reload
+    prompt, and patching a constant in ``base`` was the only way to get it.
+    ``web.assets_web`` is the default because it is the bundle pages actually
+    load; ``base`` names it as data, and reaches the bus only through the
+    ``"bus.bus" in self.env`` guard in :meth:`save_attachment`.
+    """
 
     _CSS_EXTENSIONS = frozenset({"css", "min.css", "css.map"})
+
+    @classmethod
+    def register_tracked_bundle(cls, name: str) -> None:
+        """Broadcast ``bundle_changed`` whenever the bundle *name* is rebuilt.
+
+        Process-global and idempotent; call it at import time from the addon
+        that owns the bundle.  Registering a bundle on a database without
+        ``bus`` is harmless -- the broadcast is guarded on the model existing.
+        """
+        cls.TRACKED_BUNDLES.add(name)
 
     _ATTACHMENT_MIMETYPES = MappingProxyType(
         {
