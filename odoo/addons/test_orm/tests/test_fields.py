@@ -793,8 +793,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         parent.write({"tag": "first"})
         self.assertEqual(parent.tag, "first")
 
-        # deleting a child flushes inside One2many.write_real; the inversed
-        # field written in the same call must survive that flush
         parent.write({"tag": "second", "child_ids": [(2, child.id)]})
         self.assertEqual(parent.tag, "second")
         self.assertEqual(parent.stored_tag, "second")
@@ -1290,10 +1288,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertEqual(message.env, self.env)
         self.assertEqual(message.discussion.env, self.env)
 
-        # `with_user` is overridable — `mail` extends it to drop the guest from
-        # the context — so compare what the ORM guarantees (the target user, and
-        # that traversing a relation keeps the environment) rather than the
-        # identity of an environment built by a different route.
         demo_message = message.with_user(demo)
         self.assertEqual(demo_message.env.uid, demo.id)
         self.assertFalse(demo_message.env.su)
@@ -1741,10 +1735,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                     )
                     if company_dependent_column_not_null:
                         with self.subTest(domain=domain, default=default):
-                            # assertQueriesContain flushes before it counts,
-                            # and a pending precommit hook there drops the
-                            # ormcaches; drain it first, then warm, so the
-                            # reference run and the asserted run start alike
                             self.env.flush_all()
                             self.env.cr.flush()
                             Model.search([("id", "in", records.ids)] + domain)

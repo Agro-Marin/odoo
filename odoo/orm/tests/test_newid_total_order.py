@@ -16,8 +16,6 @@ from odoo.orm.primitives import NewId
 class TestNewIdVsInt:
     def test_origin_newid_sits_between_n_and_n_plus_1(self):
         n = NewId(origin=5)
-        # the int-on-the-left forms exercise the REFLECTED operator, a
-        # different dunder from the ones above -- do not "unyoda" them
         assert n > 5
         assert n >= 5
         assert not n < 5

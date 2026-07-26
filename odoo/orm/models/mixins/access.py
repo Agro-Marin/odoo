@@ -166,7 +166,6 @@ class AccessMixin(_ModelStubs):
 
         """
         if not self.env.su and (result := self._check_access(operation)):
-            # RSE102 would strip the call: result[1] is a partial, not a class
             raise result[1]()  # noqa: RSE102
 
     def has_access(self, operation: str) -> bool:
@@ -385,9 +384,6 @@ class AccessMixin(_ModelStubs):
                 self._name,
                 regular_fields,
             )
-            # the company-dependent fields are skipped too, as before the
-            # grouping: they do not depend on the record's own company, so this
-            # is a pre-existing over-reach kept out of a performance change
             return
 
         candidates = self._check_company_candidates(regular_fields, property_fields)

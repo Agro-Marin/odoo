@@ -288,7 +288,7 @@ class TestFieldCacheShapeAndIterables(unittest.TestCase):
         data = cache.get_field_data("G")
         data[("en_US",)] = {1: "one_en", 2: "two_en"}
         data[("es_MX",)] = {1: "one_es", 3: "three_es"}
-        data[99] = "stale-flat-value"  # setup-window leftover: a bare str
+        data[99] = "stale-flat-value"
         return cache
 
     def test_invalidate_context_dependent_accepts_an_iterator(self) -> None:
