@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
 
@@ -9,7 +9,7 @@ class AccountMoveLine(models.Model):
     def _get_cogs_value(self):
         price_unit = super()._get_cogs_value()
 
-        so_line = self.sale_line_ids and self.sale_line_ids[-1] or False
+        so_line = (self.sale_line_ids and self.sale_line_ids[-1]) or False
         if so_line:
             # We give preference to the bom in the stock moves for the sale order lines
             # If there are changes in BOMs between the stock moves creation and the
@@ -24,9 +24,9 @@ class AccountMoveLine(models.Model):
                 is_line_reversing = self.move_id.move_type == 'out_refund'
                 account_moves = so_line.invoice_line_ids.move_id.filtered(lambda m: m.state == 'posted' and bool(m.reversed_entry_id) == is_line_reversing)
                 posted_invoice_lines = account_moves.line_ids.filtered(lambda l: l.display_type == 'cogs' and l.product_id == self.product_id and l.balance > 0)
-                qty_invoiced = sum([x.product_uom_id._compute_quantity(x.quantity, x.product_id.uom_id) for x in posted_invoice_lines])
+                qty_invoiced = sum(x.product_uom_id._compute_quantity(x.quantity, x.product_id.uom_id) for x in posted_invoice_lines)
                 reversal_cogs = posted_invoice_lines.move_id.reversal_move_ids.line_ids.filtered(lambda l: l.display_type == 'cogs' and l.product_id == self.product_id and l.balance > 0)
-                qty_invoiced -= sum([line.product_uom_id._compute_quantity(line.quantity, line.product_id.uom_id) for line in reversal_cogs])
+                qty_invoiced -= sum(line.product_uom_id._compute_quantity(line.quantity, line.product_id.uom_id) for line in reversal_cogs)
 
                 moves = so_line.move_ids
                 average_price_unit = 0
@@ -35,7 +35,7 @@ class AccountMoveLine(models.Model):
                 storable_components = self.env['product.product'].search([('id', 'in', list(components_qty.keys())), ('is_storable', '=', True)])
                 for product in storable_components:
                     factor = components_qty[product.id]['qty']
-                    prod_moves = moves.filtered(lambda m: m.product_id == product)
+                    prod_moves = moves.filtered(lambda m, product=product: m.product_id == product)
                     product = product.with_company(self.company_id)
                     average_price_unit += factor * prod_moves._get_price_unit()
                 price_unit = average_price_unit / bom.product_qty or price_unit
