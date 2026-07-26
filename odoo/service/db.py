@@ -135,6 +135,31 @@ def _check_faketime_mode(db_name: str) -> None:
         _logger.warning("Unable to set faketime NOW(): %s", e)
 
 
+def _warn_on_non_c_template(cr, template: str) -> None:
+    """Warn when *template* would produce a database that is not ``LC_COLLATE=C``.
+
+    The ``template0`` branch below pins ``LC_COLLATE 'C'`` explicitly, and the
+    ORM leans on it: ``BaseModel.sorted()`` orders text by Python comparison
+    while ``search(order=...)`` orders by the database's collation, and the two
+    agree *only* because byte order and code-point order coincide under ``C``.
+    A configured ``db_template`` that is not itself ``C`` propagates its own
+    collation -- PostgreSQL refuses to override a template's collation, so this
+    can be reported but not corrected here -- and every in-memory re-sort then
+    silently stops reproducing the order the records were searched in.
+    """
+    cr.execute("SELECT datcollate FROM pg_database WHERE datname = %s", (template,))
+    row = cr.fetchone()
+    if row is not None and row[0] != "C":
+        _logger.warning(
+            "db_template %r has LC_COLLATE=%r, not 'C'; databases created from "
+            "it inherit that collation, so SQL ORDER BY and in-memory "
+            "recordset.sorted() will disagree on text. Rebuild the template "
+            "from template0 with LC_COLLATE 'C' to restore the invariant.",
+            template,
+            row[0],
+        )
+
+
 def _create_empty_database(
     name: str,
     template: str | None = None,
@@ -198,6 +223,7 @@ def _create_empty_database(
                 database_identifier(cr, chosen_template),
             )
         else:
+            _warn_on_non_c_template(cr, chosen_template)
             create_sql = SQL(
                 "CREATE DATABASE %s ENCODING 'unicode' TEMPLATE %s",
                 database_identifier(cr, name),

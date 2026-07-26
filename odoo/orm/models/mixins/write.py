@@ -250,22 +250,30 @@ class WriteMixin(_ModelStubs):
             self._parent_store_update_prepare(vals_list) if self._parent_store else None
         )
 
+        log_vals: ValuesType = (
+            {"write_uid": self.env.uid, "write_date": self.env.cr.now()}
+            if self._log_access
+            else {}
+        )
+        log_only_ids: dict[str, list] = {fname: [] for fname in log_vals}
+
         with self.env.cr.pipeline():
-            if self._log_access:
-                log_vals = {
-                    "write_uid": self.env.uid,
-                    "write_date": self.env.cr.now(),
-                }
-                vals_list = [(log_vals | vals) for vals in vals_list]
             updates = defaultdict(list)
             for id_, vals in zip(self._ids, vals_list, strict=True):
                 if not vals:
                     continue
+                if log_vals:
+                    for fname in log_vals:
+                        if fname not in vals:
+                            log_only_ids[fname].append(id_)
+                    vals = log_vals | vals
                 fnames, row = zip(*sorted(vals.items()), strict=False)
                 updates[fnames].append((id_,) + row)
             for fnames, rows in updates.items():
                 for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
                     self._execute_update(fnames, sub_rows)
+
+        self._sync_log_access_cache(log_vals, log_only_ids)
 
         if parent_records:
             parent_records._parent_store_update()
@@ -278,6 +286,33 @@ class WriteMixin(_ModelStubs):
                 self._name,
                 len(self),
                 len(updates),
+            )
+
+    def _sync_log_access_cache(
+        self, log_vals: ValuesType, log_only_ids: dict[str, list]
+    ) -> None:
+        """Cache the ``write_uid``/``write_date`` values ``_write_multi`` just wrote.
+
+        ``_write_multi`` supplies the audit columns for rows whose ``vals`` did
+        not carry them -- a flush driven purely by a *computed* field, where no
+        ``write()`` ran on the record.  Writing them to SQL without caching them
+        left ``record.write_date`` stale for the rest of the transaction:
+        ``env.cache.check()`` reports it, and any reader comparing ``write_date``
+        (concurrency checks, incremental exports) saw the pre-flush value.
+
+        Only the ids listed in *log_only_ids* took their value from *log_vals*;
+        for the others ``vals`` won and the cache already holds it -- and, having
+        come from the dirty set, updating it here would trip ``_update_cache``'s
+        dirty guard.
+        """
+        for fname, ids in log_only_ids.items():
+            if not ids:
+                continue
+            field = self._fields[fname]
+            records = self.browse(ids)
+            field._update_cache(
+                records,
+                field.convert_to_cache(log_vals[fname], records, validate=False),
             )
 
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:

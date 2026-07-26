@@ -348,6 +348,21 @@ class TraversalMixin(_ModelStubs):
             records.sorted("name DESC, id")
             # sort records using default order
             records.sorted()
+
+        .. note:: **Text order matches ``search(order=...)`` only under
+            ``LC_COLLATE=C``.** This sorts by Python comparison (Unicode code
+            point); ``ORDER BY`` sorts by the database's collation.  Odoo creates
+            every database with ``LC_COLLATE 'C'``
+            (``service/db.py::_create_empty_database``), where byte order and
+            code-point order coincide and the two agree -- that equivalence is
+            what makes this method safe to use interchangeably with a search.
+
+            It does not hold on a database created outside Odoo, or from a
+            configured ``db_template`` that is not itself ``C`` (PostgreSQL
+            refuses to override a template's collation, so such a template
+            propagates its own).  There ``es_ES.UTF-8`` orders ``apple, Apple,
+            ápple`` and Python orders ``Apple, ápple, apple``; sort in SQL when
+            the order is user-visible.
         """
         if len(self) < 2:
             return self

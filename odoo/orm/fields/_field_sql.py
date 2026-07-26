@@ -347,7 +347,11 @@ class _FieldSqlMixin(_FieldStubs):
                 unaccent_python = records.env.registry.unaccent_python
 
                 def unaccent(x):
-                    return unaccent_python(str(x).lower()) if x else ""
+                    # SQL folds as ``unaccent(...) ILIKE unaccent(...)``, i.e.
+                    # case *after* transliteration.  Lowering first hides every
+                    # rule whose replacement is upper-case (``₹``->``Rs``,
+                    # ``Æ``->``AE``), which is 95 of 9978 characters.
+                    return unaccent_python(str(x)).lower() if x else ""
 
             else:
 

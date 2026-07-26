@@ -93,65 +93,6 @@ class UnitOfWork:
         """Human-readable ``model.field`` label for diagnostics/stall reports."""
         return f"{getattr(field, 'model_name', '?')}.{getattr(field, 'name', field)}"
 
-    def recompute_snapshot(
-        self, fields: list[Any] | None = None
-    ) -> frozenset[tuple[Any, int]]:
-        """Snapshot of ``(field, pending_count)`` for convergence detection.
-
-        **Not wired into the production loops**: they deliberately have no
-        per-pass stall detection (see :meth:`run_recompute_loop`) and
-        terminate only on drained state or the ``max_iterations`` cap. Kept
-        unit-tested as a building block for a possible future *id-level*
-        stall detector (a count-based one is provably unsound).
-
-        Includes only fields with at least one real (truthy) pending ID. Pass
-        *fields* (a precomputed ``pending_real_fields()`` list) to avoid
-        re-scanning the pending dict on the hot loop path.
-        """
-        if fields is None:
-            fields = self.engine.pending_real_fields()
-        return frozenset(
-            (field, len(self.engine.pending_ids(field))) for field in fields
-        )
-
-    def check_convergence(
-        self,
-        prev_snapshot: frozenset[tuple[Any, int]] | None,
-        curr_snapshot: frozenset[tuple[Any, int]],
-    ) -> tuple[bool, list[str]]:
-        """Check whether recomputation is making progress.
-
-        **Not wired into the production loops** (see
-        :meth:`recompute_snapshot`).
-
-        :param prev_snapshot: previous result of :meth:`recompute_snapshot`.
-        :param curr_snapshot: current result of :meth:`recompute_snapshot`.
-        :return: ``(progressing, stalled_labels)`` — *progressing* is True if the
-            snapshot changed (or *prev* was ``None``); *stalled_labels* lists
-            field diagnostics when stalled.
-        """
-        if prev_snapshot is None or curr_snapshot != prev_snapshot:
-            return True, []
-
-        stalled = sorted(f"{self._field_label(f)}({cnt})" for f, cnt in curr_snapshot)
-        return False, stalled
-
-    def check_flush_progress(
-        self, prev_dirty_count: int, curr_dirty_count: int
-    ) -> tuple[bool, list[str]]:
-        """Check whether flushing is making progress.
-
-        **Not wired into the production loops** (see
-        :meth:`recompute_snapshot`).
-
-        :return: ``(progressing, stalled_labels)``.
-        """
-        if curr_dirty_count < prev_dirty_count:
-            return True, []
-
-        stalled = sorted(self._field_label(f) for f in self.cache.iter_dirty_fields())
-        return False, stalled
-
     def run_recompute_loop(
         self,
         recompute_fn: Callable[[Any], None],

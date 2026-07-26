@@ -34,6 +34,15 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.api")
 
 
+class CacheInvalidError(AssertionError):
+    """The ORM cache disagrees with the database (see :meth:`Cache.check`).
+
+    An :class:`AssertionError` because it reports a broken framework invariant,
+    not a user-facing condition, and so that it is not swallowed by handlers
+    catching :class:`~odoo.exceptions.UserError`.
+    """
+
+
 class Cache:
     """Cache of records (backward-compat wrapper).
 
@@ -279,8 +288,23 @@ class Cache:
             with contextlib.suppress(AttributeError):
                 del env._field_cache_memo
 
-    def check(self, env) -> None:
-        """Check the consistency of the cache for the given environment."""
+    def check(self, env, *, raise_on_invalid: bool = True) -> list[tuple]:
+        """Check that the cache agrees with the database, and report what does not.
+
+        The only oracle for the cache-vs-database invariant.  It used to report
+        exclusively through ``_logger.warning`` and return ``None``, so the five
+        ``env.cache.check(env)`` calls in ``base/tests/test_api.py`` read as
+        assertions while being unable to fail: a real divergence
+        (``res.partner.write_date`` after a compute-driven flush) was logged on
+        every run and never broke a build.
+
+        :param raise_on_invalid: raise :class:`CacheInvalidError` when the cache
+            disagrees with the database.  Pass ``False`` to inspect the
+            divergences instead (diagnostics, tests that pin a known one).
+        :return: the divergences as ``(records, field, {"cached": ..., "fetched": ...})``.
+        :raises CacheInvalidError: if any divergence is found and
+            *raise_on_invalid* is set.
+        """
         depends_context = env.registry.field_depends_context
         core = self.transaction.core
         invalids = []
@@ -342,6 +366,11 @@ class Cache:
 
         if invalids:
             _logger.warning("Invalid cache: %s", pformat(invalids))
+            if raise_on_invalid:
+                raise CacheInvalidError(
+                    f"Cache does not match the database:\n{pformat(invalids)}"
+                )
+        return invalids
 
 
 class Starred:
