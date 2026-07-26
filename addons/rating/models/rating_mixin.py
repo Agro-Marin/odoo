@@ -3,9 +3,10 @@
 from collections import defaultdict
 
 from odoo import api, fields, models
-from odoo.addons.rating.models import rating_data
 from odoo.fields import Domain
 from odoo.libs.numbers.float_utils import float_compare, float_round
+
+from odoo.addons.rating.models import rating_data
 
 
 class RatingMixin(models.AbstractModel):
@@ -110,8 +111,8 @@ class RatingMixin(models.AbstractModel):
         return result
 
     def _rating_get_parent_field_name(self):
-        """Return the parent relation field name. Should return a Many2One"""
-        return None
+        """Return the name of the field holding the parent relation, or None."""
+        return
 
     def _rating_domain(self):
         """ Returns a normalized domain on rating.rating to select the records to
