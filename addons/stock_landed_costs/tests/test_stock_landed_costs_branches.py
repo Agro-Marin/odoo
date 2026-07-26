@@ -2,8 +2,11 @@
 
 from unittest import skip
 
-from odoo.addons.stock_landed_costs.tests.test_stockvaluationlayer import TestStockValuationLCCommon
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged
+
+from odoo.addons.stock_landed_costs.tests.test_stockvaluationlayer import (
+    TestStockValuationLCCommon,
+)
 
 
 @tagged('post_install', '-at_install')

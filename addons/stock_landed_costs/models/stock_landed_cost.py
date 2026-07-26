@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
 
-from odoo import api, fields, models, tools, _
+from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
-from odoo.libs.numbers.float_utils import float_is_zero
-
 
 SPLIT_METHOD = [
     ('equal', 'Equal'),

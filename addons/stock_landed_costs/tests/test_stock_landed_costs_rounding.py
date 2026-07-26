@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from unittest import skip
 
 from odoo import Command
-from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
 from odoo.fields import Date
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged
+
+from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
 
 
 @tagged('post_install', '-at_install')
@@ -46,26 +46,28 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         picking_default_vals = self.env['stock.picking'].default_get(list(self.env['stock.picking'].fields_get()))
 
         # I create 2 pickings moving those products
-        vals = dict(picking_default_vals, **{
-            'name': 'LC_pick_3',
-            'picking_type_id': self.warehouse.in_type_id.id,
-            'move_ids': [(0, 0, {
+        vals = dict(
+            picking_default_vals,
+            name='LC_pick_3',
+            picking_type_id=self.warehouse.in_type_id.id,
+            move_ids=[(0, 0, {
                 'product_id': product_landed_cost_3.id,
                 'product_uom_qty': 13,
                 'product_uom_id': product_uom_unit_round_1.id,
                 'location_id': self.ref('stock.stock_location_customers'),
                 'location_dest_id': self.warehouse.lot_stock_id.id,
             })],
-        })
+        )
         picking_landed_cost_3 = self.env['stock.picking'].new(vals)
         picking_landed_cost_3._onchange_picking_type()
         vals = picking_landed_cost_3._convert_to_write(picking_landed_cost_3._cache)
         picking_landed_cost_3 = self.env['stock.picking'].create(vals)
 
-        vals = dict(picking_default_vals, **{
-            'name': 'LC_pick_4',
-            'picking_type_id': self.warehouse.in_type_id.id,
-            'move_ids': [(0, 0, {
+        vals = dict(
+            picking_default_vals,
+            name='LC_pick_4',
+            picking_type_id=self.warehouse.in_type_id.id,
+            move_ids=[(0, 0, {
                 'product_id': product_landed_cost_4.id,
                 'product_uom_qty': 1,
                 'product_uom_id': self.ref('uom.product_uom_dozen'),
@@ -73,7 +75,7 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
                 'location_dest_id': self.warehouse.lot_stock_id.id,
                 'price_unit': 17.00 / 12.00,
             })],
-        })
+        )
         picking_landed_cost_4 = self.env['stock.picking'].new(vals)
         picking_landed_cost_4._onchange_picking_type()
         vals = picking_landed_cost_4._convert_to_write(picking_landed_cost_4._cache)
@@ -190,7 +192,7 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
                 'product_id': product.id,
                 'product_qty': qty,
                 'price_unit': product.standard_price,
-            }) for product, qty in zip(products, [6, 6, 3, 6])]
+            }) for product, qty in zip(products, [6, 6, 3, 6], strict=False)]
         })
         po.action_confirm()
 
@@ -321,7 +323,7 @@ class TestStockLandedCostsRounding(TestStockLandedCostsCommon):
         lc.cost_lines.split_method = 'equal'
         lc.button_validate()
         line_costs = lc.valuation_adjustment_lines.mapped('additional_landed_cost')
-        for line_cost, expected_cost in zip(line_costs, [1.14, 1.14, 1.14, 1.14, 1.14, 1.15]):
+        for line_cost, expected_cost in zip(line_costs, [1.14, 1.14, 1.14, 1.14, 1.14, 1.15], strict=False):
             self.assertAlmostEqual(
                 line_cost,
                 expected_cost,

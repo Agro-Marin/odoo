@@ -2,12 +2,14 @@
 import unittest
 from unittest import skip
 
-from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
-from odoo.addons.stock_landed_costs.tests.test_stockvaluationlayer import TestStockValuationLCCommon
-
 from odoo import fields
 from odoo.fields import Command, Date
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged
+
+from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
+from odoo.addons.stock_landed_costs.tests.test_stockvaluationlayer import (
+    TestStockValuationLCCommon,
+)
 
 
 @tagged('post_install', '-at_install')
@@ -311,10 +313,10 @@ class TestLandedCosts(TestStockLandedCostsCommon):
         self.picking_out.button_validate()
 
     def _create_landed_costs(self, value, picking_in):
-        return self.LandedCost.create(dict(
-            picking_ids=[(6, 0, [picking_in.id])],
-            account_journal_id=self.expenses_journal.id,
-            cost_lines=[
+        return self.LandedCost.create({
+            'picking_ids': [(6, 0, [picking_in.id])],
+            'account_journal_id': self.expenses_journal.id,
+            'cost_lines': [
                 (0, 0, {
                     'name': 'equal split',
                     'split_method': 'equal',
@@ -336,7 +338,7 @@ class TestLandedCosts(TestStockLandedCostsCommon):
                     'price_unit': value['volume_price_unit'],
                     'product_id': self.packaging_volume.id})
             ],
-        ))
+        })
 
     def _validate_additional_landed_cost_lines(self, stock_landed_cost, valid_vals):
         for valuation in stock_landed_cost.valuation_adjustment_lines:
@@ -392,10 +394,10 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         self.assertAlmostEqual(aml.debit, 455)
 
         # Create and validate LC
-        lc = self.env['stock.landed.cost'].create(dict(
-            picking_ids=[(6, 0, [receipt.id])],
-            account_journal_id=self.stock_journal.id,
-            cost_lines=[
+        lc = self.env['stock.landed.cost'].create({
+            'picking_ids': [(6, 0, [receipt.id])],
+            'account_journal_id': self.stock_journal.id,
+            'cost_lines': [
                 (0, 0, {
                     'name': 'equal split',
                     'split_method': 'equal',
@@ -403,7 +405,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                     'product_id': self.productlc1.id,
                 }),
             ],
-        ))
+        })
         lc.compute_landed_cost()
         lc.button_validate()
 
@@ -532,10 +534,10 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         bill = po.invoice_ids
 
         # Create and validate LC
-        lc = self.env['stock.landed.cost'].create(dict(
-            picking_ids=[(6, 0, [receipt.id])],
-            account_journal_id=self.stock_journal.id,
-            cost_lines=[
+        lc = self.env['stock.landed.cost'].create({
+            'picking_ids': [(6, 0, [receipt.id])],
+            'account_journal_id': self.stock_journal.id,
+            'cost_lines': [
                 (0, 0, {
                     'name': 'equal split',
                     'split_method': 'equal',
@@ -543,7 +545,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
                     'product_id': self.landed_cost.id,
                 }),
             ],
-        ))
+        })
         lc.compute_landed_cost()
         lc.button_validate()
 
