@@ -25,10 +25,22 @@ def validate_thread_with_hash_pid(
     of letting that exception surface as HTTP 500 on the public chatter routes
     (reachable via e.g. ``res.partner``, a ``mail.thread`` without
     ``access_token``). Mirrors the guard in :func:`validate_thread_with_token`.
+
+    Both credentials are type-checked before use. These routes are ``jsonrpc``,
+    so the caller picks the JSON *type* of every parameter, not just its value:
+    a ``hash`` sent as a number reaches ``consteq`` (``TypeError``) and a ``pid``
+    sent as a list reaches ``int()`` (``TypeError``) — each an HTTP 500 with a
+    traceback on an anonymous route. A credential of the wrong type is simply
+    not a credential, so it validates as ``False``. ``bool`` is rejected
+    explicitly because it is an ``int`` subclass, and ``float`` because
+    truncating ``1.9`` to partner 1 would be a silent reinterpretation of the
+    caller's input rather than a rejection of it.
     """
-    if not _hash or not pid:
+    if not isinstance(_hash, str) or not _hash or not pid:
         return False
     if thread._mail_post_token_field not in thread._fields:
+        return False
+    if isinstance(pid, bool) or not isinstance(pid, (int, str)):
         return False
     try:
         pid = int(pid)
@@ -64,9 +76,14 @@ def validate_thread_with_token(thread: BaseModel, token: str | None) -> bool:
     (HTTP 500 on a public route). A falsy stored token cannot match any
     client-supplied token anyway, so short-circuiting to ``False`` is both
     correct and safe — there is no secret whose comparison timing could leak.
+
+    The ``isinstance`` check guards the same ``consteq`` call from the other
+    side: over ``jsonrpc`` the caller chooses the token's JSON type, and a
+    number or list would raise ``TypeError`` there. See
+    :func:`validate_thread_with_hash_pid` for the full rationale.
     """
     token_field = thread._mail_post_token_field
-    if not token or token_field not in thread._fields:
+    if not isinstance(token, str) or not token or token_field not in thread._fields:
         return False
     stored_token = thread[token_field]
     return bool(stored_token) and consteq(token, stored_token)

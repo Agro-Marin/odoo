@@ -97,6 +97,20 @@ export function computeM2OProps(fieldProps) {
 export class Many2One extends Component {
     static template = "web.Many2One";
     static components = { Many2XAutocomplete };
+
+    /**
+     * Shared display-name cache, used to publish a freshly-read name so every
+     * other on-screen widget referencing the same record updates too.
+     *
+     * Declared as a field so its type is not `… | undefined`: it is assigned
+     * from `useService("name")` in `setup()`. Safe for an OWL component (OWL
+     * constructs, then calls `setup()`); see Pattern 7 in
+     * `machine_doc_v1/JSDOC_TYPE_TIGHTENING.md`. The type is DERIVED from the
+     * service rather than restated, so it cannot drift from it.
+     *
+     * @type {ReturnType<typeof import("@web/services/name_service").nameService.start>}
+     */
+    nameService;
     static props = {
         canCreate: { type: Boolean, optional: true },
         canCreateEdit: { type: Boolean, optional: true },

@@ -560,31 +560,12 @@ class SaleOrderLine(models.Model):
         self.ensure_one()
         return self.order_id.partner_shipping_id.property_stock_customer
 
-    def _get_procurement_qty(self, previous_product_qty=False):
-        self.ensure_one()
-        qty = 0.0
-        outgoing_moves, incoming_moves = self._get_stock_moves_outgoing_incoming(
-            strict=False,
-        )
-        for move in outgoing_moves:
-            qty_to_compute = (
-                move.quantity if move.state == "done" else move.product_uom_qty
-            )
-            qty += move.product_uom_id._compute_quantity(
-                qty_to_compute,
-                self.product_uom_id,
-                rounding_method="HALF-UP",
-            )
-        for move in incoming_moves:
-            qty_to_compute = (
-                move.quantity if move.state == "done" else move.product_uom_qty
-            )
-            qty -= move.product_uom_id._compute_quantity(
-                qty_to_compute,
-                self.product_uom_id,
-                rounding_method="HALF-UP",
-            )
-        return qty
+    def _get_procurement_moves(self):
+        # Deliveries procure a sale line, customer returns hand the goods back.
+        # strict=False so the moves the delivery route's initial rule pushed
+        # count as procurement too. Overrides order.line.stock.mixin
+        # (base_order_stock), which owns the arithmetic.
+        return self._get_stock_moves_outgoing_incoming(strict=False)
 
     def _get_stock_moves_outgoing_incoming(self, strict=True):
         """Return the outgoing and incoming moves of the sale order line.
@@ -594,13 +575,7 @@ class SaleOrderLine(models.Model):
         """
         outgoing_moves = self.env["stock.move"]
         incoming_moves = self.env["stock.move"]
-        moves = self.move_ids.filtered(
-            lambda m: (
-                m.state != "cancel"
-                and m.location_dest_usage != "inventory"
-                and m.product_id == self.product_id
-            ),
-        )
+        moves = self._get_transferable_moves()
 
         if not moves:
             return self.env["stock.move"], self.env["stock.move"]

@@ -9,7 +9,6 @@ and content-addressed attachment persistence. Sole templating entry point is
 """
 
 import contextlib
-import hashlib
 import json as json_mod  # stdlib json; odoo.tools.json is not needed here
 import logging
 import time
@@ -37,6 +36,7 @@ from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
 )
 from odoo.tools.assets.esm_registry import esm_registry
+from odoo.tools.hashing import cache_hash
 from odoo.tools.misc import file_path, str2bool
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
@@ -2125,7 +2125,7 @@ class IrQweb(models.AbstractModel):
         content_bytes = content.encode("utf-8")
         # 16 hex chars = 64 bits of entropy, far beyond the birthday
         # bound for a single tenant's bundle corpus (~50 bundles).
-        content_hash = hashlib.sha256(content_bytes).hexdigest()[:16]
+        content_hash = cache_hash(content_bytes)[:16]
         url = f"/web/assets/esm/{content_hash}/{bundle}.esm.js"
 
         existing = IrAttachment.sudo().search(

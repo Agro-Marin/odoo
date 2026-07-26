@@ -678,7 +678,13 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
             '<div class="o-paragraph" data-selection-placeholder=""><br></div>',
     );
     await clickSave();
-    expect.verifySteps(["update_value", "update_value", "web_save"]);
+    // One `update_value`, not two: this fork's `updateValue` clears `isDirty`
+    // up front (re-arming it via `isStale` when a concurrent edit landed during
+    // the await), so the blur commit and the save commit collapse into a single
+    // `record.update` instead of repeating the same value. What this test is
+    // actually about — the editable not being reset from the server value — is
+    // carried by `setup_wysiwyg` being absent from the steps below.
+    expect.verifySteps(["update_value", "web_save"]);
 });
 
 test("blurring an inner contenteditable field by clicking outside should trigger update_value", async () => {

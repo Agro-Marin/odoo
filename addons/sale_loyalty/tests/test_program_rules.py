@@ -30,12 +30,12 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -47,12 +47,12 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '10 Product A',
-                'product_uom_qty': 10.0,
+                'product_qty': 10.0,
             }),
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -99,11 +99,11 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         })
         self.env['sale.order.line'].create([{
             'product_id': self.product_A.id,
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'order_id': order.id,
         }, {
             'product_id': self.product_B.id,
-            'product_uom_qty': 40.0,
+            'product_qty': 40.0,
             'order_id': order.id,
         }])
         self.assertEqual(len(order.line_ids), 2)
@@ -141,11 +141,11 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         })
         self.env['sale.order.line'].create([{
             'product_id': self.product_A.id,
-            'product_uom_qty': 2.0,
+            'product_qty': 2.0,
             'order_id': order.id,
         }, {
             'product_id': self.product_B.id,
-            'product_uom_qty': 20.0,
+            'product_qty': 20.0,
             'order_id': order.id,
         }])
         self.assertEqual(len(order.line_ids), 2)
@@ -187,14 +187,14 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         sol1 = self.env['sale.order.line'].create({
             'product_id': self.product_A.id,
             'name': 'Product A',
-            'product_uom_qty': 2.0,
+            'product_qty': 2.0,
             'order_id': order.id,
         })
 
         sol2 = self.env['sale.order.line'].create({
             'product_id': self.product_B.id,
             'name': 'Product B',
-            'product_uom_qty': 4.0,
+            'product_qty': 4.0,
             'order_id': order.id,
         })
 
@@ -206,20 +206,20 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         with self.assertRaises(ValidationError):
             self._apply_promo_code(order, coupon.code)
 
-        sol2.product_uom_qty = 24
+        sol2.product_qty = 24
 
         # Not enough qty since we only have 3 Product A (Amount is ok: 100*2 + 5*24 = 320)
         with self.assertRaises(ValidationError):
             self._apply_promo_code(order, coupon.code)
 
-        sol1.product_uom_qty = 3
+        sol1.product_qty = 3
 
         self._apply_promo_code(order, coupon.code)
         self._claim_reward(order, program, coupon)
 
         self.assertEqual(len(order.line_ids.ids), 3, "The order should contain the Product A line, the Product B line and the discount line")
 
-        sol1.product_uom_qty = 2
+        sol1.product_qty = 2
         order._update_programs_and_rewards()
 
         self.assertEqual(len(order.line_ids.ids), 2, "The discount line should have been removed as we don't meet the program requirements")
@@ -267,7 +267,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         sol = self.env['sale.order.line'].create({
             'product_id': self.product_A.id,
             'name': 'Product A',
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'order_id': order.id,
         })
 
@@ -276,7 +276,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self._claim_reward(order, p2)
         self.assertEqual(len(order.line_ids.ids), 1, "The order should only contains the Product A line")
 
-        sol.product_uom_qty = 3
+        sol.product_qty = 3
         order._update_programs_and_rewards()
         self._claim_reward(order, p1)
         self._claim_reward(order, p2)
@@ -286,7 +286,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         # "Discount Get 5% discount if buy at least 2 Product - On product with following tax: Tax 15.00%"
         self.assertTrue('Discount 5% on your order' in discounts.pop(), "The discount should be a 5% discount")
 
-        sol.product_uom_qty = 5
+        sol.product_qty = 5
         order._update_programs_and_rewards()
         self._claim_reward(order, p1)
         self._claim_reward(order, p2)
@@ -306,12 +306,12 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             Command.create({
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._auto_rewards(order, self.immediate_promotion_program)
@@ -374,7 +374,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._auto_rewards(order, self.immediate_promotion_program)
@@ -388,7 +388,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             Command.create({
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         # Invalidate total_order_count
@@ -497,10 +497,10 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'product_uom_id': self.ref('uom.product_uom_dozen'),
-                'product_uom_qty': 1,
+                'product_qty': 1,
             }),
         ]
         self._auto_rewards(order, buy_x_get_y)
         reward_line = order.line_ids.filtered('is_reward_line')
         self.assertTrue(reward_line)
-        self.assertEqual(reward_line.product_uom_qty, 6)
+        self.assertEqual(reward_line.product_qty, 6)

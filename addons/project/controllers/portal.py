@@ -11,7 +11,7 @@ from odoo.fields import Domain
 from odoo.http import Response, request
 from odoo.tools import groupby as groupbyelem
 
-from odoo.addons.portal.controllers.portal import CustomerPortal
+from odoo.addons.portal.controllers.portal import CustomerPortal, _parse_record_id
 from odoo.addons.portal.controllers.portal import pager as portal_pager
 
 
@@ -1028,7 +1028,7 @@ class ProjectCustomerPortal(CustomerPortal):
     ) -> Response:
         try:
             task_sudo = self._document_check_access(
-                "project.task", int(res_id), access_token=access_token
+                "project.task", _parse_record_id(res_id), access_token=access_token
             )
             if not task_sudo.with_user(
                 request.env.uid

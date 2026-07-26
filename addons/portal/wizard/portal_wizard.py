@@ -111,12 +111,20 @@ class PortalWizardUser(models.TransientModel):
         compute="_compute_email_state",
     )
 
-    @api.depends("email")
+    # ``user_id`` too: _is_portal_similar_than_user compares against it to let a
+    # row keep its own user's login. Without it in the dependencies, a row whose
+    # partner (and so user_id) changed kept a stale "exist"/"ok" status.
+    @api.depends("email", "user_id")
     def _compute_email_state(self):
         portal_users_with_email = self.filtered(
             lambda user: email_normalize(user.email)
         )
         (self - portal_users_with_email).email_state = "ko"
+
+        if not portal_users_with_email:
+            # Nothing to match: the domain would be ``login in []``, a query
+            # whose answer is known to be empty.
+            return
 
         existing_users = (
             self.env["res.users"]
@@ -327,6 +335,7 @@ class PortalWizardUser(models.TransientModel):
 
     def _update_partner_email(self):
         """Sync the partner's email with the wizard row when the row's email is valid and changed."""
+        self.ensure_one()  # reads self.email / self.partner_id as singletons
         email_normalized = email_normalize(self.email)
         if (
             self.email_state == "ok"

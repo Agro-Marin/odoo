@@ -23,7 +23,7 @@ seam-file check, point `tsc --noEmit` at a `tsconfig` with `"types": []`
 to block the implicit `@types/models` / `@types/registries` loading that
 errors out outside the full tooling install.
 
-## The 6 recurring tightening patterns
+## The 8 recurring tightening patterns
 
 ### Pattern 1 — Late-bound field on an error class
 
@@ -227,6 +227,107 @@ yields no win. Reserve the typed form for view-prefixed registrations.
 **Naming nuance**: the `name` in `FieldRegistrationSpec.name` is the widget
 identifier the view arch references via `widget="<name>"`, NOT necessarily a
 field type — `res_partner_many2one` is a widget name, not a type.
+
+### Pattern 8 — Property assigned in `setup()`, not in a constructor
+
+The dominant shape in this codebase, and the one that will surface on almost
+every model/component file added to the allowlist.
+
+**Symptom** — `TS2532` / `TS18048` "possibly undefined" on a property that is
+unconditionally assigned:
+
+```js
+setup() {
+    this.nextActionsAfterMouseup = [];   // can never be undefined at runtime
+}
+// …later…
+this.nextActionsAfterMouseup.push(fn);   // TS2532: Object is possibly 'undefined'
+```
+
+TypeScript's definite-assignment analysis credits **only the constructor**. A
+property assigned in `setup()` is inferred as `T | undefined` under
+`strictNullChecks` (which `tooling/typecheck-ci.sh` enables even though the
+committed `tsconfig.json` does not).
+
+**Fix — declare a class field, but ONLY on an OWL `Component`:**
+
+```js
+export class ListController extends MultiRecordController {
+    /** @type {(() => void)[]} */
+    nextActionsAfterMouseup;
+
+    setup() {
+        this.nextActionsAfterMouseup = [];
+    }
+}
+```
+
+**The ordering rule that decides whether this is safe.** A field initialiser
+runs immediately after `super()` returns, so it clobbers anything the base
+constructor already assigned:
+
+| base class | when `setup()` runs | class field safe? |
+|---|---|---|
+| OWL `Component` | AFTER construction — `owl.js` does `new C(...)` then `component.setup()` | **yes** |
+| `Model` (`model/model.js`) | INSIDE its own constructor (`this.setup(params, services)`) | **no — would overwrite with `undefined`** |
+
+Prefer deriving the type over restating it, so it cannot drift:
+
+```js
+/** @type {ReturnType<typeof import("@web/services/name_service").nameService.start>} */
+nameService;
+```
+
+**When the class field is not usable** (a `Model` subclass, or a cross-file
+read like `record.model.urgentSave`), use `@ts-ignore` with a comment stating
+why — **not `@ts-expect-error`**. The gate runs `strictNullChecks: true` but the
+committed `tsconfig.json` and `tooling/_jsconfig.json` do not, so there the
+error does not occur and `@ts-expect-error` reports `TS2578 Unused directive`
+in every editor. Verified 2026-07-25.
+
+**What does NOT work: module augmentation.** `declare module "…" { interface X { … } }`
+can only **ADD** members to a class declared in a `.js` file; it cannot re-type
+a member the JS file already infers. Since a `setup()`-assigned property *does*
+exist on the inferred type (as `T | undefined`), augmenting it is a silent
+no-op. Measured 2026-07-25 across four classes: it appeared to work for
+`ListController` and `View` only because `@types/views.d.ts` then ambiently
+*shadowed* those modules, so the entry was an add onto the shadow rather than an
+override of the real class — and it did nothing at all for the unshadowed
+`Many2One` and `RelationalModel`. (That file has since been deleted; see below.)
+
+**Ambient vs augmentation — the distinction that caused a real bug.**
+`declare module "X"` means two different things:
+
+- in a **non-module** `.d.ts` (no top-level `import`/`export`) it is an
+  **ambient declaration that REPLACES** the real module — anything it omits
+  becomes invisible to importers;
+- in a **module** `.d.ts` (has a top-level `import`/`export`, e.g. `export {}`)
+  it is a **module augmentation**, which is purely additive.
+
+`@types/views.d.ts` was the former, and its block for `@web/views/view_utils`
+omitted `handleBeforeUnload` — so that function, present in the source,
+reported as "no exported member" in `form_controller.js` and
+`list_controller.js`, while the shadow's looser `any`-heavy signatures masked
+six real errors in `form_compiler.js`.
+
+**Resolved 2026-07-25.** All 88 ambient blocks that shadowed a real `.js`
+source were removed, which emptied and therefore deleted six files:
+`views`, `webclient`, `search`, `context`, `env`, `user`. Contrary to the
+expectation that this would expose masked debt, the whole-repo `tsc` count went
+DOWN by 90 (2321 -> 2231): the hand-written declarations generated more errors
+through wrong or incomplete signatures than their `any`-heavy members hid. Only
+five errors surfaced in allowlisted files, each a genuine contract defect the
+shadow had papered over (a `ReportAction` typedef that existed only in the
+shadow; two base-class signatures in `multi_record_controller.js` that
+contradicted their own doc comments; a `compileSeparator` return type narrower
+than both its body and its consumer). Two survivors declared modules that do
+not exist at all (`@web/search/action_hook`,
+`@web/views/settings/settings/highlight_text`) and were removed too.
+
+`@types/` now holds only what its `readme.md` scopes it to — ambient
+declarations for iife/global libs (`odoo`, owl, hoot, qunit, libs, registries,
+services, models) plus the one legitimate augmentation, `concurrency.d.ts`.
+**Only ever augment; never shadow.**
 
 ## Gotcha — `@template T` block scope
 

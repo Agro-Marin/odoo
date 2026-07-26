@@ -148,8 +148,14 @@ class BaseCursor(_CursorProtocol):
         query: str | SQL | _sql.Composable,
         params: tuple | list | dict | None = None,
         log_exceptions: bool = True,
+        prepare: bool | None = None,
     ) -> None:
-        """Execute a query inside the current transaction."""
+        """Execute a query inside the current transaction.
+
+        ``prepare`` is forwarded to psycopg: ``None`` keeps the automatic
+        behaviour, ``False`` opts the statement out of the prepared-statement
+        cache (see :meth:`Cursor.execute`).
+        """
         raise NotImplementedError
 
     def commit(self) -> None:
@@ -462,7 +468,18 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         query: str | SQL | _sql.Composable,
         params: tuple | list | dict | None = None,
         log_exceptions: bool = True,
+        prepare: bool | None = None,
     ) -> None:
+        # ``prepare=False`` opts a statement out of psycopg's automatic
+        # prepared-statement cache. Needed for statements whose *result shape*
+        # can change under them -- notably ``SELECT *`` over a catalog table that
+        # modules extend (``ir_model``): once such a plan is cached, the next
+        # ALTER on that table makes every later execution fail with
+        # "cached plan must not change result type". discard_cached_plans()
+        # clears the connection that ran the DDL, but a pooled connection that
+        # merely holds the stale plan is only reached via registry signalling,
+        # which does not fire in a single-process run.
+        #
         # No creating-thread assertion here: the real invariant is "no
         # CONCURRENT execute on the same connection", not "same thread".
         # TestCursor deliberately shares one real cursor across the test and
@@ -521,7 +538,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         obj = self._obj
         t0 = monotonic()
         try:
-            obj.execute(query, params)
+            obj.execute(query, params, prepare=prepare)
         except Exception as e:
             if log_exceptions:
                 _log_sql_error(e, query)

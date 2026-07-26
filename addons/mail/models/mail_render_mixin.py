@@ -2,7 +2,6 @@ import copy
 import logging
 import re
 import traceback
-from functools import reduce
 
 import babel
 from lxml import html
@@ -17,6 +16,7 @@ from odoo.tools.rendering_tools import (
     convert_inline_template_to_qweb,
     parse_inline_template,
     render_inline_template,
+    renders_as_no_value,
     template_env_globals,
 )
 
@@ -638,6 +638,36 @@ class MailRenderMixin(models.AbstractModel):
         return results
 
     @api.model
+    def _render_regex_resolve(self, expression, record):
+        """Resolve an allow-listed dotted expression against its declared root.
+
+        Both regex engines used to evaluate ``expression.split(".")[1:]`` against
+        ``record`` -- dropping the root segment and assuming it was always
+        ``object``. That made the allow-list and the evaluator disagree: because
+        ``mail_allowed_qweb_expressions`` (``models/base.py``) is a documented
+        extension point, a module adding a differently-rooted entry such as
+        ``user.name`` got the *record's* ``name`` rendered instead. Silently wrong
+        data, no error -- and, since the allow-list is the security boundary for
+        non-``group_mail_template_editor`` users, a reviewed-and-approved entry
+        did not describe what was actually read.
+
+        Roots mirror ``_render_eval_context``. An unknown root is refused rather
+        than guessed, like a non-allow-listed expression is.
+        """
+        root, *path = expression.split(".")
+        if root == "object":
+            value = record
+        elif root == "user":
+            value = self.env.user
+        else:
+            raise SyntaxError(
+                f"Unsupported root {root!r} for the regex mode in {expression!r}"
+            )
+        for fname in path:
+            value = value[fname]
+        return value
+
+    @api.model
     def _render_template_qweb_regex(self, template_src, model, res_ids):
         """Render the template with regex instead of qweb to avoid `eval` call.
 
@@ -673,9 +703,7 @@ class MailRenderMixin(models.AbstractModel):
                     raise SyntaxError(f"Invalid expression for the regex mode {expr!r}")
 
                 try:
-                    value = reduce(
-                        lambda rec, field: rec[field], expr.split(".")[1:], record
-                    )
+                    value = self._render_regex_resolve(expr, record)
                 except KeyError:
                     value = None
                 if isinstance(value, models.BaseModel):
@@ -853,18 +881,20 @@ class MailRenderMixin(models.AbstractModel):
                             f"Invalid expression for the regex mode {expression!r}"
                         )
                     try:
-                        value = reduce(
-                            lambda rec, field: rec[field],
-                            expression.split(".")[1:],
-                            record,
-                        )
+                        value = self._render_regex_resolve(expression, record)
                     except KeyError:
                         value = None
                     if isinstance(value, models.BaseModel):
                         # Relational expression -> recordset; str() would emit its
                         # repr. Render display_name, matching qweb.
                         value = value.display_name
-                    renderer.append(str((value or default) or ""))
+                    if renders_as_no_value(value):
+                        # Same "no value" contract as the safe_eval engine, so
+                        # both modes of the inline_template engine render a
+                        # given template identically -- notably a numeric 0,
+                        # which a plain truthiness test would swallow.
+                        value = default
+                    renderer.append("" if value == "" else str(value))
             result[record.id] = "".join(renderer)
         return result
 

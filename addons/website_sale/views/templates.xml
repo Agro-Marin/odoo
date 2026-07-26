@@ -3022,7 +3022,7 @@
             <del
                 t-if="line._should_show_strikethrough_price()"
                 class="me-md-2 text-muted text-nowrap opacity-50"
-                t-out="line._get_displayed_unit_price() * line.product_uom_qty"
+                t-out="line._get_displayed_unit_price() * line.product_qty"
                 t-options="{'widget': 'monetary', 'display_currency': website.currency_id}"
             />
             <t t-set="product_price" t-value="line._get_cart_display_price()"/>
@@ -3037,7 +3037,7 @@
                 <t t-set="product" t-value="line.product_id"/>
                 <t
                     t-set="base_unit_price"
-                    t-value="product._get_base_unit_price(product_price/line.product_uom_qty)"
+                    t-value="product._get_base_unit_price(product_price/line.product_qty)"
                 />
             </t>
         </small>
@@ -3229,7 +3229,7 @@
                                 t-value="order_line.product_id._get_combination_info_variant()"
                             />
                             <small
-                                t-out="combination_info['price'] * order_line.product_uom_qty"
+                                t-out="combination_info['price'] * order_line.product_qty"
                                 t-options="{
                                     'widget': 'monetary',
                                     'display_currency': website.currency_id,
@@ -3239,7 +3239,7 @@
                             />
                             <input
                                 type="text"
-                                t-att-value="int(order_line.product_uom_qty)"
+                                t-att-value="int(order_line.product_qty)"
                                 class="o_wsale_quick_reorder_qty_input form-control text-center"
                                 t-att-data-price-unit="combination_info['price']"
                                 t-att-data-currency-digits="combination_info['currency'].decimal_places"
@@ -3248,7 +3248,7 @@
                                 type="button"
                                 title="Press 'Enter' to add to cart"
                                 class="o_wsale_quick_reorder_product_button btn btn-outline-primary"
-                                t-att-data-quantity="order_line.product_uom_qty"
+                                t-att-data-quantity="order_line.product_qty"
                                 t-att-data-product-id="order_line.product_id.id"
                                 t-att-data-product-template-id="order_line.product_id.product_tmpl_id.id"
                                 t-att-data-product-type="order_line.product_id.type"
@@ -3934,7 +3934,7 @@
                                         t-options="{'widget': 'image', 'qweb_img_responsive': False, 'class': 'rounded'}"
                                     />
                                     <span class="o_cart_item_count badge bg-secondary position-absolute top-0 start-100 translate-middle">
-                                        <t t-out="int(line.product_uom_qty)" />
+                                        <t t-out="int(line.product_qty)" />
                                         <i
                                             t-if="line._get_shop_warning(clear=False)"
                                             class="fa-solid fa-triangle-exclamation"

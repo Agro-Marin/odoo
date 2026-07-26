@@ -1228,6 +1228,11 @@ describe("shortcut", () => {
         // Tab through all focusable elements
         await press("Tab");
         await animationFrame();
+        // The URL field is followed by the "upload a file" button, which is a
+        // real control and belongs in the trap's cycle.
+        expect("button:has(i.fa-upload)").toBeFocused();
+        await press("Tab");
+        await animationFrame();
         expect("select[name='link_type']").toBeFocused();
         await press("Tab");
         await animationFrame();

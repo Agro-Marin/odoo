@@ -71,7 +71,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(order, coupon.code)
@@ -107,7 +107,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(sale_order_a, coupon.code)
@@ -119,7 +119,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(sale_order_b, coupon.code)
@@ -159,7 +159,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_C.id,
                 'name': '1 Product C',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(order, coupon.code)
@@ -215,7 +215,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.third_product.id,
                 'name': '1 Third Product',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -228,7 +228,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(order, 'free_B_on_next_order', no_reward_fail=False)
@@ -243,7 +243,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '1 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         # 9.
@@ -271,7 +271,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._apply_promo_code(order, 'free_B_on_next_order', no_reward_fail=False)
@@ -281,7 +281,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '1 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         with self.assertRaises(ValidationError):
@@ -320,7 +320,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         generated_coupons = order._try_apply_program(loyalty_program).get('coupon')
@@ -443,7 +443,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -486,12 +486,12 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             Command.create({
                 'product_id': self.product_B.id,
                 'name': '1 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
         ]})
 
@@ -538,7 +538,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
 
@@ -589,7 +589,7 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
             Command.create({
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
 

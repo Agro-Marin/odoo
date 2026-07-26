@@ -11,7 +11,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { watchServiceWorkerUpdates, WebClient } from "@web/webclient/webclient";
+import { watchServiceWorkerUpdates } from "@web/webclient/service_worker_service";
+import { WebClient } from "@web/webclient/webclient";
 
 test("can be rendered", async () => {
     await mountWithCleanup(WebClient);

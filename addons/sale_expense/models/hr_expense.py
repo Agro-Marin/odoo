@@ -56,7 +56,7 @@ class HrExpense(models.Model):
         # If we can edit the expense, we may not be able to edit the sol without sudoing.
         self.sudo().sale_order_line_id.write({
             'qty_transferred': 0.0,
-            'product_uom_qty': 0.0,
+            'product_qty': 0.0,
             'expense_ids': [Command.clear()],
         })
 

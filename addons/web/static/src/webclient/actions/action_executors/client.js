@@ -7,7 +7,7 @@ import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
 
-import { clearUncommittedChanges } from "../action_clear_changes.js";
+import { nextActionDepth } from "../action_constants.js";
 
 const actionRegistry = registry.category("actions");
 
@@ -22,8 +22,8 @@ const actionRegistry = registry.category("actions");
  *     ``am._updateUI``.  Honors ``clientAction.target`` override and
  *     ``extractProps`` factory if defined on the class.
  *   - **Plain function** — invoke as a side-effect callback that may
- *     return a follow-up action.  Guarded by a recursion depth limit
- *     (max 20) to catch action loops at the client level.
+ *     return a follow-up action.  Guarded by the shared
+ *     ``nextActionDepth`` limit to catch action loops at the client level.
  *
  * @param {ClientAction} action
  * @param {{
@@ -40,17 +40,7 @@ export async function executeClientAction(action, options, am) {
     action.path ||= clientAction.path;
     if (clientAction.prototype instanceof Component) {
         if (action.target !== "new" && !options.newWindow) {
-            const navGeneration = am._navGeneration();
-            const canProceed = await clearUncommittedChanges(
-                am.env,
-                pick(options, "forceLeave"),
-            );
-            if (!canProceed) {
-                return;
-            }
-            if (am._isSupersededNav(navGeneration)) {
-                // A newer navigation started while the save dialog blocked this
-                // one; abort so the earlier click can't mount over the later one.
+            if (!(await am._confirmLeave(pick(options, "forceLeave")))) {
                 return;
             }
             if (clientAction.target) {
@@ -68,10 +58,7 @@ export async function executeClientAction(action, options, am) {
     } else {
         const next = await /** @type {any} */ (clientAction)(am.env, action, options);
         if (next) {
-            const depth = (options._actionDepth || 0) + 1;
-            if (depth > 20) {
-                throw new Error("Action recursion limit exceeded (max 20)");
-            }
+            const depth = nextActionDepth(options);
             return am.doAction(next, { ...options, _actionDepth: depth });
         }
     }

@@ -4,7 +4,8 @@
 /** @module @web/services/orm_service - ORM RPC client for CRUD, read_group, and x2many command helpers */
 
 import { Domain } from "@web/core/domain";
-import { rpc } from "@web/core/network/rpc";
+import { RpcEvent } from "@web/core/events";
+import { rpc, rpcBus, RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
@@ -62,6 +63,73 @@ export const UPDATE_METHODS = [
     "action_archive",
     "action_unarchive",
 ];
+
+/**
+ * Subscribe to mutating RPCs targeting the given models.
+ *
+ * Four consumers used to hand-roll this decode against the raw ``rpcBus``
+ * (``action_cache_invalidation``, ``views/view_service``, ``currency_service``,
+ * ``reload_company_service``) and had drifted into three different, all-wrong
+ * policies for *failed* mutations. The subtle part lives here once.
+ *
+ * INVARIANT — error policy. A mutation whose RPC failed splits in two:
+ *
+ * - ``RPCError`` — the server raised, so the transaction was rolled back and
+ *   nothing changed. Reacting is pure waste (a dropped cache and extra
+ *   round-trips right after the user already got an error dialog). Skipped.
+ * - Any other failure (``ConnectionLostError``, timeout, abort, session
+ *   expiry) — the request may well have reached the server and COMMITTED; only
+ *   the response was lost. Skipping here would leave a stale cache with no
+ *   other trigger for the rest of the session, so these DO fire.
+ *
+ * The default therefore errs toward reacting: an unnecessary cache flush costs
+ * a refetch, a missed one serves wrong data indefinitely. Callers whose
+ * reaction is disruptive rather than merely costly (e.g. forcing a full page
+ * reload) opt out with ``successOnly``.
+ *
+ * @param {string[] | ((model: string) => boolean)} models model names to watch,
+ *   or a predicate over the model name
+ * @param {(info: {model: string, method: string, error?: any}) => void} handler
+ * @param {object} [options]
+ * @param {boolean} [options.successOnly=false] fire only when the mutation is
+ *   known to have succeeded, dropping the "may have committed" failures above.
+ * @returns {() => void} disposer removing the ``rpcBus`` listener. Session-lived
+ *   consumers may ignore it; anything shorter-lived MUST call it (see
+ *   ``installActionCacheInvalidation``).
+ */
+export function onModelMutation(models, handler, { successOnly = false } = {}) {
+    const matches =
+        typeof models === "function" ? models : (model) => models.includes(model);
+    const onResponse = (/** @type {any} */ ev) => {
+        // ``ev.detail`` may be null and ``data``/``params`` absent: synthetic
+        // fires from tests and non-call_kw routes both reach this shared bus.
+        const params = ev.detail?.data?.params;
+        if (!params) {
+            return;
+        }
+        const { model, method } = params;
+        if (typeof model !== "string" || !matches(model)) {
+            return;
+        }
+        if (!UPDATE_METHODS.includes(method)) {
+            return;
+        }
+        const { error } = ev.detail;
+        // ``name`` as well as ``instanceof``: an RPC error that crossed a
+        // serialization boundary (or a hand-built payload) keeps the
+        // ``"RPC_ERROR"`` marker but loses its prototype. An error matching
+        // NEITHER is not known to be a rollback, so it falls through to the
+        // handler — consistent with erring toward reacting.
+        const isServerRejection =
+            error instanceof RPCError || error?.name === "RPC_ERROR";
+        if (error && (successOnly || isServerRejection)) {
+            return;
+        }
+        handler({ model, method, error });
+    };
+    rpcBus.addEventListener(RpcEvent.RESPONSE, onResponse);
+    return () => rpcBus.removeEventListener(RpcEvent.RESPONSE, onResponse);
+}
 
 /**
  * Methods that mutate server state. ``retry``/``dedup``/``cache`` are

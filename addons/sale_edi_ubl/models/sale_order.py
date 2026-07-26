@@ -53,7 +53,7 @@ class SaleOrder(models.Model):
         return [{
             'sequence': 0,  # be sure to put these lines above the 'real' order lines
             'name': name,
-            'product_uom_qty': quantity,
+            'product_qty': quantity,
             'price_unit': price_unit,
             'tax_ids': [Command.set(tax_ids)],
         } for name, quantity, price_unit, tax_ids in lines_vals]

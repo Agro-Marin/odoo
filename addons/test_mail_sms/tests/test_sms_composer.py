@@ -38,9 +38,13 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
 
     def test_composer_comment_not_mail_thread(self):
         with self.with_user('employee'):
-            record = self.env['test_performance.base'].create({'name': 'TestBase'})
+            # any model that is NOT a mail.thread -- 'test_performance.base'
+            # was used until the test_performance addon was folded into
+            # test_orm, leaving this test erroring on an unknown model.
+            # test_orm.category is a plain model reachable from our depends.
+            record = self.env['test_orm.category'].create({'name': 'TestBase'})
             composer = self.env['sms.composer'].with_context(
-                active_model='test_performance.base', active_id=record.id
+                active_model='test_orm.category', active_id=record.id
             ).create({
                 'body': self._test_body,
                 'numbers': ','.join(self.random_numbers),

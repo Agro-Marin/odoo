@@ -2,6 +2,12 @@
 # python3-* equivalent distributed in Ubuntu 24.04 (Noble) and Debian 13 (Trixie)
 asn1crypto==1.5.1
 Babel==2.18.0
+# Exception to the distro rule above: there is no python3-blake3 in Noble or
+# Trixie, so this one must come from PyPI even on a distro-packaged install.
+# Prebuilt manylinux wheels (incl. cp314) — no Rust toolchain needed to install.
+# The import is guarded (odoo/tools/hashing.py falls back to sha1/sha256), so an
+# image that skips it degrades instead of failing to boot.
+blake3==1.0.9  # content/cache digests (odoo/tools/hashing.py)
 cbor2==5.8.0
 chardet==5.2.0
 cryptography==46.0.4

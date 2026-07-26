@@ -3,21 +3,12 @@
 
 /** @module @web/webclient/actions/breadcrumb_manager - Breadcrumb building, display-name loading, and virtual controller reconstruction for the action service */
 
-import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
-import { registry } from "@web/core/registry";
 import { zip } from "@web/core/utils/collections/arrays";
 import { pick } from "@web/core/utils/collections/objects";
 
-const actionRegistry = registry.category("actions");
-
-/**
- * Maximum number of entries kept in the breadcrumb display-name cache. The
- * cache is otherwise only flushed on ``ir.actions.act_window`` writes, so in
- * a long-lived session it would grow one entry per unique
- * ``{action, model, resId}`` visited, unboundedly.
- */
-const BREADCRUMB_CACHE_LIMIT = 200;
+import { resolveClientAction } from "./action_loader.js";
+import { actionStorage } from "./action_storage.js";
 
 /** @import { ActionManager } from "./action_service.js" */
 
@@ -37,26 +28,6 @@ export function isMenuController(action) {
 }
 
 /**
- * Write an entry into the breadcrumb cache, evicting the least recently used
- * one when the cache is full. Plain objects preserve string-key insertion
- * order and hits are re-inserted (see the lookup sites), so the first key is
- * always the coldest.
- *
- * @param {Object} breadcrumbCache
- * @param {string} key
- * @param {any} value
- */
-function setBreadcrumbCacheEntry(breadcrumbCache, key, value) {
-    if (!(key in breadcrumbCache)) {
-        const keys = Object.keys(breadcrumbCache);
-        if (keys.length >= BREADCRUMB_CACHE_LIMIT) {
-            delete breadcrumbCache[keys[0]];
-        }
-    }
-    breadcrumbCache[key] = value;
-}
-
-/**
  * Fetch display names for the given action states in a single
  * ``load_breadcrumbs`` RPC and cache the per-key results.
  *
@@ -64,14 +35,13 @@ function setBreadcrumbCacheEntry(breadcrumbCache, key, value) {
  * transient failure otherwise degrades every breadcrumb of the restored URL.
  *
  * @param {Object[]} toFetch ``{action, model, resId}`` descriptors
- * @param {Object} breadcrumbCache mutable cache object (shared by reference)
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache shared by reference
  */
 function fetchBreadcrumbs(toFetch, breadcrumbCache) {
     const req = rpc("/web/action/load_breadcrumbs", { actions: toFetch }, { retry: 1 });
     for (const [i, info] of toFetch.entries()) {
         const key = JSON.stringify(info);
-        setBreadcrumbCacheEntry(
-            breadcrumbCache,
+        breadcrumbCache.set(
             key,
             req.then(
                 (res) => {
@@ -79,14 +49,14 @@ function fetchBreadcrumbs(toFetch, breadcrumbCache) {
                     // {error} (e.g. transient ACL race) would drop the controller
                     // for the rest of the session, so evict it instead.
                     if (res[i] && "display_name" in res[i]) {
-                        setBreadcrumbCacheEntry(breadcrumbCache, key, res[i]);
+                        breadcrumbCache.set(key, res[i]);
                     } else {
-                        delete breadcrumbCache[key];
+                        breadcrumbCache.delete(key);
                     }
                     return res[i];
                 },
                 (error) => {
-                    delete breadcrumbCache[key];
+                    breadcrumbCache.delete(key);
                     throw error;
                 },
             ),
@@ -100,13 +70,13 @@ function fetchBreadcrumbs(toFetch, breadcrumbCache) {
  * one failed RPC never propagates a wholesale rejection to the caller.
  *
  * @param {{controller: Object, key: string}[]} controllerKeys
- * @param {Object} breadcrumbCache
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
  * @returns {Promise<Object[]>} one settled result per key (may be undefined)
  */
 function settleBreadcrumbs(controllerKeys, breadcrumbCache) {
     return Promise.all(
         controllerKeys.map((ck) =>
-            Promise.resolve(breadcrumbCache[ck.key]).catch((error) => ({ error })),
+            Promise.resolve(breadcrumbCache.get(ck.key)).catch((error) => ({ error })),
         ),
     );
 }
@@ -144,7 +114,7 @@ export function buildBreadcrumbs(stack, am) {
  * names; controllers for deleted/inaccessible records are removed.
  *
  * @param {Object[]} controllers controllers whose breadcrumbs should be loaded
- * @param {Object} breadcrumbCache mutable cache object (shared by reference)
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache shared by reference
  * @returns {Promise<Object[]>} new array of displayable controllers with display names
  */
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
@@ -163,15 +133,11 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
         const key = JSON.stringify(actionInfo);
         controllerKeys.push({ controller, key });
         if (displayName) {
-            setBreadcrumbCacheEntry(breadcrumbCache, key, {
-                display_name: displayName,
-            });
+            breadcrumbCache.set(key, { display_name: displayName });
         }
-        if (key in breadcrumbCache) {
-            // LRU touch: re-insert the hit so it moves to the warm end.
-            const hit = breadcrumbCache[key];
-            delete breadcrumbCache[key];
-            breadcrumbCache[key] = hit;
+        if (breadcrumbCache.has(key)) {
+            // `get` performs the LRU touch.
+            breadcrumbCache.get(key);
             continue;
         }
         toFetch.push(actionInfo);
@@ -210,7 +176,7 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
  * that must survive a background refresh.
  *
  * @param {Object[]} controllers
- * @param {Object} breadcrumbCache mutable cache object (shared by reference)
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache shared by reference
  * @returns {Promise<void>}
  */
 export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache) {
@@ -226,7 +192,7 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
         const actionInfo = pick(state, "action", "model", "resId");
         const key = JSON.stringify(actionInfo);
         controllerKeys.push({ controller, key });
-        if (!(key in breadcrumbCache) && !seen.has(key)) {
+        if (!breadcrumbCache.has(key) && !seen.has(key)) {
             seen.add(key);
             toFetch.push(actionInfo);
         }
@@ -245,8 +211,8 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
 /**
  * Create an array of virtual controllers based on the given router state.
  *
- * Reads ``browser.sessionStorage`` and the singleton client-action
- * ``registry.category("actions")`` directly; only the per-instance state
+ * Reads the restore cache (``actionStorage``) and the singleton client-action
+ * registry (via ``resolveClientAction``) directly; only the per-instance state
  * (``router.stateToUrl``, ``_makeController``, ``breadcrumbCache``) comes
  * off the action manager.
  *
@@ -255,9 +221,7 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
  * @returns {Promise<Object[]>} array of virtual controllers
  */
 export async function controllersFromState(state, am) {
-    const currentState = JSON.parse(
-        browser.sessionStorage.getItem("current_state") || "{}",
-    );
+    const currentState = actionStorage.getCurrentState();
     if (am.router.stateToUrl(currentState) === am.router.stateToUrl(state)) {
         state = currentState;
     }
@@ -282,13 +246,9 @@ export async function controllersFromState(state, am) {
             if (actionState.action) {
                 controller.action.id = actionState.action;
 
-                const [actionRequestKey, clientAction] = actionRegistry.contains(
+                const [actionRequestKey, clientAction] = resolveClientAction(
                     actionState.action,
-                )
-                    ? [actionState.action, actionRegistry.get(actionState.action)]
-                    : (actionRegistry
-                          .getEntries()
-                          .find((a) => a[1].path === actionState.action) ?? []);
+                );
                 if (actionRequestKey && clientAction) {
                     if (state.actionStack[index + 1]?.action === actionState.action) {
                         // client actions don't have multi-record views, so we can't go further to the next controller

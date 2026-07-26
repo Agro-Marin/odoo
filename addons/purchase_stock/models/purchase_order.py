@@ -636,6 +636,9 @@ class PurchaseOrder(models.Model):
         return match_fields + (rfq.picking_type_id.id,)
 
     def _prepare_invoice_vals(self):
+        # incoterm_id is declared by order.stock.mixin, but that mixin is last
+        # in the MRO and cannot override _prepare_invoice_vals, so each bridge
+        # propagates the field itself.
         invoice_vals = super()._prepare_invoice_vals()
         invoice_vals["invoice_incoterm_id"] = self.incoterm_id.id
         return invoice_vals
@@ -691,4 +694,6 @@ class PurchaseOrder(models.Model):
     # ----------------------------------------------------------------------
 
     def _is_display_stock_in_catalog(self):
+        # Not hoisted into order.stock.mixin: that mixin sits below
+        # stock.product_catalog_mixin in the MRO, so its answer never wins.
         return True

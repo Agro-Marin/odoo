@@ -68,10 +68,10 @@ class SaleOrder(models.Model):
             else:
                 order.amount_delivery = sum(delivery_lines.mapped('price_total'))
 
-    @api.depends('line_ids.product_uom_qty', 'line_ids.product_id')
+    @api.depends('line_ids.product_qty', 'line_ids.product_id')
     def _compute_cart_info(self):
         for order in self:
-            order.cart_quantity = int(sum(order.mapped('website_order_line.product_uom_qty')))
+            order.cart_quantity = int(sum(order.mapped('website_order_line.product_qty')))
             order.only_services = all(sol.product_id.type == 'service' for sol in order.website_order_line)
 
     @api.depends('website_id', 'date_order', 'line_ids', 'state', 'partner_id')
@@ -343,7 +343,7 @@ class SaleOrder(models.Model):
             # If a matching line is found, update the existing line instead.
             return self._cart_update_line_quantity(
                 line_id=existing_sol.id,  # type: ignore
-                quantity=existing_sol.product_uom_qty + quantity,
+                quantity=existing_sol.product_qty + quantity,
                 **kwargs,
             )
 
@@ -464,7 +464,7 @@ class SaleOrder(models.Model):
             # the requested quantity update.
             warning = ''
 
-        added_qty = quantity - order_line.product_uom_qty  # new_qty - old_qty
+        added_qty = quantity - order_line.product_qty  # new_qty - old_qty
         order_line = self._cart_update_order_line(order_line, quantity, **kwargs)
         if not self.env.context.get('skip_cart_verification'):
             self._verify_cart_after_update()
@@ -499,7 +499,7 @@ class SaleOrder(models.Model):
             if (
                 order_line.product_type == 'combo'
                 and combo_item_lines
-                and 'product_uom_qty' in update_values
+                and 'product_qty' in update_values
             ):
                 # A combo product and its items should have the same quantity (by design). If the
                 # requested quantity isn't available for one or more combo items, we should lower
@@ -507,7 +507,7 @@ class SaleOrder(models.Model):
                 # of the combo item with the least available quantity.
                 combo_quantity = quantity
                 for item_line in combo_item_lines:
-                    if quantity != item_line.product_uom_qty:
+                    if quantity != item_line.product_qty:
                         combo_item_quantity, _warning = self._verify_updated_quantity(
                             item_line,
                             item_line.product_id.id,
@@ -517,11 +517,11 @@ class SaleOrder(models.Model):
                         )
                         combo_quantity = min(combo_quantity, combo_item_quantity)
                 for item_line in combo_item_lines:
-                    if combo_quantity != item_line.product_uom_qty:
+                    if combo_quantity != item_line.product_qty:
                         self.with_context(skip_cart_verification=True)._cart_update_line_quantity(
                             line_id=item_line.id, quantity=combo_quantity
                         )
-                update_values['product_uom_qty'] = combo_quantity
+                update_values['product_qty'] = combo_quantity
 
             order_line.write(update_values)
 
@@ -533,8 +533,8 @@ class SaleOrder(models.Model):
         self.ensure_one()
         values = {}
 
-        if quantity != order_line.product_uom_qty:
-            values['product_uom_qty'] = quantity
+        if quantity != order_line.product_qty:
+            values['product_qty'] = quantity
 
         return values
 
@@ -586,9 +586,16 @@ class SaleOrder(models.Model):
             # Make sure the provided parent line belongs to the current order.
             raise UserError(_("Invalid request parameters."))
 
+        # `product_qty`, not `product_uom_qty`: this fork splits line quantity into
+        # the writable `product_qty` (in the line's UoM) and a read-only computed
+        # `product_uom_qty` (the same quantity converted to the product's reference
+        # UoM) -- see `base_order/models/order_line_amount_mixin.py`. Writing the
+        # computed one here was silently discarded, `_compute_product_qty` then fell
+        # back to `_get_default_product_qty()` = 1, and every cart add landed a line
+        # of 1 whatever the customer asked for.
         values = {
             'product_id': product.id,
-            'product_uom_qty': quantity,
+            'product_qty': quantity,
             'product_uom_id': uom_id or product.uom_id.id,
             'order_id': self.id,
             'linked_line_id': linked_line_id,
@@ -634,13 +641,13 @@ class SaleOrder(models.Model):
         # Ensure all combo lines have the same quantity
         if not (combo_lines := line.linked_line_ids):
             return False
-        available_combo_quantity = min(line.product_uom_qty for line in combo_lines)
-        if available_combo_quantity < line.product_uom_qty:
+        available_combo_quantity = min(line.product_qty for line in combo_lines)
+        if available_combo_quantity < line.product_qty:
             line._set_shop_warning_stock(
-                line.product_uom_qty,
+                line.product_qty,
                 available_combo_quantity,
             )
-            (line + combo_lines).product_uom_qty = available_combo_quantity
+            (line + combo_lines).product_qty = available_combo_quantity
             return True
 
         return False

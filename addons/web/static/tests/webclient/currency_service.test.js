@@ -10,7 +10,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { rpcBus } from "@web/core/network/rpc";
+import { rpcBus, RPCError } from "@web/core/network/rpc";
 import { currencies } from "@web/services/currency";
 
 class Currency extends models.Model {
@@ -43,7 +43,11 @@ test("reload currencies when updating a res.currency", async () => {
     expect(Object.keys(currencies)).toEqual(["1"]);
 });
 
-test("do not reload webclient when updating a res.currency, but there is an error", async () => {
+test("do not reload webclient when the res.currency write was refused", async () => {
+    // Only a SERVER rejection is skipped: the transaction rolled back, so
+    // nothing changed. A write whose response was merely lost may have
+    // committed and does trigger a reload -- see
+    // `@web/webclient/rpc_mutation_listeners` for the full policy matrix.
     onRpc("get_all_currencies", ({ method }) => {
         expect.step(method);
     });
@@ -56,11 +60,14 @@ test("do not reload webclient when updating a res.currency, but there is an erro
     });
     await animationFrame();
     expect.verifySteps(["get_all_currencies"]);
+    const refused = new RPCError("Access denied");
+    refused.exceptionName = "odoo.exceptions.AccessError";
     rpcBus.trigger("RPC:RESPONSE", {
         data: { params: { model: "res.currency", method: "write" } },
         settings: {},
-        error: {},
+        error: refused,
     });
+    await animationFrame();
     expect.verifySteps([]);
 });
 

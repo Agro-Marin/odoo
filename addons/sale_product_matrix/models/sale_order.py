@@ -63,7 +63,7 @@ class SaleOrder(models.Model):
                 )
 
                 # if product variant already exist in order lines
-                old_qty = sum(order_lines.mapped('product_uom_qty'))
+                old_qty = sum(order_lines.mapped('product_qty'))
                 qty = cell['qty']
                 diff = qty - old_qty
 
@@ -78,7 +78,7 @@ class SaleOrder(models.Model):
                             # only if SO state = draft/sent
                             self.line_ids -= order_lines
                         else:
-                            order_lines.update({'product_uom_qty': 0.0})
+                            order_lines.update({'product_qty': 0.0})
                     else:
                         """
                         When there are multiple lines for same product and its quantity was changed in the matrix,
@@ -94,7 +94,7 @@ class SaleOrder(models.Model):
                         if len(order_lines) > 1:
                             raise ValidationError(_("You cannot change the quantity of a product present in multiple sale lines."))
                         else:
-                            order_lines[0].product_uom_qty = qty
+                            order_lines[0].product_qty = qty
                             # If we want to support multiple lines edition:
                             # removal of other lines.
                             # For now, an error is raised instead
@@ -111,7 +111,7 @@ class SaleOrder(models.Model):
                     new_lines.append((0, 0, dict(
                         default_so_line_vals,
                         product_id=product.id,
-                        product_uom_qty=qty,
+                        product_qty=qty,
                         product_no_variant_attribute_value_ids=no_variant_attribute_values.ids)
                     ))
             if new_lines:
@@ -145,7 +145,7 @@ class SaleOrder(models.Model):
                         line = order_lines.filtered(lambda line: has_ptavs(line, cell['ptav_ids']))
                         if line and not line.combo_item_id:
                             cell.update({
-                                'qty': sum(line.mapped('product_uom_qty'))
+                                'qty': sum(line.mapped('product_qty'))
                             })
         return matrix
 

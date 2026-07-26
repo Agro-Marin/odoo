@@ -432,6 +432,9 @@ export const htmlField = {
         if ("debounceHints" in options) {
             editorConfig.debounceHints = Boolean(options.debounceHints);
         }
+        if ("debouncePowerbuttons" in options) {
+            editorConfig.debouncePowerbuttons = Boolean(options.debouncePowerbuttons);
+        }
         return {
             editorConfig,
             isCollaborative: options.collaborative,

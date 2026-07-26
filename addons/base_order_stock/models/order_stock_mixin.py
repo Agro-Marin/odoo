@@ -169,6 +169,15 @@ class OrderStockMixin(models.AbstractModel):
         """
         return {}
 
+    # NOTE: this mixin cannot override behaviour that another class already
+    # defines. Concrete models list it second (``_inherit = ["sale.order",
+    # "order.stock.mixin"]``), which puts it at the BOTTOM of the MRO — below
+    # the model's own classes, below base_order's mixins, and below
+    # stock.product_catalog_mixin. It may only add members that nobody else
+    # defines. ``_prepare_invoice_vals`` (invoice_incoterm_id) and
+    # ``_is_display_stock_in_catalog`` are duplicated in both bridges for that
+    # reason: hoisted here they are silently shadowed, not called.
+
 
 # ════════════════════════════════════════════════════════════════════
 # LINE-LEVEL STOCK MIXIN
@@ -178,8 +187,8 @@ class OrderStockMixin(models.AbstractModel):
 class OrderLineStockMixin(models.AbstractModel):
     """Line-level stock move tracking.
 
-    Provides ``qty_to_transfer`` and the ``_get_stock_moves_outgoing_incoming``
-    hook shared between sale_stock and purchase_stock.
+    Provides ``qty_to_transfer``, ``_get_procurement_qty()``, and the two
+    move-classification hooks shared between sale_stock and purchase_stock.
 
     The ``_compute_qty_transferred`` implementations differ too much to unify:
     - Sale: simple outgoing/incoming classification by location dest
@@ -193,6 +202,11 @@ class OrderLineStockMixin(models.AbstractModel):
         ``product_qty`` — ordered quantity
         ``qty_transferred`` — transferred quantity
         ``product_uom_id`` — UoM for quantity conversion
+
+    Must implement:
+        ``_get_stock_moves_outgoing_incoming()`` — classify by warehouse
+            direction
+        ``_get_procurement_moves()`` — classify by procurement intent
     """
 
     _name = "order.line.stock.mixin"
@@ -243,4 +257,82 @@ class OrderLineStockMixin(models.AbstractModel):
         """
         raise NotImplementedError(
             f"{self._name} must implement _get_stock_moves_outgoing_incoming()",
+        )
+
+    # ─── Procurement Quantity ─────────────────────────────────────
+
+    def _get_procurement_qty(self, previous_product_qty=False):
+        """Quantity the line's stock moves have already procured.
+
+        Moves that procure the line count positive, moves that hand the goods
+        back count negative.  Which recordset is which is the only thing that
+        varies per order type, and ``_get_procurement_moves()`` decides it —
+        sale and purchase used to carry this same arithmetic twice with the
+        two signs swapped.
+
+        ``previous_product_qty`` is unused here: the moves already reflect any
+        quantity change.  It stays in the signature for the overrides that
+        cannot read the answer off the moves — kit lines and subscriptions
+        compare against the pre-write quantity instead.
+
+        :param previous_product_qty: ``{line_id: qty}`` captured before the
+            write that triggered this, or ``False``.  Sale passes it as this
+            argument; purchase passes its own through the context (see
+            ``purchase_mrp``), and the two are not in the same UoM, so they
+            are deliberately left as separate channels.
+        :returns: quantity in the line's UoM
+        """
+        self.ensure_one()
+        procured_moves, returned_moves = self._get_procurement_moves()
+        return self._sum_moves_qty(procured_moves) - self._sum_moves_qty(returned_moves)
+
+    def _get_procurement_moves(self):
+        """Split the line's moves into the ones that procure it and the ones
+        that hand the goods back.
+
+        Sale: deliveries procure, customer returns hand back.
+        Purchase: receipts procure, returns to the vendor hand back.
+
+        Kept apart from :meth:`_get_stock_moves_outgoing_incoming` because that
+        one classifies by warehouse direction, which is the mirror image
+        between the two order types; this one classifies by intent, which is
+        not.
+
+        :returns: ``(procured_moves, returned_moves)`` tuple of recordsets
+        """
+        raise NotImplementedError(
+            f"{self._name} must implement _get_procurement_moves()",
+        )
+
+    def _get_transferable_moves(self):
+        """The line's moves that can count toward a transferred quantity.
+
+        Both bridges open ``_get_stock_moves_outgoing_incoming()`` with this
+        same filter before classifying by direction: a cancelled move never
+        counts, an inventory-destination move is an adjustment rather than a
+        transfer, and a move for another product belongs to a kit component,
+        not to this line.
+        """
+        self.ensure_one()
+        return self.move_ids.filtered(
+            lambda m: (
+                m.state != "cancel"
+                and m.location_dest_usage != "inventory"
+                and m.product_id == self.product_id
+            ),
+        )
+
+    def _sum_moves_qty(self, moves):
+        """Total of ``moves``, converted to the line's UoM.
+
+        A done move counts what actually moved; any other move counts what it
+        still intends to move.
+        """
+        return sum(
+            move.product_uom_id._compute_quantity(
+                move.quantity if move.state == "done" else move.product_uom_qty,
+                self.product_uom_id,
+                rounding_method="HALF-UP",
+            )
+            for move in moves
         )

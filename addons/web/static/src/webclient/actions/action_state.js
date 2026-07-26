@@ -4,13 +4,13 @@
 /** @module @web/webclient/actions/action_state - URL state serialization/deserialization for the action service (router integration) */
 
 import { markup } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { PATH_KEYS } from "@web/core/browser/router";
-import { registry } from "@web/core/registry";
 import { omit, pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { user } from "@web/services/user";
 
 import { parseActiveIds } from "./action_constants.js";
+import { resolveClientAction } from "./action_loader.js";
+import { actionStorage } from "./action_storage.js";
 
 /**
  * Serialize a controller stack into a URL-pushable state object.
@@ -81,16 +81,9 @@ export function makeActionState(controllerStack) {
  * @returns {{ actionRequest: Object, options: Object } | null}
  */
 export function getActionParams(state) {
-    const actionRegistry = registry.category("actions");
     const options = {};
     let actionRequest = null;
-    const storedAction = browser.sessionStorage.getItem("current_action");
-    let lastAction;
-    try {
-        lastAction = JSON.parse(storedAction || "{}");
-    } catch {
-        lastAction = {};
-    }
+    const lastAction = actionStorage.getCurrentAction();
     // If this method is called because of a company switch, the
     // stored allowed_company_ids is incorrect.
     delete lastAction.context?.allowed_company_ids;
@@ -108,10 +101,7 @@ export function getActionParams(state) {
             context.active_ids = [state.active_id];
         }
         // ClientAction
-        const [actionRequestKey, clientAction] = actionRegistry.contains(state.action)
-            ? [state.action, actionRegistry.get(state.action)]
-            : (actionRegistry.getEntries().find((a) => a[1].path === state.action) ??
-              []);
+        const [actionRequestKey, clientAction] = resolveClientAction(state.action);
         if (actionRequestKey && clientAction) {
             actionRequest = /** @type {any} */ ({
                 context,

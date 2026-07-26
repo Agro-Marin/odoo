@@ -191,11 +191,11 @@ class Cart(PaymentPortal):
             # must be adapted accordingly, and the returned warning should be the final one saved
             # on the combo line.
             added_qty_per_line = {
-                line.id: updated_line.product_uom_qty
+                line.id: updated_line.product_qty
                 for line in (updated_line + updated_line.linked_line_ids)
             }
             warning = updated_line.shop_warning
-            values['quantity'] = updated_line.product_uom_qty
+            values['quantity'] = updated_line.product_qty
 
         # Recompute delivery prices & other cart stuff (loyalty rewards)
         order_sudo._verify_cart_after_update()
@@ -499,7 +499,7 @@ class Cart(PaymentPortal):
                 'currency': line.currency_id.name,
                 'price': line.price_unit_discounted_taxexc,
                 'discount': line.price_unit - line.price_unit_discounted_taxexc,
-                'quantity': line.product_uom_qty,
+                'quantity': line.product_qty,
             } for line in lines
         ]
 

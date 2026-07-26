@@ -1,7 +1,7 @@
 import base64
 import contextlib
 import functools
-import hashlib
+import io
 import logging
 import mimetypes
 import os
@@ -34,9 +34,16 @@ from odoo.tools import (
     OrderedSet,
     config,
     consteq,
+    file_open,
     human_size,
     image,
     str2bool,
+)
+from odoo.tools.hashing import (
+    ALGO_TAG,
+    CONTENT_DIGEST_MAX_LEN,
+    content_hash,
+    content_hasher,
 )
 from odoo.tools.misc import limited_field_access_token
 
@@ -110,8 +117,9 @@ class IrAttachment(models.Model):
     parameter) decides where NEW content goes; the read side follows the
     record's store key by URI scheme (:meth:`_backend_for_key`), so rows
     written before a location switch keep working. Plain sharded keys
-    (``ab/<sha1>``) belong to the local filestore, which names and dedups files
-    by the SHA-1 of their content.
+    (``ab/<digest>``, optionally algorithm-tagged as ``b3/ab/<digest>``) belong
+    to the local filestore, which names and dedups files by the digest of their
+    content (:meth:`_file_store_path`).
 
     ``migration_domain`` (used by :meth:`force_storage`) is backend-defined: a
     backend must match every row it does not own to claim it. The ``_file_*``
@@ -161,7 +169,11 @@ class IrAttachment(models.Model):
     db_datas = fields.Binary("Database Data", attachment=False)
     store_fname = fields.Char("Stored Filename", index=True)
     file_size = fields.Integer("File Size", readonly=True)
-    checksum = fields.Char("Checksum/SHA1", size=40, readonly=True)
+    # Sized from the schema-wide invariant, not from today's algorithm: digests
+    # of different vintages coexist by design (BLAKE3 at 64, legacy sha1 at 40,
+    # which existing rows keep until they are rewritten). `hashing` raises at
+    # import if the two ever stop agreeing.
+    checksum = fields.Char("Checksum", size=CONTENT_DIGEST_MAX_LEN, readonly=True)
     mimetype = fields.Char("Mime Type", readonly=True)
     index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
 
@@ -195,6 +207,9 @@ class IrAttachment(models.Model):
     # Chunk size for streaming uploads: peak memory per upload is O(this),
     # not O(file size).
     _STREAM_CHUNK_SIZE = 128 * 1024
+
+    # Chunk size for the dedup collision comparison (see _streams_equal).
+    _COMPARE_BLOCK_SIZE = 65536
 
     # Age (seconds) after which a leftover file in the filestore tmp/ dir is
     # swept as orphaned. Uploads stage there before the atomic move; a worker
@@ -295,7 +310,7 @@ class IrAttachment(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
 
         # Fail-fast on the create ACL before the content pipeline: super().create()
-        # re-checks, but only after SHA-1 hashing, _index and the filestore write
+        # re-checks, but only after content hashing, _index and the filestore write
         # have run for a user who cannot create. No-op under su. Check on an EMPTY
         # recordset — create() may run on a populated one (copy()), where a
         # non-empty check would evaluate record-level 'create' rules on existing
@@ -303,7 +318,7 @@ class IrAttachment(models.Model):
         self.browse().check_access("create")
 
         # Run the comodel/field access checks on cheap metadata BEFORE content
-        # post-processing, else an unauthorized create still pays for SHA-1
+        # post-processing, else an unauthorized create still pays for content
         # hashing, _index and autoresize it will reject (as write() does).
         model_and_ids = defaultdict(OrderedSet)  # {res_model: {res_id}}
         for values in vals_list:
@@ -320,7 +335,7 @@ class IrAttachment(models.Model):
         # backend once for the whole batch.
         backend = self._storage_backend()
         # {(checksum, mimetype): datas-related values}: a batch repeating a
-        # payload (mail templates, imports) otherwise re-runs _index, the SHA-1
+        # payload (mail templates, imports) otherwise re-runs _index, the hash
         # pass and the filestore write per row. The memo dedups derivation and,
         # since _get_datas_related_values persists content, writes each distinct
         # payload once. Keyed on checksum, NOT id(raw): the 'datas' path decodes
@@ -342,7 +357,7 @@ class IrAttachment(models.Model):
                 # Derive metadata even for explicitly empty content, so an
                 # emptied attachment is identical created or written (IRA-P0-7).
                 # Content-less vals were left untouched above (IRA-R1): defaulting
-                # raw to b"" would stamp sha1(b"") over a caller's db_datas.
+                # raw to b"" would stamp the digest of b"" over a caller's db_datas.
                 memo_key = (self._content_checksum(raw), values["mimetype"])
                 if memo_key not in derived_values:
                     # Persists the payload (once per memo_key) and returns the
@@ -406,8 +421,8 @@ class IrAttachment(models.Model):
             for attachment, vals in zip(self, vals_list, strict=True):
                 # Carry content only when the original HAS content: checksum for
                 # pipeline content, db_datas for the escape hatch. A content-less
-                # row has neither — carrying raw=b"" would stamp sha1(b"")/
-                # file_size=0 the original never had (IRA-C4).
+                # row has neither — carrying raw=b"" would stamp the digest of
+                # b""/file_size=0 the original never had (IRA-C4).
                 if not attachment.store_fname and (
                     attachment.checksum or attachment.db_datas
                 ):
@@ -486,26 +501,11 @@ class IrAttachment(models.Model):
     @api.depends("store_fname", "db_datas")
     def _compute_raw(self) -> None:
         for attach in self:
-            if attach.store_fname:
-                # key-axis dispatch: content follows its store key, not the
-                # configured location (plain keys → local filestore)
-                data = attach._backend_for_key(attach.store_fname).read(
-                    attach.store_fname
-                )
-                if not data:
-                    # A store key is only set for NON-empty content, so an empty
-                    # read means the file is missing/unreadable (the backend
-                    # swallows the I/O error). Log with the record identity
-                    # instead of silently serving empty bytes to readers.
-                    _logger.error(
-                        "Unreadable filestore content for attachment %s "
-                        "(store_fname=%s); serving empty bytes",
-                        attach.id,
-                        attach.store_fname,
-                    )
-                attach.raw = data
-            else:
-                attach.raw = attach.db_datas
+            # `_stored_content` is the shared keyed-backend / inline-db_datas
+            # triage (see _read_prefix, which adds the addon-static url leg on
+            # top). None means "this row stores nothing", which for `raw` is the
+            # empty value the field already had.
+            attach.raw = attach._stored_content()
 
     # ------------------------------------------------------------
     # INVERSE METHODS
@@ -515,7 +515,14 @@ class IrAttachment(models.Model):
         self._set_attachment_data(lambda a: a.raw or b"")
 
     def _inverse_datas(self) -> None:
-        self._set_attachment_data(lambda attach: base64.b64decode(attach.datas or b""))
+        # Unreachable in practice: create()/write() both route `datas` through
+        # `_normalize_content_vals`, which pops it in favour of `raw`, so every
+        # public write lands on `_inverse_raw` instead. It stays because the
+        # `inverse=` wiring is what makes `datas` writable at all — dropping it
+        # makes the field readonly and silently DISCARDS `write({'datas': ...})`.
+        # It decodes through `_decode_datas` like every other entry point, so a
+        # direct caller gets the same UserError rather than a bare ValueError.
+        self._set_attachment_data(lambda attach: self._decode_datas(attach.datas))
 
     # ------------------------------------------------------------
     # SEARCH METHODS
@@ -614,9 +621,14 @@ class IrAttachment(models.Model):
         return backend_for_key(self.env, fname)
 
     def _content_checksum(self, bin_data: bytes) -> str:
-        """Return the SHA-1 hex digest of *bin_data* (for content-addressed storage)."""
+        """Return the content digest of *bin_data* (for content-addressed storage).
+
+        The algorithm is :mod:`odoo.tools.hashing`'s content family (BLAKE3,
+        sha1 without the extension); :meth:`_file_store_path` tags the store key
+        with it, so digests of different vintages coexist in one filestore.
+        """
         # an empty file has a checksum too (for caching)
-        return hashlib.sha1(bin_data or b"", usedforsecurity=False).hexdigest()
+        return content_hash(bin_data or b"")
 
     @api.model
     def _filestore(self) -> str:
@@ -625,17 +637,51 @@ class IrAttachment(models.Model):
     @api.model
     def _file_delete(self, fname: str) -> None:
         # add fname to the checklist; garbage-collected later
-        self._mark_for_gc(fname)
+        self._file_delete_multi((fname,))
+
+    @api.model
+    def _file_delete_multi(self, fnames: Collection[str]) -> None:
+        """Schedule local-filestore keys for collection (the GC checklist).
+
+        THE override point for local-filestore deletion: the per-key path
+        (:meth:`FileStorage.delete` via :meth:`_file_delete`) and the batched
+        unlink path (:meth:`_storage_delete_multi`) both funnel through here.
+        They used to diverge -- ``unlink()`` went straight to
+        :meth:`_mark_for_gc_multi` -- so a deployment overriding
+        :meth:`_file_delete` was invoked when content was *replaced* and
+        silently skipped when a row was *deleted*.
+        """
+        self._mark_for_gc_multi(fnames)
 
     @api.model
     def _file_store_path(self, checksum: str) -> str:
         """Return the content-addressed relative store path (kept in ``store_fname``).
 
         Files are sharded across 256 directories by the first two hex chars of
-        the SHA-1; the filesystem work lives in :meth:`_get_path`/:meth:`_file_write`.
+        the digest; the filesystem work lives in
+        :meth:`_get_path`/:meth:`_file_write`.
+
+        Keys written by a non-sha1 digest carry its algorithm tag
+        (``b3/<shard>/<digest>``).  That prefix is what makes an algorithm
+        change *additive*: legacy untagged ``<shard>/<sha1>`` keys keep
+        resolving forever (reads go through the stored ``store_fname``, never
+        through this method), so switching costs no filestore rewrite and no
+        downtime — only new writes land under the new prefix.  Nothing else in
+        the filestore machinery cares: ``_full_path``, the GC checklist walk and
+        ``_mark_for_gc`` are all depth-agnostic.
+
+        Consequence to know: the two layouts dedup independently.  Content
+        already stored under a sha1 key is written a second time under its b3
+        key the first time it is re-uploaded, until the old row is rewritten or
+        collected.  Convergence is deliberately left to normal row churn rather
+        than a filestore-wide rehash.
         """
         # we use '/' in the db (even on windows)
-        return checksum[:2] + "/" + checksum
+        if ALGO_TAG == "s1":
+            # historical untagged layout: the sha1 fallback must keep writing
+            # (and finding) exactly the paths it always did
+            return checksum[:2] + "/" + checksum
+        return f"{ALGO_TAG}/{checksum[:2]}/{checksum}"
 
     @api.model
     def _file_read(self, fname: str, size: int | None = None) -> bytes:
@@ -647,6 +693,41 @@ class IrAttachment(models.Model):
             _logger.info("_file_read reading %s", full_path, exc_info=True)
         return b""
 
+    @contextlib.contextmanager
+    def _staged_filestore_temp(self, prefix: str) -> Generator[Path]:
+        """Yield a staging path under the filestore ``tmp/`` dir, cleaned up on failure.
+
+        Content is written here first and only then atomically moved into its
+        content-addressed path, so a crash never leaves a truncated file there
+        (which would fail every future dedup comparison with a spurious
+        collision and block re-uploads of that content forever). Staging in
+        ``tmp/`` rather than the shard dir leaves any crash orphan where
+        :meth:`_gc_stale_filestore_temps` can sweep it; ``tmp/`` shares the
+        filestore root, so ``replace()`` into the shard stays atomic.
+
+        Both writers open-coded this, and they disagreed about the cleanup
+        scope: the buffered one unstaged only on ``OSError``, the streaming one
+        on any exception. The streaming one has to, because it resolves its
+        target (:meth:`_get_path`, which raises ``UserError`` on a digest
+        collision) *inside* the staged region, having no key until the whole
+        stream is hashed. The buffered one resolves its target first, so today
+        nothing but an ``OSError`` can reach its staged region — the narrower
+        cleanup was correct rather than buggy. Unifying on the broader form
+        keeps it correct if that body ever grows, and leaves one protocol
+        instead of two subtly different ones.
+        """
+        tmp_dir = Path(self._full_path("tmp"))
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = tmp_dir / f"{prefix}-{uuid.uuid4().hex}"
+        try:
+            yield tmp_path
+        except Exception as exc:
+            if isinstance(exc, OSError):
+                _logger.info("filestore staging failed for %s", tmp_path, exc_info=True)
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
+            raise
+
     @api.model
     def _file_write(self, bin_value: bytes, checksum: str) -> str:
         fname, full_path = self._get_path(bin_value, checksum)
@@ -655,28 +736,17 @@ class IrAttachment(models.Model):
             # clock) for THIS transaction. The existing file may be an orphan
             # whose marker predates the grace window; without the refresh the GC
             # could sweep it before this transaction's INSERT flushes (IRA-G1).
+            # Returning here keeps the dedup hit free of any file I/O, which is
+            # why this writer checks the target itself instead of staging first
+            # and letting the commit find out (as the streaming one must).
             self._mark_for_gc(fname)
-        else:
-            # Stage in tmp/, then atomically replace into the content-addressed
-            # path: a crash never leaves a truncated file there (which would fail
-            # every future _same_content with a spurious collision and block
-            # re-uploads forever). Staging in tmp/ rather than the shard dir
-            # leaves any crash orphan where _gc_stale_filestore_temps can sweep
-            # it. tmp/ shares the filestore root, so replace() stays atomic.
-            tmp_dir = Path(self._full_path("tmp"))
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-            tmp_path = tmp_dir / f"write-{uuid.uuid4().hex}"
-            try:
-                with tmp_path.open("wb") as fp:
-                    fp.write(bin_value)
-                tmp_path.replace(full_path)
-                # add fname to checklist, in case the transaction aborts
-                self._mark_for_gc(fname)
-            except OSError:
-                _logger.info("_file_write writing %s", full_path, exc_info=True)
-                with contextlib.suppress(OSError):
-                    tmp_path.unlink()
-                raise
+            return fname
+        with self._staged_filestore_temp("write") as tmp_path:
+            with tmp_path.open("wb") as fp:
+                fp.write(bin_value)
+            tmp_path.replace(full_path)
+        # add fname to checklist, in case the transaction aborts
+        self._mark_for_gc(fname)
         return fname
 
     @api.model
@@ -685,7 +755,7 @@ class IrAttachment(models.Model):
     ) -> tuple[str, int, str]:
         """Stream *fileobj* into the filestore, hashing as it goes.
 
-        Chunks *fileobj* to a temp file while updating a running SHA-1, then
+        Chunks *fileobj* to a temp file while updating a running digest, then
         atomically moves it into its content-addressed path (or drops it on a
         dedup hit). Peak memory is one chunk — the streaming counterpart of
         :meth:`_file_write`, which needs the full ``bytes`` up front.
@@ -695,12 +765,12 @@ class IrAttachment(models.Model):
             ``""`` for empty content (kept inline as db_datas)
         """
         chunk_size = chunk_size or self._STREAM_CHUNK_SIZE
-        digest = hashlib.sha1(usedforsecurity=False)
+        digest = content_hasher()
         size = 0
-        tmp_dir = Path(self._full_path("tmp"))
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-        tmp_path = tmp_dir / f"stream-{uuid.uuid4().hex}"
-        try:
+        # Shared staging protocol (tmp/ + unique name + unconditional cleanup on
+        # any failure, which this path needs because _get_path below can raise a
+        # UserError on a digest collision).
+        with self._staged_filestore_temp("stream") as tmp_path:
             with tmp_path.open("wb") as out:
                 while chunk := fileobj.read(chunk_size):
                     if isinstance(chunk, str):
@@ -713,35 +783,41 @@ class IrAttachment(models.Model):
                 # empty content is never filestore-backed (stays inline)
                 tmp_path.unlink(missing_ok=True)
                 return "", 0, checksum
-            fname = self._file_store_path(checksum)
-            full_path = Path(self._full_path(fname))
-            full_path.parent.mkdir(exist_ok=True, parents=True)
+            # Same path resolution (and same collision policy) as the buffered
+            # writer; source_path keeps the check file-vs-file, unbuffered.
+            fname, full_path_str = self._get_path(
+                None, checksum, source_path=str(tmp_path)
+            )
+            full_path = Path(full_path_str)
+            # Unlike the buffered writer, this one only learns its target after
+            # hashing the whole stream, so the dedup test necessarily happens
+            # here rather than before staging.
             if full_path.is_file():
-                # dedup hit: rule out a SHA-1 collision file-vs-file (no
-                # buffering) before discarding the temp. Opt-out as in _get_path.
-                if self._verify_content_collision() and not self._same_content_files(
-                    str(tmp_path), str(full_path)
-                ):
-                    tmp_path.unlink(missing_ok=True)
-                    raise UserError(_("The attachment collides with an existing file."))
-                tmp_path.unlink(missing_ok=True)
+                tmp_path.unlink(missing_ok=True)  # dedup hit: drop the temp
             else:
                 # atomic within the filestore (same filesystem), like _file_write
                 tmp_path.replace(full_path)
-            # add fname to checklist, in case the transaction aborts
-            self._mark_for_gc(fname)
-            return fname, size, checksum
-        except OSError:
-            _logger.info("_file_write_stream writing %s", tmp_path, exc_info=True)
-            with contextlib.suppress(OSError):
-                tmp_path.unlink()
-            raise
+        # add fname to checklist, in case the transaction aborts
+        self._mark_for_gc(fname)
+        return fname, size, checksum
+
+    @api.model
+    def _check_admin_action(self) -> None:
+        """Gate a whole-filestore maintenance action on administrator rights.
+
+        The individual writes these actions perform are ACL-checked anyway; this
+        fails fast, before a sweep over every attachment starts, and keeps one
+        message for every such action.
+
+        :raise AccessError: if the current user is not an administrator
+        """
+        if not self.env.is_admin():
+            raise AccessError(_("Only administrators can execute this action."))
 
     @api.model
     def force_storage(self) -> None:
         """Force all attachments to be stored in the currently configured storage"""
-        if not self.env.is_admin():
-            raise AccessError(_("Only administrators can execute this action."))
+        self._check_admin_action()
 
         # Migrate only binary attachments, including those linked to binary
         # fields (which are normally hidden by the _search override).
@@ -792,15 +868,11 @@ class IrAttachment(models.Model):
                 max_resolution,
             )
             return subtypes, 0, 0, 0
-        raw_quality = ICP("base.image_autoresize_quality", 80)
-        try:
-            quality = int(raw_quality)
-        except TypeError, ValueError:
-            _logger.warning(
-                "Invalid base.image_autoresize_quality value: %r, using 80",
-                raw_quality,
-            )
-            quality = 80
+        quality = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("base.image_autoresize_quality", 80)
+        )
         return subtypes, max_width, max_height, quality
 
     @api.model
@@ -809,24 +881,47 @@ class IrAttachment(models.Model):
         return self._storage_backend().migration_domain()
 
     @api.model
-    def _get_path(self, bin_data: bytes, sha: str) -> tuple[str, str]:
-        """Return ``(fname, full_path)`` for storing *bin_data* in the filestore.
+    def _get_path(
+        self, bin_data: bytes | None, sha: str, *, source_path: str | None = None
+    ) -> tuple[str, str]:
+        """Return ``(fname, full_path)`` for storing content in the filestore.
 
-        Creates the shard directory if needed and performs a SHA-1 collision check.
+        The single path-resolution point for BOTH filestore writers: it creates
+        the shard directory and, for a collision-prone digest, performs the
+        collision check. The streaming writer used to re-derive all three steps
+        inline, so a deployment overriding this method silently kept the stock
+        behaviour on streamed uploads.
+
+        :param bin_data: the content to store, when the caller holds it in
+            memory; ignored (and may be ``None``) if *source_path* is given
+        :param str sha: the content digest, as produced by
+            :meth:`_content_checksum`
+        :param str source_path: path to the content already staged on disk.
+            The streaming writer passes it so the collision check compares
+            file-vs-file and never buffers either side.
         """
         fname = self._file_store_path(sha)
         full_path = Path(self._full_path(fname))
         full_path.parent.mkdir(exist_ok=True, parents=True)
 
-        # prevent sha-1 collision: on a dedup hit the stored file is read back
-        # to rule out a collision serving wrong bytes. Opt-out via
-        # _verify_content_collision (the read dominates large-file dedup).
-        if (
-            full_path.is_file()
-            and self._verify_content_collision()
-            and not self._same_content(bin_data, str(full_path))
-        ):
-            raise UserError(_("The attachment collides with an existing file."))
+        # on a dedup hit the stored file is read back to rule out a digest
+        # collision serving wrong bytes. Governed by _verify_content_collision
+        # (the read dominates large-file dedup).
+        #
+        # The gate is tested FIRST on purpose: both callers stat this path again
+        # right after, to decide between "dedup hit" and "write the temp". With
+        # the order reversed this method stat'd it too, on every single write,
+        # even though the default digest (BLAKE3) disables the check entirely
+        # and the answer was thrown away. Both operands are side-effect free, so
+        # only the syscall count changes.
+        if self._verify_content_collision() and full_path.is_file():
+            same = (
+                self._same_content_files(source_path, str(full_path))
+                if source_path is not None
+                else self._same_content(bin_data or b"", str(full_path))
+            )
+            if not same:
+                raise UserError(_("The attachment collides with an existing file."))
         return fname, str(full_path)
 
     def _get_pdf_raw(self) -> bytes | None:
@@ -850,10 +945,10 @@ class IrAttachment(models.Model):
         ``backend.write`` stores the payload and returns its store fragment
         (``store_fname``/``db_datas``) in one step. Callers must NOT persist the
         content again: the write is idempotent but a redundant call re-reads the
-        whole stored file for the SHA-1 collision check.
+        whole stored file for the collision check (when it is enabled).
         """
         # Callers that already hashed *data* pass the checksum to skip a second
-        # SHA-1 pass.
+        # hash pass.
         if checksum is None:
             checksum = self._content_checksum(data)
         index_content = self._index(data, mimetype, checksum=checksum)
@@ -895,6 +990,74 @@ class IrAttachment(models.Model):
         """
         return ["base.group_system"]
 
+    def _content_for_rewrite(self, attach: Self, operation: str) -> bytes | None:
+        """Return *attach*'s content, or ``None`` when rewriting it is unsafe.
+
+        Shared data-loss guard for the two whole-filestore rewrites
+        (:meth:`_migrate`, :meth:`_gc_rehash_legacy_keys`), which both read the
+        content back and store it again. ``_file_read`` returns ``b""`` on a
+        (possibly transient) read error; writing that back would blank the row
+        AND let the GC reclaim its only copy. A row that reads empty while
+        claiming a non-empty ``file_size`` is therefore skipped, and a later run
+        retries it.
+
+        :param str operation: what is being skipped, for the log line
+        :return: the content, or ``None`` when the row must be left alone
+        """
+        raw = attach.raw
+        if self._content_read_back_failed(
+            raw,
+            attach.file_size,
+            attach.id,
+            attach.store_fname,
+            f"skipping {operation}",
+        ):
+            return None
+        return raw
+
+    def _rewrite_stored_content(
+        self, attach: Self, values: dict[str, Any], old_fname: str | None
+    ) -> None:
+        """Point *attach* at freshly written content and release its old key.
+
+        The ordering is the safety-critical half of both rewrites, and the
+        reason they share it: the row must reference the new location BEFORE the
+        old key becomes collectable, else the GC can reclaim content a committing
+        ``store_fname`` still points at.
+        """
+        # internal metadata: bypass the public write override, as copy() does
+        super(IrAttachment, attach.sudo()).write(values)
+        attach.flush_recordset(
+            ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
+        )
+        if old_fname:
+            # key-axis dispatch: the old content may live in another backend.
+            attach._storage_delete(old_fname)
+
+    def _rewritable_rows(
+        self, rows: Self, operation: str
+    ) -> Generator[tuple[int, Self, bytes]]:
+        """Yield ``(index, attachment, content)`` for rows safe to rewrite.
+
+        The shared preamble of the two whole-filestore rewrites (:meth:`_migrate`
+        and :meth:`_gc_rehash_legacy_keys`): read each row's content back, skip
+        the ones that read empty while claiming a size
+        (:meth:`_content_for_rewrite` logs those), and drop the payload from the
+        ORM cache once the caller is done with it so memory stays flat over a
+        long run instead of growing O(total bytes) (P2-6). Only ``_migrate``
+        used to do that last part; a large rehash backlog had the same problem.
+
+        *index* is the 1-based position in *rows* — including skipped rows, so
+        progress logging and commit cadence stay tied to the work actually
+        enumerated rather than to how many rows happened to be readable.
+        """
+        for index, attach in enumerate(rows, 1):
+            raw = self._content_for_rewrite(attach, operation)
+            if raw is None:
+                continue
+            yield index, attach, raw
+            attach.invalidate_recordset()
+
     def _migrate(self) -> None:
         record_count = len(self)
         backend = self._storage_backend()
@@ -905,49 +1068,29 @@ class IrAttachment(models.Model):
         # on crash). Re-runs are idempotent (the domain skips migrated rows).
         # Tests run in a savepoint, where commit is forbidden.
         can_commit = not (modules.module.current_test or config["test_enable"])
-        for index, attach in enumerate(self, 1):
+        for index, attach, raw in self._rewritable_rows(self, "migration"):
             if index % 100 == 0 or index == record_count:
                 _logger.info(
                     "Migrating attachment %d/%d to %s", index, record_count, storage
                 )
-            raw = attach.raw
-            # Data-loss guard: _file_read returns b"" on a (possibly transient)
-            # read error. Writing that back would blank the record and GC its
-            # only copy — skip and let a later run retry.
-            if not raw and attach.file_size:
-                _logger.error(
-                    "Skipping migration of attachment %s: read returned empty "
-                    "for a non-empty file (file_size=%s, store_fname=%s)",
-                    attach.id,
-                    attach.file_size,
-                    attach.store_fname,
-                )
-                continue
             # A location migration doesn't change the bytes: reuse the derived
             # checksum/file_size/index_content and move only the store fragment,
-            # skipping the SHA-1 re-hash and re-index (P1). Escape-hatch db_datas
+            # skipping the re-hash and re-index (P1). Escape-hatch db_datas
             # rows never had this metadata stamped, so fall back to full derivation.
+            # (This is exactly what a REHASH must not do — see
+            # _gc_rehash_legacy_keys, whose whole purpose is to change the digest.)
             reuse = bool(attach.checksum) and attach.file_size == len(raw)
             checksum = attach.checksum if reuse else self._content_checksum(raw)
-            old_fname = attach.store_fname
             # Both branches persist content into the target backend and return
-            # its store fragment. Written before the flush below, so the row
-            # never references a not-yet-written file.
-            super(IrAttachment, attach.sudo()).write(
+            # its store fragment, written before the flush inside the helper, so
+            # the row never references a not-yet-written file.
+            self._rewrite_stored_content(
+                attach,
                 backend.write(raw, checksum)
                 if reuse
-                else self._get_datas_related_values(raw, attach.mimetype, backend)
+                else self._get_datas_related_values(raw, attach.mimetype, backend),
+                attach.store_fname,
             )
-            # Reference the new location before the old key becomes collectable.
-            attach.flush_recordset(
-                ["store_fname", "db_datas", "checksum", "file_size", "index_content"]
-            )
-            if old_fname:
-                # key-axis dispatch: the old content may live in another backend.
-                attach._storage_delete(old_fname)
-            # Drop the binary from cache so memory stays flat over the migration
-            # instead of growing O(total bytes) (P2-6).
-            attach.invalidate_recordset()
             if can_commit and index % 100 == 0:
                 self.env.cr.commit()
 
@@ -977,24 +1120,158 @@ class IrAttachment(models.Model):
                 mimetype = guess_mimetype(raw)
         return (mimetype and mimetype.lower()) or "application/octet-stream"
 
+    def _read_prefix(self, size: int | None = None) -> bytes:
+        """Return up to *size* bytes of this attachment's content (all if ``None``).
+
+        The single partial-read primitive. It resolves the three content
+        locations — keyed backend, inline ``db_datas``, addon-static ``url`` —
+        without materializing more than *size* bytes.
+        :class:`~odoo.http.Stream` cannot express a partial read, so callers
+        needing only a head (text thumbnails, sniffers) used to re-implement
+        this triage against ``store_fname``/``db_datas``/``url`` themselves.
+
+        ``bin_size`` is neutralized on purpose: under it a stored binary column
+        reads back as ``pg_size_pretty(length(...))``, so a caller in a
+        ``bin_size`` context would otherwise receive a human size string
+        (``b"1.5 kB"``) and mistake it for content.
+
+        :param size: maximum number of bytes to read; ``None`` reads it all
+        :return: the content prefix, or ``b""`` when there is nothing readable
+        """
+        self.ensure_one()
+        stored = self._stored_content(size)
+        if stored is not None:
+            return stored
+        if static_path := self._static_file_path():
+            with file_open(static_path, "rb") as file:
+                return file.read(size)
+        return b""
+
+    def _stored_content(self, size: int | None = None) -> bytes | None:
+        """Return up to *size* bytes of the content THIS row stores itself.
+
+        The keyed-backend / inline-``db_datas`` triage, shared by
+        :meth:`_compute_raw` and :meth:`_read_prefix` — which differ only in what
+        they do when there is nothing stored, so that decision is left to them.
+        :meth:`_to_http_stream` runs the same triage a third time, in terms of
+        streams rather than bytes.
+
+        ``bin_size`` is neutralized on purpose: under it a stored binary column
+        reads back as ``pg_size_pretty(length(...))``, so a caller in a
+        ``bin_size`` context would otherwise receive a human size string
+        (``b"1.5 kB"``) and mistake it for content. Computes inherit that
+        neutralization from ``Binary.compute_value``; a plain method call does
+        not, which is why it is spelled out here.
+
+        :param size: maximum number of bytes to read; ``None`` reads it all
+        :return: the content, or ``None`` when this row stores none (no store
+            key and no inline data)
+        """
+        self.ensure_one()
+        if self.store_fname:
+            # key-axis dispatch: content follows its store key, not the
+            # configured location (plain keys → local filestore)
+            data = self._backend_for_key(self.store_fname).read(self.store_fname, size)
+            self._content_read_back_failed(
+                data, self.file_size, self.id, self.store_fname, "serving empty bytes"
+            )
+            return data
+        # see the bin_size note above: read the column, never its size
+        attach = self.with_context(bin_size=False, bin_size_db_datas=False)
+        if db_datas := attach.db_datas:
+            return db_datas if size is None else db_datas[:size]
+        return None
+
+    @api.model
+    def _content_read_back_failed(
+        self,
+        data: bytes,
+        expected_size: int,
+        att_id: Any,
+        key: Any,
+        action: str,
+    ) -> bool:
+        """Whether a read came back empty for a row that claims content.
+
+        A store key is only ever set for NON-empty content, so an empty read
+        means the stored file is missing or unreadable (the backend swallows the
+        I/O error). The three readers that must not mistake that for
+        "legitimately empty" — serving ``raw``, indexing a streamed upload,
+        rewriting a row — each spelled the test out themselves, with three
+        different log levels for the same event. The predicate and the log line
+        live here; what to do about it stays at the call site.
+
+        :param str action: what the caller does about it, for the log line
+        :return: whether the read must be treated as a failure
+        """
+        if data or not expected_size:
+            return False
+        _logger.error(
+            "Unreadable stored content for attachment %s (store_fname=%s); %s",
+            att_id,
+            key,
+            action,
+        )
+        return True
+
+    def _static_file_path(self) -> str | None:
+        """Resolve this row's ``url`` to an addon static file, if it names one.
+
+        A ``url`` targeting an addon file is a resource path rather than a
+        remote link, and both readers that honour it (:meth:`_read_prefix` and
+        :meth:`_to_http_stream`) must resolve it the same way — including the
+        ``request`` guard, since neither runs only under HTTP (cron, report
+        rendering).
+
+        :return: the static file path, or ``None`` when the url names no addon file
+        """
+        self.ensure_one()
+        if not self.url:
+            return None
+        host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
+        return root.get_static_file(self.url, host=host)
+
+    @api.model
+    def _streams_equal(self, stream_a: Any, stream_b: Any) -> bool:
+        """Return whether two binary streams yield identical bytes.
+
+        The one chunked comparison loop behind :meth:`_same_content` and
+        :meth:`_same_content_files`, which differed only in where each side's
+        bytes came from. Neither side is ever fully buffered.
+        """
+        while True:
+            chunk_a = stream_a.read(self._COMPARE_BLOCK_SIZE)
+            if chunk_a != stream_b.read(self._COMPARE_BLOCK_SIZE):
+                return False
+            if not chunk_a:
+                return True
+
+    @api.model
+    def _same_as_file(self, source: Any, source_size: int, filepath: str) -> bool:
+        """Return whether *filepath* holds exactly what *source* yields.
+
+        The size-reject-then-stream-compare shared by :meth:`_same_content` and
+        :meth:`_same_content_files`, which differ only in where the left-hand
+        bytes come from. Neither side is ever fully buffered.
+
+        :param source: an already-open binary stream for the left-hand side
+        :param int source_size: its total length, for the fast reject
+        :param str filepath: path to the existing file (caller guarantees it exists)
+        """
+        # Fast reject on size (stat() is cheaper than reading the whole file).
+        if Path(filepath).stat().st_size != source_size:
+            return False
+        with Path(filepath).open("rb") as fd:
+            return self._streams_equal(source, fd)
+
     @api.model
     def _same_content(self, bin_data: bytes, filepath: str) -> bool:
         """Return whether *filepath* holds exactly *bin_data*.
 
         :param str filepath: path to the existing file (caller guarantees it exists)
         """
-        # Fast reject on size (stat() is cheaper than reading the whole file).
-        if Path(filepath).stat().st_size != len(bin_data):
-            return False
-        BLOCK_SIZE = 65536
-        view = memoryview(bin_data)  # slice without copying
-        with Path(filepath).open("rb") as fd:
-            offset = 0
-            while chunk := fd.read(BLOCK_SIZE):
-                if chunk != view[offset : offset + len(chunk)]:
-                    return False
-                offset += len(chunk)
-        return True
+        with io.BytesIO(bin_data) as buf:
+            return self._same_as_file(buf, len(bin_data), filepath)
 
     @api.model
     def _same_content_files(self, path_a: str, path_b: str) -> bool:
@@ -1004,16 +1281,8 @@ class IrAttachment(models.Model):
         :meth:`_file_write_stream` so a dedup collision check never buffers
         either side.
         """
-        if Path(path_a).stat().st_size != Path(path_b).stat().st_size:
-            return False
-        BLOCK_SIZE = 65536
-        with Path(path_a).open("rb") as fa, Path(path_b).open("rb") as fb:
-            while True:
-                chunk_a = fa.read(BLOCK_SIZE)
-                if chunk_a != fb.read(BLOCK_SIZE):
-                    return False
-                if not chunk_a:
-                    return True
+        with Path(path_a).open("rb") as fa:
+            return self._same_as_file(fa, Path(path_a).stat().st_size, path_b)
 
     @api.model
     def _sanitize_store_path(self, path: str) -> str:
@@ -1105,10 +1374,10 @@ class IrAttachment(models.Model):
         """Batch counterpart of :meth:`_storage_delete`.
 
         Scheme-keyed content (``s3://...``) dispatches per key; plain filestore
-        keys — the common case — are checklist-marked in one grouped pass
-        (:meth:`_mark_for_gc_multi`), skipping the per-key ``FileStorage.delete``
-        indirection. A deployment overriding :meth:`_file_delete` must override
-        this too.
+        keys — the common case — go through :meth:`_file_delete_multi` in one
+        grouped pass, skipping the per-key ``FileStorage.delete`` indirection but
+        NOT the local-filestore override point (this used to call
+        :meth:`_mark_for_gc_multi` directly, which bypassed it).
         """
         plain_fnames = []
         for fname in fnames:
@@ -1117,24 +1386,33 @@ class IrAttachment(models.Model):
             else:
                 plain_fnames.append(fname)
         if plain_fnames:
-            self._mark_for_gc_multi(plain_fnames)
+            self._file_delete_multi(plain_fnames)
 
     @api.model
     def _verify_content_collision(self) -> bool:
         """Whether to byte-compare the stored file against new content on dedup.
 
         On a dedup hit, :meth:`_get_path` re-reads the whole stored file to rule
-        out a SHA-1 collision serving wrong bytes — a cost dominating large-file
-        dedup. Operators accepting the content-addressing trust model can disable
-        it via ``ir_attachment.verify_content_collision``.
+        out a digest collision serving wrong bytes — a cost dominating
+        large-file dedup.
 
-        :return: ``True`` (verify, the safe default) unless explicitly disabled
+        The default follows the digest in use, because the check only ever
+        mitigated a *broken* one: sha1 has practical chosen-prefix collisions,
+        so an attacker who can upload two crafted files can make one serve the
+        other's bytes — hence verify.  BLAKE3 has no such weakness, and the
+        re-read buys nothing there beyond detecting filestore corruption, which
+        is not this method's job.  Either way
+        ``ir_attachment.verify_content_collision`` wins when set, so an operator
+        can force the read back on (or off) regardless of algorithm.
+
+        :return: whether to re-read and byte-compare on a dedup hit
         """
+        default = ALGO_TAG == "s1"
         return str2bool(
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param("ir_attachment.verify_content_collision", "True"),
-            True,
+            .get_param("ir_attachment.verify_content_collision", str(default)),
+            default,
         )
 
     def _postprocess_contents(self, values: dict[str, Any]) -> dict[str, Any]:
@@ -1425,6 +1703,10 @@ class IrAttachment(models.Model):
         cheap for common inputs (header-only parse; full decode only for an
         oversized image, whose resized bytes create() then reuses).
 
+        Values carrying no content key at all are never deduplicated: like
+        :meth:`create`, they keep ``checksum = False`` and any ``db_datas``
+        passthrough they were given.
+
         :raise UserError: if a value is not base64-encoded or omits ``mimetype``
 
         .. note::
@@ -1434,19 +1716,28 @@ class IrAttachment(models.Model):
         """
         # Phase 1: normalize content (raw|datas), apply the create() content
         # pipeline, and key the dedup on the FINAL (post-pipeline) checksum.
-        entries: list[tuple[dict, str, int, str]] = []
+        # `_normalize_content_vals` is shared with create()/write() on purpose:
+        # the hand-rolled copy this replaced set `raw = b""` even for vals
+        # carrying NO content key, which stamped the digest of b"" over a
+        # caller's `db_datas` and erased it (the IRA-R1/IRA-C4 invariant).
+        entries: list[tuple[dict, tuple[str, int, str] | None]] = []
         for values in values_list:
             if "mimetype" not in values:
                 raise UserError(_("Attachment is missing its mimetype."))
-            vals = {k: v for k, v in values.items() if k != "datas"}
-            if "raw" in values:
-                raw = values["raw"] or b""
-                vals["raw"] = raw.encode() if isinstance(raw, str) else raw
-            else:
-                vals["raw"] = self._decode_datas(values.get("datas"))
+            # copy: _normalize_content_vals mutates in place and the caller's
+            # dicts must not be touched
+            vals = dict(values)
+            has_content = self._normalize_content_vals(vals)
             vals = self._check_contents(vals)
-            checksum = self._content_checksum(vals["raw"])
-            entries.append((vals, checksum, len(vals["raw"]), vals["mimetype"]))
+            # Content-less vals have nothing to deduplicate on: create() leaves
+            # them with `checksum = False`, so keying them on the digest of b""
+            # would collapse unrelated rows (a `db_datas` passthrough, a bare
+            # url row) onto a single id. They are always created.
+            key = None
+            if has_content:
+                raw = vals["raw"]
+                key = (self._content_checksum(raw), len(raw), vals["mimetype"])
+            entries.append((vals, key))
 
         # Phase 2: find one existing id per (checksum, file_size, mimetype).
         # Aggregate instead of materializing every row sharing a checksum (which
@@ -1454,7 +1745,7 @@ class IrAttachment(models.Model):
         # old "newest match" (default `id desc` + setdefault-first).
         # skip_res_field_check: also match binary-field-backing attachments,
         # which _search hides by default.
-        all_checksums = list({cs for _, cs, _, _ in entries})
+        all_checksums = list({key[0] for _vals, key in entries if key})
         existing_by_key: dict[tuple, int] = {}
         if all_checksums:
             for checksum, file_size, mimetype, att_id in (
@@ -1473,8 +1764,14 @@ class IrAttachment(models.Model):
         # a second autoresize pass.
         to_create = []
         new_index_by_key: dict[tuple, int] = {}
-        for vals, checksum, file_size, mimetype in entries:
-            key = (checksum, file_size, mimetype)
+        # index into `created` for the entries that bypass dedup (key is None)
+        own_indexes: list[int | None] = []
+        for vals, key in entries:
+            if key is None:
+                own_indexes.append(len(to_create))
+                to_create.append(vals)
+                continue
+            own_indexes.append(None)
             if key not in existing_by_key and key not in new_index_by_key:
                 new_index_by_key[key] = len(to_create)
                 to_create.append(vals)
@@ -1485,11 +1782,13 @@ class IrAttachment(models.Model):
         )
         return [
             (
-                existing
-                if (existing := existing_by_key.get((checksum, file_size, mimetype)))
-                else created[new_index_by_key[checksum, file_size, mimetype]].id
+                created[own_index].id
+                if own_index is not None
+                else existing
+                if (existing := existing_by_key.get(key))
+                else created[new_index_by_key[key]].id
             )
-            for _vals, checksum, file_size, mimetype in entries
+            for (_vals, key), own_index in zip(entries, own_indexes, strict=True)
         ]
 
     def _generate_access_token(self) -> str:
@@ -1576,16 +1875,14 @@ class IrAttachment(models.Model):
                 content = self._backend_for_key(store_values["store_fname"]).read(
                     store_values["store_fname"], read_size
                 )
-                if not content and store_values["file_size"]:
-                    # A store key is only set for NON-empty content, so an empty
-                    # read-back means the stored file is missing/unreadable — not
-                    # legitimately empty. Don't stamp an index from the wrong bytes.
-                    _logger.warning(
-                        "Unreadable stored content for attachment %s "
-                        "(store_fname=%s); skipping index extraction",
-                        record.id,
-                        store_values["store_fname"],
-                    )
+                # Don't stamp an index built from the wrong bytes.
+                if self._content_read_back_failed(
+                    content,
+                    store_values["file_size"],
+                    record.id,
+                    store_values["store_fname"],
+                    "skipping index extraction",
+                ):
                     readable = False
             elif store_values.get("db_datas"):
                 db_datas = store_values["db_datas"] or b""
@@ -1627,11 +1924,8 @@ class IrAttachment(models.Model):
 
         elif self.url:
             # A URL targeting an addon file is a resource path — stream it right
-            # away. `request` may be unbound here (cron, report image
-            # resolution), so guard it as the store_fname branch does.
-            host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
-            static_path = root.get_static_file(self.url, host=host)
-            if static_path:
+            # away (same resolution as _read_prefix).
+            if static_path := self._static_file_path():
                 stream = Stream.from_path(static_path, public=True)
             else:
                 stream.type = "url"
@@ -1739,6 +2033,98 @@ class IrAttachment(models.Model):
             if backend_cls(self.env).autovacuum() is False:
                 skipped = True
         return False if skipped else None
+
+    @api.autovacuum
+    def _gc_rehash_legacy_keys(self, limit: int | None = None) -> tuple[int, int]:
+        """Re-key a bounded batch of rows still stored under a legacy digest.
+
+        :meth:`_file_store_path` tags store keys with the digest that produced
+        them, so a switch of algorithm is additive: old keys keep resolving and
+        nothing is rewritten.  The cost is that the two layouts dedup
+        independently — content stored under the old digest is written again
+        under the new one the first time it is re-uploaded — and that legacy
+        content only converges when its row happens to be rewritten.
+
+        This pass converges the rest, deliberately as an **opt-in trickle**
+        rather than a filestore-wide migration: set
+        ``ir_attachment.rehash_legacy_keys_limit`` to the number of rows one
+        autovacuum run may re-key.  Unset (or ``0``) is a no-op, which is the
+        default — an operator who is happy with mixed layouts pays nothing, and
+        nobody gets a surprise mass rewrite on upgrade.  ``force_storage``
+        remains the tool for a deliberate, immediate sweep.
+
+        Bytes never change: only the store key and its checksum column move, so
+        ``file_size``/``index_content`` are left alone.  Each row references its
+        new key before the old one becomes collectable, and the old key is only
+        *marked* for GC — the sweep skips keys any other row still shares
+        (dedup), so re-keying one of several rows pointing at the same file
+        cannot orphan the others.
+
+        Returns the autovacuum re-queue pair (IAVAC): a truthy *remaining*
+        re-enqueues this method within the run's wall-clock budget, so a large
+        backlog drains progressively instead of one batch per daily run.
+        *remaining* is reported as 0 when the batch re-keyed nothing, even
+        though rows still match: without that, a batch every row of which hits
+        the read guard below would re-enqueue itself for the whole budget,
+        re-reading the same broken rows. Those wait for the next run.
+
+        :param limit: rows to re-key this run; defaults to the parameter
+        :return: ``(re-keyed, remaining)`` — the autovacuum re-queue contract
+        """
+        if ALGO_TAG == "s1":
+            # the fallback digest IS the legacy layout — nothing to converge to
+            return 0, 0
+        if limit is None:
+            limit = int(
+                self.env["ir.config_parameter"]
+                .sudo()
+                .get_param("ir_attachment.rehash_legacy_keys_limit", 0)
+                or 0
+            )
+        if limit <= 0:
+            return 0, 0
+        if self._storage() != "file":
+            # under db/keyed storage a rewrite would MOVE content between
+            # backends, which is force_storage's job, not a rehash's
+            return 0, 0
+
+        domain = Domain(
+            [
+                ("store_fname", "!=", False),
+                # not already on the current digest...
+                ("store_fname", "not =like", f"{ALGO_TAG}/%"),
+                # ...and not another backend's schemed key (s3://...)
+                ("store_fname", "not like", "://"),
+            ]
+        )
+        model = self.sudo().with_context(skip_res_field_check=True)
+        legacy = model.search(domain, order="id", limit=limit)
+        rekeyed = 0
+        backend = self._storage_backend()
+        for _index, attach, raw in self._rewritable_rows(legacy, "rehash"):
+            # Always re-hash: the point of this pass is to move the row onto the
+            # CURRENT digest, so _migrate's reuse-the-stored-checksum shortcut
+            # would defeat it (and store the content under a key that does not
+            # match its own digest).
+            checksum = self._content_checksum(raw)
+            self._rewrite_stored_content(
+                attach,
+                {**backend.write(raw, checksum), "checksum": checksum},
+                attach.store_fname,
+            )
+            rekeyed += 1
+        if not rekeyed:
+            # no progress: do not re-enqueue (see the docstring), retry next run
+            return 0, 0
+        remaining = model.search_count(domain)
+        _logger.info(
+            "filestore rehash: re-keyed %d attachment(s) to the %s digest "
+            "(%d still on a legacy key)",
+            rekeyed,
+            ALGO_TAG,
+            remaining,
+        )
+        return rekeyed, remaining
 
     @api.autovacuum
     def _gc_stale_filestore_temps(self) -> None:

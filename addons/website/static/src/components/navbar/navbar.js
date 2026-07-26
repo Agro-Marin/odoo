@@ -55,7 +55,13 @@ patch(NavBar.prototype, {
         );
     },
 
-    // Somehow a setter is needed in `patch()` to avoid an owl error.
+    // Not "somehow": `patch()` installs an extension's property descriptors
+    // with `Object.defineProperty`, and a POJO declaring only `get x()` yields
+    // `{get, set: undefined}`. Without a setter anywhere in the chain the
+    // accessor is getter-only, so any assignment throws in strict mode.
+    // `core/utils/patch.js` inherits the missing half from the ancestor
+    // descriptor, but only if some ancestor actually defines it — this is that
+    // definition for a key `web` does not declare.
     set shouldDisplayWebsiteSystray(_) {},
 
     /**

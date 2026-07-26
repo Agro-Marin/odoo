@@ -115,6 +115,27 @@ const dragForTolerance = async (node, distance) => {
 };
 
 /**
+ * Dispatches one file drag event carrying `files` in its `DataTransfer`.
+ *
+ * A file drag coming from outside the browser has no in-page source element, so
+ * it cannot be modelled with `drag()`: that starts from a pointerdown and only
+ * emits `dragenter` when the pointer moves onto a *different* element. Consumers
+ * key off the DataTransfer (`useDropzone` checks `dataTransfer.types`), so the
+ * bare event is both sufficient and closer to what the browser does.
+ *
+ * @param {Node} node
+ * @param {"dragenter" | "dragover" | "dragleave" | "drop"} type
+ * @param {File[]} files
+ */
+const dispatchFileDragEvent = async (node, type, files) => {
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    await manuallyDispatchProgrammaticEvent(node, type, { dataTransfer });
+};
+
+/**
  * @param {number} [delay]
  * These params are used to move the pointer from an arbitrary distance in the
  * element to trigger a drag sequence (the distance required to trigger a drag
@@ -284,6 +305,27 @@ export function contains(target, options) {
 
             await drop();
             await advanceFrame();
+        },
+        /**
+         * Drags `files` onto the element, as a drag entering the page from
+         * outside the browser does.
+         *
+         * @param {File[]} files
+         */
+        dragEnterFiles: async (files) => {
+            consumeContains();
+            await dispatchFileDragEvent(await nodePromise, "dragenter", files);
+            await animationFrame();
+        },
+        /**
+         * Drops `files` onto the element.
+         *
+         * @param {File[]} files
+         */
+        dropFiles: async (files) => {
+            consumeContains();
+            await dispatchFileDragEvent(await nodePromise, "drop", files);
+            await animationFrame();
         },
         /**
          * @param {InputValue} value

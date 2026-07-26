@@ -108,9 +108,21 @@ class SaleOrder(models.Model):
             return
 
         def line_eqv(line, t_line):
-            return line and t_line and all(
-                line[fname] == t_line[fname]
-                for fname in ['product_id', 'product_uom_id', 'product_uom_qty', 'display_type']
+            # Quantity cannot go through the shared name list: the two models
+            # spell it differently. `sale.order.line` keeps the writable quantity
+            # in `product_qty` (its `product_uom_qty` is the reference-UoM
+            # projection), while `sale.order.template.line` owns a plain
+            # `product_uom_qty` -- which is why
+            # `sale.order.template.line._prepare_order_line_values` maps one onto
+            # the other. Comparing `product_uom_qty` on both sides silently
+            # compared different things whenever a line's UoM was not the
+            # product's own.
+            return line and t_line and (
+                line.product_qty == t_line.product_uom_qty
+                and all(
+                    line[fname] == t_line[fname]
+                    for fname in ['product_id', 'product_uom_id', 'display_type']
+                )
             )
 
         lines = self.line_ids

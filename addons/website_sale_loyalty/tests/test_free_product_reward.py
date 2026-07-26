@@ -81,9 +81,9 @@ class TestFreeProductReward(HttpCaseWithUserPortal, WebsiteSaleCommon):
             sofa_line = order.line_ids.filtered(lambda line: line.product_id.id == self.sofa.id)
             carpet_reward_line = order.line_ids.filtered(lambda line: line.product_id.id == self.carpet.id and line.is_reward_line)
             carpet_line = order.line_ids.filtered(lambda line: line.product_id.id == self.carpet.id and not line.is_reward_line)
-            self.assertEqual(sofa_line.product_uom_qty, 1, "Should have only 1 qty of Sofa")
-            self.assertEqual(carpet_reward_line.product_uom_qty, 1, "Should have only 1 qty for the carpet as reward")
-            self.assertEqual(carpet_line.product_uom_qty, 1, "Should have only 1 qty for carpet as non reward")
+            self.assertEqual(sofa_line.product_qty, 1, "Should have only 1 qty of Sofa")
+            self.assertEqual(carpet_reward_line.product_qty, 1, "Should have only 1 qty for the carpet as reward")
+            self.assertEqual(carpet_line.product_qty, 1, "Should have only 1 qty for carpet as non reward")
 
     def test_get_claimable_free_shipping(self):
         cart = self.empty_cart

@@ -92,7 +92,7 @@ class TestSaleInvoicing(TestSaleCouponCommon):
         self.env['sale.order.line'].create({
             'product_id': product_6.id,
             'name': 'largeCabinet',
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'order_id': order.id,
         })
 
@@ -111,7 +111,7 @@ class TestSaleInvoicing(TestSaleCouponCommon):
         self.env['sale.order.line'].create({
             'product_id': product_11.id,
             'name': 'conferenceChair',
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'order_id': order.id,
         })
 

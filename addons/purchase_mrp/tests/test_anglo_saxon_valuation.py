@@ -563,7 +563,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
         self.assertRecordValues(receipts.move_ids.sorted(lambda m: (m.picking_id, m.product_id.id, m.cost_share)), expected_values)
 
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-purchase_orders[0].id)
+        move_form.purchase_vendor_bill_id = self.env['purchase.bill.match'].browse(-purchase_orders[0].id)
         move_form.invoice_date = Datetime.today()
         move = move_form.save()
         move.action_post()

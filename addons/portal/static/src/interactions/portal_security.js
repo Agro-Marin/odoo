@@ -78,10 +78,15 @@ export class PortalSecurity extends Interaction {
             confirmLabel: _t("Confirm"),
             confirm: async ({ inputEl }) => {
                 const formData = Object.fromEntries(new FormData(inputEl.closest("form")));
-                const wizardId = await this.services.orm.create("res.users.apikeys.description", [{
-                    name: formData['description'],
-                    duration: formData['duration']
-                }]);
+                // waitFor, like every other call in this flow: without it the
+                // dialog's confirm handler keeps running against a torn-down
+                // interaction if the user navigates while the key is created.
+                const wizardId = await this.waitFor(
+                    this.services.orm.create("res.users.apikeys.description", [{
+                        name: formData['description'],
+                        duration: formData['duration']
+                    }])
+                );
                 const res = await this.waitFor(
                     handleCheckIdentity(
                         this.waitFor(

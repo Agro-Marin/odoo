@@ -136,9 +136,30 @@ _CSS_STRING_OR_COMMENT = re.compile(
     re.DOTALL,
 )
 
+# SCSS-source counterpart of ``_CSS_STRING_OR_COMMENT``, adding the Sass ``//``
+# line comment. Needed because a whole-text rewrite runs over preprocessor
+# *source* (``StylesheetAsset._fetch_content``) before Sass ever strips those
+# comments: without this arm an apostrophe in a ``// don't`` comment opens a
+# phantom string span and every ``url()`` after it silently stops being
+# rewritten, so the bundle's relative font/image URLs 404 against
+# ``/web/assets/<unique>/``.
+#
+# The arm requires whitespace (or start of text) before ``//`` — unlike
+# ``CssPipeline._rx_import_scanner``, which can leave it unanchored because it
+# only guards a directive grammar. Here an unanchored arm would read the ``//``
+# of ``url(//cdn/x.woff)`` as a comment and swallow the rest of the line,
+# taking any later ``url()`` in the same ``src:`` list with it.
+_SCSS_STRING_OR_COMMENT = re.compile(
+    rf"""(?:(?<=\s)|\A)//[^\n]*|{_CSS_STRING_OR_COMMENT.pattern}""",
+    re.DOTALL,
+)
+
 
 def _rewrite_css_outside_strings(
-    target: re.Pattern, repl: Callable[[re.Match], str], text: str
+    target: re.Pattern,
+    repl: Callable[[re.Match], str],
+    text: str,
+    tokens: re.Pattern = _CSS_STRING_OR_COMMENT,
 ) -> str:
     """Apply ``repl`` to ``target`` matches that lie in CSS *code* only.
 
@@ -150,6 +171,10 @@ def _rewrite_css_outside_strings(
     A real ``url("x")`` is still rewritten: its match *starts* at the ``url(``
     token (code), and only the inner ``"x"`` is a protected span the rewrite
     never enters.
+
+    ``tokens`` selects which spans count as opaque. It defaults to the plain-CSS
+    ``_CSS_STRING_OR_COMMENT``; pass ``_SCSS_STRING_OR_COMMENT`` when the text is
+    preprocessor *source*, so Sass ``//`` line comments are protected too.
     """
     # DOTALL scoped to the string/comment arm via ``(?s:...)`` — only it needs
     # it (block comments and ``\\.`` continuations span newlines). Applying it
@@ -157,13 +182,13 @@ def _rewrite_css_outside_strings(
     # ``target`` carries. ``(?s:...)`` is non-capturing, so ``target``'s group
     # numbers are unchanged.
     scanner = re.compile(
-        f"(?s:{_CSS_STRING_OR_COMMENT.pattern})|{target.pattern}",
+        f"(?s:{tokens.pattern})|{target.pattern}",
         target.flags,
     )
 
     def _dispatch(match: re.Match) -> str:
         token = match.group(0)
-        if token[:2] == "/*" or token[:1] in ("'", '"'):
+        if token[:2] in ("/*", "//") or token[:1] in ("'", '"'):
             return token  # protected span — pass through verbatim
         return repl(match)
 

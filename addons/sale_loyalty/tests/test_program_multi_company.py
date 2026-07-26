@@ -44,12 +44,12 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -65,12 +65,12 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self.assertNotIn(self.immediate_promotion_program, self._get_applicable_programs(order_b))
@@ -90,12 +90,12 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
                 Command.create({
                     'product_id': self.product_A.id,
                     'name': '1 Product A',
-                    'product_uom_qty': 1.0,
+                    'product_qty': 1.0,
                 }),
                 Command.create({
                     'product_id': self.product_B.id,
                     'name': '2 Product B',
-                    'product_uom_qty': 1.0,
+                    'product_qty': 1.0,
                 })
             ],
             'company_id': branch_a.id,

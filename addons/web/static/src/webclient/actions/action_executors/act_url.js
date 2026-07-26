@@ -7,8 +7,15 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 
-/** @import { ActionManager } from "../action_service.js" */
-/** @import { ActURLAction } from "@web/webclient/actions/action_service" */
+import { actionStorage } from "../action_storage.js";
+
+// One specifier for one module: tsc gives `@web/webclient/actions/action_service`
+// and `../action_service.js` DISTINCT module identities, so importing
+// `ActionManager` through the relative path and `ActionOptions` through the
+// alias made two structurally identical `ActionOptions` types mutually
+// unassignable — surfacing as a bogus error on the dispatch map that passes one
+// to the other. Keep every type import from this module on the relative form.
+/** @import { ActionManager, ActionOptions, ActURLAction } from "../action_service.js" */
 
 /**
  * Open `url` in a new browser tab/window via `window.open`.  When the popup
@@ -45,23 +52,13 @@ export function openURL(url, am) {
  * @param {ActionManager} am
  */
 export function openActionInNewWindow(action, state, am) {
-    // Session storage is duplicated in the new window per the HTML spec:
-    // https://html.spec.whatwg.org/multipage/webstorage.html#webstorage
-    const currentAction = browser.sessionStorage.getItem("current_action");
-    const currentState = browser.sessionStorage.getItem("current_state");
-    browser.sessionStorage.setItem("current_action", action._originalAction || "{}");
-    browser.sessionStorage.setItem("current_state", JSON.stringify(state));
-    openURL(am.router.stateToUrl(state), am);
-    if (currentAction !== null) {
-        browser.sessionStorage.setItem("current_action", currentAction);
-    } else {
-        browser.sessionStorage.removeItem("current_action");
-    }
-    if (currentState !== null) {
-        browser.sessionStorage.setItem("current_state", currentState);
-    } else {
-        browser.sessionStorage.removeItem("current_state");
-    }
+    // The swap must stay synchronous around ``openURL``: sessionStorage is
+    // copied into the new browsing context at the moment it is opened, so the
+    // destination window reads exactly what is set during this call.
+    actionStorage.withTemporaryEntry(
+        { serializedAction: action._originalAction, state },
+        () => openURL(am.router.stateToUrl(state), am),
+    );
 }
 
 /**
@@ -75,7 +72,10 @@ export function openActionInNewWindow(action, state, am) {
  *                  dialog closes.  Otherwise just invoke `options.onClose`.
  *
  * @param {ActURLAction} action
- * @param {{ onClose?: () => any }} options
+ * @param {ActionOptions} options the full caller options bag — the dispatcher
+ *   in ``action_service`` forwards it verbatim to every executor, so narrowing
+ *   this to the one key read here (``onClose``) made the dispatch map's value
+ *   type incompatible with its own entries.
  * @param {ActionManager} am
  */
 export function executeActURLAction(action, options, am) {

@@ -738,3 +738,56 @@ class TestEventNotifications(CalendarMailCommon):
         # account module's TAX-3 precedent of not blanket-applying strict=True.
         for expected, actual in zip(expected_alarms, actual_alarms, strict=False):
             self.assertEqual(actual, expected)
+
+
+@tagged('mail_calendar')
+class TestInvitationTemplateAttachments(CalendarMailCommon):
+    """Attendees must receive the template's attachments, not empty copies."""
+
+    def test_template_attachments_reach_attendees_with_their_content(self):
+        """Duplicating an `ir.attachment` is split across two methods.
+
+        `copy_data` carries the bytes only for database-stored content; a
+        filestore-backed attachment -- the normal case -- is relinked to its
+        existing file by `copy()` afterwards. Building the values here and
+        creating the records separately skipped that relink, so every attendee
+        got an attachment with no content: no checksum, zero bytes.
+        """
+        template = self.env.ref('calendar.calendar_template_meeting_invitation')
+        attachment = self.env['ir.attachment'].create({
+            'name': 'agenda.txt',
+            'raw': b'the agenda',
+            'res_model': 'mail.template',
+            'res_id': template.id,
+        })
+        template.write({'attachment_ids': [(6, 0, attachment.ids)]})
+        self.env.flush_all()
+        self.assertTrue(
+            attachment.store_fname,
+            "the case that regressed is filestore-backed content",
+        )
+
+        attendees = self.env['calendar.attendee'].create([
+            {'event_id': self.event.id, 'partner_id': partner.id}
+            for partner in self.env['res.partner'].create([
+                {'name': 'Attendee One', 'email': 'one@test.lan'},
+                {'name': 'Attendee Two', 'email': 'two@test.lan'},
+            ])
+        ])
+        before = set(self.env['ir.attachment'].search([]).ids)
+
+        attendees._notify_attendees(template, force_send=False)
+
+        copies = self.env['ir.attachment'].search([
+            ('id', 'not in', list(before)),
+            ('name', '=', 'agenda.txt'),
+        ])
+        self.assertEqual(len(copies), 2, "one copy of the attachment per attendee")
+        self.assertFalse(
+            copies.filtered(lambda a: not a.checksum),
+            "an attendee must not be sent an empty file",
+        )
+        self.assertEqual(
+            set(copies.mapped('file_size')), {len(b'the agenda')},
+            "the copy must carry the original's content",
+        )

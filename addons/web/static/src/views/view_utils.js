@@ -135,7 +135,7 @@ export function isX2Many(field) {
  *
  * @param {BeforeUnloadEvent} ev
  * @param {object} opts
- * @param {import("@web/model/relational_model/record").Record | null | undefined} opts.record
+ * @param {import("@web/model/relational_model/record").RelationalRecord | null | undefined} opts.record
  * @param {boolean} opts.inDialog
  * @param {boolean} opts.useSendBeacon
  * @param {() => Promise<any>} opts.urgentSave beacon-path save; resolves truthy on success
@@ -161,6 +161,19 @@ export function handleBeforeUnload(
         // save (its ``preventDefault`` would land too late). Without this, work
         // typed into a new/dialog/inline-row field and never blurred is silently
         // lost with no prompt.
+        // @ts-ignore -- `@ts-ignore`, NOT `@ts-expect-error`: the gate runs with
+        // `strictNullChecks: true` but the committed `tsconfig.json` (and the
+        // `tooling/_jsconfig.json` every editor uses) has it off, so there the
+        // error does not occur and `@ts-expect-error` reports TS2578 "Unused
+        // directive" — trading a gate error for an error in every IDE.
+        // `urgentSave` is assigned in `RelationalModel.setup()`,
+        // and TypeScript only credits the constructor for definite assignment, so
+        // it types as `UrgentSaveCoordinator | undefined`. It is unconditionally
+        // constructed there and is never undefined at runtime. The class-field
+        // declaration used for the same problem on OWL components (see Pattern 7)
+        // is NOT usable here: `Model`'s own constructor calls `this.setup(...)`
+        // (`model/model.js`), so a field initialiser would run afterwards and
+        // overwrite the coordinator with `undefined`.
         record.model.urgentSave.run(() => Promise.resolve());
         if (record.dirty) {
             ev.preventDefault();
@@ -210,7 +223,14 @@ export function isNull(value) {
  * enough to defuse the interpolation while leaving a literal ``${`` visually
  * intact in the produced string.
  *
- * @param  {string} str The initial value: a pure string to be interpreted as such
+ * @param  {string | null | undefined} str The initial value: a pure string to
+ *   be interpreted as such. Nullable by design, not by accident — every caller
+ *   is a view compiler feeding it ``element.getAttribute(...)``, which returns
+ *   ``string | null`` for an absent attribute, and the ``?? ""`` below is what
+ *   "fails closed by construction" above refers to. The annotation used to say
+ *   plain ``string``; that was invisible because the ambient
+ *   ``declare module "@web/views/view_utils"`` in ``@types/views.d.ts``
+ *   shadowed this file and declared the parameter correctly as ``string|null``.
  * @return {string}     the valid string to be injected into a component's node props.
  */
 export function toStringExpression(str) {

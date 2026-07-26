@@ -6,11 +6,11 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python) | 85 methods | ~30s |
-| `web_http` | HttpCase (url_open, no browser) | 62 methods | ~5 min |
+| `web_unit` | TransactionCase (pure Python) | 232 methods | ~30s |
+| `web_http` | HttpCase (url_open, no browser) | 81 methods | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 methods | ~2 min |
-| `web_js` | Full JS suites (HOOT) | 36 methods | ~1-2 hr |
-| `web_perf` | Query count regression (@warmup) | 25 methods | ~2 min |
+| `web_js` | Full JS suites (HOOT) | 37 methods | ~1-2 hr |
+| `web_perf` | Query count regression (@warmup) | 26 methods | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 methods | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 methods (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
 

@@ -294,7 +294,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
                     'list_price': 100,
                     'sale_ok': True,
                 }).id,
-                'product_uom_qty': 2.0,
+                'product_qty': 2.0,
             })
         ]
 
@@ -546,7 +546,7 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             'partner_id': test_partner.id,
             'line_ids': [Command.create({
                 'product_id': test_product.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             })]
         })
 

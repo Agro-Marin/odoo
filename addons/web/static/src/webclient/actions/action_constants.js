@@ -56,6 +56,33 @@ export const standardActionServiceProps = {
 export class ControllerNotFoundError extends Error {}
 
 /**
+ * Maximum length of a client-side action chain (an action executor returning a
+ * follow-up action, which returns another, ...). Catches cyclic
+ * ``ir.actions.server`` / client-action definitions, which would otherwise
+ * loop ``doAction`` → ``/web/action/run`` unboundedly.
+ */
+export const MAX_ACTION_DEPTH = 20;
+
+/**
+ * Advance and check the action-chaining depth carried in ``options``.
+ *
+ * Was duplicated verbatim (limit and message) in the client and server
+ * executors; hoisted so a third chaining executor cannot silently pick a
+ * different bound.
+ *
+ * @param {{ _actionDepth?: number }} [options]
+ * @returns {number} the depth to stamp on the follow-up ``doAction``
+ * @throws {Error} once the chain exceeds {@link MAX_ACTION_DEPTH}
+ */
+export function nextActionDepth(options = {}) {
+    const depth = (options._actionDepth || 0) + 1;
+    if (depth > MAX_ACTION_DEPTH) {
+        throw new Error(`Action recursion limit exceeded (max ${MAX_ACTION_DEPTH})`);
+    }
+    return depth;
+}
+
+/**
  * Parse a string or number into an array of active record IDs.
  *
  * @param {string|number} ids - comma-separated string or single number

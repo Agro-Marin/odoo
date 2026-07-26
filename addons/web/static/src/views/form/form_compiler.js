@@ -749,7 +749,11 @@ export class FormCompiler extends ViewCompiler {
     /**
      * @param {Element} el
      * @param {Record<string, any>} params
-     * @returns {Element}
+     * @returns {Element | undefined} `undefined` when the separator is
+     *   statically invisible — `applyInvisible` drops the node entirely, and
+     *   `ViewCompiler.compileNode` already guards its result for exactly that
+     *   (`if (… && compiledNode)`, twice). The annotation said `Element`, which
+     *   was narrower than both this body and its consumer.
      */
     compileSeparator(el, params = {}) {
         const separator = makeSeparator(el.getAttribute("string"));

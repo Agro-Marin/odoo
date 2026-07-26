@@ -394,23 +394,23 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
 
         add_one(no_variant_attribute_value_ids=no_variant_ptav.ids)
         self.assertEqual(len(self.empty_cart.line_ids), 1)
-        self.assertEqual(self.empty_cart.line_ids.product_uom_qty, 2)
+        self.assertEqual(self.empty_cart.line_ids.product_qty, 2)
 
         # Providing `no_variant_attribute_value_ids` should be optional if there's only 1 value...
         product_no_variants.attribute_line_ids.value_ids = self.no_variant_attribute.value_ids[0]
         add_one(no_variant_attribute_value_ids=[])
         self.assertEqual(len(self.empty_cart.line_ids), 1)
-        self.assertEqual(self.empty_cart.line_ids.product_uom_qty, 3)
+        self.assertEqual(self.empty_cart.line_ids.product_qty, 3)
 
         # ...except if it's a multi-checkbox attribute, making the value optional
         self.no_variant_attribute.display_type = 'multi'
         add_one(no_variant_attribute_value_ids=[])
         self.assertEqual(len(self.empty_cart.line_ids), 2)
-        self.assertEqual(self.empty_cart.line_ids.mapped('product_uom_qty'), [3, 1])
+        self.assertEqual(self.empty_cart.line_ids.mapped('product_qty'), [3, 1])
 
         add_one(no_variant_attribute_value_ids=no_variant_ptav.ids)
         self.assertEqual(len(self.empty_cart.line_ids), 2)
-        self.assertEqual(self.empty_cart.line_ids.mapped('product_uom_qty'), [4, 1])
+        self.assertEqual(self.empty_cart.line_ids.mapped('product_qty'), [4, 1])
 
     def test_cart_new_pricelist_from_geoip(self):
         """Check that, when adding a new partner to a website order, the partner's GeoIP
@@ -526,7 +526,7 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             order.line_ids = [
                 Command.create({
                     'product_id': self.product.id,
-                    'product_uom_qty': 1.0,
+                    'product_qty': 1.0,
                 })
             ]
             self.WebsiteSaleController.shop_checkout()

@@ -44,10 +44,7 @@ export function makeAsyncHandler(
         if (preventDefault === true || (preventDefault && preventDefault())) {
             ev.preventDefault();
         }
-        if (
-            stopPropagation === true ||
-            (stopPropagation && stopPropagation())
-        ) {
+        if (stopPropagation === true || (stopPropagation && stopPropagation())) {
             ev.stopPropagation();
         }
         if (

@@ -8,6 +8,8 @@ import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
 import { user } from "@web/services/user";
 
+import { nextActionDepth } from "../action_constants.js";
+
 /** @import { ActionManager } from "../action_service.js" */
 /** @import { ServerAction } from "@web/webclient/actions/action_service" */
 
@@ -16,8 +18,8 @@ import { user } from "@web/services/user";
  * ``am.keepLast`` so only the latest click wins. Defaults a null response to
  * ``act_window_close``, and forwards ``action.path`` for URL stability.
  *
- * The follow-up ``doAction`` is guarded by the same recursion depth limit
- * (max 20) as the client executor: a cyclic ``ir.actions.server`` chain would
+ * The follow-up ``doAction`` is guarded by the same shared ``nextActionDepth``
+ * limit as the client executor: a cyclic ``ir.actions.server`` chain would
  * otherwise loop ``doAction`` → ``/web/action/run`` unboundedly.
  *
  * @param {ServerAction} action
@@ -37,10 +39,7 @@ export async function executeServerAction(action, options, am) {
     if (typeof nextAction === "object") {
         nextAction.path ||= action.path;
     }
-    const depth = (options._actionDepth || 0) + 1;
-    if (depth > 20) {
-        throw new Error("Action recursion limit exceeded (max 20)");
-    }
+    const depth = nextActionDepth(options);
     return /** @type {any} */ (
         am.doAction(nextAction, { ...options, _actionDepth: depth })
     );

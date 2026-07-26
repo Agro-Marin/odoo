@@ -31,7 +31,7 @@ class TestSaleAutoInvoice(TestSaleCouponCommon):
         self.env["sale.order.line"].create({
             'order_id': self.empty_order.id,
             'product_id': self.product_A.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'price_unit': 200,
         })
         # Apply discount

@@ -14,9 +14,9 @@ $o-we-bg-lighter: #3e3e46 !default;
 $o-we-bg-lightest: #595964 !default;
 
 $o-we-fg-darker: #9d9d9d !default;
-$o-we-fg-dark: #C6C6C6 !default;
-$o-we-fg-light: #D9D9D9 !default;
-$o-we-fg-lighter: #FFFFFF !default;
+$o-we-fg-dark: #c6c6c6 !default;
+$o-we-fg-light: #d9d9d9 !default;
+$o-we-fg-lighter: #ffffff !default;
 
 $o-we-color-danger: #e6586c !default;
 $o-we-color-warning: #f0ad4e !default;
@@ -46,9 +46,9 @@ $o-we-item-spacing: 8px !default;
 $o-we-item-border-width: 1px !default;
 $o-we-item-border-color: $o-we-bg-darker !default;
 $o-we-item-border-radius: 4px !default;
-$o-we-item-clickable-bg: $o-we-bg-lightest!default;
-$o-we-item-clickable-color: $o-we-fg-light!default;
-$o-we-item-clickable-hover-bg: $o-we-bg-lighter!default;
+$o-we-item-clickable-bg: $o-we-bg-lightest !default;
+$o-we-item-clickable-color: $o-we-fg-light !default;
+$o-we-item-clickable-hover-bg: $o-we-bg-lighter !default;
 $o-we-item-pressed-bg: $o-we-bg-light !default;
 $o-we-item-pressed-color: $o-we-fg-lighter !default;
 
@@ -61,14 +61,20 @@ $o-we-item-pressed-color: $o-we-fg-lighter !default;
     border-bottom: 1px solid white;
     background-image: linear-gradient(-150deg, $o-we-bg-light, $o-we-bg-dark);
 
-    color:  $color-text;
+    color: $color-text;
 }
 
 // ------------------------------------------------------------------
 // Selection wrapper
 // ------------------------------------------------------------------
 
-@mixin o-we-active-wrapper($icon: '\f00c', $top: auto, $right: auto, $bottom: auto, $left: auto) {
+@mixin o-we-active-wrapper(
+    $icon: "\f00c",
+    $top: auto,
+    $right: auto,
+    $bottom: auto,
+    $left: auto
+) {
     box-shadow: 0 0 0 3px $o-brand-primary;
 
     &:not(.fa) {
@@ -101,7 +107,6 @@ $o-checklist-margin-left: 20px;
 $o-checklist-checkmark-width: 2px;
 $o-checklist-before-size: 13px;
 
-
 // Edition colors
 
 // Note: the "base" palettes contain all possible keys a palette should or
@@ -111,29 +116,29 @@ $o-checklist-before-size: 13px;
 
 // Colors
 $o-base-color-palette: (
-    'o-color-1': transparent,
-    'o-color-2': transparent,
-    'o-color-3': transparent,
-    'o-color-4': transparent,
-    'o-color-5': transparent,
+    "o-color-1": transparent,
+    "o-color-2": transparent,
+    "o-color-3": transparent,
+    "o-color-4": transparent,
+    "o-color-5": transparent,
 ) !default;
 $o-color-palettes: (
-    'base-1': (
-        'o-color-1': $o-enterprise-color,
-        'o-color-2': #F0CDA8,
-        'o-color-3': #F6F5F4,
-        'o-color-4': #FFFFFF,
-        'o-color-5': #1B1319,
+    "base-1": (
+        "o-color-1": $o-enterprise-color,
+        "o-color-2": #f0cda8,
+        "o-color-3": #f6f5f4,
+        "o-color-4": #ffffff,
+        "o-color-5": #1b1319,
     ),
-    'base-2': (
-        'o-color-1': #337ab7,
-        'o-color-2': #e9ecef,
-        'o-color-3': #F8F9FA,
-        'o-color-4': #FFFFFF,
-        'o-color-5': #343a40,
+    "base-2": (
+        "o-color-1": #337ab7,
+        "o-color-2": #e9ecef,
+        "o-color-3": #f8f9fa,
+        "o-color-4": #ffffff,
+        "o-color-5": #343a40,
     ),
 ) !default;
-$o-color-palette-name: 'base-1' !default;
+$o-color-palette-name: "base-1" !default;
 
 // Theme colors
 $o-base-theme-color-palette: () !default;
@@ -141,15 +146,15 @@ $o-theme-color-palettes: (
     // alpha -> epsilon are old color names kept for compatibility.
     // They should not be used in the code base anymore and ideally they will
     // not generate any classes for >= 13.4 databases.
-    'base-1': (
-        'alpha': $o-enterprise-action-color,
-        'beta': $o-enterprise-color,
-        'gamma': #5C5B80,
-        'delta': #5B899E,
-        'epsilon': #E46F78,
-    ),
+    "base-1": (
+            "alpha": $o-enterprise-action-color,
+            "beta": $o-enterprise-color,
+            "gamma": #5c5b80,
+            "delta": #5b899e,
+            "epsilon": #e46f78,
+        )
 ) !default;
-$o-theme-color-palette-name: 'base-1' !default;
+$o-theme-color-palette-name: "base-1" !default;
 
 // Greyscale transparent colours
 
@@ -159,73 +164,86 @@ $o-theme-color-palette-name: 'base-1' !default;
 // are added for the same reason.
 
 $o-base-gray-color-palette: (
-    'white': #FFFFFF,
-    '100': #F8F9FA,
-    '200': #E9ECEF,
-    '300': #DEE2E6,
-    '400': #CED4DA,
-    '500': #ADB5BD,
-    '600': #6C757D,
-    '700': #495057,
-    '800': #343A40,
-    '900': #212529,
-    'black': #000000,
+    "white": #ffffff,
+    "100": #f8f9fa,
+    "200": #e9ecef,
+    "300": #dee2e6,
+    "400": #ced4da,
+    "500": #adb5bd,
+    "600": #6c757d,
+    "700": #495057,
+    "800": #343a40,
+    "900": #212529,
+    "black": #000000,
 ) !default;
 $o-transparent-grays: (
-    'black-15': rgba(black, 0.15),
-    'black-25': rgba(black, 0.25),
-    'black-50': rgba(black, 0.5),
-    'black-75': rgba(black, 0.75),
-    'white-25': rgba(white, 0.25),
-    'white-50': rgba(white, 0.5),
-    'white-75': rgba(white, 0.75),
-    'white-85': rgba(white, 0.85),
+    "black-15": rgba(black, 0.15),
+    "black-25": rgba(black, 0.25),
+    "black-50": rgba(black, 0.5),
+    "black-75": rgba(black, 0.75),
+    "white-25": rgba(white, 0.25),
+    "white-50": rgba(white, 0.5),
+    "white-75": rgba(white, 0.75),
+    "white-85": rgba(white, 0.85),
 ) !default;
 $o-gray-color-palettes: () !default;
 $o-gray-color-palettes: map-merge($o-transparent-grays, $o-gray-color-palettes);
-$o-gray-color-palette-name: '' !default;
+$o-gray-color-palette-name: "" !default;
 
 // Color combinations
 $o-base-color-combination: (
-    'bg': 'white',
-    'text': null, // Default to better contrast with the 'bg'
-    'headings': null, // Default to 'text'
-    'h2': null, // Default to 'h(x-1)'
-    'h3': null,
-    'h4': null,
-    'h5': null,
-    'h6': null,
-    'link': null, // Default to BS 'primary' (= first odoo color)
-    'btn-primary': null, // Default to BS 'primary' (= first odoo color)
-    'btn-primary-border': null, // Default to 'btn-primary'
-    'btn-secondary': null, // Default to BS 'secondary' (= second odoo color)
-    'btn-secondary-border': null, // Default to 'btn-secondary'
+    "bg": "white",
+    "text": null,
+    // Default to better contrast with the 'bg'
+    "headings": null,
+    // Default to 'text'
+    "h2": null,
+    // Default to 'h(x-1)'
+    "h3": null,
+    "h4": null,
+    "h5": null,
+    "h6": null,
+    "link": null,
+    // Default to BS 'primary' (= first odoo color)
+    "btn-primary": null,
+    // Default to BS 'primary' (= first odoo color)
+    "btn-primary-border": null,
+    // Default to 'btn-primary'
+    "btn-secondary": null,
+    // Default to BS 'secondary' (= second odoo color)
+    "btn-secondary-border": null, // Default to 'btn-secondary'
 );
-$o-color-combinations-presets: (
+// append(..., comma) rather than the `((...),)` trailing-comma form: that lone
+// comma is what makes this a *list of* preset sets rather than the preset set
+// itself, and any formatter that drops it silently changes the value. See the
+// same note on $o-website-values-palettes in website/primary_variables.scss.
+$o-color-combinations-presets: append(
+    (),
     (
         (
-            'bg': 'o-color-4',
+            "bg": "o-color-4",
         ),
         (
-            'bg': 'o-color-3',
-            'headings': 'o-color-5',
+            "bg": "o-color-3",
+            "headings": "o-color-5",
         ),
         (
-            'bg': 'o-color-2',
-            'btn-secondary': 'o-color-3',
+            "bg": "o-color-2",
+            "btn-secondary": "o-color-3",
         ),
         (
-            'bg': 'o-color-1',
-            'link': 'o-color-5',
-            'btn-primary': 'o-color-5',
-            'btn-secondary': 'o-color-3',
+            "bg": "o-color-1",
+            "link": "o-color-5",
+            "btn-primary": "o-color-5",
+            "btn-secondary": "o-color-3",
         ),
         (
-            'bg': 'o-color-5',
-            'headings': 'o-color-4',
-            'btn-secondary': 'o-color-3',
-        ),
+            "bg": "o-color-5",
+            "headings": "o-color-4",
+            "btn-secondary": "o-color-3",
+        )
     ),
+    comma
 ) !default;
 $o-color-combinations-preset-number: 1;
 
@@ -235,7 +253,7 @@ $o-color-combinations-preset-number: 1;
 // work for one level of nesting. Note: snippets which can contain other
 // snippets will have problem because of this; this is a limitation of the
 // system until a better solution is found.
-$o-color-extras-nesting-selector: '&, .o_colored_level &';
+$o-color-extras-nesting-selector: "&, .o_colored_level &";
 
 // Function which returns if a color has contrast enough in comparaison to
 // another given color.
@@ -259,11 +277,18 @@ $o-color-extras-nesting-selector: '&, .o_colored_level &';
     $lightness-inc: if($luma-c1 < $luma-c2, -1%, 1%);
     $i: 0;
     // Max 25% lightness change even if not contrasted enough
-    @while ($lightness-c1 > 0.1% and $lightness-c1 < 99.9% and $i < 25 and not has-enough-contrast($color1, $color2)) {
+    @while (
+        $lightness-c1 >
+            0.1% and
+            $lightness-c1 <
+            99.9% and
+            $i <
+            25 and not
+            has-enough-contrast($color1, $color2)
+    ) {
         $color1: adjust-color($color1, $lightness: $lightness-inc);
         $lightness-c1: $lightness-c1 + $lightness-inc;
         $i: $i + 1;
     }
     @return $color1;
 }
-

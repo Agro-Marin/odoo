@@ -3,11 +3,9 @@
 
 /** @module @web/webclient/currency_service - Service that auto-reloads currencies when res.currency records are mutated */
 
-import { RpcEvent } from "@web/core/events";
-import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { currencies } from "@web/services/currency";
-import { UPDATE_METHODS } from "@web/services/orm_service";
+import { onModelMutation } from "@web/services/orm_service";
 
 /** Service that reloads currencies when res.currency records are mutated. */
 export const currencyService = {
@@ -44,23 +42,16 @@ export const currencyService = {
             }
             Object.assign(currencies, result);
         }
-        rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
-            // Defensive: malformed payloads (null detail, missing data) can
-            // be dispatched to the global rpcBus by tests or synthetic fires;
-            // don't let that throw and pollute other tests via the shared bus.
-            if (!ev.detail?.data?.params) {
-                return;
-            }
-            const { data, error } = ev.detail;
-            const { model, method } = data.params;
-            if (!error && model === "res.currency" && UPDATE_METHODS.includes(method)) {
-                // Fire-and-forget background refresh: a failed
-                // ``get_all_currencies`` must not become an unhandled
-                // rejection (→ user-facing error dialog) for what is only a
-                // best-effort cache update. Mirror the menu-revalidation
-                // pattern and just log it.
-                reloadCurrencies().catch(console.warn);
-            }
+        // Also fires when the write's response was LOST rather than refused:
+        // the rate/rounding change may have committed, and nothing else would
+        // ever refresh `currencies` for the rest of the session.
+        onModelMutation(["res.currency"], () => {
+            // Fire-and-forget background refresh: a failed
+            // ``get_all_currencies`` must not become an unhandled
+            // rejection (→ user-facing error dialog) for what is only a
+            // best-effort cache update. Mirror the menu-revalidation
+            // pattern and just log it.
+            reloadCurrencies().catch(console.warn);
         });
         return { reloadCurrencies };
     },

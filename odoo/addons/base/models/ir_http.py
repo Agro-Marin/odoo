@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 import re
@@ -30,6 +29,7 @@ from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
 from odoo.modules.registry import Registry
 from odoo.service import security
+from odoo.tools.hashing import cache_hash
 from odoo.tools.json import json_default
 from odoo.tools.misc import get_lang, str2bool
 from odoo.tools.translate import code_translations
@@ -459,11 +459,11 @@ class IrHttp(models.AbstractModel):
         if self.env.context.get("cache_translation_data"):
             # put in the transactional cache
             self.env.cr.cache["translation_data"] = translation_cache
-        return hashlib.sha1(
+        return cache_hash(
             json_dumps_bytes(
                 translation_cache, default=json_default, option=OPT_SORT_KEYS
             )
-        ).hexdigest()
+        )
 
     @classmethod
     def _is_allowed_cookie(cls, cookie_type: str) -> bool:

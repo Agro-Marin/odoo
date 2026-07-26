@@ -3,10 +3,11 @@
 
 /** @module @web/webclient/actions/load_state - Restore the action stack from URL state and dispatch the leaf action */
 
-import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
+
+import { actionStorage } from "./action_storage.js";
 
 /** @import { ActionManager } from "./action_service.js" */
 
@@ -38,11 +39,9 @@ export async function loadState(am, state) {
     // (The window AFTER `doAction` enters the KeepLast is already covered by the
     // KeepLast's own supersession.)
     const generation = ++am._loadStateGeneration;
-    const lang = browser.sessionStorage.getItem("current_lang");
+    const lang = actionStorage.getLang();
     if (lang && lang !== user.lang) {
-        browser.sessionStorage.removeItem("current_action");
-        browser.sessionStorage.removeItem("current_lang");
-        browser.sessionStorage.removeItem("current_state");
+        actionStorage.clearRestoreCache();
     }
     let newStack;
     try {

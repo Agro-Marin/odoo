@@ -153,6 +153,7 @@ class ProductTemplate(models.Model):
     has_available_route_ids = fields.Boolean(
         string="Routes can be selected on this product",
         compute="_compute_has_available_route_ids",
+        default=lambda self: self._has_product_selectable_route(),
     )
     route_ids = fields.Many2many(
         comodel_name="stock.route",
@@ -438,8 +439,23 @@ class ProductTemplate(models.Model):
     def _compute_has_available_route_ids(self):
         # Global flag: true iff any selectable route exists, so it's the same for every
         # record with no field/context dependency to declare (it tracks stock.route
-        # config). Only existence matters, so limit=1 avoids counting the whole table.
-        self.has_available_route_ids = bool(
+        # config).
+        self.has_available_route_ids = self._has_product_selectable_route()
+
+    @api.model
+    def _has_product_selectable_route(self):
+        """Whether any route at all can be put on a product.
+
+        Backs both the compute and the field's default. The default is what a
+        form gets: with no ``@api.depends`` to declare — the answer depends on
+        ``stock.route`` config, not on the record — nothing marks the field for
+        recomputation during onchange, so a new product form would read the
+        Boolean's own ``False`` and hide the routes widget even when routes are
+        selectable.
+
+        Only existence matters, so limit=1 avoids counting the whole table.
+        """
+        return bool(
             self.env["stock.route"].search_count(
                 [("product_selectable", "=", True)],
                 limit=1,

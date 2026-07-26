@@ -380,3 +380,169 @@ test(`cold boot: falls back to stored menus when preload is null and refetch fai
             .map((app) => app.name),
     ).toEqual(["StoredApp"]);
 });
+
+// ---------------------------------------------------------------------------
+// getAppIdByAction — the action -> app index behind the URL/menu resolution
+// ---------------------------------------------------------------------------
+
+test("getAppIdByAction prefers the given app when several share the action", async () => {
+    // The pre-existing "menu jumping fix" integration test cannot discriminate
+    // a working tie-break from "pick the first match": its preferred app (100)
+    // is also the first match, so both behaviours agree.
+    //
+    // Iteration order here is NOT declaration order: `menusData` is a plain
+    // object keyed by menu id, and integer-like keys iterate in ascending
+    // NUMERIC order. So app 100 is always the first match and app 200 is the
+    // discriminating case — `getAppIdByAction(9001, 200)` must return 200,
+    // which a tie-break that just took apps[0] would get wrong.
+    defineMenus([
+        { id: 0 },
+        { id: 200, name: "Accounting", appID: 200, children: [201] },
+        { id: 201, name: "Customers", appID: 200, actionID: 9001, parent_id: 200 },
+        { id: 100, name: "Sale", appID: 100, children: [101] },
+        { id: 101, name: "Customers", appID: 100, actionID: 9001, parent_id: 100 },
+    ]);
+    const env = await makeMockEnv();
+    const menuService = env.services.menu;
+
+    // Preferred app wins even though it is not the first match.
+    expect(menuService.getAppIdByAction(9001, 100)).toBe(100);
+    expect(menuService.getAppIdByAction(9001, 200)).toBe(200);
+    // No preference (or an app that doesn't expose the action): first match,
+    // i.e. the lowest app id.
+    expect(menuService.getAppIdByAction(9001)).toBe(100);
+    expect(menuService.getAppIdByAction(9001, 999)).toBe(100);
+    // Unknown action resolves to nothing rather than throwing.
+    expect(menuService.getAppIdByAction(4242)).toBe(undefined);
+});
+
+test("getAppIdByAction matches an action path, not just an id", async () => {
+    defineMenus([
+        { id: 0 },
+        { id: 300, name: "Website", appID: 300, children: [301] },
+        {
+            id: 301,
+            name: "Pages",
+            appID: 300,
+            actionID: 9002,
+            actionPath: "website-pages",
+            parent_id: 300,
+        },
+    ]);
+    const env = await makeMockEnv();
+
+    expect(env.services.menu.getAppIdByAction("website-pages")).toBe(300);
+    expect(env.services.menu.getAppIdByAction(9002)).toBe(300);
+});
+
+test("the action index is rebuilt when the menu tree is reloaded", async () => {
+    // The index is lazy and memoized; a reload() that swapped the tree without
+    // dropping it would answer from menus that no longer exist.
+    defineMenus([
+        { id: 0 },
+        { id: 100, name: "Sale", appID: 100, children: [101] },
+        { id: 101, name: "Customers", appID: 100, actionID: 9001, parent_id: 100 },
+    ]);
+    const env = await makeMockEnv();
+    const menuService = env.services.menu;
+
+    // Populate the index BEFORE the reload, so a stale one would survive it.
+    expect(menuService.getAppIdByAction(9001)).toBe(100);
+
+    onRpc("/web/webclient/load_menus", () => ({
+        root: { id: "root", children: [500], name: "root", appID: "root" },
+        500: { id: 500, name: "Inventory", appID: 500, children: [501] },
+        501: {
+            id: 501,
+            name: "Products",
+            appID: 500,
+            actionID: 9001,
+            children: [],
+            parent_id: 500,
+        },
+    }));
+    await menuService.reload();
+
+    // The old app is gone; the action now belongs to the new one.
+    expect(menuService.getAppIdByAction(9001)).toBe(500);
+});
+
+// ---------------------------------------------------------------------------
+// menu_storage.js invariants
+//
+// The cached trio (payload / version / hash) is only safe to resume from
+// because of two ordering rules, both of which were previously unpinned.
+// ---------------------------------------------------------------------------
+
+const CURRENT_REGISTRY_HASH =
+    "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+
+test.tags("desktop");
+test(`a version-mismatched cache is not served, even though it parses`, async () => {
+    // The version gate is what makes an upgrade take effect: the stored payload
+    // is perfectly valid JSON, it just describes the PREVIOUS registry.
+    //
+    // The discriminator is the REQUEST, not the rendered brand: a warm boot
+    // replays the stored hash (`?hash=`) and paints the cached menus first,
+    // while a cold boot fetches unconditionally. Asserting on the brand alone
+    // cannot tell the two apart, because the warm path's background
+    // revalidation repairs the display before the assertion runs.
+    redirect("/odoo/action-666");
+    browser.localStorage.webclient_menus_version = "a-previous-registry-hash";
+    browser.localStorage.webclient_menus_hash = "stale-hash-abc";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "StaleApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+    onRpc("/web/webclient/load_menus", (request) => {
+        expect.step(`hash=${new URL(request.url).searchParams.get("hash")}`);
+        return {
+            1: { appID: 1, children: [], name: "FreshApp", id: 1, actionID: 666 },
+            root: { id: "root", name: "root", appID: "root", children: [1] },
+        };
+    });
+
+    await mountWebClient();
+
+    // Cold boot: no conditional hash replayed, so the server cannot 304 us back
+    // onto the stale copy.
+    expect.verifySteps(["hash=null"]);
+    expect(`.o_menu_brand`).toHaveText("FreshApp");
+    expect(browser.localStorage.webclient_menus_version).toBe(CURRENT_REGISTRY_HASH);
+});
+
+test.tags("desktop");
+test(`a failed payload write closes the version gate`, async () => {
+    // The version is written LAST so a quota failure cannot leave a CURRENT
+    // stamp over a stale payload. The discriminator therefore needs the stamp
+    // to already be current — otherwise "gate closed" and "gate never opened"
+    // look identical.
+    redirect("/odoo/action-666");
+    browser.localStorage.webclient_menus_version = CURRENT_REGISTRY_HASH;
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "StaleApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    });
+    onRpc("/web/webclient/load_menus", () => ({
+        1: { appID: 1, children: [], name: "FreshApp", id: 1, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1] },
+    }));
+    patchWithCleanup(browser.localStorage, {
+        setItem(key, value) {
+            if (key === "webclient_menus") {
+                throw new Error("QuotaExceededError");
+            }
+            return super.setItem(key, value);
+        },
+    });
+
+    await mountWebClient();
+    await animationFrame();
+
+    // The stale payload is still in storage and still stamped current unless
+    // the gate is explicitly shut — which would make the NEXT boot serve
+    // "StaleApp" forever.
+    expect(browser.localStorage.webclient_menus_version).not.toBe(
+        CURRENT_REGISTRY_HASH,
+    );
+});

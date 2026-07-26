@@ -182,7 +182,35 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    (model, id) pair. `pyToJsModels` maps both `"discuss.channel"` and `"mail.thread"` to the
    `Thread` JS class.
 
-7. **Fork hardening suites are real tests, not scaffolding.** `test_mail_hardening_v2..v11` and
+7. **The internal-subtype filter covers followers only — explicit recipients are
+   notified regardless, and that is intended.** In
+   `mail.followers._get_recipient_data`, the JOIN drops share partners from an
+   `internal = True` subtype (e.g. `mail.mt_note`), but it keys off each
+   *follower's* own subscription; the `pids` branch of the UNION hardcodes
+   `internal = FALSE`, so a partner named in `partner_ids` is always notified.
+   That is deliberate — `test_mail`'s `TestServerActionsEmail.test_action_message_post`
+   asserts a share partner receives a `mail.mt_note` post — so **do not "fix" it**
+   by filtering share partners on the subtype: every contact without a user has
+   `partner_share = True`, so such a guard silences ordinary customer
+   notifications and breaks ~7 `test_mail` tests.
+
+   Know the consequence, though: log-note mode still ships @mentions as
+   `partner_ids` (`static/src/core/common/message_post.js`), so @mentioning a
+   *portal user* in a Log Note e-mails them the note body while
+   `mail.message._get_forbidden_access` denies them read access to that same
+   message (its share-user branch forbids `subtype.internal` before the
+   "notified" exemption is considered). The notification side legitimately
+   out-reaches the read ACL here; any change to that is a product decision, not a
+   bug fix.
+
+8. **Restricted (regex) rendering resolves an expression's declared root.**
+   `mail_allowed_qweb_expressions` (`models/base.py`) is the security boundary for
+   non-`group_mail_template_editor` users, and `_render_regex_resolve` honours the
+   root it names (`object`, `user`); an unknown root is refused, not guessed. Do
+   not go back to `expr.split(".")[1:]` against the record — that made the
+   allow-list and the evaluator disagree about what is being read.
+
+9. **Fork hardening suites are real tests, not scaffolding.** `test_mail_hardening_v2..v12` and
    `test_mail_audit_v6*` are AgroMarin-added regression suites (upstream is the baseline, not
    the ceiling). Keep them green; `_v6` onwards carry dedicated tags, the earlier ones run
    under the `-u mail` filter. See `TEST_TAGS.md`.

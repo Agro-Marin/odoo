@@ -28,6 +28,28 @@ const STANDARD_ACTIVE_ACTIONS = [
 ];
 
 /**
+ * The per-props inputs a caller's ``getEvalParams`` supplies to one
+ * recomputation of the active actions.
+ *
+ * Every member is optional, and that is the point: the default
+ * ``getEvalParams`` returns ``{}``, and ``compute`` supplies its own fallbacks
+ * (``evalContext = {}``, ``readonly = true``, and ``edit ?? crudOptions.edit``
+ * for callers that still pass ``edit`` through ``crudOptions``). Naming the
+ * shape here replaces two implicit contracts that disagreed: ``getEvalParams``
+ * was declared to return an untyped ``Record<any, any>``, while ``compute``'s
+ * parameter type was inferred from its destructuring pattern — which made
+ * ``edit`` REQUIRED, since it alone has no default in the pattern. The two were
+ * therefore mutually unassignable even though the runtime contract is exactly
+ * "any subset of these three".
+ *
+ * @typedef {Object} ActiveActionsEvalParams
+ * @property {Object} [evalContext] context the CRUD domains are evaluated against
+ * @property {boolean} [readonly] whether the field is currently readonly
+ * @property {boolean} [edit] per-props edit permission; falls back to
+ *   ``crudOptions.edit``
+ */
+
+/**
  * Reactive OWL hook for x2m field CRUD permissions. Complements the static
  * `getActiveActions()` in `@web/views/view_utils` which parses view-level XML attributes.
  * The two are intentionally separate: view-level actions are parsed once at arch parse
@@ -38,7 +60,7 @@ const STANDARD_ACTIVE_ACTIONS = [
  * @param {string} params.fieldType
  * @param {Record<string, boolean>} [params.subViewActiveActions={}]
  * @param {Object} [params.crudOptions={}]
- * @param {(props: Record<string, any>) => Record<any, any>} [params.getEvalParams=() => ({})]
+ * @param {(props: Record<string, any>) => ActiveActionsEvalParams} [params.getEvalParams=() => ({})]
  * @returns {RelationalActiveActions}
  */
 export function useActiveActions({
@@ -47,6 +69,7 @@ export function useActiveActions({
     crudOptions = {},
     getEvalParams = () => ({}),
 }) {
+    /** @param {ActiveActionsEvalParams} evalParams */
     const compute = ({ evalContext = {}, readonly = true, edit }) => {
         const result = /** @type {RelationalActiveActions} */ ({
             type: /** @type {any} */ (fieldType),

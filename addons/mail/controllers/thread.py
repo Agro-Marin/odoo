@@ -331,7 +331,15 @@ class ThreadController(http.Controller):
         channels = channel_sudo.parent_channel_id | channel_sudo
         return partner in channels.channel_member_ids.partner_id
 
-    def _prepare_message_data(self, post_data, *, thread, **kwargs):
+    def _prepare_message_data(self, post_data, *, thread, from_create=True, **kwargs):
+        """Build the message values for a post (``from_create=True``) or an edit.
+
+        ``from_create`` is declared explicitly, not read out of ``**kwargs``: it
+        decides whether a default ``message_type`` is injected here, and
+        ``portal`` keys the author attribution of anonymous chatter posts on it.
+        Left undeclared, a caller-side typo degraded silently to "not a create"
+        -- no error, just posts that stop being attributed to the portal partner.
+        """
         res = {
             key: value
             for key, value in post_data.items()
@@ -400,7 +408,13 @@ class ThreadController(http.Controller):
                     )
                 ),
             ).ids
-        res.setdefault("message_type", "comment")
+        if from_create:
+            # Only a *new* message gets a default type. On the edit path this
+            # value reached _message_update_content, which ignores it -- inert,
+            # but its docstring invites kwargs "to match mail.message fields to
+            # update", so honouring it later would silently retype edited
+            # messages.
+            res.setdefault("message_type", "comment")
         return res
 
     @http.route("/mail/message/post", methods=["POST"], type="jsonrpc", auth="public")

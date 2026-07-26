@@ -61,7 +61,7 @@ class TestSaleFlowTourPostInstall(TestSaleCommon, HttpCase):
             'line_ids': [Command.create({
                 'name': self.product.name,
                 'product_id': self.product.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             })],
         })
         sale_order.action_confirm()

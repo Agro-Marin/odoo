@@ -1,6 +1,5 @@
 import datetime
 import gc
-import hashlib
 import itertools
 import json
 import logging
@@ -16,6 +15,7 @@ from odoo.api import Environment
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
+from odoo.tools.hashing import cache_hash
 
 from . import db as modules_db
 from .migration import MigrationManager
@@ -62,7 +62,8 @@ _GC_FULL_CYCLE_EVERY = 16
 
 # Format version of ir_module_module.data_file_checksums; bump to invalidate
 # every stored entry when the loader's semantics change.
-_DATA_FILE_CHECKSUM_VERSION = 1
+# 2: digests moved from sha256 to the tools.hashing content algorithm.
+_DATA_FILE_CHECKSUM_VERSION = 2
 
 # Raw markers whose presence makes an XML data file "dynamic": its conversion
 # has effects beyond upserting the records it declares (<function> calls
@@ -73,8 +74,13 @@ _DYNAMIC_XML_MARKERS = (b"<function", b"<delete")
 
 
 def _scan_data_file(filename: str, content: bytes) -> tuple[str, bool]:
-    """Return ``(sha256 hexdigest, dynamic)`` for a data file's raw content."""
-    digest = hashlib.sha256(content).hexdigest()
+    """Return ``(hexdigest, dynamic)`` for a data file's raw content.
+
+    The digest algorithm is the one :mod:`odoo.tools.hashing` selected; stored
+    values are invalidated wholesale by ``_DATA_FILE_CHECKSUM_VERSION``, so
+    they never need to be self-describing.
+    """
+    digest = cache_hash(content)
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     dynamic = ext == "sql" or (
         ext == "xml" and any(marker in content for marker in _DYNAMIC_XML_MARKERS)

@@ -78,13 +78,18 @@ class TestMessageHelpersRobustness(MailCommon, HttpCase):
 
     def test_load_message_failures(self):
         self.authenticate(self.user_employee.login, self.user_employee.login)
-        with contextlib.suppress(Exception), mute_logger('odoo.http', 'odoo.db.cursor'):  # suppress logged error due to readonly route doing an update
-            result = self.make_jsonrpc_request("/mail/data", {"fetch_params": ["failures"]})
+        result = self.make_jsonrpc_request("/mail/data", {"fetch_params": ["failures"]})
+        # the payload never mentions the deleted record
         self.assertEqual(sorted(r['thread']['id'] for r in result['mail.message']), sorted(self.test_records_simple[:2].ids))
         self.assertEqual(
             sorted(self.env['mail.notification'].search([('author_id', '=', self.partner_employee.id)]).mapped('mail_message_id.res_id')),
-            sorted((self.test_records_simple - self.deleted_record).ids),
-            'Should have cleaned notifications linked to unexisting records'
+            sorted(self.test_records_simple.ids),
+            'Notifications on deleted records survive this call by design: /mail/data is '
+            'readonly=True, so garbage-collecting them here would attempt a write on a '
+            'read-replica cursor and break the whole response. The unlink is deferred to the '
+            'next read/write request or to autovacuum (see '
+            'WebclientController._process_request_for_logged_in_user); the payload asserted '
+            'above already filters them out, which is what the client actually sees.'
         )
 
     def test_load_message_failures_use_display_name(self):

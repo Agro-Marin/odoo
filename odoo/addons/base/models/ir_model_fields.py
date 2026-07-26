@@ -1050,11 +1050,18 @@ class IrModelFields(models.Model):
     def _all_manual_field_data(self) -> dict[str, dict[str, Any]]:
         cr = self.env.cr
         # we cannot use self._fields to determine translated fields, as it has not been set up yet
-        cr.execute("""
+        # prepare=False: ir_model_fields is extended by modules (mail, sms, ...),
+        # so this SELECT * changes result shape on install. Cached as a prepared
+        # plan, the next such ALTER makes every later registry setup on this
+        # connection raise "cached plan must not change result type".
+        cr.execute(
+            """
             SELECT *, field_description->>'en_US' AS field_description, help->>'en_US' AS help
             FROM ir_model_fields
             WHERE state = 'manual'
-        """)
+        """,
+            prepare=False,
+        )
         result: dict[str, dict[str, Any]] = defaultdict(dict)
         for row in cr.dictfetchall():
             result[row["model"]][row["name"]] = row

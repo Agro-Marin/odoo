@@ -1,4 +1,5 @@
 import contextlib
+from functools import partial
 from unittest.mock import MagicMock, Mock, patch
 
 from werkzeug.exceptions import NotFound
@@ -107,6 +108,23 @@ def MockRequest(
         website=website,
         render=lambda *a, **kw: "<MockResponse>",
     )
+    # Real response builders, not ``Mock``'s attribute autovivification. A
+    # ``type="http"`` route that answers JSON -- ``/shop/address/submit``,
+    # ``/my/address/submit``, the portal chatter routes -- returns
+    # ``request.make_json_response(...)``, and ``route_wrapper`` validates that
+    # return value through ``Response.load``. An auto-created ``Mock`` is not a
+    # ``str``/``bytes``/``None``/``Response``, so every such route raised
+    # ``TypeError: ... returns an invalid value`` the moment it was called under
+    # this mock, no matter what the test was actually asserting.
+    #
+    # These two mixin methods are self-contained -- ``make_response`` only builds
+    # a ``Response``, and ``make_json_response`` only calls ``self.make_response``
+    # -- so binding the genuine implementations to the mock is both safe and more
+    # faithful than a stub: routes get a real ``Response`` and tests can assert on
+    # the JSON body. ``render`` above stays stubbed because it needs the serving
+    # stack, which is exactly the thing this mock exists to avoid.
+    request.make_response = partial(odoo.http.Request.make_response, request)
+    request.make_json_response = partial(odoo.http.Request.make_json_response, request)
     if url_root is not None:
         request.httprequest.url = url_join(url_root, path)
     # ``website_routing`` must ALWAYS be a real value, never left to ``Mock``'s

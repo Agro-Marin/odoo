@@ -227,7 +227,16 @@ export class MultiRecordController extends Component {
 
     // Extension points
 
-    /** Override to provide view-specific exportable fields. */
+    /**
+     * Override to provide view-specific exportable fields.
+     *
+     * Annotated rather than inferred: `return []` alone infers `never[]`, so
+     * every subclass returning real field objects was an invalid override
+     * (TS2416). The base is an empty extension point, not a claim that the
+     * list is always empty.
+     *
+     * @returns {any[]} view-specific exportable field descriptors
+     */
     getExportableFields() {
         return [];
     }
@@ -269,7 +278,17 @@ export class MultiRecordController extends Component {
         this.deleteRecordsWithConfirmation(this.deleteConfirmationDialogProps);
     }
 
-    /** Intercept action button execution. Return false to prevent execution. */
+    /**
+     * Intercept action button execution. Return false to prevent execution.
+     *
+     * Annotated rather than inferred: an empty `async` body infers
+     * `Promise<void>`, which contradicts this method's own documented contract
+     * and made every subclass that actually returns `false` an invalid
+     * override (TS2416).
+     *
+     * @param {any} clickParams
+     * @returns {Promise<boolean | void>} `false` prevents execution
+     */
     async beforeExecuteActionButton(clickParams) {}
 
     /** Post-processing after action button execution. */

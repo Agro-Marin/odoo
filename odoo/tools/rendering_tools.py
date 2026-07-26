@@ -1,4 +1,5 @@
 import functools
+import numbers
 import re
 from urllib.parse import quote, urlencode
 
@@ -61,6 +62,28 @@ def convert_inline_template_to_qweb(template: str | None) -> Markup:
     return Markup("").join(preview_markup)
 
 
+def renders_as_no_value(result: object) -> bool:
+    """Whether a rendered expression result means "nothing to render", and so
+    falls back to the ``|||`` default.
+
+    Mirrors QWeb's ``t-out`` contract — see ``IrQWeb._compile_directive_out``:
+    *"If the compiled value is None or False, the tag is not added to the
+    render (except [...] if there is default content)"* — which is the engine
+    ``convert_inline_template_to_qweb`` compiles ``{{ expr ||| default }}``
+    down to, so the three rendering engines must agree.
+
+    ``False`` is the ORM's marker for every unset non-numeric field and an
+    empty recordset is its marker for an unset relation; stringifying those
+    would emit the literal ``"False"`` / ``"res.partner()"`` into a subject,
+    body or lang. Numeric zeros are genuine values that must render as ``0``:
+    they are tested separately because ``False == 0`` and ``bool`` subclasses
+    ``int``, so no plain truthiness test can tell them apart.
+    """
+    if isinstance(result, bool):
+        return not result
+    return not result and not isinstance(result, numbers.Number)
+
+
 def render_inline_template(
     template_instructions: list[tuple[str, str, str]], variables: dict[str, object]
 ) -> str:
@@ -70,9 +93,7 @@ def render_inline_template(
 
         if expression:
             result = safe_eval.safe_eval(expression, variables)
-            if result is None or result == "":
-                # Only "no value" triggers the ||| fallback; falsy-but-valid
-                # results (0, False, 0.0) must render as-is.
+            if renders_as_no_value(result):
                 result = default
             if result != "":
                 results.append(str(result))

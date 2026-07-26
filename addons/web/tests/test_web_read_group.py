@@ -389,3 +389,118 @@ class TestWebReadGroupContracts(TransactionCase):
             model.formatted_read_group(
                 domain, ["create_date:month"], ["__count"], limit=80
             )
+
+
+@tagged("web_unit", "web_read_group")
+class TestSearchOpenedGroupsBatching(TransactionCase):
+    """``_search_opened_groups`` batches the per-group record fetch.
+
+    Opening N groups used to issue N sequential ``search()`` calls. The batched
+    form must return EXACTLY what the per-group form returned — same records,
+    same order, same tie resolution — because the within-group order is a
+    contract with the client's page-2 fetch.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Partner = cls.env["res.partner"]
+        # Enough groups to cross the SQL chunk boundary, with deliberate ties
+        # on the sort key so tie resolution is actually exercised.
+        cls.parents = Partner.create(
+            [{"name": f"SOG P{i:03d}", "is_company": True} for i in range(60)]
+        )
+        Partner.create(
+            [
+                {
+                    "name": f"SOG C{i:03d}-{j:02d}",
+                    "parent_id": parent.id,
+                    "ref": f"TIE{j % 3}",
+                }
+                for i, parent in enumerate(cls.parents)
+                for j in range(10)
+            ]
+        )
+        cls.domain = [("parent_id", "in", cls.parents.ids)]
+
+    def _records_per_group(self, n_groups, order, limit, offset):
+        Partner = self.env["res.partner"]
+        groups = Partner.formatted_read_group(self.domain, ["parent_id"], ["__count"])
+        opening = [
+            {
+                "value": group["parent_id"][0],
+                "folded": False,
+                "offset": offset,
+                "limit": limit,
+            }
+            for group in groups[:n_groups]
+        ]
+        self.env.invalidate_all()
+        result = Partner.with_context(max_number_opened_groups=100000).web_read_group(
+            self.domain,
+            ["parent_id"],
+            ["__count"],
+            order=order,
+            opening_info=opening,
+            unfold_read_specification={"display_name": {}},
+        )
+        return [
+            [record["id"] for record in group.get("__records", [])]
+            for group in result["groups"]
+        ]
+
+    def test_batched_matches_per_group_search(self):
+        """Batched output is identical to the original per-group ``search()``."""
+        Base = type(self.env["res.partner"])
+        batched = Base._search_opened_groups
+
+        def per_group(model, records_opening_info, domain, order_searches):
+            return [
+                (
+                    model.search(
+                        domain & sub["domain"],
+                        order=order_searches,
+                        limit=sub["limit"],
+                        offset=sub["offset"],
+                    )
+                    if sub["group"]["__count"]
+                    else model.browse()
+                )
+                for sub in records_opening_info
+            ]
+
+        scenarios = [
+            (n, order, limit, offset)
+            # 1 exercises the single-group fast path, 60 crosses the chunk size.
+            for n in (1, 2, 7, 55, 60)
+            for order in (None, "name desc", "ref asc", "ref desc, name asc")
+            for limit in (3, 20)
+            for offset in (0, 2)
+        ]
+        try:
+            for n, order, limit, offset in scenarios:
+                with self.subTest(n=n, order=order, limit=limit, offset=offset):
+                    Base._search_opened_groups = per_group
+                    expected = self._records_per_group(n, order, limit, offset)
+                    Base._search_opened_groups = batched
+                    actual = self._records_per_group(n, order, limit, offset)
+                    self.assertEqual(actual, expected)
+        finally:
+            Base._search_opened_groups = batched
+
+    def test_batching_collapses_round_trips(self):
+        """Opening many groups must not issue one query per group."""
+        n_groups = 60
+        self.env.invalidate_all()
+        self.env.cr.flush()
+        before = self.env.cr.sql_log_count
+        self._records_per_group(n_groups, None, 5, 0)
+        queries = self.env.cr.sql_log_count - before
+        # The per-group form cost >= n_groups queries on its own; batching must
+        # stay far below that. Asserting a generous bound keeps the test about
+        # the algorithmic shape, not an exact query count.
+        self.assertLess(
+            queries,
+            n_groups // 2,
+            f"expected batched fetch, got {queries} queries for {n_groups} groups",
+        )

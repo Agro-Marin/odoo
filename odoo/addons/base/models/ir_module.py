@@ -294,14 +294,17 @@ class IrModuleModule(models.Model):
     to_buy = fields.Boolean("Odoo Enterprise Module", default=False)
     has_iap = fields.Boolean(compute="_compute_has_iap")
     # Written by odoo.modules.loading.load_data (raw SQL) after each successful
-    # upgrade: {"v": 1, "files": {<filename>: {"sha": ..., "xmlids": [...],
-    # "dyn": bool}}}.  Lets the next upgrade skip converting data files whose
-    # content did not change.  Not meant to be edited through the ORM.
+    # upgrade: {"v": <_DATA_FILE_CHECKSUM_VERSION>, "files": {<filename>:
+    # {"sha": ..., "xmlids": [...], "dyn": bool}}}.  Lets the next upgrade skip
+    # converting data files whose content did not change.  The "v" key gates the
+    # whole entry, so bumping it is how a digest-algorithm change invalidates
+    # every stored value.  Not meant to be edited through the ORM.
     data_file_checksums = fields.Json(readonly=True, prefetch=False)
-    # sha256 of the module directory at its last successful install/upgrade
-    # (see odoo.modules.module.module_content_checksum), stamped by
-    # load_module_graph.  button_upgrade uses it to leave unchanged modules
-    # out of upgrade cascades.
+    # "<algo>:<hex>" digest of the module directory at its last successful
+    # install/upgrade (see odoo.modules.module.module_content_checksum), stamped
+    # by load_module_graph.  button_upgrade uses it to leave unchanged modules
+    # out of upgrade cascades; a value carrying a different algorithm tag simply
+    # compares unequal, so the module upgrades instead of being skipped.
     content_checksum = fields.Char(readonly=True, prefetch=False)
 
     _name_uniq = models.Constraint(

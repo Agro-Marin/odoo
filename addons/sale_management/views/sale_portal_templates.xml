@@ -9,7 +9,7 @@
                         title="Remove one"
                         aria-label="Remove one"
                         href="#"
-                        t-att-class="'opacity-50' if line.product_uom_qty == 0 else 'js_update_line_json'"
+                        t-att-class="'opacity-50' if line.product_qty == 0 else 'js_update_line_json'"
                         t-att-data-line-id="line.id"
                         t-att-data-remove="True"
                     >
@@ -20,7 +20,7 @@
                     type="text"
                     class="js_quantity form-control"
                     t-att-data-line-id="line.id"
-                    t-att-value="int(line.product_uom_qty) or '0'"
+                    t-att-value="int(line.product_qty) or '0'"
                 />
                 <span class="d-print-none input-group-text d-none d-md-inline-block">
                     <a
@@ -39,7 +39,7 @@
             </div>
         </div>
         <div t-else="">
-            <span t-field="line.product_uom_qty"/>
+            <span t-field="line.product_qty"/>
             <span t-field="line.product_uom_id"/>
         </div>
     </template>

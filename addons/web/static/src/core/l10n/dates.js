@@ -122,11 +122,33 @@ export class ConversionError extends Error {
 
 /**
  * Returns whether the given DateTime is valid (between 1000-01-01 and 9999-12-31).
+ *
+ * Declared as a TYPE PREDICATE so the parse fallback chain in
+ * ``parseDateTime`` narrows: that function reassigns ``result`` from
+ * ``parseSmartDateInput`` (``NullableDateTime``), then guards with
+ * ``if (!isValidDate(result)) { throw }`` before calling ``result.reconfigure``
+ * / ``result.setZone``. Without the predicate every one of those calls is
+ * "possibly null" even though the throw above makes them unreachable.
+ *
+ * CAVEAT — the predicate is precise on the TRUE branch and deliberately
+ * approximate on the FALSE one: a Luxon ``DateTime`` that is merely invalid or
+ * out of range also returns ``false``, so the negative branch narrows to
+ * ``null | false`` while it could still hold a ``DateTime``. That is sound for
+ * every caller today — this function is module-private and all six call sites
+ * are ``if (!isValidDate(result))`` branches that either reassign ``result`` or
+ * throw, never read it as a date. A future caller that wants the rejected
+ * DateTime back in the false branch must not use this guard.
+ *
+ * ``Boolean(...)`` because a type predicate must return ``boolean``: the bare
+ * ``date && ...`` chain evaluates to ``null | false | boolean``, which also
+ * contradicted the "Returns whether" contract.
+ *
  * @param {NullableDateTime} date
+ * @returns {date is DateTime}
  */
 function isValidDate(date) {
-    return (
-        date && date.isValid && isInRange(date, [getMinValidDate(), getMaxValidDate()])
+    return Boolean(
+        date && date.isValid && isInRange(date, [getMinValidDate(), getMaxValidDate()]),
     );
 }
 
@@ -481,6 +503,13 @@ export function parseDateTime(value, options = {}) {
         parseOpts.numberingSystem = "latn";
     }
 
+    // Annotated, not inferred: TS would type this from the FIRST assignment
+    // only (``DateTime<true> | DateTime<false>``), but the fallback chain below
+    // reassigns it from ``parseSmartDateInput``, which returns
+    // ``NullableDateTime``. Widening here matches both what the variable really
+    // holds between the ``isValidDate`` re-checks and this function's own
+    // declared ``@returns {NullableDateTime}``.
+    /** @type {NullableDateTime} */
     let result = DateTime.fromFormat(value, fmt, parseOpts);
 
     if (!isValidDate(result)) {

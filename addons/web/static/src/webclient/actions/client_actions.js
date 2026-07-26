@@ -78,38 +78,68 @@ function reload(env, action) {
 
 registry.category("actions").add("reload", reload);
 
+/** First probe delay: give a restarting server a moment before asking. */
+const HOME_POLL_INITIAL_DELAY = 1000;
+/**
+ * Ceiling for the exponential backoff between probes. A power of two so the
+ * doubling saturates cleanly (1s, 2s, 4s, 8s, 8s, ...) instead of being
+ * clamped mid-sequence.
+ */
+const HOME_POLL_MAX_DELAY = 8000;
+/** Give up waiting after this long and navigate anyway. */
+const HOME_POLL_DEADLINE = 2 * 60 * 1000; // 2 minutes
+
+/**
+ * Wait for the server to answer again, backing off exponentially.
+ *
+ * Dispatched after an install/upgrade (``base_install_request``,
+ * ``spreadsheet_edition``), i.e. exactly when the server is restarting.
+ *
+ * Previously this retried on a FIXED 250 ms period with no attempt cap and no
+ * deadline: a server that never came back was hammered at 4 req/s forever
+ * while the action's promise never settled. Both are bounded now — the delay
+ * grows to ``HOME_POLL_MAX_DELAY`` (matching the anti-thundering-herd intent
+ * of ``rpc.js``'s own retry backoff) and the wait ends at
+ * ``HOME_POLL_DEADLINE``.
+ *
+ * @returns {Promise<boolean>} whether the server answered before the deadline
+ */
+async function waitForServer() {
+    const deadline = Date.now() + HOME_POLL_DEADLINE;
+    let delay = HOME_POLL_INITIAL_DELAY;
+    for (;;) {
+        await new Promise((resolve) => browser.setTimeout(resolve, delay));
+        try {
+            await rpc("/web/webclient/version_info", {});
+            return true;
+        } catch {
+            if (Date.now() >= deadline) {
+                return false;
+            }
+            delay = Math.min(delay * 2, HOME_POLL_MAX_DELAY);
+        }
+    }
+}
+
 /**
  * Client action to go back home.
+ *
+ * Navigates whether or not the server came back: landing on the server's own
+ * error page is more useful than an action that silently never completes.
  */
 async function home() {
-    await new Promise((resolve) => {
-        const waitForServer = (delay) => {
-            browser.setTimeout(async () => {
-                rpc("/web/webclient/version_info", {})
-                    .then(resolve)
-                    .catch(() => waitForServer(250));
-            }, delay);
-        };
-        waitForServer(1000);
-    });
+    await waitForServer();
     const url = "/" + (browser.location.search || "");
     browser.location.assign(url);
 }
 
 registry.category("actions").add("home", home);
 
-/**
- * Client action to refresh the session context so subsequent HTTP requests
- * carry the right one.
- *
- * @param {Object} env
- * @param {Object} action
- */
-async function reloadContext(env, action) {
-    reload(env, action);
-}
-
-registry.category("actions").add("reload_context", reloadContext);
+// Refreshing the session context so subsequent HTTP requests carry the right
+// one is exactly what ``reload`` does; the former ``reloadContext`` wrapper
+// only forwarded to it. Registered under both keys so the distinct, meaningful
+// action name (used by ``reload_company_service``) is preserved.
+registry.category("actions").add("reload_context", reload);
 
 /**
  * Client action to restore the current controller.

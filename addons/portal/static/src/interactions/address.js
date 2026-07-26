@@ -23,8 +23,19 @@ export class CustomerAddress extends Interaction {
         this.requiredFields.forEach((fieldName) => this._markRequired(fieldName, true));
     }
 
-    async willStart() {
-        await this._onChangeCountry(true);
+    start() {
+        // Deliberately NOT in willStart: dynamicContent handlers are bound only
+        // once willStart resolves, so awaiting this round-trip there leaves
+        // `#save_address` unbound while the form is already on screen. An early
+        // click (or Enter) then falls through to whatever native submission the
+        // markup allows instead of `saveAddress`.
+        //
+        // Nothing here is a prerequisite for submitting: QWeb already rendered
+        // the state list (`country_states`), the zip/city order (`zip_before_city`)
+        // and the base required fields from the same server data -- this call
+        // only *refines* that markup after a country change. So refine once the
+        // handlers exist, and let a mid-flight refinement land whenever it lands.
+        this.waitFor(this._onChangeCountry(true));
     }
 
     async onChangeCountry() {
@@ -45,7 +56,12 @@ export class CustomerAddress extends Interaction {
             {address_type: this.addressType},
         ));
 
-        this.addressForm.phone.placeholder = data.phone_code !== 0 ? `+${data.phone_code}` : '';
+        // The phone input is not in every variant of this form (overrides drop
+        // it for flows that don't collect a phone), and a missing control here
+        // would abort the rest of the country refinement below.
+        if (this.addressForm.phone) {
+            this.addressForm.phone.placeholder = data.phone_code !== 0 ? `+${data.phone_code}` : '';
+        }
 
         // populate states and display
         const selectStates = this.addressForm.state_id;

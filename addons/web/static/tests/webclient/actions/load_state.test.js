@@ -2582,3 +2582,44 @@ describe(`legacy urls`, () => {
         });
     });
 });
+
+describe("corrupt restore cache", () => {
+    // ``current_action`` / ``current_state`` are a best-effort cache: the URL is
+    // the source of truth. They used to be parsed under two different policies
+    // — ``current_action`` inside a try/catch, ``current_state`` bare — so a
+    // corrupt ``current_state`` threw inside `controllersFromState` and
+    // `loadState`'s blanket rescue silently degraded the restore to "leaf
+    // action, no breadcrumbs". `actionStorage` gives both keys one total read,
+    // so a corrupt value now costs nothing beyond the cache itself.
+
+    test(`corrupt current_state still restores the full breadcrumb stack`, async () => {
+        browser.sessionStorage.setItem("current_state", "{not json at all");
+        onRpc("/web/action/load_breadcrumbs", () => [{ display_name: "Partners" }]);
+        redirect("/odoo/action-3/2");
+        await mountWithCleanup(WebClient);
+        await animationFrame();
+
+        expect(".o_form_view").toHaveCount(1);
+        // The ancestor crumb survives: this is what the bare parse used to lose.
+        expect(queryAllTexts(".o_breadcrumb .o_back_button, .o_breadcrumb li")).toEqual(
+            ["Partners"],
+        );
+        // The corrupt entry is dropped on read, then rewritten by the restore's
+        // own pushState — so it is valid again rather than left to fail forever.
+        expect(() =>
+            JSON.parse(browser.sessionStorage.getItem("current_state")),
+        ).not.toThrow();
+    });
+
+    test(`corrupt current_action does not prevent loading an action`, async () => {
+        browser.sessionStorage.setItem("current_action", "{not json at all");
+        redirect("/odoo/action-3");
+        await mountWithCleanup(WebClient);
+        await animationFrame();
+
+        expect(".o_list_view").toHaveCount(1);
+        expect(browser.sessionStorage.getItem("current_action")).not.toBe(
+            "{not json at all",
+        );
+    });
+});

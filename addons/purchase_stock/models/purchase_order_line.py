@@ -337,32 +337,12 @@ class PurchaseOrderLine(models.Model):
 
         return float_round(price_unit, precision_digits=price_unit_prec)
 
-    def _get_procurement_qty(self):
-        self.ensure_one()
-        qty = 0.0
+    def _get_procurement_moves(self):
+        # Receipts procure a purchase line, returns to the vendor hand the
+        # goods back — the mirror of sale, hence the swap. Overrides
+        # order.line.stock.mixin (base_order_stock), which owns the arithmetic.
         outgoing_moves, incoming_moves = self._get_stock_moves_outgoing_incoming()
-
-        for move in outgoing_moves:
-            qty_to_compute = (
-                move.quantity if move.state == "done" else move.product_uom_qty
-            )
-            qty -= move.product_uom_id._compute_quantity(
-                qty_to_compute,
-                self.product_uom_id,
-                rounding_method="HALF-UP",
-            )
-
-        for move in incoming_moves:
-            qty_to_compute = (
-                move.quantity if move.state == "done" else move.product_uom_qty
-            )
-            qty += move.product_uom_id._compute_quantity(
-                qty_to_compute,
-                self.product_uom_id,
-                rounding_method="HALF-UP",
-            )
-
-        return qty
+        return incoming_moves, outgoing_moves
 
     def _get_stock_move_dests_initial_demand(self, move_dests):
         return self.product_id.uom_id._compute_quantity(
@@ -380,13 +360,7 @@ class PurchaseOrderLine(models.Model):
     def _get_stock_moves_outgoing_incoming(self):
         outgoing_moves = self.env["stock.move"]
         incoming_moves = self.env["stock.move"]
-        moves = self.move_ids.filtered(
-            lambda m: (
-                m.state != "cancel"
-                and m.location_dest_usage != "inventory"
-                and m.product_id == self.product_id
-            ),
-        )
+        moves = self._get_transferable_moves()
 
         for move in moves:
             if move._is_purchase_return() and (

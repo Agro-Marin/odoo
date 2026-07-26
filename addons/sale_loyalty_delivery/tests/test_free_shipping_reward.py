@@ -78,7 +78,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': 'Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         self._auto_rewards(order, program)
@@ -103,7 +103,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': 'Product 1B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
                 'price_unit': 81.74,
             })
         ]})
@@ -116,7 +116,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': 'Product 1',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
                 'price_unit': 0.30,
             })
         ]})
@@ -162,7 +162,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         sol1 = self.env['sale.order.line'].create({
             'product_id': self.iPadMini.id,
             'name': 'Large Cabinet',
-            'product_uom_qty': 3.0,
+            'product_qty': 3.0,
             'order_id': order.id,
         })
         self._auto_rewards(order, programs)
@@ -228,7 +228,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         sol1 = self.env['sale.order.line'].create({
             'product_id': self.iPadMini.id,
             'name': 'Large Cabinet',
-            'product_uom_qty': 3.0,
+            'product_qty': 3.0,
             'order_id': order.id,
         })
 
@@ -253,7 +253,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         self.assertEqual(sum([line.price_total for line in order._get_no_effect_on_threshold_lines()]), 0)
         self.assertEqual(order.amount_untaxed, 872.73)
 
-        sol1.product_uom_qty = 4
+        sol1.product_qty = 4
         self._auto_rewards(order, programs)
         self.assertEqual(len(order.line_ids.ids), 4, "We should get a free Large Cabinet")
         self.assertEqual(order.reward_amount, -20 - 320)
@@ -377,13 +377,13 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         self.env['sale.order.line'].create({
             'product_id': self.iPadMini.id,
             'name': self.iPadMini.name,
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'order_id': order.id,
         })
         self.env['sale.order.line'].create({
             'product_id': self.product_delivery_poste.id,
             'name': 'Free delivery charges\nFree Shipping',
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'order_id': order.id,
             'is_delivery': True,
         })
@@ -414,7 +414,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         sol1 = self.env['sale.order.line'].create({
             'product_id': self.iPadMini.id,
             'name': 'Large Cabinet',
-            'product_uom_qty': 3.0,
+            'product_qty': 3.0,
             'order_id': order.id,
         })
 
@@ -439,7 +439,7 @@ class TestSaleCouponProgramRules(TestSaleCouponCommon):
         self.assertEqual(sum(line.price_total for line in order._get_no_effect_on_threshold_lines()), 0)
         self.assertEqual(order.amount_untaxed, 872.73)
 
-        sol1.product_uom_qty = 1
+        sol1.product_qty = 1
         self._auto_rewards(order, programs)
         self.assertEqual(len(order.line_ids.ids), 2, "We should loose the free delivery reward since we are above 872.73$")
         self.assertEqual(order.reward_amount, 0)

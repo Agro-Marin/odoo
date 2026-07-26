@@ -122,3 +122,51 @@ test("destroying the component during an in-flight batched call is safe", async 
     expect.verifySteps([]);
     expect(".child").toHaveCount(0);
 });
+
+test("a rejection after the initial call is reported, not silently dropped", async () => {
+    // ``def`` (Promise.withResolvers) settles exactly once, so only the FIRST
+    // invocation's rejection can reach OWL through onWillStart. A later
+    // rejection lands on an already-settled deferred and disappears; the hook
+    // must at least make it observable.
+    const record = makeRecord({ foo: "abc" });
+    const errors = [];
+    const originalError = console.error;
+    console.error = (...args) => errors.push(args);
+
+    class Child extends Component {
+        static template = xml`<span class="child"/>`;
+        static props = ["record"];
+        setup() {
+            useRecordObserver(async (rec) => {
+                expect.step(`observed:${rec.data.foo}`);
+                if (rec.data.foo === "boom") {
+                    throw new Error("callback blew up");
+                }
+            });
+        }
+    }
+    class Parent extends Component {
+        static components = { Child };
+        static template = xml`<Child record="state.record"/>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ record });
+        }
+    }
+    try {
+        await mountWithCleanup(Parent);
+        expect.verifySteps(["observed:abc"]);
+
+        // Second invocation rejects: the component must survive, and the
+        // failure must be reported rather than vanishing.
+        record.data.foo = "boom";
+        await animationFrame();
+        await animationFrame();
+        expect.verifySteps(["observed:boom"]);
+        expect(errors.length).toBe(1);
+        expect(String(errors[0][0])).toInclude("useRecordObserver");
+        expect(String(errors[0][1])).toInclude("callback blew up");
+    } finally {
+        console.error = originalError;
+    }
+});

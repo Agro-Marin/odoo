@@ -59,7 +59,15 @@ export const nameService = {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ orm: any }} services
-     * @returns {{ addDisplayNames: Function, clearCache: Function, loadDisplayNames: Function }}
+     * @returns {{
+     *   addDisplayNames: Function,
+     *   clearCache: Function,
+     *   loadDisplayNames: Function,
+     *   destroy: () => void,
+     * }} ``destroy`` detaches the module-level ``userBus`` listener — it is part
+     *   of the service's contract (the service registry calls it on env
+     *   teardown), not an internal, so it belongs in the annotation. It was
+     *   added to the returned object without being declared here.
      */
     start(env, { orm }) {
         // Flat, insertion-ordered LRU: key ``cacheKey(model, id)`` → Deferred.

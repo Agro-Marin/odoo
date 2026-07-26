@@ -5,6 +5,7 @@ import { closestBlock } from "@html_editor/utils/blocks";
 import { isEditorTab, isEmptyBlock } from "@html_editor/utils/dom_info";
 import { closestElement, descendants } from "@html_editor/utils/dom_traversal";
 import { omit, pick } from "@web/core/utils/collections/objects";
+import { debounce } from "@web/core/utils/timing";
 
 /** @typedef {import("./powerbox/powerbox_plugin").PowerboxCommand} PowerboxCommand */
 /** @typedef {import("@html_editor/core/selection_plugin").EditorSelection} EditorSelection */
@@ -64,7 +65,7 @@ export class PowerButtonsPlugin extends Plugin {
     /** @type {import("plugins").EditorResources} */
     resources = {
         layout_geometry_change_handlers: this.updatePowerButtons.bind(this),
-        selectionchange_handlers: this.updatePowerButtons.bind(this),
+        selectionchange_handlers: this.triggerDebouncedUpdatePowerButtons.bind(this),
         post_mount_component_handlers: this.updatePowerButtons.bind(this),
     };
 
@@ -73,6 +74,29 @@ export class PowerButtonsPlugin extends Plugin {
             "oe-power-buttons-overlay",
         );
         this.createPowerButtons();
+        // Same shape as HintPlugin's `debounceHints`: selection changes arrive
+        // in bursts (every caret move fires one), and each update measures the
+        // block, clones it to size the placeholder, and repositions the
+        // overlay — layout work worth collapsing. Opt out with
+        // `debouncePowerbuttons: false` when a caller needs the position
+        // settled synchronously.
+        const shouldDebounce = this.config.debouncePowerbuttons !== false;
+        if (shouldDebounce) {
+            this.debouncedUpdatePowerButtons = debounce(
+                this.updatePowerButtons.bind(this),
+                30,
+            );
+        } else {
+            this.debouncedUpdatePowerButtons = this.updatePowerButtons.bind(this);
+        }
+    }
+
+    triggerDebouncedUpdatePowerButtons() {
+        // Hide synchronously, reposition on the trailing edge: the buttons are
+        // anchored to the block the caret just left, so leaving them on screen
+        // for the debounce window would show them at a stale position.
+        this.powerButtonsContainer.classList.add("d-none");
+        this.debouncedUpdatePowerButtons();
     }
 
     createPowerButtons() {
@@ -210,7 +234,10 @@ export class PowerButtonsPlugin extends Plugin {
         if (frameElement) {
             referenceRect = frameElement.getBoundingClientRect();
         }
-        const placeholderWidth = this.getPlaceholderWidth(block) + 20;
+        // 30px gap between the end of the placeholder text and the buttons.
+        // The surrounding formula cancels the container's offset inside the
+        // overlay, so this constant is the on-screen gap itself.
+        const placeholderWidth = this.getPlaceholderWidth(block) + 30;
         let newButtonContainerLeft;
         const editableRect = this.editable.getBoundingClientRect();
         if (direction === "rtl") {

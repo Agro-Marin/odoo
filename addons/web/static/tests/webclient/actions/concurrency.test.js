@@ -27,6 +27,7 @@ import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { SupersededError } from "@web/core/utils/concurrency";
 import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchBar } from "@web/search/search_bar/search_bar";
@@ -431,6 +432,181 @@ test("a navigation blocked in clearUncommittedChanges can't mount over a newer o
     });
     expect(".o_list_view").toHaveCount(0, {
         message: "A (older, superseded) never mounted",
+    });
+});
+
+test("a switchView blocked in clearUncommittedChanges can't mount over a newer one", async () => {
+    // Same race as the doAction test above, but entered through `switchView`,
+    // which re-checks the navigation generation at its own call site.
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+
+    // Mount action 3 (list) first, unarmed, so the initial dispatch doesn't
+    // consume the one-shot block below.
+    await am.doAction(3);
+    expect(".o_list_view").toHaveCount(1, { message: "action 3 list is shown" });
+
+    const saveDef = new Deferred();
+    let armed = true;
+    am.env.bus.addEventListener(AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
+        if (armed) {
+            armed = false;
+            ev.detail.push(() => saveDef);
+        }
+    });
+
+    // A: switch to calendar — blocks in clearUncommittedChanges.
+    const navA = am.switchView("calendar");
+    await animationFrame();
+    expect(".o_calendar_view").toHaveCount(0, {
+        message: "A is blocked in clearUncommittedChanges, calendar not mounted",
+    });
+
+    // B: a newer, unblocked navigation mounts underneath it.
+    await am.doAction(4);
+    expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
+
+    // Unblock A: it must abort instead of mounting over B.
+    saveDef.resolve(true);
+    await navA;
+    await animationFrame();
+    expect(".o_kanban_view").toHaveCount(1, {
+        message: "B (newer) is still shown after A unblocks",
+    });
+    expect(".o_calendar_view").toHaveCount(0, {
+        message: "A (older, superseded) never mounted",
+    });
+});
+
+test("a restore blocked in clearUncommittedChanges can't mount over a newer one", async () => {
+    // Same race as above, entered through `restore` (a breadcrumb click).
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+
+    await am.doAction(3);
+    await am.doAction(4);
+    expect(".o_kanban_view").toHaveCount(1, { message: "action 4 kanban is shown" });
+    const firstJsId = am.controllerStack[0].jsId;
+
+    const saveDef = new Deferred();
+    let armed = true;
+    am.env.bus.addEventListener(AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
+        if (armed) {
+            armed = false;
+            ev.detail.push(() => saveDef);
+        }
+    });
+
+    // A: breadcrumb back to action 3's list — blocks in clearUncommittedChanges.
+    const navA = am.restore(firstJsId);
+    await animationFrame();
+    expect(".o_list_view").toHaveCount(0, {
+        message: "A is blocked in clearUncommittedChanges, list not mounted",
+    });
+
+    // B: a newer, unblocked navigation mounts underneath it.
+    await am.doAction(4);
+    expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
+
+    saveDef.resolve(true);
+    await navA;
+    await animationFrame();
+    expect(".o_kanban_view").toHaveCount(1, {
+        message: "B (newer) is still shown after A unblocks",
+    });
+    expect(".o_list_view").toHaveCount(0, {
+        message: "A (older, superseded restore) never mounted",
+    });
+});
+
+test("a client action blocked in clearUncommittedChanges can't mount over a newer one", async () => {
+    // Same race as above, entered through the `ir.actions.client` executor,
+    // which re-checks the navigation generation at its own call site.
+    class BlockedClientAction extends Component {
+        static template = xml`<div class="blocked-client-action">A</div>`;
+        static props = ["*"];
+    }
+    actionRegistry.add("blockedClientAction", BlockedClientAction);
+
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+
+    await am.doAction(3);
+    expect(".o_list_view").toHaveCount(1, { message: "action 3 list is shown" });
+
+    const saveDef = new Deferred();
+    let armed = true;
+    am.env.bus.addEventListener(AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
+        if (armed) {
+            armed = false;
+            ev.detail.push(() => saveDef);
+        }
+    });
+
+    // A: client action — blocks in clearUncommittedChanges.
+    const navA = am.doAction("blockedClientAction");
+    await animationFrame();
+    expect(".blocked-client-action").toHaveCount(0, {
+        message: "A is blocked in clearUncommittedChanges, nothing mounted yet",
+    });
+
+    // B: a newer, unblocked navigation mounts underneath it.
+    await am.doAction(4);
+    expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
+
+    saveDef.resolve(true);
+    await navA;
+    await animationFrame();
+    expect(".o_kanban_view").toHaveCount(1, {
+        message: "B (newer) is still shown after A unblocks",
+    });
+    expect(".blocked-client-action").toHaveCount(0, {
+        message: "A (older, superseded client action) never mounted",
+    });
+});
+
+test("a loadState blocked reconstructing breadcrumbs can't commit over a newer one", async () => {
+    // Back/forward race: `_controllersFromState` awaits a `load_breadcrumbs`
+    // round-trip OUTSIDE the KeepLast, so two rapid popstates run concurrently.
+    // Whichever reaches `doAction` LAST would otherwise win — mounting the
+    // intermediate page and letting its pushState-on-mount rewrite the URL back
+    // to the stale state. loadState re-checks its navigation-intent counter.
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+
+    const breadcrumbDef = new Deferred();
+    let firstCall = true;
+    patchWithCleanup(am, {
+        async _controllersFromState() {
+            if (firstCall) {
+                firstCall = false;
+                await breadcrumbDef;
+            }
+            return [];
+        },
+    });
+
+    // A: the older popstate (action 3 / list) — blocks reconstructing breadcrumbs.
+    const navA = am.loadState({ action: 3 }).catch((error) => error);
+    await animationFrame();
+    expect(".o_list_view").toHaveCount(0, {
+        message: "A is blocked reconstructing breadcrumbs, nothing mounted yet",
+    });
+
+    // B: the newer popstate (action 4 / kanban) — commits.
+    await am.loadState({ action: 4 });
+    expect(".o_kanban_view").toHaveCount(1, { message: "newer state B is shown" });
+
+    // Unblock A: it must bail with SupersededError instead of committing.
+    breadcrumbDef.resolve();
+    const resultA = await navA;
+    await animationFrame();
+    expect(resultA).toBeInstanceOf(SupersededError);
+    expect(".o_kanban_view").toHaveCount(1, {
+        message: "B (newer) is still shown after A unblocks",
+    });
+    expect(".o_list_view").toHaveCount(0, {
+        message: "A (older, superseded loadState) never committed",
     });
 });
 
@@ -926,7 +1102,7 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     // withhold — so flushing microtasks parks A exactly at the skeleton wait.
     let aSettled = false;
     let aError = null;
-    const promA = action.doAction("clientA", { clearBreadcrumbs: true }).then(
+    action.doAction("clientA", { clearBreadcrumbs: true }).then(
         () => {
             aSettled = true;
         },
@@ -942,8 +1118,13 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
 
     // A newer clearBreadcrumbs navigation supersedes the parked skeleton.
     action.doAction("clientB", { clearBreadcrumbs: true });
-    // Without the guard this await never returns (defA never settles).
-    await promA;
+    // Bounded wait rather than awaiting A's promise directly: without the guard
+    // defA never settles, so an unbounded await hangs the whole suite and the
+    // runner reports an opaque top-level error instead of naming this test.
+    // Capping it makes the regression surface as the `aSettled` assertion below.
+    for (let i = 0; i < 50 && !aSettled; i++) {
+        await animationFrame();
+    }
     // Settled gracefully: the superseded dispatch resolves with no
     // caller-visible error (the SupersededError is contained at its source).
     expect(aSettled).toBe(true);

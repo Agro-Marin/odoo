@@ -111,7 +111,7 @@ class TestLoyalty(TestSaleCouponCommon):
         order.write({
             'line_ids': [(0, 0, {
                 'product_id': self.product_a.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             })]
         })
         order._update_programs_and_rewards()
@@ -422,8 +422,8 @@ class TestLoyalty(TestSaleCouponCommon):
 
         order = self.empty_order
         order.line_ids = [
-            Command.create({'product_id': self.product_A.id, 'product_uom_qty': 1}),
-            Command.create({'product_id': self.product_B.id, 'product_uom_qty': 1}),
+            Command.create({'product_id': self.product_A.id, 'product_qty': 1}),
+            Command.create({'product_id': self.product_B.id, 'product_qty': 1}),
         ]
         order.action_confirm()
 
@@ -668,7 +668,7 @@ class TestLoyalty(TestSaleCouponCommon):
             'partner_id': self.partner.id,
             'line_ids': [Command.create({
                     'product_id': product_A.id,
-                    'product_uom_qty': 3,
+                    'product_qty': 3,
                 })]
         })
 
@@ -699,12 +699,12 @@ class TestLoyalty(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
         ]})
 
@@ -768,7 +768,7 @@ class TestLoyalty(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             }),
         ]})
         order_pricelist_1 = order_no_pricelist.copy()
@@ -941,7 +941,7 @@ class TestLoyalty(TestSaleCouponCommon):
         order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
             'line_ids': [(0, 0, {
-                'product_id': self.product_A.id, 'product_uom_qty': 1, 'price_unit': price
+                'product_id': self.product_A.id, 'product_qty': 1, 'price_unit': price
             }) for price in (5.60, 8.92, 44.91, 217.26, 2400.00)],
         })
 
@@ -976,7 +976,7 @@ class TestLoyalty(TestSaleCouponCommon):
         self.env['loyalty.card'].create({'program_id': loyalty_program.id, 'partner_id': self.partner.id, 'points': 2})
         order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'line_ids': [(0, 0, {'product_id': self.product_D.id, 'product_uom_qty': 1})],
+            'line_ids': [(0, 0, {'product_id': self.product_D.id, 'product_qty': 1})],
         })
 
         order._update_programs_and_rewards()
@@ -993,7 +993,7 @@ class TestLoyalty(TestSaleCouponCommon):
             'line_ids': [Command.create({
                 'product_id': self.product_a.id,
                 'points_cost': 100,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             })],
         })
         order._update_programs_and_rewards()
@@ -1010,10 +1010,10 @@ class TestLoyalty(TestSaleCouponCommon):
             'line_ids': [Command.create({
                 'product_id': self.product_a.id,
                 'points_cost': 100,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             }), Command.create({
                 'product_id': self.env.ref('loyalty.ewallet_product_50').id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
             })],
         })
         order._update_programs_and_rewards()
@@ -1179,7 +1179,7 @@ class TestLoyalty(TestSaleCouponCommon):
                 Command.create({
                     'product_id': reward.reward_product_id.id,
                     'name': '1 Product',
-                    'product_uom_qty': 4.0,
+                    'product_qty': 4.0,
                 }),
             ]
         })
@@ -1266,7 +1266,7 @@ class TestLoyalty(TestSaleCouponCommon):
             'line_ids': [
                 Command.create({
                     'product_id': self.product_a.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }),
             ],
         })
@@ -1276,7 +1276,7 @@ class TestLoyalty(TestSaleCouponCommon):
         # sale_subscription module. Since discount depends on so.plan_id, this triggers
         # a recomputation of the discount.
         # Here we manually call the compute method to simulate the behavior
-        sale_order.line_ids._compute_discount()
+        sale_order.line_ids._compute_price_and_discount()
         reward_line = sale_order.line_ids.filtered('reward_id')
         self.assertEqual(reward_line.discount, 100)
         self.assertEqual(reward_line.price_total, 0)
@@ -1291,7 +1291,7 @@ class TestLoyalty(TestSaleCouponCommon):
             'line_ids': [
                 Command.create({
                     'product_id': self.product_A.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                 }),
             ],
         })

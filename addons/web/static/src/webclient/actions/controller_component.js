@@ -14,7 +14,6 @@ import {
     xml,
 } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
-import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { SupersededError } from "@web/core/utils/concurrency";
@@ -24,6 +23,7 @@ import { useDebugCategory } from "@web/services/debug/debug_context";
 import { user } from "@web/services/user";
 import { View } from "@web/views/view";
 
+import { actionStorage } from "./action_storage.js";
 import { getActionMode } from "./action_views.js";
 
 const actionRegistry = registry.category("actions");
@@ -163,17 +163,27 @@ export function makeControllerComponent(am) {
             // action container to an unbroken state.
             reject(error);
             if (action.target === "new") {
+                // Removing the failed dialog performs the whole pending-slot
+                // recovery on its own: ``remove()`` runs
+                // overlay.remove -> dialog onRemove -> options.onClose ->
+                // ``am._removeDialog(closeParams, removeFn)`` SYNCHRONOUSLY
+                // (no await precedes _removeDialog's identity guard), and that
+                // guard is the single owner of "the dialog going away is the
+                // pending one": it hands ``stolenOnClose`` back to the
+                // committed dialog and clears the slot.
+                //
+                // A second copy of that recovery used to live here. It was
+                // unreachable — by the time it ran, _removeDialog had already
+                // nulled ``nextDialog``, so its guard was always false.
+                // Verified 2026-07-25 by mutation + probe: an identical
+                // unswallowable probe fires 5x from _removeDialog's branch and
+                // 0x from here, and neutering this copy left 2599 tests green
+                // across @web/webclient, @web/views and @web/search.
+                //
+                // INVARIANT: keep the recovery in _removeDialog. Any future
+                // path that tears a pending dialog down WITHOUT going through
+                // its ``remove()`` must clear the slot itself.
                 removeDialogRef.current?.();
-                if (am.nextDialog?.remove === removeDialogRef.current) {
-                    // The failed dialog was still pending: the committed
-                    // dialog (if any) survives (_removeDialog's identity
-                    // guard), so hand back the onClose stolen at dispatch and
-                    // clear the pending slot.
-                    if (am.dialog && !am.dialog.onClose) {
-                        am.dialog.onClose = am.nextDialog.stolenOnClose;
-                    }
-                    am.nextDialog = null;
-                }
                 return;
             }
             const index = am.controllerStack.findIndex(
@@ -248,11 +258,8 @@ export function makeControllerComponent(am) {
                 am.controllerStack = nextStack;
                 am.pushState();
                 this.titleService.setParts({ action: controller.displayName });
-                browser.sessionStorage.setItem(
-                    "current_action",
-                    action._originalAction || "{}",
-                );
-                browser.sessionStorage.setItem("current_lang", user.lang);
+                actionStorage.setCurrentAction(action._originalAction);
+                actionStorage.setLang(user.lang);
             }
             // Flip isMounted before resolve()/trigger: code resumed by the
             // resolved doAction promise (or the UI_UPDATED listeners) must

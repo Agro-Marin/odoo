@@ -183,7 +183,14 @@ export function changeOptionInPopover(blockName, optionName, elementName) {
         `.o_popover span.o-dropdown-item:contains("${elementName}")`,
         `.o_popover div.o-dropdown-item[title="${elementName}"]`,
         `.o_popover span.o-dropdown-item[title="${elementName}"]`,
-        `.o_popover ${elementName}`,
+        // No bare `.o_popover ${elementName}` alternative: elementName is a human
+        // label ("Conditionally", "Buy Now", "Product Yes Variant 2 (Pink)"), and
+        // interpolating a label into selector position can only match by accident
+        // -- it parses as a chain of type selectors, and no element is named after
+        // a UI label. What it does reliably is put arbitrary user text, including
+        // CSS-significant characters, into the selector every caller of this
+        // helper compiles, and it pads failure messages with a selector that was
+        // never going to match.
     ].join(", ");
     return [
         changeOption(blockName, `[data-label='${optionName}'] .dropdown-toggle`),

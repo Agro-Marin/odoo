@@ -17,7 +17,7 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_A.id,
                 'name': '1 Product A',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -29,7 +29,7 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
             (0, False, {
                 'product_id': self.product_B.id,
                 'name': '2 Product B',
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]})
         order._update_programs_and_rewards()
@@ -37,13 +37,13 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
         self.assertEqual(len(order.line_ids.ids), 2, "The promo offer shouldn't have been applied as 2 product A aren't in the order")
 
         # Test case 3 (2 A 1 B): Assert that the reward is given as the product B is now in the order
-        order.write({'line_ids': [(1, order.line_ids[0].id, {'product_uom_qty': 2.0})]})
+        order.write({'line_ids': [(1, order.line_ids[0].id, {'product_qty': 2.0})]})
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
         self.assertEqual(len(order.line_ids.ids), 3, "The promo offer should have been applied, the discount is not created")
 
         # Test case 4 (1 A 1 B): Assert that the reward is removed as we don't buy 2 products B anymore
-        order.write({'line_ids': [(1, order.line_ids[0].id, {'product_uom_qty': 1.0})]})
+        order.write({'line_ids': [(1, order.line_ids[0].id, {'product_qty': 1.0})]})
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
         self.assertEqual(len(order.line_ids.ids), 2, "The promo reward should have been removed as the rules are not matched anymore")
@@ -52,7 +52,7 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
 
         # Test case 5 (1 B): Assert that the reward is removed when the order is modified and doesn't match the rules anymore
         order.write({'line_ids': [
-            (1, order.line_ids[0].id, {'product_uom_qty': 2.0}),
+            (1, order.line_ids[0].id, {'product_qty': 2.0}),
             (2, order.line_ids[0].id, False)
         ]})
         order._update_programs_and_rewards()

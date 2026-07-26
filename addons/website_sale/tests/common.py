@@ -74,11 +74,11 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
             'line_ids': [
                 Command.create({
                     'product_id': cls.product.id,
-                    'product_uom_qty': 5.0,
+                    'product_qty': 5.0,
                 }),
                 Command.create({
                     'product_id': cls.service_product.id,
-                    'product_uom_qty': 12.5,
+                    'product_qty': 12.5,
                 })
             ]
         })

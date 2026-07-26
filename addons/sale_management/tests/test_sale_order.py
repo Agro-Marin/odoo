@@ -350,7 +350,7 @@ class TestSaleOrder(SaleManagementCommon):
 
         optional_product_line.price_unit = 100
         # after changing the quantity of the product, the price unit should not be recomputed
-        optional_product_line.product_uom_qty = 10
+        optional_product_line.product_qty = 10
         self.assertEqual(optional_product_line.price_unit, 100)
 
     def test_reload_template_translations(self):
@@ -415,7 +415,7 @@ class TestSaleOrder(SaleManagementCommon):
 
         # Edit a line & change back to American partner
         with order_form.line_ids.edit(0) as order_line:
-            order_line.product_uom_qty += 1
+            order_line.product_qty += 1
         order_form.partner_id = self.partner
         self.assertSequenceEqual(
             get_form_field_names(order_form),

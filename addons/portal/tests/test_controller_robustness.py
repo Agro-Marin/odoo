@@ -84,14 +84,30 @@ class TestPortalControllerRobustness(HttpCase):
         ValueError (which would leak a traceback to anonymous callers)."""
         self._login()
         cases = [
-            ("/mail/chatter_fetch", {"thread_model": "res.partner", "thread_id": "abc"}),
-            ("/portal/chatter_init", {"thread_model": "res.partner", "thread_id": "abc"}),
-            ("/mail/message/reaction", {"message_id": "abc", "content": "x", "action": "add"}),
+            (
+                "/mail/chatter_fetch",
+                {"thread_model": "res.partner", "thread_id": "abc"},
+            ),
+            (
+                "/portal/chatter_init",
+                {"thread_model": "res.partner", "thread_id": "abc"},
+            ),
+            (
+                "/mail/message/reaction",
+                {"message_id": "abc", "content": "x", "action": "add"},
+            ),
             (
                 "/mail/message/post",
-                {"thread_model": "res.partner", "thread_id": "abc", "post_data": {"body": "hi"}},
+                {
+                    "thread_model": "res.partner",
+                    "thread_id": "abc",
+                    "post_data": {"body": "hi"},
+                },
             ),
-            ("/mail/message/update_content", {"message_id": "abc", "update_data": {"body": "hi"}}),
+            (
+                "/mail/message/update_content",
+                {"message_id": "abc", "update_data": {"body": "hi"}},
+            ),
             ("/mail/update_is_internal", {"message_id": "abc", "is_internal": True}),
         ]
         for route, params in cases:

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { after, beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     edit,
     keyDown,
@@ -975,4 +975,166 @@ test("switching company with no record open performs no access probe", async () 
 
     expect(probed).toBe(false);
     expect(cookie.get("cids")).toBe("2");
+});
+
+// ---------------------------------------------------------------------------
+// Disallowed-ancestor hierarchy
+//
+// ``allowedCompaniesWithAncestors`` carries companies the user may NOT act in,
+// present only so the tree that links the allowed ones can be drawn. Until the
+// ``disallowedAncestorCompanies`` server-state key existed, the mock session
+// hardcoded ``disallowed_ancestor_companies: {}``, so every one of these paths
+// was dead in the JS suites (web and enterprise alike).
+//
+//   Root (disallowed)
+//   ├── Alpha  (allowed)
+//   │   └── Gamma (allowed)
+//   └── Beta   (allowed)
+// ---------------------------------------------------------------------------
+describe("disallowed ancestors", () => {
+    beforeEach(() => {
+        cookie.set("cids", "10");
+        // Nothing in the hoot framework resets cookies between tests, so a
+        // `cids` set here would leak into every later suite in a full run.
+        after(() => cookie.set("cids", "3"));
+        serverState.companies = [
+            { id: 10, name: "Alpha", sequence: 2, parent_id: 99, child_ids: [12] },
+            { id: 11, name: "Beta", sequence: 3, parent_id: 99, child_ids: [] },
+            { id: 12, name: "Gamma", sequence: 4, parent_id: 10, child_ids: [] },
+        ];
+        serverState.disallowedAncestorCompanies = [
+            {
+                id: 99,
+                name: "Root",
+                sequence: 1,
+                parent_id: false,
+                child_ids: [10, 11],
+            },
+        ];
+    });
+
+    test("the disallowed ancestor is rendered but not selectable", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+
+        // The ancestor is drawn so the tree reads correctly...
+        expect(queryAllTexts(".company_label")).toEqual([
+            "Root",
+            "Alpha",
+            "Gamma",
+            "Beta",
+        ]);
+        // ...but its row is disabled, unlike its allowed descendants.
+        expect(
+            queryAllAttributes(".o_switch_company_item", "class").map((c) =>
+                c.includes("disabled"),
+            ),
+        ).toEqual([true, false, false, false]);
+    });
+
+    test("clicking the disallowed ancestor's checkbox is a no-op", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+        expect(cookie.get("cids")).toBe("10");
+
+        await toggleCompany(0); // the Root row
+
+        // The selection is unchanged, so the Confirm/Reset bar never appears
+        // (it is rendered on `companySelector.hasSelectionChanged`) and Root
+        // stays unchecked.
+        expect(".o_switch_company_menu_buttons").toHaveCount(0);
+        expect(
+            queryAllAttributes(
+                ".o_switch_company_item [role=menuitemcheckbox]",
+                "aria-checked",
+            ),
+        ).toEqual(["false", "true", "false", "false"]);
+        expect(cookie.get("cids")).toBe("10");
+    });
+
+    test("selecting an allowed parent cascades to its children only", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+
+        // Alpha is already active; toggle it off, then back on. Turning it on
+        // must cascade to Gamma and must NOT walk up into Root.
+        await toggleCompany(1); // Alpha off (cascades Gamma off)
+        await toggleCompany(1); // Alpha on (cascades Gamma on)
+        await clickConfirm();
+
+        expect(cookie.get("cids")).toBe("10-12");
+    });
+
+    test("select-all skips the disallowed ancestor", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+
+        // Reveal the filter row, which carries the select/deselect-all control.
+        await edit(" ");
+        await animationFrame();
+
+        // Alpha is active, so the control reads "Deselect all": clear first,
+        // then select all, which is the path that must skip Root.
+        await contains("[role=menuitemcheckbox][title='Deselect all']").click();
+        await contains("[role=menuitemcheckbox][title='Select all']").click();
+        await clickConfirm();
+
+        // Root (99) must never appear in the applied company ids.
+        const cids = cookie.get("cids").split("-").map(Number);
+        expect(cids).not.toInclude(99);
+        expect(cids.toSorted((a, b) => a - b)).toEqual([10, 11, 12]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// The id -> company index
+// ---------------------------------------------------------------------------
+
+// `getCompany` memoizes an id -> company Map. Keyed by the companies ARRAY (a
+// WeakMap), so a rebuilt user — which is when the data can actually change —
+// invalidates it for free. A module-level slot compared by hand would need every
+// future call site to remember that comparison.
+//
+// These two describes run in sequence with DISJOINT company sets: a stale index
+// would make the second resolve through the first's companies. Note the sets
+// must be installed in `beforeEach` — the mock user is rebuilt from
+// `serverState` between tests, so assigning inside a test body is too late.
+describe("company index (first set)", () => {
+    beforeEach(() => {
+        cookie.set("cids", "3");
+        // Nothing in the hoot framework resets cookies between tests, so a
+        // `cids` set here would leak into every later suite in a full run.
+        after(() => cookie.set("cids", "3"));
+        serverState.companies = [
+            { id: 3, name: "Hermit", sequence: 1, parent_id: false, child_ids: [] },
+            { id: 4, name: "Kramerica", sequence: 2, parent_id: false, child_ids: [] },
+        ];
+    });
+
+    test("renders its own companies and populates the index", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+        expect(queryAllTexts(".company_label")).toEqual(["Hermit", "Kramerica"]);
+    });
+});
+
+describe("company index (disjoint second set)", () => {
+    beforeEach(() => {
+        cookie.set("cids", "7");
+        // Nothing in the hoot framework resets cookies between tests, so a
+        // `cids` set here would leak into every later suite in a full run.
+        after(() => cookie.set("cids", "3"));
+        serverState.companies = [
+            { id: 7, name: "Vandelay", sequence: 1, parent_id: false, child_ids: [8] },
+            { id: 8, name: "Industries", sequence: 2, parent_id: 7, child_ids: [] },
+        ];
+    });
+
+    test("resolves ids the previous set never had", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+        // Child 8 is reached through `getCompany` during the tree walk, so a
+        // stale index would drop it (or throw) rather than nest it under 7.
+        expect(queryAllTexts(".company_label")).toEqual(["Vandelay", "Industries"]);
+    });
 });

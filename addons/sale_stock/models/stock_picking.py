@@ -1,4 +1,5 @@
 from odoo import Command, api, fields, models
+from odoo.fields import Domain
 from odoo.tools.sql import column_exists, create_column
 
 
@@ -75,17 +76,22 @@ class StockPicking(models.Model):
                 else:
                     picking.move_type = "one"
 
+    def _days_to_deliver_domain(self):
+        # A sale transfer counts once the goods reached the customer. Backs both
+        # the compute and the search below, so they cannot drift apart.
+        return self._effective_transfer_domain() & Domain(
+            "location_dest_id.usage",
+            "=",
+            "customer",
+        )
+
     @api.depends("state", "location_dest_id.usage", "date_done")
     def _compute_days_to_deliver(self):
-        for picking in self:
-            if (
-                picking.state == "done"
-                and picking.location_dest_id.usage == "customer"
-                and picking.date_done
-            ):
-                picking.days_to_deliver = picking.date_done
-            else:
-                picking.days_to_deliver = False
+        # Arithmetic lives in base_order_stock; only the domain is sale-specific.
+        self._compute_effective_transfer_date(
+            "days_to_deliver",
+            self._days_to_deliver_domain(),
+        )
 
     def _get_source_order_date(self):
         # Extends base_order_stock: contribute the sale branch of delay_pass.
@@ -142,7 +148,13 @@ class StockPicking(models.Model):
 
     @api.model
     def _search_days_to_deliver(self, operator, value):
-        return [("date_done", operator, value)]
+        # Mirrors _compute_days_to_deliver: without the domain this matched any
+        # transfer with a date_done, receipts included.
+        return self._search_effective_transfer_date(
+            operator,
+            value,
+            self._days_to_deliver_domain(),
+        )
 
     @api.model
     def _get_source_order_date_paths(self):

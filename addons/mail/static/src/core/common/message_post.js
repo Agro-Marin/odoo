@@ -96,6 +96,31 @@ export function getMentionsFromText(
 }
 
 /**
+ * Keys of the composer `postData` that are consumed here to build the route
+ * parameters and must NOT be forwarded to the server: they are client-side
+ * objects (recordsets, component state), not `message_post` arguments.
+ * `parentId` is consumed by the caller (`Thread.post`) as `parent_id`.
+ *
+ * Every OTHER key is forwarded, because `Composer.postData` is an extension
+ * seam: modules patch it to contribute server-bound values (`portal_rating`
+ * adds `rating_value`). Rebuilding the payload from a fixed whitelist silently
+ * dropped those, so e.g. a portal rating never reached `message_post` and the
+ * posted message carried no rating at all. Forwarding is safe because the
+ * server keeps the final say: `_prepare_message_data` filters `post_data`
+ * against `thread._get_allowed_message_params()`.
+ */
+const CLIENT_ONLY_POST_DATA_KEYS = new Set([
+    "attachments",
+    "cannedResponseIds",
+    "emailAddSignature",
+    "isNote",
+    "mentionedChannels",
+    "mentionedPartners",
+    "mentionedRoles",
+    "parentId",
+]);
+
+/**
  * Assemble the parameters for the `/mail/message/post` route from the composer
  * `postData` and the target `thread`.
  *
@@ -138,6 +163,12 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
         partner_ids.push(...recipientIds);
     }
     postData = {
+        // module-contributed keys first, so the four below always win
+        ...Object.fromEntries(
+            Object.entries(postData).filter(
+                ([key]) => !CLIENT_ONLY_POST_DATA_KEYS.has(key),
+            ),
+        ),
         body: await generateEmojisOnHtml(body),
         email_add_signature: emailAddSignature,
         message_type: "comment",

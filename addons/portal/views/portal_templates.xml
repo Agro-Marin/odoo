@@ -596,7 +596,15 @@
                         Log out from all devices
                     </button>
                 </section>
-                <section t-if="debug and allow_api_keys">
+                <!-- Gated on the `portal.allow_api_keys` setting alone. It used
+                     to also require `debug`, which made the "Customer API Keys"
+                     setting a no-op for the customers it names: an admin could
+                     enable it and no portal user would ever see the section
+                     without hand-appending `?debug=1`. The security boundary is
+                     unchanged either way: res.users.apikeys._check_generate_access
+                     still refuses anyone who is neither internal nor a portal
+                     user with the setting on; `debug` only ever hid the UI. -->
+                <section t-if="allow_api_keys">
                     <h4> Developer API Keys <a
                             href="https://www.odoo.com/documentation/latest/developer/reference/external_api.html#api-key"
                             target="_blank">

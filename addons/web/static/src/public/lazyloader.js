@@ -92,16 +92,14 @@ function waitLazy() {
     // TODO should probably find the wrapwrap another way but in future versions
     // the element will be gone anyway.
     const mainEl = document.getElementById("wrapwrap") || document.body;
-    const loadingEffectButtonEls = [
-        ...mainEl.querySelectorAll(BUTTON_HANDLER_SELECTOR),
-    ]
+    const loadingEffectButtonEls = [...mainEl.querySelectorAll(BUTTON_HANDLER_SELECTOR)]
         // We target all buttons but...
-        .filter((el) => {
-            // ... allow disabling the effect via that class. Buttons without
-            // it that get handlers from non-lazy code will show a stuck
-            // loading effect until lazy JS loads — a known compromise (added
-            // as a stable fix), mitigated by caching on later page visits.
-            return (
+        .filter(
+            (el) =>
+                // ... allow disabling the effect via that class. Buttons without
+                // it that get handlers from non-lazy code will show a stuck
+                // loading effect until lazy JS loads — a known compromise (added
+                // as a stable fix), mitigated by caching on later page visits.
                 !el.classList.contains("o_no_wait_lazy_js") &&
                 // ... also exclude links with an href other than "#" — even
                 // if a handler prevents their default, following the link is
@@ -110,9 +108,8 @@ function waitLazy() {
                     el.nodeName === "A" &&
                     el.getAttribute("href") &&
                     el.getAttribute("href") !== "#"
-                )
-            );
-        });
+                ),
+        );
     // Note: this is a limitation/a "risk" to only block and retrigger those
     // specific event types.
     const loadingEffectEventTypes = [
@@ -128,23 +125,9 @@ function waitLazy() {
         for (const eventType of loadingEffectEventTypes) {
             const loadingEffectHandler =
                 eventType === "click"
-                    ? makeButtonHandler(
-                          waitForLazyAndRetrigger,
-                          true,
-                          true,
-                          true,
-                      )
-                    : makeAsyncHandler(
-                          waitForLazyAndRetrigger,
-                          true,
-                          true,
-                          true,
-                      );
-            registerLoadingEffectHandler(
-                buttonEl,
-                eventType,
-                loadingEffectHandler,
-            );
+                    ? makeButtonHandler(waitForLazyAndRetrigger, true, true, true)
+                    : makeAsyncHandler(waitForLazyAndRetrigger, true, true, true);
+            registerLoadingEffectHandler(buttonEl, eventType, loadingEffectHandler);
         }
     }
 

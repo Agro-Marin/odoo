@@ -17,8 +17,11 @@ registry
     .category("ir.actions.report handlers")
     .addValidation((entry) => typeof entry === "function");
 
-/** @import { ActionManager } from "../action_service.js" */
-/** @import { ReportAction as ReportActionType } from "@web/webclient/actions/action_service" */
+// One specifier per module: tsc gives `@web/webclient/actions/action_service`
+// and `../action_service.js` distinct type identities, so splitting these two
+// imports across both spellings makes structurally identical typedefs
+// mutually unassignable (same trap as action_executors/act_url.js).
+/** @import { ActionManager, ReportAction as ReportActionType } from "../action_service.js" */
 
 /**
  * Execute a report action as a client-side HTML preview.

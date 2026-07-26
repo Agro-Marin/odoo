@@ -461,7 +461,12 @@ class DeliveryCarrier(models.Model):
                 continue
             if line.product_id.type in {"service", "combo"}:
                 continue
-            qty = line.product_uom_id._compute_quantity(line.product_uom_qty, line.product_id.uom_id)
+            # `product_uom_qty` IS the line quantity already converted to the
+            # product's reference UoM, which is the unit `weight`/`volume` are
+            # expressed in. Running it through `_compute_quantity` again converted
+            # a second time and inflated every weight/volume on a line whose UoM
+            # differs from the product's (12 Units sold as 1 Dozen weighed as 144).
+            qty = line.product_uom_qty
             weight += (line.product_id.weight or 0.0) * qty
             volume += (line.product_id.volume or 0.0) * qty
             wv += (line.product_id.weight or 0.0) * (line.product_id.volume or 0.0) * qty

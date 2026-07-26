@@ -1,6 +1,11 @@
 /** @odoo-module native */
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { ICON_SELECTOR, isElement } from "@html_editor/utils/dom_info";
+import {
+    ICON_SELECTOR,
+    isElement,
+    isIconElement,
+    isZwnbsp,
+} from "@html_editor/utils/dom_info";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 
@@ -60,17 +65,42 @@ export class IconPlugin extends Plugin {
         ],
         toolbar_namespace_providers: [
             (targetedNodes) => {
-                if (
-                    targetedNodes.length &&
-                    targetedNodes.every(
-                        // All nodes should be icons, its ZWS child or its ancestors
-                        (node) =>
-                            node.matches?.(ICON_SELECTOR) ||
-                            node.parentElement.matches?.(ICON_SELECTOR) ||
-                            (node.querySelector?.(ICON_SELECTOR) &&
-                                node.isContentEditable !== false),
-                    )
-                ) {
+                if (!targetedNodes.length) {
+                    return;
+                }
+                const isIconInTargetedNodes = targetedNodes.some(isIconElement);
+                // All nodes should be icons, their ZWS children, or their
+                // ancestors. A U+FEFF filler only counts when an icon is
+                // actually among the targeted nodes AND the filler sits
+                // directly beside it: those fillers surround an icon, so
+                // accepting them unconditionally opened the icon toolbar for a
+                // plain collapsed caret that merely shared a paragraph with an
+                // icon.
+                const isIconRelatedNode = (node) => {
+                    if (
+                        node.matches?.(ICON_SELECTOR) ||
+                        node.parentElement?.matches?.(ICON_SELECTOR)
+                    ) {
+                        return true;
+                    }
+                    if (isZwnbsp(node) && isIconInTargetedNodes) {
+                        return Boolean(
+                            isIconElement(node.nextElementSibling) ||
+                            isIconElement(node.previousElementSibling),
+                        );
+                    }
+                    // Node only wraps the icon to apply style on it.
+                    if (
+                        isElement(node) &&
+                        node.isContentEditable !== false &&
+                        node.children.length === 1 &&
+                        isIconElement(node.children[0])
+                    ) {
+                        return true;
+                    }
+                    return false;
+                };
+                if (targetedNodes.every(isIconRelatedNode)) {
                     return this.toolbarNamespace;
                 }
             },

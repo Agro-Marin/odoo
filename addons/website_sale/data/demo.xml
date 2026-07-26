@@ -641,7 +641,7 @@
         <record id="website_sale_order_line_5" model="sale.order.line">
             <field name="order_id" ref="website_sale_order_5"/>
             <field name="product_id" ref="product.product_product_4"/>
-            <field name="product_uom_qty">3</field>
+            <field name="product_qty">3</field>
             <field name="price_unit">349.0</field>
         </record>
 
@@ -735,7 +735,7 @@
         <record id="website_sale_order_line_11" model="sale.order.line">
             <field name="order_id" ref="website_sale_order_10"/>
             <field name="product_id" ref="product.product_product_11"/>
-            <field name="product_uom_qty">2</field>
+            <field name="product_qty">2</field>
             <field name="price_unit">33</field>
         </record>
 
@@ -806,7 +806,7 @@
         <record id="website_sale_order_line_16" model="sale.order.line">
             <field name="order_id" ref="website_sale_order_16"/>
             <field name="product_id" ref="product.product_product_8"/>
-            <field name="product_uom_qty">2</field>
+            <field name="product_qty">2</field>
             <field name="price_unit">1799.0</field>
         </record>
 
@@ -824,7 +824,7 @@
         <record id="website_sale_order_line_17" model="sale.order.line">
             <field name="order_id" ref="website_sale_order_17"/>
             <field name="product_id" ref="product.product_product_9"/>
-            <field name="product_uom_qty">7</field>
+            <field name="product_qty">7</field>
             <field name="price_unit">47.0</field>
             <field name="invoice_state">to do</field>
         </record>
@@ -843,7 +843,7 @@
         <record id="website_sale_order_line_18" model="sale.order.line">
             <field name="order_id" ref="website_sale_order_18"/>
             <field name="product_id" ref="product.product_product_9"/>
-            <field name="product_uom_qty">3</field>
+            <field name="product_qty">3</field>
             <field name="price_unit">47.0</field>
             <field name="invoice_state">to do</field>
         </record>

@@ -270,7 +270,7 @@ class SaleOrder(models.Model):
             'name': reward.description,
             'product_id': product.id,
             'discount': 100,
-            'product_uom_qty': reward.reward_product_qty * claimable_count,
+            'product_qty': reward.reward_product_qty * claimable_count,
             'reward_id': reward.id,
             'coupon_id': coupon.id,
             'points_cost': cost,
@@ -297,12 +297,12 @@ class SaleOrder(models.Model):
             if rewards_to_ignore and line.reward_id in rewards_to_ignore:
                 # Ignore the existing reward line if it was already applied
                 continue
-            if not line.product_uom_qty or not line.price_unit:
+            if not line.product_qty or not line.price_unit:
                 # Ignore lines whose amount will be 0 (bc of empty qty or 0 price)
                 continue
             tax_data = line.tax_ids.compute_all(
                 line.price_unit,
-                quantity=line.product_uom_qty,
+                quantity=line.product_qty,
                 product=line.product_id,
                 partner=line.partner_id,
             )
@@ -396,7 +396,7 @@ class SaleOrder(models.Model):
             if (
                 line.reward_id
                 or line.combo_item_id
-                or not line.product_uom_qty
+                or not line.product_qty
                 or not line_price_unit
                 or not line.product_id.filtered_domain(domain)
             ):
@@ -420,7 +420,7 @@ class SaleOrder(models.Model):
         discountable = 0
         discountable_per_tax = defaultdict(int)
         for line in cheapest_line:
-            discountable += line.price_total / line.product_uom_qty
+            discountable += line.price_total / line.product_qty
             taxes = line.tax_ids.filtered(lambda t: t.amount_type != 'fixed')
             discountable_per_tax[taxes] += line.price_unit * (1 - (line.discount or 0) / 100)
 
@@ -456,13 +456,13 @@ class SaleOrder(models.Model):
         assert reward.discount_applicability == 'specific'
 
         lines_to_discount = self._get_specific_discountable_lines(reward).filtered(
-            lambda line: bool(line.product_uom_qty and line.price_total)
+            lambda line: bool(line.product_qty and line.price_total)
         )
         discount_lines = defaultdict(lambda: self.env['sale.order.line'])
         order_lines = self.line_ids - self._get_no_effect_on_threshold_lines()
         remaining_amount_per_line = defaultdict(int)
         for line in order_lines:
-            if not line.product_uom_qty or not line.price_total:
+            if not line.product_qty or not line.price_total:
                 continue
             remaining_amount_per_line[line] = line.price_total
             if line.reward_id.reward_type == 'discount':
@@ -485,7 +485,7 @@ class SaleOrder(models.Model):
             if line_reward.discount_mode == 'percent':
                 for line in discounted_lines:
                     if line_reward.discount_applicability == 'cheapest':
-                        remaining_amount_per_line[line] *= (1 - line_reward.discount / 100 / line.product_uom_qty)
+                        remaining_amount_per_line[line] *= (1 - line_reward.discount / 100 / line.product_qty)
                     else:
                         remaining_amount_per_line[line] *= (1 - line_reward.discount / 100)
             else:
@@ -515,7 +515,7 @@ class SaleOrder(models.Model):
         discountable_per_tax = defaultdict(int)
         for line in lines_to_discount:
             discountable += remaining_amount_per_line[line]
-            line_discountable = line.price_unit * line.product_uom_qty * (1 - (line.discount or 0.0) / 100.0)
+            line_discountable = line.price_unit * line.product_qty * (1 - (line.discount or 0.0) / 100.0)
             # line_discountable is the same as in a 'order' discount
             #  but first multiplied by a factor for the taxes to apply
             #  and then multiplied by another factor coming from the discountable
@@ -538,7 +538,7 @@ class SaleOrder(models.Model):
         ) + 1
         base_reward_line_values = {
             'product_id': reward_product.id,
-            'product_uom_qty': 1.0,
+            'product_qty': 1.0,
             'tax_ids': [Command.clear()],
             'name': reward.description,
             'reward_id': reward.id,
@@ -562,7 +562,7 @@ class SaleOrder(models.Model):
                     **base_reward_line_values,
                     'name': _("TEMPORARY DISCOUNT LINE"),
                     'price_unit': 0,
-                    'product_uom_qty': 0,
+                    'product_qty': 0,
                     'points_cost': 0,
                 }]
             raise UserError(_("There is nothing to discount"))
@@ -1231,9 +1231,9 @@ class SaleOrder(models.Model):
         products = order_lines.product_id
         products_qties = dict.fromkeys(products, 0)
         for line in order_lines:
-            product_qty = line.product_uom_id._compute_quantity(
-                line.product_uom_qty, line.product_id.uom_id
-            )
+            # Already the line quantity in the product's reference UoM; running
+            # it through _compute_quantity converted a second time.
+            product_qty = line.product_uom_qty
             products_qties[line.product_id] += product_qty
         # Contains the products that can be applied per rule
         products_per_rule = programs._get_valid_products(products)
@@ -1301,16 +1301,16 @@ class SaleOrder(models.Model):
                                 line.is_reward_line
                                 or line.combo_item_id
                                 or line.product_id not in rule_products
-                                or line.product_uom_qty <= 0
+                                or line.product_qty <= 0
                             ):
                                 continue
                             line_price_total = self._get_order_line_price(line, 'price_total')
                             points_per_unit = float_round(
-                                (rule.reward_point_amount * line_price_total / line.product_uom_qty),
+                                (rule.reward_point_amount * line_price_total / line.product_qty),
                                 precision_digits=2, rounding_method='DOWN')
                             if not points_per_unit:
                                 continue
-                            rule_points.extend([points_per_unit] * int(line.product_uom_qty))
+                            rule_points.extend([points_per_unit] * int(line.product_qty))
                 else:
                     # All checks have been passed we can now compute the points to give
                     if rule.reward_point_mode == 'order':

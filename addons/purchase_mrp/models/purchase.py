@@ -123,16 +123,20 @@ class PurchaseOrderLine(models.Model):
     def _get_upstream_documents_and_responsibles(self, visited):
         return [(self.order_id, self.order_id.user_id, visited)]
 
-    def _get_procurement_qty(self):
+    def _get_procurement_qty(self, previous_product_qty=False):
         self.ensure_one()
         # Specific case when we change the qty on a PO for a kit product.
         # We don't try to be too smart and keep a simple approach: we compare the quantity before
         # and after update, and return the difference. We don't take into account what was already
         # sent, or any other exceptional case.
+        # The pre-write quantities arrive through the context here, not through
+        # `previous_product_qty`: purchase_order_line.write() puts them there,
+        # in the reference UoM rather than the line's. The argument is accepted
+        # and forwarded only so purchase and sale share one signature.
         bom = self.env['mrp.bom'].sudo()._bom_find(self.product_id, bom_type='phantom')[self.product_id]
         if bom and 'previous_product_qty' in self.env.context:
             return self.env.context['previous_product_qty'].get(self.id, 0.0)
-        return super()._get_procurement_qty()
+        return super()._get_procurement_qty(previous_product_qty=previous_product_qty)
 
     def _get_stock_move_dests_initial_demand(self, move_dests):
         kit_bom = self.env['mrp.bom']._bom_find(self.product_id, bom_type='phantom')[self.product_id]

@@ -154,7 +154,12 @@ class MailMessage(models.Model):
 
         note_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_note")
         for message, values in zip(self, vals_list, strict=True):
-            values["body"] = ["markup", values["body"]]
+            # Every other property below is applied conditionally; ``body`` was
+            # not, so an override trimming it out of ``properties_names`` (a
+            # supported use of the hook) raised KeyError here instead of simply
+            # omitting the field.
+            if "body" in values:
+                values["body"] = ["markup", values["body"]]
             if message_to_attachments:
                 values["attachment_ids"] = message_to_attachments.get(message.id, {})
             if "author_avatar_url" in properties_names:
@@ -209,11 +214,20 @@ class MailMessage(models.Model):
                     "thread": {
                         # The "add reaction" button must be hidden on messages
                         # whose model does not inherit from mail.thread.
-                        "has_mail_thread": isinstance(
-                            self.env[values["model"]], self.pool["mail.thread"]
+                        # ``model`` is a plain Char: messages outlive the module
+                        # that owned their model, so an uninstall leaves rows
+                        # pointing at a name no longer in the registry. Indexing
+                        # env with it would raise KeyError and take down the
+                        # whole chatter fetch over one stale message.
+                        "has_mail_thread": message.model in self.env
+                        and isinstance(
+                            self.env[message.model], self.pool["mail.thread"]
                         ),
-                        "id": values["res_id"],
-                        "model": values["model"],
+                        # Read off the record, not ``values``: these two are
+                        # always available, whereas ``values`` only carries what
+                        # ``properties_names`` asked for.
+                        "id": message.res_id,
+                        "model": message.model,
                     },
                 }
             )

@@ -143,5 +143,17 @@ capabilities so portal pages can be rendered without the ``website`` module.
         "bundles": [
             "portal.assets_chatter",
         ],
+        # portal.assets_chatter is fetched at runtime by loadBundle() from
+        # chatter/boot/boot_service.js, which ships in web.assets_frontend.
+        # Declaring the parent->child link is what puts the bundle in the ESM
+        # registry's dynamic_bundle_names; without it /web/bundle falls through
+        # to the LEGACY serving path, and the bundle's
+        # `/** @odoo-module native */` files never register -- so the portal
+        # chatter silently never mounts.
+        "dynamic_children": {
+            "web.assets_frontend": [
+                "portal.assets_chatter",
+            ],
+        },
     },
 }

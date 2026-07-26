@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.tools import SQL, formatLang
 
 
-class PurchaseBillUnion(models.Model):
+class PurchaseBillMatch(models.Model):
     _name = "purchase.bill.match"
     _description = "Purchases & Bills Union"
     _auto = False

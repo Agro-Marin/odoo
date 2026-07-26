@@ -7,10 +7,12 @@ from odoo.addons.portal.utils import get_portal_partner
 class PortalThreadController(ThreadController):
     """Portal overrides for chatter post/edit: identify the author from HMAC/token."""
 
-    def _prepare_message_data(self, post_data, *, thread, **kwargs):
+    def _prepare_message_data(self, post_data, *, thread, from_create=True, **kwargs):
         """Attach the portal partner as message author when posting from a public session."""
-        post_data = super()._prepare_message_data(post_data, thread=thread, **kwargs)
-        if kwargs.get("from_create") and request.env.user._is_public():
+        post_data = super()._prepare_message_data(
+            post_data, thread=thread, from_create=from_create, **kwargs
+        )
+        if from_create and request.env.user._is_public():
             if partner := get_portal_partner(
                 thread,
                 kwargs.get("hash"),

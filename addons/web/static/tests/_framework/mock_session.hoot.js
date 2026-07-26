@@ -14,6 +14,7 @@ import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 export const makeSession = ({
     companies,
     db,
+    disallowedAncestorCompanies,
     lang,
     partnerId,
     partnerName,
@@ -56,7 +57,13 @@ export const makeSession = ({
             companies.map((company) => [company.id, company]),
         ),
         current_company: companies[0]?.id,
-        disallowed_ancestor_companies: {},
+        // Was hardcoded ``{}``, so ``allowedCompaniesWithAncestors`` always
+        // equalled ``allowedCompanies`` and the switcher's whole hierarchy
+        // branch (disabled rows, select-all filtering, cascading through a
+        // disallowed node) had no JS coverage anywhere in web or enterprise.
+        disallowed_ancestor_companies: Object.fromEntries(
+            (disallowedAncestorCompanies || []).map((company) => [company.id, company]),
+        ),
     },
     user_context: {
         ...userContext,

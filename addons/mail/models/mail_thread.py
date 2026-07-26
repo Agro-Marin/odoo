@@ -4666,6 +4666,11 @@ class MailThread(models.AbstractModel):
             # non-author recipients, for whom the shortcut cannot apply either.
             # A self-notified author is left to compute their own.
             shared_main_user_id = None
+            # Separate flag rather than "shared_main_user_id is None" as the
+            # "not computed yet" sentinel: None is also the *value* cached for
+            # an author with no user, so the two would be indistinguishable and
+            # the first such author would be recomputed for every recipient.
+            shared_main_user_computed = False
             for user in users:
                 message_for_user = message.with_user(user).with_context(
                     allowed_company_ids=[],
@@ -4680,8 +4685,17 @@ class MailThread(models.AbstractModel):
                 )
                 if author_sudo and author_sudo.id != user.partner_id.id:
                     author_for_user = message_for_user.sudo().author_id
-                    if shared_main_user_id is None:
-                        shared_main_user_id = author_for_user.main_user_id.id
+                    if not shared_main_user_computed:
+                        # ``or None``: _insert_cache writes straight into the
+                        # field cache without conversion, so it must be handed
+                        # the Many2one cache format -- "id or None". An empty
+                        # m2o reads back as ``False``, and caching that ``False``
+                        # builds ``res.users(False,)``: a length-1 recordset
+                        # holding a falsy id, which is truthy, so Store's
+                        # empty-recordset guard misses it and serialising it
+                        # asserts ("missing id id in res.users").
+                        shared_main_user_id = author_for_user.main_user_id.id or None
+                        shared_main_user_computed = True
                     else:
                         main_user_field._insert_cache(
                             author_for_user, [shared_main_user_id]
@@ -6208,7 +6222,14 @@ class MailThread(models.AbstractModel):
             {
                 key: value
                 for key, value in kwargs.items()
-                if key
+                # ``None`` means the optional parameter was not supplied (the
+                # signature default of _redirect_to_record / callers reading an
+                # absent request param). Callers pass them through positionally,
+                # so without this guard urlencode() serialises the *string*
+                # "None" — e.g. "/mail/view?access_token=None&model=..." — and
+                # the redirect target then carries a bogus token.
+                if value is not None
+                and key
                 in (
                     "action",
                     "token",

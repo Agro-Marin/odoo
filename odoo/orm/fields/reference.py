@@ -52,6 +52,20 @@ class Reference(Selection):
         values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
+        # A reference's column format is the string "res_model,res_id", but its
+        # *write* format also admits a recordset (``create({'ref': record})``),
+        # which ``Field.convert_to_column`` rejects as a non-scalar -- rightly,
+        # since ``str()`` on it would persist the repr ``"model(8,)"``.
+        # ``convert_to_cache`` already produces exactly the column format from
+        # either form, so normalise through it rather than duplicating the
+        # model/id formatting (and its selection + existence validation) here.
+        # Only recordsets are routed that way: strings and falsy values already
+        # are the column format, and re-validating them on every UPDATE flush
+        # would add a lookup per write.
+        if is_recordset(value):
+            value = self.convert_to_cache(value, record, validate)
+        # Selection's own override is bypassed: a reference is not one of its
+        # keys, so its selection lookup does not apply.
         return Field.convert_to_column(self, value, record, values, validate)
 
     @override

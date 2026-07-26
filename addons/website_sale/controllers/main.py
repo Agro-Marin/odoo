@@ -12,12 +12,13 @@ from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
 from odoo.http import request, route
-from odoo.tools import SQL, clean_context, float_round, groupby, lazy, str2bool
+from odoo.tools import SQL, clean_context, float_round, groupby, lazy
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.translate import LazyTranslate, _
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.controllers import portal as payment_portal
+from odoo.addons.portal.controllers.portal import _parse_bool_param, _parse_record_id
 from odoo.addons.sale.controllers import portal as sale_portal
 from odoo.addons.html_editor.tools import get_video_thumbnail
 from odoo.addons.website.controllers.main import QueryURL
@@ -661,8 +662,8 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 'image_1920': thumbnail,
             })]
 
-        product_product = request.env['product.product'].browse(int(product_product_id)) if product_product_id else False
-        product_template = request.env['product.template'].browse(int(product_template_id)) if product_template_id else False
+        product_product = request.env['product.product'].browse(_parse_record_id(product_product_id))
+        product_template = request.env['product.template'].browse(_parse_record_id(product_template_id))
 
         if product_product and not product_template:
             product_template = product_product.product_tmpl_id
@@ -689,8 +690,8 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if not request.env.user.has_group('website.group_website_restricted_editor'):
             raise NotFound()
 
-        product_product = request.env['product.product'].browse(int(product_product_id)) if product_product_id else False
-        product_template = request.env['product.template'].browse(int(product_template_id)) if product_template_id else False
+        product_product = request.env['product.product'].browse(_parse_record_id(product_product_id))
+        product_template = request.env['product.template'].browse(_parse_record_id(product_template_id))
 
         if product_product and not product_template:
             product_template = product_product.product_tmpl_id
@@ -723,7 +724,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         ):
             raise NotFound()
 
-        image_res_id = int(image_res_id)
+        image_res_id = _parse_record_id(image_res_id)
         image_to_resequence = request.env[image_res_model].browse(image_res_id)
         if image_res_model == 'product.product':
             product = image_to_resequence
@@ -1021,7 +1022,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         :return: The rendered checkout page.
         :rtype: str
         """
-        try_skip_step = str2bool(try_skip_step or 'false')
+        try_skip_step = _parse_bool_param(try_skip_step)
         order_sudo = request.cart
         request.session['sale_last_order_id'] = order_sudo.id
 
@@ -1094,7 +1095,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         :return: The rendered address form.
         :rtype: str
         """
-        use_delivery_as_billing = str2bool(use_delivery_as_billing or 'false')
+        use_delivery_as_billing = _parse_bool_param(use_delivery_as_billing)
 
         order_sudo = request.cart
         if redirection := self._check_cart(order_sudo):
@@ -1102,10 +1103,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         # Retrieve the partner whose address to update, if any, and its address type.
         partner_sudo, address_type = self._prepare_address_update(
-            order_sudo, partner_id=partner_id and int(partner_id), address_type=address_type
+            order_sudo, partner_id=_parse_record_id(partner_id), address_type=address_type
         )
 
-        use_delivery_as_billing = str2bool(use_delivery_as_billing or 'false')
         if partner_sudo:  # If editing an existing partner.
             use_delivery_as_billing = (
                 partner_sudo == order_sudo.partner_shipping_id == order_sudo.partner_invoice_id
@@ -1204,7 +1204,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         # Retrieve the partner whose address to update, if any, and its address type.
         partner_sudo, address_type = self._prepare_address_update(
-            order_sudo, partner_id=partner_id and int(partner_id), address_type=address_type
+            order_sudo, partner_id=_parse_record_id(partner_id), address_type=address_type
         )
 
         is_new_address = not partner_sudo
@@ -1471,7 +1471,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @route('/shop/update_address', type='jsonrpc', auth='public', website=True)
     def shop_update_address(self, partner_id, address_type='billing', **kw):
-        partner_id = int(partner_id)
+        partner_id = _parse_record_id(partner_id)
 
         if not (order_sudo := request.cart):
             return
@@ -1836,7 +1836,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @route(['/shop/config/category'], type='jsonrpc', auth='user')
     def _change_category_config(self, category_id, **options):
-        category = request.env['product.public.category'].browse(int(category_id))
+        category = request.env['product.public.category'].browse(_parse_record_id(category_id))
         if not category.exists():
             raise NotFound()
 
@@ -1856,7 +1856,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 'item_name': product.name or '-',
                 'item_category': product.categ_id.name or '-',
                 'price': line.price_unit,
-                'quantity': line.product_uom_qty,
+                'quantity': line.product_qty,
             })
         return ret
 
@@ -1882,7 +1882,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def products_recently_viewed_update(self, product_id, **kwargs):
         res = {}
         visitor_sudo = request.env['website.visitor']._get_visitor_from_request(force_create=True)
-        visitor_sudo._add_viewed_product(product_id)
+        visitor_sudo._add_viewed_product(_parse_record_id(product_id))
         return res
 
     @route('/shop/products/recently_viewed_delete', type='jsonrpc', auth='public', website=True)
@@ -1893,9 +1893,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if visitor_sudo:
             domain = [('visitor_id', '=', visitor_sudo.id)]
             if product_id:
-                domain += [('product_id', '=', int(product_id))]
+                domain += [('product_id', '=', _parse_record_id(product_id))]
             else:
-                domain += [('product_id.product_tmpl_id', '=', int(product_template_id))]
+                domain += [
+                    ('product_id.product_tmpl_id', '=', _parse_record_id(product_template_id))
+                ]
             request.env['website.track'].sudo().search(domain).unlink()
         return {}
 
@@ -1979,12 +1981,30 @@ class WebsiteSale(payment_portal.PaymentPortal):
         """ Parses a list of attribute value query params, and returns a dict grouping attribute
         value ids by attribute id.
 
+        Entries that are not a well-formed ``<attribute_id>-<value_id>[,...]``
+        pair are skipped rather than raising. These come straight off the query
+        string of the public ``/shop`` listing, so anything a hand-edited (or
+        truncated, or crawler-mangled) URL can carry has to be survivable:
+        ``?attribute_values=5`` used to raise ``IndexError`` and
+        ``?attribute_values=abc-1`` ``ValueError``, both HTTP 500 on a page
+        reached by clicking a link. A filter that cannot be parsed selects
+        nothing, so dropping it degrades to "no filter" -- the same result the
+        shopper would get by removing it -- while any well-formed sibling
+        entries still apply.
+
         :param list(str) attribute_values: The list of attribute value query parameters to parse.
         :return: A dict grouping attribute value ids by attribute id.
         :rtype: dict(int, list(int))
         """
-        attribute_value_pairs = [value.split('-') for value in attribute_values if value]
-        return {
-            int(pair[0]): [int(value_id) for value_id in pair[1].split(',')]
-            for pair in attribute_value_pairs
-        }
+        result = {}
+        for value in attribute_values:
+            if not value:
+                continue
+            pair = value.split('-')
+            if len(pair) < 2:
+                continue  # No separator: not an "<attribute>-<values>" pair.
+            try:
+                result[int(pair[0])] = [int(value_id) for value_id in pair[1].split(',')]
+            except ValueError:
+                continue  # Non-numeric id somewhere in the pair.
+        return result

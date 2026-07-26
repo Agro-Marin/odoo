@@ -5,8 +5,9 @@
 
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
-import { UPDATE_METHODS } from "@web/services/orm_service";
+import { onModelMutation } from "@web/services/orm_service";
 
+import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import { refreshBreadcrumbDisplayNames } from "./breadcrumb_manager.js";
 
 /**
@@ -23,18 +24,14 @@ import { refreshBreadcrumbDisplayNames } from "./breadcrumb_manager.js";
  *   editor) must call it on teardown to avoid leaking the listener.
  */
 export function installActionCacheInvalidation(am) {
-    const onRpcResponse = async (/** @type {any} */ ev) => {
-        // ``ev.detail`` may be null (synthetic test fire, or a malformed
-        // upstream event); optional-chain so the listener never throws.
-        if (!ev.detail?.data?.params) {
-            return;
-        }
-        const { model, method } = ev.detail.data.params;
-        if (
-            typeof model === "string" &&
-            model.startsWith("ir.actions.") &&
-            UPDATE_METHODS.includes(method)
-        ) {
+    // Model matching is a prefix test, so a predicate rather than a list.
+    // A write REFUSED by the server (RPCError) is filtered out by
+    // ``onModelMutation``: nothing changed, so flushing the disk cache and
+    // refetching breadcrumbs would be pure waste right after the user already
+    // got an error dialog. A write whose response was merely lost still fires.
+    return onModelMutation(
+        (model) => model.startsWith("ir.actions."),
+        async ({ model }) => {
             // Any action-type write (server/report/client/act_url/act_window)
             // stales the /web/action/load disk cache, which has no
             // background revalidation — a stale descriptor was served from
@@ -50,7 +47,13 @@ export function installActionCacheInvalidation(am) {
             }
             // The client-side breadcrumb display-name cache is stale too;
             // flush it so the recomputation below refetches fresh names.
-            am.breadcrumbCache = {};
+            //
+            // A fresh instance, NOT clear(): fetchBreadcrumbs captures the
+            // cache by reference and fills it from a `.then`, so a
+            // load_breadcrumbs issued before this write committed would
+            // repopulate a cleared cache with pre-write names. Replacing
+            // orphans that in-flight result.
+            am.breadcrumbCache = new BreadcrumbCache();
             const stack = am.controllerStack;
             const tip = stack.at(-1);
             if (!tip) {
@@ -74,8 +77,6 @@ export function installActionCacheInvalidation(am) {
                 tip.config.breadcrumbs.length,
                 ...am._getBreadcrumbs(stack),
             );
-        }
-    };
-    rpcBus.addEventListener(RpcEvent.RESPONSE, onRpcResponse);
-    return () => rpcBus.removeEventListener(RpcEvent.RESPONSE, onRpcResponse);
+        },
+    );
 }

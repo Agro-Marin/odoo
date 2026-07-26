@@ -1,11 +1,16 @@
 import logging
 from datetime import timedelta
 
-from odoo import _, api, fields, models
-from odoo.exceptions import AccessError
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
+
+# URL prefixes owned by the asset pipeline. Both spellings of "is this a
+# generated asset" — the Python ``startswith`` test and the ``=like`` domain —
+# are derived from these, so the two can no longer disagree about what counts.
+ASSETS_URL_PREFIX = "/web/assets/"
+ESM_BRIDGES_URL_PREFIX = "/web/assets/esm/bridges/"
 
 
 class IrAttachment(models.Model):
@@ -24,7 +29,7 @@ class IrAttachment(models.Model):
         # SQL to avoid cross-worker thrash. Captured before super() empties the
         # recordset; cache cleared after, once the rows are gone.
         clear_assets = any(
-            url and url.startswith("/web/assets/") for url in self.mapped("url")
+            url and url.startswith(ASSETS_URL_PREFIX) for url in self.mapped("url")
         )
         res = super().unlink()
         if clear_assets:
@@ -47,7 +52,7 @@ class IrAttachment(models.Model):
                 ("res_model", "=", "ir.ui.view"),
                 ("res_id", "=", 0),
                 ("create_uid", "=", api.SUPERUSER_ID),
-                ("url", "=like", "/web/assets/%"),
+                ("url", "=like", f"{ASSETS_URL_PREFIX}%"),
             ]
         )
 
@@ -62,7 +67,7 @@ class IrAttachment(models.Model):
         """
         return self._generated_asset_domain() & Domain.OR(
             [
-                [("url", "=like", "/web/assets/esm/bridges/%")],
+                [("url", "=like", f"{ESM_BRIDGES_URL_PREFIX}%")],
                 [("name", "=like", "%.esm.js")],
                 [("name", "=like", "%.esm.js.map")],
                 [("name", "=like", "%.meta.json")],
@@ -85,13 +90,11 @@ class IrAttachment(models.Model):
         the grace window lazily importing a swept shim 404s until reload —
         accepted; the alternative is unbounded row growth.
         """
-        get_param = self.env["ir.config_parameter"].sudo().get_param
-        try:
-            grace_days = int(
-                get_param("web.esm.gc_grace_days", self._ESM_GC_GRACE_DAYS)
-            )
-        except TypeError, ValueError:
-            grace_days = self._ESM_GC_GRACE_DAYS
+        grace_days = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("web.esm.gc_grace_days", self._ESM_GC_GRACE_DAYS)
+        )
         # Floor at one day: 0/negative makes cutoff >= now and sweeps every
         # bridge (no newest-per-name protection) on every run.
         grace_days = max(1, grace_days)
@@ -104,7 +107,7 @@ class IrAttachment(models.Model):
             return
 
         bridges = candidates.filtered(
-            lambda a: a.url.startswith("/web/assets/esm/bridges/")
+            lambda a: a.url.startswith(ESM_BRIDGES_URL_PREFIX)
         )
         artifacts = candidates - bridges
         stale_artifacts = self.browse()
@@ -153,12 +156,21 @@ class IrAttachment(models.Model):
 
     @api.model
     def regenerate_assets_bundles(self) -> None:
-        # Explicit gate (like force_storage): unlink below would already deny
-        # non-system users via _check_access, but fail fast and clearly.
-        if not self.env.is_admin():
-            raise AccessError(_("Only administrators can execute this action."))
+        # Explicit gate: unlink below would already deny non-system users via
+        # _check_access, but fail fast and clearly (shared with force_storage).
+        self._check_admin_action()
         # Deliberately the BROAD domain: regeneration drops every generated
         # bundle artifact (classic .min.js/.min.css included) so the next
         # render rebuilds them all from source.
-        self.search(self._generated_asset_domain()).unlink()
-        self.env.registry.clear_cache("assets")
+        generated = self.search(self._generated_asset_domain())
+        # `unlink()` clears the "assets" ormcache itself for any row whose url is
+        # under /web/assets/, which this domain guarantees for every row it
+        # matches — so clearing again here was a second, redundant registry-wide
+        # invalidation on the one path where it could never be needed. It IS
+        # needed when the search came back empty and unlink() therefore never
+        # ran: a cache holding nodes for bundles that no longer have rows must
+        # still be dropped, which is exactly the regeneration being asked for.
+        if generated:
+            generated.unlink()
+        else:
+            self.env.registry.clear_cache("assets")

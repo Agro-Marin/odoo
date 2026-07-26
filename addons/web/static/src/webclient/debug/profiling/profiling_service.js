@@ -24,6 +24,13 @@ export const profilingService = {
             return;
         }
 
+        // Declared before `notify`, which closes over it: `notify` is the
+        // reactive callback of `state` below, so any state mutation reaches
+        // `bus.trigger`. Constructing the bus after that wiring only worked
+        // while nothing mutated state synchronously in between -- a TDZ
+        // ReferenceError waiting for the next edit.
+        const bus = new EventBus();
+
         function notify() {
             if (
                 systrayRegistry.contains("web.profiling") &&
@@ -91,7 +98,6 @@ export const profilingService = {
         loadLazyState("profile_collectors", "collectors");
         loadLazyState("profile_params", "params");
 
-        const bus = new EventBus();
         notify();
 
         async function setProfiling(params) {
@@ -109,8 +115,13 @@ export const profilingService = {
             const resp = await orm.call("ir.profile", "set_profiling", [], kwargs);
             if (resp.type) {
                 // most likely an "ir.actions.act_window"
-                env.services.action.doAction(resp);
+                // Fire-and-forget: a superseded or failing action must not
+                // surface as an unhandled rejection.
+                Promise.resolve(env.services.action.doAction(resp)).catch(console.warn);
             } else {
+                // Three writes through the reactive proxy => three `notify`
+                // runs. Not batched: `Object.assign` would still perform three
+                // property sets, and OWL coalesces the resulting renders anyway.
                 state.session = resp.session;
                 state.collectors = resp.collectors;
                 state.params = resp.params;

@@ -440,7 +440,12 @@ class IrCron(models.Model):
             where=where_clause,
         )
         try:
-            cr.execute(query, log_exceptions=False)
+            # prepare=False: the SELECT * above spans ir_cron, a table modules
+            # extend (mail, ...). This runs on every job acquisition, so the plan
+            # would certainly be cached -- and the next module install would then
+            # break the cron worker with "cached plan must not change result
+            # type", which is not a rollback error and so escapes the retry below.
+            cr.execute(query, log_exceptions=False, prepare=False)
         except _TRANSACTION_ROLLBACK_ERRORS:
             # Serialization error: another worker committed the new `nextcall` of a
             # cron it just ran, just before this query. Genuine; skip the job here.

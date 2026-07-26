@@ -41,6 +41,41 @@ export function useRecordObserver(callback) {
         const def = new Deferred();
         const effectId = currentId;
         let firstCall = true;
+        // ``def`` is a ``Promise.withResolvers`` pair, so it settles EXACTLY
+        // ONCE. Only the first invocation's outcome reaches OWL (the hook
+        // returns ``def`` to onWillStart / onWillUpdateProps, which await it);
+        // every later invocation resolves/rejects an already-settled deferred,
+        // which is a silent no-op. That is fine for a success, but it means a
+        // REJECTION from any later callback used to vanish completely — no
+        // dialog, no console entry, nothing to debug — across the ~14 async
+        // ``useRecordObserver`` callbacks in the codebase (e.g. a failed
+        // validity RPC in domain_field left the field's state silently stale).
+        // Superseded/unmounted effects return early below, so anything landing
+        // here is a genuine callback failure. Report it instead of dropping it.
+        // Deliberately console-only: routing it to the error service would pop
+        // a dialog for every transient network blip in a background observer,
+        // which is a UX regression, not an improvement.
+        let settled = false;
+        const runCallback = (record) =>
+            Promise.resolve(callback(record, latestProps)).then(
+                (result) => {
+                    settled = true;
+                    def.resolve(result);
+                },
+                (error) => {
+                    if (!settled) {
+                        settled = true;
+                        def.reject(error);
+                        return;
+                    }
+                    console.error(
+                        "[useRecordObserver] callback failed after the initial " +
+                            "call; the error cannot be surfaced through the " +
+                            "component lifecycle and was swallowed:",
+                        error,
+                    );
+                },
+            );
         // Coalesce all effect notifications within one animation frame.
         const batchedCallback = batched(
             (record) => {
@@ -48,9 +83,7 @@ export function useRecordObserver(callback) {
                     // disposableEffect doesn't clean up on unmount; guard manually.
                     return;
                 }
-                return Promise.resolve(callback(record, latestProps))
-                    .then(def.resolve)
-                    .catch(def.reject);
+                return runCallback(record);
             },
             () =>
                 new Promise((resolve) =>
@@ -61,9 +94,7 @@ export function useRecordObserver(callback) {
             (record) => {
                 if (firstCall) {
                     firstCall = false;
-                    return Promise.resolve(callback(record, latestProps))
-                        .then(def.resolve)
-                        .catch(def.reject);
+                    return runCallback(record);
                 } else {
                     return batchedCallback(record);
                 }
