@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
+
 from odoo import api, fields, models
 
 
@@ -30,7 +31,7 @@ class SaleOrderLine(models.Model):
         for line in self:
             # Ensure selected documents are still in the available documents
             line.product_document_ids = line.product_document_ids.filtered(
-                lambda doc: doc in line.available_product_document_ids
+                lambda doc, line=line: doc in line.available_product_document_ids
             )
 
     # === COMPUTE METHODS === #

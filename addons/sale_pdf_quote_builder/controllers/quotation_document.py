@@ -38,13 +38,13 @@ class QuotationDocumentController(Controller):
             }
         files = request.httprequest.files.getlist('ufile')
         result = {'success': _("All files uploaded")}
-        for ufile in files:
+        for uploaded_file in files:
             try:
-                mimetype = ufile.content_type
+                mimetype = uploaded_file.content_type
                 request.env['quotation.document'].create({
-                    'name': ufile.filename,
+                    'name': uploaded_file.filename,
                     'mimetype': mimetype,
-                    'raw': ufile.read(),
+                    'raw': uploaded_file.read(),
                     **additional_vals,
                 }).flush_recordset()
             except UserError as e:
@@ -55,7 +55,7 @@ class QuotationDocumentController(Controller):
                 )
             except Exception as e:
                 request.env.cr.rollback()
-                logger.exception("Failed to upload document %s", ufile.filename)
+                logger.exception("Failed to upload document %s", uploaded_file.filename)
                 return request.make_json_response(
                     {'error': traceback.format_exception(e, limit=0)[0].rstrip()},
                     status=HTTPStatus.INTERNAL_SERVER_ERROR,

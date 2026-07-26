@@ -43,7 +43,7 @@ class SaleOrder(models.Model):
             order.available_quotation_document_ids = self.env['quotation.document'].search(
                 self.env['quotation.document']._check_company_domain(order.company_id),
                 order='sequence',
-            ).filtered(lambda doc:
+            ).filtered(lambda doc, order=order:
                 # templates are available only to salesman
                 not (templates := doc.sudo().quotation_template_ids)
                 or order.sale_order_template_id in templates
@@ -101,28 +101,29 @@ class SaleOrder(models.Model):
         selected_documents = self.quotation_document_ids
         selected_headers = selected_documents.filtered(lambda doc: doc.document_type == 'header')
         selected_footers = selected_documents - selected_headers
-        lines_params = []
-        for line in self.line_ids:
-            if line.available_product_document_ids:
-                lines_params.append({
-                    'name': _("Product") + " > " + line.name.splitlines()[0],
-                    'id': line.id,
-                    'files': [{
-                        'name': doc.name.rstrip('.pdf'),
-                        'id': doc.id,
-                        'is_selected': doc in line.sudo().product_document_ids, # User should be
-                        # able to access all product documents even without sales access
-                        'custom_form_fields': [{
-                            'name': custom_form_field.name,
-                            'value': existing_mapping.get('line', {}).get(str(line.id), {}).get(
-                                str(doc.id), {}
-                            ).get('custom_form_fields', {}).get(custom_form_field.name, ""),
-                        } for custom_form_field in doc.form_field_ids.filtered(
-                            lambda ff: not ff.path
-                        )],
-                    } for doc in line.available_product_document_ids]
-                })
-        dialog_params = {
+        lines_params = [
+            {
+                'name': _("Product") + " > " + line.name.splitlines()[0],
+                'id': line.id,
+                'files': [{
+                    'name': doc.name.rstrip('.pdf'),
+                    'id': doc.id,
+                    # a user should be able to access all product documents even without sales access
+                    'is_selected': doc in line.sudo().product_document_ids,
+                    'custom_form_fields': [{
+                        'name': custom_form_field.name,
+                        'value': existing_mapping.get('line', {}).get(str(line.id), {}).get(
+                            str(doc.id), {}
+                        ).get('custom_form_fields', {}).get(custom_form_field.name, ""),
+                    } for custom_form_field in doc.form_field_ids.filtered(
+                        lambda ff: not ff.path
+                    )],
+                } for doc in line.available_product_document_ids]
+            }
+            for line in self.line_ids
+            if line.available_product_document_ids
+        ]
+        return {
             'headers': {'name': _("Header"), 'files': [{
                 'id': header.id,
                 'name': header.name,
@@ -147,4 +148,3 @@ class SaleOrder(models.Model):
                 } for custom_form_field in footer.form_field_ids.filtered(lambda ff: not ff.path)],
             } for footer in footers_available]},
         }
-        return dialog_params
