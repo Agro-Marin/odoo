@@ -45,9 +45,6 @@ class ResPartnerCategory(models.Model):
     @api.depends("name", "parent_id.name")
     def _compute_display_name(self) -> None:
         """Compute the slash-joined full ancestor path as display name."""
-        # Stored records: resolve the whole ancestor chain from parent_path
-        # (_parent_store=True), which is structurally cycle-proof and needs a
-        # single batched name fetch — no level-by-level parent_id walk.
         stored = self.filtered(lambda c: isinstance(c.id, int) and c.parent_path)
         ancestor_ids_by_record = {
             category.id: [int(id_) for id_ in category.parent_path.split("/")[:-1]]
@@ -62,8 +59,6 @@ class ResPartnerCategory(models.Model):
                 self.browse(id_).name or ""
                 for id_ in ancestor_ids_by_record[category.id]
             )
-        # NewId/onchange records have no parent_path yet: fall back to the
-        # parent_id walk, guarded against cycles transiently present in cache.
         for category in self - stored:
             names = []
             seen_ids = set()

@@ -243,11 +243,6 @@ class ResPartnerBank(models.Model):
 
     @api.depends("partner_id")
     def _compute_account_holder_name(self) -> None:
-        # Depends on partner_id only, NOT partner_id.name: acc_holder_name is a
-        # user-editable default (store=True, readonly=False) meant to hold a
-        # name different from the partner's. Depending on the name would clobber
-        # customized holder names on every rename; renames are instead
-        # propagated by a guarded sync in res.partner.write().
         for bank in self:
             bank.acc_holder_name = bank.partner_id.name
 
@@ -259,8 +254,6 @@ class ResPartnerBank(models.Model):
     @api.depends("acc_number", "bank_id.name")
     def _compute_display_name(self) -> None:
         for acc in self:
-            # acc_number is required on persisted records but False on transient
-            # NewId/onchange records; fall back to "" to keep display_name a string.
             acc_number = acc.acc_number or ""
             acc.display_name = (
                 f"{acc_number} - {acc.bank_id.name}" if acc.bank_id else acc_number
@@ -273,11 +266,8 @@ class ResPartnerBank(models.Model):
 
     def _sanitize_vals(self, vals: ValuesType) -> ValuesType:
         if "acc_number" not in vals and "sanitized_acc_number" in vals:
-            # Do not allow writing sanitized directly — treat it as acc_number
             vals["acc_number"] = vals.pop("sanitized_acc_number")
         if "acc_number" in vals:
-            # acc_number is canonical: sanitized_acc_number is always derived
-            # from it, overriding any sanitized value passed alongside.
             vals["sanitized_acc_number"] = sanitize_account_number(vals["acc_number"])
         return vals
 
@@ -290,15 +280,11 @@ class ResPartnerBank(models.Model):
 
     def action_archive_bank(self) -> dict[str, str]:
         """Archive the account and reload the client view."""
-        # The plain action_archive does not trigger a re-rendering of the page,
-        # so the archived record would stay visible; reload to refresh the view.
         self.ensure_one()
         self.action_archive()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def unlink(self) -> bool:
         """Archive instead of deleting; bank accounts may be linked to accounting entries."""
-        # A real delete would orphan/RESTRICT entries referencing this account,
-        # so we archive (active=False) and report success without calling super().
         self.action_archive()
         return True

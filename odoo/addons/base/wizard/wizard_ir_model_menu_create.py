@@ -19,8 +19,6 @@ class WizardIrModelMenuCreate(models.TransientModel):
 
         :return: a window-close action.
         """
-        # WMC: replacing this `for menu in self` loop with ensure_one() is
-        # deferred as a behavior change.
         for menu in self:
             model_id = self.env.context.get("model_id")
             if not model_id:

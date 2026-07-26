@@ -23,7 +23,6 @@ def test_isolated_install(env):
     if not all(module.state == "uninstalled" for module in modules.values()):
         raise SkipTest(f"The modules {MODULE_NAMES} should not be installed")
 
-    # test_install_fail depends on base and auto, so both install just before it
     try:
         with mute_logger("odoo.modules.registry"):
             install(

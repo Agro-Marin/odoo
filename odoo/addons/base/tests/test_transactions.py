@@ -31,10 +31,8 @@ class TestTransactionEnvs(TransactionCase):
     def test_transation_envs_ordered(self):
         transaction = self.env.transaction
         starting_envs = set(transaction.envs)
-        # create environments in a certain order, not sorted on item
         items = [3, 8, 1, 5, 2, 7, 6, 9, 0, 4]
         envs = [self.env(context={"item": item}) for item in items]
-        # check that those environments appear in order in transaction.envs
         env_items = [
             env.context["item"] for env in transaction.envs if env not in starting_envs
         ]

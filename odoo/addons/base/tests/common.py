@@ -19,8 +19,6 @@ class BaseCommon(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Mail logic is not tested by default; mail API overrides get dedicated
-        # tests. Use with_context to avoid manual context dict modification.
         cls.env = cls.env["base"].with_context(**cls.default_env_context()).env
 
         independent_user = cls.setup_independent_user()
@@ -32,14 +30,11 @@ class BaseCommon(TransactionCase):
 
         independent_company = cls.setup_independent_company()
         if independent_company:
-            # avoid using the context to assign companies
             cls.env.user.company_id = independent_company
             cls.env.user.company_ids = [Command.set(independent_company.ids)]
         else:
             cls.setup_main_company()
 
-        # Make sure all class variables have the same env.
-        # Do not specify any class variables before the env changes.
         cls.company = cls.env.company
         cls.currency = cls.env.company.currency_id
 
@@ -112,7 +107,6 @@ class BaseCommon(TransactionCase):
 
     @classmethod
     def _use_currency(cls, company, currency_code):
-        # Enforce constant currency
         currency = cls._enable_currency(currency_code)
         if company.currency_id != currency:
             cls.env.transaction.cache.set(
@@ -121,10 +115,6 @@ class BaseCommon(TransactionCase):
                 currency.id,
                 dirty=True,
             )
-            # Equivalent to cls.env.company.currency_id = currency but without
-            # triggering business-code checks: the value is set dirty in cache so it
-            # is written to the database on the next flush. Needed because journal
-            # entries may exist when running tests, especially l10n demo data.
 
     @classmethod
     def _create_partner(cls, **create_values):
@@ -145,7 +135,6 @@ class BaseCommon(TransactionCase):
             }
         )
         cls.env.user.company_ids = [Command.link(company.id)]
-        # cls.env.context['allowed_company_ids'].append(company.id)
         return company
 
     @classmethod
@@ -299,11 +288,10 @@ class SavepointCaseWithUserDemo(TransactionCase):
             }
         )
 
-        # Load all the demo partners
         cls.partners = cls.env["res.partner"].create(
             [
                 {
-                    "name": "Inner Works",  # Wood Corner
+                    "name": "Inner Works",
                     "state_id": cls.env.ref("base.state_us_1").id,
                     "category_id": [
                         Command.set(
@@ -316,71 +304,71 @@ class SavepointCaseWithUserDemo(TransactionCase):
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "Sheila Ruiz",  # 'Willie Burke',
+                                "name": "Sheila Ruiz",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Wyatt Howard",  # 'Ron Gibson',
+                                "name": "Wyatt Howard",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Austin Kennedy",  # Tom Ruiz
+                                "name": "Austin Kennedy",
                             }
                         ),
                     ],
                 },
                 {
-                    "name": "Pepper Street",  # 'Acme Corporation',
+                    "name": "Pepper Street",
                     "state_id": cls.env.ref("base.state_us_2").id,
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "Liam King",  # 'Douglas Fletcher',
+                                "name": "Liam King",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Craig Richardson",  # 'Floyd Steward',
+                                "name": "Craig Richardson",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Adam Cox",  # 'Addison Olson',
+                                "name": "Adam Cox",
                             }
                         ),
                     ],
                 },
                 {
-                    "name": "AnalytIQ",  #'Gemini Furniture',
+                    "name": "AnalytIQ",
                     "state_id": cls.env.ref("base.state_us_3").id,
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "Pedro Boyd",  # Edwin Hansen
+                                "name": "Pedro Boyd",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Landon Roberts",  # 'Jesse Brown',
+                                "name": "Landon Roberts",
                                 "company_id": cls.env.ref("base.main_company").id,
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Leona Shelton",  # 'Soham Palmer',
+                                "name": "Leona Shelton",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Scott Kim",  # 'Oscar Morgan',
+                                "name": "Scott Kim",
                             }
                         ),
                     ],
                 },
                 {
-                    "name": "Urban Trends",  # 'Ready Mat',
+                    "name": "Urban Trends",
                     "state_id": cls.env.ref("base.state_us_4").id,
                     "category_id": [
                         Command.set(
@@ -393,95 +381,95 @@ class SavepointCaseWithUserDemo(TransactionCase):
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "Louella Jacobs",  # 'Billy Fox',
+                                "name": "Louella Jacobs",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Albert Alexander",  # 'Kim Snyder',
+                                "name": "Albert Alexander",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Brad Castillo",  # 'Edith Sanchez',
+                                "name": "Brad Castillo",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Sophie Montgomery",  # 'Sandra Neal',
+                                "name": "Sophie Montgomery",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Chloe Bates",  # 'Julie Richards',
+                                "name": "Chloe Bates",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Mason Crawford",  # 'Travis Mendoza',
+                                "name": "Mason Crawford",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Elsie Kennedy",  # 'Theodore Gardner',
+                                "name": "Elsie Kennedy",
                             }
                         ),
                     ],
                 },
                 {
-                    "name": "Ctrl-Alt-Fix",  # 'The Jackson Group',
+                    "name": "Ctrl-Alt-Fix",
                     "state_id": cls.env.ref("base.state_us_5").id,
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "carole miller",  # 'Toni Rhodes',
+                                "name": "carole miller",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Cecil Holmes",  # 'Gordon Owens',
+                                "name": "Cecil Holmes",
                             }
                         ),
                     ],
                 },
                 {
-                    "name": "Ignitive Labs",  # 'Azure Interior',
+                    "name": "Ignitive Labs",
                     "state_id": cls.env.ref("base.state_us_6").id,
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "Jonathan Webb",  # 'Brandon Freeman',
+                                "name": "Jonathan Webb",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Clinton Clark",  # 'Nicole Ford',
+                                "name": "Clinton Clark",
                             }
                         ),
                         Command.create(
                             {
-                                "name": "Howard Bryant",  # 'Colleen Diaz',
+                                "name": "Howard Bryant",
                             }
                         ),
                     ],
                 },
                 {
-                    "name": "Amber & Forge",  # 'Lumber Inc',
+                    "name": "Amber & Forge",
                     "state_id": cls.env.ref("base.state_us_7").id,
                     "child_ids": [
                         Command.create(
                             {
-                                "name": "Mark Webb",  # 'Lorraine Douglas',
+                                "name": "Mark Webb",
                             }
                         )
                     ],
                 },
                 {
-                    "name": "Rebecca Day",  # 'Chester Reed',
+                    "name": "Rebecca Day",
                     "parent_id": cls.env.ref("base.main_partner").id,
                 },
                 {
-                    "name": "Gabriella Jennings",  # 'Dwayne Newman',
+                    "name": "Gabriella Jennings",
                     "parent_id": cls.env.ref("base.main_partner").id,
                 },
             ]
@@ -576,13 +564,11 @@ class MockSmtplibCase:
             def send_message(self, message, smtp_from, smtp_to_list):
                 origin.emails.append(
                     {
-                        # message
                         "message": message.as_string(),
                         "msg_cc": message["Cc"],
                         "msg_from": message["From"],
                         "msg_from_fmt": email_split_and_format(message["From"])[0],
                         "msg_to": message["To"],
-                        # smtp
                         "smtp_from": smtp_from,
                         "smtp_to_list": smtp_to_list,
                         "from_filter": self.from_filter,
@@ -607,7 +593,6 @@ class MockSmtplibCase:
         connect_origin = type(IrMailServer)._connect__
         find_mail_server_origin = type(IrMailServer)._find_mail_server
 
-        # custom mock to avoid losing context
         def mock_function(func):
             mock = Mock()
 
@@ -702,7 +687,6 @@ class MockSmtplibCase:
                         message_from is None
                         or "From: %s" % message_from in email["message"]
                     )
-                    # might have header being name <email> instead of "name" <email>, to check
                     and (
                         msg_from is None
                         or (

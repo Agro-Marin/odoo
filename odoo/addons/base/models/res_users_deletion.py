@@ -12,7 +12,6 @@ class ResUsersDeletion(models.Model):
     _description = "Users Deletion Request"
     _rec_name = "user_id"
 
-    # Integer copy kept because the related user may be deleted from the database.
     user_id = fields.Many2one("res.users", string="User", ondelete="set null")
     user_id_int = fields.Integer("User Id", compute="_compute_user_id_int", store=True)
     state = fields.Selection(
@@ -28,9 +27,6 @@ class ResUsersDeletion(models.Model):
     @api.depends("user_id")
     def _compute_user_id_int(self) -> None:
         for user_deletion in self:
-            # user_id is ondelete="set null": once the user is deleted this
-            # recomputes with user_id == False. Guard the assignment to preserve
-            # the captured id, the only remaining trace of the user. (RUD-L1.)
             if user_deletion.user_id:
                 user_deletion.user_id_int = user_deletion.user_id.id
 
@@ -47,7 +43,6 @@ class ResUsersDeletion(models.Model):
         """
         delete_requests = self.search([("state", "=", "todo")])
 
-        # Requests whose user is already gone are done.
         done_requests = delete_requests.filtered(lambda request: not request.user_id)
         done_requests.state = "done"
 
@@ -66,7 +61,6 @@ class ResUsersDeletion(models.Model):
             partner = user.partner_id
             requester_name = delete_request.create_uid.name
 
-            # Step 1: Delete User
             try:
                 user.unlink()
                 _logger.info(
@@ -87,13 +81,10 @@ class ResUsersDeletion(models.Model):
                     e,
                 )
                 delete_request.state = "fail"
-                # Commit progress even on failure.
                 if commit_progress(1):
                     continue
                 break
 
-            # Step 2: Delete Linked Partner
-            #         May fail, e.g. if the partner is linked to a sale order.
             try:
                 if not partner.exists():
                     if not commit_progress():
@@ -117,5 +108,5 @@ class ResUsersDeletion(models.Model):
                     requester_name,
                     e,
                 )
-                if not commit_progress():  # just check if we should stop
+                if not commit_progress():
                     break

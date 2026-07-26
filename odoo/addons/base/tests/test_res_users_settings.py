@@ -21,9 +21,6 @@ class TestResUsersSettingsOwnership(TransactionCase):
         Settings = cls.env["res.users.settings"]
         cls.settings_a = Settings._find_or_create_for_user(cls.user_a)
         cls.settings_b = Settings._find_or_create_for_user(cls.user_b)
-        # Pick any non-protected, writable, stored scalar field on the model
-        # (base declares none beyond user_id; modules such as `web` add
-        # `density`). None found -> tests fall back to id-less vals.
         cls._writable_field = next(
             (
                 name
@@ -37,9 +34,6 @@ class TestResUsersSettingsOwnership(TransactionCase):
         )
 
     def test_user_cannot_write_other_users_settings(self):
-        # A writing B's record is blocked by the record rule at write() (not in
-        # A's domain). Direct write so the test does not depend on
-        # set_res_users_settings filtering out unknown fields.
         settings_b_as_a = self.settings_b.with_user(self.user_a)
         vals = {self._writable_field: False} if self._writable_field else {}
         with self.assertRaises(AccessError):
@@ -51,8 +45,6 @@ class TestResUsersSettingsOwnership(TransactionCase):
             settings_b_as_a._res_users_settings_format()
 
     def test_protected_user_id_cannot_be_rewritten(self):
-        # A user setting user_id on their OWN record is silently ignored
-        # (user_id is in _PROTECTED_SETTINGS_FIELDS), so the row stays theirs.
         settings_a_as_a = self.settings_a.with_user(self.user_a)
         settings_a_as_a.set_res_users_settings({"user_id": self.user_b.id})
         self.assertEqual(
@@ -95,16 +87,13 @@ class TestResUsersSettingsChangeDetection(TransactionCase):
         self.assertEqual(normalize(current, [Command.clear(), Command.link(5)]), {5})
         self.assertEqual(normalize(current, [3, 4]), {1, 2, 3, 4})
         self.assertEqual(normalize(current, []), {1, 2})
-        # The input id-set must never be mutated in place.
         self.assertEqual(current, {1, 2})
 
     def test_x2many_command_target_ids_dynamic_or_malformed(self):
         normalize = self.env["res.users.settings"]._x2many_command_target_ids
         current = {1, 2}
-        # create/update payloads cannot be resolved statically
         self.assertIsNone(normalize(current, [Command.create({"name": "x"})]))
         self.assertIsNone(normalize(current, [Command.update(1, {"name": "x"})]))
-        # non-command values / malformed commands must fall back to "changed"
         self.assertIsNone(normalize(current, "nope"))
         self.assertIsNone(normalize(current, 5))
         self.assertIsNone(normalize(current, {1, 2}))
@@ -117,7 +106,6 @@ class TestResUsersSettingsChangeDetection(TransactionCase):
         self.assertFalse(settings._is_setting_changed("user_id", self.user_a.id))
         self.assertTrue(settings._is_setting_changed("user_id", self.user_b.id))
         self.assertTrue(settings._is_setting_changed("user_id", False))
-        # empty m2o: False and None both mean "no record" -> not a change
         empty = self.env["res.users.settings"].new({})
         self.assertFalse(empty._is_setting_changed("user_id", False))
         self.assertFalse(empty._is_setting_changed("user_id", None))
@@ -164,9 +152,6 @@ class TestResUsersSettingsWriteOnlyChanges(TransactionCase):
             self.skipTest("no writable x2many field on res.users.settings")
         settings = self.settings.with_user(self.user)
         current_ids = settings[fname].ids
-        # a same-ids SET command must be detected as "no change" (old code
-        # compared the command payload to a scalar id, raising "Expected
-        # singleton" on multi-record values)
         res = settings.set_res_users_settings({fname: [Command.set(current_ids)]})
         self.assertEqual(
             set(res.keys()),

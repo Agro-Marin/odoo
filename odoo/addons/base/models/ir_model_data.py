@@ -123,7 +123,6 @@ class IrModelData(models.Model):
         if ``raise_on_access_error`` is True, or return (model, False).
         """
         model, res_id = self._xmlid_lookup(f"{module}.{xml_id}")
-        # search by id to verify the current user has read access
         if self.env[model].search([("id", "=", res_id)]):
             return model, res_id
         if raise_on_access_error:
@@ -155,27 +154,15 @@ class IrModelData(models.Model):
     def write(self, vals: dict[str, Any]) -> bool:
         """Update xmlids, busting the _xmlid_lookup cache and the groups cache for res.groups rows."""
         if not self:
-            # do not clear caches for a no-op write on an empty recordset
             return True
-        # _xmlid_lookup caches (model, res_id) keyed on module.name; a
-        # noupdate-only write can't stale it, so skip the default cache bust on
-        # the common toggle_noupdate path (IMD-P1).
         bust_xmlid = not (set(vals) <= {"noupdate"})
-        # Clear the `groups` cache if the pre- or post-image points at
-        # res.groups: re-pointing or editing such an xmlid must not leave
-        # group/ACL resolution stale. Read `self` before super().write so the
-        # pre-image model is still accurate.
         touch_groups = vals.get("model") == "res.groups" or any(
             data.model == "res.groups" for data in self
         )
         res = super().write(vals)
         if bust_xmlid:
-            # Flush BEFORE clearing: super().write only marks rows dirty.
-            # _xmlid_lookup reads via raw SQL (no ORM flush), so evicting while
-            # the DB still holds the pre-write row lets the next env.ref()
-            # re-cache the stale value. Push the UPDATE first, then evict.
             self.flush_recordset()
-            self.env.registry.clear_cache()  # _xmlid_lookup
+            self.env.registry.clear_cache()
         if touch_groups:
             self.env.registry.clear_cache("groups")
         return res
@@ -183,9 +170,8 @@ class IrModelData(models.Model):
     def unlink(self) -> bool:
         """Unlink, clearing the _xmlid_lookup cache and the groups cache for res.groups rows."""
         if not self:
-            # do not clear caches for a no-op unlink on an empty recordset
             return True
-        self.env.registry.clear_cache()  # _xmlid_lookup
+        self.env.registry.clear_cache()
         if any(data.model == "res.groups" for data in self.exists()):
             self.env.registry.clear_cache("groups")
         return super().unlink()
@@ -200,8 +186,6 @@ class IrModelData(models.Model):
             prefix, suffix = xml_id.split(".", 1)
             bymodule[prefix].add(suffix)
 
-        # query xml_ids by prefix; the joined table identifier is invariant, so
-        # build it once (IMD-S1: SQL wrapper, not f-string, for the table name)
         result = []
         cr = self.env.cr
         table_sql = SQL.identifier(model._table)
@@ -257,17 +241,12 @@ class IrModelData(models.Model):
                         create_date,
                         write_date,
                     ) in result:
-                        # optimisation: during install many xmlids are upserted;
-                        # set the cache value directly instead of clearing it
                         self._xmlid_lookup.__cache__.add_value(
                             self,
                             f"{module}.{name}",
                             cache_value=(model, res_id),
                         )
                         if create_date != write_date:
-                            # something was updated, notify other workers.
-                            # equal create/write dates mean it was created in
-                            # this transaction; no need to invalidate others.
                             self.env.registry.cache_invalidated.add("default")
 
             except Exception:
@@ -279,10 +258,6 @@ class IrModelData(models.Model):
 
         xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
         self.pool.loaded_xmlids.update(xml_ids)
-        # tee for modules.loading.load_data: while a data file is being
-        # converted, it records which xmlids the file asserts, so an upgrade
-        # can later skip the unchanged file yet still mark those xmlids loaded
-        # (protecting the records from _process_end's orphan cleanup)
         recorder = getattr(self.pool, "_xmlid_recorder", None)
         if recorder is not None:
             recorder.update(xml_ids)
@@ -290,7 +265,6 @@ class IrModelData(models.Model):
         if any(row[2] == "res.groups" for row in rows):
             self.env.registry.clear_cache("groups")
 
-    # Overridden in web_studio; keep any further override compatible with it.
     def _insert_xmlids_extra_columns(self) -> dict[str, SQL]:
         """Extra constant-valued columns appended to each xmlid row inserted by
         :meth:`_build_update_xmlids_query`, as ``{column_name: SQL value}``.
@@ -333,7 +307,6 @@ class IrModelData(models.Model):
         record = self.env.ref(xml_id, raise_if_not_found=False)
         if record:
             self.pool.loaded_xmlids.add(xml_id)
-            # see the recorder tee in _update_xmlids
             recorder = getattr(self.pool, "_xmlid_recorder", None)
             if recorder is not None:
                 recorder.add(xml_id)
@@ -351,13 +324,11 @@ class IrModelData(models.Model):
                 _("Administrator access is required to uninstall a module")
             )
 
-        # enable model/field deletion; disable prefetch so we don't read a
-        # column that has been deleted
         self = self.with_context(
             **{MODULE_UNINSTALL_FLAG: True, "prefetch_fields": False}
         )
 
-        records_items = []  # [(model, id)]
+        records_items = []
         model_ids = []
         field_ids = []
         selection_ids = []
@@ -379,10 +350,6 @@ class IrModelData(models.Model):
                 case _:
                     records_items.append((data.model, data.res_id))
 
-        # avoid prefetching fields about to be deleted: a recompute (via flush)
-        # can run after the DB columns are dropped but before the new registry
-        # is built, on a stale registry; prefetching a now-missing column would
-        # then fail and block the uninstall.
         has_shared_field = False
         for ir_field in self.env["ir.model.fields"].browse(field_ids):
             model = self.pool.get(ir_field.model)
@@ -390,10 +357,8 @@ class IrModelData(models.Model):
                 field = model._fields.get(ir_field.name)
                 if field is not None and field.prefetch:
                     if field._toplevel:
-                        # the field is specific to this registry
                         field.prefetch = False
                     else:
-                        # the field is shared across registries; don't modify it
                         Field = type(field)
                         field_ = Field(_base_fields__=(field, Field(prefetch=False)))
                         add_field(
@@ -406,11 +371,9 @@ class IrModelData(models.Model):
         if has_shared_field:
             reset_cached_properties(self.env.registry)
 
-        # external ids of records that cannot be deleted
         undeletable_ids = []
 
         def delete(records):
-            # skip records with other external ids (owned by other modules)
             ref_data = self.search(
                 [
                     ("model", "=", records._name),
@@ -425,20 +388,13 @@ class IrModelData(models.Model):
             if not records:
                 return
 
-            # special case for ir.model.fields
             if records._name == "ir.model.fields":
                 missing = records - records.exists()
                 if missing:
-                    # delete orphan external ids now: an ir.model.field removed
-                    # via ONDELETE CASCADE leaves an orphan ir.model.data, and
-                    # accessing the missing record would raise MissingError
                     orphans = ref_data.filtered(lambda r: r.res_id in missing._ids)
                     _logger.info("Deleting orphan ir_model_data %s", orphans)
                     orphans.unlink()
-                    # /!\ this must go before any field accesses on `records`
                     records -= missing
-                # do not remove LOG_ACCESS_COLUMNS unless _log_access is False
-                # on the model
                 records -= records.filtered(
                     lambda f: (
                         f.name == "id"
@@ -459,15 +415,12 @@ class IrModelData(models.Model):
                 if len(records) <= 1:
                     undeletable_ids.extend(ref_data._ids)
                 else:
-                    # divide the batch in two, and recursively delete them
                     half_size = len(records) // 2
                     delete(records[:half_size])
                     delete(records[half_size:])
 
-        # remove non-model records first, grouped by batches of the same model
         for model, items in groupby(unique(records_items), itemgetter(0)):
             ids = [item[1] for item in items]
-            # we cannot guarantee that the ir.model.data points to an existing model
             if model in self.env:
                 delete(self.env[model].browse(ids))
             else:
@@ -477,9 +430,6 @@ class IrModelData(models.Model):
                     model,
                 )
 
-        # Remove copied views: after removing the modules' records (else
-        # ondelete='restrict' may block a view) but before cleaning the DB
-        # schema (else dependent fields may no longer exist).
         modules = self.env["ir.module.module"].search(
             [("name", "in", modules_to_remove)]
         )
@@ -487,9 +437,6 @@ class IrModelData(models.Model):
 
         delete(self.env["ir.model.constraint"].browse(unique(constraint_ids)))
 
-        # Delete selection values before their field: dropping the field first
-        # removes the column, so ondelete='cascade' values would never trigger
-        # deletion of the referencing records.
         delete(
             self.env["ir.model.fields.selection"].browse(unique(selection_ids)).exists()
         )
@@ -503,8 +450,6 @@ class IrModelData(models.Model):
 
         _logger.info("ir.model.data could not be deleted (%s)", undeletable_ids)
 
-        # some undeletable data may now be deletable after the cascade-deletes
-        # and dropped tables above
         for data in self.browse(undeletable_ids).exists():
             if data.model not in self.env.registry:
                 continue
@@ -512,14 +457,9 @@ class IrModelData(models.Model):
             try:
                 with self.env.cr.savepoint():
                     if record.exists():
-                        # record still exists: data is still undeletable, drop
-                        # it from module_data
                         module_data -= data
                         continue
             except psycopg.ProgrammingError:
-                # most likely the record's table no longer exists (so neither
-                # does the record); exists() runs a raw SELECT. Also applies to
-                # ir.model.fields, constraints, etc.
                 pass
         module_data.unlink()
 
@@ -554,18 +494,13 @@ class IrModelData(models.Model):
             if Model is None:
                 continue
 
-            # implicitly created _inherits parents get an external id (if their
-            # descendant has one) so they're removed with the module, but that
-            # id isn't provided on update; don't remove the xid or record if a
-            # child was just updated
             keep = False
             for inheriting in (self.env[m] for m in Model._inherits_children):
-                # ignore mixins
                 if inheriting._abstract:
                     continue
 
                 parent_field = inheriting._inherits[model]
-                children = inheriting.with_context(active_test=False).search(  # noqa: E8507 — inherent: each row targets a different model/res_id
+                children = inheriting.with_context(active_test=False).search(
                     [(parent_field, "=", res_id)]
                 )
                 children_xids = {
@@ -574,14 +509,12 @@ class IrModelData(models.Model):
                     for xid in xids
                 }
                 if children_xids & loaded_xmlids:
-                    # at least one child was loaded
                     keep = True
                     break
             if keep:
                 continue
 
-            # if the record has other associated xids, only remove the xid
-            if self.search_count(  # noqa: E8507 — inherent: per-xmlid check during module cleanup
+            if self.search_count(
                 [
                     ("model", "=", model),
                     ("res_id", "=", res_id),
@@ -603,7 +536,6 @@ class IrModelData(models.Model):
         if bad_imd_ids:
             self.browse(bad_imd_ids).unlink()
 
-        # Once all views are created create specific ones
         self.env["ir.ui.view"]._create_all_specific_views(modules)
 
         loaded_xmlids.clear()
@@ -613,7 +545,5 @@ class IrModelData(models.Model):
         """Toggle the noupdate flag on the external id of the record"""
         self.env[model].browse(res_id).check_access("write")
         xids = self.search([("model", "=", model), ("res_id", "=", res_id)])
-        # group by current value: at most two write() calls (one per flipped
-        # value) instead of one per xid (IMD-P2)
         for noupdate, group in xids.grouped("noupdate").items():
             group.write({"noupdate": not noupdate})

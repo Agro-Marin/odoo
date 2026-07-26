@@ -54,7 +54,7 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
 
     def test_pdf_metadata_from_record_and_company(self):
         """/Title is the evaluated print_report_name; author/creator/lang set."""
-        import fitz  # PyMuPDF, an engine dependency
+        import fitz
 
         with fitz.open(stream=self._render(), filetype="pdf") as doc:
             metadata = doc.metadata
@@ -63,7 +63,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
         self.assertEqual(metadata["author"], self.env.company.display_name)
         self.assertEqual(metadata["creator"], "Odoo")
         self.assertTrue(metadata["creationDate"])
-        # Context lang en_US surfaces as the BCP 47 form in the PDF catalog.
         self.assertEqual(lang, ("string", "en-US"))
 
     def test_pdf_title_falls_back_to_report_label(self):
@@ -92,8 +91,6 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
             self.assertNotIn("CONFIDENTIAL", doc[0].get_text())
         stamped = self._render(report_watermark="Confidential")
         with fitz.open(stream=stamped, filetype="pdf") as doc:
-            # The overlay is styled text-transform: uppercase, and extraction
-            # returns the transformed glyphs.
             self.assertIn("CONFIDENTIAL", doc[0].get_text())
 
 

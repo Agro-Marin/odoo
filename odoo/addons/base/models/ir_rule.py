@@ -15,9 +15,6 @@ class IrRule(models.Model):
     _name = "ir.rule"
     _description = "Record Rule"
     _order = "model_id DESC,id"
-    # Single source of truth for the four CRUD access modes: name -> SQL
-    # column. Mode validation derives from these keys (mirrors
-    # ir.model.access._PERM_COLUMNS).
     _PERM_COLUMNS = {
         "read": SQL("r.perm_read"),
         "write": SQL("r.perm_write"),
@@ -59,9 +56,6 @@ class IrRule(models.Model):
     @api.model
     def _eval_context(self) -> dict[str, Any]:
         """Return the evaluation context (namespace) for ir.rule domains."""
-        # Empty context for 'user' keeps domain evaluation independent from the
-        # caller's context. company_ids holds the companies activated via the
-        # switch-company menu (filtered and trusted).
         return {
             "user": self.env.user.with_context({}),
             "company_ids": self.env.companies.ids,
@@ -75,7 +69,6 @@ class IrRule(models.Model):
 
     @api.constrains("model_id")
     def _check_model_name(self) -> None:
-        # Don't allow rules on rules records (this model).
         if any(rule.model_id.model == self._name for rule in self):
             raise ValidationError(
                 _("Rules can not be applied on the Record Rules model.")
@@ -104,20 +97,11 @@ class IrRule(models.Model):
         OR-ed (the group succeeds or fails as a whole) while global rules are
         AND-ed and can each fail.
         """
-        # Both sudos are anti-recursion guards: loading ir.rules must not itself
-        # trigger rule evaluation. active_test off so evaluation considers
-        # inactive records, else archived rows are missed and rules misreported.
         Model = for_records.browse(()).sudo().with_context(active_test=False)
         eval_context = self._eval_context()
 
         all_rules = self._get_rules(Model._name, mode=mode).sudo()
 
-        # First check if group rules fail for any record (i.e. searching on
-        # (records, group_rules) filters some out).
-        # NOTE: this group source (env.user.all_group_ids) must stay in
-        # lock-step with the SQL group filter in _get_rules / _compute_domain
-        # (user._get_group_ids() == clean-context all_group_ids._ids); drift
-        # would mis-blame rules.
         group_rules = all_rules.filtered(
             lambda r: r.groups and r.groups & self.env.user.all_group_ids
         )
@@ -125,10 +109,6 @@ class IrRule(models.Model):
             safe_eval(r.domain_force, eval_context) if r.domain_force else []
             for r in group_rules
         )
-        # If all records come back, the group rules are not failing. Compare
-        # against the distinct-id count (search_count counts distinct rows);
-        # a duplicated id would never match len(for_records) and mis-blame
-        # passing group rules.
         distinct_count = len(set(for_records.ids))
         if (
             Model.search_count(group_domains & Domain("id", "in", for_records.ids))
@@ -136,7 +116,6 @@ class IrRule(models.Model):
         ):
             group_rules = self.browse(())
 
-        # failing rules are previously selected group rules or any failing global rule
         def is_failing(r, ids=for_records.ids):
             dom = Domain(
                 safe_eval(r.domain_force, eval_context) if r.domain_force else []
@@ -188,7 +167,6 @@ class IrRule(models.Model):
     def _compute_domain(self, model_name: str, mode: str = "read") -> Domain:
         model = self.env[model_name]
 
-        # add rules for parent models
         global_domains: list[Domain] = []
         for parent_model_name, parent_field_name in model._inherits.items():
             if not model._fields[parent_field_name].store:
@@ -200,10 +178,7 @@ class IrRule(models.Model):
         if not rules:
             return Domain.AND(global_domains).optimize(model)
 
-        # browse user and rules with sudo to avoid access errors!
         eval_context = self._eval_context()
-        # NOTE: keep this group source in lock-step with _get_rules' SQL filter
-        # (user._get_group_ids() == clean-context all_group_ids._ids).
         user_groups = self.env.user.all_group_ids
         group_domains: list[Domain] = []
         for rule in rules.sudo():
@@ -227,8 +202,6 @@ class IrRule(models.Model):
         for k in self._compute_domain_keys():
             v = self.env.context.get(k)
             if isinstance(v, list):
-                # Tuple, not frozenset: order-dependent but safer as a cache key
-                # (slightly more miss-prone).
                 v = tuple(v)
             yield v
 
@@ -285,18 +258,12 @@ class IrRule(models.Model):
             "If you really, really need access, perhaps you can win over your friendly administrator with a batch of freshly baked cookies."
         )
 
-        # Public and portal users lack "base.group_no_one" even in debug mode,
-        # so including rule and record names below is relatively safe.
         rules = self._get_failing(records, mode=operation).sudo()
 
         display_records = records[:6].sudo()
-        # Heuristic: substring match on the domain source text, not a precise
-        # field check (only drives the optional multi-company hint below).
         company_related = any("company_id" in (r.domain_force or "") for r in rules)
 
         def get_record_description(rec):
-            # If the user has access to the company of the record, add this
-            # information in the description to help them to change company
             if (
                 company_related
                 and "company_id" in rec
@@ -336,7 +303,6 @@ class IrRule(models.Model):
         ):
             msg = f"{operation_error}\n{failing_model}\n\n{resolution_info}"
         else:
-            # This extended AccessError is only displayed in debug mode.
             failing_records = "\n".join(
                 f"- {get_record_description(rec)}" for rec in display_records
             )
@@ -344,7 +310,6 @@ class IrRule(models.Model):
             failing_rules = _("Blame the following rules:\n%s", rules_description)
             msg = f"{operation_error}\n{failing_records}\n\n{failing_rules}\n\n{resolution_info}"
 
-        # clean up the cache of records because of filtered_domain to check ir.rule + display_name above
         records.invalidate_recordset()
 
         exception = AccessError(msg)
@@ -353,15 +318,6 @@ class IrRule(models.Model):
         return exception
 
 
-#
-# 'global' is a Python keyword, so the field cannot be declared inline; it is
-# assigned onto the class instead (the metaclass normally adds '_module').
-#
-# Audit 2026-07-07: NOT renamed (e.g. to `is_global`) — ~76 call sites across
-# this repo plus the enterprise (26) and agromarin (15) XML sites, which live
-# outside this repo and would break on load. Keep the shim until a cross-repo
-# rename is scheduled.
-#
 global_ = fields.Boolean(
     compute="_compute_global",
     store=True,

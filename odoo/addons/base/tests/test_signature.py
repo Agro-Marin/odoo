@@ -68,14 +68,12 @@ class TestSignature(TransactionCase):
                     self.skipTest("Could not load the PdfSigner class properly")
             pdf_data = out_stream.getvalue()
 
-            # Retrieve the signature content
             sig_field_index = pdf_data.rfind(b"/FT /Sig")
             content_index = pdf_data.find(b"Contents", sig_field_index)
             content_start_index = pdf_data.find(b"<", content_index)
             content_end_index = pdf_data.find(b">", content_index)
             content = pdf_data[content_start_index + 1 : content_end_index]
 
-            # Retrieve the computed byte range
             byte_range_index = pdf_data.find(b"ByteRange")
             start_bracket_index = pdf_data.find(b"[", byte_range_index)
             end_bracket_index = pdf_data.find(b"]", start_bracket_index)
@@ -85,7 +83,6 @@ class TestSignature(TransactionCase):
                 .split(b" ")
             )
 
-            # Computing the hash from the resulting document
             hash = hashlib.sha256()
             for i in range(0, len(byte_range), 2):
                 hash.update(
@@ -99,7 +96,6 @@ class TestSignature(TransactionCase):
                 self.certificate.public_bytes(encoding=serialization.Encoding.DER)
             )
 
-            # Setting up the content information to assert
             encap_content_info = {"content_type": "data", "content": None}
 
             attrs = cms.CMSAttributes(

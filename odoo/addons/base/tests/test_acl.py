@@ -38,7 +38,6 @@ class TestACL(TransactionCaseWithUserDemo):
         """Field-level ``groups`` restricts the field to members of the allowed groups."""
         currency = self.env["res.currency"].with_user(self.user_demo)
 
-        # Add a view that adds a label for the field we are going to check
         primary = self.env["ir.ui.view"].create(
             {
                 "name": "Add separate label for decimal_places",
@@ -57,7 +56,6 @@ class TestACL(TransactionCaseWithUserDemo):
             }
         )
 
-        # Verify the test environment first
         original_fields = currency.fields_get([])
         form_view = currency.get_view(primary.id, "form")
         view_arch = etree.fromstring(form_view.get("arch"))
@@ -82,7 +80,6 @@ class TestACL(TransactionCaseWithUserDemo):
             "Label for 'decimal_places' must be found in view definition before the test",
         )
 
-        # restrict access to the field and check it's gone
         self._set_field_groups(currency, "decimal_places", self.TEST_GROUP)
 
         fields = currency.fields_get([])
@@ -102,7 +99,6 @@ class TestACL(TransactionCaseWithUserDemo):
             "Label for 'decimal_places' must not be found in view definition",
         )
 
-        # Make demo user a member of the restricted group and check that the field is back
         self.test_group.user_ids += self.user_demo
         has_group_test = self.user_demo.has_group(self.TEST_GROUP)
         fields = currency.fields_get([])
@@ -133,7 +129,6 @@ class TestACL(TransactionCaseWithUserDemo):
         """Read/Write RPC access to a restricted field must be forbidden."""
         partner = self.env["res.partner"].browse(1).with_user(self.user_demo)
 
-        # Verify the test environment first
         has_group_test = self.user_demo.has_group(self.TEST_GROUP)
         self.assertFalse(
             has_group_test,
@@ -142,7 +137,6 @@ class TestACL(TransactionCaseWithUserDemo):
         self.assertTrue(partner.read(["bank_ids"]))
         self.assertTrue(partner.write({"bank_ids": []}))
 
-        # Now restrict access to the field and check it's forbidden
         self._set_field_groups(partner, "bank_ids", self.TEST_GROUP)
 
         with self.assertRaises(AccessError):
@@ -154,7 +148,6 @@ class TestACL(TransactionCaseWithUserDemo):
         with self.assertRaises(AccessError):
             partner.write({"bank_ids": []})
 
-        # Add the restricted group, and check that it works again
         self.test_group.user_ids += self.user_demo
         has_group_test = self.user_demo.has_group(self.TEST_GROUP)
         self.assertTrue(
@@ -167,15 +160,11 @@ class TestACL(TransactionCaseWithUserDemo):
     @mute_logger("odoo.models")
     def test_fields_browse_restriction(self):
         """Test access to records having restricted fields"""
-        # Invalidate cache to avoid restricted value to be available
-        # in the cache
         partner = self.env["res.partner"].with_user(self.user_demo)
         self._set_field_groups(partner, "email", self.TEST_GROUP)
 
-        # accessing fields must not raise exceptions...
         partner = partner.search([], limit=1)
         _ = partner.name
-        # ... except if they are restricted
         with self.assertRaises(AccessError):
             with mute_logger("odoo.models"):
                 _ = partner.email
@@ -191,11 +180,9 @@ class TestACL(TransactionCaseWithUserDemo):
         company_view = company.get_view(False, "form")
         view_arch = etree.fromstring(company_view["arch"])
 
-        # demo not part of the group_test, create edit and delete must be False
         for method in methods:
             self.assertEqual(view_arch.get(method), "False")
 
-        # demo part of the group_test, create edit and delete must not be specified
         company = self.env["res.company"].with_user(self.env.ref("base.user_admin"))
         company_view = company.get_view(False, "form")
         view_arch = etree.fromstring(company_view["arch"])
@@ -242,7 +229,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
         model_res_partner = self.env.ref("base.model_res_partner")
         group_user = self.env.ref("base.group_user")
 
-        # create an ir_rule for the Employee group with an blank domain
         rule1 = self.env["ir.rule"].create(
             {
                 "name": "test_rule1",
@@ -252,22 +238,18 @@ class TestIrRule(TransactionCaseWithUserDemo):
             }
         )
 
-        # read as demo user the partners (one blank domain)
         partners_demo = self.env["res.partner"].with_user(self.user_demo)
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # same with domain 1=1
         rule1.domain_force = "[(1,'=',1)]"
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # same with domain []
         rule1.domain_force = "[]"
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # create another ir_rule for the Employee group (to test multiple rules)
         rule2 = self.env["ir.rule"].create(
             {
                 "name": "test_rule2",
@@ -277,21 +259,17 @@ class TestIrRule(TransactionCaseWithUserDemo):
             }
         )
 
-        # read as demo user with domains [] and blank
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # same with domains 1=1 and blank
         rule1.domain_force = "[(1,'=',1)]"
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # same with domains 1=1 and 1=1
         rule2.domain_force = "[(1,'=',1)]"
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # create another ir_rule for the Employee group (to test multiple rules)
         rule3 = self.env["ir.rule"].create(
             {
                 "name": "test_rule3",
@@ -301,34 +279,24 @@ class TestIrRule(TransactionCaseWithUserDemo):
             }
         )
 
-        # read the partners as demo user
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # same with domains 1=1, 1=1 and 1=1
         rule3.domain_force = "[(1,'=',1)]"
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # modify the global rule on res_company which triggers a recursive check
-        # of the rules on company
         global_rule = self.env.ref("base.res_company_rule_employee")
         global_rule.domain_force = "[('id','in', company_ids)]"
 
-        # read as demo user (exercising the global company rule)
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # Modify the ir_rule for employee to have a rule that fordids seeing any
-        # record. We use a domain with implicit AND operator for later tests on
-        # normalization.
         rule2.domain_force = "[('id','=',False),('name','=',False)]"
 
-        # check that demo user still sees partners, because group-rules are OR'ed
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partner.")
 
-        # create a new group with demo user in it, and a complex rule
         group_test = self.env["res.groups"].create(
             {
                 "name": "Test Group",
@@ -336,9 +304,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
             }
         )
 
-        # add the rule to the new group, with a domain containing an implicit
-        # AND operator, which is more tricky because it will have to be
-        # normalized before combining it
         rule3.write(
             {
                 "domain_force": "[('name','!=',False),('id','!=',False)]",
@@ -346,17 +311,14 @@ class TestIrRule(TransactionCaseWithUserDemo):
             }
         )
 
-        # read the partners again as demo user, which should give results
         partners = partners_demo.search([])
         self.assertTrue(
             partners,
             "Demo user should see partners even with the combined rules.",
         )
 
-        # delete global domains (to combine only group domains)
         self.env["ir.rule"].search([("groups", "=", False)]).unlink()
 
-        # read the partners as demo user (several group domains, no global domain)
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partners.")
 
@@ -366,7 +328,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
         for a non-superuser user. (IRU-T1)
         """
         model_res_partner = self.env.ref("base.model_res_partner")
-        # restrictive *global* rule (no group) -> AND-combined with everything
         self.env["ir.rule"].create(
             {
                 "name": "test_rule_su_bypass",
@@ -375,7 +336,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
             }
         )
 
-        # superuser: rules bypassed entirely
         su_rule = self.env(su=True)["ir.rule"]
         self.assertFalse(
             su_rule._get_rules("res.partner", "read"),
@@ -386,7 +346,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
             "Superuser domain must be unrestricted (Domain.TRUE).",
         )
 
-        # non-superuser demo user: the global rule applies and is restrictive
         demo_rule = self.env(user=self.user_demo)["ir.rule"]
         self.assertTrue(
             demo_rule._get_rules("res.partner", "read"),
@@ -440,10 +399,8 @@ class TestIrRule(TransactionCaseWithUserDemo):
         model_res_partner = self.env.ref("base.model_res_partner")
         group_user = self.env.ref("base.group_user")
 
-        # a real, accessible partner to deny access to
         partner = self.env["res.partner"].create({"name": "T3 partner"})
 
-        # group rule that forbids every record for the employee group
         self.env["ir.rule"].create(
             {
                 "name": "test_rule_t3_deny",
@@ -457,8 +414,6 @@ class TestIrRule(TransactionCaseWithUserDemo):
         with self.assertRaises(AccessError):
             partner_demo.check_access("read")
 
-        # In a group_no_one debug context the message must name the rule.
-        # Force the debug branch of _make_access_error by patching has_group.
         UserCls = type(self.env.user)
         original_has_group = UserCls.has_group
 
@@ -488,9 +443,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         with self.assertRaises(ValueError):
             Access._get_access_groups("res.partner", "foo")
 
-    # odoo.db.cursor: the create below deliberately violates the NOT NULL
-    # constraint on ir_model_access.name; without the mute the cursor's
-    # "bad query" ERROR line pollutes the test log even though the test passes.
     @mute_logger("odoo.addons.base.models.ir_model_access", "odoo.db.cursor")
     def test_create_missing_name_raises_field_error(self):
         """A group-less access-granting ACL without ``name`` raises the
@@ -588,8 +540,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
                 for letter in "ab"
             ]
         )
-        # Precondition of the cache key: same groups -> same (stable, hashable)
-        # tuple from _get_group_ids.
         self.assertEqual(user_a._get_group_ids(), user_b._get_group_ids())
         Access = self.env["ir.model.access"]
         allowed_a = Access.with_user(user_a)._get_allowed_models("read")
@@ -599,7 +549,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
             allowed_b,
             "Same-group users must share one _get_allowed_models cache entry.",
         )
-        # Different mode -> different entry (mode is part of the key).
         self.assertIsNot(
             allowed_a, Access.with_user(user_a)._get_allowed_models("write")
         )
@@ -627,8 +576,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         model_partner = self.env.ref("base.model_res_partner")
         Groups = self.env["res.groups"]
 
-        # en_US names sort as ZZZ_alpha < ZZZ_beta; fr_FR names invert that
-        # order (ZZZ_zulu > ZZZ_mike) so a localized ORDER BY is observable.
         group_a = Groups.create({"name": "ZZZ_alpha"})
         group_b = Groups.create({"name": "ZZZ_beta"})
         group_a.with_context(lang="fr_FR").name = "ZZZ_zulu"
@@ -647,7 +594,6 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
         Access = self.env["ir.model.access"].with_context(lang="fr_FR")
         names = Access.group_names_with_access("res.partner", "read")
         ours = [n for n in names if n in ("ZZZ_zulu", "ZZZ_mike")]
-        # Under fr_FR, "ZZZ_mike" < "ZZZ_zulu" -> beta's translation comes first.
         self.assertEqual(
             ours,
             ["ZZZ_mike", "ZZZ_zulu"],
@@ -666,7 +612,6 @@ class TestIrExportsLineAcl(TransactionCaseWithUserDemo):
     def setUpClass(cls):
         super().setUpClass()
         cls.export_group = cls.env.ref("base.group_allow_export")
-        # demo is a plain internal user; ensure it is NOT in the export group.
         cls.user_demo.write({"group_ids": [Command.unlink(cls.export_group.id)]})
         cls.user_exporter = cls.env["res.users"].create(
             {
@@ -734,5 +679,122 @@ class TestIrModelAccessUnknownModel(TransactionCaseWithUserDemo):
         self.assertFalse(Access.check("no.such.model", raise_exception=False))
 
     def test_unknown_model_superuser_short_circuit(self):
-        # env.su returns True before any model lookup, as before
         self.assertTrue(self.env["ir.model.access"].sudo().check("no.such.model"))
+
+
+class TestIrModelAccessCacheInvalidation(TransactionCaseWithUserDemo):
+    """The ACL ormcache must be dropped AFTER a create/write/unlink is applied.
+
+    ``super().write()`` runs its own ``check_access`` on ir.model.access, which
+    repopulates ``_get_allowed_models`` from the not-yet-changed rows.  Clearing
+    the cache *before* the mutation therefore left the pre-change ACL set cached
+    in this worker (the cross-worker invalidation signal having already been
+    emitted), so a revoked access kept being granted here.
+    """
+
+    def _granting_acls(self, model_name, user, mode="write"):
+        group_ids = set(user._get_group_ids())
+        return (
+            self.env["ir.model.access"]
+            .sudo()
+            .search(
+                [
+                    ("model_id", "=", self.env["ir.model"]._get(model_name).id),
+                    (f"perm_{mode}", "=", True),
+                    ("active", "=", True),
+                ]
+            )
+            .filtered(lambda a: not a.group_id or a.group_id.id in group_ids)
+        )
+
+    def test_revoke_takes_effect_in_the_writing_worker(self):
+        admin = self.env.ref("base.user_admin")
+        Access = self.env(user=admin.id)["ir.model.access"]
+        acls = self._granting_acls("res.partner", admin)
+        self.assertTrue(acls, "expected admin to have a write ACL on res.partner")
+
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.assertIn("res.partner", Access._get_allowed_models("write"))
+
+        Access.browse(acls.ids).write({"perm_write": False})
+
+        self.assertNotIn(
+            "res.partner",
+            Access._get_allowed_models("write"),
+            "revoking a model ACL must take effect in the worker that revoked it",
+        )
+
+    def test_grant_takes_effect_in_the_writing_worker(self):
+        admin = self.env.ref("base.user_admin")
+        Access = self.env(user=admin.id)["ir.model.access"]
+        acls = self._granting_acls("res.partner", admin)
+        Access.browse(acls.ids).write({"perm_write": False})
+        self.env.registry.clear_cache()
+        self.assertNotIn("res.partner", Access._get_allowed_models("write"))
+
+        Access.browse(acls.ids).write({"perm_write": True})
+
+        self.assertIn("res.partner", Access._get_allowed_models("write"))
+
+    def test_unlink_takes_effect_in_the_writing_worker(self):
+        admin = self.env.ref("base.user_admin")
+        Access = self.env(user=admin.id)["ir.model.access"]
+        acls = self._granting_acls("res.partner", admin, mode="unlink")
+        self.assertTrue(acls, "expected admin to have an unlink ACL on res.partner")
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.assertIn("res.partner", Access._get_allowed_models("unlink"))
+
+        Access.browse(acls.ids).unlink()
+
+        self.assertNotIn("res.partner", Access._get_allowed_models("unlink"))
+
+
+class TestResGroupsCacheInvalidation(TransactionCaseWithUserDemo):
+    """RG-L4: ``res.groups.write`` must bust the ``default`` cache family AFTER
+    the write, not only before.
+
+    ``"groups"`` does not cascade to ``"default"`` (``_CACHES_BY_KEY``), and
+    ``super().write()`` runs its own access check, repopulating
+    ``res.users._get_group_ids`` from the pre-write graph. When the writer is
+    themselves affected — an admin editing a group they hold — the stale entry
+    survived, so they kept an implication they had just revoked from themselves.
+    ``create()``/``unlink()`` already clear after ``super()``.
+    """
+
+    def test_self_affecting_implication_revoke_takes_effect(self):
+        admin = self.env.ref("base.user_admin")
+        holder = self.env["res.groups"].sudo().create({"name": "rgl4_holder"})
+        granter = self.env["res.groups"].sudo().create({"name": "rgl4_granter"})
+        holder.write({"implied_ids": [Command.link(granter.id)]})
+        admin.sudo().write({"group_ids": [Command.link(holder.id)]})
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.assertIn(granter.id, admin._get_group_ids())
+
+        self.env(user=admin.id)["res.groups"].browse(holder.id).write(
+            {"implied_ids": [Command.unlink(granter.id)]}
+        )
+
+        self.assertNotIn(
+            granter.id,
+            admin._get_group_ids(),
+            "revoking an implication from a group the writer holds must take"
+            " effect in the writing worker",
+        )
+
+    def test_self_affecting_implication_grant_takes_effect(self):
+        admin = self.env.ref("base.user_admin")
+        holder = self.env["res.groups"].sudo().create({"name": "rgl4_holder2"})
+        granter = self.env["res.groups"].sudo().create({"name": "rgl4_granter2"})
+        admin.sudo().write({"group_ids": [Command.link(holder.id)]})
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        self.assertNotIn(granter.id, admin._get_group_ids())
+
+        self.env(user=admin.id)["res.groups"].browse(holder.id).write(
+            {"implied_ids": [Command.link(granter.id)]}
+        )
+
+        self.assertIn(granter.id, admin._get_group_ids())

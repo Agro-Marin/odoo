@@ -25,8 +25,8 @@ FLAG_MAPPING = {
 }
 
 NO_FLAG_COUNTRIES = [
-    "AQ",  # Antarctica
-    "SJ",  # Svalbard + Jan Mayen : separate jurisdictions : no dedicated flag
+    "AQ",
+    "SJ",
 ]
 
 
@@ -122,22 +122,18 @@ class ResCountry(models.Model):
         """
         result = []
         domain = Domain(domain or Domain.TRUE)
-        # first search by code
         if operator not in Domain.NEGATIVE_OPERATORS and name and len(name) == 2:
             countries = self.search_fetch(
                 domain & Domain("code", operator, name),
                 ["display_name"],
                 limit=limit,
             )
-            # No sudo: search_fetch already permission-checked and prefetched
-            # display_name; sudo would discard that prefetch.
             result.extend((country.id, country.display_name) for country in countries)
             domain &= Domain("id", "not in", countries.ids)
             if limit is not None:
                 limit -= len(countries)
                 if limit <= 0:
                     return result
-        # normal search
         result.extend(super().name_search(name, domain, operator, limit))
         return result
 
@@ -159,12 +155,7 @@ class ResCountry(models.Model):
             vals["code"] = vals["code"].upper()
         res = super().write(vals)
         if "code" in vals or "phone_code" in vals:
-            # _phone_code_for caches code -> phone_code; bust it when either changes.
             self.env.registry.clear_cache("stable")
-        # No clear_cache("templates") for address_view_id / address_format /
-        # vat_label: their view-cache consumers (format.address.mixin,
-        # format.vat.label.mixin) key _get_view_cache_key on the field VALUES,
-        # so a change yields a new key and stale entries are never served again.
         return res
 
     def unlink(self) -> bool:
@@ -174,9 +165,6 @@ class ResCountry(models.Model):
     def get_address_fields(self) -> list[str]:
         """Return the address placeholder names parsed from ``address_format``."""
         self.ensure_one()
-        # Match only real %(field)s placeholders; a laxer \((.+?)\) would capture
-        # literal parenthesized text as field names. ``address_format`` may be
-        # False, so guard re.findall against a non-string value.
         return re.findall(r"%\((\w+)\)s", self.address_format or "")
 
     @api.depends("code")
@@ -202,9 +190,6 @@ class ResCountry(models.Model):
             if record.address_format:
                 try:
                     record.address_format % test_values
-                # Reject TypeError too (e.g. numeric %d against string values):
-                # res.partner._display_address only catches KeyError/ValueError,
-                # so catch it here to avoid an uncaught TypeError at render time.
                 except ValueError, KeyError, TypeError:
                     raise UserError(
                         _("The layout contains an invalid format key")
@@ -213,8 +198,6 @@ class ResCountry(models.Model):
     @api.depends("country_group_ids")
     def _compute_country_group_codes(self) -> None:
         """Compute the JSON list of country group codes for this country."""
-        # Fall back to [""] rather than [] so the cached Json value is never
-        # coerced to False and stays a valid iterable for consumers.
         for country in self:
             country.country_group_codes = [
                 g.code for g in country.country_group_ids if g.code
@@ -291,10 +274,9 @@ class ResCountryState(models.Model):
         """
         result = []
         domain = Domain(domain or Domain.TRUE)
-        # accepting 'in' as operator (see odoo/addons/base/tests/test_res_country.py)
         if operator == "in":
             if limit is None:
-                limit = 100  # force a limit
+                limit = 100
             for item in name:
                 result.extend(
                     self.name_search(
@@ -304,23 +286,18 @@ class ResCountryState(models.Model):
                 if len(result) == limit:
                     break
             return result
-        # first search by code (with =ilike)
         if operator not in Domain.NEGATIVE_OPERATORS and name:
             states = self.search_fetch(
                 domain & Domain("code", "=ilike", name),
                 ["display_name"],
                 limit=limit,
             )
-            # No sudo: search_fetch already permission-checked and prefetched
-            # display_name (from name and country_id.code, both readable without
-            # elevation); sudo would discard that prefetch.
             result.extend((state.id, state.display_name) for state in states)
             domain &= Domain("id", "not in", states.ids)
             if limit is not None:
                 limit -= len(states)
                 if limit <= 0:
                     return result
-        # normal search
         result.extend(super().name_search(name, domain, operator, limit))
         return result
 

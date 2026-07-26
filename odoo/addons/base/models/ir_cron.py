@@ -29,39 +29,25 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# In psycopg 3, class-40 (Transaction Rollback) errors are flat siblings under
-# OperationalError (in psycopg 2 they formed a hierarchy), so list them all.
 _TRANSACTION_ROLLBACK_ERRORS = (
-    psycopg.errors.TransactionRollback,  # 40000
-    psycopg.errors.SerializationFailure,  # 40001
-    psycopg.errors.DeadlockDetected,  # 40P01
-    psycopg.errors.TransactionIntegrityConstraintViolation,  # 40002
-    psycopg.errors.StatementCompletionUnknown,  # 40003
+    psycopg.errors.TransactionRollback,
+    psycopg.errors.SerializationFailure,
+    psycopg.errors.DeadlockDetected,
+    psycopg.errors.TransactionIntegrityConstraintViolation,
+    psycopg.errors.StatementCompletionUnknown,
 )
 
 BASE_VERSION = Manifest.for_addon("base")["version"]
-# How long ready jobs may keep failing while modules are stuck in a transient
-# ``to install/upgrade/remove`` state before ``_check_modules_state`` assumes the
-# state is a leftover zombie and forces ``reset_modules_state``. Must outlast a
-# legitimate install.
 MAX_FAIL_TIME = timedelta(hours=5)
 MIN_RUNS_PER_JOB = 10
-MIN_TIME_PER_JOB = 10  # seconds
+MIN_TIME_PER_JOB = 10
 CONSECUTIVE_TIMEOUT_FOR_FAILURE = 3
-# A cron must satisfy both thresholds before deactivation.
 MIN_FAILURE_COUNT_BEFORE_DEACTIVATION = 5
 MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
-# Autovacuum retention: how long inactive-cron ``ir.cron.trigger`` rows (and
-# ``ir.cron.progress`` rows for any cron) are kept before garbage collection.
 TRIGGER_RETENTION_PERIOD = timedelta(weeks=1)
 PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
-# custom function to call instead of default PostgreSQL's `pg_notify`
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
-# Force a cron-worker wake-up (``_notifydb``) on every ir.cron change and trigger
-# creation, regardless of ``call_at``. A deployment switch, read once at import.
-# Parsed via ``str2bool`` so off-values (``0``/``false``/``no``/``off``) disable it
-# -- ``bool(os.getenv(...))`` would treat ``"0"`` as true. Unset/unrecognised => off.
 NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), default=False)
 
 
@@ -84,8 +70,6 @@ class CompletionStatus(StrEnum):
 class IrCron(models.Model):
     """Model describing cron jobs (also called actions or tasks)."""
 
-    # TODO: consider a flag on ir.cron jobs forcing a database wake-up even when
-    # the database is not loaded yet or was already unloaded. See also odoo.cron.
     _name = "ir.cron"
     _order = "cron_name, id"
     _description = "Scheduled Actions"
@@ -168,7 +152,6 @@ class IrCron(models.Model):
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:
-        # only 'code' state is supported for cron job so set it as default
         model = self
         if not model.env.context.get("default_state"):
             model = model.with_context(default_state="code")
@@ -183,21 +166,18 @@ class IrCron(models.Model):
         """
         self.ensure_one()
         self.browse().check_access("write")
-        # cron will be run in a separate transaction, flush before and
-        # invalidate because data will be changed by that transaction
         self.env.invalidate_all(flush=True)
         cron_cr = self.env.cr
         job = self._acquire_one_job(cron_cr, self.id, include_not_ready=True)
         if not job:
             raise UserError(self.env._("Job '%s' already executing", self.name))
 
-        # `_run_job` records the server action's exception (if any) on the job dict.
         self._process_job(cron_cr, job)
         if exception := job.get("run_exception"):
             e = RuntimeError()
             e.__cause__ = exception
             error = {
-                "code": 0,  # we don't care of this code
+                "code": 0,
                 "message": "Odoo Server Error",
                 "data": serialize_exception(e),
             }
@@ -215,13 +195,6 @@ class IrCron(models.Model):
             db_conn = db.db_connect(db_name)
             threading.current_thread().dbname = db_name
             with db_conn.cursor() as cron_cr:
-                # These pre-flight checks run on the base ``IrCron`` class with a
-                # raw cursor, NOT the registry model: they gate whether the DB is
-                # safe to load at all (right code version, no module mid-install),
-                # so loading ``Registry(db_name)`` here is precisely what must be
-                # avoided. Hence they are not override points; only
-                # ``_process_jobs_loop`` loads the registry, so per-DB behaviour
-                # may be overridden there.
                 cls = IrCron
                 cls._check_version(cron_cr)
                 jobs = cls._get_all_ready_jobs(cron_cr)
@@ -241,12 +214,8 @@ class IrCron(models.Model):
                 db_name,
             )
         except psycopg.errors.UndefinedTable:
-            # No ir_cron table; probably not an Odoo database. UndefinedTable
-            # subclasses ProgrammingError, so this handler MUST stay before the
-            # ``except psycopg.ProgrammingError`` re-raise below.
             _logger.warning("Tried to poll an undefined table on database %s.", db_name)
         except db.PoolError:
-            # Pool could not reach the database (e.g. just dropped).
             _logger.info("Skipping database %s: could not connect.", db_name)
         except psycopg.ProgrammingError:
             raise
@@ -279,16 +248,11 @@ class IrCron(models.Model):
                 )
                 continue
             _logger.debug("job %s acquired", job_id)
-            # take into account overridings of _process_job() on that database
             registry = Registry(db_name).check_signaling()
             try:
                 registry[IrCron._name]._process_job(cron_cr, job)
                 cron_cr.commit()
             except Exception:
-                # An infra-level failure (e.g. a _reschedule_*/_add_progress SQL
-                # error, not the action itself, which _run_job catches) must not
-                # abandon the cycle. Roll back to release the lock, let this job
-                # retry next cycle, and continue with the remaining ready jobs.
                 cron_cr.rollback()
                 _logger.exception("job %s failed to process, skip", job_id)
                 continue
@@ -302,9 +266,6 @@ class IrCron(models.Model):
             FROM ir_module_module
              WHERE name='base'
         """)
-        # A missing ``base`` row is as much a "not-ready" signal as a NULL
-        # ``db_version``; treat both as BadModuleStateError rather than letting the
-        # tuple-unpack raise an opaque TypeError.
         row = cron_cr.fetchone()
         if row is None or row[0] is None:
             raise BadModuleStateError
@@ -329,27 +290,16 @@ class IrCron(models.Model):
         if not jobs:
             raise BadModuleStateError
 
-        # max(nextcall, write_date) avoids resetting module state for an ongoing
-        # install right after installing a module with an old-'nextcall' data cron.
         oldest = min(
             max(job["nextcall"], job["write_date"] or job["nextcall"]) for job in jobs
         )
-        # DB transaction clock (naive UTC), for parity with ``nextcall`` /
-        # ``write_date`` and the other time comparisons in this model.
         if cr.now() - oldest < MAX_FAIL_TIME:
             raise BadModuleStateError
 
-        # Jobs have been failing for MAX_FAIL_TIME: assume the crons are stuck on
-        # zombie module states and force a reset.
         reset_modules_state(cr.dbname)
 
     @staticmethod
     def _get_ready_sql_condition(cr: BaseCursor) -> SQL:
-        # Correlated EXISTS, not ``id IN (SELECT cron_id ...)``: the IN form makes
-        # PostgreSQL hash the entire due-trigger set on every evaluation (even a
-        # single-job acquire), while EXISTS short-circuits on the first matching
-        # trigger. Under a trigger backlog this is a point lookup on cron_id's
-        # index instead of a full ir_cron_trigger scan per acquire.
         return SQL(
             """
             active IS TRUE
@@ -401,21 +351,6 @@ class IrCron(models.Model):
         processed in another worker; roll back and go on with the other jobs.
         """
 
-        # The query guarantees that (i) two workers cannot process a job at the
-        # same time, and (ii) a job already processed in another worker is not
-        # processed again before it becomes ready again.
-        #
-        # (i) `FOR NO KEY UPDATE SKIP LOCKED`: each worker acquires and locks one
-        # available job so others skip it.
-        # (ii) the `WHERE` clause: a fully-done job has its nextcall pushed to the
-        # future and its triggers removed; a partially-done job is left ready to be
-        # re-acquired.
-        #
-        # `NO KEY UPDATE` (not `UPDATE`) is used: it conflicts with everything but
-        # the `KEY SHARE` lock foreign keys implicitly take. Since acquired cron
-        # jobs are never deleted, FKs can reference them concurrently and safely.
-        # https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS
-
         where_clause = SQL("id = %s", job_id)
         if not include_not_ready:
             where_clause = SQL(
@@ -440,15 +375,8 @@ class IrCron(models.Model):
             where=where_clause,
         )
         try:
-            # prepare=False: the SELECT * above spans ir_cron, a table modules
-            # extend (mail, ...). This runs on every job acquisition, so the plan
-            # would certainly be cached -- and the next module install would then
-            # break the cron worker with "cached plan must not change result
-            # type", which is not a rollback error and so escapes the retry below.
             cr.execute(query, log_exceptions=False, prepare=False)
         except _TRANSACTION_ROLLBACK_ERRORS:
-            # Serialization error: another worker committed the new `nextcall` of a
-            # cron it just ran, just before this query. Genuine; skip the job here.
             raise
         except psycopg.Error as exc:
             _logger.error("bad query: %s\nERROR: %s", query, exc)
@@ -456,13 +384,9 @@ class IrCron(models.Model):
 
         job = cr.dictfetchone()
 
-        if not job:  # Job is already taken
+        if not job:
             return None
 
-        # `progress_id` is deliberately NOT coalesced: the timeout branch in
-        # `_process_job` is only reached when
-        # `timed_out_counter >= CONSECUTIVE_TIMEOUT_FOR_FAILURE`, which implies a
-        # progress row (non-NULL `progress_id`) exists; a NULL is a no-op UPDATE.
         for field_name in ("done", "remaining", "timed_out_counter"):
             job[field_name] = job[field_name] or 0
         return job
@@ -520,7 +444,7 @@ class IrCron(models.Model):
         elif status == CompletionStatus.PARTIALLY_DONE:
             ir_cron._reschedule_asap(job)
             if NOTIFY_CRON_CHANGES:
-                cron_cr.postcommit.add(ir_cron._notifydb)  # See: `_notifydb`
+                cron_cr.postcommit.add(ir_cron._notifydb)
         else:
             raise RuntimeError(f"unreachable {status=}")
 
@@ -542,19 +466,14 @@ class IrCron(models.Model):
         """
         match (success, bool(done), bool(remaining)):
             case (False, True, True):
-                # Failed, yet committed some progress this pass; retry.
                 return None
             case (False, _, _):
-                # Failed with nothing committed this pass.
                 return CompletionStatus.FAILED
             case (True, _, False):
-                # Nothing left to process (no progress API, or remaining == 0).
                 return CompletionStatus.FULLY_DONE
             case (True, False, _):
-                # Records remain but none were processed this pass.
                 return CompletionStatus.PARTIALLY_DONE
-            case _:  # (True, True, True)
-                # Processed some, more remain; keep looping.
+            case _:
                 return None
 
     @staticmethod
@@ -618,8 +537,6 @@ class IrCron(models.Model):
                     job["cron_name"],
                     env.user.login,
                 )
-                # A terminal status short-circuits the run loop, so the action is
-                # never executed for an archived user.
                 status = CompletionStatus.FAILED
 
             while cls._should_continue_run(
@@ -628,19 +545,11 @@ class IrCron(models.Model):
                 now=time.monotonic(),
                 end_time=env.context["cron_end_time"],
             ):
-                # Each pass gets its OWN ir.cron.progress row: the one committed
-                # before the callback is the crash-survival record whose
-                # ``timed_out_counter`` / ``done`` the next acquire reads to decide
-                # ``failed_by_timeout`` (a fresh row makes "the LAST attempt
-                # processed nothing" detectable), and the per-pass ``done`` values
-                # sum to the run's total work. Do not collapse into an in-place
-                # UPDATE without preserving both properties.
                 cron, progress = cron._add_progress(timed_out_counter=timed_out_counter)
                 job_cr.commit()
 
                 success = False
                 try:
-                    # signaling check and commit is done inside `_callback`
                     cron._callback(job["cron_name"], job["ir_actions_server_id"])
                     success = True
                 except Exception as exc:
@@ -650,7 +559,6 @@ class IrCron(models.Model):
                         job["id"],
                         job["ir_actions_server_id"],
                     )
-                    # Surface the first failure to `method_direct_trigger`.
                     job.setdefault("run_exception", exc)
                 finally:
                     done, remaining = progress.done, progress.remaining
@@ -658,16 +566,8 @@ class IrCron(models.Model):
                         success=success, done=done, remaining=remaining
                     )
                     if status is CompletionStatus.FULLY_DONE and progress.deactivate:
-                        # Deactivation requested via
-                        # ``_commit_progress(deactivate=True)``, carried as a
-                        # separate flag rather than mutating ``job["active"]``:
-                        # ``job`` must stay the DB-authoritative snapshot that
-                        # ``_update_failure_count`` diffs against, else the write
-                        # would look like "no change" and be skipped.
                         job["deactivate"] = True
                     elif status is CompletionStatus.PARTIALLY_DONE and loop_count == 0:
-                        # remaining reported but none processed on the first pass;
-                        # hopefully transient.
                         _logger.warning(
                             "Job %r (%s) processed no record",
                             job["cron_name"],
@@ -677,7 +577,7 @@ class IrCron(models.Model):
                     loop_count += 1
                     progress.timed_out_counter = 0
                     timed_out_counter = 0
-                    job_cr.commit()  # ensure we have no leftovers
+                    job_cr.commit()
 
                     _logger.debug(
                         "Job %r (%s) processed %s records, %s records remaining",
@@ -759,13 +659,8 @@ class IrCron(models.Model):
             active = job["active"]
 
         if job.get("deactivate"):
-            # Self-deactivation requested by the job itself (see `_run_job`).
             active = False
 
-        # Skip the write (and its dead row) when nothing changed -- the common
-        # case, a healthy job succeeding with these values already at defaults.
-        # ``job`` still holds the row as read by ``_acquire_one_job`` (these keys
-        # are never mutated), so this compares against actual DB state.
         if (failure_count, first_failure_date, active) == (
             job["failure_count"],
             job["first_failure_date"],
@@ -827,15 +722,10 @@ class IrCron(models.Model):
         if interval_type in ("minutes", "hours"):
             interval = timedelta(**{interval_type: interval_number})
             if nextcall <= now:
-                # Same postcondition as the loop below: advance by the smallest
-                # whole number of intervals that puts ``nextcall`` strictly past
-                # ``now`` (the ``+ 1`` also covers the ``nextcall == now`` boundary).
                 steps = (now - nextcall) // interval + 1
                 nextcall += steps * interval
             return nextcall
 
-        # ``interval_type`` is Selection-constrained to relativedelta's own plural
-        # kwargs (minutes/hours/days/weeks/months), so build the delta directly.
         interval = relativedelta(**{interval_type: interval_number})
         while nextcall <= now:
             local = fields.Datetime.context_timestamp(record, nextcall)
@@ -878,7 +768,6 @@ class IrCron(models.Model):
         self.ensure_one()
         try:
             if self.pool is not self.pool.check_signaling():
-                # the registry has changed, reload self in the new registry
                 self.env.transaction.reset()
 
             _logger.debug(
@@ -924,13 +813,9 @@ class IrCron(models.Model):
 
     @api.model
     def toggle(self, model: str, domain: list[Any]) -> bool:
-        # Prevent deactivated cron jobs from being re-enabled through side effects on
-        # neutralized databases.
         if self.env["ir.config_parameter"].sudo().get_param("database.is_neutralized"):
             return True
 
-        # Existence check only: bound the count so a large target table doesn't
-        # pay for a full COUNT(*) just to yield a boolean.
         active = bool(self.env[model].search_count(domain, limit=1))
         try:
             self.lock_for_update(allow_referencing=True)
@@ -963,9 +848,6 @@ class IrCron(models.Model):
 
         if coalesce:
             factor = coalesce * 60
-            # `at` values are naive UTC. Tag them UTC explicitly so the epoch
-            # round-trip stays UTC-correct even where the process TZ is not pinned
-            # to UTC (platforms without ``time.tzset``).
             at_list = [
                 datetime.fromtimestamp(
                     math.ceil(dt.replace(tzinfo=UTC).timestamp() / factor) * factor,
@@ -986,7 +868,6 @@ class IrCron(models.Model):
         now = self._now()
 
         if not self.sudo().active:
-            # skip triggers that would be ignored
             at_list = [at for at in at_list if at > now]
 
         if not at_list:
@@ -1037,8 +918,6 @@ class IrCron(models.Model):
                         "cron_id": self.id,
                         "remaining": 0,
                         "done": 0,
-                        # we use timed_out_counter + 1 so that if the current execution
-                        # times out, the counter already takes it into account
                         "timed_out_counter": (
                             0 if timed_out_counter is None else timed_out_counter + 1
                         ),
@@ -1072,7 +951,6 @@ class IrCron(models.Model):
             self.env["ir.cron.progress"].sudo().browse(ctx.get("ir_cron_progress_id"))
         )
         if not progress:
-            # not called during a cron, just commit
             self.env.cr.commit()
             return float("inf")
         if processed < 0:
@@ -1108,27 +986,18 @@ class IrCronTrigger(models.Model):
     _allow_sudo_commands = False
 
     cron_id = fields.Many2one("ir.cron", required=True, ondelete="cascade")
-    # Own index: `_gc_cron_triggers` scans on call_at alone.
     call_at = fields.Datetime(index=True, required=True)
 
-    # The ready-jobs EXISTS probe filters on ``cron_id = ... AND call_at <= now``;
-    # this composite serves that and plain cron_id lookups (e.g. `_clear_schedule`),
-    # so a single-column cron_id index would be redundant (its prefix covers it).
     _cron_id_call_at_idx = models.Index("(cron_id, call_at)")
 
     @api.autovacuum
     def _gc_cron_triggers(self) -> tuple[int, bool]:
-        # Active crons' triggers are cleared by `_clear_schedule` at job start.
-        # The cutoff uses the transaction clock (`cr.now()`) for consistency with
-        # the `call_at` values stamped by `_now`/`_trigger`, even when the app
-        # host's wall clock differs from the DB's.
         domain = [
             ("call_at", "<", self.env.cr.now() - TRIGGER_RETENTION_PERIOD),
             ("cron_id.active", "=", False),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
-        # autovacuum contract: (records removed, whether more may remain)
         return len(records), len(records) == GC_UNLINK_LIMIT
 
 
@@ -1143,20 +1012,13 @@ class IrCronProgress(models.Model):
     deactivate = fields.Boolean()
     timed_out_counter = fields.Integer(default=0)
 
-    # `IrCron._acquire_one_job` reads only the newest progress row per cron
-    # (``WHERE cron_id = %s ORDER BY id DESC LIMIT 1``). A plain ``cron_id`` index
-    # would force a sort/backward-scan when a cron has many progress rows (one per
-    # `_run_job` iteration); this composite makes it a single index fetch.
     _cron_id_id_idx = models.Index("(cron_id, id DESC)")
 
     @api.autovacuum
     def _gc_cron_progress(self) -> tuple[int, bool]:
-        # Transaction clock, for parity with the `create_date` values it is
-        # compared against (see `_gc_cron_triggers`).
         records = self.search(
             [("create_date", "<", self.env.cr.now() - PROGRESS_RETENTION_PERIOD)],
             limit=GC_UNLINK_LIMIT,
         )
         records.unlink()
-        # autovacuum contract: (records removed, whether more may remain)
         return len(records), len(records) == GC_UNLINK_LIMIT

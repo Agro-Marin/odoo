@@ -11,12 +11,8 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# {location_name: backend class} — write-side registry
 STORAGE_BACKENDS: dict[str, type[AttachmentStorage]] = {}
 
-# Schemes already reported by backend_for_key's no-backend warning, so a
-# missing backend is logged once per scheme per process, not once per read
-# (orphaned s3:// keys would otherwise flood the log).
 _UNKNOWN_SCHEMES_WARNED: set[str] = set()
 
 
@@ -73,10 +69,7 @@ class AttachmentStorage:
     directly → extend ``cloud_storage``.
     """
 
-    # write-side registry name (the ``ir_attachment.location`` value)
     location: str = ""
-    # URI scheme prefixing this backend's store keys; empty = no keyed
-    # content (db) or plain keys (file, the no-scheme fallback)
     key_scheme: str = ""
 
     def __init__(self, env: Environment) -> None:
@@ -86,8 +79,6 @@ class AttachmentStorage:
     def owns_key(cls, key: str) -> bool:
         """Return whether *key* is a store key managed by this backend."""
         return bool(cls.key_scheme) and key.startswith(cls.key_scheme + "://")
-
-    # -- write side (dispatched by configured location) ------------------
 
     @staticmethod
     def _inline_datas_values(data: bytes) -> dict[str, Any]:
@@ -147,8 +138,6 @@ class AttachmentStorage:
         """
         raise NotImplementedError
 
-    # -- read side (dispatched by store key, see backend_for_key) --------
-
     def read(self, key: str, size: int | None = None) -> bytes:
         """Read up to *size* bytes (all if ``None``) of the content at *key*."""
         raise NotImplementedError
@@ -159,11 +148,7 @@ class AttachmentStorage:
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         """Fill *stream* to serve *attachment*'s keyed content over HTTP."""
-        # Only keyed content reaches this hook (_to_http_stream serves db-/url-
-        # backed rows inline). A keyed backend (file, s3, ...) MUST implement it.
         raise NotImplementedError
-
-    # -- maintenance ------------------------------------------------------
 
     def autovacuum(self) -> bool | None:
         """Garbage-collect content no longer referenced by any attachment.
@@ -180,7 +165,6 @@ class DbStorage(AttachmentStorage):
     location = "db"
 
     def write(self, data: bytes, checksum: str) -> dict[str, Any]:
-        # content is persisted by the db_datas column itself
         return self._inline_datas_values(data)
 
     def migration_domain(self) -> list[tuple[str, str, Any]]:
@@ -204,20 +188,15 @@ class FileStorage(AttachmentStorage):
 
     def write(self, data: bytes, checksum: str) -> dict[str, Any]:
         if not data:
-            # empty content stays inline, like db storage (no file written)
             return self._inline_datas_values(data)
         return {
-            # the persisted key is _file_write's return value — no parallel
-            # re-derivation that must agree with what was actually written
             "store_fname": self._model()._file_write(data, checksum),
             "db_datas": False,
         }
 
     def write_stream(self, fileobj: Any) -> dict[str, Any]:
-        # True streaming: chunked copy + incremental hash, no full buffer.
         fname, size, checksum = self._model()._file_write_stream(fileobj)
         if not size:
-            # empty content stays inline, like the buffered write() path
             return {
                 "checksum": checksum,
                 "file_size": 0,
@@ -235,8 +214,6 @@ class FileStorage(AttachmentStorage):
         return [("db_datas", "!=", False)]
 
     def read(self, key: str, size: int | None = None) -> bytes:
-        # keyword arg: _file_read is a documented test-patch surface and
-        # several suites assert on the spied call's `size=` kwarg
         return self._model()._file_read(key, size=size)
 
     def delete(self, key: str) -> None:
@@ -245,19 +222,9 @@ class FileStorage(AttachmentStorage):
     def autovacuum(self) -> bool | None:
         """Sweep the GC checklist under a table lock (see _mark_for_gc)."""
         model = self._model()
-        # New transaction: the LOCK below must be its first statement, else the
-        # snapshot may miss concurrent attachment creates (the LOCK waits for
-        # them to end, but a transaction that already ran other queries won't
-        # see their rows).
         cr = self.env.cr
         cr.commit()
 
-        # Scan the checklist (filesystem, no DB) BEFORE locking, so the lock
-        # spans only the whitelist query + unlinks, and stays the first DB
-        # statement (snapshot freshness, above). The scan is capped
-        # (_GC_MAX_ENTRIES): the sweep runs under the SHARE MODE lock, blocking
-        # every attachment write — an unbounded checklist would hold it for the
-        # whole backlog. Entries past the cap wait for the next run.
         checklist = model._gc_checklist(limit=model._GC_MAX_ENTRIES)
         if len(checklist) >= model._GC_MAX_ENTRIES:
             _logger.info(
@@ -266,9 +233,6 @@ class FileStorage(AttachmentStorage):
                 len(checklist),
             )
 
-        # Block concurrent updates on ir_attachment while collecting, but wait
-        # only briefly for the lock so we don't block other transactions
-        # (retried later anyway).
         cr.execute("SET LOCAL lock_timeout TO '10s'")
         try:
             cr.execute("LOCK ir_attachment IN SHARE MODE")
@@ -278,16 +242,11 @@ class FileStorage(AttachmentStorage):
 
         model._gc_file_store_unsafe(checklist)
 
-        # commit to release the lock
         cr.commit()
         return None
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         stream.type = "path"
-        # Route the traversal check through the model's _full_path (sanitize +
-        # resolve + containment) rather than a parallel safe_join. It uses the
-        # cursor's db (correct under HTTP and on cron/report paths) and raises
-        # on an escaping key; treat that like a missing file below.
         try:
             stream.path = attachment._full_path(attachment.store_fname)
         except ValueError:
@@ -302,13 +261,9 @@ class FileStorage(AttachmentStorage):
                 attachment.id,
                 stream.path or attachment.store_fname,
             )
-            # Fall back to empty data so the caller gets a valid stream, not a 500.
             stream.type = "data"
             stream.data = b""
             stream.size = 0
-            # Neutralize caching: the stream's etag is the REAL content digest,
-            # so a cached empty body would keep matching it (304) even after the
-            # file is restored, serving empty forever. Make it uncacheable.
             stream.etag = False
             stream.last_modified = None
             stream.conditional = False

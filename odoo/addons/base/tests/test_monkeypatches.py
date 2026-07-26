@@ -20,8 +20,6 @@ from odoo.tests.common import BaseCase
 
 class TestMonkeypatchContract(BaseCase):
     def _patch_submodules(self):
-        # Patch submodules are named after the module they patch; leading
-        # underscore marks a helper (e.g. ``_excel_utils``), not a patch.
         return [
             module.name
             for module in pkgutil.iter_modules(monkeypatches.__path__)
@@ -29,8 +27,6 @@ class TestMonkeypatchContract(BaseCase):
         ]
 
     def test_submodules_discovered(self):
-        # Guard against a refactor that silently relocates the patches and makes
-        # the contract test below vacuously pass.
         self.assertTrue(
             self._patch_submodules(), "no monkeypatch submodules were discovered"
         )

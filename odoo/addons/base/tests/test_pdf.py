@@ -82,8 +82,7 @@ class TestPdf(TransactionCase):
         merged_reader_buffer.close()
 
     def test_branded_file_writer(self):
-        # It's not easy to create a PDF with PyPDF2, so instead we copy minimal.pdf with our custom pdf writer
-        pdf_writer = pdf.PdfFileWriter()  # BrandedFileWriter
+        pdf_writer = pdf.PdfFileWriter()
         pdf_writer.clone_reader_document_root(self.minimal_pdf_reader)
         writer_buffer = io.BytesIO()
         pdf_writer.write(writer_buffer)

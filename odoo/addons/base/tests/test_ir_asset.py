@@ -7,7 +7,6 @@ from odoo.tools.misc import file_path
 class TestAsset(TransactionCase):
     def test_asset_tag(self):
         """Verify that assets defined with the <asset> tag are properly imported."""
-        # Load new records
         convert_file(
             self.env,
             "base",
@@ -24,7 +23,6 @@ class TestAsset(TransactionCase):
         prepend_asset = self.env.ref("base.test_asset_tag_prepend")
         asset_with_extra_field = self.env.ref("base.test_asset_tag_extra")
 
-        # Verify initial load
         self.assertEqual(prepend_asset._name, "ir.asset", "Model should be ir.asset")
         self.assertEqual(
             prepend_asset.name,
@@ -43,7 +41,6 @@ class TestAsset(TransactionCase):
         self.assertFalse(inactive_keep_asset.active, "Should be inactive")
         self.assertFalse(inactive_switch_asset.active, "Should be inactive")
 
-        # Patch records
         prepend_asset.name = "changed"
         prepend_asset.directive = "append"
         prepend_asset.bundle = "changed"
@@ -53,7 +50,6 @@ class TestAsset(TransactionCase):
         active_switch_asset_ignore.active = False
         inactive_switch_asset.active = True
 
-        # Update records
         convert_file(
             self.env,
             "base",
@@ -71,7 +67,6 @@ class TestAsset(TransactionCase):
             False,
         )
 
-        # Verify updated load
         self.assertEqual(
             prepend_asset.name,
             "Test asset tag with directive",

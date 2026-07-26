@@ -6,8 +6,6 @@ from odoo.orm.models.mixins import write as _write_mod
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import nplusone
 
-# CRUD was split into create/write/unlink mixin modules; each imports the
-# _n1_enabled flag as a local name, so all three must be patched.
 _CRUD_MODS = (_create_mod, _write_mod, _unlink_mod)
 
 
@@ -18,8 +16,6 @@ class TestNplusOneDetection(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Enable detection: patch the source module and all consumers (see
-        # _CRUD_MODS above).
         cls._original_enabled = nplusone._n1_enabled
         nplusone._n1_enabled = True
         cls._original_crud_enabled = [m._n1_enabled for m in _CRUD_MODS]
@@ -46,12 +42,11 @@ class TestNplusOneDetection(TransactionCase):
         categories = self.env["res.partner.category"].create(
             [{"name": f"N1 Test Cat {i}"} for i in range(5)]
         )
-        self.tracker.clear()  # clear create() calls
+        self.tracker.clear()
 
         for cat in categories:
             cat.write({"name": "Updated"})
 
-        # Should have 5 entries from the same call site
         violations = [
             (key, entry)
             for key, entry in self.tracker._data.items()
@@ -74,7 +69,6 @@ class TestNplusOneDetection(TransactionCase):
 
         categories.write({"name": "Batch Updated"})
 
-        # Single call — count=1, below threshold
         for entry in self.tracker._data.values():
             if entry.count >= nplusone.NplusOneTracker.THRESHOLD:
                 self.fail("Batch write should not trigger N+1 detection")
@@ -151,7 +145,6 @@ class TestNplusOneDetection(TransactionCase):
         )
         self.tracker.clear()
 
-        # Same call site (the loop), alternating field sets -> distinct fingerprints
         for i, cat in enumerate(categories):
             if i % 2 == 0:
                 cat.write({"name": "Even"})
@@ -163,7 +156,6 @@ class TestNplusOneDetection(TransactionCase):
             for key, entry in self.tracker._data.items()
             if entry.count >= 2 and key[0] == "write"
         ]
-        # Each branch is a distinct fingerprint -> count=2, below the threshold of 3
         for _, entry in violations:
             self.assertLess(entry.count, nplusone.NplusOneTracker.THRESHOLD)
 
@@ -185,10 +177,7 @@ class TestNplusOneDisabled(TransactionCase):
 
     def test_no_tracker_when_disabled(self):
         """When disabled, tracker should be None on new transactions."""
-        # The tracker is set at Transaction init from _n1_enabled; verify the
-        # flag-based gating works.
         self.assertFalse(nplusone._n1_enabled)
-        # CRUD operations should not fail even without a tracker
         cat = self.env["res.partner.category"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})
         cat.unlink()

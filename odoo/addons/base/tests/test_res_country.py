@@ -25,7 +25,7 @@ class TestResCountryState(TransactionCase):
             "Altan(AA)",
             "Altan ( AA )",
             "Altan (Arstotzka)",
-            "Altan (Arst)",  # dubious
+            "Altan (Arst)",
         ]:
             with self.subTest(name):
                 self.assertEqual(
@@ -33,7 +33,6 @@ class TestResCountryState(TransactionCase):
                     [(altan.id, altan.display_name)],
                 )
 
-        # imitates basque provinces
         vescillo = self.env["res.country.state"].create(
             {
                 "country_id": glorious_arstotzka.id,
@@ -51,13 +50,11 @@ class TestResCountryState(TransactionCase):
             "vesilo (Arstotzka)",
         ]:
             with self.subTest(name):
-                # note operator for more flexible state name matching
                 self.assertEqual(
                     self.env["res.country.state"].name_search(name, operator="ilike"),
                     [(vescillo.id, vescillo.display_name)],
                 )
 
-        # search in state list
         for name in [
             [altan.name],
             [altan.display_name],

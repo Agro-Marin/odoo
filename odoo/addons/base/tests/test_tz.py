@@ -12,8 +12,6 @@ _logger = logging.getLogger(__name__)
 class TestTZ(TransactionCase):
     def test_tz_legacy(self):
         """Legacy timezone names map to canonical names."""
-        # Recent date: some aliases (e.g. Mexico/BajaNorte -> America/Tijuana)
-        # differ at historical dates.
         d = datetime.datetime(2024, 6, 15)
 
         def assertTZEqual(tz1, tz2):
@@ -23,9 +21,7 @@ class TestTZ(TransactionCase):
 
         for source, target in TIMEZONE_ALIASES.items():
             with self.subTest(source=source, target=target):
-                if (
-                    source == "Pacific/Enderbury"
-                ):  # this one was wrong in some version of tzdata
+                if source == "Pacific/Enderbury":
                     continue
                 try:
                     target_tz = timezone(target)
@@ -36,7 +32,6 @@ class TestTZ(TransactionCase):
                         target,
                     )
                     continue
-                # Fresh lookup each iteration.
                 tz._timezone_cache.clear()
                 source_tz = timezone(source)
                 assertTZEqual(source_tz, target_tz)
@@ -51,7 +46,6 @@ class TestTZ(TransactionCase):
             },
             clear=False,
         ):
-            # Pick up the new mapping.
             tz._timezone_cache.clear()
 
             self.assertNotIn(
@@ -75,8 +69,6 @@ class TestTZ(TransactionCase):
             )
             tz._timezone_cache.clear()
             ny_tz = timezone("America/New_York")
-            # America/New_York must NOT be aliased to UTC: it exists in
-            # all_timezones, so the mapping is ignored.
             self.assertNotEqual(
                 now.replace(tzinfo=ny_tz).strftime("%z"),
                 now.replace(tzinfo=utc_tz).strftime("%z"),
@@ -85,11 +77,8 @@ class TestTZ(TransactionCase):
 
     def test_cannot_set_deprecated_timezone(self):
         """Setting deprecated timezone names on a user."""
-        # Canonical timezone always works via the Selection field.
         self.env.user.tz = "America/New_York"
         if "US/Eastern" not in all_timezones():
-            # US/Eastern isn't a Selection value, so the field rejects it;
-            # check the alias mapping at the tz utility level instead.
             resolved = tz.timezone("US/Eastern")
             self.assertEqual(resolved.key, "America/New_York")
 
@@ -97,22 +86,17 @@ class TestTZ(TransactionCase):
         """Partner with an old timezone name stored in the database."""
         tz._timezone_cache.clear()
 
-        # Relevant on ubuntu noble without tzdata-legacy installed.
         partner = self.env["res.partner"].create({"name": "test", "tz": "UTC"})
         self.env.cr.execute(
             """UPDATE res_partner set tz='US/Eastern' WHERE id=%s""",
             (partner.id,),
         )
         partner.invalidate_recordset()
-        self.assertEqual(
-            partner.tz, "US/Eastern"
-        )  # updated despite the selection value not existing
+        self.assertEqual(partner.tz, "US/Eastern")
 
-        # US/Eastern is aliased to America/New_York.
         expected_offset = datetime.datetime.now(timezone("America/New_York")).strftime(
             "%z"
         )
-        # -0400 in summer, -0500 in winter.
         self.assertEqual(
             partner.tz_offset,
             expected_offset,

@@ -28,14 +28,7 @@ from odoo.tools.translate import LazyTranslate, _
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
 
-# Glue the minus sign to the digits it negates with a zero-width no-break space
-# so bidi/RTL reflow cannot detach it from its number. Shared by every numeric
-# widget (integer/float/monetary) via ``IrQwebField._format_number``.
 NEGATIVE_SIGN_JOINER = "-\N{ZERO WIDTH NO-BREAK SPACE}"
-
-# --------------------------------------------------------------------
-# QWeb Fields converters
-# --------------------------------------------------------------------
 
 
 class IrQwebField(models.AbstractModel):
@@ -79,8 +72,6 @@ class IrQwebField(models.AbstractModel):
         data = {}
         field = record._fields[field_name]
 
-        # ``inherit_branding``/``translate`` are injected by the ``t-field``
-        # dispatcher, but keep this tolerant of direct callers that omit them.
         if not options.get("inherit_branding") and not options.get("translate"):
             return data
 
@@ -114,11 +105,6 @@ class IrQwebField(models.AbstractModel):
         """Convert the given field of ``record`` to HTML."""
         if not record:
             return False
-        # Read the field through the QWeb presentation context (lang, tz,
-        # bin_size, …) so the value renders as it should. Only that curated
-        # subset is propagated: the full rendering context carries qweb-internal
-        # per-render state that a blanket with_context(**self.env.context) would
-        # drag into every downstream compute, once per t-field cell.
         env_context = self.env.context
         record_context = record.env.context
         context_delta = {
@@ -216,11 +202,7 @@ class IrQwebFieldFloat(models.AbstractModel):
             )
         elif options.get("precision") is None:
             int_digits = int(math.log10(abs(value))) + 1 if value != 0 else 1
-            # Cap significant digits near a double's ~15-16 digit limit. The
-            # value is rendered through f"%.{precision}f" below (exactly
-            # `precision` decimals), so float_round noise beyond it never shows.
             max_dec_digits = max(15 - int_digits, 0)
-            # We display maximum 6 decimal digits or the number of significant decimal digits if it's lower
             precision = min(6, max_dec_digits)
             min_precision = min_precision or 1
         else:
@@ -245,9 +227,6 @@ class IrQwebFieldFloat(models.AbstractModel):
         field = record._fields[field_name]
         if "precision" not in options and "decimal_precision" not in options:
             _, precision = field.get_digits(record.env) or (None, None)
-            # Only inject ``precision`` when the field declares digits: a
-            # ``None`` would otherwise reach ``f"%.{precision}f"`` as the literal
-            # ``"%.Nonef"``. Leaving it out lets ``value_to_html`` derive it.
             if precision is not None:
                 options = dict(options, precision=precision)
         if "min_precision" not in options and hasattr(field, "get_min_display_digits"):
@@ -299,8 +278,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
 
-        # ``context_timestamp`` reads the tz off the record's context; use a
-        # local rather than rebinding ``self`` when an explicit tz is requested.
         record = self
         if options.get("tz_name"):
             record = self.with_context(tz=options["tz_name"])
@@ -377,8 +354,6 @@ class IrQwebFieldSelection(models.AbstractModel):
         self, record: models.BaseModel, field_name: str, options: dict[str, Any]
     ) -> str | Markup | bool:
         if "selection" not in options:
-            # Only the selection pairs are needed; ``get_description`` built
-            # (and translated) the field's entire description per rendered cell.
             options = dict(
                 options,
                 selection=dict(
@@ -417,8 +392,6 @@ class IrQwebFieldMany2many(models.AbstractModel):
 
 
 class IrQwebFieldOne2many(models.AbstractModel):
-    # Identical rendering to many2many (comma-joined display names); inherit it
-    # rather than duplicate the body.
     _name = "ir.qweb.field.one2many"
     _description = "Qweb field one2many"
     _inherit = ["ir.qweb.field.many2many"]
@@ -427,11 +400,6 @@ class IrQwebFieldOne2many(models.AbstractModel):
 class IrQwebFieldHtml(models.AbstractModel):
     """``html`` converter, emits the stored markup as-is (no sanitization here)."""
 
-    # This converter does NOT sanitize: it re-serializes the stored HTML and only
-    # runs attribute post-processing (e.g. asset rewriting). Safety relies on the
-    # ``Html`` field sanitizing on write (sanitize=True by default,
-    # sanitize_overridable gated by base.group_sanitize_override). Do not point
-    # it at sanitize=False content originating from untrusted sources.
     _name = "ir.qweb.field.html"
     _description = "Qweb Field HTML"
     _inherit = ["ir.qweb.field"]
@@ -439,26 +407,18 @@ class IrQwebFieldHtml(models.AbstractModel):
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
         if not value:
-            # The widget path (t-out widget='html') reaches this converter with
-            # the ORM falsy value (False/None) for an unset html field. Without
-            # this guard the f-string below interpolates the literal text,
-            # rendering "False"/"None"; the t-field path is guarded upstream.
             return Markup("")
         irQweb = self.env["ir.qweb"]
-        # Wrap in a <body> so the fragment parses as HTML.
         body = etree.fromstring(
             f"<body>{value}</body>", etree.HTMLParser(encoding="utf-8")
         )[0]
         for element in body.iter():
             if element.attrib:
                 attrib = dict(element.attrib)
-                # Stored (user) HTML is dynamic content: keep the default
-                # ``is_static=False`` so the malicious-scheme scrub applies.
                 attrib = irQweb._post_processing_att(element.tag, attrib)
                 element.attrib.clear()
                 element.attrib.update(attrib)
         serialized = etree.tostring(body, encoding="unicode", method="html")
-        # strip the wrapping <body>…</body> added above to isolate the content
         return Markup(serialized.removeprefix("<body>").removesuffix("</body>"))
 
 
@@ -572,14 +532,9 @@ class IrQwebFieldMonetary(models.AbstractModel):
             msg = "Missing display_currency option for monetary field rendering."
             raise ValueError(msg)
 
-        # ``bool`` is a subclass of ``int``; reject it explicitly so a stray
-        # boolean isn't silently formatted as a currency amount.
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError(_("The value send to monetary field is not a number."))
 
-        # lang.format needs an explicit sprintf precision (it sets none by
-        # default, nor does currency.round), so derive one from the currency's
-        # decimal_places.
         decimal_places = options.get("decimal_places", display_currency.decimal_places)
         fmt = f"%.{decimal_places}f"
 
@@ -633,7 +588,6 @@ class IrQwebFieldMonetary(models.AbstractModel):
             if currency_field_name:
                 options["display_currency"] = record[currency_field_name]
         if not options.get("display_currency"):
-            # Fall back to the model's first res.currency many2one.
             currency_fields = [
                 k
                 for k, v in record._fields.items()
@@ -659,8 +613,6 @@ TIMEDELTA_UNITS = (
     ("second", _lt("second"), 1),
 )
 
-# unit name -> seconds, derived once (the duration widget looks units up by
-# name on every render).
 TIMEDELTA_SECONDS_BY_UNIT = {unit: seconds for unit, _label, seconds in TIMEDELTA_UNITS}
 
 
@@ -696,7 +648,6 @@ class IrQwebFieldTime(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         if value < 0:
             raise ValueError(_("The value (%s) passed should be positive", value))
-        # ``value`` is guaranteed non-negative by the check above, no abs() needed.
         hours, minutes = divmod(int(value * 60), 60)
         if hours > 23:
             raise ValueError(_("The hour must be between 0 and 23"))
@@ -836,9 +787,9 @@ class IrQwebFieldDuration(models.AbstractModel):
             if section:
                 sections.append(section)
 
-        if sign:
-            sections.insert(0, sign)
-        return " ".join(sections)
+        if not sections:
+            return ""
+        return sign + " ".join(sections)
 
 
 class IrQwebFieldRelative(models.AbstractModel):
@@ -867,13 +818,8 @@ class IrQwebFieldRelative(models.AbstractModel):
         if isinstance(value, str):
             value = fields.Datetime.from_string(value)
         elif isinstance(value, date) and not isinstance(value, datetime):
-            # A ``date`` value (date field) cannot be subtracted from the
-            # datetime reference below; compare from its midnight.
             value = datetime.combine(value, time.min)
 
-        # ``record_to_html`` injects ``now`` for the t-field path; on the bare
-        # value (t-out widget) path it may be absent, so default to now. Both
-        # value and reference are naive UTC datetimes.
         reference = fields.Datetime.from_string(
             options.get("now") or fields.Datetime.now()
         )
@@ -888,8 +834,6 @@ class IrQwebFieldRelative(models.AbstractModel):
     ) -> str | Markup | bool:
         if "now" not in options:
             field = record._fields[field_name]
-            # ``fields.Date`` has no ``now()``: the reference is always a
-            # datetime, whatever the field type.
             now = field.now() if field.type == "datetime" else fields.Datetime.now()
             options = dict(options, now=now)
         return super().record_to_html(record, field_name, options)
@@ -1056,7 +1000,6 @@ class IrQwebFieldContact(models.AbstractModel):
         if sep:
             opsep = escape(sep)
         elif options.get("no_tag_br"):
-            # escaped joiners will auto-escape joined params
             opsep = escape(", ")
         else:
             opsep = Markup("<br/>")
@@ -1064,8 +1007,6 @@ class IrQwebFieldContact(models.AbstractModel):
         value = value.sudo().with_context(show_address=True)
         display_name = value.display_name or ""
         name_line, *address_lines = display_name.split("\n")
-        # Avoid e.g. display_name = 'Foo\n  \n' (name, no address) yielding a
-        # markup('<br/>') address when there is no address.
         if any(elem.strip() for elem in address_lines):
             address = opsep.join(address_lines).strip()
         else:

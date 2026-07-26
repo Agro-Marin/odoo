@@ -20,9 +20,6 @@ class IrExportsLine(models.Model):
 
     _name = "ir.exports.line"
     _description = "Exports Line"
-    # Lines render in global id order; insertion order ≈ id order so a preset's
-    # columns stay stable in practice. If explicit column ordering becomes a
-    # requirement (IEXP-C1), add a `sequence` field and order by it here.
     _order = "id"
 
     name = fields.Char(string="Field Name")

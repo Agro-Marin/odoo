@@ -18,13 +18,11 @@ class TestIrModelDataCacheInvalidation(TransactionCase):
         )
         self.assertTrue(imd, "expected an ir.model.data row for base.group_user")
 
-        # `wraps` keeps the real invalidation behaviour while recording calls.
         with patch.object(
             self.env.registry,
             "clear_cache",
             wraps=self.env.registry.clear_cache,
         ) as mock_clear:
-            # vals does NOT touch `model`; only the pre-image is res.groups.
             imd.write({"noupdate": True})
 
         cleared = [call.args for call in mock_clear.call_args_list]

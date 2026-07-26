@@ -52,7 +52,7 @@ class IrBinary(models.AbstractModel):
         elif res_id is not None and res_model in self.env:
             record = self.env[res_model].browse(res_id).exists()
         if not record:
-            raise MissingError(  # pylint: disable=missing-gettext,E8507
+            raise MissingError(
                 f"No record found for xmlid={xmlid}, res_model={res_model}, id={res_id}"
             )
         if access_token and verify_limited_field_access_token(
@@ -124,20 +124,16 @@ class IrBinary(models.AbstractModel):
         """
         with replace_exceptions(
             ValueError,
-            by=UserError(  # pylint: disable=missing-gettext
-                f"Expected singleton: {record}"
-            ),
+            by=UserError(f"Expected singleton: {record}"),
         ):
             record.ensure_one()
 
         try:
             field_def = record._fields[field_name]
         except KeyError:
-            raise UserError(  # pylint: disable=missing-gettext,E8507
-                f"Record has no field {field_name!r}."
-            ) from None
+            raise UserError(f"Record has no field {field_name!r}.") from None
         if field_def.type != "binary":
-            raise UserError(  # pylint: disable=missing-gettext
+            raise UserError(
                 f"Field {field_def!r} is type {field_def.type!r} but "
                 f"it is only possible to stream Binary or Image fields."
             )
@@ -165,15 +161,8 @@ class IrBinary(models.AbstractModel):
             stream.download_name = stream.download_name.replace("\n", "_").replace(
                 "\r", "_"
             )
-            # bound the base name length (an oversized Content-Disposition can
-            # be rejected by drivers/proxies → 502), preserving the extension
             ext = get_extension(stream.download_name) or ""
             stream.download_name = stream.download_name.removesuffix(ext)[:100] + ext
-            # Two libraries on purpose (IRB-M2): odoo's `get_extension` parses
-            # the existing name (understands odoo's multi-part / magic-byte
-            # extensions) to see if one is present; stdlib `guess_extension`
-            # maps the mimetype to one to append. Don't "dedup" — different
-            # questions.
             if (
                 not get_extension(stream.download_name)
                 and stream.mimetype != "application/octet-stream"
@@ -225,14 +214,8 @@ class IrBinary(models.AbstractModel):
                 default_mimetype,
             )
         except (UserError, MissingError) as exc:
-            # MissingError covers a dangling attachment-backed field (GC races /
-            # manual deletes). Degrade to the placeholder rather than a 500
-            # (IRB-C1); still re-raise on an explicit download.
             if request and request.params.get("download"):
                 raise
-            # The swallow also hides real bugs (a typo'd field_name raises
-            # UserError) behind a silent placeholder; log a trace (IRB-C2).
-            # DEBUG not WARNING: the GC-race MissingError is normal in prod.
             _logger.debug(
                 "Falling back to the image placeholder for %s.%s: %s",
                 record._name,
@@ -246,7 +229,7 @@ class IrBinary(models.AbstractModel):
             stream = self._get_placeholder_stream(placeholder)
 
         if stream.type == "url":
-            return stream  # Resizing an external URL is not supported
+            return stream
         if not stream.mimetype.startswith("image/"):
             stream.mimetype = "application/octet-stream"
 
@@ -256,10 +239,6 @@ class IrBinary(models.AbstractModel):
         if isinstance(stream.etag, str):
             stream.etag += f"-{width}x{height}-crop={crop}-quality={quality}"
 
-        # HTTP cache negotiation needs a live request. `request` is falsy on
-        # non-HTTP paths (e.g. ir_actions_report resolving /web/image URLs
-        # server-side in cron/worker context); there, always (re)process the
-        # image so callers don't hit an AttributeError on request.httprequest.
         modified = True
         if request:
             if isinstance(stream.last_modified, (int, float)):

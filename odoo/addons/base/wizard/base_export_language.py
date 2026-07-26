@@ -10,9 +10,6 @@ from odoo.tools.translate import trans_export, trans_export_records
 NEW_LANG_KEY = "__new__"
 
 
-# BLEXP-SEC-1: export is granted base.group_user (not base.group_system like
-# import) by deliberate upstream design: exporting is read-only and exposes only
-# strings an internal user can already read. Do NOT tighten to group_system.
 class BaseLanguageExport(models.TransientModel):
     _name = "base.language.export"
     _description = "Language Export"
@@ -61,7 +58,7 @@ class BaseLanguageExport(models.TransientModel):
         [
             ("choose", "choose"),
             ("get", "get"),
-        ],  # choose language or get the file
+        ],
         default="choose",
     )
 
@@ -74,10 +71,6 @@ class BaseLanguageExport(models.TransientModel):
             if self.export_type == "model":
                 if not self.model_name:
                     raise UserError(_("Please select a model to export."))
-                # BLEXP-1: catch TypeError beyond ValueError/SyntaxError so
-                # pathological input (e.g. an unhashable dict key) yields a
-                # UserError, not a 500. A non-list result (e.g. "42") would crash
-                # search(), so it is validated below.
                 try:
                     domain = ast.literal_eval(self.domain or "[]")
                 except ValueError, SyntaxError, TypeError:

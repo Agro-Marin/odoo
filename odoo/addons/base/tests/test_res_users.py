@@ -48,7 +48,6 @@ class UsersCommonCase(TransactionCase):
 
         cls.user_internal, cls.user_portal_1, cls.user_portal_2 = users
 
-        # Drop admin-fetched values so low-privileged tests don't read a polluted cache.
         users.partner_id.invalidate_recordset()
         users.invalidate_recordset()
 
@@ -97,7 +96,6 @@ class TestUsers(UsersCommonCase):
 
         partner = Partner.create({"name": "Bob Partner", "company_id": company_2.id})
 
-        # case 1 : the user has no partner
         test_user = User.create(
             {
                 "name": "John Smith",
@@ -112,7 +110,6 @@ class TestUsers(UsersCommonCase):
             "The partner_id linked to a user should be created without any company_id",
         )
 
-        # case 2 : the user has a partner
         test_user = User.create(
             {
                 "name": "Bob Smith",
@@ -142,7 +139,6 @@ class TestUsers(UsersCommonCase):
         test_user.company_ids += company_1
         test_user.company_ids += company_2
 
-        # 1: the partner has no company_id, no modification
         test_user.write({"company_id": company_1.id})
 
         self.assertFalse(
@@ -151,7 +147,6 @@ class TestUsers(UsersCommonCase):
             "the company_id of the partner_id shall NOT be updated",
         )
 
-        # 2: the partner has a company_id different from the new one, update it
         test_user.partner_id.write({"company_id": company_1.id})
 
         test_user.write({"company_id": company_2.id})
@@ -234,7 +229,6 @@ class TestUsers(UsersCommonCase):
             "Should have added the user 2 in the deletion queue",
         )
 
-        # portal_user_2's deletion fails: this cron references it without ondelete=cascade.
         self.cron = self.env["ir.cron"].create(
             {
                 "name": "Test Cron",
@@ -282,7 +276,6 @@ class TestUsers(UsersCommonCase):
     def test_user_home_action_restriction(self):
         test_user = new_test_user(self.env, "hello world")
 
-        # An action whose context is restricted (references 'active_id') is rejected.
         restricted_action = self.env["ir.actions.act_window"].search(
             [("context", "ilike", "active_id")], limit=1
         )
@@ -344,18 +337,13 @@ class TestUsers(UsersCommonCase):
         user.company_id.partner_id.sudo().lang = "de_DE"
 
         patch_target = "odoo.addons.base.models.res_users.request"
-        # A request fills the cache with its own language...
         with patch(patch_target, SimpleNamespace(best_lang="es_ES")):
             self.assertEqual(user.context_get()["lang"], "es_ES")
-        # ...but without any cache clear, a request-less call still falls back to
-        # the DB-derived lang, and other requests get their own language.
         self.assertEqual(user.context_get()["lang"], "de_DE")
         with patch(patch_target, SimpleNamespace(best_lang="fr_FR")):
             self.assertEqual(user.context_get()["lang"], "fr_FR")
-        # A request language that is not installed is ignored.
         with patch(patch_target, SimpleNamespace(best_lang="nl_NL")):
             self.assertEqual(user.context_get()["lang"], "de_DE")
-        # A valid user preference always outranks the request language.
         user.lang = "fr_FR"
         with patch(patch_target, SimpleNamespace(best_lang="es_ES")):
             self.assertEqual(user.context_get()["lang"], "fr_FR")
@@ -410,7 +398,6 @@ class TestUsers2(UsersCommonCase):
         test_group = self.env["res.groups"].create({"name": "test_group"})
         default_group.implied_ids = test_group
 
-        # use the specific views which has the pseudo-fields
         f = Form(self.env["res.users"], view="base.view_users_form")
         f.name = "bob"
         f.login = "bob"
@@ -422,7 +409,6 @@ class TestUsers2(UsersCommonCase):
         self.assertEqual(default_group.implied_ids + group_user, user.group_ids)
 
     def test_selection_groups(self):
-        # create 3 groups that should be in a selection
         app = self.env["res.groups.privilege"].create({"name": "Foo"})
         group_user, group_manager, group_visitor = self.env["res.groups"].create(
             [
@@ -430,17 +416,14 @@ class TestUsers2(UsersCommonCase):
                 for name in ("User", "Manager", "Visitor")
             ]
         )
-        # THIS PART IS NECESSARY TO REPRODUCE AN ISSUE: group1.id < group2.id < group0.id
         self.assertLess(group_user.id, group_manager.id)
         self.assertLess(group_manager.id, group_visitor.id)
-        # implication order is group0 < group1 < group2
         group_manager.implied_ids = group_user
         group_user.implied_ids = group_visitor
         groups = group_visitor + group_user + group_manager
 
         user = self.env["res.users"].create({"name": "foo", "login": "foo"})
 
-        # put user in group_visitor, and check field value
         user.write({"group_ids": [Command.set([group_visitor.id])]})
         self.assertEqual(user.group_ids & groups, group_visitor)
         self.assertEqual(user.all_group_ids & groups, group_visitor)
@@ -449,11 +432,9 @@ class TestUsers2(UsersCommonCase):
             user.read(["all_group_ids"])[0]["all_group_ids"], [group_visitor.id]
         )
 
-        # remove group_visitor
         user.write({"group_ids": [Command.unlink(group_visitor.id)]})
         self.assertEqual(user.group_ids & groups, self.env["res.groups"])
 
-        # put user in group_manager, and check field value
         user.write({"group_ids": [Command.set([group_manager.id])]})
         self.assertEqual(user.group_ids & groups, group_manager)
         self.assertEqual(
@@ -466,7 +447,6 @@ class TestUsers2(UsersCommonCase):
             set((group_visitor + group_manager + group_user).ids),
         )
 
-        # add user in group_user, and check field value
         user.write({"group_ids": [Command.link(group_user.id)]})
         self.assertEqual(user.group_ids & groups, group_manager + group_user)
         self.assertEqual(
@@ -512,8 +492,6 @@ class TestUsers2(UsersCommonCase):
 
         user = user_form.save()
 
-        # in debug mode, show the group widget for external user
-
         with self.debug_mode():
             user_form = Form(user, view="base.view_users_form")
 
@@ -534,8 +512,6 @@ class TestUsers2(UsersCommonCase):
 
             user_form.save()
 
-        # in debug mode, allow extra groups
-
         with self.debug_mode():
             user_form = Form(self.env["res.users"], view="base.view_users_form")
             user_form.name = "Test-2"
@@ -544,7 +520,6 @@ class TestUsers2(UsersCommonCase):
             user_form["group_ids"] = group_portal
             self.assertTrue(user_form.share)
 
-            # for portal user, the view_group_extra_ids is only show in debug mode
             user_form["group_ids"] = group_portal + group_contain_user
             self.assertFalse(
                 user_form.share,
@@ -578,7 +553,6 @@ class TestUsers2(UsersCommonCase):
             "Administrateur",
         )
 
-        # Should work the other way around too
         self.env.registry.clear_cache("groups")
         view_group_hierarchy_fr = (
             self.env["res.groups"]
@@ -628,17 +602,13 @@ class TestUsers2(UsersCommonCase):
         me = self.env["res.users"].browse(self.env.user.id)
         other = self.env["res.users"].browse(self.user_portal_2.id)
 
-        # Allow to write a field in the SELF_WRITEABLE_FIELDS
         me.email = "foo@bar.com"
         self.assertEqual(me.email, "foo@bar.com")
-        # Disallow to write a field not in the SELF_WRITEABLE_FIELDS
         with self.assertRaises(AccessError):
             me.login = "foo"
 
-        # Disallow to write a field in the SELF_WRITEABLE_FIELDS on another user
         with self.assertRaises(AccessError):
             other.email = "foo@bar.com"
-        # Disallow to write a field not in the SELF_WRITEABLE_FIELDS on another user
         with self.assertRaises(AccessError):
             other.login = "foo"
 
@@ -667,7 +637,6 @@ class TestUsers2(UsersCommonCase):
         contact_creation_group = self.env.ref("base.group_partner_manager")
         self.assertNotIn(contact_creation_group, self.user_internal.group_ids)
 
-        # all modules: 23, base: 10; nightly: +1
         with self.assertQueryCount(24):
             self.user_internal.write(
                 {
@@ -676,7 +645,6 @@ class TestUsers2(UsersCommonCase):
             )
 
     def test_portal_user_manager_access(self):
-        # groups
         group_portal = self.env.ref("base.group_portal")
         group_user = self.env.ref("base.group_user")
         group_partner_manager = self.env.ref("base.group_partner_manager")
@@ -687,7 +655,6 @@ class TestUsers2(UsersCommonCase):
             }
         )
 
-        # ACL
         self.env["ir.model.access"].create(
             {
                 "name": "Allow user profile update",
@@ -697,7 +664,6 @@ class TestUsers2(UsersCommonCase):
             }
         )
 
-        # Rules
         self.env["ir.rule"].create(
             {
                 "name": "Allow updates by Portal Managers on PORTAL users (only)",
@@ -708,7 +674,6 @@ class TestUsers2(UsersCommonCase):
             }
         )
 
-        # Users
         portal_user_manager = self.env["res.users"].create(
             {
                 "name": "Portal User Manager",
@@ -738,35 +703,27 @@ class TestUsers2(UsersCommonCase):
             }
         )
 
-        # A UPM cannot update the user profile of another USER
         with self.assertRaises(AccessError):
             user.with_user(portal_user_manager).write({"name": "New name for you"})
-        # A UPM can update the user profile of a PORTAL user
         portal.with_user(portal_user_manager).write({"name": "New name for you"})
 
-        # A UPM cannot update the partner profile of another USER
         with self.assertRaises(AccessError):
             user.partner_id.with_user(portal_user_manager).write(
                 {"name": "New name for you"}
             )
-        # A UPM can update the partner profile of a PORTAL user
         portal.partner_id.with_user(portal_user_manager).write(
             {"name": "New name for you"}
         )
 
-        # A USER cannot update the user profile of another USER
         with self.assertRaises(AccessError):
             self.user_internal.with_user(user).write({"name": "New name for you"})
-        # A USER cannot update the user profile of a PORTAL user
         with self.assertRaises(AccessError):
             portal.with_user(user).write({"name": "New name for you"})
 
-        # A USER cannot update the partner profile of another USER
         with self.assertRaises(AccessError):
             self.user_internal.partner_id.with_user(user).write(
                 {"name": "New name for you"}
             )
-        # A USER can update the partner profile of a PORTAL user
         portal.partner_id.with_user(user).write({"name": "New name for you"})
 
 
@@ -789,7 +746,6 @@ class TestEmptyPassword(TransactionCase):
 
     def test_empty_password_stores_null_and_blocks_login(self):
         user = new_test_user(self.env, "nopwd_user", password="Secret!Pwd123")
-        # Sanity: a set password stores a (non-plaintext) hash and verifies.
         self.assertTrue(self._stored_password(user))
         self.assertEqual(
             self._check_credentials(user, "Secret!Pwd123")["auth_method"],
@@ -802,8 +758,6 @@ class TestEmptyPassword(TransactionCase):
             self._stored_password(user),
             "An empty password must be stored as SQL NULL.",
         )
-        # Login fails cleanly: the old password, the empty string, and a
-        # string matching the stored value (NULL reads back as '') all raise.
         for attempt in ("Secret!Pwd123", "", " "):
             with self.assertRaises(AccessDenied):
                 self._check_credentials(user, attempt)
@@ -835,22 +789,17 @@ class TestUsersIdentitycheck(HttpCase):
     @users("admin")
     def test_revoke_all_devices(self):
         """Revoking all devices (via a password re-entry) invalidates other sessions."""
-        # 8-char password required for security.
         self.env.user.password = "admin@odoo"
 
-        # First session: kept, and used to revoke the others.
         session = self.authenticate(
             "admin", "admin@odoo", session_extra={"_trace_disable": False}
         )
 
-        # Second session: expected to be revoked.
         self.authenticate(
             "admin", "admin@odoo", session_extra={"_trace_disable": False}
         )
-        # Valid session -> not redirected from /web to /web/login.
         self.assertTrue(self.url_open("/web").url.endswith("/web"))
 
-        # @check_identity needs a request; push the first session (the one kept).
         _request_stack.push(SimpleNamespace(session=session, env=self.env))
         self.addCleanup(_request_stack.pop)
         action = self.env.user.action_revoke_all_devices()
@@ -859,16 +808,13 @@ class TestUsersIdentitycheck(HttpCase):
             action.get("view_id"),
         )
         form.password = "admin@odoo"
-        # save() then run_check() = clicking "Log out from all devices".
         user_identity_check = form.save()
         action = user_identity_check.with_context(password=form.password).run_check()
 
-        # Invalid session -> redirected from /web to /web/login.
         self.assertTrue(
             self.url_open("/web").url.endswith("/web/login?redirect=%2Fweb%3F")
         )
 
-        # The wizard must also have blanked the password.
         self.assertFalse(user_identity_check.password)
 
 
@@ -889,8 +835,6 @@ class TestContextGetPartnerInvalidation(TransactionCase):
         user = user.with_user(user)
         self.assertEqual(user.context_get()["lang"], "en_US")
 
-        # Direct partner write bypasses res.users.write; only the partner-side
-        # invalidation can catch it.
         user.partner_id.sudo().write({"lang": "fr_FR"})
 
         self.assertEqual(
@@ -917,8 +861,6 @@ class TestLoginCooldown(TransactionCase):
         icp = self.env["ir.config_parameter"].sudo()
         icp.set_param("base.login_cooldown_after", "2")
         icp.set_param("base.login_cooldown_duration", "60")
-        # _login_failures lives on the registry singleton (not rolled back with the
-        # transaction); drop it so tests don't leak into each other.
         self.addCleanup(self.env.registry.__dict__.pop, "_login_failures", None)
 
     @staticmethod
@@ -933,9 +875,8 @@ class TestLoginCooldown(TransactionCase):
     def test_cooldown_after_threshold(self):
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("8.8.8.8")):
-            self._fail_once(users)  # failures = 1
-            self._fail_once(users)  # failures = 2 (== threshold)
-            # now on cooldown: entry raises even with a clean body
+            self._fail_once(users)
+            self._fail_once(users)
             with (
                 self.assertRaises(AccessDenied),
                 users._assert_can_auth(user=self.env.uid),
@@ -945,11 +886,11 @@ class TestLoginCooldown(TransactionCase):
     def test_success_resets_counter(self):
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("8.8.4.4")):
-            self._fail_once(users)  # failures = 1 (below threshold)
-            with users._assert_can_auth(user=self.env.uid):  # success pops the counter
+            self._fail_once(users)
+            with users._assert_can_auth(user=self.env.uid):
                 pass
-            self._fail_once(users)  # back to failures = 1, still below threshold
-            with users._assert_can_auth(user=self.env.uid):  # not on cooldown
+            self._fail_once(users)
+            with users._assert_can_auth(user=self.env.uid):
                 pass
 
     def test_disabled_when_cooldown_after_zero(self):
@@ -960,7 +901,7 @@ class TestLoginCooldown(TransactionCase):
         with patch(self._REQUEST, self._request("1.1.1.1")):
             for _ in range(5):
                 self._fail_once(users)
-            with users._assert_can_auth(user=self.env.uid):  # cooldown disabled
+            with users._assert_can_auth(user=self.env.uid):
                 pass
 
     def test_no_request_is_noop(self):
@@ -971,9 +912,6 @@ class TestLoginCooldown(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_users")
     def test_cooldown_with_non_numeric_login(self):
-        # NEW-2: a cooldown for a non-numeric login (e.g. an email) must raise
-        # AccessDenied, not ValueError from the i18n uid frame-walker
-        # (_get_uid does int(frame_local 'user') when rendering the _() message).
         users = self.env["res.users"]
         login = "bob@example.com"
         with patch(self._REQUEST, self._request("9.9.9.9")):
@@ -998,11 +936,11 @@ class TestLoginCooldown(TransactionCase):
         """
         users = self.env["res.users"]
         with patch(self._REQUEST, self._request("203.0.113.7")):
-            self._fail_once(users)  # seed the registry map with a fresh entry
+            self._fail_once(users)
         failures_map = self.env.registry._login_failures
 
         now = datetime.now(UTC)
-        stale = now - timedelta(seconds=120)  # cooldown_duration is 60 (setUp)
+        stale = now - timedelta(seconds=120)
         stale_sources = [f"198.51.100.{i}" for i in range(4)]
         for source in stale_sources:
             failures_map[source] = (3, stale)
@@ -1016,7 +954,7 @@ class TestLoginCooldown(TransactionCase):
             ),
             patch(self._REQUEST, self._request("203.0.113.8")),
         ):
-            self._fail_once(users)  # map size > threshold -> prune stale
+            self._fail_once(users)
 
         for source in stale_sources:
             self.assertNotIn(source, failures_map, "stale entry must be pruned")
@@ -1042,16 +980,11 @@ class TestResUsersInitPasswordMigration(TransactionCase):
         user_a = new_test_user(self.env, login="rul09_a")
         user_b = new_test_user(self.env, login="rul09_b")
 
-        # Plant plaintext passwords directly in the DB (bypassing ORM hashing) so
-        # init() treats them as not-yet-MCF and migrates them.
         self.env.flush_all()
         self.env.cr.execute(
             "UPDATE res_users SET password=%s WHERE id = ANY(%s)",
             ("plaintext-secret", [user_a.id, user_b.id]),
         )
-        # Warm the ORM cache so BOTH users hold a cached `password` entry init() must
-        # invalidate. `password` is blanked on read, so assert on cache *presence*
-        # (env.cache.contains), not value; invalidate first to force a re-fetch.
         (user_a + user_b).invalidate_recordset(["password"])
         _ = user_a.sudo().password
         _ = user_b.sudo().password
@@ -1060,15 +993,12 @@ class TestResUsersInitPasswordMigration(TransactionCase):
 
         User.init()
 
-        # RU-L09: the old code leaked the comprehension variable, evicting only
-        # user_b's cache and leaving user_a's stale.
         self.assertFalse(
             self.env.cache.contains(user_a, password_field),
             "init() must invalidate every migrated user's cached password (RU-L09)",
         )
         self.assertFalse(self.env.cache.contains(user_b, password_field))
 
-        # And both stored hashes are now real MCF hashes that verify the secret.
         ctx = User._crypt_context()
         self.env.cr.execute(
             "SELECT password FROM res_users WHERE id = ANY(%s)",
@@ -1092,8 +1022,6 @@ class TestCheckUidPasswdCacheContract(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # The ormcache lives on the registry singleton (not rolled back with the
-        # transaction); clear it so a stale entry can't leak across tests.
         self.addCleanup(self.env.registry.clear_cache)
         self.env.registry.clear_cache()
 
@@ -1101,37 +1029,28 @@ class TestCheckUidPasswdCacheContract(TransactionCase):
         Users = self.env["res.users"]
         user = new_test_user(self.env, login="rut3_orm", password="old-password")
 
-        # Warm the cache: old password is valid -> memoised.
         Users._check_uid_passwd(user.id, "old-password")
 
-        # ORM write carries `password` in vals -> registry.clear_cache().
         user.password = "new-password"
 
-        # Old password must no longer authenticate (cache was invalidated).
         with self.assertRaises(AccessDenied):
             Users._check_uid_passwd(user.id, "old-password")
-        # And the new password works.
         Users._check_uid_passwd(user.id, "new-password")
 
     def test_raw_sql_change_without_clear_keeps_cache_stale(self):
         Users = self.env["res.users"]
         user = new_test_user(self.env, login="rut3_rawsql", password="old-password")
 
-        # Warm the cache with the old password.
         Users._check_uid_passwd(user.id, "old-password")
 
-        # Mutate the hash directly in the DB WITHOUT clearing the cache.
         new_hash = Users._crypt_context().hash("new-password")
         self.env.flush_all()
         self.env.cr.execute(
             "UPDATE res_users SET password=%s WHERE id=%s", (new_hash, user.id)
         )
-        self.env.invalidate_all()  # ORM record cache, NOT the ormcache
+        self.env.invalidate_all()
 
-        # Documented contract: the (uid, sha256('old-password')) ormcache entry
-        # survives, so the OLD password still authenticates from cache.
         Users._check_uid_passwd(user.id, "old-password")
-        # Clearing the registry cache restores correctness.
         self.env.registry.clear_cache()
         with self.assertRaises(AccessDenied):
             Users._check_uid_passwd(user.id, "old-password")
@@ -1152,8 +1071,6 @@ class TestSelfWriteCompanyGuard(UsersCommonCase):
         original_company = user.company_id
 
         me = user.with_user(user)
-        # Non-member company_id is dropped; vals becomes empty so write
-        # short-circuits (RU-C2) and the company is unchanged.
         self.assertTrue(me.write({"company_id": other_company.id}))
         self.assertEqual(
             user.company_id,
@@ -1202,9 +1119,6 @@ class TestAtLeastOneAdministrator(TransactionCase):
         self.assertNotIn(group_system, indirect_admin.group_ids)
         self.assertIn(group_system, indirect_admin.all_group_ids)
 
-        # Strip DIRECT group_system membership from every direct member. The
-        # pre-RU-M3 constraint only looked at group_system.user_ids and raised a
-        # spurious ValidationError, ignoring the still-effective indirect_admin.
         direct_admins = group_system.user_ids
         self.assertTrue(direct_admins, "the test DB must have a direct admin")
         direct_admins.write({"group_ids": [Command.unlink(group_system.id)]})
@@ -1248,21 +1162,15 @@ class TestDeviceLogGC(TransactionCase):
     def test_gc_keeps_latest_log_per_device(self):
         DeviceLog = self.env["res.device.log"]
 
-        # Group A: three logs, distinct last_activity -> keep the newest.
         self._log(last_activity="2026-07-01 10:00:00")
         self._log(last_activity="2026-07-01 11:00:00")
         keep_a = self._log(last_activity="2026-07-01 12:00:00")
 
-        # Group B: same session, NULL platform/browser must group together
-        # (PARTITION BY, like the old IS NOT DISTINCT FROM joins) -> keep the
-        # newest of the two NULL-device rows, independently of group A.
         self._log(platform=False, browser=False, last_activity="2026-07-01 10:00:00")
         keep_b = self._log(
             platform=False, browser=False, last_activity="2026-07-01 11:00:00"
         )
 
-        # Group C: tie on last_activity -> keep exactly one, the highest id
-        # (view-aligned tie-break; the pre-RDEV-P3 query kept every tied row).
         self._log(
             session_identifier="sid_rdev_p3_c", last_activity="2026-07-01 09:00:00"
         )
@@ -1270,7 +1178,6 @@ class TestDeviceLogGC(TransactionCase):
             session_identifier="sid_rdev_p3_c", last_activity="2026-07-01 09:00:00"
         )
 
-        # Group D: a lone (old) log is its group's latest -> always kept.
         keep_d = self._log(
             session_identifier="sid_rdev_p3_d",
             ip_address="10.0.0.8",
@@ -1341,8 +1248,6 @@ class TestAccessesCount(UsersCommonCase):
         self.assertEqual(active_accesses, len(groups.model_access))
         self.assertEqual(active_rules, len(groups.rule_groups))
 
-        # Archiving removes them from the default-context counts, exactly
-        # like the x2many recordsets (filtered at access time)...
         rule.action_archive()
         acl.action_archive()
         self.env.invalidate_all()
@@ -1353,9 +1258,6 @@ class TestAccessesCount(UsersCommonCase):
         self.assertEqual(user.accesses_count, len(groups.model_access))
         self.assertEqual(user.rules_count, len(groups.rule_groups))
 
-        # ... while an active_test=False context keeps seeing them, as the
-        # relational reads did (invalidate first: the non-stored integer
-        # cache is context-independent, for the old compute too).
         self.env.invalidate_all()
         user_no_active_test = user.with_context(active_test=False)
         groups_no_active_test = user_no_active_test.all_group_ids
@@ -1387,16 +1289,14 @@ class TestWriteCacheInvalidation(UsersCommonCase):
     def test_lang_only_write_invalidates_context_cache(self):
         self.env["res.lang"]._activate_lang("fr_FR")
         user = self.user_internal
-        self.assertEqual(self._user_context_lang(user), "en_US")  # prime cache
+        self.assertEqual(self._user_context_lang(user), "en_US")
         user.write({"lang": "fr_FR"})
         self.assertEqual(self._user_context_lang(user), "fr_FR")
 
     def test_combined_group_and_lang_write_invalidates_context_cache(self):
-        # group_ids takes the call_cache_clearing_methods() branch; the lang
-        # invalidation must still happen through the stable->default cascade.
         self.env["res.lang"]._activate_lang("fr_FR")
         user = self.user_internal
-        self.assertEqual(self._user_context_lang(user), "en_US")  # prime cache
+        self.assertEqual(self._user_context_lang(user), "en_US")
         group = self.env["res.groups"].create({"name": "cache inval group"})
         user.write({"group_ids": [Command.link(group.id)], "lang": "fr_FR"})
         self.assertEqual(self._user_context_lang(user), "fr_FR")
@@ -1417,7 +1317,6 @@ class TestInstalledLangCodes(TransactionCase):
         )
         if "fr_FR" in codes:
             self.skipTest("fr_FR already installed; cannot test invalidation")
-        # activating a language must invalidate the memoised set
         self.env["res.lang"]._activate_lang("fr_FR")
         self.assertIn("fr_FR", Users._get_installed_lang_codes())
 
@@ -1450,7 +1349,6 @@ class TestDeviceIdentityAlignment(TransactionCase):
         where = self.env["res.device"]._where()
         for column, _nullable in _DEVICE_IDENTITY_COLUMNS:
             self.assertIn(f"D2.{column}", where)
-        # ip_address is deliberately NOT part of the view identity
         self.assertNotIn("ip_address", where)
 
     def test_gc_keeps_ip_history_view_shows_latest(self):
@@ -1474,9 +1372,6 @@ class TestDeviceIdentityAlignment(TransactionCase):
         )
 
     def test_null_user_rows_dedup_consistently(self):
-        # NULL user_id groups together in both queries: the view shows only
-        # the latest NULL-user row (NULL-safe identity join) and the GC
-        # deletes the very rows the view hides — no invisible immortal rows.
         old = self._log(user_id=False, last_activity="2026-07-01 10:00:00")
         newest = self._log(user_id=False, last_activity="2026-07-01 11:00:00")
         self.env.flush_all()

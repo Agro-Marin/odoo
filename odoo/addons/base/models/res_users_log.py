@@ -9,8 +9,6 @@ class ResUsersLog(models.Model):
     _name = "res.users.log"
     _order = "id desc"
     _description = "Users Log"
-    # Uses the magical fields `create_uid` and `create_date` for recording logins.
-    # See `mail.presence` for more recent activity tracking purposes.
 
     create_uid = fields.Many2one(
         "res.users",

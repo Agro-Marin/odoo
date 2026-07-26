@@ -26,27 +26,22 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.Attachment = self.env["ir.attachment"]
         self.filestore = self.Attachment._filestore()
 
-        # Blob1
         self.blob1 = b"blob1"
         self.blob1_b64 = base64.b64encode(self.blob1)
         self.blob1_hash = self.Attachment._content_checksum(self.blob1)
         self.blob1_fname = self.Attachment._file_store_path(self.blob1_hash)
 
-        # Blob2
         self.blob2 = b"blob2"
         self.blob2_b64 = base64.b64encode(self.blob2)
 
     def assertApproximately(self, value, expectedSize, delta=1):
-        # not bin_size: on write the cache holds the data, not the size, so
-        # getting the size would need a cache invalidation per write.
         with contextlib.suppress(UnicodeDecodeError):
             value = base64.b64decode(value.decode())
-        size = len(value) / 1024  # kb
+        size = len(value) / 1024
 
         self.assertAlmostEqual(size, expectedSize, delta=delta)
 
     def test_01_store_in_db(self):
-        # force storing in database
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
 
         a1 = self.Attachment.create({"name": "a1", "raw": self.blob1})
@@ -178,40 +173,32 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         fullsize = 124.99
 
-        # test create/write on 'datas'
         attach = Attachment.with_context(image_no_postprocess=True).create(
             {
                 "name": "image",
                 "datas": img_encoded,
             }
         )
-        self.assertApproximately(attach.datas, fullsize)  # no resize, no compression
+        self.assertApproximately(attach.datas, fullsize)
 
         attach = attach.with_context(image_no_postprocess=False)
         attach.datas = img_encoded
-        self.assertApproximately(
-            attach.datas, 12.06
-        )  # default resize + default compression
+        self.assertApproximately(attach.datas, 12.06)
 
-        # resize + default quality (80)
         self.env["ir.config_parameter"].set_param(
             "base.image_autoresize_max_px", "1024x768"
         )
         attach.datas = img_encoded
         self.assertApproximately(attach.datas, 3.71)
 
-        # resize + quality 50
         self.env["ir.config_parameter"].set_param("base.image_autoresize_quality", "50")
         attach.datas = img_encoded
         self.assertApproximately(attach.datas, 3.57)
 
-        # no resize + no quality implicit
         self.env["ir.config_parameter"].set_param("base.image_autoresize_max_px", "0")
         attach.datas = img_encoded
         self.assertApproximately(attach.datas, fullsize)
 
-        # quality is only applied when resizing, so we don't recompress on a
-        # plain rewrite. no resize + quality -> no effect
         self.env["ir.config_parameter"].set_param(
             "base.image_autoresize_max_px", "10000x10000"
         )
@@ -219,9 +206,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         attach.datas = img_encoded
         self.assertApproximately(attach.datas, fullsize)
 
-        # test create/write on 'raw'
-
-        # reset default ~ delete
         self.env["ir.config_parameter"].search(
             [("key", "ilike", "base.image_autoresize%")]
         ).unlink()
@@ -232,37 +216,30 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 "raw": img_bin,
             }
         )
-        self.assertApproximately(attach.raw, fullsize)  # no resize, no compression
+        self.assertApproximately(attach.raw, fullsize)
 
         attach = attach.with_context(image_no_postprocess=False)
         attach.raw = img_bin
-        self.assertApproximately(
-            attach.raw, 12.06
-        )  # default resize + default compression
+        self.assertApproximately(attach.raw, 12.06)
 
-        # resize + default quality (80)
         self.env["ir.config_parameter"].set_param(
             "base.image_autoresize_max_px", "1024x768"
         )
         attach.raw = img_bin
         self.assertApproximately(attach.raw, 3.71)
 
-        # resize + no quality
         self.env["ir.config_parameter"].set_param("base.image_autoresize_quality", "0")
         attach.raw = img_bin
         self.assertApproximately(attach.raw, 4.09)
 
-        # resize + quality 50
         self.env["ir.config_parameter"].set_param("base.image_autoresize_quality", "50")
         attach.raw = img_bin
         self.assertApproximately(attach.raw, 3.57)
 
-        # no resize + no quality implicit
         self.env["ir.config_parameter"].set_param("base.image_autoresize_max_px", "0")
         attach.raw = img_bin
         self.assertApproximately(attach.raw, fullsize)
 
-        # no resize of gif
         self.env["ir.config_parameter"].set_param("base.image_autoresize_max_px", "0x0")
         gif_bin = b"GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;"
         attach.raw = gif_bin
@@ -281,15 +258,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         document3 = document.copy({"datas": self.blob1_b64})
         self.assertEqual(document3.datas, self.blob1_b64)
         self.assertEqual(document3.raw, self.blob1)
-        self.assertTrue(document3.store_fname)  # no data in db but has a store_fname
+        self.assertTrue(document3.store_fname)
         self.assertEqual(document3.db_datas, False)
         self.assertEqual(document3.store_fname, self.blob1_fname)
         self.assertEqual(document3.checksum, self.blob1_hash)
 
     def test_12_gc(self):
-        # zero the grace window: this test marks and sweeps immediately
         self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
-        # unique data so no other attachment shares the file, letting the gc collect it
         unique_blob = os.urandom(16)
         a1 = self.Attachment.create({"name": "a1", "raw": unique_blob})
         store_path = Path(self.filestore, a1.store_fname)
@@ -299,9 +274,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertFalse(store_path.is_file(), "file removed")
 
     def test_13_rollback(self):
-        # zero the grace window: this test marks and sweeps immediately
         self.patch(IrAttachment, "_GC_CHECKLIST_GRACE", 0)
-        # unique data so no other attachment shares the file, letting the gc collect it
         unique_blob = os.urandom(16)
         with contextlib.closing(self.cr.savepoint()):
             a1 = self.env["ir.attachment"].create({"name": "a1", "raw": unique_blob})
@@ -320,20 +293,20 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         Attachment = self.env["ir.attachment"]
         orphan = Attachment.create({"name": "orphan", "raw": os.urandom(16)})
         kept = Attachment.create({"name": "kept", "raw": os.urandom(16)})
-        orphan_fname = orphan.store_fname  # capture before unlink deletes the row
+        orphan_fname = orphan.store_fname
         kept_fname = kept.store_fname
         orphan_path = Path(self.filestore, orphan_fname)
         kept_path = Path(self.filestore, kept_fname)
 
-        orphan.unlink()  # marks the orphan's file for GC
-        Attachment._mark_for_gc(kept_fname)  # also mark a still-referenced file
+        orphan.unlink()
+        Attachment._mark_for_gc(kept_fname)
         Attachment.flush_recordset(["store_fname"])
 
         checklist = Attachment._gc_checklist()
         self.assertIn(orphan_fname, checklist)
         self.assertIn(kept_fname, checklist)
 
-        Attachment._gc_file_store_unsafe(checklist)  # pre-walked path
+        Attachment._gc_file_store_unsafe(checklist)
         self.assertFalse(orphan_path.is_file(), "orphan file must be collected")
         self.assertTrue(kept_path.is_file(), "referenced file must be spared")
 
@@ -362,8 +335,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         store_path = Path(self.filestore, fname)
         a1.unlink()
 
-        # Fresh marker (just re-marked by unlink): the default-grace scan
-        # must exclude it, and the sweep must leave file AND marker alone.
         checklist = self.Attachment._gc_checklist()
         self.assertNotIn(fname, checklist, "fresh marker must be grace-skipped")
         self.Attachment._gc_file_store_unsafe()
@@ -373,7 +344,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "marker within grace must stay for a later run",
         )
 
-        # Age the marker past the grace window: now the sweep collects it.
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
         checklist = self.Attachment._gc_checklist()
         self.assertIn(fname, checklist, "aged marker must be sweepable")
@@ -392,14 +362,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         unique_blob = os.urandom(16)
         checksum = self.Attachment._content_checksum(unique_blob)
 
-        # First write creates file + marker; backdate the marker so it looks
-        # like the leftover of a long-aborted transaction.
         fname = self.Attachment._file_write(unique_blob, checksum)
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
         self.assertIn(fname, self.Attachment._gc_checklist())
 
-        # Buffered dedup hit: the re-mark must refresh the mtime back
-        # inside the grace window.
         self.assertEqual(self.Attachment._file_write(unique_blob, checksum), fname)
         self.assertNotIn(
             fname,
@@ -407,7 +373,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "_file_write dedup hit must refresh the marker's grace clock",
         )
 
-        # Streamed dedup hit: same contract.
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
         self.assertIn(fname, self.Attachment._gc_checklist())
         stream_fname, size, stream_checksum = self.Attachment._file_write_stream(
@@ -433,20 +398,15 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         a1 = self.Attachment.create({"name": "restat", "raw": os.urandom(16)})
         fname = a1.store_fname
         store_path = Path(self.filestore, fname)
-        a1.unlink()  # marks the file for GC; the row is gone (not whitelisted)
+        a1.unlink()
 
-        # Pre-lock scan: age the marker so it is collectable and enters the
-        # checklist (grace stays the non-zero default so the re-stat guard fires).
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
         checklist = self.Attachment._gc_checklist()
         self.assertIn(fname, checklist)
 
-        # A concurrent transaction re-marks the file (refreshing the marker to
-        # "now") after the pre-lock stat; its content file is still on disk.
         os.utime(self._checklist_marker(fname), None)
         self.assertTrue(store_path.is_file())
 
-        # Sweeping the pre-scanned checklist must re-stat and spare the file.
         self.Attachment._gc_file_store_unsafe(checklist)
         self.assertTrue(
             store_path.is_file(),
@@ -456,7 +416,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_14_invalid_mimetype_with_correct_file_extension_no_post_processing(
         self,
     ):
-        # test with fake svg with png mimetype
         unique_blob = b'<svg xmlns="http://www.w3.org/2000/svg"></svg>'
         a1 = self.Attachment.create(
             {"name": "a1", "raw": unique_blob, "mimetype": "image/png"}
@@ -503,7 +462,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         in_db = self.Attachment.create({"name": "a1", "raw": self.blob1})
         self.env.invalidate_all()
         sized = in_db.with_context(bin_size=True)
-        # guard the premise: the plain field read really does yield a size here
         self.assertNotEqual(sized.db_datas, self.blob1)
         self.assertEqual(sized._read_prefix(), self.blob1)
         self.assertEqual(sized._read_prefix(3), self.blob1[:3])
@@ -527,7 +485,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                     }
                 ]
             )
-        # Verify the exception chain is preserved (from exc)
         self.assertIsNotNone(
             cm.exception.__cause__, "Exception chain should be preserved"
         )
@@ -621,8 +578,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             )
         )
         payload = b"ira-c2-shared-" + os.urandom(8)
-        # admin-owned orphan (res_id=False, not public): invisible to user_b via
-        # the creator rule in _search, yet content-addressed for dedup.
         seeded = self.Attachment.sudo().create(
             {
                 "name": "seed",
@@ -664,11 +619,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
         self.assertTrue(att.store_fname, "Attachment should be stored in filestore")
 
-        # Delete the filestore file to simulate missing file
         full_path = att._full_path(att.store_fname)
         Path(full_path).unlink()
 
-        # Push a fake request onto the LocalStack so `request.db` resolves.
         from types import SimpleNamespace
 
         from odoo.http.core import _request_stack
@@ -681,10 +634,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 self.assertEqual(stream.type, "data")
                 self.assertEqual(stream.data, b"")
                 self.assertEqual(stream.size, 0)
-                # The degraded stream must carry NO caching metadata: built with
-                # etag = checksum (the REAL content's digest), a cacheable 200
-                # with this empty body would keep answering 304 after the file is
-                # restored, pinning the empty body in caches forever.
                 self.assertIs(
                     stream.etag, False, "empty fallback must not keep the real ETag"
                 )
@@ -710,7 +659,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.env["ir.config_parameter"].set_param(
                 "base.image_autoresize_max_px", bad_val
             )
-            # Should NOT raise ValueError — just skip the resize
             att = self.Attachment.create(
                 {
                     "name": "test.png",
@@ -734,7 +682,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         self.env["ir.config_parameter"].set_param(
             "base.image_autoresize_max_px", "10x10"
-        )  # force the resize branch (64 > 10)
+        )
         for bad_val in ("notanint", "", "80%"):
             self.env["ir.config_parameter"].set_param(
                 "base.image_autoresize_quality", bad_val
@@ -756,15 +704,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         att = self.Attachment.create(
             {"name": "u", "type": "binary", "url": "/web/static/does-not-exist.png"}
         )
-        att.db_datas = False  # ensure the url branch is taken
-        # Sanity-check the precondition: no request is bound in this context.
+        att.db_datas = False
         self.assertFalse(_request_stack(), "test must run with no request bound")
         with patch("odoo.addons.base.models.ir_attachment.root") as mock_root:
             mock_root.get_static_file.return_value = None
             stream = att._to_http_stream()
         self.assertEqual(stream.type, "url")
         self.assertEqual(stream.url, att.url)
-        # host must degrade to "" rather than dereferencing an unbound proxy
         self.assertEqual(mock_root.get_static_file.call_args.kwargs.get("host"), "")
 
     def test_compute_res_name_orphaned_res_id(self):
@@ -784,7 +730,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             }
         )
         att.invalidate_recordset(["res_name"])
-        # Must not raise; the orphaned target resolves to False.
         self.assertFalse(att.res_name)
 
     def test_index_preserves_non_ascii_text(self):
@@ -800,9 +745,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertIn("Configuración", indexed)
         self.assertIn("módulo", indexed)
         self.assertIn("genealógico", indexed)
-        # non-text content is still not indexed
         self.assertIsNone(Att._index(b"\x89PNG\r\n", "image/png"))
-        # pure-ASCII output is unchanged: printable runs >=4, split on controls
         ascii_data = b"hello world\nshort\na\nplain ascii text here"
         self.assertEqual(
             Att._index(ascii_data, "text/plain"),
@@ -841,7 +784,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         _compute_raw/_migrate.
         """
         payload = b"streamed text payload for indexation"
-        # positive control: the streaming path indexes readable text content
         ok = self.Attachment._create_from_stream(
             io.BytesIO(payload), name="ok.txt", mimetype="text/plain"
         )
@@ -864,7 +806,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(index_spy.call_count, 0, "empty read-back must not be indexed")
         self.assertTrue(any("skipping index extraction" in line for line in log.output))
         self.assertFalse(att.index_content)
-        # the stored content and its metadata are untouched by the guard
         self.assertEqual(att.file_size, len(payload))
         att.invalidate_recordset()
         self.assertEqual(att.raw, payload)
@@ -876,7 +817,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         padding/length; all decodes go through _decode_datas, which wraps it as
         a clean UserError instead of a 500.
         """
-        bad = b"a"  # 1 char is never a valid base64 quantum, even unpadded
+        bad = b"a"
         with self.assertRaises(UserError):
             self.Attachment.create({"name": "bad", "datas": bad})
         att = self.Attachment.create({"name": "ok", "raw": b"x"})
@@ -899,8 +840,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         IrAttachmentCls = self.registry["ir.attachment"]
         payload = b"same text payload for every record in the batch"
 
-        # create(): the base64 path decodes a distinct object per row, so the
-        # memo must hit on the checksum, not on object identity.
         datas = base64.b64encode(payload)
         with patch.object(
             IrAttachmentCls,
@@ -920,8 +859,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             self.assertEqual(att.raw, payload)
             self.assertIn("payload", att.index_content)
 
-        # write path: `write({'raw': X})` hands every record the same cached
-        # bytes object, hit by the single-slot identity memo.
         rewritten = b"rewritten text payload shared by the whole batch"
         with patch.object(
             IrAttachmentCls,
@@ -977,13 +914,11 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         img.save(buf, format="JPEG")
         jpeg_data = buf.getvalue()
 
-        # Upload with resize disabled so the stored image stays 64x64...
         self.env["ir.config_parameter"].set_param("base.image_autoresize_max_px", "0")
         att = self.Attachment.create(
             {"name": "big.jpg", "raw": jpeg_data, "mimetype": "image/jpeg"}
         )
         stored = att.raw
-        # ...then drop the limit below the image size and migrate.
         self.env["ir.config_parameter"].set_param(
             "base.image_autoresize_max_px", "10x10"
         )
@@ -1009,7 +944,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             side_effect=IrAttachment._check_serving_attachments,
             autospec=True,
         ) as spy:
-            att.write({"raw": b"v2"})  # content-only write — used to skip the check
+            att.write({"raw": b"v2"})
             self.assertGreaterEqual(spy.call_count, 1, "write({'raw'}) must re-check")
             spy.reset_mock()
             att.raw = b"v3"
@@ -1033,17 +968,12 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.addCleanup(target.unlink, missing_ok=True)
         self.addCleanup(checklist.unlink, missing_ok=True)
 
-        # Simulate a crash during the atomic rename.
         with patch("pathlib.Path.replace", side_effect=OSError("simulated crash")):
             with self.assertRaises(OSError):
                 self.env["ir.attachment"]._file_write(payload, checksum)
         self.assertFalse(
             target.exists(), "no truncated file may remain at the real path"
         )
-        # Staging happens in the filestore tmp/ dir so a crash-orphaned temp is
-        # reachable by _gc_stale_filestore_temps (a shard-dir temp was swept by
-        # no GC). The failure path must still unlink it, and the shard dir must
-        # never see a temp.
         tmp_dir = Path(self.filestore, "tmp")
         self.assertEqual(
             list(tmp_dir.glob("write-*")) if tmp_dir.is_dir() else [],
@@ -1056,7 +986,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "no temp file may be staged in the shard dir",
         )
 
-        # The same content can now be written and round-trips correctly.
         fname = self.env["ir.attachment"]._file_write(payload, checksum)
         self.assertEqual(self.env["ir.attachment"]._file_read(fname), payload)
 
@@ -1175,7 +1104,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         created = self.Attachment.create({"name": "empty", "raw": b""})
         self.assertEqual(created.checksum, empty_sha, "create must set empty checksum")
         self.assertEqual(created.file_size, 0)
-        # consistent with the write path producing the same checksum
         written = self.Attachment.create({"name": "x", "raw": b"data"})
         written.write({"raw": b""})
         self.assertEqual(written.checksum, empty_sha, "write path agrees")
@@ -1188,9 +1116,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         publicly servable at ``url``. The autovacuum pass logs a WARNING so ops
         can review before a real exposure occurs.
         """
-        # Bypass `_check_serving_attachments` by creating as admin (sudo),
-        # mirroring the real concern: a future ``controller.sudo().create(
-        # {'url': user_input})`` would slip past the write-time gate.
         suspicious = self.Attachment.sudo().create(
             {
                 "name": "probe.bin",
@@ -1245,7 +1170,6 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     def test_audit_url_attachments_silent_on_clean_fleet(self):
         """No suspicious rows → no WARNING emitted."""
-        # Ensure any pre-existing rows are public=True (usual safe case).
         self.env.cr.execute(
             "UPDATE ir_attachment SET public = TRUE "
             "WHERE type = 'binary' AND url IS NOT NULL"
@@ -1291,7 +1215,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertEqual(att.store_fname, expected)
         if ALGO_TAG != "s1":
             self.assertTrue(att.store_fname.startswith(f"{ALGO_TAG}/"))
-            # tag, shard, digest — the extra level the GC walk must tolerate
             self.assertEqual(len(att.store_fname.split("/")), 3)
         self.assertEqual(Path(self.filestore, att.store_fname).read_bytes(), att.raw)
 
@@ -1310,7 +1233,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         fname, sha = self._legacy_key(payload)
         att = self.Attachment.create({"name": "legacy", "raw": b"placeholder"})
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
-        # simulate the pre-switch row: untagged key + 40-char sha1 checksum
         att.flush_recordset()
         self.env.cr.execute(
             "UPDATE ir_attachment SET store_fname = %s, checksum = %s, file_size = %s "
@@ -1331,9 +1253,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertTrue(marker.is_file(), "marker created at the legacy depth")
         checklist = self.Attachment._gc_checklist(grace=0)
         self.assertIn(fname, checklist)
-        # unreferenced by any row → collected, marker cleaned up. Scan and sweep
-        # with grace=0 (the marker is seconds old) and hand the sweep only this
-        # key, so the assertions cannot be perturbed by other markers.
         self.Attachment._gc_file_store_unsafe(
             checklist={fname: checklist[fname]}, grace=0
         )
@@ -1365,12 +1284,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         for value, expected in (("True", True), ("False", False)):
             ICP.set_param("ir_attachment.verify_content_collision", value)
             self.assertEqual(self.Attachment._verify_content_collision(), expected)
-
-    # -- sha1-fallback branches -------------------------------------------
-    # ``blake3`` is a hard requirement, so the branches taken when it is
-    # absent are otherwise dead in every integration run. These two patch the
-    # tag that selects them, pinning the *branch* — not a full sha1
-    # deployment, which only ``tools/tests/test_hashing.py`` can simulate.
 
     def test_untagged_layout_under_the_sha1_tag(self):
         """Without the extension, keys keep the historical untagged shape.
@@ -1417,8 +1330,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertEqual(checksum, self.Attachment._content_checksum(payload))
         self.assertEqual(fname, self.Attachment._file_store_path(checksum))
         self.assertEqual(self.Attachment._file_read(fname), payload)
-
-    # -- opt-in convergence of legacy keys ---------------------------------
 
     def _legacy_row(self, payload):
         """Create a row whose stored content sits at an untagged legacy key."""
@@ -1470,10 +1381,8 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.assertEqual(
             att.store_fname, self.Attachment._file_store_path(att.checksum)
         )
-        # bytes did not change, so the derived metadata must not have either
         self.assertEqual(att.file_size, size_before)
         self.assertEqual(att.index_content, index_before)
-        # the superseded key is only MARKED for GC, never unlinked inline
         self.assertTrue(Path(self.filestore, old_fname).exists())
         self.assertTrue(Path(self.filestore, "checklist", old_fname).exists())
 
@@ -1485,8 +1394,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         rows = [
             self._legacy_row(f"batch-{i}".encode() + os.urandom(8))[0] for i in range(3)
         ]
-        # (re-keyed, remaining): a truthy remaining is what re-enqueues the
-        # pass inside one autovacuum run instead of one batch per daily run
         self.assertEqual(self.Attachment._gc_rehash_legacy_keys(limit=2), (2, 1))
         self.assertEqual(self.Attachment._gc_rehash_legacy_keys(limit=2), (1, 0))
         self.assertEqual(self.Attachment._gc_rehash_legacy_keys(limit=2), (0, 0))
@@ -1508,7 +1415,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self._drain_legacy_rows()
         payload = b"shared-" + os.urandom(16)
         first, legacy_fname = self._legacy_row(payload)
-        second, _ = self._legacy_row(payload)  # same content, same legacy key
+        second, _ = self._legacy_row(payload)
         self.assertEqual(second.store_fname, legacy_fname)
 
         self.assertEqual(self.Attachment._gc_rehash_legacy_keys(limit=1)[0], 1)
@@ -1535,7 +1442,6 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.skipTest("no target layout to converge to under the sha1 fallback")
         self._drain_legacy_rows()
         att, _fname = self._legacy_row(b"unreadable-" + os.urandom(16))
-        # simulate unreadable content: the guard trips on empty-read vs file_size
         with patch.object(IrAttachment, "_file_read", return_value=b""):
             self.assertEqual(
                 self.Attachment._gc_rehash_legacy_keys(limit=10),
@@ -1573,12 +1479,9 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
 class TestPermissions(TransactionCaseWithUserDemo):
     def setUp(self):
         super().setUp()
-        # replace self.env(uid=1) with an actual user environment so rules apply
         self.env = self.env(user=self.user_demo)
         self.Attachments = self.env["ir.attachment"]
 
-        # create a record with an attachment and a rule allowing Read access
-        # but preventing Create, Update, or Delete
         record = self.Attachments.create({"name": "record1"})
         self.vals = {
             "name": "attach",
@@ -1587,7 +1490,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         }
         a = self.attachment = self.Attachments.create(self.vals)
 
-        # prevent create, write and unlink accesses on record
         self.rule = (
             self.env["ir.rule"]
             .sudo()
@@ -1608,38 +1510,26 @@ class TestPermissions(TransactionCaseWithUserDemo):
         If the attachment is public, the attachment can be read even if the record can't be read
         If the attachment has no res_model/res_id, it can be read by its author and admins only
         """
-        # check that the information can be read out of the box
         _ = self.attachment.datas
-        # prevent read access on record
         self.rule.perm_read = True
         self.attachment.invalidate_recordset()
         with self.assertRaises(AccessError):
             _ = self.attachment.datas
 
-        # Make the attachment public
         self.attachment.sudo().public = True
-        # Check the information can be read again
         _ = self.attachment.datas
-        # Remove the public access
         self.attachment.sudo().public = False
-        # Check the record can no longer be accessed
         with self.assertRaises(AccessError):
             _ = self.attachment.datas
 
-        # Create an attachment as user without res_model/res_id
         attachment_user = self.Attachments.create({"name": "foo"})
-        # Check the user can access his own attachment
         _ = attachment_user.datas
-        # Create an attachment as superuser without res_model/res_id
         attachment_admin = self.Attachments.with_user(SUPERUSER_ID).create(
             {"name": "foo"}
         )
-        # Check the record cannot be accessed by a regular user
         with self.assertRaises(AccessError):
             _ = attachment_admin.with_user(self.env.user).datas
-        # Check the record can be accessed by an admin (other than superuser)
         admin_user = self.env.ref("base.user_admin")
-        # Safety assert that base.user_admin is not the superuser, otherwise the test is useless
         self.assertNotEqual(SUPERUSER_ID, admin_user.id)
         _ = attachment_admin.with_user(admin_user).datas
 
@@ -1649,8 +1539,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
         e.g. `groups="base.group_system"` on the field,
         the attachment can't be read either.
         """
-        skip_if_dev_mode("xml")  # ir.rule domain ormcache
-        # check that the information can be read out of the box
+        skip_if_dev_mode("xml")
         main_partner = self.env.ref("base.main_partner")
         self.assertTrue(main_partner.image_128)
         attachment = self.env["ir.attachment"].search(
@@ -1663,8 +1552,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         self.assertTrue(attachment.datas)
         with self.assertQueries(
             [
-                # security SQL contains public check or accessible field with
-                # res_id IN accessible corecords for a given res_model
                 """
             SELECT "ir_attachment"."id"
             FROM "ir_attachment"
@@ -1695,17 +1582,14 @@ class TestPermissions(TransactionCaseWithUserDemo):
                 ]
             )
 
-        # Patch the field `res.partner.image_128` to make it unreadable by the demo user
         self.patch(
             self.env.registry["res.partner"]._fields["image_128"],
             "groups",
             "base.group_system",
         )
 
-        # Assert the field can't be read
         with self.assertRaises(AccessError):
             _ = main_partner.image_128
-        # Assert the attachment related to the field can't be read
         with self.assertRaises(AccessError):
             _ = attachment.datas
 
@@ -1726,7 +1610,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
                 ("res_field", "=", "image_128"),
             ]
         )
-        self.assertTrue(attachment.datas)  # readable out of the box
+        self.assertTrue(attachment.datas)
 
         partner_field = self.env.registry["res.partner"]._fields["image_128"]
         attach_called, partner_called = [], []
@@ -1748,12 +1632,10 @@ class TestPermissions(TransactionCaseWithUserDemo):
         self.patch(self.env.registry["ir.attachment"], "_has_field_access", attach_spy)
         self.patch(self.env.registry["res.partner"], "_has_field_access", partner_deny)
 
-        # The comodel now forbids reading image_128 -> the attachment must too.
         attachment.invalidate_recordset()
         with self.assertRaises(AccessError):
             _ = attachment.datas
 
-        # The field ACL was evaluated on the comodel, not on ir.attachment.
         self.assertIn("read", partner_called, "comodel ACL must be consulted")
         self.assertNotIn(
             "read", attach_called, "field ACL must not be checked on ir.attachment"
@@ -1768,14 +1650,10 @@ class TestPermissions(TransactionCaseWithUserDemo):
         post-filter branch instead of the ≤5-model branch; an attachment the
         demo user must not see stays excluded.
         """
-        # public attachment: always visible
         public_att = self.Attachments.sudo().create({"name": "public", "public": True})
-        # orphan attachment owned by the superuser: a non-system user must
-        # not see it (res_id is False and create_uid != demo)
         admin_orphan = self.Attachments.with_user(SUPERUSER_ID).create(
             {"name": "admin-orphan"}
         )
-        # demo's own orphan: visible to its creator
         own_orphan = self.Attachments.create({"name": "demo-orphan"})
 
         probe_ids = (public_att + admin_orphan + own_orphan).ids
@@ -1797,7 +1675,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
             [{"name": f"pub{i}", "public": True} for i in range(12)]
         )
         ids = atts.ids
-        unbounded = self.Attachments.search([("id", "in", ids)])  # limit=None branch
+        unbounded = self.Attachments.search([("id", "in", ids)])
         limited = self.Attachments.search([("id", "in", ids)], limit=len(ids))
         self.assertEqual(set(unbounded.ids), set(ids), "unbounded must return all")
         self.assertEqual(
@@ -1815,8 +1693,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         (limit=None keyset, bounded keyset, offset slices, caller order), and
         must never drop, duplicate, or leak an inaccessible row across a boundary.
         """
-        # accessible to demo: public, or a demo-owned orphan (create_uid=demo,
-        # res_id=False). inaccessible: a superuser-owned orphan.
         all_ids = []
         for i in range(24):
             kind = i % 3
@@ -1825,14 +1701,14 @@ class TestPermissions(TransactionCaseWithUserDemo):
                     {"name": f"p{i:02d}", "public": True}
                 )
             elif kind == 1:
-                a = self.Attachments.create({"name": f"o{i:02d}"})  # demo orphan
+                a = self.Attachments.create({"name": f"o{i:02d}"})
             else:
                 a = self.Attachments.with_user(SUPERUSER_ID).create(
                     {"name": f"a{i:02d}"}
                 )
             all_ids.append(a.id)
         domain = [("id", "in", all_ids)]
-        forbidden = set(all_ids[2::3])  # the superuser-owned orphans (kind == 2)
+        forbidden = set(all_ids[2::3])
 
         def run():
             search = self.Attachments.search
@@ -1848,9 +1724,9 @@ class TestPermissions(TransactionCaseWithUserDemo):
                 ).ids,
             }
 
-        truth = run()  # single fetch at PREFETCH_MAX=1000
+        truth = run()
         with patch("odoo.addons.base.models.ir_attachment.PREFETCH_MAX", 3):
-            batched = run()  # forced into many small batches
+            batched = run()
 
         for label, ids in batched.items():
             self.assertEqual(
@@ -1874,14 +1750,12 @@ class TestPermissions(TransactionCaseWithUserDemo):
         ``groups``.
         """
         partner = self.user_demo.partner_id
-        # Restrict a writable partner field to system users only.
         self.patch(
             self.env.registry["res.partner"]._fields["comment"],
             "groups",
             "base.group_system",
         )
 
-        # create: pointing res_field at the inaccessible field is forbidden
         with self.assertRaises(AccessError):
             self.Attachments.create(
                 {
@@ -1892,7 +1766,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
                 }
             )
 
-        # write: re-pointing an existing attachment's res_field is forbidden
         existing = self.Attachments.create(
             {
                 "name": "field-attach",
@@ -1923,14 +1796,12 @@ class TestPermissions(TransactionCaseWithUserDemo):
             def seek(self, offset, whence=0):
                 return self._buf.seek(offset, whence)
 
-        # explicit mimetype mode
         explicit = self.Attachments._from_request_file(
             _FakeFile(b"hello", "application/octet-stream", "note.txt"),
             mimetype="text/plain",
         )
         self.assertEqual(explicit.mimetype, "text/plain")
 
-        # GUESS mode: content sniffed (a real PNG header)
         png = (
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
             b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
@@ -1941,8 +1812,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
         self.assertEqual(guessed.mimetype, "image/png")
 
-        # TRUST mode: a malicious html upload is neutered to text/plain for a
-        # non-view writer (XSS regression pin)
         trusted_html = self.Attachments._from_request_file(
             _FakeFile(b"<script>alert(1)</script>", "text/html", "evil.html"),
             mimetype="TRUST",
@@ -1966,7 +1835,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         """With write permissions to the linked record, attachment can be
         created, updated, or deleted (or copied).
         """
-        # enable write permission on linked record
         self.rule.perm_write = False
         attachment = self.Attachments.create(self.vals)
         attachment.copy()
@@ -1990,38 +1858,29 @@ class TestPermissions(TransactionCaseWithUserDemo):
         """Copying attachments between records (in the same model or not) adds
         wrinkles as the ACLs may diverge a lot more
         """
-        # create an other unwritable record in a different model
         unwritable = self.env["res.users.apikeys.description"].create(
             {"name": "Unwritable"}
         )
         with self.assertRaises(AccessError):
-            unwritable.write({})  # checks unwritability
-        # create a writable record in the same model
+            unwritable.write({})
         writable = self.Attachments.create({"name": "yes"})
-        writable.name = "canwrite"  # checks for writeability
+        writable.name = "canwrite"
 
-        # can copy from a record with read permissions to one with write permissions
         copied = self.attachment.copy(
             {"res_model": writable._name, "res_id": writable.id}
         )
-        # can copy to self given write permission
         copied.copy()
-        # can not copy back to record without write permission
         with self.assertRaises(AccessError):
             copied.copy({"res_id": self.vals["res_id"]})
 
-        # can not copy to a record without write permission
         with self.assertRaises(AccessError):
             self.attachment.copy(
                 {"res_model": unwritable._name, "res_id": unwritable.id}
             )
-        # even from a record with write permissions
         with self.assertRaises(AccessError):
             copied.copy({"res_model": unwritable._name, "res_id": unwritable.id})
 
     def test_write_error(self):
-        # try to write a file in a place where we have no access
-        # /proc is not writeable, check if we have an error raised
         self.patch(
             IrAttachment,
             "_get_path",
@@ -2079,8 +1938,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             return set()
         return {path.name for path in self.tmp_dir.iterdir()}
 
-    # -- deletion: one override point for both paths ---------------------
-
     def test_unlink_and_content_replacement_share_the_delete_hook(self):
         """`_file_delete_multi` is THE local-filestore deletion override point.
 
@@ -2120,8 +1977,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             any(old_fname in call for call in seen),
             "content replacement must use the same hook",
         )
-
-    # -- reading: one triage for raw and _read_prefix ---------------------
 
     def test_raw_and_read_prefix_agree_on_stored_content(self):
         for location in ("file", "db"):
@@ -2167,13 +2022,8 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         self.env.flush_all()
         Path(self.Attachment._full_path(attachment.store_fname)).unlink()
         attachment.invalidate_recordset()
-        # Serving still degrades to empty rather than raising...
         self.assertEqual(attachment.raw, b"")
-        # ...but the row keeps claiming its real size, which is what makes the
-        # rewrite guard skip it instead of blanking it.
         self.assertTrue(attachment.file_size)
-
-    # -- writing: one staging protocol ------------------------------------
 
     def test_both_writers_stage_and_leave_no_temp(self):
         before = self._temps()
@@ -2197,7 +2047,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         self.assertEqual(checksum, self.Attachment._content_checksum(streamed))
         self.assertEqual(self._temps(), before, "stream write left a temp behind")
 
-        # dedup hits return the same key and stage nothing
         self.assertEqual(
             self.Attachment._file_write(payload, payload_checksum), buffered_fname
         )
@@ -2232,8 +2081,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             self.Attachment._file_write_stream(io.BytesIO(b"never-lands" * 8))
         self.assertEqual(self._temps(), before, "streaming writer leaked a temp")
 
-    # -- comparison helpers ------------------------------------------------
-
     def test_content_comparison_helpers_agree(self):
         payload = b"compare-me" * 9
         checksum = self.Attachment._content_checksum(payload)
@@ -2243,7 +2090,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
         self.assertTrue(self.Attachment._same_content(payload, path))
         self.assertFalse(self.Attachment._same_content(payload + b"!", path))
-        # same length, different bytes: the size fast-reject must not pass it
         self.assertFalse(self.Attachment._same_content(b"Z" * len(payload), path))
         self.assertTrue(self.Attachment._same_content_files(path, path))
 
@@ -2252,8 +2098,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             self.Attachment._file_write(other, self.Attachment._content_checksum(other))
         )
         self.assertFalse(self.Attachment._same_content_files(path, other_path))
-
-    # -- rewrite preamble --------------------------------------------------
 
     def test_migrate_round_trips_without_touching_the_bytes(self):
         payloads = [b"migrate-a" * 7, b"migrate-b" * 7]
@@ -2306,8 +2150,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
         self.assertEqual(attachment.store_fname, key_before, "row was rewritten anyway")
         self.assertEqual(attachment.file_size, size_before)
-
-    # -- the three readers must agree on WHICH location wins ---------------
 
     def test_all_readers_resolve_the_same_content_location(self):
         """`raw`, `_read_prefix` and `_to_http_stream` share one precedence.
@@ -2368,7 +2210,6 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         self.env.flush_all()
         self.assertTrue(attachment.store_fname)
 
-        # raw-column write: deliberately bypasses the content pipeline
         attachment.db_datas = b"decoy-inline-content"
         self.env.flush_all()
         attachment.invalidate_recordset()

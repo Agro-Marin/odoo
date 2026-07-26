@@ -26,7 +26,6 @@ from .ir_model_common import (
 
 _logger = logging.getLogger(__name__)
 
-# retrieve field types defined by the framework only (not extensions)
 FIELD_TYPES = [(key, key) for key in sorted(fields.Field._by_type__)]
 
 
@@ -158,7 +157,7 @@ class IrModelFields(models.Model):
     )
     groups = fields.Many2many(
         "res.groups", "ir_model_fields_group_rel", "field_id", "group_id"
-    )  # CLEANME unimplemented field (empty table)
+    )
     group_expand = fields.Boolean(
         string="Expand Groups",
         help="If checked, all the records of the target model will be included\n"
@@ -204,7 +203,6 @@ class IrModelFields(models.Model):
         string="Currency field",
         help="Name of the Many2one field holding the res.currency",
     )
-    # HTML sanitization reflection, useless for other kinds of fields
     sanitize = fields.Boolean(string="Sanitize HTML", default=True)
     sanitize_overridable = fields.Boolean(
         string="Sanitize HTML overridable", default=False
@@ -498,7 +496,6 @@ class IrModelFields(models.Model):
     @api.onchange("relation_table")
     def _onchange_relation_table(self) -> dict[str, Any] | None:
         if self.relation_table:
-            # check whether other fields use the same table
             others = self.search(
                 [
                     ("ttype", "=", "many2many"),
@@ -512,7 +509,6 @@ class IrModelFields(models.Model):
                         self.relation,
                         self.model,
                     ):
-                        # other is a candidate inverse field
                         self.column1 = other.column2
                         self.column2 = other.column1
                         return None
@@ -562,7 +558,6 @@ class IrModelFields(models.Model):
             model = self.env.get(field.model)
             is_model = model is not None
             if field.store:
-                # TODO: refactor this convoluted unlink/drop logic
                 if (
                     is_model
                     and sql.column_exists(self.env.cr, model._table, field.name)
@@ -587,7 +582,6 @@ class IrModelFields(models.Model):
                 pop_field(model_cls, field.name)
 
         if tables_to_drop:
-            # drop the relation tables that are not used by other fields
             self.env.cr.execute(
                 """SELECT relation_table FROM ir_model_fields
                                 WHERE relation_table = ANY(%s) AND id != ALL(%s)""",
@@ -610,9 +604,9 @@ class IrModelFields(models.Model):
                 _("This column contains module data and cannot be removed!")
             )
 
-        records = self  # all the records to delete
-        fields_ = OrderedSet()  # all the fields corresponding to 'records'
-        failed_dependencies = []  # list of broken (field, dependent_field)
+        records = self
+        fields_ = OrderedSet()
+        failed_dependencies = []
 
         for record in self:
             model = self.env.get(record.model)
@@ -659,13 +653,11 @@ class IrModelFields(models.Model):
         if not records:
             return self
 
-        # pop pending writes of these fields from the cache before removing them
         for record in records:
             model = self.env.get(record.model)
             field = model and model._fields.get(record.name)
             if field:
                 self.env._core.pop_dirty(field)
-        # remove fields from registry, and check that views are not broken
         fields_ = [
             pop_field(self.env.registry[record.model], record.name)
             for record in records
@@ -684,7 +676,6 @@ class IrModelFields(models.Model):
                         view=view.name,
                     )
                 ) from None
-            # uninstall mode
             _logger.warning(
                 "The following fields were force-deleted to prevent a registry crash %s the following view might be broken %s",
                 ", ".join(str(f) for f in fields_),
@@ -692,7 +683,6 @@ class IrModelFields(models.Model):
             )
         finally:
             if not uninstalling:
-                # the registry has been modified, restore it
                 self.pool._setup_models__(self.env.cr)
 
         return self
@@ -701,20 +691,16 @@ class IrModelFields(models.Model):
         if not self:
             return True
 
-        # prevent breaking fields that depend on these fields
         self = self._prepare_update()
 
-        # determine registry fields corresponding to self
         fields_ = OrderedSet()
         for record in self:
             with contextlib.suppress(KeyError):
                 fields_.add(self.pool[record.model]._fields[record.name])
 
-        # clean the registry from the fields to remove
         self.pool.registry_invalidated = True
         self.pool._discard_fields(fields_)
 
-        # discard the removed fields from fields to compute
         for field in fields_:
             self.env._core.discard_field(field)
 
@@ -722,9 +708,6 @@ class IrModelFields(models.Model):
         self._drop_column()
         res = super().unlink()
 
-        # A deleted inherited field leaves the registry inconsistent; reload it
-        # and update the schema of the models and descendants (names captured
-        # before the rows were deleted).
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             reload_schema(self.env, model_names, model_names)
 
@@ -738,7 +721,6 @@ class IrModelFields(models.Model):
             if "model_id" in vals:
                 vals["model"] = IrModel.browse(vals["model_id"]).model
 
-        # Validate before creating records to fail fast
         for vals in vals_list:
             if vals.get("state", "manual") == "manual":
                 relation = vals.get("relation")
@@ -750,7 +732,7 @@ class IrModelFields(models.Model):
                     and vals.get("store", True)
                     and not vals.get("related")
                     and vals.get("relation_field")
-                    and not self.search_count(  # noqa: E8507 — bounded: field creation during module install
+                    and not self.search_count(
                         [
                             ("ttype", "=", "many2one"),
                             ("model", "=", vals["relation"]),
@@ -766,15 +748,12 @@ class IrModelFields(models.Model):
                         )
                     )
 
-        # for self._get_ids() in _update_selection()
         self.env.registry.clear_cache("stable")
 
         res = super().create(vals_list)
         model_names = OrderedSet(res.mapped("model"))
 
         if any(model in self.pool for model in model_names):
-            # re-initialize the models in the registry and update the database
-            # schema of the models and their descendants
             reload_schema(self.env, model_names, model_names)
 
         return res
@@ -785,13 +764,10 @@ class IrModelFields(models.Model):
         if not vals:
             return True
 
-        # if set, *one* column can be renamed here
         column_rename = None
 
-        # records whose field is being renamed
         renamed = self.browse()
 
-        # names of the models to patch
         patched_models = set()
         translate_only = all(self._fields[field_name].translate for field_name in vals)
         if not translate_only:
@@ -821,7 +797,6 @@ class IrModelFields(models.Model):
                 if vals.get("name", item.name) != item.name:
                     renamed |= item
                     if item.ttype in ("one2many", "many2many", "binary"):
-                        # those field names are not explicit in the database!
                         pass
                     else:
                         if column_rename:
@@ -834,21 +809,15 @@ class IrModelFields(models.Model):
                             item.store,
                         )
 
-                # We don't check the 'state', because it might come from the context
-                # (thus be set for multiple fields) and will be ignored anyway.
                 if obj is not None and field is not None:
                     patched_models.add(obj._name)
 
-        # These shall never be written (modified)
         for column_name in ("model_id", "model", "state"):
             vals.pop(column_name, None)
 
         _check_translate_value(vals)
 
         if renamed:
-            # _prepare_update checks the renames are allowed and returns extra
-            # manual fields tied to them (e.g. inherited copies) that must be
-            # dropped along with the rename; the flag allows unlinking them.
             (renamed._prepare_update() - self).with_context(
                 **{MODULE_UNINSTALL_FLAG: True}
             ).unlink()
@@ -856,10 +825,8 @@ class IrModelFields(models.Model):
         res = super().write(vals)
 
         if column_rename:
-            # rename column in database, and its corresponding index if present
             table, oldname, newname, index, stored = column_rename
             if stored:
-                # flush pending updates first, so they land in the old column
                 self.env.flush_all()
                 self.env.cr.execute(
                     SQL(
@@ -870,12 +837,6 @@ class IrModelFields(models.Model):
                     )
                 )
                 if index:
-                    # make_index_name is the registry's naming convention
-                    # ('{table}__{column}_index', 63-char truncated); the old
-                    # hand-rolled '{table}_{column}_index' named a nonexistent
-                    # index and crashed every indexed-field rename. IF EXISTS
-                    # tolerates a skipped index (e.g. translated fields);
-                    # check_indexes recreates it under the new name.
                     self.env.cr.execute(
                         SQL(
                             "ALTER INDEX IF EXISTS %s RENAME TO %s",
@@ -885,14 +846,8 @@ class IrModelFields(models.Model):
                     )
 
         if column_rename or patched_models:
-            # setup models (this reloads all manual fields in the registry) and
-            # update the database schema of the models to patch
             reload_schema(self.env, OrderedSet(self.mapped("model")), patched_models)
         elif translate_only:
-            # A label/help-only translation edit leaves the field set and
-            # registry intact; only the lang-keyed get_field_string/help
-            # ormcache ("stable") goes stale. Clearing it is far cheaper than a
-            # full _setup_models__ rebuild (mirrors SEL-C6).
             self.env.registry.clear_cache("stable")
 
         return res
@@ -901,8 +856,6 @@ class IrModelFields(models.Model):
     def _compute_display_name(self) -> None:
         IrModel = self.env["ir.model"]
         if not self.env.context.get("hide_model"):
-            # pre-warm ormcache with one query for all model names instead of
-            # one per model on cache miss
             model_names = list({f.model for f in self if f.model})
             if model_names:
                 add_value = IrModel._get_id.__cache__.add_value
@@ -915,8 +868,6 @@ class IrModelFields(models.Model):
                 ):
                     add_value(IrModel, model_name, cache_value=model_id)
                     model_ids.append(model_id)
-                # one fetch for all model strings, else _get(model).name below
-                # SELECTs once per distinct model
                 IrModel.sudo().browse(model_ids).fetch(["name"])
         for field in self:
             if self.env.context.get("hide_model"):
@@ -960,7 +911,6 @@ class IrModelFields(models.Model):
             "currency_field": (
                 field.currency_field if field.type == "monetary" else None
             ),
-            # html sanitization attributes (useless for other fields)
             "sanitize": field.sanitize if field.type == "html" else None,
             "sanitize_overridable": (
                 field.sanitize_overridable if field.type == "html" else None
@@ -995,7 +945,6 @@ class IrModelFields(models.Model):
                 else:
                     by_label[field.string] = field
 
-        # determine expected and existing rows
         rows = []
         for model_name in model_names:
             model_id = self.env["ir.model"]._get_id(model_name)
@@ -1014,7 +963,6 @@ class IrModelFields(models.Model):
             field_ids[row[1:3]] = row[0]
             existing[row[1:3]] = row[1:]
 
-        # create or update rows
         rows = [row for row in expected if existing.get(row[:2]) != row]
         if rows:
             ids = upsert_en(self, cols, rows, ["model", "name"])
@@ -1022,7 +970,6 @@ class IrModelFields(models.Model):
                 field_ids[row[:2]] = id_
             self.pool.post_init(mark_modified, self.browse(ids), cols[2:])
 
-        # update their XML id
         module = self.env.context.get("module")
         if not module:
             return
@@ -1035,7 +982,6 @@ class IrModelFields(models.Model):
                 module == model._original_module
                 or module in field._modules
                 or any(
-                    # module introduced field on model by inheritance
                     field_name in self.env[parent]._fields
                     for parent, parent_module in model._inherit_module.items()
                     if module == parent_module
@@ -1049,11 +995,6 @@ class IrModelFields(models.Model):
     @tools.ormcache(cache="stable")
     def _all_manual_field_data(self) -> dict[str, dict[str, Any]]:
         cr = self.env.cr
-        # we cannot use self._fields to determine translated fields, as it has not been set up yet
-        # prepare=False: ir_model_fields is extended by modules (mail, sms, ...),
-        # so this SELECT * changes result shape on install. Cached as a prepared
-        # plan, the next such ALTER makes every later registry setup on this
-        # connection raise "cached plan must not change result type".
         cr.execute(
             """
             SELECT *, field_description->>'en_US' AS field_description, help->>'en_US' AS help
@@ -1065,8 +1006,6 @@ class IrModelFields(models.Model):
         result: dict[str, dict[str, Any]] = defaultdict(dict)
         for row in cr.dictfetchall():
             result[row["model"]][row["name"]] = row
-        # ormcache shares one object across callers: freeze it so a mutation
-        # cannot corrupt the shared value (matches _get_fields_cached)
         return frozendict(result)
 
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
@@ -1141,7 +1080,6 @@ class IrModelFields(models.Model):
             attrs["column2"] = field_data["column2"] or col2
             attrs["domain"] = safe_eval(field_data["domain"] or "[]")
         elif field_data["ttype"] == "monetary":
-            # be sure that custom monetary fields are always instantiated
             if (
                 not self.pool.loaded
                 and field_data["currency_field"]

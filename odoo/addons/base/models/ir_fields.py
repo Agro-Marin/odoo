@@ -1,5 +1,6 @@
 import functools
 import itertools
+import logging
 import math
 from collections.abc import Callable
 from datetime import datetime
@@ -14,13 +15,11 @@ from odoo.libs.json import loads as json_loads
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.translate import LazyTranslate, _, code_translations
 
+_logger = logging.getLogger(__name__)
 _lt = LazyTranslate(__name__)
 
 REFERENCING_FIELDS = {None, "id", ".id"}
 
-# Length of an ISO date prefix "YYYY-MM-DD". Local literal rather than
-# ``odoo.tools.misc.DATE_LENGTH``: importing that at base-bootstrap triggers an
-# ir_model circular import.
 DATE_LENGTH = 10
 
 
@@ -32,7 +31,6 @@ def exclude_ref_fields(record: dict[str | None, Any]) -> dict[str | None, Any]:
     return {k: v for k, v in record.items() if k not in REFERENCING_FIELDS}
 
 
-# these lazy translations promise translations for ['yes', 'no', 'true', 'false']
 BOOLEAN_TRANSLATIONS = (_lt("yes"), _lt("no"), _lt("true"), _lt("false"))
 
 
@@ -41,11 +39,6 @@ class FakeField(NamedTuple):
     name: str
 
 
-# ``FieldLike``: a real ORM field or the ``FakeField`` stand-in used for
-# per-subproperty relational coercion. ``Converter`` (from ``to_field``): maps a
-# ``fromtype`` value to ``(write_value, warnings)`` or raises ``ValueError``.
-# ``RecordConverter`` (from ``for_model``): maps a record-ish dict and a
-# ``log(field, exception)`` callback to a dict of converted write() values.
 type FieldLike = fields.Field | FakeField
 type Converter = Callable[[Any], tuple[Any, list]]
 type RecordConverter = Callable[[dict, Callable], dict]
@@ -75,12 +68,6 @@ class IrFieldsConverter(models.AbstractModel):
     _name = "ir.fields.converter"
     _description = "Fields Converter"
 
-    # The import savepoint (rolls back a failed ``name_create``) rides in the
-    # ``import_savepoint`` context key rather than as a converter parameter: the
-    # uniform ``converter(value)`` dispatch gives every converter one signature,
-    # yet only ``db_id_for`` needs it. Same mechanism as ``import_flush`` /
-    # ``import_cache``.
-
     @api.model
     def _format_import_error(
         self,
@@ -89,7 +76,6 @@ class IrFieldsConverter(models.AbstractModel):
         error_params: str | dict[str, Any] | tuple = (),
         error_args: dict[str, Any] | None = None,
     ) -> Exception:
-        # sanitize params so the import system's later %-formatting is safe
         def sanitize(p: Any) -> Any:
             return p.replace("%", "%%") if isinstance(p, str) else p
 
@@ -101,10 +87,6 @@ class IrFieldsConverter(models.AbstractModel):
                     error_params = {k: sanitize(v) for k, v in error_params.items()}
                 case tuple():
                     error_params = tuple(sanitize(v) for v in error_params)
-        # ``error_args`` is passed as the second arg even when ``None`` on
-        # purpose: ``BaseModel.load._log`` keys off ``len(e.args) > 1`` to attach
-        # the human ``field_name``, so a 1-arg exception would drop it. Don't
-        # "simplify" this away.
         return error_type(error_msg % error_params, error_args)
 
     @api.model
@@ -152,8 +134,6 @@ class IrFieldsConverter(models.AbstractModel):
 
         field_path_value = value
         while isinstance(field_path_value, list):
-            # An empty sub-list carries no further field to attribute the error
-            # to; stop rather than IndexError on ``field_path_value[0]``.
             if not field_path_value:
                 break
             key = next(iter(field_path_value[0].keys()))
@@ -173,14 +153,9 @@ class IrFieldsConverter(models.AbstractModel):
         :param model: :class:`odoo.models.Model` for the conversion base
         :rtype: RecordConverter
         """
-        # make sure model is new api
         model = self.env[model._name]
         fields = model._fields
 
-        # Resolve converters lazily and memoize per field name: only columns
-        # actually present in the imported records pay for a ``to_field`` lookup.
-        # Matters for one2many imports, where ``for_model`` is (re)built once per
-        # parent row over the whole comodel field set.
         converter_cache: dict[str, Converter | None] = {}
 
         def get_converter(name: str) -> Converter | None:
@@ -202,10 +177,6 @@ class IrFieldsConverter(models.AbstractModel):
                     continue
                 converter = get_converter(field)
                 if converter is None:
-                    # A field whose type has no ``_str_to_<type>`` method (e.g.
-                    # ``properties_definition``), or one absent from the model.
-                    # Log a per-field error rather than let ``None(value)`` raise
-                    # a TypeError that aborts the entire ``load()`` (IFLD-07).
                     field_obj = fields.get(field)
                     log(
                         field,
@@ -222,38 +193,38 @@ class IrFieldsConverter(models.AbstractModel):
                     converted[field], ws = converter(value)
                     for w in ws:
                         if isinstance(w, str):
-                            # wrap in OdooImportWarning for uniform handling
                             w = OdooImportWarning(w)
                         log(field, w)
                 except (UnicodeEncodeError, UnicodeDecodeError) as e:
                     log(field, ValueError(str(e)))
                 except psycopg.DataError as e:
-                    # psycopg3 rejects bad bytes (e.g. NUL 0x00) client-side at
-                    # adaptation time as DataError (psycopg2 raised ValueError).
-                    # No server round-trip, so the cursor is intact; surface it as
-                    # a per-field import error.
                     log(field, ValueError(str(e)))
                 except ValueError as e:
                     if import_file_context:
-                        # A matching error carries a dict as its second arg. E.g.:
-                        # ("Value X cannot be found for field Y at row 1", {
-                        #   'more_info': {},
-                        #   'value': 'X',
-                        #   'field': 'Y',
-                        #   'field_path': ['child_id', 'Y'],  # a LIST; the web
-                        #       client joins it with '/' (import_model.js)
-                        # })  # noqa: ERA001, RUF100
-                        # Add the field path so the UI can bind the error to the
-                        # right header-field couple. Only the deepest child is
-                        # raised, so set it only if not already present.
                         error_info = len(e.args) > 1 and e.args[1]
-                        if error_info and not error_info.get(
-                            "field_path"
-                        ):  # only the deepest child in error
+                        if error_info and not error_info.get("field_path"):
                             error_info["field_path"] = self._error_field_path(
                                 field, value
                             )
                     log(field, e)
+                except AttributeError, TypeError:
+                    _logger.warning(
+                        "Import converter for field %r rejected a %s value",
+                        field,
+                        type(value).__name__,
+                        exc_info=True,
+                    )
+                    log(
+                        field,
+                        self._format_import_error(
+                            ValueError,
+                            self.env._(
+                                "Field '%%(field)s' cannot import a value of type "
+                                "'%s'; provide it as text"
+                            ),
+                            type(value).__name__,
+                        ),
+                    )
             return converted
 
         return fn
@@ -327,7 +298,6 @@ class IrFieldsConverter(models.AbstractModel):
             per-property definition dicts to convert.
         :rtype: tuple[list, list]
         """
-        # a string value imports all properties at once (the technical value)
         if isinstance(value, str):
             try:
                 value = json_loads(value)
@@ -343,9 +313,6 @@ class IrFieldsConverter(models.AbstractModel):
             )
             raise self._format_import_error(ValueError, msg, {"value": value})
 
-        # Coerce onto shallow copies: a caller passing property dicts (not a JSON
-        # string) must not see its input mutated in place. Converters must have no
-        # visible side effects on their args.
         value = [dict(property_dict) for property_dict in value]
 
         warnings = []
@@ -359,14 +326,9 @@ class IrFieldsConverter(models.AbstractModel):
                 )
 
             val = property_dict.get("value")
-            # An empty cell means "no value": skip coercion so it isn't rejected
-            # as an invalid selection/tag nor unpacked as an empty m2o/m2m.
-            # Matches None / "" / [] / () but not falsy 0 / False.
             if val in (None, "", [], ()):
                 continue
 
-            # Coerce the sub-value per property type; each arm returns
-            # ``(coerced_value, warnings)``. An unrecognized type is left as-is.
             match property_dict["type"]:
                 case "selection":
                     coerced, ws = self._property_to_selection(val, property_dict)
@@ -458,10 +420,6 @@ class IrFieldsConverter(models.AbstractModel):
         the shared reference resolver. Returns a single id for m2o, a list for
         m2m, plus any resolution warnings.
         """
-        # The reference resolver expects a single referencing record (a dict like
-        # {None: 'ref'}). A malformed/technical value (a bare id, [id, label], or
-        # an id list) would raise an uncaught TypeError/ValueError here and abort
-        # the entire load(); surface it as a graceful per-cell import error.
         try:
             [record] = property_dict["value"]
         except TypeError, ValueError:
@@ -513,11 +471,10 @@ class IrFieldsConverter(models.AbstractModel):
         tnx_cache = self.env.cr.cache.setdefault(self._name, {})
         cache_key = "boolean_value_sets"
         if cache_key not in tnx_cache:
-            # potentially broken casefolding? What about locales?
             trues = frozenset(
                 word.lower()
                 for word in itertools.chain(
-                    ["1", "true", "yes"],  # don't use potentially translated values
+                    ["1", "true", "yes"],
                     self._get_boolean_translations("true"),
                     self._get_boolean_translations("yes"),
                 )
@@ -550,7 +507,7 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _str_to_boolean(self, field: FieldLike, value: str) -> tuple[bool | None, list]:
         trues, falses = self._boolean_value_sets()
-        value_lower = value.lower()
+        value_lower = str(value).lower()
         if value_lower in trues:
             return True, []
         if value_lower in falses:
@@ -560,10 +517,6 @@ class IrFieldsConverter(models.AbstractModel):
         if skip_record:
             return None, []
 
-        # Return ``None`` (not ``True``) on unknown input: a caller that
-        # logs-but-continues must not coerce garbage to ``True``. The warning
-        # still aborts the row on the normal path, and ``_str_to_properties``
-        # checks the warning list.
         return None, [
             self._format_import_error(
                 ValueError,
@@ -590,10 +543,6 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_float(self, field: FieldLike, value: str) -> tuple[float, list]:
         try:
             result = float(value)
-            # Reject non-finite input: ``float()`` parses "nan" / "inf" (and
-            # overflowing exponents like "1e400" -> inf), but those can't be
-            # stored in a numeric column and would surface as a cryptic ``write()``
-            # failure instead of a clean, field-attributed import error here.
             valid = math.isfinite(result)
         except ValueError:
             valid = False
@@ -618,11 +567,6 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _str_to_date(self, field: FieldLike, value: str) -> tuple[str, list]:
         try:
-            # ``fields.Date.from_string`` slices to ``value[:DATE_LENGTH]`` and
-            # would silently accept trailing garbage ("2012-12-31xxx"); reject it
-            # so corrupt input fails loudly. But a trailing time component is
-            # common and valid ("2012-12-31 00:00:00", "2012-12-31T23:59:59"), so
-            # require the whole string to parse as a datetime before dropping it.
             if isinstance(value, str) and value[DATE_LENGTH:].strip():
                 fields.Datetime.from_string(value)
             parsed_value = fields.Date.from_string(value)
@@ -655,16 +599,11 @@ class IrFieldsConverter(models.AbstractModel):
                 {"moreinfo": self.env._("Use the format '%s'", "2012-12-31 23:59:59")},
             ) from None
 
-        # ``Datetime.from_string`` already converts an offset-bearing ISO string
-        # (e.g. Luxon's ``toISO()`` "2026-03-19T16:09:18-06:00") to naive UTC.
-        # Re-stamping the input tz then would double-apply the offset and store
-        # the wrong instant, so only apply the input tz when the source was naive.
         if isinstance(value, str) and self._iso_value_is_tz_aware(value):
             return fields.Datetime.to_string(parsed_value), []
 
-        input_tz = self._input_tz()  # Apply input tz to the parsed naive datetime
+        input_tz = self._input_tz()
         dt = parsed_value.replace(tzinfo=input_tz)
-        # And convert to UTC before reformatting for writing
         return fields.Datetime.to_string(dt.astimezone(utc)), []
 
     @api.model
@@ -679,7 +618,6 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _get_boolean_translations(self, src: str) -> list[str]:
-        # Cache translations so they aren't reloaded on every row of the file
         tnx_cache = self.env.cr.cache.setdefault(self._name, {})
         if src in tnx_cache:
             return tnx_cache[src]
@@ -740,8 +678,6 @@ class IrFieldsConverter(models.AbstractModel):
             index: dict[str, Any] = {}
 
             def put(token: Any, item: Any) -> None:
-                # Skip only ``None`` / empty string; keep falsy-but-valid keys
-                # such as ``0`` / ``False``.
                 if token is not None and token != "":
                     index.setdefault(str(token).lower(), item)
 
@@ -755,8 +691,6 @@ class IrFieldsConverter(models.AbstractModel):
                 for item, label in selection:
                     put(current_lang_labels.get(item, label), item)
             else:
-                # One query for the whole field: pull every translated label of
-                # every selection row, keyed by its technical ``value``.
                 self.env["ir.model.fields.selection"].flush_model()
                 self.env.cr.execute(
                     """
@@ -768,8 +702,6 @@ class IrFieldsConverter(models.AbstractModel):
                     [field.model_name, field.name],
                 )
                 for value, name in self.env.cr.fetchall():
-                    # Ignore stale rows no longer in the current selection, so a
-                    # token never resolves to a removed item.
                     if value not in valid_items:
                         continue
                     for lang, txt in (name or {}).items():
@@ -780,9 +712,6 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _str_to_selection(self, field: FieldLike, value: str) -> tuple[Any, list]:
-        # Case-insensitive lookup against the prebuilt index. ``None`` is the
-        # miss sentinel (no selection item is ever ``None``), so a valid but
-        # falsy item such as ``False`` still resolves.
         item = self._selection_import_index(field).get(str(value).lower())
         if item is not None:
             return item, []
@@ -849,17 +778,11 @@ class IrFieldsConverter(models.AbstractModel):
         elif subfield is None:
             lookup = self._db_id_from_name(field, value)
         else:
-            # ``ValueError`` (not bare ``Exception``) so ``for_model``'s ``fn``
-            # catches it and reports a per-field error instead of aborting the
-            # whole ``load()``.
             raise self._format_import_error(
                 ValueError,
                 self.env._("Unknown sub-field “%s”", subfield),
             )
 
-        # ``lookup.id``: ``False`` for an empty reference (returned as-is), int
-        # when resolved, ``None`` when unresolved. An unresolved reference is an
-        # import error unless the field's policy skips the record / sets empty.
         skip_record = set_empty = False
         if self.env.context.get("import_file"):
             skip_record, set_empty = self._import_field_policy(field)
@@ -878,8 +801,6 @@ class IrFieldsConverter(models.AbstractModel):
             matches.
         """
         field_type = self.env._("database id")
-        # Skip only on a recognized falsy token; an unknown value must fall
-        # through to the ``int(value)`` parse, not be treated as empty (IFLD-03).
         if self._is_falsy_token(value):
             return RefLookup(False, field_type, "", [])
         try:
@@ -902,21 +823,13 @@ class IrFieldsConverter(models.AbstractModel):
             reference, else the resolved id or ``None``.
         """
         field_type = self.env._("external id")
-        # Skip only on a recognized falsy token; an unknown value must be resolved
-        # as an external id below (IFLD-03).
         if self._is_falsy_token(value):
             return RefLookup(False, field_type, "", [])
-        # An external id is textual by definition. Coerce so a non-string cell
-        # (e.g. an integer via ``db_id_for``) resolves to "no match" -- a clean
-        # import error -- instead of raising ``TypeError`` on ``"." in value``
-        # and aborting the whole ``load()`` (IFLD-14).
         value = str(value)
         if "." in value:
             xmlid = value
         else:
             xmlid = f"{self.env.context.get('_import_current_module', '')}.{value}"
-        # ``flush`` (from ``BaseModel.load``) forces creation of records batched
-        # earlier in the same import so their external id resolves here.
         flush = self.env.context.get("import_flush", lambda **kw: None)
         flush(xml_id=xmlid)
         id = self._xmlid_to_record_id(xmlid, self.env[field.comodel_name])
@@ -936,8 +849,6 @@ class IrFieldsConverter(models.AbstractModel):
         if value == "":
             return RefLookup(False, field_type, "", warnings)
         RelatedModel = self.env[field.comodel_name]
-        # ``flush`` (from ``BaseModel.load``) forces creation of records batched
-        # earlier in the same import so a name_search can find them.
         flush = self.env.context.get("import_flush", lambda **kw: None)
         flush(model=field.comodel_name)
         ids = RelatedModel.name_search(name=value, operator="=")
@@ -964,16 +875,6 @@ class IrFieldsConverter(models.AbstractModel):
                 RelatedModel.env.flush_all()
                 return RefLookup(id, field_type, "", warnings)
             except UserError, ValueError, psycopg.Error:
-                # Only recoverable refusals become the "cannot create from name
-                # alone" message: user-facing ORM errors (``UserError`` covers its
-                # ``ValidationError`` / ``AccessError`` subclasses), conversion
-                # errors, and database errors. A programming error in a
-                # ``name_create`` override (e.g. ``TypeError``) now propagates
-                # rather than being masked (IFLD-16; mirrors the ``safe_write``
-                # narrowing in ir_model_fields_selection.py, SEL-C4).
-                # ``import_savepoint`` is set by ``BaseModel.load``; guard so a
-                # caller reaching here without it fails with the import error, not
-                # ``AttributeError`` on ``None.rollback()``.
                 savepoint = self.env.context.get("import_savepoint")
                 if savepoint is not None:
                     savepoint.rollback()
@@ -1004,8 +905,6 @@ class IrFieldsConverter(models.AbstractModel):
             message = self.env._(
                 "No matching record found for %(field_type)s '%(value)s' in field '%%(field)s'"
             )
-        # Truncate to 50 chars for display only; a dedicated local avoids
-        # mutating the source ``value`` in place (IFLD-06).
         display_value = value[:50] if isinstance(value, str) else value
         error_info_dict = {"moreinfo": self._possible_values_action(field, subfield)}
         if self.env.context.get("import_file"):
@@ -1065,7 +964,6 @@ class IrFieldsConverter(models.AbstractModel):
 
         :rtype: str | None
         """
-        # Can import by display_name, external id or database id
         fieldset = set(record)
         if fieldset - REFERENCING_FIELDS:
             raise ValueError(
@@ -1086,7 +984,6 @@ class IrFieldsConverter(models.AbstractModel):
                 )
             )
 
-        # only one field left possible, unpack
         [subfield] = fieldset
         return subfield
 
@@ -1122,13 +1019,10 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_many2one(
         self, field: FieldLike, values: list[dict]
     ) -> tuple[int | None, list]:
-        # Should only be one record, unpack
         [record] = values
         ids, warnings = self._resolve_reference_ids(field, record, multi=False)
         return ids[0], warnings
 
-    # A many2one_reference stores a raw integer id, so it converts like an
-    # integer field (alias, as with ``_str_to_monetary = _str_to_float``).
     _str_to_many2one_reference = _str_to_integer
 
     @api.model
@@ -1167,20 +1061,12 @@ class IrFieldsConverter(models.AbstractModel):
         warnings = []
 
         if len(records) == 1 and set(records[0]) <= REFERENCING_FIELDS:
-            # only one row with only ref field, field=ref1,ref2,ref3 as in
-            # m2o/m2m
             record = records[0]
             subfield = self._referencing_subfield(record)
-            # transform [{subfield:ref1,ref2,ref3}] into
-            # [{subfield:ref1},{subfield:ref2},{subfield:ref3}]
             records = ({subfield: item} for item in record[subfield].split(","))
 
         def log(f: str, exception: Exception | Warning) -> None:
             if not isinstance(exception, Warning):
-                # ``f`` may name a field absent from the comodel (IFLD-07);
-                # fall back to the raw name instead of raising ``KeyError``, which
-                # would escape ``fn``'s ``ValueError``-only handling and abort the
-                # whole ``load()`` (IFLD-15).
                 f_field = self.env[field.comodel_name]._fields.get(f)
                 current_field_name = f_field.string if f_field else f
                 arg0 = exception.args[0].replace(
@@ -1190,8 +1076,6 @@ class IrFieldsConverter(models.AbstractModel):
                 raise exception
             warnings.append(exception)
 
-        # Complete the field hierarchy path
-        # E.g. For "parent/child/subchild", field hierarchy path for "subchild" is ['parent', 'child']
         parent_fields_hierarchy = self.env.context.get(
             "parent_fields_hierarchy", []
         ) + [field.name]

@@ -138,7 +138,6 @@ class MyFilterMessages(Transform):
     default_priority = 870
 
     def apply(self) -> None:
-        # `findall` exists since docutils 0.18 and requirements.txt pins 0.22.x
         for node in self.document.findall(nodes.system_message):
             _logger.debug("docutils' system message present: %s", node)
             node.parent.remove(node)
@@ -160,10 +159,6 @@ STATES = [
     ("to install", "To be installed"),
 ]
 
-# Recursive closures over the module dependency graph, resolved in one round-trip.
-# The two variants differ only in join direction: downstream walks to dependents,
-# upstream to dependencies. Excluded-state or blocked modules are pruned and thus
-# block paths through them; seeds are traversed but excluded from the result.
 _DOWNSTREAM_CLOSURE_QUERY = """
     WITH RECURSIVE closure(id, name) AS (
         SELECT m.id, m.name
@@ -220,10 +215,6 @@ class IrModuleModule(models.Model):
     contributors = fields.Text("Contributors", readonly=True)
     website = fields.Char("Website", readonly=True)
 
-    # `manifest_version` is the version declared in the module's __manifest__.py
-    # on disk; `db_version` is the version persisted on the last successful
-    # install/upgrade; `published_version` is the version available on the
-    # remote module repository.
     manifest_version = fields.Char(
         "Manifest Version", compute="_compute_manifest_version"
     )
@@ -293,18 +284,7 @@ class IrModuleModule(models.Model):
     icon_flag = fields.Char(string="Flag", compute="_compute_icon_image")
     to_buy = fields.Boolean("Odoo Enterprise Module", default=False)
     has_iap = fields.Boolean(compute="_compute_has_iap")
-    # Written by odoo.modules.loading.load_data (raw SQL) after each successful
-    # upgrade: {"v": <_DATA_FILE_CHECKSUM_VERSION>, "files": {<filename>:
-    # {"sha": ..., "xmlids": [...], "dyn": bool}}}.  Lets the next upgrade skip
-    # converting data files whose content did not change.  The "v" key gates the
-    # whole entry, so bumping it is how a digest-algorithm change invalidates
-    # every stored value.  Not meant to be edited through the ORM.
     data_file_checksums = fields.Json(readonly=True, prefetch=False)
-    # "<algo>:<hex>" digest of the module directory at its last successful
-    # install/upgrade (see odoo.modules.module.module_content_checksum), stamped
-    # by load_module_graph.  button_upgrade uses it to leave unchanged modules
-    # out of upgrade cascades; a value carrying a different algorithm tag simply
-    # compares unequal, so the module upgrades instead of being skipped.
     content_checksum = fields.Char(readonly=True, prefetch=False)
 
     _name_uniq = models.Constraint(
@@ -317,7 +297,14 @@ class IrModuleModule(models.Model):
         """Return the manifest of the named addon, or ``{}`` if unavailable.
 
         There is no manifest for studio_customization and imported modules.
+        A falsy *name* (an unsaved record whose ``name`` is still empty) has no
+        manifest either: return ``{}`` rather than letting ``for_addon`` raise
+        ``TypeError`` on a bool. Guarding here covers all six call sites at
+        once, matching this method's documented "``{}`` if unavailable"
+        contract.
         """
+        if not name:
+            return {}
         return modules.Manifest.for_addon(name, display_warning=False) or {}
 
     @api.depends("name", "description")
@@ -346,8 +333,6 @@ class IrModuleModule(models.Model):
             doc = None
             try:
                 with tools.file_open(path, "rb") as desc_file:
-                    # Backs the form and module loading (_check reads it), so a
-                    # bad/empty index.html must never raise; fall back to manifest.
                     doc = desc_file.read().decode(errors="replace").strip()
             except FileNotFoundError:
                 doc = None
@@ -396,7 +381,6 @@ class IrModuleModule(models.Model):
         IrModelData = self.env["ir.model.data"].with_context(active_test=True)
         dmodels = ["ir.ui.view", "ir.actions.report", "ir.ui.menu"]
 
-        # Skip uninstalled modules, no data to find anyway.
         active_mods = self.filtered(
             lambda m: m.state in ("installed", "to upgrade", "to remove")
         )
@@ -407,8 +391,6 @@ class IrModuleModule(models.Model):
         if not active_mods:
             return
 
-        # One batched ir.model.data search for the whole recordset; this stored
-        # compute fires for many modules at once, so per-module search is O(n) queries.
         imd_per_module: defaultdict[str, defaultdict[str, list[int]]] = defaultdict(
             lambda: defaultdict(list)
         )
@@ -420,8 +402,6 @@ class IrModuleModule(models.Model):
             imd_per_module[data.module][data.model].append(data.res_id)
 
         def existing(model):
-            # Runs before the module update, so some xmlids may be dangling;
-            # filter records to the existing ones before reading them.
             ids = [
                 res_id
                 for per_model in imd_per_module.values()
@@ -454,8 +434,6 @@ class IrModuleModule(models.Model):
     @api.depends("icon")
     def _compute_icon_image(self) -> None:
         """Compute the module icon (base64) and its country flag glyph."""
-        # Pre-assign both fields: records skipped below (NewIds) must still get
-        # every field of this compute assigned.
         self.icon_image = ""
         self.icon_flag = ""
         for module in self:
@@ -470,9 +448,6 @@ class IrModuleModule(models.Model):
                 path = Manifest.for_addon("base").icon
             path = path.removeprefix("/")
             if path:
-                # module.icon is user-writable: the filter_ext whitelist and
-                # file_open's addons-path sandbox prevent arbitrary file reads.
-                # Load-bearing security controls; do not drop them.
                 try:
                     with tools.file_open(
                         path,
@@ -484,16 +459,11 @@ class IrModuleModule(models.Model):
                     module.icon_image = ""
             countries = manifest.get("countries", [])
             if len(countries) == 1:
-                # A manifest is third-party data: a malformed country code must
-                # leave the module without a flag, not break the whole Apps list.
                 with contextlib.suppress(ValueError):
                     module.icon_flag = get_flag(countries[0].upper())
 
     def _compute_has_iap(self) -> None:
         """Compute whether the module transitively depends on the iap module."""
-        # One downstream closure of 'iap' for the whole batch (module depends on
-        # iap <=> it is a transitive dependent of iap), rather than one upstream
-        # closure per record; test ids against a set, not recordset membership.
         iap = self.browse(self._get_id("iap") or [])
         iap_dependent_ids = set(iap.downstream_dependencies(exclude_states=())._ids)
         for module in self:
@@ -535,7 +505,7 @@ class IrModuleModule(models.Model):
         """
         manifest = modules.Manifest.for_addon(module_name)
         if not manifest:
-            return  # unavailable module, there is no point in checking dependencies
+            return
         try:
             manifest.check_manifest_dependencies()
         except MissingDependencyError as e:
@@ -563,8 +533,6 @@ class IrModuleModule(models.Model):
                 try:
                     distro = platform.freedesktop_os_release()
                 except OSError:
-                    # no os-release file (minimal containers): the apt hint
-                    # is best-effort and must not mask the UserError below
                     distro = {}
                 id_likes = {distro.get("ID", ""), *distro.get("ID_LIKE", "").split()}
                 if "debian" in id_likes or "ubuntu" in id_likes:
@@ -601,7 +569,6 @@ class IrModuleModule(models.Model):
             if module.state not in states_to_update:
                 continue
 
-            # partition dependencies into those to update and those already ready
             update_ids, ready_ids = [], []
             for dep in module.dependencies_id:
                 if dep.state == "unknown":
@@ -618,11 +585,9 @@ class IrModuleModule(models.Model):
                     update_ids.append(dep.depend_id.id)
             update_mods = self.browse(update_ids)
 
-            # update dependency modules that require it
             update_mods._state_update(newstate, states_to_update, level=level - 1)
 
             if module.state in states_to_update:
-                # check dependencies and update module itself
                 self.check_external_dependencies(module.name, newstate)
                 module.write({"state": newstate})
 
@@ -634,21 +599,15 @@ class IrModuleModule(models.Model):
         :return: the upgrade-wizard action that applies the scheduled states
         :rtype: dict[str, Any]
         """
-        # During install, models may have new Python fields without DB columns yet;
-        # prefetch_fields=False avoids fetching them (as in _auto_init).
         env_no_prefetch = self.env(
             context=dict(self.env.context, prefetch_fields=False)
         )
         company_countries = env_no_prefetch["res.company"].search([]).country_id
-        # domain to select auto-installable (but not yet installed) modules
         auto_domain = [
             ("state", "=", "uninstalled"),
             ("auto_install", "=", True),
         ]
 
-        # An auto-install module must be installed when: all its deps are installed
-        # or to be installed, at least one dep is 'to install', and (if country
-        # specific) at least one company is in one of its countries.
         install_states = frozenset(("installed", "to install", "to upgrade"))
 
         def must_install(module):
@@ -663,19 +622,15 @@ class IrModuleModule(models.Model):
 
         to_install = self
         while to_install:
-            # Mark the given modules and their dependencies to be installed.
             to_install._state_update("to install", ["uninstalled"])
 
-            # Determine which auto-installable modules must be installed.
             if config.get("skip_auto_install"):
                 to_install = self.browse()
             else:
                 to_install = self.search(auto_domain).filtered(must_install)
 
-        # the modules that are installed/to install/to upgrade
         install_mods = self.search([("state", "in", list(install_states))])
 
-        # check individual exclusions
         install_names = {module.name for module in install_mods}
         for module in install_mods:
             for exclusion in module.exclusion_ids:
@@ -688,16 +643,12 @@ class IrModuleModule(models.Model):
                         )
                     )
 
-        # check category exclusions
         exclusives = self.env["ir.module.category"].search([("exclusive", "=", True)])
         for category in exclusives:
-            # retrieve installed modules in category and sub-categories
             categories = category.search([("id", "child_of", category.ids)])
             category_mods = install_mods.filtered(
                 lambda mod, categories=categories: mod.category_id in categories
             )
-            # Valid if all category modules are transitive dependencies of one of
-            # them. upstream_dependencies excludes the seed, so union it back in.
             if category_mods and not any(
                 category_mods
                 <= (module | module.upstream_dependencies(exclude_states=()))
@@ -725,9 +676,6 @@ class IrModuleModule(models.Model):
         :rtype: dict[str, Any]
         """
         _logger.info("User #%d triggered module installation", self.env.uid)
-        # Stash allowed companies on the thread-local request as a pseudo-global
-        # env: e.g. installing a Chart of Accounts must configure it on the
-        # selected company, not SUPERUSER's own.
         if request:
             request.allowed_company_ids = self.env.companies.ids
         return self._button_immediate_function(
@@ -758,7 +706,6 @@ class IrModuleModule(models.Model):
         created (tables, columns, constraints, ...)."""
         modules_to_remove = self.mapped("name")
         self.env["ir.model.data"]._module_data_uninstall(modules_to_remove)
-        # we deactivate prefetching to not try to read a column that has been deleted
         self.with_context(prefetch_fields=False).write(
             {"state": "uninstalled", "db_version": False}
         )
@@ -884,7 +831,6 @@ class IrModuleModule(models.Model):
             )
             raise RuntimeError(msg)
 
-        # raise error if database is updating for module operations
         if self.search_count(
             [("state", "in", ("to install", "to upgrade", "to remove"))],
             limit=1,
@@ -896,7 +842,6 @@ class IrModuleModule(models.Model):
                 )
             )
         try:
-            # raise error if another transaction is trying to schedule module operations concurrently
             self.env.cr.execute("LOCK ir_module_module IN EXCLUSIVE MODE NOWAIT")
         except psycopg.OperationalError:
             raise UserError(
@@ -907,9 +852,6 @@ class IrModuleModule(models.Model):
             ) from None
 
         try:
-            # This is done because the installation/uninstallation/upgrade can modify a currently
-            # running cron job and prevent it from finishing, and since the ir_cron table is locked
-            # during execution, the lock won't be released until timeout.
             self.env.cr.execute("SELECT FROM ir_cron FOR UPDATE NOWAIT")
         except psycopg.OperationalError:
             raise UserError(
@@ -941,7 +883,6 @@ class IrModuleModule(models.Model):
         if next_action.get("type") != "ir.actions.act_window_close":
             return next_action
 
-        # reload the client; open the first available root menu
         menu = self.env["ir.ui.menu"].search([("parent_id", "=", False)])[:1]
         return {
             "type": "ir.actions.client",
@@ -1015,13 +956,8 @@ class IrModuleModule(models.Model):
         self.update_list()
 
         todo = list(self)
-        # Membership on the growing `todo` recordset is O(V*E) (measured 89ms at
-        # 1536 addons); a set of ids keeps each test O(1).
         seen_ids = set(self.ids)
         if "base" in self.mapped("name"):
-            # An installed module reachable only through a new, uninstalled
-            # dependency isn't selected yet; upgrading 'base' must also upgrade
-            # these modules and thereby install the new dependency.
             others = self.search(
                 [
                     ("state", "=", "installed"),
@@ -1031,14 +967,11 @@ class IrModuleModule(models.Model):
             )
             todo.extend(others)
             seen_ids.update(others._ids)
-        # Prefetch all dependency rows once; the sweep below would otherwise
-        # issue one search per visited module (hundreds on a 'base' upgrade).
         deps_by_name = defaultdict(list)
         for dep in Dependency.search([]):
             deps_by_name[dep.name].append(dep)
 
         i = 0
-        # `todo` grows while iterating: index loop instead of for-each
         while i < len(todo):
             module = todo[i]
             i += 1
@@ -1061,13 +994,6 @@ class IrModuleModule(models.Model):
                     seen_ids.add(dependent.id)
                     todo.append(dependent)
 
-        # Cascaded modules whose directory content is identical to their last
-        # successful upgrade have nothing to re-run: same data files, same
-        # schema, same version (so no migrations), same translations.  Leave
-        # them installed.  Explicitly requested modules (``self``) always
-        # upgrade; modules never stamped (fresh column, NULL) always upgrade.
-        # The traversal above is deliberately unfiltered — a changed module
-        # reachable only through unchanged intermediates must still be found.
         marked_ids = [m.id for m in todo]
         if config["skip_unchanged_modules"] and column_exists(
             self.env.cr, "ir_module_module", "content_checksum"
@@ -1155,9 +1081,6 @@ class IrModuleModule(models.Model):
             for module in modules
         ]
         self.env["ir.model.data"].create(module_metadata_list)
-        # New name->id entries change what _get_id/_installed resolve; like
-        # unlink, drop the "stable" cache so a cached negative _get_id result
-        # cannot go stale within the current registry.
         self.env.registry.clear_cache("stable")
         return modules
 
@@ -1169,9 +1092,6 @@ class IrModuleModule(models.Model):
         :return: counts of modules with a new version and of new modules
         :rtype: UpdateListResult
         """
-        # Filesystem may have new addon directories since the last scan; drop the
-        # per-process esbuild addon-flag cache so newly discovered addons
-        # contribute their --alias on the next bundle.
         from odoo.addons.base.models.assetsbundle import AssetsBundle
 
         AssetsBundle.invalidate_addon_scan_cache()
@@ -1181,11 +1101,8 @@ class IrModuleModule(models.Model):
         default_version = modules.adapt_version("1.0")
         known_mods = self.with_context(lang=None).search([])
         known_mods_names = {mod.name: mod for mod in known_mods}
-        # auto_install requirements per module id, applied in one batched
-        # statement after the loop (see _sync_auto_install_required)
         auto_install_requirements: dict[int, Collection[str]] = {}
 
-        # iterate through detected modules and update/create them in db
         for manifest in modules.Manifest.all_addon_manifests():
             mod = known_mods_names.get(manifest.name)
             values = self.get_values_from_terp(manifest)
@@ -1267,8 +1184,6 @@ class IrModuleModule(models.Model):
             return
         Dependency = self.env["ir.module.module.dependency"]
         Dependency.flush_model(["auto_install_required"])
-        # IS DISTINCT FROM guard: without it every update_list() rewrites every
-        # dependency row (pure MVCC/WAL churn, ~3.4k row versions per idle run).
         values = SQL(", ").join(
             SQL("(%s, %s::varchar[])", module_id, list(names or ()))
             for module_id, names in requirements.items()
@@ -1458,7 +1373,7 @@ class IrModuleModule(models.Model):
                             ],
                         ]
                     )
-                    record["__count"] = self.env["ir.module.module"].search_count(  # noqa: E8507 — inherent: child_of per category requires tree traversal
+                    record["__count"] = self.env["ir.module.module"].search_count(
                         model_domain
                     )
 
@@ -1474,15 +1389,11 @@ class IrModuleModule(models.Model):
         self, module_names: list[str], langs: list[str], overwrite: bool = False
     ) -> None:
         """Load PO files of the given modules for the given languages."""
-        # load i18n files
         translation_importer = TranslationImporter(self.env.cr, verbose=False)
 
         for module_name in module_names:
             if not Manifest.for_addon(module_name, display_warning=False):
                 continue
-            # the PO files are being (re)loaded; drop any cached python/web code
-            # translations for this module so the new terms are served without a
-            # process restart
             code_translations.clear(module_name)
             for lang in langs:
                 for po_path in get_po_paths(module_name, lang):
@@ -1516,17 +1427,13 @@ DEP_STATES = STATES + [("unknown", "Unknown")]
 class IrModuleModuleDependency(models.Model):
     _name = "ir.module.module.dependency"
     _description = "Module dependency"
-    _log_access = (
-        False  # inserts are done manually, create and write uid, dates are always null
-    )
+    _log_access = False
     _allow_sudo_commands = False
 
     name = fields.Char(index=True)
 
-    # the module that depends on it
     module_id = fields.Many2one("ir.module.module", "Module", ondelete="cascade")
 
-    # the module corresponding to the dependency, and its status
     depend_id = fields.Many2one(
         "ir.module.module",
         "Dependency",
@@ -1560,8 +1467,6 @@ class IrModuleModuleDependency(models.Model):
     ) -> list[tuple[str, str, Any]] | NotImplementedType:
         """Translate a condition on ``depend_id`` into one on the dependency name."""
         if operator == "any" and isinstance(value, Domain | list | tuple):
-            # 'any' carries a sub-domain (also from path decomposition, e.g.
-            # ('depend_id.name', '=', x)); resolve it to module ids first.
             value = self.env["ir.module.module"].search(Domain(value)).ids
             operator = "in"
         if operator != "in":
@@ -1609,10 +1514,8 @@ class IrModuleModuleExclusion(models.Model):
 
     name = fields.Char(index=True)
 
-    # the module that excludes it
     module_id = fields.Many2one("ir.module.module", "Module", ondelete="cascade")
 
-    # the module corresponding to the exclusion, and its status
     exclusion_id = fields.Many2one(
         "ir.module.module",
         "Exclusion Module",
@@ -1641,8 +1544,6 @@ class IrModuleModuleExclusion(models.Model):
     ) -> list[tuple[str, str, Any]] | NotImplementedType:
         """Translate a condition on ``exclusion_id`` into one on the exclusion name."""
         if operator == "any" and isinstance(value, Domain | list | tuple):
-            # 'any' carries a sub-domain (also from path decomposition, e.g.
-            # ('exclusion_id.name', '=', x)); resolve it to module ids first.
             value = self.env["ir.module.module"].search(Domain(value)).ids
             operator = "in"
         if operator != "in":

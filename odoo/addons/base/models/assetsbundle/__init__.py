@@ -19,8 +19,6 @@ lazily on first bundle construction (``bundle._check_external_libs_once``), not
 at import time.
 """
 
-# Re-exported through this module so tests importing the historical surface
-# keep resolving.
 from odoo.libs.constants import ANY_UNIQUE
 from odoo.tools.assets.esm_graph import (
     _cached_module_classification,

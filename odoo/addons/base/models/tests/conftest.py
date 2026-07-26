@@ -54,7 +54,6 @@ _stub_pytest_package_chain()
 def _ensure_tools_stub() -> None:
     tools = sys.modules.get("odoo.tools")
     if tools is None:
-        # conftest.py is at odoo/addons/base/models/tests/: parents[4] = odoo/
         tools_path = Path(__file__).resolve().parents[4] / "tools"
         tools = types.ModuleType("odoo.tools")
         tools.__path__ = [str(tools_path)]
@@ -64,7 +63,7 @@ def _ensure_tools_stub() -> None:
 
     if not hasattr(tools, "frozendict"):
 
-        class frozendict(dict):  # mirrors odoo.tools.frozendict's lowercase name
+        class frozendict(dict):
             """Minimal read-only-by-convention dict stand-in for tests."""
 
         tools.frozendict = frozendict

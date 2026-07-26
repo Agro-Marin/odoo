@@ -61,14 +61,12 @@ class BaseModuleUninstall(models.TransientModel):
                         xid.split(".")[0] in _module_names for xid in xids
                     )
 
-                # find the models that have all their XIDs in the given modules
                 wizard.model_ids = ir_models.filtered(lost).sorted("name")
             else:
                 wizard.model_ids = False
 
     @api.onchange("module_ids")
     def _onchange_module_ids(self) -> None:
-        # if the user selects only technical modules, show technical modules.
         if self.module_ids and not any(m.application for m in self.module_ids):
             self.show_all = True
 

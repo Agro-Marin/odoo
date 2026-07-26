@@ -40,8 +40,6 @@ class TestReplaceDirective(TransactionCase):
             )
 
     def test_replace_source_already_present(self):
-        # replace /c by /a (already present): /a moves to /c's slot; the old
-        # insert() no-op stranded /a.
         ap = self._seed(["/a", "/b", "/c"])
         self._run_replace(ap, "/c", [("/a", "/full/a", 1)])
         self.assertEqual(self._paths(ap), ["/b", "/a"])
@@ -49,28 +47,23 @@ class TestReplaceDirective(TransactionCase):
         self.assertNotIn("/c", ap.memo)
 
     def test_replace_new_source(self):
-        # replace /c by a genuinely-new path /d: /d at /c's slot, /c removed.
         ap = self._seed(["/a", "/b", "/c"])
         self._run_replace(ap, "/c", [("/d", "/full/d", 1)])
         self.assertEqual(self._paths(ap), ["/a", "/b", "/d"])
 
     def test_replace_self_keeps_target(self):
-        # replace /c by /c (or a glob whose matches include /c): /c must survive.
         ap = self._seed(["/a", "/b", "/c"])
         self._run_replace(ap, "/c", [("/c", "/full/c", 1)])
         self.assertEqual(self._paths(ap), ["/a", "/b", "/c"])
         self.assertIn("/c", ap.memo)
 
     def test_replace_empty_source_removes_target(self):
-        # documented "delete the target" idiom: empty source removes the target.
         ap = self._seed(["/a", "/b", "/c"])
         self._run_replace(ap, "/b", [])
         self.assertEqual(self._paths(ap), ["/a", "/c"])
         self.assertNotIn("/b", ap.memo)
 
     def test_replace_preserves_source_order(self):
-        # IRASSET-C2: interleaved present (/a, /b) and new (/x, /y) sources must
-        # follow SOURCE order [/a, /x, /b, /y], not the old [/x, /y, /a, /b].
         ap = self._seed(["/a", "/b", "/T"])
         source = [
             ("/a", "/full/a", 1),
@@ -83,8 +76,6 @@ class TestReplaceDirective(TransactionCase):
         self.assertNotIn("/T", ap.memo)
 
     def test_replace_glob_including_target_keeps_target_and_orders_new(self):
-        # target glob matches /T; source glob matches [/n1, /T, /n2].  /T stays;
-        # the new sources land before it in source order.
         ap = self._seed(["/T", "/c"])
         source = [
             ("/n1", "/full/n1", 1),
@@ -115,8 +106,6 @@ class TestDirectiveAbsentTarget(TransactionCase):
         return ap
 
     def test_index_absent_target_raises_with_bundle(self):
-        # Anchor resolves to a real path absent from this bundle: index() raises
-        # ValueError naming the bundle (can't position relative to an absent anchor).
         ap = self._seed()
         with self.assertRaises(ValueError) as cm:
             ap.index("/web/absent.js", "bundle1")
@@ -124,18 +113,13 @@ class TestDirectiveAbsentTarget(TransactionCase):
         self.assertIn("/web/absent.js", str(cm.exception))
 
     def test_remove_resolvable_absent_path_raises_with_bundle(self):
-        # remove of a path resolving on disk but absent from this bundle raises
-        # ValueError naming the bundle; the empty-resolution case warns and no-ops.
         ap = self._seed()
         with self.assertRaises(ValueError) as cm:
             ap.remove([("/web/absent.js", "/full/absent.js", 1)], "bundle1")
         self.assertIn("bundle1", str(cm.exception))
-        # The present paths are untouched by the failed remove.
         self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
 
     def test_replace_absent_target_raises_via_process_path(self):
-        # End-to-end through the real _process_path: a REPLACE whose target
-        # resolves to a real file absent from the bundle raises.
         IrAsset = self.env["ir.asset"]
         ap = self._seed()
 
@@ -177,14 +161,11 @@ class TestGetPathsEscapeWarning(TransactionCase):
             result = IrAsset._get_paths(escaping, installed)
         joined = "\n".join(cm.output)
         self.assertIn("resolves outside the static/", joined)
-        # Still degrades to a (doomed) attachment tuple -- unchanged behaviour.
         self.assertEqual(result, [(escaping, None, None)])
 
     def test_missing_literal_inside_static_warns_typo(self):
         IrAsset = self.env["ir.asset"]
         installed = IrAsset._get_installed_addons_list()
-        # Inside base/static but absent on disk: attachment fallback with the C5
-        # typo warning (not the C4 escape warning).
         inside = "/base/static/src/scss/__does_not_exist__.scss"
         with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
             result = IrAsset._get_paths(inside, installed)
@@ -196,7 +177,6 @@ class TestGetPathsEscapeWarning(TransactionCase):
     def test_existing_literal_inside_static_does_not_warn(self):
         IrAsset = self.env["ir.asset"]
         installed = IrAsset._get_installed_addons_list()
-        # A literal path that DOES resolve must stay warning-free.
         inside = "/base/static/src/scss/res_users.scss"
         with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
             result = IrAsset._get_paths(inside, installed)
@@ -225,8 +205,6 @@ class TestProcessCommandMalformed(TransactionCase):
         self.assertIn("path", str(cm.exception))
 
     def test_wrong_arity_raises_valueerror_naming_command(self):
-        # Valid directive but wrong arity: the command must still appear in
-        # str(exc), not only in __notes__.
         with self.assertRaises(ValueError) as cm:
             self.env["ir.asset"]._process_command(["after", "only_two"])
         self.assertIn("only_two", str(cm.exception))
@@ -267,8 +245,8 @@ class TestReorderPresentSourceWarns(TransactionCase):
         return [a.path for a in ap.list], " ".join(cm.output)
 
     def test_after_present_source_warns_and_is_noop(self):
-        paths, log = self._run("after", "/a", "/c")  # /c already present
-        self.assertEqual(paths, ["/a", "/b", "/c"])  # unchanged
+        paths, log = self._run("after", "/a", "/c")
+        self.assertEqual(paths, ["/a", "/b", "/c"])
         self.assertIn("already present", log)
         self.assertIn("bundle1", log)
         self.assertIn("/c", log)
@@ -385,8 +363,6 @@ class TestTopologicalSort(TransactionCase):
 
     def _sort(self, manifests, addons):
         IrAsset = self.env["ir.asset"]
-        # @ormcache'd on the addons tuple; clear so synthetic runs don't collide
-        # with real ones.
         IrAsset.env.registry.clear_cache()
         with patch.object(
             Manifest, "for_addon", lambda name, **kw: manifests.get(name)
@@ -409,8 +385,6 @@ class TestTopologicalSort(TransactionCase):
         self.assertLess(pos["base"], pos["leaf_mod"])
 
     def test_missing_depends_falls_back_to_base(self):
-        # No ``depends`` key => depends on base (``manif.get("depends") or
-        # ["base"]``), so base must come first.
         manifests = {"base": {"depends": []}, "orphan": {}}
         order = self._sort(manifests, ["orphan", "base"])
         self.assertLess(order.index("base"), order.index("orphan"))

@@ -58,8 +58,6 @@ EDI_LIKE_HTML_SOURCE = """<div style="font-family: 'Lucida Grande', Ubuntu, Aria
 </div></body></html>"""
 
 
-# QUOTES
-
 QUOTE_BLOCKQUOTE = """<html>
   <head>
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
@@ -225,7 +223,7 @@ QUOTE_OUTLOOK_HTML_IN = [
 ]
 QUOTE_OUTLOOK_HTML_OUT = [
     """<div class="elementToProof" id="Signature" data-o-mail-quote-container="1" data-o-mail-quote="1">John</div>""",
-    """<div id="appendonsend" data-o-mail-quote-container="1" data-o-mail-quote="1"></div>""",  # quoted when empty in case there's a signature before
+    """<div id="appendonsend" data-o-mail-quote-container="1" data-o-mail-quote="1"></div>""",
     """<hr tabindex="-1" style="display:inline-block; width:98%" data-o-mail-quote="1">""",
     """<div data-o-mail-quote-container="1" data-o-mail-quote="1">
             <div dir="ltr" data-o-mail-quote="1">Parent email body</div>
@@ -374,7 +372,6 @@ TEXT_2_OUT = [
 > RaoulSignature""",
 ]
 
-# MISC
 
 GMAIL_1 = """Hello,<div><br></div><div>Ok for me. I am replying directly in gmail, with signature.</div><div><br></div><div>Kind regards,</div><div><br></div><div>Demo.<br><br>
 <div class="gmail_quote">
@@ -402,7 +399,6 @@ GMAIL_1_IN = [
     '<div class="gmail_quote" data-o-mail-quote-container="1" data-o-mail-quote="1">',
     '<div dir="ltr" class="gmail_attr" data-o-mail-quote="1">On Thu, Nov 8, 2012 at 5:29 PM',
     '<blockquote class="gmail_quote" data-o-mail-quote-container="1" data-o-mail-quote="1" data-o-mail-quote-node="1">',
-    # blank spaces between signature and reply quote should be quoted too
     '<div data-o-mail-quote="1"><br clear="all" data-o-mail-quote="1"></div>\n'
     '<div data-o-mail-quote="1"><br data-o-mail-quote="1"></div>',
 ]
@@ -562,9 +558,6 @@ MSOFFICE_1_OUT = [
 ]
 
 
-# Test cases coming from bugs
-
-# bug: read more not apparent, strange message in read more span
 BUG1 = """<pre>Hi Migration Team,
 
 Paragraph 1, blah blah blah blah blah blah blah blah blah blah blah blah

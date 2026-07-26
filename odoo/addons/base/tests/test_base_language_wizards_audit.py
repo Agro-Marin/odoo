@@ -125,5 +125,4 @@ class TestBaseLanguageWizardsAudit(TransactionCase):
                 }
             )
         )
-        # No exception: the OSError from the PO parser is swallowed upstream.
         self.assertTrue(wizard.import_lang())

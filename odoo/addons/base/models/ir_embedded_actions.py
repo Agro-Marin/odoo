@@ -21,7 +21,6 @@ class IrEmbeddedActions(models.Model):
     )
     parent_res_id = fields.Integer(string="Active Parent Id")
     parent_res_model = fields.Char(string="Active Parent Model", required=True)
-    # It is required to have either action_id or python_method
     action_id = fields.Many2one(
         "ir.actions.actions",
         string="Action",
@@ -83,7 +82,6 @@ class IrEmbeddedActions(models.Model):
         silently coerced (not rejected) to satisfy the SQL CHECK: a truthy
         ``python_method`` wins, otherwise the falsy ``python_method`` is dropped.
         """
-        # Default the name from the triggered action when action_id is given.
         action_ids = [
             v["action_id"] for v in vals_list if "name" not in v and "action_id" in v
         ]
@@ -97,16 +95,13 @@ class IrEmbeddedActions(models.Model):
                 vals["name"] = action_names.get(vals.get("action_id"), "")
             if "python_method" in vals and "action_id" in vals:
                 if vals.get("python_method"):
-                    # python_method supplies the action, so drop action_id.
                     del vals["action_id"]
-                else:  # falsy python_method: drop it.
+                else:
                     del vals["python_method"]
         return super().create(vals_list)
 
     def _compute_is_deletable(self) -> None:
         """Mark records not seeded from a data file as user-deletable."""
-        # A record is deletable only if it has no external id, or all of its
-        # external ids are __export__/__custom__ (i.e. not a seeded default).
         external_ids = self._get_external_ids()
         for record in self:
             record_external_ids = external_ids[record.id]
@@ -135,10 +130,6 @@ class IrEmbeddedActions(models.Model):
         if not active_id:
             self.is_visible = False
             return
-        # active_id identifies a record of the context's active_model: when
-        # active_model is present, hide actions on any other parent_res_model to
-        # avoid a cross-model id collision. Without active_model, match by id
-        # alone (flows passing only active_id).
         active_model = self.env.context.get("active_model")
         domain_id = [("id", "=", active_id)]
         for parent_res_model, records in self.grouped("parent_res_model").items():
@@ -148,9 +139,7 @@ class IrEmbeddedActions(models.Model):
                 records.is_visible = False
                 continue
             parent_model = self.env[parent_res_model]
-            active_model_record = parent_model.search(  # noqa: E8507 — bounded: one per distinct parent_res_model
-                domain_id, order="id"
-            )
+            active_model_record = parent_model.search(domain_id, order="id")
             for record in records:
                 action_groups = record.group_ids
                 is_valid_method = not record.python_method or hasattr(
@@ -164,8 +153,6 @@ class IrEmbeddedActions(models.Model):
                     except ValueError, SyntaxError:
                         record.is_visible = False
                         continue
-                    # bool(): the last operand is a recordset — don't assign a
-                    # recordset to the Boolean field via truthiness.
                     record.is_visible = bool(
                         record.parent_res_id in (False, active_id)
                         and record.user_id.id in (False, self.env.uid)

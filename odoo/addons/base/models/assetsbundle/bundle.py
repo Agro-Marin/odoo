@@ -29,10 +29,6 @@ from odoo.tools.assets.esm_registry import esm_registry, invalidate_esm_registry
 from odoo.tools.misc import file_path
 
 if TYPE_CHECKING:
-    # Model-class imports must stay typing-only: base/models/__init__
-    # imports assetsbundle FIRST, and registering ir.attachment before
-    # model 'base' exists aborts registry load (house pattern — see
-    # ir_attachment.py's own TYPE_CHECKING block).
     from odoo.addons.base.models.ir_attachment import IrAttachment
 from .assets import JavascriptAsset, ScssStylesheetAsset, StylesheetAsset, XMLAsset
 from .common import (
@@ -64,21 +60,9 @@ def _check_external_libs_once() -> None:
 class AssetsBundle:
     """Compile, version and persist the JS/CSS/XML assets of one named bundle."""
 
-    # @import matcher used by ``css()`` and ``CssPipeline.sourcemap_bundle`` to
-    # hoist @import rules. CssPipeline holds the preprocessor's own regexes.
     rx_css_import = re.compile(r"(@import[^;{]+;?)")
 
-    # Source extensions the ``__init__`` file loop has a case-arm for; anything
-    # else trips the misconfiguration tripwire (not a flag-based css-/js-only
-    # drop). ``.sass`` is unsupported — the compiler always runs ``syntax="scss"``,
-    # so a ``.sass`` file would die with a misleading parse error; let it trip.
     _BUNDLE_FILE_EXTENSIONS = frozenset({"scss", "css", "js", "xml"})
-
-    # ESM bundle classification is DECLARATIVE: each module lists its bundles
-    # under the ``esm`` key of its ``__manifest__.py``. The aggregate (and the
-    # parent/child relationships) is built and validated by
-    # ``odoo.tools.assets.esm_registry.esm_registry()`` and invalidated with the
-    # esbuild addon scan below.
 
     @classmethod
     def _validate_external_libs(
@@ -167,9 +151,6 @@ class AssetsBundle:
         try:
             file_path(rel)
         except ValueError:
-            # Malformed entry (empty/absolute/traversing): flag like a missing
-            # file so it joins the caller's aggregated startup ValueError rather
-            # than escaping the probe as a bare, contextless one.
             return False
         except FileNotFoundError:
             try:
@@ -210,8 +191,6 @@ class AssetsBundle:
         self.templates = []
         self.stylesheets = []
         self.css_errors = []
-        # Snapshot of the input file specs; the content-invalidation test suite
-        # reads it to assert the file list changed across rebuilds.
         self.files = files
         self.rtl = rtl
         self.assets_params = assets_params or {}
@@ -222,14 +201,10 @@ class AssetsBundle:
         self.is_debug_assets = debug_assets
         self.external_assets = []
         for url in external_assets:
-            # Strip query string / fragment before the extension probe so a
-            # CDN URL like ``…/style.css?v=2`` is not silently discarded.
             ext = url.partition("#")[0].partition("?")[0].rpartition(".")[2]
             if (css and ext in STYLE_EXTENSIONS) or (js and ext in SCRIPT_EXTENSIONS):
                 self.external_assets.append(url)
             elif ext not in STYLE_EXTENSIONS and ext not in SCRIPT_EXTENSIONS:
-                # css-/js-only drops are normal; an unrecognized extension is a
-                # misconfiguration that previously vanished without a trace.
                 log_event(
                     _bundle_log,
                     logging.WARNING,
@@ -238,7 +213,6 @@ class AssetsBundle:
                     url=url,
                 )
 
-        # asset-wide html "media" attribute
         for f in files:
             extension = f["url"].rpartition(".")[2]
             params = {
@@ -268,17 +242,12 @@ class AssetsBundle:
                     case "js":
                         asset = JavascriptAsset(self, **params)
                         if self._is_esm_bundle and self._is_module_js(asset):
-                            # All ES module files (native + legacy @odoo-module)
-                            # go through esbuild; both use the same syntax.
                             self.native_modules.append(asset)
                         else:
                             self.javascripts.append(asset)
                     case "xml":
                         self.templates.append(XMLAsset(self, **params))
             if extension not in self._BUNDLE_FILE_EXTENSIONS:
-                # No case-arm matched this extension, so the file was dropped —
-                # previously without a trace. Same tripwire as the external-asset
-                # filter above.
                 log_event(
                     _bundle_log,
                     logging.WARNING,
@@ -287,12 +256,6 @@ class AssetsBundle:
                     url=f["url"],
                 )
 
-        # Version snapshot: pin the assets the checksum (and served URL) derives
-        # from, before compilation mutates the live lists. ``preprocess_css``
-        # inserts a derived ``@at-rules`` StylesheetAsset into ``self.stylesheets``
-        # that is compiler output, not a source file, and must not perturb the
-        # version. Snapshotting here makes ``get_checksum`` independent of
-        # ``get_version`` / ``preprocess_css`` ordering.
         self._version_assets = {
             "css": tuple(self.stylesheets),
             "js": tuple(self.javascripts + self.templates + self.native_modules),
@@ -354,6 +317,7 @@ class AssetsBundle:
         """Return import map and preload data for native ESM modules.
 
         Returns a dict with:
+
         - ``import_map``: ``{specifier: url}`` for the import map
         - ``preload_urls``: URLs for ``<link rel="modulepreload">``
         - ``bridge_import_map``: ``{specifier: shim_url}`` for
@@ -381,12 +345,6 @@ class AssetsBundle:
         preload_urls = []
 
         def _map(spec: str, url: str, kind: str) -> None:
-            # The import map holds ONE url per specifier, but two native modules
-            # can resolve to the same specifier (``foo.js`` and ``foo/index.js``
-            # both yield ``@addon/foo``; a ``/index`` long form or alias can
-            # clash too). Keep last-wins (changing it could move a live bundle's
-            # resolution) but make the dropped mapping loud. Same-url re-adds
-            # (a module's own spec + long form) are not collisions, stay silent.
             prior = import_map.get(spec)
             if prior is not None and prior != url:
                 log_event(
@@ -403,27 +361,14 @@ class AssetsBundle:
 
         for asset in self.native_modules:
             spec = asset.module_path
-            # Bare URLs without ?v= cache-busting. The browser resolves relative
-            # imports (``./error_dialogs.js``) to bare URLs; a ``?v=`` import map
-            # would mismatch and make the browser evaluate the file TWICE
-            # (duplicate registry errors). Native-module cache invalidation
-            # instead relies on the import-map script tag changing (a full page
-            # reload via bus.bus bundle_changed).
             _map(spec, asset.url, "module_path")
             preload_urls.append(asset.url)
-            # url_to_module_path strips "/index", so add the long-form entry too
-            # so ``import ... from ".../index"`` resolves to the same URL rather
-            # than a data: URI bridge.
             if asset.url.endswith("/index.js"):
                 _map(spec + "/index", asset.url, "index_long_form")
-            # Map a declared alias (e.g. @odoo/o-spreadsheet) to the same URL.
             header = asset.parsed_header
             if header and header["alias"]:
                 _map(header["alias"], asset.url, "alias")
 
-        # ``import_map`` keys ARE this bundle's native specifiers, so they double
-        # as the "owned by this bundle" set for ``_build_native_to_legacy_bridge``
-        # (which then won't emit a ``data:`` URI shim overwriting the direct URL).
         bridge_import_map = (
             self._bridges._build_native_to_legacy_bridge(set(import_map))
             if with_bridges
@@ -444,12 +389,6 @@ class AssetsBundle:
             "preload_urls": preload_urls,
             "bridge_import_map": bridge_import_map,
         }
-
-    # ── esbuild layer (in odoo.tools.assets.esbuild) ──
-    # Only the production surface remains here: ``esbuild_native_bundle``,
-    # ``_get_esbuild_addon_flags`` (test-patched seam) and
-    # ``invalidate_addon_scan_cache``. Helper-level tests target
-    # ``EsbuildCompiler`` directly.
 
     @classmethod
     def invalidate_addon_scan_cache(cls) -> None:
@@ -473,9 +412,6 @@ class AssetsBundle:
 
     def _make_esbuild_compiler(self) -> EsbuildCompiler:
         """Build the subprocess-layer compiler from this bundle's state."""
-        # Single-use factory (one call per ``esbuild_native_bundle``), hence a
-        # method not a cached property. Bind the registry once so both
-        # membership checks read the same snapshot.
         registry = esm_registry()
         return EsbuildCompiler(
             self.name,
@@ -509,11 +445,6 @@ class AssetsBundle:
             secondary_parent_stubs=secondary_parent_stubs,
         )
 
-    # ── bridge layer (in odoo.tools.assets.esm_bridges) ──
-    # ``_bridges`` is the explicit collaborator: ir_qweb and tests call its
-    # methods directly (``bundle._bridges.<method>``), mirroring ``_store``.
-    # Logic and persistence policy live in BridgeShimManager.
-
     @functools.cached_property
     def _bridges(self) -> BridgeShimManager:
         """Bridge-shim layer bound to this bundle's env, name and modules.
@@ -523,8 +454,6 @@ class AssetsBundle:
         """
         return BridgeShimManager(self.env, self.name, self.native_modules)
 
-    # In odoo.tools.assets.esm_graph; kept as a staticmethod so call sites and
-    # tests keep their surface.
     _bridge_shim_source = staticmethod(_bridge_shim_source)
 
     def get_link(self, asset_type: str) -> str:
@@ -553,10 +482,6 @@ class AssetsBundle:
                 h.update(asset.unique_descriptor.encode())
             self._checksum_cache[asset_type] = h.hexdigest()
         return self._checksum_cache[asset_type]
-
-    # ── attachment persistence (in AssetAttachmentStore) ──
-    # Thin delegators keep the test surface and let ``js``/``css``/sourcemaps
-    # call ``self.<method>``; the raw SQL and concurrency live in the store.
 
     @functools.cached_property
     def _store(self) -> AssetAttachmentStore:
@@ -628,10 +553,6 @@ class AssetsBundle:
         js_attachment = self.get_attachments(extension)
 
         if not js_attachment:
-            # Non-ESM bundles wrap their templates in the classic IIFE inside the
-            # concatenated bundle; ESM bundles (including dynamic) deliver them
-            # as a separate <script type="module"> — see
-            # _get_native_module_nodes() and generate_esm_template_bundle().
             template_bundle = (
                 self._xml.legacy_template_iife() if self._has_legacy_templates else ""
             )
@@ -721,9 +642,6 @@ class AssetsBundle:
             banner = self._render_css_error_banner(self.css_errors, previous_css)
             return self.save_attachment(extension, banner)
 
-        # Extract @import rules (they must appear at the top of the bundle).
-        # String-aware: an ``@import`` written inside a ``content: "…"`` value
-        # is neither hoisted nor stripped (see _rewrite_css_outside_strings).
         import_rules: list[str] = []
 
         def _hoist_import(match: re.Match) -> str:
@@ -733,7 +651,6 @@ class AssetsBundle:
         css = _rewrite_css_outside_strings(self.rx_css_import, _hoist_import, css)
 
         if is_minified:
-            # Move all @import rules to the top
             return self.save_attachment(extension, "\n".join(import_rules + [css]))
         return self.css_with_sourcemap("\n".join(import_rules))
 

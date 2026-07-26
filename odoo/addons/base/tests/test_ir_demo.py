@@ -14,8 +14,6 @@ class TestIrDemo(TransactionCase):
         """A non-admin user is rejected before the destructive path runs."""
         user = new_test_user(self.env, login="demo_gate_user")
         demo = self.env["ir.demo"].with_user(user)
-        # The @assert_log_admin_access decorator must reject the call before
-        # force_demo runs; patch it so the test fails loudly if it is reached.
         with (
             patch("odoo.modules.loading.force_demo") as force_demo,
             mute_logger("odoo.addons.base.models.ir_module"),
@@ -26,8 +24,6 @@ class TestIrDemo(TransactionCase):
 
     def test_install_demo_admin_gated_path(self):
         """An admin passes the gate and gets the reload action back."""
-        # Patch force_demo so the gated path is exercised without mutating the
-        # module table or actually loading demo data.
         with patch("odoo.modules.loading.force_demo") as force_demo:
             action = self.env["ir.demo"].install_demo()
             force_demo.assert_called_once()
@@ -59,7 +55,6 @@ class TestIrDemoFailure(TransactionCase):
         for module in modules:
             failures |= Failure.create({"module_id": module.id, "error": "boom"})
 
-        # Replicate base.demo_failure_action: collect orphan rows and link them.
         orphans = Failure.search([("wizard_id", "=", False)])
         self.assertTrue(
             failures <= orphans, "Newly created failures must be orphan rows"

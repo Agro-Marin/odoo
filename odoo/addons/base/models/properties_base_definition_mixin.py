@@ -42,8 +42,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
         :return: ``Domain.TRUE`` or ``Domain.FALSE``
         :rtype: Domain
         """
-        # Upstream limitation: properties are only searched with the normalized
-        # ``in`` operator; reject anything else rather than mishandle it.
         if operator != "in":
             raise NotImplementedError(
                 f"Unsupported operator {operator!r} for properties_base_definition_id"
@@ -68,7 +66,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
             ._get_definition_id_for_property_field(self._name, "properties")
         )
         for vals in vals_list:
-            # Needed to add the default properties values
             vals["properties_base_definition_id"] = parent
         return super().create(vals_list)
 
@@ -79,7 +76,6 @@ class PropertiesBaseDefinitionMixin(models.AbstractModel):
         signature it overrides.
         """
         if fname == "properties_base_definition_id":
-            # Allow the export to work
             parent = (
                 self.env["properties.base.definition"]
                 .sudo()

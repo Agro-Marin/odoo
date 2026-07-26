@@ -61,7 +61,6 @@ class TestIrSequenceStandard(BaseCase):
             )
             self.assertTrue(seq)
             self.assertTrue(env["ir.sequence"].next_by_code("test_seq_zero"))
-            # Writing 0 on an existing standard sequence must not crash either.
             seq.write({"number_next": 0})
             self.assertTrue(env["ir.sequence"].next_by_code("test_seq_zero"))
             seq.unlink()
@@ -119,11 +118,8 @@ class TestIrSequenceNoGap(BaseCase):
         This is expected to not work.
         """
         with environment() as env0, environment() as env1:
-            # First draw succeeds and holds the row lock.
             n0 = env0["ir.sequence"].next_by_code("test_sequence_type_2")
             self.assertTrue(n0)
-            # NOTE: The error has to be an OperationalError
-            # s.t. the automatic request retry (service/model.py) works.
             with self.assertRaises(
                 psycopg.errors.LockNotAvailable,
                 msg="postgresql returned an incorrect errcode",
@@ -215,7 +211,6 @@ class TestIrSequenceGenerate(BaseCase):
     def test_ir_sequence_prefix(self):
         """test whether a user error is raised for an invalid sequence"""
 
-        # try to create a sequence with invalid prefix
         with environment() as env:
             seq = env["ir.sequence"].create(
                 {
@@ -269,7 +264,6 @@ class TestIrSequenceGenerate(BaseCase):
     def test_ir_sequence_suffix(self):
         """test whether a user error is raised for an invalid sequence"""
 
-        # try to create a sequence with invalid suffix
         with environment() as env:
             env["ir.sequence"].create(
                 {
@@ -298,7 +292,6 @@ class TestIrSequenceInit(common.TransactionCase):
         """test whether the read method returns the right number_next value
         (from postgreSQL sequence and not ir_sequence value)
         """
-        # first creation of sequence (normal)
         seq = self.env["ir.sequence"].create(
             {
                 "number_next": 1,
@@ -309,7 +302,6 @@ class TestIrSequenceInit(common.TransactionCase):
                 "name": "test-sequence-00",
             }
         )
-        # Call next() 4 times, and check the last returned value
         seq.next_by_id()
         seq.next_by_id()
         seq.next_by_id()
@@ -317,9 +309,7 @@ class TestIrSequenceInit(common.TransactionCase):
         self.assertEqual(
             n, "0004", "The actual sequence value must be 4. reading : %s" % n
         )
-        # reset sequence to 1 by write()
         seq.write({"number_next": 1})
-        # Read the value of the current sequence
         n = seq.next_by_id()
         self.assertEqual(
             n, "0001", "The actual sequence value must be 1. reading : %s" % n
@@ -343,9 +333,7 @@ class TestIrSequenceSwitchImplementation(common.TransactionCase):
         for i in range(1, 4):
             self.assertEqual(seq.next_by_id(), str(i))
         seq.write({"implementation": "no_gap"})
-        # The row was seeded from the live PG sequence value...
         self.assertEqual(seq.number_next, 4)
-        # ...so the numbering continues without duplicates.
         self.assertEqual(seq.next_by_id(), "4")
         self.assertEqual(seq.next_by_id(), "5")
 
@@ -377,10 +365,7 @@ class TestIrSequenceSwitchImplementation(common.TransactionCase):
         sub_seq = seq.date_range_ids
         self.assertEqual(len(sub_seq), 1)
         seq.write({"implementation": "no_gap"})
-        # Both the main row and the sub-sequence row were seeded from their
-        # live PG sequence values before those sequences were dropped...
         self.assertEqual(sub_seq.number_next, 4)
-        # ...so the sub-sequence numbering continues without duplicates.
         self.assertEqual(seq.next_by_id(), "4")
         self.assertEqual(seq.next_by_id(), "5")
 
@@ -500,9 +485,7 @@ class TestIrSequencePredictNextval(common.TransactionCase):
                 "number_increment": 5,
             }
         )
-        # Before any draw, the prediction is the starting value.
         self.assertEqual(seq.number_next_actual, 1)
-        # After one draw, the prediction advances by the increment.
         seq.next_by_id()
         seq.invalidate_recordset(["number_next_actual"])
         self.assertEqual(seq.number_next_actual, 1 + 5)
@@ -520,5 +503,4 @@ class TestIrSequencePredictNextval(common.TransactionCase):
         seq.next_by_id()
         seq.write({"number_next": 10})
         seq.invalidate_recordset(["number_next_actual"])
-        # The PG sequence was RESTARTed; the next value to be drawn is 10.
         self.assertEqual(seq.number_next_actual, 10)

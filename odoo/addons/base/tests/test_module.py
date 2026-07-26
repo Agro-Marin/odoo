@@ -138,7 +138,6 @@ class TestManifestAutoInstall(BaseCase):
     BASE = {"author": "x", "license": "MIT"}
 
     def test_auto_install_string_is_rejected(self):
-        # 'auto_install': 'sale' (forgot the brackets) must not become {'s','a',...}
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
             _load_manifest(
                 "m", {**self.BASE, "auto_install": "sale", "depends": ["sale"]}
@@ -184,8 +183,6 @@ class TestManifestCache(BaseCase):
         p = patch.object(odoo.addons, "__path__", [self._tmp.name])
         p.start()
         self.addCleanup(p.stop)
-        # Isolate: snapshot the process-wide cache, start empty, restore on exit
-        # so we never evict entries (e.g. 'base') that other test classes rely on.
         saved = dict(Manifest._manifest_cache)
         Manifest.clear_caches()
 
@@ -232,16 +229,12 @@ class TestExternalDependency(BaseCase):
 
     @mute_logger("odoo.modules.module")
     def test_specced_importable_module_name_is_accepted(self):
-        # Legacy manifest style: an importable module name with NO PyPI metadata
-        # but WITH a version specifier.  importlib.import_module("<name>>=1.0")
-        # would always fail, so the name must be parsed out first.
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         Path(tmp, "odoo_probe_legacy_dep.py").write_text("#\n")
         sys.path.insert(0, tmp)
         self.addCleanup(lambda: tmp in sys.path and sys.path.remove(tmp))
         importlib.invalidate_caches()
-        # must not raise
         check_python_external_dependency("odoo_probe_legacy_dep>=1.0")
 
     def test_genuinely_missing_dependency_raises(self):
@@ -249,8 +242,6 @@ class TestExternalDependency(BaseCase):
             check_python_external_dependency("odoo_definitely_absent_pkg_zzz>=1.0")
 
     def test_error_renders_message_and_keeps_dependency(self):
-        # No .format() templating: the message is used verbatim, the structured
-        # dependency is exposed for callers (ir.module.module) to reuse.
         err = MissingDependencyError("Unable to find 'foo>=1' in path", "foo>=1")
         self.assertEqual(str(err), "Unable to find 'foo>=1' in path")
         self.assertEqual(err.dependency, "foo>=1")
@@ -279,8 +270,6 @@ class TestManifestVersionResilience(BaseCase):
         self.assertFalse(manifest["installable"])
 
     def test_string_depends_rejected(self):
-        # 'depends': 'base' (forgot the brackets) must not be iterated
-        # character by character as module names
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
             _load_manifest("m", {**self.BASE, "depends": "base"})
 
@@ -301,7 +290,6 @@ class TestCheckVersion(BaseCase):
     def test_verdicts(self):
         self.assertTrue(check_version(major_version, should_raise=False))
         self.assertTrue(check_version(f"{major_version}.1.0", should_raise=False))
-        # 4-part version of another serie: well-formed but wrong release
         self.assertFalse(check_version("1.2.3.4", should_raise=False))
 
 
@@ -354,7 +342,6 @@ class TestModuleIcon(BaseCase):
         (d / "__manifest__.py").write_text(
             "{'name': 'X', 'license': 'LGPL-3', 'author': 'x'}"
         )
-        # No icon file on disk -> the base default is returned.
         self.assertEqual(get_module_icon(name), "/base/static/description/icon.png")
 
     def test_icon_for_unknown_module_is_base_default(self):
@@ -442,9 +429,6 @@ class TestAutoInstallQueries(TransactionCase):
         candidates = [self.PREFIX + "candidate"]
         self.cr.execute(_AUTO_INSTALL_CLOSURE_QUERY, [candidates, candidates])
         pulled = self._fixture_rows(self.cr.fetchall())
-        # plain deps of the to-install module and of the candidate are pulled;
-        # the already-marked dep is not re-marked; the uninstallable dep is
-        # never marked (regression: its state used to be overwritten)
         self.assertEqual(
             pulled, {self.PREFIX + "plain_dep", self.PREFIX + "plain_dep2"}
         )
@@ -493,4 +477,4 @@ class TestManifestMapping(BaseCase):
     def test_computed_keys_reachable_via_getitem(self):
         manifest = self._manifest()
         for key in Manifest._COMPUTED_KEYS:
-            manifest[key]  # must not raise KeyError
+            manifest[key]

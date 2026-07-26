@@ -64,7 +64,6 @@ class _FakeSMTP:
         self.messages = []
         self.from_filter = "example.com"
 
-    # Python 3 before 3.7.4
     def sendmail(
         self,
         smtp_from,
@@ -75,7 +74,6 @@ class _FakeSMTP:
     ):
         self.messages.append(message_str)
 
-    # Python 3.7.4+
     def send_message(
         self, message, smtp_from, smtp_to_list, mail_options=(), rcpt_options=()
     ):
@@ -124,8 +122,6 @@ class EmailConfigCase(TransactionCase):
             for part in message.walk()
             if part.get_content_disposition() == "attachment"
         ]
-        # The point is that building did not raise ValueError on the extra
-        # slash; the attachment itself is preserved.
         self.assertEqual(len(attachments), 1)
         self.assertEqual(attachments[0].get_filename(), "weird.bin")
 
@@ -165,7 +161,6 @@ class EmailConfigCase(TransactionCase):
         """
         IrMailServer = self.env["ir.mail_server"]
 
-        # A CR/LF in the Subject must not smuggle an extra Bcc header.
         with self.assertRaises(ValueError):
             IrMailServer._build_email__(
                 "sender@example.com",
@@ -174,7 +169,6 @@ class EmailConfigCase(TransactionCase):
                 "Body",
             )
 
-        # A CR/LF inside a user-supplied header value must also raise.
         with self.assertRaises(ValueError):
             IrMailServer._build_email__(
                 "sender@example.com",
@@ -184,7 +178,6 @@ class EmailConfigCase(TransactionCase):
                 headers={"X-Custom": "value\r\nBcc: attacker@example.com"},
             )
 
-        # A CR/LF (or ':') in a header name must raise as well.
         with self.assertRaises(ValueError):
             IrMailServer._build_email__(
                 "sender@example.com",
@@ -233,8 +226,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             IrMailServer.send_email(message, smtp_session=_RaisingSession())
 
         rendered = str(capture.exception)
-        # Regression: the two-arg MailDeliveryError used to render as
-        # "('Mail Delivery Failed', '...')" — a tuple repr — when str()'d.
         self.assertNotIn("('", rendered)
         self.assertNotIn("', '", rendered)
         self.assertIn("smtp.probe.example.com", rendered)
@@ -243,8 +234,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
     def test_find_mail_server_parses_each_from_filter_once(self):
         """``_find_mail_server`` must not re-split the same ``from_filter``
         repeatedly across its match passes (perf regression guard)."""
-        # ``mail_servers`` is passed explicitly below, so ``_find_mail_server``
-        # never searches — these probe servers are the entire candidate set.
         IrMailServer = self.env["ir.mail_server"]
         servers = IrMailServer.create(
             [
@@ -281,7 +270,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         msg["From"] = '"Joé Doe" <joe@example.com>'
         msg["To"] = '"Joé Doe" <joe@example.com>'
 
-        # Message-Id & References fields longer than 77 chars (bpo-35805)
         msg["Message-Id"] = (
             "<929227342217024.1596730490.324691772460938-example-30661-some.reference@test-123.example.com>"
         )
@@ -323,7 +311,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         )
         self.assertEqual(
             msg_on_the_wire.count("==============="),
-            2 + 2,  # +2 for the header and the footer
+            2 + 2,
             "There should be 2 parts: one text and one html",
         )
         self.assertEqual(
@@ -358,11 +346,10 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             body_alternative = None
             for part in message.walk():
                 if part.get_content_maintype() == "multipart":
-                    continue  # skip container
+                    continue
                 if part.get_content_type() == "text/plain":
                     if not part.get_payload():
                         continue
-                    # remove ending new lines as it just adds noise
                     body_alternative = part.get_content().rstrip("\n")
             self.assertEqual(body_alternative, expected)
 
@@ -395,7 +382,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             [
                 "example_2.com, example_3.com",
                 "dummy.com, full_email@example_2.com, dummy2.com",
-                # fallback on user's email
                 " ",
                 ",",
                 False,
@@ -416,7 +402,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
 
     def test_mail_server_match_from_filter(self):
         """Test the from_filter field on the "ir.mail_server"."""
-        # Should match
         tests = [
             ("admin@mail.example.com", "mail.example.com"),
             ("admin@mail.example.com", "mail.EXAMPLE.com"),
@@ -440,7 +425,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                 self.env["ir.mail_server"]._match_from_filter(email_addr, from_filter)
             )
 
-        # Should not match
         tests = [
             ("admin@mail.example.com", "test@mail.example.com"),
             ("admin@mail.example.com", "test.mycompany.com"),
@@ -470,7 +454,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             [
                 "specific_user@test.mycompany.com",
                 "unknown_email@test.mycompany.com",
-                # no notification set, must be forced to spoof the FROM
                 '"Test" <test@unknown_domain.com>',
             ],
             [
@@ -505,27 +488,21 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                 '"Name" <unknown_name@test.mycompany.com>',
             ],
             [
-                # A mail server is configured for the email
                 (
                     "specific_user@test.mycompany.com",
                     "specific_user@test.mycompany.com",
                     self.mail_server_user,
                 ),
-                # No mail server are configured for the email address, so it will use the
-                # notifications email instead and encapsulate the old email
                 (
                     "test@unknown_domain.com",
                     '"Name" <test@unknown_domain.com>',
                     self.mail_server_default,
                 ),
-                # same situation, but the original email has no name part
                 (
                     "test@unknown_domain.com",
                     "test@unknown_domain.com",
                     self.mail_server_default,
                 ),
-                # A mail server is configured for the entire domain name, so we can use the bounce
-                # email address because the mail server supports it
                 (
                     "unknown_name@test.mycompany.com",
                     '"Name" <unknown_name@test.mycompany.com>',
@@ -534,7 +511,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             ],
             strict=False,
         ):
-            # test with and without providing an SMTP session, which should not impact test
             for provide_smtp in [False, True]:
                 with self.subTest(mail_from=mail_from, provide_smtp=provide_smtp):
                     with self.mock_smtplib_connection():
@@ -554,12 +530,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                         mail_server=expected_mail_server,
                     )
 
-        # remove the notification server
-        # so <notifications.test@test.mycompany.com> will use the <test.mycompany.com> mail server
-        # The mail server configured for the notifications email has been removed
-        # but we can still use the mail server configured for test.mycompany.com
-        # and so we will be able to use the bounce address
-        # because we use the mail server for "test.mycompany.com"
         self.mail_server_notification.unlink()
         for provide_smtp in [False, True]:
             with self.mock_smtplib_connection():
@@ -590,7 +560,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         """Allow to force notifications_email / bounce_address from context
         to allow higher-level apps to send values until end of mail stack
         without hacking too much models."""
-        # custom notification / bounce email from context
         context_server = self.env["ir.mail_server"].create(
             {
                 "from_filter": "context.example.com",
@@ -619,8 +588,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             from_filter=context_server.from_filter,
         )
 
-        # miss-configured database, no mail servers from filter
-        # match the user / notification email
         self.env["ir.mail_server"].search([]).from_filter = "random.domain"
         with self.mock_smtplib_connection():
             message = self._build_email(mail_from="specific_user@test.com")
@@ -668,23 +635,19 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         """
         IrMailServer = self.env["ir.mail_server"]
 
-        # Remove all mail server so we will use the odoo-bin arguments
         IrMailServer.search([]).unlink()
         self.assertFalse(IrMailServer.search([]))
 
         for mail_from, (expected_smtp_from, expected_msg_from) in zip(
             [
-                # inside "from_filter" domain
                 "specific_user@test.mycompany.com",
                 '"Formatted Name" <specific_user@test.mycompany.com>',
                 '"Formatted Name" <specific_user@test.MYCOMPANY.com>',
                 '"Formatted Name" <SPECIFIC_USER@test.mycompany.com>',
-                # outside "from_filter" domain
                 "test@unknown_domain.com",
                 '"Formatted Name" <test@unknown_domain.com>',
             ],
             [
-                # inside "from_filter" domain: no rewriting
                 (
                     "specific_user@test.mycompany.com",
                     "specific_user@test.mycompany.com",
@@ -701,7 +664,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                     "SPECIFIC_USER@test.mycompany.com",
                     '"Formatted Name" <SPECIFIC_USER@test.mycompany.com>',
                 ),
-                # outside "from_filter" domain: spoofing, as fallback email can be found
                 ("test@unknown_domain.com", "test@unknown_domain.com"),
                 (
                     "test@unknown_domain.com",
@@ -713,7 +675,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             for provide_smtp in [
                 False,
                 True,
-            ]:  # providing smtp session should not impact test
+            ]:
                 with self.subTest(mail_from=mail_from, provide_smtp=provide_smtp):
                     with self.mock_smtplib_connection():
                         if provide_smtp:
@@ -732,12 +694,10 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                         from_filter="dummy@example.com, test.mycompany.com, dummy2@example.com",
                     )
 
-        # for from_filter in ICP, overwrite the one from odoo-bin
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.default.from_filter", "icp.example.com"
         )
 
-        # Use an email in the domain of the config parameter "mail.default.from_filter"
         with self.mock_smtplib_connection():
             message = self._build_email(mail_from="specific_user@icp.example.com")
             IrMailServer.send_email(message)
@@ -760,7 +720,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         arguments.
         """
         IrMailServer = self.env["ir.mail_server"]
-        # should be ignored by the mail server
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.default.from_filter", "fake.com"
         )
@@ -783,10 +742,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             expected_mail_server,
         ) in zip(
             [
-                # check that the CLI server take the configuration in the odoo-bin argument
-                # except the from_filter which is taken on the mail server
                 "test@cli_example.com",
-                # other mail servers still work
                 "specific_user@test.mycompany.com",
             ],
             [
@@ -814,11 +770,9 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         """Test that message/rfc822 attachments are encoded using 7bit, 8bit, or binary encoding per RFC."""
         IrMailServer = self.env["ir.mail_server"]
 
-        # Create a sample .eml file content
         eml_content = b"From: user@example.com\nTo: user2@example.com\nSubject: Test Email\n\nThis is a test email."
         attachments = [("test.eml", eml_content, "message/rfc822")]
 
-        # Build the email with the .eml attachment
         message = IrMailServer._build_email__(
             email_from="john.doe@from.example.com",
             email_to="destinataire@to.example.com",
@@ -833,7 +787,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         for part in message.iter_attachments():
             if part.get_content_type() == "message/rfc822":
                 found_rfc822_part = True
-                # Get Content-Transfer-Encoding, defaulting to '7bit' if not present (per RFC)
                 encoding = part.get("Content-Transfer-Encoding", "7bit").lower()
 
                 self.assertIn(
@@ -852,7 +805,6 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         """Ensure an email with a message/rfc822 attachment containing non-ASCII chars can be serialized."""
         IrMailServer = self.env["ir.mail_server"]
 
-        # .eml content with non-ASCII character
         eml_content = "From: user@example.com\nTo: user2@example.com\nSubject: Test\n\nBody with é"
         attachments = [("test.eml", eml_content.encode(), "message/rfc822")]
 
@@ -887,7 +839,6 @@ class TestSslContexts(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.cert_pem, cls.key_pem = _generate_self_signed_cert("smtp.example.com")
-        # A second, unrelated key: valid PEM but does NOT match cert_pem.
         _, cls.mismatched_key_pem = _generate_self_signed_cert("smtp.example.com")
 
     def _make_cert_server(self, encryption, key_pem=None):
@@ -1100,7 +1051,7 @@ class TestResolveTransport(TransactionCase):
         self.assertEqual(t.encryption, "starttls_strict")
         self.assertEqual(t.from_filter, "record.test")
         self.assertEqual(t.login_server, server)
-        self.assertTrue(t.ssl_context.check_hostname)  # strict -> verifying
+        self.assertTrue(t.ssl_context.check_hostname)
 
     def test_resolve_cli_auth_record_ignores_record_transport(self):
         """A 'cli'-authenticated record contributes ONLY its from_filter; its
@@ -1151,12 +1102,10 @@ class TestResolveTransport(TransactionCase):
             pass
 
         conn = _BareSession()
-        # Bare, never-stashed session -> defaults, no AttributeError.
         self.assertEqual(
             IrMailServer._read_session_context(conn),
             _SmtpSessionContext(from_filter=False, smtp_from=False),
         )
-        # Round-trip through the writer/reader pair.
         IrMailServer._stash_session_context(
             conn,
             _SmtpSessionContext(from_filter="example.com", smtp_from="a@example.com"),
@@ -1164,6 +1113,5 @@ class TestResolveTransport(TransactionCase):
         ctx = IrMailServer._read_session_context(conn)
         self.assertEqual(ctx.from_filter, "example.com")
         self.assertEqual(ctx.smtp_from, "a@example.com")
-        # Attribute names preserved for the test doubles / external readers.
         self.assertEqual(conn.from_filter, "example.com")
         self.assertEqual(conn.smtp_from, "a@example.com")

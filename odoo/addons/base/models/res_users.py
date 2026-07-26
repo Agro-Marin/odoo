@@ -26,6 +26,7 @@ from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime.tz import all_timezones
 from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.libs.json import dumps as json_dumps
+from odoo.libs.password import CryptContext
 from odoo.tools import (
     SQL,
     email_domain_extract,
@@ -33,7 +34,6 @@ from odoo.tools import (
     is_html_empty,
     reset_cached_properties,
 )
-from odoo.tools.password import CryptContext
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -42,9 +42,6 @@ _logger = logging.getLogger(__name__)
 
 MIN_ROUNDS = 600_000
 
-# RU-M4: above this size, _assert_can_auth prunes stale entries from the
-# registry's _login_failures map (otherwise only removed on a successful login
-# from the same source, so scanning IPs accumulate forever).
 LOGIN_FAILURES_PRUNE_THRESHOLD = 1000
 
 
@@ -72,8 +69,6 @@ def check_identity(
             raise UserError(_("This method can only be accessed over HTTP"))
 
         if request.session.get("identity-check-last", 0) > time.time() - 10 * 60:
-            # RU-M1: the 10-min window is a fixed re-auth interval, not a
-            # sliding session -- deliberately not refreshed on a successful pass.
             return fn(self, *args, **kwargs)
 
         w = (
@@ -83,11 +78,7 @@ def check_identity(
                 {
                     "request": json_dumps(
                         [
-                            {  # strip non-jsonable keys (e.g. mapped to recordsets)
-                                k: v
-                                for k, v in self.env.context.items()
-                                if _jsonable(v)
-                            },
+                            {k: v for k, v in self.env.context.items() if _jsonable(v)},
                             self._name,
                             self.ids,
                             fn.__name__,
@@ -188,8 +179,6 @@ class ResUsers(models.Model):
         uid (e.g. all visitors sharing the public user).
         """
         context, user_lang_valid = self._context_get_cached()
-        # lang precedence: user preference > request > company/fallbacks, so the
-        # request lang applies only when the user's own lang missed.
         if context and not user_lang_valid and request:
             best_lang = request.best_lang
             if best_lang and best_lang != context["lang"]:
@@ -222,21 +211,14 @@ class ResUsers(models.Model):
             ``False`` the lang is a fallback that :meth:`context_get` may
             override with the request language.
         """
-        # use read() with prefetch_fields=False so this works mid-schema-change
-        # on res.users/res.partner (fields may not have DB columns yet)
         try:
             context = self.env.user.with_context(prefetch_fields=False).read(
                 ["lang", "tz"], load=False
             )[0]
         except IndexError:
-            # user not found, no context information
             return frozendict(), False
         context.pop("id")
 
-        # lang preference order: user > company > english > any installed.
-        # Candidates are lazy and short-circuited by next(), so the company/
-        # partner lookup (SQL) is only reached when the user preference misses;
-        # an eager list would incur that lookup on every call.
         langs = [code for code, _ in self.env["res.lang"].get_installed()]
         langset = set(langs)
         user_lang_valid = context.get("lang") in langset
@@ -260,7 +242,6 @@ class ResUsers(models.Model):
 
     @tools.ormcache("self.id")
     def _get_company_ids(self) -> tuple[int, ...]:
-        # use search() instead of `self.company_ids` to avoid extra query for `active_test`
         domain = [("active", "=", True), ("user_ids", "in", self.id)]
         return self.env["res.company"].search(domain)._ids
 
@@ -276,12 +257,6 @@ class ResUsers(models.Model):
         call (see ``_check_uid_passwd``): time advances but this memoised result
         does not, so an expiring key must not be trusted on cache hits alone.
         """
-        # Invalidation contract (security): only successful checks are memoised,
-        # so the cached fact is "sha256(passwd) is currently valid for uid".
-        # Correct only because every password mutation carries `password` in
-        # vals (see _get_invalidation_fields), clearing the `default` cache. Any
-        # raw-SQL password mutation MUST call self.env.registry.clear_cache(),
-        # else an old password could keep working.
         user = self.with_user(uid).env.user
         if not user.active:
             raise AccessDenied
@@ -317,8 +292,6 @@ class ResUsers(models.Model):
         ``group_ids`` field.
         """
         self.ensure_one()
-        # with_context({}): an @ormcache('self.id') result must not depend on
-        # the context (active_test, lang, ...)
         return self.with_context({}).all_group_ids._ids
 
     def _effective_group_ids(self) -> tuple[int, ...]:
@@ -339,10 +312,7 @@ class ResUsers(models.Model):
         """
         cfg = self.env["ir.config_parameter"].sudo()
         return CryptContext(
-            # first entry is the default encryption kdf; all are verifiable
             ["pbkdf2_sha512", "plaintext"],
-            # deprecated kdfs still verify, but ``needs_update`` flags the hash
-            # for re-encryption with a newer algorithm
             deprecated=["auto"],
             pbkdf2_sha512__rounds=max(
                 MIN_ROUNDS, int(cfg.get_param("password.hashing.rounds", 0))
@@ -430,15 +400,12 @@ class ResUsers(models.Model):
     )
     tz_offset = fields.Char(compute="_compute_tz_offset", string="Timezone offset")
 
-    # inherited fields overridden to bypass access rights when you can access
-    # the user but not its partner
     name = fields.Char(related="partner_id.name", inherited=True, readonly=False)
     email = fields.Char(related="partner_id.email", inherited=True, readonly=False)
     email_domain_placeholder = fields.Char(compute="_compute_email_domain_placeholder")
     phone = fields.Char(related="partner_id.phone", inherited=True, readonly=False)
 
     res_users_settings_ids = fields.One2many("res.users.settings", "user_id")
-    # Provide a target for relateds that is not a x2Many field.
     res_users_settings_id = fields.Many2one(
         "res.users.settings",
         string="Settings",
@@ -450,8 +417,6 @@ class ResUsers(models.Model):
         compute="_compute_companies_count",
         string="Number of Companies",
     )
-    # With the user_preference context set, res.company.search() returns only
-    # the companies available to the current user.
     company_id = fields.Many2one(
         "res.company",
         string="Company",
@@ -521,8 +486,6 @@ class ResUsers(models.Model):
     def init(self) -> None:
         cr = self.env.cr
 
-        # Encrypt at startup any plaintext passwords set via SQL: select those
-        # not matching the extended MCF and pass them through passlib.
         cr.execute(
             r"""
             SELECT id, password FROM res_users
@@ -535,9 +498,6 @@ class ResUsers(models.Model):
             ctx = self._crypt_context()
             hashed = [(ctx.hash(pw), uid) for uid, pw in rows]
             cr.executemany("UPDATE res_users SET password=%s WHERE id=%s", hashed)
-            # RU-L09: invalidate cached plaintext `password` for every migrated
-            # user. Collect ids from `rows`; reusing the leaked `uid` from the
-            # comprehension above would browse only the last user.
             self.sudo().browse([uid for uid, _pw in rows]).invalidate_recordset(
                 ["password"]
             )
@@ -570,9 +530,6 @@ class ResUsers(models.Model):
             raise ValidationError(
                 _('The "App Switcher" action cannot be selected as home action.')
             )
-        # Sudo: ir.actions.* is restricted to group_system, but access-rights
-        # admins (group_erp_manager) manage home actions without read access on
-        # action models. Narrow use: only reads action.type for validation.
         users_sudo = self.sudo()
         client_ids = []
         window_ids = []
@@ -583,8 +540,6 @@ class ResUsers(models.Model):
                 window_ids.append(user.action_id.id)
 
         if client_ids:
-            # Sudo: ir.actions.client is group_system-only, but erp_manager
-            # needs read access here for constraint validation.
             for action in self.env["ir.actions.client"].sudo().browse(client_ids):
                 if action.tag == "reload":
                     raise ValidationError(
@@ -623,11 +578,7 @@ class ResUsers(models.Model):
     @api.constrains("group_ids")
     def _check_at_least_one_administrator(self) -> None:
         if not self.env.registry._init_modules:
-            return  # ignore the constraint when updating the module 'base'
-        # RU-M3: count *effective* admins (all_group_ids), not just direct
-        # members of base.group_system, else admins holding a custom group that
-        # implies group_system trip a spurious error. sudo() so record rules
-        # don't narrow the check.
+            return
         has_admin = (
             self.env["res.users"]
             .sudo()
@@ -648,9 +599,6 @@ class ResUsers(models.Model):
             if user.password:
                 self._set_encrypted_password(user.id, ctx.hash(user.password))
             else:
-                # Store SQL NULL (not a pbkdf2 hash of "") so no stored hash can
-                # ever verify, rather than relying on every auth path to guard
-                # against the empty-string hash.
                 user._set_empty_password()
 
     def _set_empty_password(self) -> None:
@@ -670,10 +618,6 @@ class ResUsers(models.Model):
         self.invalidate_recordset(["password"])
 
     def _set_encrypted_password(self, uid: int, pw: str) -> None:
-        # Invalidation contract: this raw-SQL update changes only the stored
-        # hash, not the plaintext, so the _check_uid_passwd_cached key stays
-        # valid and no cache clear is needed. A raw mutation that changes the
-        # plaintext MUST call self.env.registry.clear_cache().
         if self._crypt_context().identify(pw) == "plaintext":
             msg = "Refusing to store a plaintext password — encrypt first."
             raise ValueError(msg)
@@ -716,8 +660,6 @@ class ResUsers(models.Model):
         if not (credential["type"] == "password" and credential.get("password")):
             raise AccessDenied
 
-        # RU-C1: `env` is always a dict (every caller passes one); the
-        # `'interactive' not in env` check below relies on that.
         interactive = env.get("interactive", True)
 
         if interactive or not self.env.user._rpc_api_keys_only():
@@ -744,7 +686,6 @@ class ResUsers(models.Model):
                 if request and self == self.env.user:
                     self.env.flush_all()
                     self.env.registry.clear_cache()
-                    # update session token so the user does not get logged out
                     new_token = self.env.user._compute_session_token(
                         request.session.sid
                     )
@@ -758,7 +699,6 @@ class ResUsers(models.Model):
                 }
 
         if not interactive:
-            # 'rpc' scope does not really exist, we require a global key (scope NULL)
             if (
                 self.env["res.users.apikeys"]._check_credentials(
                     scope="rpc", key=credential["password"]
@@ -796,13 +736,8 @@ class ResUsers(models.Model):
     def _set_new_password(self) -> None:
         for user in self:
             if not user.new_password:
-                # ignore empty values silently (the web client submits False
-                # for all empty fields)
                 continue
             if user == self.env.user:
-                # Users must change their own password via the change-password
-                # wizard so the new password is used for subsequent RPC requests,
-                # else they hit unexpected 'Access Denied' errors.
                 raise UserError(
                     _(
                         "Please use the change password wizard (in User Preferences or User menu) to change your own password."
@@ -862,10 +797,6 @@ class ResUsers(models.Model):
         (self - internal_users).share = True
 
     def _compute_companies_count(self) -> None:
-        # Intentional sudo: counts ALL companies in the system regardless of
-        # user access, used only to show/hide the multi-company UI widgets.
-        # A user restricted to one company should still see the widgets if
-        # other companies exist (an admin may assign more later).
         self.companies_count = self.env["res.company"].sudo().search_count([])
 
     @api.depends("tz")
@@ -880,14 +811,6 @@ class ResUsers(models.Model):
 
     @api.depends("all_group_ids")
     def _compute_accesses_count(self) -> None:
-        # Count via search_count instead of len() on the relational fields:
-        # reading `groups.model_access` / `groups.rule_groups` would pull
-        # every reachable ACL/rule id into the ORM cache just to count them
-        # (thousands of records per user-form render). Semantics preserved:
-        # search_count inherits the caller's active_test (default: archived
-        # ACLs/rules excluded), exactly like the x2many recordsets it
-        # replaces (see RelationalMulti._make_corecords), and the model ACLs
-        # on ir.model.access / ir.rule stay enforced.
         IrModelAccess = self.env["ir.model.access"]
         IrRule = self.env["ir.rule"]
         for user in self:
@@ -924,24 +847,14 @@ class ResUsers(models.Model):
         field_names: list[str],
         fields_spec: dict[str, Any],
     ) -> dict[str, Any]:
-        # Warm the ORM cache for SELF_READABLE_FIELDS: direct field access
-        # (self.lang) bypasses the read() override and hits the access check on
-        # a cold cache. Sudo-fetching here lets later accesses in onchange logic
-        # find the values without triggering checks.
         if self == self.env.user:
             user_sudo = self.sudo()
             fields_ = self._fields
             for field_name in self._self_accessible_fields()[0]:
-                # RU-P2: skip binary and x2many fields -- warming them re-fetched
-                # multi-MB image columns and whole x2many relations every
-                # round-trip only to discard them. Many2one self fields ARE warmed:
-                # they are cheap, and a cold Many2one (e.g. a self field delegated
-                # through a group-restricted parent like hr.employee.version_id)
-                # otherwise triggers an access check on lazy onchange access.
                 field = fields_[field_name]
                 if field.type in ("binary", "one2many", "many2many"):
                     continue
-                user_sudo[field_name]  # warm ORM cache
+                user_sudo[field_name]
         return super().onchange(values, field_names, fields_spec)
 
     def read(
@@ -955,7 +868,6 @@ class ResUsers(models.Model):
             and self == self.env.user
             and all(key in readable or key.startswith("context_") for key in fields)
         ):
-            # safe fields only, so we read as super-user to bypass access rights
             self = self.sudo()
         return super().read(fields=fields, load=load)
 
@@ -987,20 +899,15 @@ class ResUsers(models.Model):
             for user in users
             if not user.res_users_settings_ids and user._is_internal()
         ]
-        # Propagate each user's company to its (company-specific) partner.
         users._sync_partner_company()
-        users.partner_id.active = True  # new users are active by default
+        users.partner_id.active = True
         inactive = users.filtered(lambda u: not u.active)
         if inactive:
             inactive.partner_id.active = False
-        # Generate employee initials as avatar for internal users without image
         for user in users:
             if not user.image_1920 and not user.share and user.name:
                 user.image_1920 = user.partner_id._avatar_generate_svg()
         if setting_vals:
-            # Sudo: the group_user record rule limits settings to
-            # user_id = env.user.id, so a non-system admin creating settings for
-            # another user would violate it.
             self.env["res.users.settings"].sudo().create(setting_vals)
         return users
 
@@ -1013,7 +920,6 @@ class ResUsers(models.Model):
             )
 
         if vals.get("active"):
-            # unarchive partners before unarchiving the users
             self.partner_id.action_unarchive()
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]
@@ -1022,33 +928,20 @@ class ResUsers(models.Model):
                     if vals["company_id"] not in self.env.user.company_ids.ids:
                         del vals["company_id"]
                         if not vals:
-                            # RU-C2: company_id was the only key and was dropped;
-                            # avoid a no-op super().write({}) as superuser.
                             return True
-                # safe fields only, so we write as super-user to bypass access rights
                 self = self.sudo()
 
         res = super().write(vals)
 
         if "company_id" in vals:
-            # Propagate the new company to each user's (company-specific) partner.
             self._sync_partner_company()
 
         if "company_id" in vals or "company_ids" in vals:
-            # Reset lazy properties `company` & `companies` on all envs -- rare
-            # to change a user's company then do business, but handled.
             for env in list(self.env.transaction.envs):
                 if env.user in self:
                     reset_cached_properties(env)
 
-        # per-method/per-model caches were removed, so clear_cache/clear_caches
-        # essentially just call Registry.clear_cache.
         if "group_ids" in vals and self.ids:
-            # Clearing the "stable" cache group cascades to "default" (see
-            # _CACHES_BY_KEY), so this covers the registry.clear_cache() of the
-            # branch below; running both would clear "default" twice. group_ids
-            # stays in _get_invalidation_fields() to document the contract for
-            # overrides and to trigger the branch below on empty recordsets.
             self.env["ir.model.access"].call_cache_clearing_methods()
         elif self._get_invalidation_fields() & vals.keys():
             self.env.registry.clear_cache()
@@ -1095,7 +988,6 @@ class ResUsers(models.Model):
         limit: int = 100,
     ) -> list[tuple[int, str]]:
         domain = Domain(domain or Domain.TRUE)
-        # first search only by login, then the normal search
         if (
             name
             and operator not in Domain.NEGATIVE_OPERATORS
@@ -1115,8 +1007,6 @@ class ResUsers(models.Model):
             name_domain = [
                 ("login", "in", [value] if isinstance(value, str) else value)
             ]
-            # search by login only, not name too: they live in different tables,
-            # so combining them prevents index use (performance issue)
             if users := self.search(name_domain):
                 domain = [("id", "in", users.ids)]
         return domain
@@ -1133,8 +1023,6 @@ class ResUsers(models.Model):
 
     @api.model
     def action_get(self) -> dict[str, Any]:
-        # Sudo: ir.actions.act_window is group_system-only, but all users
-        # (incl. portal) call action_get() to open their own profile.
         return self.env.ref("base.action_res_users_my").sudo().read()[0]
 
     @api.model
@@ -1151,9 +1039,7 @@ class ResUsers(models.Model):
 
     @api.model
     def _update_last_login(self) -> None:
-        # only create (never update) to avoid side-effects on concurrent
-        # transactions; extra records are garbage-collected periodically
-        self.env["res.users.log"].sudo().create({})  # populated by defaults
+        self.env["res.users.log"].sudo().create({})
 
     @api.model
     def _get_login_domain(self, login: str) -> Domain:
@@ -1161,8 +1047,6 @@ class ResUsers(models.Model):
 
     @api.model
     def _get_email_domain(self, email: str) -> Domain:
-        # case-insensitive, literal match (escape %/_): callers dedup accounts
-        # by email, which Postgres would otherwise compare byte-for-byte
         return Domain("email", "=ilike", tools.escape_psql(email or ""))
 
     @api.model
@@ -1187,7 +1071,6 @@ class ResUsers(models.Model):
                 auth_info = user._check_credentials(credential, user_agent_env)
                 tz = request.cookies.get("tz") if request else None
                 if tz in all_timezones() and (not user.tz or not user.login_date):
-                    # first login or missing tz -> set tz to browser tz
                     user.tz = tz
                 user._update_last_login()
         except AccessDenied:
@@ -1218,7 +1101,6 @@ class ResUsers(models.Model):
         if user_agent_env and user_agent_env.get("base_location"):
             env = self.env(user=auth_info["uid"])
             if env.user.has_group("base.group_system"):
-                # logged in as system user: guess the web base url
                 try:
                     base = user_agent_env["base_location"]
                     ICP = env["ir.config_parameter"]
@@ -1234,17 +1116,10 @@ class ResUsers(models.Model):
     def _check_uid_passwd(self, uid: int, passwd: str) -> None:
         """Verify that (uid, password) is authorized; raise AccessDenied if not."""
         if not passwd:
-            # empty passwords disallowed
             raise AccessDenied
-        # Rate-limiting must run on every attempt, not just cache misses.
         with self._assert_can_auth(user=uid):
-            # Hash the password for cache key to avoid storing plaintext in memory.
             passwd_hash = sha256(passwd.encode()).hexdigest()
             key_expiration = self._check_uid_passwd_cached(uid, passwd, passwd_hash)
-            # Re-check API-key expiry on EVERY call: the ormcache above memoises
-            # success keyed on (uid, passwd_hash), so an expiring key that was
-            # valid when first used would otherwise keep authenticating past its
-            # expiration_date until the daily GC clears the cache.
             if key_expiration is not None and key_expiration <= fields.Datetime.now():
                 raise AccessDenied
 
@@ -1258,9 +1133,6 @@ class ResUsers(models.Model):
         fields = SQL(", ").join(
             SQL.identifier(self._table, fname)
             for fname in sorted(self._get_session_token_fields())
-            # skip relational fields like `auth_passkey_key_ids`: wanted in
-            # _get_session_token_fields for cache invalidation but not a real
-            # res_users column (an override joins that table instead)
             if not self._fields[fname].relational
         )
         return {
@@ -1279,13 +1151,8 @@ class ResUsers(models.Model):
             )
         )
         if self.env.cr.rowcount != 1:
-            # Do NOT clear_cache() here: reachable via untrusted cookies for
-            # non-existent uids (deleted/forged), which would amplify into
-            # fleet-wide cache invalidation on every stale cookie. Deletion is
-            # already handled by _unlink_except_master_data.
             return False
         data_fields = self.env.cr.fetchone()
-        # (column name, value) tuples, so overrides can manipulate the values
         cr_description = self.env.cr.description
         return tuple(
             (column.name, data_fields[index])
@@ -1297,9 +1164,6 @@ class ResUsers(models.Model):
     ) -> str | bool:
         if not field_values:
             return False
-        # hmac key from (column, value) pairs, skipping None values, so
-        # installing a feature that adds token fields doesn't invalidate
-        # existing sessions until those fields are actually used
         key_tuple = tuple((k, v) for k, v in field_values if v is not None)
         key = str(key_tuple).encode()
         data = sid.encode()
@@ -1326,8 +1190,6 @@ class ResUsers(models.Model):
         }
         self._check_credentials(credential, {"interactive": True})
 
-        # ``self`` is empty in this @api.model method; operate on
-        # ``self.env.user`` to change the current (calling) user's own password.
         self.env.user._change_password(new_passwd)
         return True
 
@@ -1392,10 +1254,7 @@ class ResUsers(models.Model):
                 }
             )
 
-        # Archive user/partner, then queue for deletion. Deletion may fail (e.g.
-        # partner linked to an invoice), so archiving here is important.
         with contextlib.suppress(UserError, AccessError, ValidationError):
-            # A user can not self-deactivate
             self.with_user(SUPERUSER_ID).action_archive()
         with contextlib.suppress(UserError, AccessError, ValidationError):
             self.partner_id.action_archive()
@@ -1436,7 +1295,6 @@ class ResUsers(models.Model):
 
     @check_identity
     def action_revoke_all_devices(self) -> dict[str, Any]:
-        # sudo to bypass the access error when removing a portal user's devices
         return (
             self.env.user if self.id == self.env.uid else self
         )._action_revoke_all_devices()
@@ -1485,8 +1343,6 @@ class ResUsers(models.Model):
             else:
                 positives.append(group_ext_id)
 
-        # RU-P1: run the identity gate once here, then resolve each token via
-        # _has_group (rather than once per token through has_group).
         self.ensure_one()
         self._assert_group_query_allowed()
 
@@ -1496,7 +1352,6 @@ class ResUsers(models.Model):
                 result = result and bool(request and request.session.debug)
             return result
 
-        # check negatives first for performance
         if any(_check(ext_id) for ext_id in negatives):
             return False
         if any(_check(ext_id) for ext_id in positives):
@@ -1637,7 +1492,6 @@ class ResUsers(models.Model):
             a shared/more complex strategy, or override :meth:`_on_login_cooldown`
             to change only the cooldown criteria.
         """
-        # needs request for remote address
         if not request:
             yield
             return
@@ -1684,11 +1538,6 @@ class ResUsers(models.Model):
             now = datetime.datetime.now(datetime.UTC)
             failures, __ = reg._login_failures[source]
             reg._login_failures[source] = (failures + 1, now)
-            # RU-M4: bound the map. Entries are only popped on a successful
-            # login from the same source, so one-shot scanning IPs accumulate
-            # forever. Past the threshold, drop entries whose last failure is
-            # older than the cooldown window: _on_login_cooldown can no longer
-            # return True for them, so removal only clears an already-stale count.
             if len(reg._login_failures) > LOGIN_FAILURES_PRUNE_THRESHOLD:
                 delay = int(
                     self.env["ir.config_parameter"]
@@ -1708,7 +1557,7 @@ class ResUsers(models.Model):
         not even allowed).
 
         Default: cooldown for ``login_cooldown_duration`` seconds after each
-        failure past the ``login_cooldown_after``th (0 to disable). Override for
+        failure past ``login_cooldown_after`` (0 to disable). Override for
         more complex backoff strategies.
 
         :param int failures: recorded failures since last success
@@ -1741,7 +1590,6 @@ class ResUsers(models.Model):
     ) -> dict[str, ValuesType]:
         res = super().fields_get(allfields, attributes=attributes)
 
-        # add self readable/writable fields
         readable_fields, writeable_fields = self._self_accessible_fields()
         missing = (writeable_fields | readable_fields).difference(res.keys())
         if allfields:
@@ -1811,8 +1659,6 @@ class UsersMultiCompany(models.Model):
         )
         if not group_multi_company_id:
             return
-        # Resolve each user's desired membership in a single pass (avoids
-        # calling _multi_company_group_command twice per user).
         link = Command.link(group_multi_company_id)
         unlink = Command.unlink(group_multi_company_id)
         to_add = to_remove = self.browse()
@@ -1853,7 +1699,6 @@ class UsersMultiCompany(models.Model):
             "base.group_multi_company", raise_if_not_found=False
         )
         if group_multi_company_id:
-            # See create() above: sudo for the same record rule reason.
             command = user._multi_company_group_command(group_multi_company_id)
             if command is not None:
                 user.update({"group_ids": [command]})

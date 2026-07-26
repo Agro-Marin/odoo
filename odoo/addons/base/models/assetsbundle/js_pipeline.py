@@ -9,8 +9,6 @@ from odoo.tools.assets.esm_graph import (
 from odoo.tools.json import scriptsafe as json
 
 if TYPE_CHECKING:
-    # ``bundle`` imports this module at runtime; keep the reverse edge under
-    # TYPE_CHECKING to avoid an import cycle.
     from .bundle import AssetsBundle
 from .assets import JavascriptAsset
 from .common import _bundle_log
@@ -36,19 +34,11 @@ class JsPipeline:
         :return: replacement JS for the asset, or ``None`` when it is safe
         :rtype: str | None
         """
-        # The legacy transpiler is gone, so ES-module syntax in the concatenated
-        # classic bundle is a browser SyntaxError that takes the WHOLE bundle
-        # down. Excluding the file keeps the rest working and the
-        # misconfiguration loud. Detection is syntax-based on purpose: the
-        # ``is_odoo_module`` routing heuristic also claims plain non-module
-        # files under /static/src, valid classic scripts that must not be stubbed.
         bundle = self._bundle
         if bundle._is_esm_bundle:
             return None
         header = asset.parsed_header
         if header and header["ignore"]:
-            # ``@odoo-module ignore`` is an explicit opt-out: the author
-            # asserts the file is classic-script safe.
             return None
         if not header and not has_module_syntax(asset.raw_content):
             return None
@@ -78,9 +68,6 @@ class JsPipeline:
             for asset in self._bundle.javascripts
         )
         if template_bundle:
-            # The ";" defuses ASI, like the ";\n" join above: a last file ending
-            # in an unterminated expression would otherwise CALL the template
-            # IIFE as its argument.
             content_bundle += ";" + template_bundle
         return content_bundle
 
@@ -95,14 +82,10 @@ class JsPipeline:
         """
         content_bundle_list = []
         content_line_count = 0
-        # Lines ``with_header(minimal=False)`` emits before the file body; kept
-        # in sync with this offset via ``JavascriptAsset._HEADER_LINE_COUNT``.
         line_header = JavascriptAsset._HEADER_LINE_COUNT
         for asset in self._bundle.javascripts:
             stub = self._module_syntax_error_stub(asset)
             if stub:
-                # Excluded from the sourcemap too — the stub replaces the
-                # file body, so mapped positions would be meaningless.
                 content_bundle_list.append(stub)
                 content_line_count += stub.count("\n") + 1
                 continue
@@ -118,7 +101,6 @@ class JsPipeline:
 
         content_bundle = ";\n".join(content_bundle_list)
         if template_bundle:
-            # ";" defuses ASI — see ``minified_bundle``.
             content_bundle += ";" + template_bundle
 
         content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_url

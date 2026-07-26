@@ -12,7 +12,6 @@ class TestRetryCommon(BaseCase):
     def setUpClass(cls):
         super().setUpClass()
         original_runbot = test_logger.runbot
-        # lower 25 to info to avoid spamming builds with test logs
 
         def runbot(message, *args):
             if message.startswith("Retrying"):
@@ -70,7 +69,7 @@ class TestRetryTracebackArg(TestRetryCommon):
 @tagged("-standard", "test_retry", "test_retry_failures")
 class TestRetryFailures(TestRetryCommon):
     def test_retry_failure_assert(self):
-        self.assertFalse(True)  # intentionally always-false assertion
+        self.assertFalse(True)
 
     def test_retry_failure_log(self):
         _logger.error("Failure")
@@ -145,13 +144,13 @@ class TestRetrySubtestFailures(TestRetryCommon):
             if i == 1:
                 with self.subTest():
                     _logger.error("Failure")
-                    self.assertFalse(True)  # intentionally always-false assertion
+                    self.assertFalse(True)
 
     def test_retry_subtest_failure_all(self):
         for _ in range(3):
             with self.subTest():
                 _logger.error("Failure")
-                self.assertFalse(True)  # intentionally always-false assertion
+                self.assertFalse(True)
 
 
 @tagged("-standard", "test_retry", "test_retry_disable")

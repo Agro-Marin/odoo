@@ -29,7 +29,6 @@ class ViewXMLID(common.TransactionCase):
         self.assertTrue(view)
         self.assertTrue(view.model_data_id)
         self.assertEqual(view.model_data_id.complete_name, "base.view_company_form")
-        # xml_id shares the same compute and ir.model.data rows, so it can't disagree
         self.assertEqual(view.xml_id, "base.view_company_form")
 
 
@@ -219,7 +218,7 @@ class TestViewInheritance(ViewCase):
                 "name": name,
                 "arch": arch or self.arch_for(name, parent=parent),
                 "inherit_id": parent,
-                "priority": 5,  # higher than default views
+                "priority": 5,
             }
         )
         self.view_ids[name] = view
@@ -319,19 +318,12 @@ class TestViewInheritance(ViewCase):
         )
         self.assertEqual(v.arch, '<form string="Foo">Bar</form>')
 
-        # modify v to discard translations; this should not invalidate 'arch'!
         v.arch = "<form/>"
         self.assertEqual(v.arch, "<form/>")
 
     def test_get_combined_arch_query_count(self):
-        # If the query count increases, you probably made the view combination
-        # fetch an extra field on views. You better fetch that extra field with
-        # the query of _get_inheriting_views() and manually feed the cache.
         self.env.invalidate_all()
         with self.assertQueryCount(3):
-            # 1: browse([self.view_ids['A']])
-            # 2: _get_inheriting_views: id, inherit_id, mode, groups
-            # 3: _combine: arch_db
             self.view_ids["A"].get_combined_arch()
 
     def test_view_validate_button_action_query_count(self):
@@ -575,7 +567,6 @@ class TestViewInheritance(ViewCase):
             }
         )
 
-        # Assert that accessing invalid_locators does not cause database writes.
         actual_queries = []
         with contextmanager(lambda: self._patchExecute(actual_queries))():
             self.assertEqual(child_applied.invalid_locators, False)
@@ -815,7 +806,6 @@ class TestApplyInheritanceSpecs(ViewCase):
             string="Title",
         )
 
-        # applying spec to both base_arch and adv_arch is expected to give the same result
         self.View.apply_inheritance_specs(self.base_arch, spec)
         self.assertEqual(self.base_arch, expected)
 
@@ -882,7 +872,6 @@ class TestApplyInheritanceSpecs(ViewCase):
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_incorrect_version(self):
-        # Version ignored on //field elements, so use something else
         arch = E.form(E.element(foo="42"))
         spec = E.element(E.field(name="placeholder"), foo="42", version="7.0")
 
@@ -1024,7 +1013,6 @@ class TestApplyInheritanceMoveSpecs(ViewCase):
         )
 
     def test_move_with_other_1(self):
-        # multiple elements with move in first position
         spec = E.xpath(
             E.xpath(expr="//p", position="move"),
             E.p("Content2", {"class": "new_p"}),
@@ -1044,7 +1032,6 @@ class TestApplyInheritanceMoveSpecs(ViewCase):
         )
 
     def test_move_with_other_2(self):
-        # multiple elements with move in last position
         spec = E.xpath(
             E.p("Content2", {"class": "new_p"}),
             E.xpath(expr="//p", position="move"),
@@ -1089,7 +1076,6 @@ class TestApplyInheritanceMoveSpecs(ViewCase):
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_incorrect_move_1(self):
-        # cannot move an inexisting element
         spec = E.xpath(
             E.xpath(expr="//p[@name='none']", position="move"),
             expr="//div[@class='target']",
@@ -1101,7 +1087,6 @@ class TestApplyInheritanceMoveSpecs(ViewCase):
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_incorrect_move_2(self):
-        # move xpath cannot contain any children
         spec = E.xpath(
             E.xpath(E.p("Content2", {"class": "new_p"}), expr="//p", position="move"),
             expr="//div[@class='target']",
@@ -1112,7 +1097,6 @@ class TestApplyInheritanceMoveSpecs(ViewCase):
             self.apply_spec(self.base_arch, spec)
 
     def test_incorrect_move_3(self):
-        # move won't be correctly applied if not a direct child of an xpath
         spec = E.xpath(
             E.div(
                 E.xpath(
@@ -1320,7 +1304,6 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # First world - has been replaced by inheritance
         [initial] = arch.xpath("/hello[1]/world[1]")
         self.assertEqual(
             "/xpath/world[1]",
@@ -1328,7 +1311,6 @@ class TestTemplating(ViewCase):
             "Inherited nodes have correct xpath",
         )
 
-        # Second world added by inheritance
         [initial] = arch.xpath("/hello[1]/world[2]")
         self.assertEqual(
             "/xpath/world[2]",
@@ -1336,13 +1318,11 @@ class TestTemplating(ViewCase):
             "Inherited nodes have correct xpath",
         )
 
-        # Third world - is not editable
         [initial] = arch.xpath("/hello[1]/world[3]")
         self.assertFalse(
             initial.get("data-oe-xpath"), "node containing t-esc is not branded"
         )
 
-        # Key assert: fourth world should have a correct oe-xpath (3rd in main view)
         [initial] = arch.xpath("/hello[1]/world[4]")
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1388,7 +1368,6 @@ class TestTemplating(ViewCase):
             "Inherited nodes have correct xpath",
         )
 
-        # First world: from inheritance
         [initial] = arch.xpath("/hello[1]/world[1]")
         self.assertEqual(
             "/xpath/world",
@@ -1396,13 +1375,11 @@ class TestTemplating(ViewCase):
             "Inherited nodes have correct xpath",
         )
 
-        # Second world - is not editable
         [initial] = arch.xpath("/hello[1]/world[2]")
         self.assertFalse(
             initial.get("data-oe-xpath"), "node containing t-esc is not branded"
         )
 
-        # Key assert: third world should have a correct oe-xpath (3rd in main view)
         [initial] = arch.xpath("/hello[1]/world[3]")
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1415,8 +1392,6 @@ class TestTemplating(ViewCase):
             {
                 "name": "Base view",
                 "type": "qweb",
-                # The t-esc node ensures branding is distributed to both
-                # <world/> elements from the start
                 "arch": """
                 <hello>
                     <world></world>
@@ -1445,7 +1420,6 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # Only remaining world but still the second in original view
         [initial] = arch.xpath("/hello[1]/world[1]")
         self.assertEqual(
             "/hello[1]/world[2]",
@@ -1484,15 +1458,12 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # Variant of test_branding_inherit_remove_node: branding should now land
-        # on the only remaining world, not on <hello/>.
         [initial] = arch.xpath("/hello[1]")
         self.assertIsNone(
             initial.get("data-oe-model"),
             "The inner content of the root was xpath'ed, it should not receive branding anymore",
         )
 
-        # Only remaining world but still the second in original view
         [initial] = arch.xpath("/hello[1]/world[1]")
         self.assertEqual(
             "/hello[1]/world[2]",
@@ -1530,7 +1501,7 @@ class TestTemplating(ViewCase):
             }
         )
         self.View.create(
-            {  # Inherit from the child view and target the added element
+            {
                 "name": "Extension",
                 "type": "qweb",
                 "inherit_id": view2.id,
@@ -1548,7 +1519,6 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # The child-view replacement must not disturb branding within that child view
         [initial] = arch.xpath('//world[hasclass("z")]')
         self.assertEqual(
             "/data/xpath/world[2]",
@@ -1556,7 +1526,6 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # Replacing the first worlds must not disturb the last world's branding
         [initial] = arch.xpath('//world[hasclass("c")]')
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1594,8 +1563,7 @@ class TestTemplating(ViewCase):
             }
         )
         self.View.create(
-            {  # Inherit from the parent view but actually target
-                # the element added by the first child view
+            {
                 "name": "Extension",
                 "type": "qweb",
                 "inherit_id": view1.id,
@@ -1613,7 +1581,6 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # The child-view replacement must not disturb branding within that child view
         [initial] = arch.xpath('//world[hasclass("z")]')
         self.assertEqual(
             "/data/xpath/world[2]",
@@ -1621,7 +1588,6 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # Replacing the first worlds must not disturb the last world's branding
         [initial] = arch.xpath('//world[hasclass("c")]')
         self.assertEqual(
             "/hello[1]/world[3]",
@@ -1647,8 +1613,6 @@ class TestTemplating(ViewCase):
                 "name": "Extension",
                 "type": "qweb",
                 "inherit_id": view1.id,
-                # class="x" (not t-field="x") should give the same result here,
-                # but was a distinct case in old stable versions.
                 "arch": """
                 <data>
                     <xpath expr="//world[hasclass('a')]" position="after">
@@ -1660,7 +1624,7 @@ class TestTemplating(ViewCase):
             }
         )
         self.View.create(
-            {  # Inherit from the child view and target the added element
+            {
                 "name": "Extension",
                 "type": "qweb",
                 "inherit_id": view2.id,
@@ -1676,8 +1640,6 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # The child-view replacement must not disturb branding within that child view, should not be the case as
-        # that root level branding is not distributed.
         [initial] = arch.xpath('//world[hasclass("y")]')
         self.assertEqual(
             "/data/xpath/world[2]",
@@ -1685,8 +1647,6 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # The child-view replacement of added nodes must not disturb the
-        # parent view's last-world branding
         [initial] = arch.xpath('//world[hasclass("b")]')
         self.assertEqual(
             "/hello[1]/world[2]",
@@ -1756,9 +1716,6 @@ class TestTemplating(ViewCase):
 
         self.View.distribute_branding(arch)
 
-        # Both head and body must have their 'apply-inheritance-specs-node-removal'
-        # PI removed after branding distribution; tested separately because the
-        # removal code differs for each.
         self.assertEqual(
             len(head),
             0,
@@ -1801,7 +1758,6 @@ class TestTemplating(ViewCase):
         arch = etree.fromstring(arch_string)
         self.View.distribute_branding(arch)
 
-        # First t-field should have an indication of xpath
         [node] = arch.xpath('//*[@t-field="a"]')
         self.assertEqual(
             node.get("data-oe-xpath"),
@@ -1809,7 +1765,6 @@ class TestTemplating(ViewCase):
             "First t-field has indication of xpath",
         )
 
-        # Second t-field, from inheritance, should also have an indication of xpath
         [node] = arch.xpath('//*[@t-field="b"]')
         self.assertEqual(
             node.get("data-oe-xpath"),
@@ -1817,7 +1772,6 @@ class TestTemplating(ViewCase):
             "Inherited t-field has indication of xpath",
         )
 
-        # Key assert: the last world xpath must be unaffected by the inherited t-field
         [node] = arch.xpath("//world[last()]")
         self.assertEqual(
             node.get("data-oe-xpath"),
@@ -1825,8 +1779,6 @@ class TestTemplating(ViewCase):
             "The node's xpath position should be correct",
         )
 
-        # Also test inherit via non-xpath t-field node, direct children of data,
-        # is not impacted by the feature
         self.View.create(
             {
                 "name": "Extension",
@@ -2194,7 +2146,6 @@ class TestViews(ViewCase):
         model = "ir.actions.act_url"
         validate = partial(self.View._validate_custom_views, model)
 
-        # validation of a single view
         vid = self._insert_view(
             name="base view",
             model=model,
@@ -2205,9 +2156,8 @@ class TestViews(ViewCase):
                         </list>
                     """,
         )
-        self.assertTrue(validate())  # single view
+        self.assertTrue(validate())
 
-        # validation of a inherited view
         self._insert_view(
             name="inherited view",
             model=model,
@@ -2219,9 +2169,8 @@ class TestViews(ViewCase):
                         </xpath>
                     """,
         )
-        self.assertTrue(validate())  # inherited view
+        self.assertTrue(validate())
 
-        # validation of a second inherited view (depending on 1st)
         self._insert_view(
             name="inherited view 2",
             model=model,
@@ -2233,7 +2182,7 @@ class TestViews(ViewCase):
                         </xpath>
                     """,
         )
-        self.assertTrue(validate())  # inherited view
+        self.assertTrue(validate())
 
     def test_view_inheritance(self):
         view1 = self.View.create(
@@ -2520,16 +2469,13 @@ class TestViews(ViewCase):
         )
         original = view.arch
 
-        # Editing the arch records the previous arch in arch_prev.
         view.write({"arch": '<form string="Edited"><field name="name"/></form>'})
         self.assertNotEqual(view.arch, original)
         self.assertEqual(view.arch_prev, original)
 
-        # Soft reset restores the previous arch.
         view.reset_arch(mode="soft")
         self.assertEqual(view.arch, original)
 
-        # Hard reset without an arch_fs is a safe no-op (no write_dict bound).
         self.assertFalse(view.arch_fs)
         view.reset_arch(mode="hard")
         self.assertEqual(view.arch, original)
@@ -2755,7 +2701,6 @@ class TestViews(ViewCase):
         )
 
     def test_domain_id_case(self):
-        # id is read by default and should be usable in domains
         self.assertValid("""
             <form string="View">
                 <field name="inherit_id" domain="[('id', '=', False)]"/>
@@ -2771,7 +2716,6 @@ class TestViews(ViewCase):
         """
         self.assertValid(arch % ("", "1", "1"))
         self.assertValid(arch % ("", "0", "1"))
-        # self.assertInvalid(arch % ('', '1', '0'))
         self.assertValid(arch % ('<field name="name"/>', "1", "0 if name else 1"))
         self.assertInvalid(
             arch
@@ -2831,9 +2775,7 @@ class TestViews(ViewCase):
                 <field name="inherit_id" domain="[('%s', '=', 'test')]"/>
             </form>
         """
-        # computed field with a search method
         self.assertValid(arch % "model_data_id")
-        # computed field, not stored, no search
         self.assertInvalid(
             arch % "xml_id",
             """Unsearchable field “xml_id” in path “xml_id” in domain of <field name="inherit_id"> ([('xml_id', '=', 'test')])""",
@@ -3133,7 +3075,6 @@ class TestViews(ViewCase):
             arch % ("name", "inherit_children_ids.invalid_field"),
             """Unknown field "ir.ui.view.invalid_field" in domain of <filter name="draft"> ([('inherit_children_ids.invalid_field', '=', 'dummy')])""",
         )
-        # todo add check for non searchable fields and group by
 
     def test_group_by_in_filter(self):
         arch = """
@@ -3148,7 +3089,6 @@ class TestViews(ViewCase):
         )
 
     def test_domain_invalid_in_filter(self):
-        # invalid domain: it should be a list of tuples
         self.assertInvalid(
             """ <search string="Search">
                     <filter string="Dummy" name="draft" domain="['name', '=', 'dummy']"/>
@@ -3264,7 +3204,6 @@ class TestViews(ViewCase):
             }
         )
         user_demo = self.user_demo
-        # Make sure demo doesn't have the base.group_system
         self.assertFalse(user_demo.has_group("base.group_system"))
         arch = (
             self.env["res.partner"]
@@ -3278,7 +3217,6 @@ class TestViews(ViewCase):
         self.assertFalse(tree.xpath('//div[@id="bar"]'))
 
         user_admin = self.env.ref("base.user_admin")
-        # Make sure admin has the base.group_system
         self.assertTrue(user_admin.has_group("base.group_system"))
         arch = (
             self.env["res.partner"]
@@ -3340,8 +3278,6 @@ class TestViews(ViewCase):
                     model=model,
                 )
 
-        # Assert using a parent field restricted to a group
-        # in a child field with the same group is valid
         validate(
             """
             <form string="View">
@@ -3357,8 +3293,6 @@ class TestViews(ViewCase):
             parent=True,
         )
 
-        # Assert using a parent field available for everyone
-        # in a child field restricted to a group is valid
         validate(
             """
             <form string="View">
@@ -3374,8 +3308,6 @@ class TestViews(ViewCase):
             parent=True,
         )
 
-        # Assert using a field available for everyone
-        # in another field restricted to a group is valid
         validate(
             """
             <form string="View">
@@ -3386,8 +3318,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field restricted to a group
-        # in another field with the same group is valid
         validate(
             """
             <form string="View">
@@ -3398,8 +3328,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field available twice for 2 diffent groups
-        # in another field restricted to one of the 2 groups is valid
         validate(
             """
             <form string="View">
@@ -3411,8 +3339,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field available twice for 2 different groups
-        # in other fields restricted to the same 2 group is valid
         validate(
             """
             <form string="View">
@@ -3425,8 +3351,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field available for 2 diffent groups,
-        # in another field restricted to one of the 2 groups is valid
         validate(
             """
             <form string="View">
@@ -3437,8 +3361,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field restricted to a group
-        # in another field restricted to a group including the group for which the field is available is valid
         validate(
             """
             <form string="View">
@@ -3449,8 +3371,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a parent field restricted to a group
-        # in a child field restricted to a group including the group for which the field is available is valid
         validate(
             """
             <form string="View">
@@ -3466,8 +3386,6 @@ class TestViews(ViewCase):
             parent=True,
         )
 
-        # Assert using a field within a block restricted to a group
-        # in another field within the same block restricted to a group is valid
         validate(
             """
             <form string="View">
@@ -3480,8 +3398,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field within a block restricted to a group
-        # in another field within the same block restricted to a group and additional groups on the field node is valid
         validate(
             """
             <form string="View">
@@ -3494,8 +3410,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field within a block restricted to a group
-        # in another field within a block restricted to the same group is valid
         validate(
             """
             <form string="View">
@@ -3510,9 +3424,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a field within a block restricted to a group
-        # in another field within a block restricted to a group including the group for which the field is available
-        # is valid
         validate(
             """
             <form string="View">
@@ -3527,8 +3438,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert using a parent field restricted to a group
-        # in a child field under a relational field restricted to the same group is valid
         validate(
             """
             <form string="View">
@@ -3544,9 +3453,6 @@ class TestViews(ViewCase):
             parent=True,
         )
 
-        # Assert using a parent field restricted to a group
-        # in a child field under a relational field restricted
-        # to a group including the group for which the field is available is valid
         validate(
             """
             <form string="View">
@@ -3562,8 +3468,6 @@ class TestViews(ViewCase):
             parent=True,
         )
 
-        # Assert using a field not restricted to any group
-        # in another field restricted to users not having a group is valid
         validate(
             """
             <form string="View">
@@ -3574,9 +3478,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # A field restricted to !group used in a field restricted to several
-        # !groups including it is valid. E.g. for portal, "name" is in the view
-        # but "inherit_id" (which uses it) is not, so it's valid.
         validate(
             """
             <form string="View">
@@ -3587,9 +3488,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # A field restricted to !group used in a field restricted to a !group
-        # implied by it is valid. E.g. for employee, "name" is in the view but
-        # "inherit_id" (which uses it) is not, so it's valid.
         validate(
             """
             <form string="View">
@@ -3600,8 +3498,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert having two times the same field with a mutually exclusive group
-        # and using that field in another field without any group is valid
         validate(
             """
             <form string="View">
@@ -3613,8 +3509,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert having two times the same field with a mutually exclusive group
-        # and using that field in another field using the group is valid
         validate(
             """
             <form string="View">
@@ -3626,8 +3520,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert having two times the same field with a mutually exclusive group
-        # and using that field in another field using the !group is valid
         validate(
             """
             <form string="View">
@@ -3639,8 +3531,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # Assert having two times the same field with a mutually exclusive group
-        # and using that field in another field restricted to any other group is valid
         validate(
             """
             <form string="View">
@@ -3652,8 +3542,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # The modifier node should have the same group 'base.group_user'
-        # (or a depending group '') that the used field 'access_token'
         validate(
             """
             <form string="View attachment">
@@ -3698,7 +3586,6 @@ class TestViews(ViewCase):
             valid=True,
         )
 
-        # 'access_token' has 'group_user' groups but only 'group_user' has access to read 'ir.attachment'
         validate(
             """
             <form string="View attachment">
@@ -3754,7 +3641,6 @@ class TestViews(ViewCase):
         )
 
         def validate(template, field, demo=True, no_add=False):
-            # add 'access_token' field automatically
             view = self.View.create(
                 {
                     "name": "Form view attachment",
@@ -3762,7 +3648,6 @@ class TestViews(ViewCase):
                     "arch": template,
                 }
             )
-            # cached view
             arch = self.env["ir.attachment"]._get_view_cache(view_id=view.id)["arch"]
             tree = etree.fromstring(arch)
             nodes = tree.xpath(
@@ -3779,7 +3664,6 @@ class TestViews(ViewCase):
                 f"Field '{field}' should be added automatically",
             )
 
-            # admin
             arch = self.env["ir.attachment"].get_view(view_id=view.id)["arch"]
             tree = etree.fromstring(arch)
             nodes = tree.xpath(
@@ -3790,7 +3674,6 @@ class TestViews(ViewCase):
                 f"Field '{field}' should be added automatically",
             )
 
-            # user
             arch = (
                 self.env["ir.attachment"]
                 .with_user(user)
@@ -3811,7 +3694,6 @@ class TestViews(ViewCase):
                     f"Field '{field}' should be added automatically but was removed by access rigth",
                 )
 
-        # add missing field
         validate(
             """
                 <form string="View attachment">
@@ -3821,7 +3703,6 @@ class TestViews(ViewCase):
             field="name",
         )
 
-        # add missing field with groups
         validate(
             """
                 <form string="View attachment">
@@ -3832,7 +3713,6 @@ class TestViews(ViewCase):
             demo=False,
         )
 
-        # add missing field with multi groups
         validate(
             """
                 <form string="View attachment">
@@ -3843,7 +3723,6 @@ class TestViews(ViewCase):
             field="name",
             demo=False,
         )
-        # add missing field without group because the view is already restricted to the group 'base.group_user'
         validate(
             """
                 <form string="View attachment">
@@ -3867,7 +3746,6 @@ class TestViews(ViewCase):
             demo=True,
         )
 
-        # nested groups
         validate(
             """
                 <form string="View attachment">
@@ -3940,7 +3818,6 @@ class TestViews(ViewCase):
             demo=True,
         )
 
-        # field already exist with implied groups
         validate(
             """
                 <form string="View attachment">
@@ -3957,7 +3834,6 @@ class TestViews(ViewCase):
             no_add=True,
         )
 
-        # add missing field without group because the view is already restricted to the group 'base.group_user'
         validate(
             """
                 <form string="View attachment">
@@ -4150,7 +4026,6 @@ class TestViews(ViewCase):
         with self.assertRaises(ValidationError):
             view2.active = True
 
-        # Re-enabling the view and correcting it at the same time should not raise the `_check_xml` constraint.
         view2.write(
             {
                 "active": True,
@@ -4272,7 +4147,6 @@ class TestViews(ViewCase):
         )
         self.assertWarning(
             '<form><div class="o_progressbar" role="progressbar" aria-valuenow="14" aria-valuemin="0" >14%</div></form>',
-            # Pin the corrected warning string (IUV-M1: the space was missing).
             expected_message="o_progressbar class must have aria-valuemax attribute",
         )
 
@@ -4324,7 +4198,6 @@ class TestViews(ViewCase):
     def test_partial_validation(self):
         self.View = self.View.with_context(load_all_views=True)
 
-        # base view
         view0 = self.assertValid("""
             <form string="View">
                 <field name="model"/>
@@ -4332,7 +4205,6 @@ class TestViews(ViewCase):
             </form>
         """)
 
-        # added elements should be validated
         self.assertInvalid(
             """<form position="inside">
                 <field name="group_ids" domain="[('invalid_field', '=', 'dummy')]"/>
@@ -4354,7 +4226,6 @@ class TestViews(ViewCase):
             inherit_id=view1.id,
         )
 
-        # modifying attributes should validate the target element
         self.assertInvalid(
             """<field name="inherit_id" position="attributes">
                 <attribute name="domain">[('invalid_field', '=', 'dummy')]</attribute>
@@ -4363,7 +4234,6 @@ class TestViews(ViewCase):
             inherit_id=view0.id,
         )
 
-        # replacing an element should validate the whole view
         view_arch = self.View.get_views([(view0.id, "form")])["views"]["form"]["arch"]
         self.assertFalse(
             etree.fromstring(view_arch).xpath(
@@ -4389,9 +4259,6 @@ class TestViews(ViewCase):
             )
         )
 
-        # moving an element should have no impact; check the implementation does
-        # not flag the inner element for validation (which would fail to locate
-        # the corresponding element inside the arch)
         self.assertValid(
             """<field name="group_ids" position="before">
                 <label for="group_ids" position="move"/>
@@ -4399,7 +4266,6 @@ class TestViews(ViewCase):
             inherit_id=view2.id,
         )
 
-        # modifying a view extension should validate the other views
         self.assertFalse(
             etree.fromstring(view_arch).xpath(
                 '//field[@name="name"][@invisible][@readonly]'
@@ -4568,15 +4434,6 @@ Forbidden use of `__comp__` in arch.""",
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_check_primary_when_update_siblins_inherited_tree(self):
-        # P: primary, E: extension
-        #
-        #         P1
-        #       /    \
-        #     E1      E2
-        #    /  \    /  \
-        #   E3  E4  P2  E5
-        #
-        # If we update the E4, we should check the P1 and P2 views
         View = self.env["ir.ui.view"]
         p1 = View.create(
             {
@@ -4716,7 +4573,6 @@ Forbidden use of `__comp__` in arch.""",
             )
             return view, custom
 
-        # metadata-only writes must preserve the customization
         view, custom = make()
         view.write({"name": "renamed"})
         self.assertTrue(custom.exists(), "name write must preserve customization")
@@ -4725,7 +4581,6 @@ Forbidden use of `__comp__` in arch.""",
         view.write({"arch_fs": "base/foo.xml"})
         self.assertTrue(custom.exists(), "arch_fs write must preserve customization")
 
-        # arch / combination-affecting writes must drop it
         view, custom = make()
         view.write(
             {"arch": '<form><field name="name"/><field name="create_uid"/></form>'}
@@ -4740,7 +4595,6 @@ Forbidden use of `__comp__` in arch.""",
         """<calendar aggregate="field:agg"> validates ``field`` like date_start,
         so that postprocessing and validation stay in sync.
         """
-        # res.users exposes login_date, a valid date_start candidate.
         self.View.create(
             {
                 "name": "cal ok",
@@ -4771,9 +4625,6 @@ class TestDebugger(common.TransactionCase):
 
 
 class TestViewTranslations(common.TransactionCase):
-    # same as the tests in test_translate.py, but using the computed field
-    # 'arch' instead of the translated field 'arch_db'
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -4789,11 +4640,6 @@ class TestViewTranslations(common.TransactionCase):
                 "arch": archf % terms,
             }
         )
-        # DLE P70: flush `arch_db` before creating translations.
-        # `_sync_terms_translations` (which deletes value-less translations) now
-        # runs via `_write` -> `flush` -> `search`, and `arch_db` is written in
-        # `_write` (it's the inverse of `arch`). Without the flush, the empty
-        # translations this test needs would be deleted.
         self.env.flush_all()
         val = {"en_US": archf % terms}
         for lang, trans_terms in kwargs.items():
@@ -4823,11 +4669,9 @@ class TestViewTranslations(common.TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch, archf % terms_nl)
 
-        # modify source term in view (fixed type in 'cheeze')
         terms_en = ("Bread and cheese",)
         view.with_env(env_en).write({"arch": archf % terms_en})
 
-        # check whether translations have been synchronized
         self.assertEqual(view.with_env(env_nolang).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch, archf % terms_fr)
@@ -4836,11 +4680,9 @@ class TestViewTranslations(common.TransactionCase):
         view = self.create_view(
             archf, terms_fr, en_US=terms_en, fr_FR=terms_fr, nl_NL=terms_nl
         )
-        # modify source term in view in another language with close term
         new_terms_fr = ("Pains et fromage",)
         view.with_env(env_fr).write({"arch": archf % new_terms_fr})
 
-        # check whether translations have been synchronized
         self.assertEqual(view.with_env(env_nolang).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch, archf % new_terms_fr)
@@ -4866,21 +4708,17 @@ class TestViewTranslations(common.TransactionCase):
         self.assertEqual(view.with_env(env_fr).arch, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch, archf % terms_nl)
 
-        # modify source term in view (add css style)
         terms_en = ('Bread <span style="font-weight:bold">and</span> cheese',)
         view.with_env(env_en).write({"arch": archf % terms_en})
 
-        # check whether translations have been kept
         self.assertEqual(view.with_env(env_nolang).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch, archf % terms_fr)
         self.assertEqual(view.with_env(env_nl).arch, archf % terms_nl)
 
-        # modify source term in view (actual text change)
         terms_en = ('Bread <span style="font-weight:bold">and</span> butter',)
         view.with_env(env_en).write({"arch": archf % terms_en})
 
-        # check whether translations have been reset
         self.assertEqual(view.with_env(env_nolang).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch, archf % terms_en)
         self.assertEqual(view.with_env(env_fr).arch, archf % terms_en)
@@ -4893,7 +4731,6 @@ class TestViewTranslations(common.TransactionCase):
         terms_en = ("", "Sub total:")
         view = self.create_view(archf, terms_src, en_US=terms_en)
 
-        # modifying the arch should sync existing translations without errors
         new_arch = archf % ("Subtotal", "Subtotal : <br/>")
         view.write({"arch": new_arch})
         self.assertEqual(view.arch, new_arch)
@@ -4912,7 +4749,6 @@ class TestViewTranslations(common.TransactionCase):
         self.assertIn("<b>", view_fr.arch_db)
         self.assertIn("<b>", view_fr.arch)
 
-        # write with no lang, and check consistency in other languages
         view.write({"arch": "<form><i>content</i></form>"})
         self.assertIn("<i>", view.arch_db)
         self.assertIn("<i>", view.arch)
@@ -5139,27 +4975,21 @@ class TestDefaultView(ViewCase):
 
     def test_calendar_view_missing_date_start(self):
         """A model without any date_start candidate raises a UserError."""
-        # ir.ui.view has none of the date_start candidate fields.
         with self.assertRaises(UserError):
             self.View._get_default_calendar_view()
 
     def test_calendar_view_missing_stop_and_delay(self):
         """A model with a date_start but no date_stop/date_delay raises a UserError."""
-        # Point _date_name at a real stored (searchable) field so the date_start
-        # inference succeeds; ir.ui.view still has no date_stop/date_delay
-        # candidate, hitting the second UserError branch. self.patch restores it.
         self.patch(type(self.View), "_date_name", "name")
         with self.assertRaises(UserError):
             self.View._get_default_calendar_view()
 
     def test_get_view_is_readonly(self):
         """get_view must be marked @api.readonly like its sibling get_views."""
-        # A purely read-only RPC entry point routed to the readonly cursor.
         self.assertTrue(
             type(self.env["ir.ui.view"]).get_view._readonly,
             "get_view should carry @api.readonly (read/write split)",
         )
-        # Sanity: the sibling get_views is already readonly.
         self.assertTrue(type(self.env["ir.ui.view"]).get_views._readonly)
 
 
@@ -5188,8 +5018,6 @@ class TestViewCombined(ViewCase):
                 "arch": '<xpath expr="//a1" position="after"><a3/></xpath>',
             }
         )
-        # mode=primary should be an inheritance boundary in both direction,
-        # even within a model it should not extend the parent
         self.a4 = self.View.create(
             {
                 "model": "a",
@@ -5322,15 +5150,6 @@ class TestViewCombined(ViewCase):
         )
 
     def test_primary_after_extensions(self):
-        # Here is a tricky use-case:                        a*
-        #  - views a and d are primary                     / \
-        #  - views b and c are extensions                 b   c
-        #  - depth-first order is: a, b, d, c             |
-        #  - combination order is: a, b, c, d             d*
-        #
-        # The arch of d has been chosen to fail if d is applied before c.
-        # Because this child of 'b' is primary, it must be applied *after* the
-        # other extensions of a!
         a = self.View.create(
             {
                 "model": "a",
@@ -5345,14 +5164,14 @@ class TestViewCombined(ViewCase):
             }
         )
         self.View.create(
-            {  # pylint: disable=unused-variable
+            {
                 "model": "a",
                 "inherit_id": a.id,
                 "arch": '<a position="after"><c/></a>',
             }
         )
         self.View.create(
-            {  # pylint: disable=unused-variable
+            {
                 "model": "a",
                 "inherit_id": b.id,
                 "mode": "primary",
@@ -5845,7 +5664,6 @@ class TestQWebRender(ViewCase):
             }
         )
 
-        # render view and child view with an id
         content1 = (
             self.env["ir.qweb"]
             .with_context(check_view_ids=[view1.id, view2.id])
@@ -5859,7 +5677,6 @@ class TestQWebRender(ViewCase):
 
         self.assertEqual(content1, content2)
 
-        # render view and child view with an xmlid
         self.env.cr.execute(
             "INSERT INTO ir_model_data(name, model, res_id, module)"
             "VALUES ('dummy', 'ir.ui.view', %s, 'base')" % view1.id
@@ -5882,7 +5699,6 @@ class TestQWebRender(ViewCase):
 
         self.assertEqual(content1, content2)
 
-        # render view and primary extension with an id
         content1 = (
             self.env["ir.qweb"]
             .with_context(check_view_ids=[view1.id, view2.id, view3.id])
@@ -5896,7 +5712,6 @@ class TestQWebRender(ViewCase):
 
         self.assertNotEqual(content1, content3)
 
-        # render view and primary extension with an xmlid
         self.env.cr.execute(
             "INSERT INTO ir_model_data(name, model, res_id, module)"
             "VALUES ('dummy_primary_ext', 'ir.ui.view', %s, 'base')" % view3.id
@@ -5925,18 +5740,15 @@ class TestTemplateCache(ViewCase):
         """
         missing_xmlid = "base.template_that_does_not_exist"
 
-        # warm the templates cache the way ir.qweb._preload_trees does
         preload = self.View.sudo()._preload_views([missing_xmlid])
         self.assertTrue(preload[missing_xmlid]["error"])
 
-        # the warm-pushed cache entry must carry the error too
         info = self.View._get_cached_template_info(missing_xmlid)
         self.assertIsInstance(info["error"], MissingError)
         self.assertIsNone(info["id"])
 
         with self.assertRaises(MissingError):
             self.View._get_template_view(missing_xmlid, raise_if_not_found=True)
-        # the non-strict lookup still returns an empty recordset
         self.assertFalse(
             self.View._get_template_view(missing_xmlid, raise_if_not_found=False)
         )
@@ -6007,8 +5819,6 @@ class TestButtonTypeValidation(ViewCase):
         )
 
     def test_kanban_client_button_types_accepted(self):
-        # open/archive/unarchive/delete/set_cover are handled client-side by
-        # the kanban renderer and must not warn in qweb-based views
         view = self.assertValid(
             """
             <kanban>
@@ -6024,8 +5834,6 @@ class TestButtonTypeValidation(ViewCase):
         self.assertTrue(view)
 
     def test_button_without_name_still_gets_icon_check(self):
-        # an object/action button without a name used to skip the icon
-        # accessibility check entirely
         self.assertWarning(
             '<form><button type="object" icon="fa-solid fa-trash"/></form>',
             expected_message=(
@@ -6096,16 +5904,13 @@ class TestAccessibilityChecks(common.BaseCase):
             view_validation.check_dropdown_menu(E.div({"class": "dropdown-menu"})),
             ["dropdown-menu class must have menu role"],
         )
-        # correct role -> no warning
         self.assertEqual(
             view_validation.check_dropdown_menu(
                 E.div({"class": "dropdown-menu", "role": "menu"})
             ),
             [],
         )
-        # unrelated node -> no warning
         self.assertEqual(view_validation.check_dropdown_menu(E.div()), [])
-        # dynamic t-attf-class variant is inspected too
         self.assertEqual(
             view_validation.check_dropdown_menu(
                 E.div({"t-attf-class": "dropdown-menu #{x}"})
@@ -6142,7 +5947,6 @@ class TestAccessibilityChecks(common.BaseCase):
             ),
             ['"modal" class should only be used with "dialog" role'],
         )
-        # a bare .btn on a <div> is not a real button
         self.assertEqual(
             len(
                 view_validation.check_class_accessibility(
@@ -6151,7 +5955,6 @@ class TestAccessibilityChecks(common.BaseCase):
             ),
             1,
         )
-        # ...but on a <button> it is fine
         self.assertEqual(
             view_validation.check_class_accessibility(
                 E.button({"class": "btn"}), "btn"
@@ -6160,19 +5963,16 @@ class TestAccessibilityChecks(common.BaseCase):
         )
 
     def test_fa_accessibility(self):
-        # a lone <i class="fa-*"/> with no textual alternative warns
         parent = E.div(E.i({"class": "fa-star"}))
         warnings = view_validation.check_class_accessibility(parent[0], "fa-star")
         self.assertEqual(len(warnings), 1)
         self.assertIn("must have title", warnings[0])
-        # an aria-label on the icon itself satisfies the check
         self.assertEqual(
             view_validation.check_fa_class_accessibility(
                 E.div(E.i({"class": "fa-star", "aria-label": "Star"}))[0], "desc"
             ),
             [],
         )
-        # neighbouring text also satisfies it
         self.assertEqual(
             view_validation.check_fa_class_accessibility(
                 E.div(E.i({"class": "fa-star"}), "  labelled  ")[0], "desc"
@@ -6184,16 +5984,13 @@ class TestAccessibilityChecks(common.BaseCase):
 class TestAccessRights(TransactionCaseWithUserDemo):
     @common.users("demo")
     def test_access(self):
-        # a user can not access directly a view
         with self.assertRaises(AccessError):
             self.env["ir.ui.view"].search(
                 [("model", "=", "res.partner"), ("type", "=", "form")]
             )
 
-        # but can call view_get
         self.env["res.partner"].get_view(view_type="form")
 
-        # unless he does not have access to the model
         with self.assertRaises(AccessError):
             self.env["ir.ui.view"].get_view(view_type="form")
 
@@ -6231,15 +6028,12 @@ class TestAccessRights(TransactionCaseWithUserDemo):
         )
 
         Custom = self.env["ir.ui.view.custom"]
-        # User A sees their own customization.
         self.assertIn(
             custom_a, Custom.with_user(user_a).search([("ref_id", "=", ref_view.id)])
         )
-        # User B does not see it through search (record rule).
         self.assertNotIn(
             custom_a, Custom.with_user(user_b).search([("ref_id", "=", ref_view.id)])
         )
-        # And a direct read of A's record by B is denied.
         with self.assertRaises(AccessError):
             Custom.with_user(user_b).browse(custom_a.id).read(["arch"])
 
@@ -6285,7 +6079,6 @@ class TestRenderAllViews(TransactionCaseWithUserDemo):
 @common.tagged("post_install", "-at_install", "post_install_l10n")
 class TestInvisibleField(TransactionCaseWithUserDemo):
     def test_uncommented_invisible_field(self):
-        # NEVER add new name in this list ! The new addons must add comment for all always invisible field.
         only_log_modules = (
             "account",
             "account_3way_match",
@@ -6802,7 +6595,6 @@ class ViewModifiers(ViewCase):
         _test_modifiers('<field name="a" invisible="0"/>', set())
         _test_modifiers('<field name="a" readonly="0"/>', set())
         _test_modifiers('<field name="a" required="0"/>', set())
-        # TODO: Order is not guaranteed
         _test_modifiers(
             '<field name="a" invisible="1" required="1"/>',
             set(),
@@ -6864,7 +6656,6 @@ class ViewModifiers(ViewCase):
             {"company_id", "field_1"},
         )
 
-        # fields in a list view
         tree = etree.fromstring("""
             <list>
                 <header>
@@ -6884,7 +6675,6 @@ class ViewModifiers(ViewCase):
         _test_modifiers(tree[4], {"b"})
         _test_modifiers(tree[5], {"b"})
 
-        # The dictionary is supposed to be the result of fields_get().
         _test_modifiers({}, set())
         _test_modifiers({"invisible": str_true}, set())
         _test_modifiers({"invisible": False}, set())
@@ -7151,7 +6941,6 @@ class ViewModifiers(ViewCase):
             }
         )
         user_demo = self.user_demo
-        # Make sure demo doesn't have the base.group_system
         self.assertFalse(user_demo.has_group("base.group_system"))
         arch = (
             self.env["res.partner"]
@@ -7165,7 +6954,6 @@ class ViewModifiers(ViewCase):
         self.assertFalse(tree.xpath('//div[@id="bar"]'))
 
         user_admin = self.env.ref("base.user_admin")
-        # Make sure admin has the base.group_system
         self.assertTrue(user_admin.has_group("base.group_system"))
         arch = (
             self.env["res.partner"]
@@ -7227,7 +7015,6 @@ class ViewModifiers(ViewCase):
         self.assertValid(arch % {"attrs": """context="{'default_name': name}" """})
         self.assertValid(arch % {"attrs": """decoration-info="name == 'foo'" """})
 
-        # add missing field with needed groups
         validate(
             """
             <form string="View">
@@ -7238,7 +7025,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # add missing field
         validate(
             """
             <form string="View">
@@ -7248,7 +7034,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="",
         )
 
-        # add the field for all combinations
         validate(
             """
             <form string="View">
@@ -7259,7 +7044,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="",
         )
 
-        # don't add field because the inherit_id is not accessible by any user (group_user != group_portal)
         validate(
             """
             <form string="View">
@@ -7272,7 +7056,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # add missing field with needed groups
         validate(
             """
             <form string="View">
@@ -7282,7 +7065,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="'base.test_group'",
         )
 
-        # add missing field because the existing field group does not match
         validate(
             """
             <form string="View">
@@ -7293,7 +7075,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="",
         )
 
-        # Add missing field because the field name has defined groups.
         validate(
             """
             <form string="View">
@@ -7309,7 +7090,6 @@ class ViewModifiers(ViewCase):
             parent=True,
         )
 
-        # Don't need to add field if the dependent field is in the same groups
         validate(
             """
             <form string="View">
@@ -7371,8 +7151,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # Add the missing field only for 'base.group_multi_company' because the
-        # other field is valid.
         validate(
             """
             <form string="View">
@@ -7384,7 +7162,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="'base.group_multi_company'",
         )
 
-        # All situations have the field name, not need to add one as invisible.
         validate(
             """
             <form string="View">
@@ -7407,7 +7184,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # add the missing field to have 'name' when inherit_id is present in the view.
         validate(
             """
             <form string="View">
@@ -7418,7 +7194,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="'base.group_multi_company' | 'base.test_group'",
         )
 
-        # Should not add the field because when 'inherit_id' is present, 'name' is present
         validate(
             """
             <form string="View">
@@ -7431,7 +7206,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # The view has base.group_system, implied base.group_erp_manager
         validate(
             """
             <form string="View">
@@ -7442,8 +7216,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # don't add the field because the field 'name' is already present
-        # when the view have 'base.group_erp_manager' in access rigths.
         validate(
             """
             <form string="View">
@@ -7459,7 +7231,6 @@ class ViewModifiers(ViewCase):
             parent=True,
         )
 
-        # add missing field with the same group of the needed
         validate(
             """
             <form string="View">
@@ -7535,7 +7306,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # view access right has base.group_system implied base.group_erp_manager
         validate(
             """
             <form string="View">
@@ -7662,8 +7432,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # Add field because the field 'name' can be hide from the other
-        # negative group
         validate(
             """
             <form string="View">
@@ -7674,7 +7442,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="~'base.group_multi_company'",
         )
 
-        # don't need to add field with an additional the negative group
         validate(
             """
             <form string="View">
@@ -7685,8 +7452,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # add field with the negative mandatory group (the group is added in order
-        # to only be present in the view when it is needed.)
         validate(
             """
             <form string="View">
@@ -7697,8 +7462,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="~'base.group_multi_company'",
         )
 
-        # fails because the ACL is group_system, so nobody can see inherit_id;
-        # no field added since the negative group is a subset of the mandatory group
         validate(
             """
             <form string="View">
@@ -7709,8 +7472,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # add missing field with the mandatory group. The field present in view has a
-        # restricted group opposing the desired visibility.
         validate(
             """
             <form string="View">
@@ -7725,8 +7486,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="'base.group_multi_company'",
         )
 
-        # add missing field with the mandatory group. The field present in view has a
-        # restricted (negative) group opposing the desired visibility.
         validate(
             """
             <form string="View">
@@ -7737,7 +7496,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups="~'base.group_multi_company'",
         )
 
-        # don't need to add field (because we can see all time: !base.test_group <> base.test_group).
         validate(
             """
             <form string="View">
@@ -7755,7 +7513,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # No missing combination because '!base.test_group' | 'base.test_group' => *
         validate(
             """
             <form string="View">
@@ -7767,7 +7524,6 @@ class ViewModifiers(ViewCase):
             add_field_with_groups=False,
         )
 
-        # No missing combination because '!base.test_group' | 'base.test_group' => *
         validate(
             """
             <form string="View">
@@ -7820,7 +7576,6 @@ class ViewModifiers(ViewCase):
         group_a.unlink()
 
         user_demo = self.user_demo
-        # Make sure demo doesn't have the base.group_system
         self.assertFalse(user_demo.has_group("base.group_system"))
         arch = (
             self.env["res.partner"]
@@ -7833,7 +7588,6 @@ class ViewModifiers(ViewCase):
         self.assertFalse(tree.xpath('//div[@id="stuff"]'))
 
         user_admin = self.env.ref("base.user_admin")
-        # Make sure admin has the base.group_system
         self.assertTrue(user_admin.has_group("base.group_system"))
         arch = (
             self.env["res.partner"]

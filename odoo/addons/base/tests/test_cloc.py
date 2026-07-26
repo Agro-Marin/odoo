@@ -153,9 +153,6 @@ class TestClocCustomization(TransactionCase):
                 }
             )
         )
-        # Simulate https://github.com/odoo/odoo/commit/9afce4805fc8bac45fdba817488aa867fddff69b:
-        # updating a module creates an xml_id for a manual field when it's the
-        # model's original module.
         self.create_xml_id("base", name, field)
         return field
 

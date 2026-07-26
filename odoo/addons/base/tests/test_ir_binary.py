@@ -10,7 +10,6 @@ from odoo.tools.misc import limited_field_access_token
 
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
-# 1x1 px PNG, base64-encoded (same fixture used by test_image.py).
 PNG_1x1_B64 = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC"
 
 
@@ -45,8 +44,6 @@ class TestIrBinaryNoRequest(TransactionCase):
                 partner, "image_1920", width=64, height=64
             )
 
-        # With no request the image is (re)processed and returned as a data
-        # stream instead of raising on request.httprequest.environ.
         self.assertEqual(stream.type, "data")
         self.assertTrue(stream.data)
 
@@ -91,8 +88,6 @@ class TestIrBinaryImageMissing(TransactionCase):
         ):
             stream = ir_binary._get_image_stream_from(partner, "image_1920")
 
-        # A placeholder stream is returned rather than the MissingError escaping.
-        # The placeholder image is read into memory, so the stream is type "data".
         self.assertIsNotNone(stream)
         self.assertEqual(stream.type, "data")
 
@@ -121,8 +116,6 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
 
     def test_mismatched_token_does_not_grant_sudo(self):
         partner = self.env["res.partner"].create({"name": "Audit IRB-T1 bad token"})
-        # res.partner is readable by an internal user, so the fall-through
-        # check_access succeeds and returns a NON-sudo record.
         record = (
             self.env["ir.binary"]
             .with_user(self.user_demo)
@@ -138,9 +131,6 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
         )
 
     def test_no_read_access_falls_through_and_raises(self):
-        # ir.exports is gated on base.group_allow_export (IEXP-L1); demo is a
-        # plain internal user, so check_access("read") must raise on the
-        # _find_record fall-through path.
         export_group = self.env.ref("base.group_allow_export")
         self.user_demo.write({"group_ids": [Command.unlink(export_group.id)]})
         preset = self.env["ir.exports"].create({"name": "preset", "resource": "x"})
@@ -193,7 +183,7 @@ class TestIrBinaryImageBranches(TransactionCase):
             self.assertLogs("odoo.addons.base.models.ir_binary", level="DEBUG") as cm,
         ):
             stream = self._binary._get_image_stream_from(partner, "image_1920")
-        self.assertEqual(stream.type, "data")  # the placeholder still serves
+        self.assertEqual(stream.type, "data")
         joined = "\n".join(cm.output)
         self.assertIn("image placeholder", joined)
         self.assertIn("image_1920_typo", joined)

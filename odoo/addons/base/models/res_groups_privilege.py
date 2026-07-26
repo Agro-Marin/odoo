@@ -11,9 +11,6 @@ class ResGroupsPrivilege(models.Model):
 
     name = fields.Char(required=True, translate=True)
     description = fields.Text()
-    # "No" is display text: the user-form group widget labels this privilege's
-    # empty (`false`) selection option with it. As a plain default it is not
-    # translated, unlike per-record values entered in the UI.
     placeholder = fields.Char(
         default="No",
         help="Label shown for the empty option in the privilege selection field of the user form (e.g. 'No' access).",
@@ -21,10 +18,6 @@ class ResGroupsPrivilege(models.Model):
     sequence = fields.Integer(default=100)
     category_id = fields.Many2one("ir.module.category", string="Category", index=True)
     group_ids = fields.One2many("res.groups", "privilege_id", string="Groups")
-
-    # Privilege metadata is cached in the `groups` registry family by
-    # res.groups._get_view_group_hierarchy; these CRUD overrides bust it so the
-    # group widget never shows stale data.
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

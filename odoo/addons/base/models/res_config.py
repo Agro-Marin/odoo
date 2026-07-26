@@ -9,11 +9,6 @@ from odoo.exceptions import AccessError, RedirectWarning, UserError
 
 _logger = logging.getLogger(__name__)
 
-# ``env.cr.cache`` key ({model_name: classified}) where ``execute()`` stashes the
-# ``_get_classified_fields()`` result for ``set_values()`` to reuse. It can't be
-# passed as an argument because ``set_values()`` is overridden as ``def
-# set_values(self)`` across the codebase. ``cr.cache`` is transaction-local and
-# ``execute()`` pops the entry in a ``finally``, so it can't leak across saves.
 SETTINGS_CLASSIFIED_CACHE_KEY = "res_config_settings_classified_fields"
 
 
@@ -169,8 +164,6 @@ class ResConfigSettings(models.TransientModel):
                 field_groups = Groups.concat(*(ref(it) for it in field_group_xmlids))
                 groups.append((name, field_groups, ref(field.implied_group)))
             elif name.startswith("module_"):
-                # module_ must be boolean: the selection variant was broken
-                # everywhere it was read ('0' is truthy in execute()) and unused.
                 if field.type != "boolean":
                     raise TypeError(f"Field {field} must have type 'boolean'")
                 module_recs.append(IrModule._get(name.removeprefix("module_")))
@@ -216,19 +209,16 @@ class ResConfigSettings(models.TransientModel):
         IrConfigParameter = self.env["ir.config_parameter"].sudo()
         classified = self._get_classified_fields(fields)
 
-        # defaults: take the corresponding default value they set
         for name, model, field in classified["default"]:
             value = IrDefault._get(model, field)
             if value is not None:
                 res[name] = value
 
-        # groups: which groups are implied by the group Employee
         for name, groups, implied_group in classified["group"]:
             res[name] = all(implied_group in group.all_implied_ids for group in groups)
             if self._fields[name].type == "selection":
-                res[name] = str(int(res[name]))  # True, False -> '1', '0'
+                res[name] = str(int(res[name]))
 
-        # modules: which modules are installed/to install
         for module in classified["module"]:
             res[f"module_{module.name}"] = module.state in (
                 "installed",
@@ -236,7 +226,6 @@ class ResConfigSettings(models.TransientModel):
                 "to upgrade",
             )
 
-        # config: get & convert stored ir.config_parameter (or default)
         WARNING_MESSAGE = (
             "Error when converting value %r of field %s for ir.config.parameter %r"
         )
@@ -250,8 +239,6 @@ class ResConfigSettings(models.TransientModel):
                 match field.type:
                     case "many2one":
                         try:
-                            # tolerate ids of deleted records so the settings
-                            # screen still opens
                             value = (
                                 self.env[field.comodel_name]
                                 .browse(int(value))
@@ -274,8 +261,6 @@ class ResConfigSettings(models.TransientModel):
                             _logger.warning(WARNING_MESSAGE, value, field, icp)
                             value = 0.0
                     case "boolean":
-                        # RCFG-B1: an unstored param yields the field default (a
-                        # real bool, not "True"/"False"); str() handles both.
                         value = str(value) == "True"
             res[name] = value
 
@@ -283,33 +268,28 @@ class ResConfigSettings(models.TransientModel):
 
         return res
 
-    def set_values(self, classified: dict[str, Any] | None = None) -> None:
+    def set_values(self) -> None:
         """Set values for the fields other than `default`, `group` and `module`.
 
-        :param classified: optional precomputed :meth:`_get_classified_fields`
-            result. When None (e.g. overrides calling ``super().set_values()``),
-            the classification stashed by :meth:`execute` is reused, or computed
-            lazily for standalone calls.
+        This is the documented override point for settings modules, so the
+        signature stays ``(self)``: a parameter here would have to be carried by
+        every override in every module that extends settings, and none of them
+        do. The field classification travels out of band instead --
+        :meth:`execute` stashes its :meth:`_get_classified_fields` result and
+        this reads it back, computing it lazily for standalone calls.
         """
-        # RCFG-L1: defense-in-depth admin gate. set_values does sudo'd,
-        # ACL-bypassing writes (ir.default, res.groups.implied_ids,
-        # ir.config_parameter) and otherwise relies solely on the model ACL.
         if not self.env.is_admin():
             raise AccessError(
                 self.env._("Only administrators can change system settings.")
             )
 
         self = self.with_context(active_test=False)
-        if classified is None:
-            stash = self.env.cr.cache.get(SETTINGS_CLASSIFIED_CACHE_KEY)
-            classified = (stash or {}).get(self._name) or self._get_classified_fields()
-        # restrict the diff basis to the names compared below (default_ and
-        # group_ fields) so default_get classifies only those
+        stash = self.env.cr.cache.get(SETTINGS_CLASSIFIED_CACHE_KEY)
+        classified = (stash or {}).get(self._name) or self._get_classified_fields()
         compared_names = [name for name, _model, _field in classified["default"]]
         compared_names += [name for name, _groups, _implied in classified["group"]]
         current_settings = self.default_get(compared_names)
 
-        # default values fields
         IrDefault = self.env["ir.default"].sudo()
         for name, model, field in classified["default"]:
             if isinstance(self[name], models.BaseModel):
@@ -322,14 +302,9 @@ class ResConfigSettings(models.TransientModel):
             if name not in current_settings or value != current_settings[name]:
                 IrDefault.set(model, field, value)
 
-        # group fields: process removals (falsy) before additions. RCFG-S1:
-        # normalize the sort key to bool since group_ fields may mix boolean and
-        # '0'/'1' selection, and sorted() can't compare bool with str.
         for name, groups, implied_group in sorted(
             classified["group"], key=lambda k: bool(int(self[k[0]] or 0))
         ):
-            # sudo: writing res.groups.implied_ids needs group_erp_manager, which
-            # the env user may lack when settings apply from module install/tests.
             groups = groups.sudo()
             implied_group = implied_group.sudo()
             if self[name] == current_settings[name]:
@@ -339,7 +314,6 @@ class ResConfigSettings(models.TransientModel):
             else:
                 groups._remove_group(implied_group)
 
-        # config fields: store ir.config_parameters
         IrConfigParameter = self.env["ir.config_parameter"].sudo()
         for name, icp in classified["config"]:
             field = self._fields[name]
@@ -347,18 +321,12 @@ class ResConfigSettings(models.TransientModel):
             current_value = IrConfigParameter.get_param(icp)
 
             if field.type == "char":
-                # strip surrounding spaces: stored developer keys break subtly
-                # when users leave whitespace around them
                 value = (value or "").strip() or False
             elif field.type in ("integer", "float"):
                 value = repr(value) if value is not None else False
             elif field.type == "many2one":
-                # value is a (possibly empty) recordset
                 value = value.id
             elif field.type == "boolean":
-                # RCFG-B1: store False as "False" to bypass set_param()'s
-                # delete-on-falsy path; deleting would make False look "not set"
-                # and let a default=True field silently revert
                 value = str(bool(value))
 
             if current_value == str(value) or current_value == value:
@@ -380,7 +348,6 @@ class ResConfigSettings(models.TransientModel):
             raise AccessError(_("Only administrators can change the settings"))
 
         self = self.with_context(active_test=False)
-        # classify once per save; set_values() and its default_get() reuse it
         classified = self._get_classified_fields()
 
         stash = self.env.cr.cache.setdefault(SETTINGS_CLASSIFIED_CACHE_KEY, {})
@@ -390,7 +357,6 @@ class ResConfigSettings(models.TransientModel):
         finally:
             stash.pop(self._name, None)
 
-        # module fields: install/uninstall the selected modules
         to_install = classified["module"].filtered(
             lambda m: self[f"module_{m.name}"] and m.state != "installed"
         )
@@ -418,14 +384,11 @@ class ResConfigSettings(models.TransientModel):
         installation_status = self._install_modules(to_install)
 
         if installation_status:
-            # the install invalidated the registry and environments
             self.env.transaction.reset()
 
-        # force client-side reload (update user menu and current view)
         return self.env["res.config"]._next_todo_action()
 
     def cancel(self) -> dict[str, Any]:
-        # ignore the current record, and send the action to reopen the view
         actions = self.env["ir.actions.act_window"].search(
             [("res_model", "=", self._name)], limit=1
         )
@@ -485,11 +448,9 @@ class ResConfigSettings(models.TransientModel):
         """
         self = self.sudo()
 
-        # collect the menu/field references
         regex_path = r"%\(((?:menu|field):[a-z_\.]*)\)s"
         references = re.findall(regex_path, msg, flags=re.IGNORECASE)
 
-        # resolve each reference to its replacement value (and action_id)
         values = {}
         action_id = None
         for item in references:
@@ -499,7 +460,6 @@ class ResConfigSettings(models.TransientModel):
             elif ref_type == "field":
                 values[item] = self.get_option_name(ref)
 
-        # substitute and return
         if action_id:
             return RedirectWarning(
                 msg % values, action_id, _("Go to the configuration panel")
@@ -508,19 +468,14 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # Optimisation: saving unchanged related values would write them all and
-        # cascade recomputations. Drop values that did not actually change.
         for vals in vals_list:
             for field in self._fields.values():
                 if not (field.name in vals and field.related and not field.readonly):
                     continue
-                # writable related field, e.g.
-                # qr_code = fields.Boolean(related='company_id.qr_code', readonly=False)
                 fname0, *fnames = field.related.split(".")
                 if fname0 not in vals:
                     continue
 
-                # determine the current value
                 field0 = self._fields[fname0]
                 old_value = field0.convert_to_record(
                     field0.convert_to_cache(vals[fname0], self), self
@@ -528,12 +483,10 @@ class ResConfigSettings(models.TransientModel):
                 for fname in fnames:
                     old_value = next(iter(old_value), old_value)[fname]
 
-                # determine the new value
                 new_value = field.convert_to_record(
                     field.convert_to_cache(vals[field.name], self), self
                 )
 
-                # drop if the value is the same
                 if old_value == new_value:
                     vals.pop(field.name)
 

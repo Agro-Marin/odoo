@@ -39,7 +39,6 @@ class TestBaseModuleWizards(TransactionCase):
         module = self.Module.create(
             dict({"name": name, "shortdesc": name.upper()}, **vals)
         )
-        # state is readonly + has a default of "uninstallable"; force it here
         module.state = state
         return module
 
@@ -77,7 +76,6 @@ class TestBaseModuleWizards(TransactionCase):
         wizard = self.env["base.module.upgrade"].create({})
         with self.assertRaises(UserError) as ctx:
             wizard.with_user(self.admin).upgrade_module()
-        # The admin gate passed; we stopped at the dependency precondition.
         self.assertIn("wizard_upg_missing_dep", str(ctx.exception))
 
     def test_upgrade_module_cancel_reverts_schedule(self):
@@ -118,12 +116,9 @@ class TestBaseModuleWizards(TransactionCase):
             .create({"module_ids": [(6, 0, root.ids)], "show_all": False})
         )
 
-        # Actual closure (drives the real uninstall) includes the hidden dep.
         actual = wizard._get_modules()
         self.assertIn(tech_dep.id, actual.ids)
-        # Display set (app-only) hides the technical dependent.
         self.assertNotIn(tech_dep.id, wizard.impacted_module_ids.ids)
-        # Invariant: actual closure is a superset of what is displayed.
         self.assertLessEqual(set(wizard.impacted_module_ids.ids), set(actual.ids))
 
     def test_uninstall_model_ids_recompute_trigger(self):

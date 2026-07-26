@@ -14,10 +14,6 @@ class TestORM(TransactionCase):
         c2 = self.env["res.partner.category"].create({"name": "Y"})
         c1.unlink()
 
-        # read() skips deleted records: the search()->read() sequence is not
-        # transactional client-side, so a concurrent deletion must not raise
-        # (e.g. when simply opening a list view).
-        # /!\ unprivileged user, to catch former side effects of ir.rules!
         user = self.env["res.users"].create(
             {
                 "name": "test user",
@@ -33,7 +29,6 @@ class TestORM(TransactionCase):
         )
         self.assertEqual([], cs[0].read(["name"]), "read() should skip deleted records")
 
-        # Deleting an already deleted record should be simply ignored
         self.assertTrue(c1.unlink(), "Re-deleting should be a no-op")
 
     @mute_logger("odoo.models")
@@ -46,7 +41,6 @@ class TestORM(TransactionCase):
             "test assumption not satisfied",
         )
 
-        # access regular field when another record from the same prefetch set has been deleted
         records = Model.create(
             [
                 {"name": name[0], "code": name[1]}
@@ -57,7 +51,6 @@ class TestORM(TransactionCase):
             _ = record.name
             record.unlink()
 
-        # access computed field when another record from the same prefetch set has been deleted
         records = Model.create(
             [
                 {"name": name[0], "code": name[1]}
@@ -90,27 +83,20 @@ class TestORM(TransactionCase):
             }
         )
 
-        # search as unprivileged user
         partners = self.env["res.partner"].with_user(user).search([])
         self.assertNotIn(p1, partners, "W should not be visible...")
         self.assertIn(p2, partners, "... but Y should be visible")
 
-        # read as unprivileged user
         with self.assertRaises(AccessError):
             p1.with_user(user).read(["name"])
-        # write as unprivileged user
         with self.assertRaises(AccessError):
             p1.with_user(user).write({"name": "foo"})
-        # unlink as unprivileged user
         with self.assertRaises(AccessError):
             p1.with_user(user).unlink()
 
-        # Prepare mixed case
         p2.unlink()
-        # read mixed records: some deleted and some filtered
         with self.assertRaises(AccessError):
             (p1 + p2).with_user(user).read(["name"])
-        # delete mixed records: some deleted and some filtered
         with self.assertRaises(AccessError):
             (p1 + p2).with_user(user).unlink()
 
@@ -123,14 +109,12 @@ class TestORM(TransactionCase):
     def test_search_read(self):
         partner = self.env["res.partner"]
 
-        # simple search_read
         partner.create({"name": "MyPartner1"})
         found = partner.search_read([("name", "=", "MyPartner1")], ["name"])
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]["name"], "MyPartner1")
         self.assertIn("id", found[0])
 
-        # search_read correct order
         partner.create({"name": "MyPartner2"})
         found = partner.search_read(
             [("name", "like", "MyPartner")], ["name"], order="name"
@@ -145,17 +129,14 @@ class TestORM(TransactionCase):
         self.assertEqual(found[0]["name"], "MyPartner2")
         self.assertEqual(found[1]["name"], "MyPartner1")
 
-        # search_read that finds nothing
         found = partner.search_read([("name", "=", "Does not exists")], ["name"])
         self.assertEqual(len(found), 0)
 
-        # search_read with an empty array of fields
         found = partner.search_read([], [], limit=1)
         self.assertEqual(len(found), 1)
         for field in ("id", "name", "display_name", "email"):
             self.assertIn(field, found[0])
 
-        # search_read without fields
         found = partner.search_read([], False, limit=1)
         self.assertEqual(len(found), 1)
         for field in ("id", "name", "display_name", "email"):
@@ -165,16 +146,13 @@ class TestORM(TransactionCase):
     def test_exists(self):
         partner = self.env["res.partner"]
 
-        # check that records obtained from search exist
         recs = partner.search([])
         self.assertTrue(recs)
         self.assertEqual(recs.exists(), recs)
 
-        # check that new records exist by convention
         recs = partner.new({})
         self.assertTrue(recs.exists())
 
-        # check that there is no record with id 0
         recs = partner.browse([0])
         self.assertFalse(recs.exists())
 
@@ -182,7 +160,6 @@ class TestORM(TransactionCase):
         partner = self.env["res.partner"]
         p1, p2 = partner.search([], limit=2)
 
-        # lock p1
         p1.lock_for_update(allow_referencing=True)
         p1.lock_for_update(allow_referencing=False)
 
@@ -193,20 +170,16 @@ class TestORM(TransactionCase):
             sub_p2 = recs[1]
             sub_p2.lock_for_update()
 
-            # parent transaction and read, but cannot lock the p2 records
             p2.invalidate_model()
             self.assertTrue(p2.name)
             with self.assertRaises(LockError):
                 p2.lock_for_update()
 
-            # can still read from parent after locks and lock failures
             p1.invalidate_model()
             self.assertTrue(p1.name)
 
-        # can lock p2 now
         p2.lock_for_update()
 
-        # cannot lock inexisting record
         inexisting = partner.create({"name": "inexisting"})
         inexisting.unlink()
         self.assertFalse(inexisting.exists())
@@ -217,7 +190,6 @@ class TestORM(TransactionCase):
         partner = self.env["res.partner"]
         p1, p2, *_other = recs = partner.search([], limit=4)
 
-        # lock p1
         self.assertEqual(p1.try_lock_for_update(allow_referencing=True), p1)
         self.assertEqual(p1.try_lock_for_update(allow_referencing=False), p1)
 
@@ -228,7 +200,6 @@ class TestORM(TransactionCase):
         self.assertEqual(recs.try_lock_for_update(limit=1), p1)
         self.assertEqual(recs.try_lock_for_update(), recs)
 
-        # check that order is preserved when limiting
         self.assertEqual(recs[::-1].try_lock_for_update(limit=1), recs[-1])
 
     def test_write_duplicate(self):
@@ -255,7 +226,6 @@ class TestORM(TransactionCase):
 
     def test_create_multi(self):
         """create for multiple records"""
-        # assumption: 'res.bank' does not override 'create'
         vals_list = [{"name": name} for name in ("Foo", "Bar", "Baz")]
         vals_list[0]["email"] = "foo@example.com"
         for vals in vals_list:
@@ -273,7 +243,6 @@ class TestORM(TransactionCase):
             self.assertEqual(record.name, vals["name"])
             self.assertEqual(record.email, vals.get("email", False))
 
-        # create countries and states
         vals_list = [
             {
                 "name": "Foo",
@@ -406,7 +375,6 @@ class TestInherits(TransactionCase):
         user = self.env.user
         write_date_before = user.write_date
 
-        # write base64 image
         user.write(
             {
                 "image_1920": "R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
@@ -434,8 +402,6 @@ class TestCompanyDependent(TransactionCase):
         self.assertTrue(field.company_dependent, "barcode must be company_dependent")
         core = self.env._core
 
-        # Reproduce the stale-flat-entry shape: a scalar value keyed directly by
-        # record id, with no nested ``{(company_id,): {id: value}}`` entry.
         core.get_field_data(field).clear()
         core.cache.set_value(field, partner.id, "BC-1")
 
@@ -448,12 +414,6 @@ class TestCompanyDependent(TransactionCase):
         self.assertIn("BC-1", col_val.obj.values())
 
     def test_orm_ondelete_restrict(self):
-        # A company-dependent many2one is stored as jsonb and has no DB ON
-        # DELETE action. If A.field_a (company-dependent m2o, ondelete='restrict')
-        # -> B and B.field_b (m2o, ondelete='cascade') -> C, then deleting C
-        # cascade-deletes B and leaves A referencing a dead row (read as NULL),
-        # bypassing the ORM 'restrict'. Such a combination must not exist: move
-        # the cascade logic to an unlink() override instead.
         for model in self.env.registry.values():
             for field in model._fields.values():
                 if (
@@ -507,7 +467,6 @@ class TestReadFormatPrefetch(TransactionCase):
         with self.assertQueryCount(__system__=1):
             self._cold(few)._read_format(self.SCALARS)
 
-        # 10x the records must not mean 10x the queries.
         with self.assertQueryCount(__system__=1):
             self._cold(many)._read_format(self.SCALARS)
 
@@ -539,7 +498,6 @@ class TestReadFormatPrefetch(TransactionCase):
         that, and a NewId never triggers a fetch anyway.
         """
         Partner = self.env["res.partner"]
-        # `new()` takes one dict; union the singletons to exercise the loop.
         new_records = Partner.new({"name": "new a"}) | Partner.new({"name": "new b"})
         result = new_records._read_format({"name"})
         self.assertEqual([vals["name"] for vals in result], ["new a", "new b"])

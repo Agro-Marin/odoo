@@ -43,23 +43,31 @@ class TagMixin(models.AbstractModel):
     @api.depends("name", "parent_id.name")
     def _compute_display_name(self):
         """Compute the slash-joined full ancestor path as display name."""
-        names = {tag.id: [] for tag in self}
-        # Walk the hierarchy one level at a time, advancing every tag's cursor
-        # together. Reading name on the whole frontier prefetches the level in a
-        # single query instead of one read per tag, while preserving the
-        # per-record walk semantics.
-        cursors = {tag.id: tag for tag in self}
-        while cursors:
-            frontier = self.browse().union(*cursors.values())
-            frontier.fetch(["name", "parent_id"])
-            next_cursors = {}
-            for root_id, current in cursors.items():
-                names[root_id].append(current.name or "")
-                if current.parent_id:
-                    next_cursors[root_id] = current.parent_id
-            cursors = next_cursors
+        paths = {}
+        ancestor_ids = set()
         for tag in self:
-            tag.display_name = " / ".join(reversed(names[tag.id]))
+            if tag.parent_path:
+                paths[tag.id] = ids = [
+                    int(key) for key in tag.parent_path.split("/") if key
+                ]
+                ancestor_ids.update(ids)
+        ancestors = self.browse(ancestor_ids)
+        ancestors.fetch(["name"])
+        names = {tag.id: tag.name or "" for tag in ancestors}
+
+        for tag in self:
+            path_ids = paths.get(tag.id)
+            if path_ids is not None:
+                tag.display_name = " / ".join(names[key] for key in path_ids)
+                continue
+            walked = []
+            seen = set()
+            current = tag
+            while current and current.id not in seen:
+                seen.add(current.id)
+                walked.append(current.name or "")
+                current = current.parent_id
+            tag.display_name = " / ".join(reversed(walked))
 
     @api.model
     def _search_display_name(self, operator, value):

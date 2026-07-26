@@ -30,9 +30,6 @@ from .ir_model_common import (
 _logger = logging.getLogger(__name__)
 
 
-# IMPORTANT: this must be the first model declared in the module
-
-
 class Base(models.AbstractModel):
     """The base model, which is implicitly inherited by all models."""
 
@@ -56,7 +53,7 @@ class IrModel(models.Model):
 
     def _default_field_id(self) -> list[tuple[int, int, dict[str, Any]]]:
         if self.env.context.get("install_mode"):
-            return []  # no default field when importing
+            return []
         return [
             Command.create(
                 {
@@ -175,7 +172,6 @@ class IrModel(models.Model):
         ]
         if not table_models:
             return
-        # single UNION ALL: one COUNT(*) per table in one round-trip
         parts = [
             SQL(
                 "SELECT %s AS model, COUNT(*) FROM %s",
@@ -206,28 +202,19 @@ class IrModel(models.Model):
     def _check_order(self) -> None:
         for model in self:
             try:
-                model._check_qorder(
-                    model.order
-                )  # regex check for the whole clause ('is it valid sql?')
+                model._check_qorder(model.order)
             except UserError as e:
                 raise ValidationError(str(e)) from None
-            # add MAGIC_COLUMNS in case 'model' is not initialized yet, or
-            # 'field_id' is not up-to-date in cache
             stored_fields = set(
                 model.field_id.filtered("store").mapped("name") + models.MAGIC_COLUMNS
             )
             if model.model in self.env:
-                # add already-loaded fields inherited from code-defined models
                 stored_fields.update(
                     fname
                     for fname, fval in self.env[model.model]._fields.items()
                     if fval.inherited and fval.base_field.store
                 )
 
-            # Use the ORM's own order parser (already applied by _check_qorder)
-            # rather than a parallel regex that would drift from the grammar and
-            # mistake grouping funcs ("create_date:month") or related-field
-            # properties ("parent_id.name") for missing field names.
             for order_part in model.order.split(","):
                 order_match = models.regex_order.match(order_part)
                 field = order_match["field"] if order_match else None
@@ -294,7 +281,6 @@ class IrModel(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_if_manual(self) -> None:
-        # Prevent manual deletion of module tables
         for model in self:
             if model.state != "manual":
                 raise UserError(
@@ -306,17 +292,14 @@ class IrModel(models.Model):
 
     @override
     def unlink(self) -> bool:
-        # prevent screwing up fields that depend on these models' fields
         manual_models = self.filtered(lambda model: model.state == "manual")
         manual_models.field_id.filtered(lambda f: f.state == "manual")._prepare_update()
         (self - manual_models).field_id._prepare_update()
 
-        # delete fields whose comodel is being removed
         self.env["ir.model.fields"].search(
             [("relation", "in", self.mapped("model"))]
         ).unlink()
 
-        # delete ir_crons created by user
         crons = (
             self.env["ir.cron"]
             .with_context(active_test=False)
@@ -325,7 +308,6 @@ class IrModel(models.Model):
         if crons:
             crons.unlink()
 
-        # delete related ir_model_data
         model_data = self.env["ir.model.data"].search(
             [("model", "in", self.mapped("model"))]
         )
@@ -335,10 +317,7 @@ class IrModel(models.Model):
         self._drop_table()
         res = super().unlink()
 
-        # Reload registry for normal unlink only. For module uninstall, the
-        # reload is done independently in odoo.modules.loading.
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
-            # setup models; this automatically removes model from registry
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr)
 
@@ -356,15 +335,11 @@ class IrModel(models.Model):
                         self._fields[unmodifiable_field]._description_string(self.env),
                     )
                 )
-        # Filter out operation 4 from field_id: the web client always writes
-        # (4, id, False) even for non-dirty items.
         if "field_id" in vals:
             vals["field_id"] = [op for op in vals["field_id"] if op[0] != 4]
         res = super().write(vals)
-        # ordering has been changed, reload registry to reflect update + signaling
         if "order" in vals or "fold_name" in vals:
-            self.env.flush_all()  # _setup_models__ needs to fetch the updated values from the db
-            # incremental setup will reload custom models
+            self.env.flush_all()
             self.pool._setup_models__(self.env.cr, [])
         return res
 
@@ -378,9 +353,6 @@ class IrModel(models.Model):
             if vals.get("state", "manual") == "manual"
         ]
         if manual_models:
-            # reload custom models into the registry, then create their schema;
-            # freshly created models have no descendants, so _inherits expansion
-            # is a no-op here
             reload_schema(self.env, [], manual_models)
         return res
 
@@ -439,7 +411,6 @@ class IrModel(models.Model):
             model_ids[row[1]] = row[0]
             existing[row[1]] = row[1:]
 
-        # create or update rows
         rows = [row for row in expected if existing.get(row[0]) != row]
         if rows:
             ids = upsert_en(self, cols, rows, ["model"])
@@ -447,14 +418,10 @@ class IrModel(models.Model):
                 model_ids[row[0]] = id_
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
 
-        # pre-warm the _get_id ormcache so the subsequent
-        # _reflect_inherits/_reflect_fields passes don't cold-miss one SELECT
-        # per distinct model/parent name
         add_value = self._get_id.__cache__.add_value
         for name, id_ in model_ids.items():
             add_value(self, name, cache_value=id_)
 
-        # update their XML id
         module = self.env.context.get("module")
         if not module:
             return
@@ -463,7 +430,6 @@ class IrModel(models.Model):
         for model_name, model_id in model_ids.items():
             model = self.env[model_name]
             if model._module == module:
-                # model._module is the name of the module that last extended model
                 xml_id = model_xmlid(module, model_name)
                 record = self.browse(model_id)
                 data_list.append({"xml_id": xml_id, "record": record})
@@ -501,9 +467,7 @@ class IrModelInherit(models.Model):
 
     model_id = fields.Many2one("ir.model", required=True, ondelete="cascade")
     parent_id = fields.Many2one("ir.model", required=True, ondelete="cascade")
-    parent_field_id = fields.Many2one(
-        "ir.model.fields", ondelete="cascade"
-    )  # in case of inherits
+    parent_field_id = fields.Many2one("ir.model.fields", ondelete="cascade")
 
     _uniq = models.Constraint(
         "UNIQUE(model_id, parent_id)", "Models inherits from another only once"
@@ -529,9 +493,6 @@ class IrModelInherit(models.Model):
                     for parent_name in cls._inherit
                     if parent_name not in ("base", model_name)
                 ]
-                # parent_id is required: resolve parents up front so a missing
-                # one fails with a named culprit rather than an opaque NOT NULL
-                # violation deep inside upsert_en.
                 parent_ids = {}
                 for parent_name in (*inherit_parents, *cls._inherits):
                     parent_id = get_model_id(parent_name)
@@ -585,8 +546,6 @@ class IrModelInherit(models.Model):
             inh_ids.update(dict(zip(rows, ids, strict=True)))
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
 
-        # update their XML id: resolve every model/parent id to its name once,
-        # instead of re-browsing (twice) inside the loop below
         involved = IrModel.browse(id_ for item in module_mapping for id_ in item[:2])
         involved.fetch(["model"])
         xml_name = {rec.id: rec.model for rec in involved}

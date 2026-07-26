@@ -16,7 +16,6 @@ from odoo.tools.profiler import ExecutionContext, Profiler
 
 
 @tagged("post_install", "-at_install", "profiling")
-# post_install so mail is loaded (new_test_user needs notification_type)
 class TestProfileAccess(TransactionCase):
     @classmethod
     def setUpClass(cls):
@@ -81,7 +80,7 @@ class TestSpeedscope(BaseCase):
         return {
             "init_stack_trace": [["/path/to/file_1.py", 135, "__main__", "main()"]],
             "result": [
-                {  # init frame
+                {
                     "start": 2.0,
                     "exec_context": (),
                     "stack": [
@@ -123,7 +122,7 @@ class TestSpeedscope(BaseCase):
                         ],
                     ],
                 },
-                {  # duplicate frame
+                {
                     "start": 4.0,
                     "exec_context": (),
                     "stack": [
@@ -147,7 +146,7 @@ class TestSpeedscope(BaseCase):
                         ],
                     ],
                 },
-                {  # other frame
+                {
                     "start": 6.0,
                     "exec_context": (),
                     "stack": [
@@ -161,7 +160,7 @@ class TestSpeedscope(BaseCase):
                         ["/path/to/cursor.py", 650, "check", "assert x = y"],
                     ],
                 },
-                {  # out of frame
+                {
                     "start": 10.0,
                     "exec_context": (),
                     "stack": [
@@ -179,7 +178,7 @@ class TestSpeedscope(BaseCase):
                         ],
                     ],
                 },
-                {  # final frame
+                {
                     "start": 10.35,
                     "exec_context": (),
                     "stack": None,
@@ -206,14 +205,14 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                ("O", 0),  # /main
-                ("O", 1),  # /main/do_stuff1
-                ("O", 2),  # /main/do_stuff1/execute
-                ("C", 2),  # /main/do_stuff1
-                ("O", 3),  # /main/do_stuff1/check
-                ("C", 3),  # /main/do_stuff1
-                ("C", 1),  # /main
-                ("C", 0),  # /
+                ("O", 0),
+                ("O", 1),
+                ("O", 2),
+                ("C", 2),
+                ("O", 3),
+                ("C", 3),
+                ("C", 1),
+                ("C", 0),
             ],
         )
         self.assertEqual(profile_combined["events"][0]["at"], 0.0)
@@ -232,14 +231,14 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                ("O", 0),  # /main
-                ("O", 1),  # /main/do_stuff1
-                ("O", 2),  # /main/do_stuff1/execute
-                ("C", 2),  # /main/do_stuff1
-                ("O", 3),  # /main/do_stuff1/check
-                ("C", 3),  # /main/do_stuff1
-                ("C", 1),  # /main
-                ("C", 0),  # /
+                ("O", 0),
+                ("O", 1),
+                ("O", 2),
+                ("C", 2),
+                ("O", 3),
+                ("C", 3),
+                ("C", 1),
+                ("C", 0),
             ],
         )
         self.assertEqual(profile_combined["events"][-1]["at"], 8)
@@ -258,16 +257,16 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                ("O", 4),  # /__main__/
-                ("O", 0),  # /__main__/main
-                ("O", 1),  # /__main__/main/do_stuff1
-                ("O", 2),  # /__main__/main/do_stuff1/execute
-                ("C", 2),  # /__main__/main/do_stuff1
-                ("O", 3),  # /__main__/main/do_stuff1/check
-                ("C", 3),  # /__main__/main/do_stuff1
-                ("C", 1),  # /__main__/main
-                ("C", 0),  # /__main__/
-                ("C", 4),  # /
+                ("O", 4),
+                ("O", 0),
+                ("O", 1),
+                ("O", 2),
+                ("C", 2),
+                ("O", 3),
+                ("C", 3),
+                ("C", 1),
+                ("C", 0),
+                ("C", 4),
             ],
         )
         self.assertEqual(profile_combined["events"][-1]["at"], 8.35)
@@ -278,20 +277,17 @@ class TestSpeedscope(BaseCase):
 
         async_profile = self.example_profile()["result"]
         sql_profile = self.example_profile()["result"]
-        # make sql_profile a single frame from 2.5 to 5.5
         sql_profile = [sql_profile[1]]
         sql_profile[0]["start"] = 2.5
         sql_profile[0]["time"] = 3
         sql_profile[0]["query"] = "SELECT 1"
         sql_profile[0]["full_query"] = "SELECT 1"
-        # sanity-check the samples
         self.assertEqual(async_profile[1]["start"], 3)
         self.assertEqual(async_profile[2]["start"], 4)
 
         self.assertNotIn("query", async_profile[1]["stack"])
         self.assertNotIn("time", async_profile[1]["stack"])
         self.assertEqual(async_profile[1]["stack"], async_profile[2]["stack"])
-        # ensures the samples are consistent with the sql one, just missing the query
 
         sp = Speedscope(init_stack_trace=[])
         sp.add("sql", async_profile)
@@ -310,7 +306,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                # pylint: disable=bad-continuation
                 (2.0, "O", "main"),
                 (2.0, "O", "do_stuff1"),
                 (2.5, "O", "execute"),
@@ -319,7 +314,7 @@ class TestSpeedscope(BaseCase):
                     5.5,
                     "C",
                     "sql('SELECT 1')",
-                ),  # select ends at 5.5 as expected despite another concurent frame at 3 and 4
+                ),
                 (5.5, "C", "execute"),
                 (6.0, "O", "check"),
                 (10.0, "C", "check"),
@@ -331,7 +326,6 @@ class TestSpeedscope(BaseCase):
     def test_following_queries_dont_merge(self):
         sql_profile = self.example_profile()["result"]
         stack = sql_profile[1]["stack"]
-        # two frames separated by some time
         sql_profile = [
             {
                 "start": 0.0,
@@ -360,7 +354,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                # pylint: disable=bad-continuation
                 (0.0, "O", "main"),
                 (0.0, "O", "do_stuff1"),
                 (0.0, "O", "execute"),
@@ -380,7 +373,7 @@ class TestSpeedscope(BaseCase):
         profile = {
             "init_stack_trace": [["file.py", 1, "level0", "level0)"]],
             "result": [
-                {  # init frame
+                {
                     "start": 2.0,
                     "exec_context": ((2, {"a": "1"}), (3, {"b": "1"})),
                     "stack": list(stack),
@@ -390,7 +383,7 @@ class TestSpeedscope(BaseCase):
                     "exec_context": ((2, {"a": "1"}), (3, {"b": "2"})),
                     "stack": list(stack),
                 },
-                {  # final frame
+                {
                     "start": 10.35,
                     "exec_context": (),
                     "stack": None,
@@ -408,7 +401,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                # pylint: disable=bad-continuation
                 ("O", "level0"),
                 ("O", "a=1"),
                 ("O", "level1"),
@@ -434,15 +426,15 @@ class TestSpeedscope(BaseCase):
         profile = {
             "init_stack_trace": [["file.py", 1, "level0", "level0)"]],
             "result": [
-                {  # init frame
+                {
                     "start": 2.0,
                     "exec_context": (
                         (3, {"a": "1"}),
                         (3, {"b": "1"}),
-                    ),  # two contexts at the same level
+                    ),
                     "stack": list(stack),
                 },
-                {  # final frame
+                {
                     "start": 10.35,
                     "exec_context": (),
                     "stack": None,
@@ -460,7 +452,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                # pylint: disable=bad-continuation
                 ("O", "level0"),
                 ("O", "level1"),
                 ("O", "a=1"),
@@ -487,12 +478,12 @@ class TestSpeedscope(BaseCase):
                 ["file.py", 1, "level3", "level3"],
             ],
             "result": [
-                {  # init frame
+                {
                     "start": 2.0,
                     "exec_context": ((2, {"a": "1"}), (6, {"b": "1"})),
                     "stack": list(stack),
                 },
-                {  # final frame
+                {
                     "start": 10.35,
                     "exec_context": (),
                     "stack": None,
@@ -510,7 +501,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                # pylint: disable=bad-continuation
                 ("O", "level4"),
                 ("O", "b=1"),
                 ("O", "level5"),
@@ -533,12 +523,12 @@ class TestSpeedscope(BaseCase):
                 ["file.py", 1, "level3", "level3"],
             ],
             "result": [
-                {  # init frame
+                {
                     "start": 2.0,
                     "exec_context": ((2, {"a": "1"}), (6, {"b": "1"})),
                     "stack": list(stack),
                 },
-                {  # final frame
+                {
                     "start": 10.35,
                     "exec_context": (),
                     "stack": None,
@@ -556,7 +546,6 @@ class TestSpeedscope(BaseCase):
         self.assertEqual(
             events,
             [
-                # pylint: disable=bad-continuation
                 ("O", "level4"),
                 ("O", "level5"),
                 ("C", "level5"),
@@ -576,9 +565,7 @@ class TestProfiling(TransactionCase):
         with Profiler(db=None, collectors=["sql"]) as p:
             self.env.cr.execute("SELECT 1")
         collector = p.collectors[0]
-        # this is the code path taken by Profiler(log=True) at exit
-        _ = collector.entries  # triggers post-processing, nulls _entries
-        # must not raise TypeError: 'NoneType' object is not iterable
+        _ = collector.entries
         self.assertIn("sql", collector.summary())
 
     def test_traces_async_dedup_idle(self):
@@ -586,10 +573,11 @@ class TestProfiling(TransactionCase):
         handful of entries instead of one per sampling tick.
         """
         with Profiler(
-            db=None, collectors=["traces_async"], params={"traces_async_interval": 0.001}
+            db=None,
+            collectors=["traces_async"],
+            params={"traces_async_interval": 0.001},
         ) as p:
             time.sleep(0.4)
-        # without dedup this would be hundreds of identical entries
         self.assertLess(len(p.collectors[0].entries), 20)
 
     def test_env_profiler_database(self):
@@ -681,11 +669,9 @@ class TestProfiling(TransactionCase):
                     <b>query</b>
         """
 
-        # test rendering without profiling
         rendered = self.env["ir.qweb"]._render(template.id, values)
         self.assertEqual(rendered.strip(), result.strip(), "Without profiling")
 
-        # warm up: cache the compiled template so query counts don't vary by module
         with Profiler(description="test", collectors=["qweb"], db=None):
             self.env["ir.qweb"]._render(template.id, values)
 
@@ -693,7 +679,6 @@ class TestProfiling(TransactionCase):
             rendered = self.env["ir.qweb"]._render(template.id, values)
             self.assertEqual(rendered.strip(), result.strip())
 
-        # check the arch of all used templates is in the result
         self.assertEqual(
             p.collectors[0].entries[0]["results"]["archs"],
             {
@@ -702,71 +687,17 @@ class TestProfiling(TransactionCase):
             },
         )
 
-        # check all directives without duration information
         for data in p.collectors[0].entries[0]["results"]["data"]:
             data.pop("delay")
 
         data = p.collectors[0].entries[0]["results"]["data"]
         expected = [
-            # pylint: disable=bad-whitespace
-            # first template and first directive
             {
                 "view_id": template.id,
                 "xpath": "/t/t",
                 "directive": """t-foreach="{'a': 3, 'b': 2, 'c': 1}" t-as='item'""",
                 "query": 0,
             },
-            # first pass in the loop
-            {
-                "view_id": template.id,
-                "xpath": "/t/t/t[1]",
-                "directive": "t-out='item_index'",
-                "query": 0,
-            },
-            {
-                "view_id": template.id,
-                "xpath": "/t/t/t[2]",
-                "directive": "t-set='record' t-value='item'",
-                "query": 0,
-            },
-            {
-                "view_id": template.id,
-                "xpath": "/t/t/t[3]",
-                "directive": "t-call='base.dummy'",
-                "query": 0,
-            },  # 0 because the template is in ir.ui.view cache
-            # first pass in the loop: content of the child template
-            {
-                "view_id": child_template.id,
-                "xpath": "/t/span",
-                "directive": "t-attf-class='myclass'",
-                "query": 0,
-            },
-            {
-                "view_id": child_template.id,
-                "xpath": "/t/span/t[1]",
-                "directive": "t-out='record'",
-                "query": 0,
-            },
-            {
-                "view_id": child_template.id,
-                "xpath": "/t/span/t[2]",
-                "directive": "t-out='add_one_query()'",
-                "query": 1,
-            },
-            {
-                "view_id": template.id,
-                "xpath": "/t/t/t[4]",
-                "directive": "t-out='item_value'",
-                "query": 0,
-            },
-            {
-                "view_id": template.id,
-                "xpath": "/t/t/b",
-                "directive": "t-out='add_one_query()'",
-                "query": 1,
-            },
-            # second pass in the loop
             {
                 "view_id": template.id,
                 "xpath": "/t/t/t[1]",
@@ -815,7 +746,54 @@ class TestProfiling(TransactionCase):
                 "directive": "t-out='add_one_query()'",
                 "query": 1,
             },
-            # third pass in the loop
+            {
+                "view_id": template.id,
+                "xpath": "/t/t/t[1]",
+                "directive": "t-out='item_index'",
+                "query": 0,
+            },
+            {
+                "view_id": template.id,
+                "xpath": "/t/t/t[2]",
+                "directive": "t-set='record' t-value='item'",
+                "query": 0,
+            },
+            {
+                "view_id": template.id,
+                "xpath": "/t/t/t[3]",
+                "directive": "t-call='base.dummy'",
+                "query": 0,
+            },
+            {
+                "view_id": child_template.id,
+                "xpath": "/t/span",
+                "directive": "t-attf-class='myclass'",
+                "query": 0,
+            },
+            {
+                "view_id": child_template.id,
+                "xpath": "/t/span/t[1]",
+                "directive": "t-out='record'",
+                "query": 0,
+            },
+            {
+                "view_id": child_template.id,
+                "xpath": "/t/span/t[2]",
+                "directive": "t-out='add_one_query()'",
+                "query": 1,
+            },
+            {
+                "view_id": template.id,
+                "xpath": "/t/t/t[4]",
+                "directive": "t-out='item_value'",
+                "query": 0,
+            },
+            {
+                "view_id": template.id,
+                "xpath": "/t/t/b",
+                "directive": "t-out='add_one_query()'",
+                "query": 1,
+            },
             {
                 "view_id": template.id,
                 "xpath": "/t/t/t[1]",
@@ -882,23 +860,17 @@ class TestProfiling(TransactionCase):
         self.assertEqual(len(rq), total_queries)
         first_query = rq[0]
         self.assertEqual(first_query["stack"][0][2], "create")
-        # self.assertIn("self.env['res.partner'].create({", first_query['stack'][0][3])
 
         self.assertGreater(first_query["time"], 0)
         self.assertEqual(first_query["stack"][-1][2], "_record_metrics")
-        # _record_metrics moved from cursor.py to db/metrics.py (ADR-0003); the
-        # profiler captures its new home.
         self.assertEqual(first_query["stack"][-1][0].split("/")[-1], "metrics.py")
 
     def test_profiler_return(self):
-        # test mode so the profiler doesn't commit its result
         self.registry_enter_test_mode()
-        # patch db_connect() to return the registry with the current test cursor
-        # See `ProfilingHttpCase`
         self.startClassPatcher(patch("odoo.db.db_connect", return_value=self.registry))
         with self.profile(collectors=["sql"]) as p:
             self.env.cr.execute("SELECT 1")
-        p.json()  # check we can call it
+        p.json()
         self.assertEqual(p.collectors[0].entries[0]["query"], "SELECT 1")
 
 
@@ -920,15 +892,13 @@ class TestPerformance(BaseCase):
         def collect():
             collector.add()
 
-        # collect on changing stack
         with p:
             start = time.time()
             while start + 1 > time.time():
                 deep_call(collect, 20)
 
-        self.assertGreater(len(collector.entries), 20000)  # ~40000
+        self.assertGreater(len(collector.entries), 20000)
 
-        # collect on identical stack
         collector = profiler.Collector()
         p = Profiler(collectors=[collector], db=None)
 
@@ -940,7 +910,7 @@ class TestPerformance(BaseCase):
         with p:
             deep_call(collect_1_s, 20)
 
-        self.assertGreater(len(collector.entries), 50000)  # ~70000
+        self.assertGreater(len(collector.entries), 50000)
 
     def test_frequencies_1ms_sleep(self):
         """Check the entries generated in 1s at 1kHz. Change the frame as often
@@ -959,19 +929,18 @@ class TestPerformance(BaseCase):
                 sleep_2()
 
         entry_count = len(res.collectors[0].entries)
-        self.assertGreater(entry_count, 700)  # ~920
+        self.assertGreater(entry_count, 700)
 
     def test_traces_async_memory_optimisation(self):
         """Identical frames are saved only once, so a 1s sleep yields few entries."""
         with Profiler(collectors=["traces_async"], db=None) as res:
             time.sleep(1)
         entry_count = len(res.collectors[0].entries)
-        self.assertLess(entry_count, 5)  # ~3
+        self.assertLess(entry_count, 5)
 
 
 @tagged("-standard", "profiling")
 class TestSyncRecorder(BaseCase):
-    # non-standard: can break due to an extra _remove or signal_handler frame
     def test_sync_recorder(self):
         if sys.gettrace() is not None:
             self.skipTest(
@@ -997,7 +966,6 @@ class TestSyncRecorder(BaseCase):
 
         stacks = [r["stack"] for r in p.collectors[0].entries]
 
-        # map stack frames to their function name, and check
         stacks_methods = [[frame[2] for frame in stack] for stack in stacks]
         self.assertEqual(
             stacks_methods[:-2],
@@ -1015,7 +983,6 @@ class TestSyncRecorder(BaseCase):
             ],
         )
 
-        # map stack frames to their line number, and check
         stacks_lines = [[frame[1] for frame in stack] for stack in stacks]
         self.assertEqual(
             stacks_lines[1][0] + 1,

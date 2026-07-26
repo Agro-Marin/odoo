@@ -32,7 +32,6 @@ class TestIrSequenceDateRangeStandard(SingleTransactionCase):
         n = seq16.next_by_code("test_sequence_date_range")
         self.assertEqual(n, "2")
 
-        # modify the range of date created
         domain = [
             ("sequence_id.code", "=", "test_sequence_date_range"),
             ("date_from", "=", january(1)),
@@ -42,7 +41,6 @@ class TestIrSequenceDateRangeStandard(SingleTransactionCase):
         n = seq16.next_by_code("test_sequence_date_range")
         self.assertEqual(n, "1")
 
-        # check the newly created sequence stops at the 17th of January
         domain = [
             ("sequence_id.code", "=", "test_sequence_date_range"),
             ("date_from", "=", january(1)),
@@ -86,7 +84,6 @@ class TestIrSequenceDateRangeNoGap(SingleTransactionCase):
         n = seq16.next_by_code("test_sequence_date_range_2")
         self.assertEqual(n, "2")
 
-        # modify the range of date created
         domain = [
             ("sequence_id.code", "=", "test_sequence_date_range_2"),
             ("date_from", "=", january(1)),
@@ -96,7 +93,6 @@ class TestIrSequenceDateRangeNoGap(SingleTransactionCase):
         n = seq16.next_by_code("test_sequence_date_range_2")
         self.assertEqual(n, "1")
 
-        # check the newly created sequence stops at the 17th of January
         domain = [
             ("sequence_id.code", "=", "test_sequence_date_range_2"),
             ("date_from", "=", january(1)),
@@ -202,7 +198,6 @@ class TestIrSequenceDateRangeSwitchImplementation(TransactionCase):
         for i in range(1, 4):
             self.assertEqual(seq.next_by_id(sequence_date=date(year, 6, 15)), str(i))
         seq.write({"implementation": "no_gap"})
-        # The sub-sequence was seeded from its live PG sequence value.
         self.assertEqual(seq.date_range_ids.number_next, 4)
         self.assertEqual(seq.next_by_id(sequence_date=date(year, 6, 15)), "4")
 
@@ -220,7 +215,6 @@ class TestIrSequenceDateRangeClamp(TransactionCase):
                 "use_date_range": True,
             }
         )
-        # two pre-existing ranges later in the same year
         self.env["ir.sequence.date_range"].create(
             [
                 {
@@ -235,7 +229,6 @@ class TestIrSequenceDateRangeClamp(TransactionCase):
                 },
             ]
         )
-        # drawing before both creates a new range covering the draw date
         seq.next_by_id(sequence_date=date(year, 2, 15))
         new_range = self.env["ir.sequence.date_range"].search(
             [
@@ -246,8 +239,6 @@ class TestIrSequenceDateRangeClamp(TransactionCase):
         )
         self.assertEqual(len(new_range), 1)
         self.assertEqual(new_range.date_from, date(year, 1, 1))
-        # clamped to the nearest following range (May), not against the
-        # September one (which would leave it overlapping May)
         self.assertEqual(new_range.date_to, date(year, 4, 30))
 
 
@@ -268,7 +259,131 @@ class TestIrSequenceDateRangeConcurrentCreate(TransactionCase):
         )
         dt = date(year, 6, 15)
         first = seq._create_date_range_seq(dt)
-        # simulate the concurrent search-miss: a second create attempt
-        # computes the same range and hits the unique constraint
         second = seq._create_date_range_seq(dt)
         self.assertEqual(first.id, second.id)
+
+
+class TestIrSequenceDateRangeSwitchToStandard(TransactionCase):
+    """Mirror of :class:`TestIrSequenceDateRangeSwitchImplementation` for the
+    other direction: switching ``no_gap`` -> ``standard`` must seed each
+    date-range sub-sequence's PostgreSQL sequence from its OWN ``number_next``.
+
+    Seeding them all from the *parent's* ``number_next`` (which never advances
+    once ``use_date_range`` is on) restarted every range at 1 and re-issued
+    numbers already handed out.
+    """
+
+    def test_switch_to_standard_continues_subsequence_numbering(self):
+        year = date.today().year - 1
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-date-range-switch-standard",
+                "use_date_range": True,
+                "implementation": "no_gap",
+            }
+        )
+        for i in range(1, 4):
+            self.assertEqual(seq.next_by_id(sequence_date=date(year, 6, 15)), str(i))
+        for i in range(1, 3):
+            self.assertEqual(
+                seq.next_by_id(sequence_date=date(year - 1, 6, 15)), str(i)
+            )
+
+        seq.write({"implementation": "standard"})
+
+        self.assertEqual(seq.next_by_id(sequence_date=date(year, 6, 15)), "4")
+        self.assertEqual(seq.next_by_id(sequence_date=date(year - 1, 6, 15)), "3")
+
+
+class TestIrSequencePlainSequenceDate(TransactionCase):
+    """SEQ-D1: ``sequence_date`` must drive prefix/suffix interpolation for a
+    plain (non date-ranged) sequence, as it already did for a date-ranged one
+    and as ``preview_next`` already reported.
+    """
+
+    def _make(self, **extra):
+        return self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-plain-date",
+                "prefix": "%(year)s/%(month)s/",
+                "padding": 3,
+                **extra,
+            }
+        )
+
+    def test_plain_sequence_honours_sequence_date(self):
+        seq = self._make()
+        self.assertEqual(seq.next_by_id(sequence_date=date(2001, 2, 3)), "2001/02/001")
+
+    def test_plain_sequence_matches_date_ranged_and_preview(self):
+        dt = date(2001, 2, 3)
+        plain = self._make()
+        ranged = self._make(use_date_range=True)
+        self.assertEqual(
+            plain.preview_next(sequence_date=dt), plain.next_by_id(sequence_date=dt)
+        )
+        self.assertEqual(
+            plain.next_by_id(sequence_date=dt)[:8],
+            ranged.next_by_id(sequence_date=dt)[:8],
+        )
+
+    def test_plain_sequence_without_date_uses_now_in_user_tz(self):
+        seq = self._make()
+        today = date.today()
+        self.assertEqual(seq.next_by_id(), f"{today.year:04d}/{today.month:02d}/001")
+
+
+class TestIrSequenceDateRangeSeeding(TransactionCase):
+    """SEQ-D2: a date range must start at the number it was created with.
+
+    ``create()`` routes every field absent from vals through ``default_get``,
+    so a ``default_get`` supplying ``number_next_actual = 1`` was injected into
+    every programmatic create and its inverse overwrote an explicitly passed
+    ``number_next`` — silently restarting the range at 1.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-date-range-seeding",
+                "use_date_range": True,
+                "implementation": "standard",
+                "padding": 3,
+            }
+        )
+
+    def _make_range(self, year, **vals):
+        return self.env["ir.sequence.date_range"].create(
+            {
+                "sequence_id": self.seq.id,
+                "date_from": date(year, 1, 1),
+                "date_to": date(year, 12, 31),
+                **vals,
+            }
+        )
+
+    def test_explicit_number_next_is_kept(self):
+        rng = self._make_range(2033, number_next=50)
+        self.assertEqual(rng.number_next, 50)
+        self.assertEqual(self.seq.next_by_id(sequence_date=date(2033, 6, 1)), "050")
+
+    def test_explicit_number_next_actual_is_kept(self):
+        rng = self._make_range(2034, number_next_actual=77)
+        self.assertEqual(rng.number_next, 77)
+        self.assertEqual(self.seq.next_by_id(sequence_date=date(2034, 6, 1)), "077")
+
+    def test_default_range_still_starts_at_one(self):
+        rng = self._make_range(2035)
+        self.assertEqual(rng.number_next, 1)
+        self.assertEqual(self.seq.next_by_id(sequence_date=date(2035, 6, 1)), "001")
+
+    def test_unsaved_range_reports_its_counter(self):
+        rng = self.env["ir.sequence.date_range"].new({"sequence_id": self.seq.id})
+        self.assertEqual(rng.number_next_actual, 1)
+
+    def test_no_gap_parent_range_keeps_explicit_number_next(self):
+        self.seq.write({"implementation": "no_gap"})
+        rng = self._make_range(2036, number_next=42)
+        self.assertEqual(rng.number_next, 42)
+        self.assertEqual(self.seq.next_by_id(sequence_date=date(2036, 6, 1)), "042")

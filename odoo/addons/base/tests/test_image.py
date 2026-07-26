@@ -27,8 +27,6 @@ class TestImage(TransactionCase):
         self.img_1920x1080_jpeg = tools.image_apply_opt(
             Image.new("RGB", (1920, 1080)), "JPEG"
         )
-        # Contains tag 0xa432 (`Lens Info` = `3.99mm f/1.8`) which makes
-        # `exif_transpose` fail for 5.4.1 < Pillow < 7.2.0.
         self.img_exif_jpg = base64.b64decode(
             b"""/9j/4AAQSkZJRgABAQAAAQABAAD/4QDQRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAYAAAEaAAUA
                                   AAABAAAAVgEbAAUAAAABAAAAXgEoAAMAAAABAAEAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAA
@@ -47,10 +45,6 @@ class TestImage(TransactionCase):
                                   2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q=="""
         )
 
-        # Draw a filled square inside a contrasting border, used to verify crop:
-        # border is `self.bg_color`, middle is `self.fill_color`.
-
-        # horizontal image (border is left/right)
         image = Image.new("RGB", (1920, 1080), color=self.bg_color)
         offset = (image.size[0] - image.size[1]) / 2
         draw = ImageDraw.Draw(image)
@@ -60,7 +54,6 @@ class TestImage(TransactionCase):
         )
         self.img_1920x1080_png = tools.image_apply_opt(image, "PNG")
 
-        # vertical image (border is top/bottom)
         image = Image.new("RGB", (1080, 1920), color=self.bg_color)
         offset = (image.size[1] - image.size[0]) / 2
         draw = ImageDraw.Draw(image)
@@ -101,41 +94,21 @@ class TestImage(TransactionCase):
     def test_02_image_fix_orientation(self):
         """Test that the orientation of images is correct."""
 
-        # Colors that can be distinguished among themselves even with jpeg loss.
         blue = (0, 0, 255)
         yellow = (255, 255, 0)
         green = (0, 255, 0)
         pink = (255, 0, 255)
-        # Image large enough so jpeg loss is not a huge factor in the corners.
         size = 50
         expected = (blue, yellow, green, pink)
 
-        # They are all supposed to be same image: (blue, yellow, green, pink) in
-        # that order, but each encoded with a different orientation.
-        self._orientation_test(
-            1, (blue, yellow, green, pink), size, expected
-        )  # top/left
-        self._orientation_test(
-            2, (yellow, blue, pink, green), size, expected
-        )  # top/right
-        self._orientation_test(
-            3, (pink, green, yellow, blue), size, expected
-        )  # bottom/right
-        self._orientation_test(
-            4, (green, pink, blue, yellow), size, expected
-        )  # bottom/left
-        self._orientation_test(
-            5, (blue, green, yellow, pink), size, expected
-        )  # left/top
-        self._orientation_test(
-            6, (yellow, pink, blue, green), size, expected
-        )  # right/top
-        self._orientation_test(
-            7, (pink, yellow, green, blue), size, expected
-        )  # right/bottom
-        self._orientation_test(
-            8, (green, blue, pink, yellow), size, expected
-        )  # left/bottom
+        self._orientation_test(1, (blue, yellow, green, pink), size, expected)
+        self._orientation_test(2, (yellow, blue, pink, green), size, expected)
+        self._orientation_test(3, (pink, green, yellow, blue), size, expected)
+        self._orientation_test(4, (green, pink, blue, yellow), size, expected)
+        self._orientation_test(5, (blue, green, yellow, pink), size, expected)
+        self._orientation_test(6, (yellow, pink, blue, green), size, expected)
+        self._orientation_test(7, (pink, yellow, green, blue), size, expected)
+        self._orientation_test(8, (green, blue, pink, yellow), size, expected)
 
     def test_03_image_fix_orientation_exif(self):
         """Test that a jpg image with exif orientation tag gets rotated"""
@@ -153,7 +126,6 @@ class TestImage(TransactionCase):
             "return source if format is SVG",
         )
 
-        # in the following tests, pass `quality` to force the processing
         with self.assertRaises(
             UserError,
             msg="This file could not be decoded as an image file. Please try with a different file.",
@@ -166,7 +138,6 @@ class TestImage(TransactionCase):
     def test_11_image_process_size(self):
         """Test the size parameter of image_process."""
 
-        # Format of `tests`: (original image, size parameter, expected result, text)
         tests = [
             (
                 self.img_1920x1080_jpeg,
@@ -243,23 +214,18 @@ class TestImage(TransactionCase):
     def test_13_image_process_quality(self):
         """Test the quality parameter of image_process."""
 
-        # CASE: PNG RGBA doesn't apply quality, just optimize
         image = tools.image_apply_opt(Image.new("RGBA", (1080, 1920)), "PNG")
         res = tools.image_process(image)
         self.assertLessEqual(len(res), len(image))
 
-        # CASE: PNG RGB doesn't apply quality, just optimize
         image = tools.image_apply_opt(Image.new("P", (1080, 1920)), "PNG")
         res = tools.image_process(image)
         self.assertLessEqual(len(res), len(image))
 
-        # CASE: JPEG optimize + reduced quality
         res = tools.image_process(self.img_1920x1080_jpeg)
         self.assertLessEqual(len(res), len(self.img_1920x1080_jpeg))
 
-        # CASE: JPEG optimize + bigger size => original
         pil_image = Image.new("RGB", (1920, 1080), color=self.bg_color)
-        # Drawing non trivial content so that optimization matters.
         ImageDraw.Draw(pil_image).ellipse(
             xy=[(400, 0), (1500, 1080)],
             fill=self.fill_color,
@@ -280,7 +246,6 @@ class TestImage(TransactionCase):
             "Original should be returned if size increased",
         )
 
-        # CASE: GIF doesn't apply quality, just optimize
         image = tools.image_apply_opt(Image.new("RGB", (1080, 1920)), "GIF")
         res = tools.image_process(image)
         self.assertLessEqual(len(res), len(image))
@@ -288,15 +253,12 @@ class TestImage(TransactionCase):
     def test_14_image_process_crop(self):
         """Test the crop parameter of image_process."""
 
-        # Optimized PNG use palette, getpixel below will return palette value.
         fill = 0
         bg = 1
 
-        # Images with small dimensions
         small_width = tools.image_apply_opt(Image.new("RGBA", (1, 16)), "PNG")
         small_height = tools.image_apply_opt(Image.new("RGBA", (16, 1)), "PNG")
 
-        # Format of `tests`: (original base64 image, size parameter, crop parameter, res size, res color (top, bottom, left, right), text)
         tests = [
             (
                 self.img_1920x1080_png,
@@ -463,7 +425,6 @@ class TestImage(TransactionCase):
         count = 0
         for test in tests:
             count = count + 1
-            # process the image, pass quality to make sure the result is palette
             image = img_open(
                 tools.image_process(test[0], size=test[1], crop=test[2], quality=95)
             )
@@ -506,13 +467,11 @@ class TestImage(TransactionCase):
     def test_15_image_process_colorize(self):
         """Test the colorize parameter of image_process."""
 
-        # verify initial condition
         image_rgba = Image.new("RGBA", (1, 1))
         self.assertEqual(image_rgba.mode, "RGBA")
         self.assertEqual(image_rgba.getpixel((0, 0)), (0, 0, 0, 0))
         rgba = tools.image_apply_opt(image_rgba, "PNG")
 
-        # CASE: color random, color has changed
         image = img_open(tools.image_process(rgba, colorize=True))
         self.assertEqual(image.mode, "RGB")
         self.assertNotEqual(image.getpixel((0, 0)), (0, 0, 0))
@@ -543,7 +502,6 @@ class TestImage(TransactionCase):
         )
         self.assertEqual(image.format, "JPEG", "change format PNG with RGBA to JPEG")
 
-        # pass quality to force the image to be processed
         image_1080_1920_tiff = tools.image_apply_opt(
             Image.new("RGB", (108, 192)), "TIFF"
         )
@@ -551,18 +509,14 @@ class TestImage(TransactionCase):
         self.assertEqual(image.format, "JPEG", "unsupported format to JPEG")
 
     def test_17_get_webp_size(self):
-        # Using 32 bytes image headers as data.
-        # Lossy webp: 550x368
         webp_lossy = (
             b"RIFFhv\x00\x00WEBPVP8 \\v\x00\x00\xd2\xbe\x01\x9d\x01*&\x02p\x01>\xd5"
         )
         size = tools.get_webp_size(webp_lossy)
         self.assertEqual((550, 368), size, "Wrong resolution for lossy webp")
-        # Lossless webp: 421x163
         webp_lossless = b"RIFF\xba\x84\x00\x00WEBPVP8L\xad\x84\x00\x00/\xa4\x81(\x10MHr\x1bI\x92\xa4"
         size = tools.get_webp_size(webp_lossless)
         self.assertEqual((421, 163), size, "Wrong resolution for lossless webp")
-        # Extended webp: 800x600
         webp_extended = b"RIFF\x80\xce\x00\x00WEBPVP8X\n\x00\x00\x00\x10\x00\x00\x00\x1f\x03\x00W\x02\x00AL"
         size = tools.get_webp_size(webp_extended)
         self.assertEqual((800, 600), size, "Wrong resolution for extended webp")
@@ -577,27 +531,16 @@ class TestImage(TransactionCase):
 
     def test_21_image_guess_size_from_field_name(self):
         f = tools.image_guess_size_from_field_name
-        # Test case: empty field_name input
         self.assertEqual(f(""), (0, 0))
-        # Test case: custom field_name input
         self.assertEqual(f("custom_field"), (0, 0))
-        # Test case: field_name input that starts with 'x_'
         self.assertEqual(f("x_field"), (0, 0))
-        # Test case: field_name input that starts with 'x_' and ends with a number less than 16
         self.assertEqual(f("x_studio_image_1"), (0, 0))
-        # Test case: field_name input that starts with 'x_' and ends with a number greater than 16
         self.assertEqual(f("x_studio_image_32"), (0, 0))
-        # Test case: field_name input that has a suffix less than 16
         self.assertEqual(f("image_15"), (0, 0))
-        # Test case: field_name input that has a suffix equal to 16
         self.assertEqual(f("image_16"), (16, 16))
-        # Test case: field_name input that has a suffix greater than 16
         self.assertEqual(f("image_32"), (32, 32))
-        # Test case: field_name input that has a suffix with 2 numbers
         self.assertEqual(f("image_1920_1080"), (1080, 1080))
-        # Test case: field_name input that has a float as suffix
         self.assertEqual(f("image_32.5"), (0, 0))
-        # Test case: field_name input that has a suffix greater than 16 but no underscore
         self.assertEqual(f("image32"), (0, 0))
 
     def _assertAlmostEqualSequence(self, rgb1, rgb2, delta=10):
@@ -613,19 +556,10 @@ class TestImage(TransactionCase):
     def _get_exif_colored_square(self, orientation, colors, size):
         image = Image.new("RGB", (size, size), color=self.bg_color)
         draw = ImageDraw.Draw(image)
-        # Paint the colors on the 4 corners, to be able to test which colors
-        # move on which corners.
-        draw.rectangle(xy=[(0, 0), (size // 2, size // 2)], fill=colors[0])  # top/left
-        draw.rectangle(
-            xy=[(size // 2, 0), (size, size // 2)], fill=colors[1]
-        )  # top/right
-        draw.rectangle(
-            xy=[(0, size // 2), (size // 2, size)], fill=colors[2]
-        )  # bottom/left
-        draw.rectangle(
-            xy=[(size // 2, size // 2), (size, size)], fill=colors[3]
-        )  # bottom/right
-        # Set the proper exif tag based on orientation params.
+        draw.rectangle(xy=[(0, 0), (size // 2, size // 2)], fill=colors[0])
+        draw.rectangle(xy=[(size // 2, 0), (size, size // 2)], fill=colors[1])
+        draw.rectangle(xy=[(0, size // 2), (size // 2, size)], fill=colors[2])
+        draw.rectangle(xy=[(size // 2, size // 2), (size, size)], fill=colors[3])
         exif = (
             b"Exif\x00\x00II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00"
             + bytes([orientation])
@@ -636,19 +570,16 @@ class TestImage(TransactionCase):
     def _orientation_test(self, orientation, colors, size, expected):
         image = self._get_exif_colored_square(orientation, colors, size)
         fixed_image = tools.image_fix_orientation(img_open(image))
-        # Ensure colors are in the right order (blue, yellow, green, pink).
-        self._assertAlmostEqualSequence(
-            fixed_image.getpixel((0, 0)), expected[0]
-        )  # top/left
+        self._assertAlmostEqualSequence(fixed_image.getpixel((0, 0)), expected[0])
         self._assertAlmostEqualSequence(
             fixed_image.getpixel((size - 1, 0)), expected[1]
-        )  # top/right
+        )
         self._assertAlmostEqualSequence(
             fixed_image.getpixel((0, size - 1)), expected[2]
-        )  # bottom/left
+        )
         self._assertAlmostEqualSequence(
             fixed_image.getpixel((size - 1, size - 1)), expected[3]
-        )  # bottom/right
+        )
 
     def test_ptype_image_to_jpeg(self):
         """converts to RGB when saving as JPEG"""
@@ -662,7 +593,6 @@ class TestImage(TransactionCase):
     def test_30_image_mixin_resize_on_write(self):
         """Writing image_1920 on an image.mixin consumer populates and resizes
         the stored image_NNNN fields to their declared bounds."""
-        # res.partner mixes in image.mixin (via avatar.mixin).
         partner = self.env["res.partner"].create(
             {
                 "name": "Image Mixin",
@@ -670,12 +600,10 @@ class TestImage(TransactionCase):
             }
         )
 
-        # Master field bounded to 1920x1920 (1920x1080 source stays as-is).
         self.assertEqual(
             img_open(base64.b64decode(partner.image_1920)).size, (1920, 1080)
         )
 
-        # Each stored resized field is downscaled to <= its max dimension.
         for field_name, bound in (
             ("image_1024", 1024),
             ("image_512", 512),
@@ -687,5 +615,4 @@ class TestImage(TransactionCase):
             width, height = img_open(base64.b64decode(value)).size
             self.assertLessEqual(width, bound, "%s width within bound" % field_name)
             self.assertLessEqual(height, bound, "%s height within bound" % field_name)
-            # Aspect ratio (16:9) is preserved on the longer edge.
             self.assertEqual(width, bound, "%s scaled to width bound" % field_name)

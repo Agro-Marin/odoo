@@ -18,9 +18,6 @@ class TestMemorySoftLimit(BaseCase):
     """``over_memory_soft_limit`` — the decision shared by all three servers."""
 
     def test_disabled_limit_skips_the_proc_read(self):
-        # soft_limit 0 disables the check; RSS must NOT be read (the lazy-read
-        # contract shared by prefork and threaded servers). A process whose
-        # memory_info() raises proves it is never called.
         class Boom:
             def memory_info(self):
                 raise AssertionError("RSS must not be read when the limit is 0")
@@ -31,7 +28,6 @@ class TestMemorySoftLimit(BaseCase):
         self.assertIsNone(over_memory_soft_limit(_proc(100), 200))
 
     def test_at_limit_is_not_over(self):
-        # Strictly greater-than, matching the original `memory > soft_limit`.
         self.assertIsNone(over_memory_soft_limit(_proc(200), 200))
 
     def test_over_limit_returns_current_rss(self):

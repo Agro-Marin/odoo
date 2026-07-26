@@ -43,8 +43,6 @@ class TestIrAttachmentStorage(TransactionCase):
         """Read-side backend follows the store key's URI scheme."""
         plain = self.Attachment._backend_for_key("ab/abcdef0123")
         self.assertIsInstance(plain, FileStorage)
-        # unregistered scheme falls back to the local filestore (and warns
-        # once per scheme — see test_unknown_scheme_warns_once)
         self.addCleanup(ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, "weird")
         with mute_logger("odoo.addons.base.models.ir_attachment_storage"):
             unknown = self.Attachment._backend_for_key("weird://bucket/key")
@@ -58,7 +56,6 @@ class TestIrAttachmentStorage(TransactionCase):
         try:
             owned = self.Attachment._backend_for_key("fake-s3://bucket/key")
             self.assertIsInstance(owned, FakeS3Storage)
-            # registration also enables write-side selection
             self.icp.set_param("ir_attachment.location", "fake_s3")
             self.assertIsInstance(self.Attachment._storage_backend(), FakeS3Storage)
         finally:
@@ -81,7 +78,6 @@ class TestIrAttachmentStorage(TransactionCase):
         message = cm.records[0].getMessage()
         self.assertIn("No storage backend registered", message)
         self.assertIn("ghost-s3", message)
-        # Second read of the same scheme: silent (once-per-scheme dedup).
         with patch.object(ir_attachment_storage._logger, "warning") as warn:
             again = self.Attachment._backend_for_key("ghost-s3://bucket/other")
         self.assertIsInstance(again, FileStorage)
@@ -135,8 +131,6 @@ class TestIrAttachmentStorage(TransactionCase):
                 raise psycopg.errors.LockNotAvailable("simulated lock timeout")
             return real_execute(query, *args, **kwargs)
 
-        # commit/rollback are forbidden in tests; stub them to test the
-        # control flow around the lock failure
         with (
             patch.object(self.env.cr, "commit", lambda: None),
             patch.object(self.env.cr, "rollback", lambda: None),
@@ -144,7 +138,6 @@ class TestIrAttachmentStorage(TransactionCase):
         ):
             result = FileStorage(self.env).autovacuum()
         self.assertIs(result, False)
-        # the hook propagates the skip signal
         with (
             patch.object(self.env.cr, "commit", lambda: None),
             patch.object(self.env.cr, "rollback", lambda: None),
@@ -157,7 +150,7 @@ class TestIrAttachmentStorage(TransactionCase):
         cases = (
             ("file", [("db_datas", "!=", False)]),
             ("db", [("store_fname", "!=", False)]),
-            ("s3", [("db_datas", "!=", False)]),  # unknown → file-like
+            ("s3", [("db_datas", "!=", False)]),
         )
         for location, expected in cases:
             with self.subTest(location=location):
@@ -181,8 +174,6 @@ class MemoryStorage(AttachmentStorage):
         return f"mem://{checksum}"
 
     def write(self, data, checksum):
-        # persist AND return the store fragment in one step (empty content
-        # stays inline, like the file/db backends)
         if not data:
             return self._inline_datas_values(data)
         key = self._key(checksum)
@@ -194,8 +185,6 @@ class MemoryStorage(AttachmentStorage):
         return data if size is None else data[:size]
 
     def delete(self, key):
-        # drop only when no attachment still references the key (callers
-        # flush before deleting old keys, so the SQL state is current)
         self.env.cr.execute(
             "SELECT 1 FROM ir_attachment WHERE store_fname = %s LIMIT 1", [key]
         )
@@ -211,7 +200,6 @@ class MemoryStorage(AttachmentStorage):
         return stream
 
     def migration_domain(self):
-        # rows NOT in this backend: db rows, plus other backends' keys
         return [
             "|",
             ("db_datas", "!=", False),
@@ -258,20 +246,17 @@ class TestMemoryStorageCRUD(TransactionCase):
             stream = att._to_http_stream()
             self.assertEqual((stream.type, stream.data), ("data", payload))
 
-            # copy relinks the key without reading content
             copy = att.copy()
             self.assertEqual(copy.store_fname, att.store_fname)
             copy.invalidate_recordset()
             self.assertEqual(copy.raw, payload)
 
-            # rewriting the original must not destroy the copy's shared blob
             att.write({"raw": b"mem-rewritten"})
             att.invalidate_recordset()
             self.assertEqual(att.raw, b"mem-rewritten")
             copy.invalidate_recordset()
             self.assertEqual(copy.raw, payload)
 
-            # last reference gone -> blob collected
             old_key = copy.store_fname
             copy.unlink()
             self.assertNotIn(old_key, MemoryStorage.blobs)
@@ -281,11 +266,6 @@ class TestMemoryStorageCRUD(TransactionCase):
         att = self.env["ir.attachment"].create({"name": "fs.bin", "raw": payload})
         self.assertNotIn("://", att.store_fname)
         with activate_memory_storage(self.env):
-            # Do NOT run a filestore-wide force_storage() here: _migrate marks
-            # every live store_fname for GC on disk — a non-transactional side
-            # effect that survives the rollback and can wipe filestore files
-            # still referenced by the DB (observed 2026-07-07). Assert the
-            # search domain would pick the attachment, then migrate only it.
             candidates = (
                 self.env["ir.attachment"]
                 .with_context(skip_res_field_check=True)
@@ -310,9 +290,9 @@ class TestMemoryStorageCRUD(TransactionCase):
         payload = b"e1-payload"
         with activate_memory_storage(self.env):
             att = self.env["ir.attachment"].create({"name": "e1.bin", "raw": payload})
-            MemoryStorage.blobs.clear()  # simulate lost backend content
+            MemoryStorage.blobs.clear()
             att.invalidate_recordset()
-            self.assertEqual(att.raw, b"")  # read failure is visible
-            copy = att.copy()  # ...and copies preserve metadata, not emptiness
+            self.assertEqual(att.raw, b"")
+            copy = att.copy()
             self.assertEqual(copy.file_size, len(payload))
             self.assertEqual(copy.store_fname, att.store_fname)

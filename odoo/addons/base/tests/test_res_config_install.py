@@ -8,9 +8,6 @@ def just_raise(*args):
     raise Exception(msg)
 
 
-# post_install: res.config.settings aggregates fields from every installed module.
-# At at_install the registry knows only base's fields while the table already has
-# other modules' NOT NULL columns, so create({}) would violate those constraints.
 @tagged("post_install", "-at_install")
 class TestResConfigInstall(TransactionCase):
     """Tests for res.config.settings module installation logic."""

@@ -33,9 +33,6 @@ class TestIrJob(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Graft @api.job methods onto the registry class of res.partner: tests
-        # need decorated methods, and shipping test-only jobs in base would
-        # put them on every production model.
         cls.partner_cls = type(cls.env["res.partner"])
         for func in (_ir_job_test_append, _ir_job_test_boom):
             setattr(cls.partner_cls, func.__name__, func)
@@ -45,10 +42,6 @@ class TestIrJob(TransactionCase):
     def _claim(self):
         return IrJob._claim_next(self.env.cr, "test:0")
 
-    # ------------------------------------------------------------------
-    # Enqueue
-    # ------------------------------------------------------------------
-
     def test_delayed_enqueues_pending_job(self):
         job = self.partner.delayed()._ir_job_test_append("?")
         self.assertEqual(job.state, "pending")
@@ -57,7 +50,6 @@ class TestIrJob(TransactionCase):
         self.assertEqual(job.record_ids, self.partner.ids)
         self.assertEqual(job.args, ["?"])
         self.assertEqual(job.kwargs, {})
-        # decorator defaults
         self.assertEqual(job.channel, "root")
         self.assertEqual(job.priority, 7)
         self.assertEqual(job.max_retries, 2)
@@ -92,15 +84,10 @@ class TestIrJob(TransactionCase):
         first = self.partner.delayed(identity_key="once")._ir_job_test_append()
         twin = self.partner.delayed(identity_key="once")._ir_job_test_append()
         self.assertEqual(first.id, twin.id)
-        # a finished twin no longer blocks re-enqueueing
         first.sudo().write({"state": "done"})
         first.env.flush_all()
         third = self.partner.delayed(identity_key="once")._ir_job_test_append()
         self.assertNotEqual(first.id, third.id)
-
-    # ------------------------------------------------------------------
-    # Claim
-    # ------------------------------------------------------------------
 
     def test_claim_respects_priority_and_eta(self):
         low = self.partner.delayed(priority=20)._ir_job_test_append()
@@ -113,7 +100,6 @@ class TestIrJob(TransactionCase):
         self.assertEqual(high.state, "started")
         self.assertEqual(high.worker_ident, "test:0")
 
-        # root capacity is 1 (implicit): nothing else claimable while started
         self.assertIsNone(self._claim())
         self.env.cr.execute(
             "UPDATE ir_job SET state = 'done' WHERE id = %s", (high.id,)
@@ -121,7 +107,6 @@ class TestIrJob(TransactionCase):
         claimed = self._claim()
         self.assertEqual(claimed["id"], low.id)
 
-        # the future job stays out of reach regardless
         self.env.cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (low.id,))
         self.assertIsNone(self._claim())
         self.assertEqual(future.state, "pending")
@@ -137,10 +122,6 @@ class TestIrJob(TransactionCase):
         self.env.flush_all()
         self.assertIsNotNone(self._claim(), "explicit capacity of 2")
 
-    # ------------------------------------------------------------------
-    # Execute / finalize
-    # ------------------------------------------------------------------
-
     def test_run_claimed_executes_and_completes_atomically(self):
         self.partner.delayed()._ir_job_test_append(" ran")
         job = self._claim()
@@ -154,7 +135,7 @@ class TestIrJob(TransactionCase):
     def test_run_claimed_refuses_undecorated_method(self):
         self.partner.delayed()._ir_job_test_append()
         job = self._claim()
-        job["method_name"] = "write"  # simulate a tampered row
+        job["method_name"] = "write"
         with self.assertRaises(TypeError):
             IrJob._run_claimed(self.env.cr, job)
 
@@ -171,11 +152,9 @@ class TestIrJob(TransactionCase):
         self.assertEqual(record.state, "pending")
         self.assertEqual(record.retry, 1)
         self.assertEqual(record.exc_name, "RetryableJobError")
-        # explicit delay honored (±5s slack for the test clock)
         delta = record.eta - fields.Datetime.now()
         self.assertTrue(timedelta(seconds=37) < delta < timedelta(seconds=47))
 
-        # budget exhausted (max_retries=1): next failure is final
         self.env.cr.execute("UPDATE ir_job SET eta = NULL WHERE id = %s", (job["id"],))
         job = self._claim()
         self.assertEqual(job["id"], record.id)
@@ -185,13 +164,8 @@ class TestIrJob(TransactionCase):
         self.assertEqual(record.exc_name, "ValueError")
         self.assertTrue(record.done_at)
 
-    # ------------------------------------------------------------------
-    # Reaper
-    # ------------------------------------------------------------------
-
     def test_reaper_requeues_dead_started_jobs(self):
         job = self.partner.delayed()._ir_job_test_append()
-        # a worker died 5 minutes ago: started, stale, no advisory lock held
         self.env.cr.execute(
             "UPDATE ir_job SET state = 'started',"
             " started_at = (now() AT TIME ZONE 'UTC') - interval '5 minutes'"
@@ -226,10 +200,6 @@ class TestIrJob(TransactionCase):
         IrJob._reap_dead_jobs(self.env.cr)
         job.invalidate_recordset()
         self.assertEqual(job.state, "failed")
-
-    # ------------------------------------------------------------------
-    # Dependencies
-    # ------------------------------------------------------------------
 
     def test_chain_releases_on_completion(self):
         j1 = self.partner.delayed()._ir_job_test_append(" a")
@@ -301,7 +271,6 @@ class TestIrJob(TransactionCase):
         j1.action_cancel()
         j2.invalidate_recordset()
         self.assertEqual(j2.state, "cancelled")
-        # requeue both: j1 is pending again, so j2 must wait, not run
         (j1 + j2).action_requeue()
         self.assertEqual(j1.state, "pending")
         self.assertEqual(j2.state, "wait_deps")
@@ -309,7 +278,6 @@ class TestIrJob(TransactionCase):
     def test_repair_sweep_resolves_stuck_jobs(self):
         j1 = self.partner.delayed()._ir_job_test_append()
         j2 = self.partner.delayed(after=j1)._ir_job_test_append()
-        # simulate the enqueue race: dependency done but dependent left waiting
         self.env.cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (j1.id,))
         IrJob._resolve_dependencies(self.env.cr)
         j2.invalidate_recordset()
@@ -324,10 +292,6 @@ class TestIrJob(TransactionCase):
         j4.invalidate_recordset()
         self.assertEqual(j4.state, "cancelled")
 
-    # ------------------------------------------------------------------
-    # User actions
-    # ------------------------------------------------------------------
-
     def test_requeue_and_cancel_actions(self):
         job = self.partner.delayed()._ir_job_test_append()
         job.action_cancel()
@@ -336,22 +300,20 @@ class TestIrJob(TransactionCase):
         self.assertEqual(job.state, "pending")
         self.assertEqual(job.retry, 0)
         with self.assertRaises(UserError):
-            job.action_requeue()  # pending → not requeueable
+            job.action_requeue()
 
     def test_run_now_executes_pending_job(self):
         job = self.partner.delayed(eta=3600)._ir_job_test_append(" manual")
-        job.action_run_now()  # eta deliberately ignored
+        job.action_run_now()
         self.assertEqual(job.state, "done")
         self.assertEqual(job.worker_ident, f"manual:{self.env.uid}")
         self.env.invalidate_all()
         self.assertEqual(self.partner.name, "job target manual")
         with self.assertRaises(UserError):
-            job.action_run_now()  # done → not runnable again
+            job.action_run_now()
 
     def test_run_now_propagates_business_exception(self):
         job = self.partner.delayed()._ir_job_test_boom()
-        # the exception reaches the user; in a real request the transaction
-        # (including the inline claim) rolls back, leaving the job pending
         with self.assertRaises(ValueError):
             job.action_run_now()
 

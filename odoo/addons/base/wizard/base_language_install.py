@@ -19,7 +19,6 @@ class BaseLanguageInstall(models.TransientModel):
                 return [active_id]
         return False
 
-    # add a context on the field itself, to be sure even inactive langs are displayed
     lang_ids = fields.Many2many(
         "res.lang",
         "res_lang_install_rel",
@@ -41,6 +40,7 @@ class BaseLanguageInstall(models.TransientModel):
         help="Used when the user only selects one language and is given the option to switch to it",
     )
 
+    @api.depends("lang_ids")
     def _compute_first_lang_id(self) -> None:
         self.first_lang_id = False
         for lang_installer in self.filtered("lang_ids"):

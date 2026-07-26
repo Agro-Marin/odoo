@@ -74,8 +74,6 @@ class IrActionsActions(models.Model):
         "Path to show in the URL must be unique! Please choose another one.",
     )
 
-    # Path prefixes/values reserved by the web router; an action may not claim
-    # them (enforced by _check_path).
     _RESERVED_PATH_PREFIXES = ("m-", "action-")
     _RESERVED_PATHS = ("new",)
 
@@ -99,11 +97,6 @@ class IrActionsActions(models.Model):
                     _("'%s' is reserved, and can not be used as path.", action.path)
                 )
 
-        # Cross-table uniqueness: PostgreSQL table inheritance makes the _path_unique
-        # index apply per child table only (an act_window and an act_url could both
-        # claim one path), so one grouped query over the parent table catches
-        # duplicates across every child.
-        # See https://www.postgresql.org/docs/current/ddl-inherit.html#DDL-INHERIT-CAVEATS
         paths = [action.path for action in self if action.path]
         duplicates = paths and self.env["ir.actions.actions"]._read_group(
             [("path", "in", paths)],
@@ -122,18 +115,10 @@ class IrActionsActions(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
-        # _get_bindings selects only rows with binding_model_id set, so a new
-        # action can stale its cache only when created bound. Check the created
-        # records (not vals_list) to also catch bindings set via defaults.
         if any(action.binding_model_id for action in res):
             self.env.registry.clear_cache()
         return res
 
-    # IRA-L3: fields that never feed _get_bindings(), so writing ONLY these
-    # cannot stale the bindings ormcache. Fail-safe allowlist: any field not
-    # listed (including unknown/module-added ones) triggers a full cache clear.
-    # Do NOT add binding inputs: name, type, binding_model_id, binding_type,
-    # binding_view_types, res_model, group_ids, sequence, domain.
     _CACHE_SAFE_FIELDS = frozenset(
         {
             "help",
@@ -154,10 +139,6 @@ class IrActionsActions(models.Model):
             "tag",
             "params",
             "params_store",
-            # ir.actions.server runtime-value/config fields: they drive what the
-            # action *does* when executed, never how/where it is bound, and no
-            # ormcache reads them. So editing a server action's Python code (a
-            # routine dev op) no longer wipes the whole registry cache.
             "code",
             "value",
             "evaluation_type",
@@ -174,8 +155,6 @@ class IrActionsActions(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         res = super().write(vals)
-        # get_bindings() caches action data; refresh it unless this write
-        # touched only binding-irrelevant fields.
         if not vals.keys() <= self._CACHE_SAFE_FIELDS:
             self.env.registry.clear_cache()
         return res
@@ -197,12 +176,6 @@ class IrActionsActions(models.Model):
             .search([("action_id", "in", self.ids)])
         )
         filters.unlink()
-        # Without this, dangling ir.embedded.actions rows violate the action_id
-        # XOR python_method CHECK and crash the web client. Sudo so the cascade
-        # doesn't depend on the deleting user's ACLs. The
-        # _unlink_if_action_deletable ondelete hook still applies: a
-        # data-file-seeded embedded action blocks manual deletion with a
-        # UserError, while module uninstall (MODULE_UNINSTALL_FLAG) skips it.
         embedded_actions = (
             self.env["ir.embedded.actions"]
             .sudo()
@@ -210,15 +183,11 @@ class IrActionsActions(models.Model):
         )
         embedded_actions.unlink()
         res = super().unlink()
-        # self.get_bindings() depends on action records
         self.env.registry.clear_cache()
         return res
 
     @api.ondelete(at_uninstall=True)
     def _unlink_check_home_action(self) -> None:
-        # Sudo required on write: the global res.users record rule hides portal
-        # users whose companies don't overlap with the current admin's companies.
-        # Without sudo, orphaned action_id references would remain on hidden users.
         self.env["res.users"].with_context(active_test=False).search(
             [("action_id", "in", self.ids)]
         ).sudo().write({"action_id": None})
@@ -229,12 +198,18 @@ class IrActionsActions(models.Model):
             record.xml_id = res.get(record.id)
 
     @api.model
-    def _get_eval_context(self, action: Any = None) -> dict[str, Any]:
+    def _get_eval_context(self, action: Any) -> dict[str, Any]:
         """Evaluation context to pass to safe_eval.
 
-        ``action`` is unused here but kept in the signature for the
+        ``action`` is unused here but required in the signature for the
         ``ir.actions.server`` override, which derives a record-aware context
         from it; callers pass it uniformly.
+
+        It is required rather than defaulting to ``None`` so that the base and
+        that override stay call-compatible. An optional parameter here would
+        let a caller holding an ``ir.actions.actions`` reference invoke this
+        argument-less and fail on a server action, which is the narrowing the
+        override-signature lint rejects.
         """
         return {
             "uid": self.env.uid,
@@ -265,13 +240,11 @@ class IrActionsActions(models.Model):
                 if groups and not any(
                     self.env.user.has_group(ext_id) for ext_id in groups
                 ):
-                    # the user may not perform this action
                     continue
                 res_model = action_data.pop("res_model", None)
                 if res_model and not self.env["ir.model.access"].check(
                     res_model, mode="read", raise_exception=False
                 ):
-                    # the user won't be able to read records
                     continue
                 actions.append(action_data)
             if actions:
@@ -284,8 +257,6 @@ class IrActionsActions(models.Model):
         cr = self.env.cr
         result = defaultdict(list)
 
-        # flush_all (not flush_model): the raw SQL queries the ir_actions parent
-        # table, but pending writes may sit on any child model (ir_act_window, …).
         self.env.flush_all()
         cr.execute(
             """
@@ -301,29 +272,21 @@ class IrActionsActions(models.Model):
         if not rows:
             return frozendict(result)
 
-        # Group by action model type for batch browse+read (O(k) queries
-        # where k = distinct action types, instead of O(n) per action)
         by_model = defaultdict(list)
         for action_id, action_model, binding_type in rows:
             by_model[action_model].append((action_id, binding_type))
 
-        # Pre-compute read fields per action model (field set is static per
-        # model class, so introspection only needs to happen once per type).
         optional_fields = ("group_ids", "res_model", "sequence", "domain")
         fields_cache: dict[str, list[str]] = {}
 
-        # First pass: read each action type and collect the union of group ids.
-        pending: list[tuple[str, dict]] = []  # (binding_type, action_data)
+        pending: list[tuple[str, dict]] = []
         all_group_ids: set[int] = set()
         for action_model, entries in by_model.items():
             if action_model not in self.env.registry:
                 continue
             action_ids = [e[0] for e in entries]
-            binding_map = dict(entries)  # action_id -> binding_type
+            binding_map = dict(entries)
 
-            # IRA-L1: standard ORM exists() (correct post-flush). The
-            # act_window exists() override caching an id-set was removed as
-            # unsafe for NewId / unflushed records.
             actions = self.env[action_model].sudo().browse(action_ids).exists()
             if not actions:
                 continue
@@ -341,8 +304,6 @@ class IrActionsActions(models.Model):
                     all_group_ids.update(action_data["group_ids"])
                 pending.append((binding_map[action_data["id"]], action_data))
 
-        # Resolve every group's external id in a single batch rather than once
-        # per action (the same groups are shared across many actions).
         group_xmlids = (
             self.env["res.groups"].browse(all_group_ids)._ensure_xml_id()
             if all_group_ids
@@ -355,10 +316,6 @@ class IrActionsActions(models.Model):
                 ]
             result[binding_type].append(frozendict(action_data))
 
-        # Sort every bucket by sequence (server actions carry one; act_window/
-        # report default to 0). sorted() is stable, so the SQL "ORDER BY a.id"
-        # tie-break holds. Freezing to tuples keeps the ormcached result
-        # immutable against caller mutation.
         return frozendict(
             {
                 key: tuple(sorted(val, key=lambda vals: vals.get("sequence", 0)))
@@ -375,8 +332,6 @@ class IrActionsActions(models.Model):
         :return: A read() view of the ir.actions.action safe for web use
         """
         record = self.env.ref(full_xml_id)
-        # Guard: the xml_id must resolve to an ir.actions.* record, not an
-        # arbitrary model that happens to own this external id.
         if not isinstance(self.env[record._name], self.env.registry[self._name]):
             raise ValidationError(
                 _("Record %s is not a valid action type", full_xml_id)
@@ -533,12 +488,8 @@ class IrActionsAct_Window(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
-            # Default the action name to the target model's description. IRA-L4:
-            # guard membership so an invalid res_model raises the friendly
-            # _check_model ValidationError instead of a raw KeyError here.
             if not vals.get("name") and vals.get("res_model") in self.env:
                 vals["name"] = self.env[vals["res_model"]]._description
-        # super() clears the registry cache when a created action is bound.
         return super().create(vals_list)
 
     def _compute_embedded_actions(self) -> None:
@@ -566,8 +517,6 @@ class IrActionsAct_Window(models.Model):
             missing_modes = [
                 mode for mode in act.view_mode.split(",") if mode not in got_modes
             ]
-            # If the reference view_id covers one of the missing modes, place it
-            # first so it takes precedence over a generic (False, mode) entry.
             if act.view_id and act.view_id.type in missing_modes:
                 missing_modes.remove(act.view_id.type)
                 views.append((act.view_id.id, act.view_id.type))
@@ -583,9 +532,6 @@ class IrActionsAct_Window(models.Model):
         result = super().read(fields, load=load)
         if fields and "help" not in fields:
             return result
-        # Source res_model/context from the record, not `values`, so read(['help'])
-        # behaves like a full read. eval_ctx is shared and safe_eval copies it
-        # internally, so build it once.
         eval_ctx = dict(self.env.context)
         records = {rec.id: rec for rec in self}
         for values in result:
@@ -594,8 +540,6 @@ class IrActionsAct_Window(models.Model):
             if model not in self.env:
                 continue
             raw_context = record.context if record else values.get("context", "{}")
-            # Eval against the request context so the stored expression sees the
-            # same variables (lang, uid, ...) as the requesting client.
             ctx = _safe_eval_dict(raw_context, eval_ctx, {})
             values["help"] = (
                 self.with_context(**ctx)
@@ -680,8 +624,6 @@ class IrActionsAct_Window_Close(models.Model):
 
     def _get_readable_fields(self) -> set[str]:
         return super()._get_readable_fields() | {
-            # Virtual keys, not stored fields: 'effect' drives the rainbowman,
-            # 'infos' is awaited by the action_service.
             "effect",
             "infos",
         }
@@ -712,8 +654,6 @@ class IrActionsAct_Url(models.Model):
         return super()._get_readable_fields() | {
             "target",
             "url",
-            # 'close' is not a stored field; the act_url JS executor reads it to
-            # dispatch a follow-up window-close (ir.actions.act_window_close).
             "close",
         }
 
@@ -772,11 +712,6 @@ class IrActionsClient(models.Model):
             if not stored:
                 record.params = stored
                 continue
-            # IRA-L5: a corrupt params_store must not make the client action
-            # un-loadable — degrade to False rather than crash. Not
-            # _safe_eval_dict: a non-dict payload is legitimate here (see
-            # _inverse_params) and the default is an explicit False. Eval
-            # context is only `uid` — params are plain client arguments.
             try:
                 record.params = safe_eval(stored, {"uid": self.env.uid})
             except Exception:
@@ -834,10 +769,8 @@ class IrActionsTodo(models.Model):
 
     def unlink(self) -> bool:
         if self:
-            # ValueError: env.ref() raises when xmlid doesn't exist (e.g. during uninstall)
             with suppress(ValueError):
                 todo_open_menu = self.env.ref("base.open_menu")
-                # don't remove base.open_menu todo but set its original action
                 if todo_open_menu in self:
                     todo_open_menu.action_id = self.env.ref(
                         "base.action_client_base_menu"
@@ -859,7 +792,6 @@ class IrActionsTodo(models.Model):
 
         self.write({"state": "done"})
 
-        # Load action
         action_type = self.action_id.type
         action = self.env[action_type].browse(self.action_id.id)
 
@@ -868,14 +800,10 @@ class IrActionsTodo(models.Model):
             return result
         result.setdefault("context", "{}")
 
-        # Open a specific record when res_id is provided in the context
-        # Eval context: only `user` — todo wizard contexts reference the
-        # launching user, never the request context.
         ctx = _safe_eval_dict(result["context"], {"user": self.env.user}, {})
         if ctx.get("res_id"):
             result["res_id"] = ctx.pop("res_id")
 
-        # disable log for automatic wizards
         ctx["disable_log"] = True
 
         result["context"] = ctx
@@ -883,5 +811,5 @@ class IrActionsTodo(models.Model):
         return result
 
     def action_open(self) -> bool:
-        """Set the configuration wizard to TODO state"""
+        """Reopen the configuration wizard (state ``open``)."""
         return self.write({"state": "open"})

@@ -74,7 +74,6 @@ class ChangePasswordUser(models.TransientModel):
         for line in self:
             if line.new_passwd:
                 line.user_id._change_password(line.new_passwd)
-        # don't keep temporary passwords in the database longer than necessary
         self.write({"new_passwd": False})
 
 
@@ -105,5 +104,4 @@ class ChangePasswordOwn(models.TransientModel):
     def change_password(self) -> dict[str, str]:
         self.env.user._change_password(self.new_password or "")
         self.unlink()
-        # reload to avoid a session expired error
         return {"type": "ir.actions.client", "tag": "reload"}

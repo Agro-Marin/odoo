@@ -69,7 +69,6 @@ class ResUsersSettings(models.Model):
             res["user_id"] = {"id": self.user_id.id}
         return res
 
-    # Fields that must never be set via `set_res_users_settings`.
     _PROTECTED_SETTINGS_FIELDS = frozenset({"user_id", "id", *models.MAGIC_COLUMNS})
 
     def set_res_users_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
@@ -82,12 +81,6 @@ class ResUsersSettings(models.Model):
         :return: the formatted subset of changed fields (+ ``id``).
         """
         self.ensure_one()
-        # Ownership is enforced by the `res_users_settings_rule_user` record
-        # rule, NOT here: the write runs without sudo so a group_user cannot
-        # reach another user's record (RUSET-L1). Do NOT wrap this in sudo() --
-        # it would bypass the rule. `user_id` is also in
-        # `_PROTECTED_SETTINGS_FIELDS` so a row cannot be re-pointed at another
-        # user.
         changed_settings = {}
         for setting, new_value in new_settings.items():
             if setting in self._PROTECTED_SETTINGS_FIELDS:
@@ -138,10 +131,8 @@ class ResUsersSettings(models.Model):
         for command in value:
             match command:
                 case int() if not isinstance(command, bool):
-                    # bare id: linked to the relation (ORM shorthand)
                     target_ids.add(command)
                 case [fields.Command.CREATE, *_] | [fields.Command.UPDATE, *_]:
-                    # create/update: resulting relation can't be compared statically
                     return None
                 case [fields.Command.DELETE, int() as res_id, *_] | [
                     fields.Command.UNLINK,

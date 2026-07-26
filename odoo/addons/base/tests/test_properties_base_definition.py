@@ -25,8 +25,6 @@ class TestPropertiesBaseDefinition(TransactionCase):
     def setUp(self):
         super().setUp()
         self.Definition = self.env["properties.base.definition"]
-        # Start cold: no definition row for the field and no cached id anywhere
-        # (lazy creation means a pre-existing row depends on test/install history).
         field = self.env["ir.model.fields"]._get(self.MODEL, self.FIELD)
         self.Definition.sudo().search([("properties_field_id", "=", field.id)]).unlink()
         self.registry.clear_cache("stable")
@@ -56,7 +54,6 @@ class TestPropertiesBaseDefinition(TransactionCase):
         self.assertTrue(definition_id)
         self.assertEqual(self._count_rows(), 1)
 
-        # The uncommitted id must not be in the process-global stable cache...
         cache, key = self._stable_cache_and_key()
         self.assertNotIn(
             key,
@@ -64,11 +61,9 @@ class TestPropertiesBaseDefinition(TransactionCase):
             "a definition id created by the current transaction must not be "
             "memoized in the registry-wide stable cache",
         )
-        # ... but in the transaction-local memo instead.
         memo = self.env.cr.cache.get(DEFINITION_MEMO_CACHE_KEY) or {}
         self.assertEqual(memo.get((self.MODEL, self.FIELD)), definition_id)
 
-        # Repeated lookups reuse the memoized id: no duplicate row is created.
         self.assertEqual(self._get_definition_id(), definition_id)
         self.assertEqual(
             self.Definition._get_definition_for_property_field(
@@ -84,15 +79,12 @@ class TestPropertiesBaseDefinition(TransactionCase):
             self.assertTrue(first_id)
             raise DeliberateRollback
 
-        # The rollback reverted the row; neither cache may still serve its id.
         cache, key = self._stable_cache_and_key()
         self.assertNotIn(key, cache)
         memo = self.env.cr.cache.get(DEFINITION_MEMO_CACHE_KEY) or {}
         self.assertNotIn((self.MODEL, self.FIELD), memo)
         self.assertEqual(self._count_rows(), 0)
 
-        # The next lookup must create a fresh definition, not serve the
-        # rolled-back (dangling) id.
         second_id = self._get_definition_id()
         self.assertNotEqual(second_id, first_id)
         self.assertTrue(self.Definition.sudo().browse(second_id).exists())
@@ -100,8 +92,6 @@ class TestPropertiesBaseDefinition(TransactionCase):
 
     def test_select_hit_populates_stable_cache(self):
         definition_id = self._get_definition_id()
-        # Simulate a later transaction looking the row up: drop the
-        # transaction memo so the SELECT path runs.
         self.env.cr.cache.pop(DEFINITION_MEMO_CACHE_KEY, None)
 
         self.assertEqual(self._get_definition_id(), definition_id)

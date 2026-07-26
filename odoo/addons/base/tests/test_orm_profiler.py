@@ -11,8 +11,6 @@ class TestOrmProfiler(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Mixins read the profiling flag from the orm_profiler module global,
-        # so setting it here suffices (no per-consumer patching needed).
         cls._original_enabled = orm_profiler._orm_profiling_enabled
         orm_profiler._orm_profiling_enabled = True
         cls._original_profiler = cls.env.transaction._orm_profiler

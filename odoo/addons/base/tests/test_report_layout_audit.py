@@ -9,19 +9,16 @@ class TestReportLayoutAccess(TransactionCase):
     """
 
     def test_internal_user_cannot_modify_report_layout(self):
-        user = new_test_user(self.env, login="rl_plain_user")  # group_user only
+        user = new_test_user(self.env, login="rl_plain_user")
         view = self.env["ir.ui.view"].search([], limit=1)
-        # Create the fixture as sudo (report.layout data ships in `web`, not base).
         layout = (
             self.env["report.layout"]
             .sudo()
             .create({"name": "audit layout", "view_id": view.id})
         )
 
-        # Read is allowed for internal users.
         layout.with_user(user).read(["name"])
 
-        # Create / write / unlink are denied.
         with self.assertRaises(AccessError):
             self.env["report.layout"].with_user(user).create(
                 {"name": "x", "view_id": view.id}
@@ -33,7 +30,7 @@ class TestReportLayoutAccess(TransactionCase):
 
     def test_system_user_can_modify_report_layout(self):
         admin = new_test_user(self.env, login="rl_sys_user", groups="base.group_system")
-        view = self.env["ir.ui.view"].search([], limit=1)  # view_id is required
+        view = self.env["ir.ui.view"].search([], limit=1)
         layout = (
             self.env["report.layout"]
             .with_user(admin)
@@ -51,8 +48,6 @@ class TestReportLayoutCascade(TransactionCase):
     """
 
     def test_view_unlink_cascades_to_layout(self):
-        # Throwaway qweb template; report.layout data ships in `web`, not base, so
-        # both records are created as a system user.
         view = (
             self.env["ir.ui.view"]
             .sudo()
@@ -71,7 +66,6 @@ class TestReportLayoutCascade(TransactionCase):
         )
         self.assertTrue(layout.exists())
 
-        # Deleting the template must cascade-delete the layout.
         view.unlink()
         self.assertFalse(
             layout.exists(),

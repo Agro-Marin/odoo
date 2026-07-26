@@ -16,28 +16,23 @@ from odoo.tools.misc import (
 
 class TestMergeSequences(BaseCase):
     def test_merge_sequences(self):
-        # base case
         seq = merge_sequences(["A", "B", "C"])
         self.assertEqual(seq, ["A", "B", "C"])
 
-        # 'Z' can be anywhere
         seq = merge_sequences(["A", "B", "C"], ["Z"])
         self.assertEqual(seq, ["A", "B", "C", "Z"])
 
-        # 'Y' must precede 'C';
         seq = merge_sequences(["A", "B", "C"], ["Y", "C"])
         self.assertEqual(seq, ["A", "B", "Y", "C"])
 
-        # 'X' must follow 'A' and precede 'C'
         seq = merge_sequences(["A", "B", "C"], ["A", "X", "C"])
         self.assertEqual(seq, ["A", "B", "X", "C"])
 
-        # all cases combined
         seq = merge_sequences(
             ["A", "B", "C"],
-            ["Z"],  # 'Z' can be anywhere
-            ["Y", "C"],  # 'Y' must precede 'C';
-            ["A", "X", "Y"],  # 'X' must follow 'A' and precede 'Y'
+            ["Z"],
+            ["Y", "C"],
+            ["A", "X", "Y"],
         )
         self.assertEqual(seq, ["A", "B", "X", "Y", "C", "Z"])
 
@@ -84,12 +79,9 @@ class TestFormatLangDate(TransactionCase):
         date_str = "2017-01-31"
         lang = self.env["res.lang"]
 
-        # Activate French and Simplified Chinese (test with non-ASCII characters)
         lang._activate_lang("fr_FR")
         lang._activate_lang("zh_CN")
 
-        # -- test `date`
-        # Change a single parameter
         self.assertEqual(
             misc.format_date(lang.with_context(lang="fr_FR").env, date_str),
             "31/01/2017",
@@ -103,7 +95,6 @@ class TestFormatLangDate(TransactionCase):
             "Jan 31, 2017",
         )
 
-        # Change 2 parameters
         self.assertEqual(
             misc.format_date(
                 lang.with_context(lang="zh_CN").env, date_str, lang_code="fr_FR"
@@ -125,7 +116,6 @@ class TestFormatLangDate(TransactionCase):
             "janv. 31, 2017",
         )
 
-        # Change 3 parameters
         self.assertEqual(
             misc.format_date(
                 lang.with_context(lang="zh_CN").env,
@@ -136,9 +126,7 @@ class TestFormatLangDate(TransactionCase):
             "Jan 31, 2017",
         )
 
-        # -- test `datetime`
         datetime_str = "2017-01-31 10:33:00"
-        # Change languages and timezones
         datetime_us_str = misc.format_datetime(
             lang.with_context(lang="en_US").env,
             datetime_str,
@@ -161,7 +149,6 @@ class TestFormatLangDate(TransactionCase):
             datetime_us_str,
         )
 
-        # Change language, timezone and format
         self.assertEqual(
             misc.format_datetime(
                 lang.with_context(lang="fr_FR").env,
@@ -181,7 +168,6 @@ class TestFormatLangDate(TransactionCase):
             "Jan 31, 2017",
         )
 
-        # Check given `lang_code` overwites context lang
         fmt_fr = "dd MMMM YYYY à HH:mm:ss Z"
         fmt_us = "MMMM dd, YYYY 'at' hh:mm:ss a Z"
         self.assertEqual(
@@ -205,11 +191,10 @@ class TestFormatLangDate(TransactionCase):
             "January 31, 2017 at 11:33:00 AM +0100",
         )
 
-        # -- test `time`
         time_part = datetime.time(16, 30, 22)
         time_part_tz = datetime.time(
             16, 30, 22, tzinfo=datetime.timezone(datetime.timedelta(hours=-5))
-        )  # 4:30 PM with fixed UTC-5 offset (avoids DST-dependent results)
+        )
 
         self.assertEqual(
             misc.format_time(
@@ -228,7 +213,6 @@ class TestFormatLangDate(TransactionCase):
             "\u4e0b\u53484:30:22",
         )
 
-        # Check format in different languages
         self.assertEqual(
             misc.format_time(
                 lang.with_context(lang="fr_FR").env,
@@ -246,8 +230,6 @@ class TestFormatLangDate(TransactionCase):
             "\u4e0b\u53484:30",
         )
 
-        # Check timezoned time part
-        # zoneinfo uses standard offset (-0500) rather than pytz's historical LMT offset (-0504)
         self.assertEqual(
             misc.format_time(
                 lang.with_context(lang="fr_FR").env,
@@ -265,7 +247,6 @@ class TestFormatLangDate(TransactionCase):
             "GMT-05:00\u0020\u4e0b\u53484:30:22",
         )
 
-        # Check timezone conversion in format_time
         self.assertEqual(
             misc.format_time(
                 lang.with_context(lang="fr_FR").env,
@@ -285,7 +266,6 @@ class TestFormatLangDate(TransactionCase):
             "05:33:00 -0500",
         )
 
-        # Check given `lang_code` overwites context lang
         self.assertEqual(
             misc.format_time(
                 lang.with_context(lang="fr_FR").env,
@@ -310,10 +290,8 @@ class TestFormatLangDate(TransactionCase):
         datetime_str = "2016-12-31 23:55:00"
         date_datetime = datetime.datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
 
-        # While London is still in 2016, Brussels is already in 2017
         self.assertEqual(misc.format_date(self.env, date_datetime), "01/01/2017")
 
-        # Force London timezone
         date_datetime = date_datetime.replace(tzinfo=datetime.UTC)
         self.assertEqual(
             misc.format_date(self.env, date_datetime),
@@ -327,25 +305,20 @@ class TestCallbacks(BaseCase):
         log = []
         callbacks = misc.Callbacks()
 
-        # add foo
         def foo():
             log.append("foo")
 
         callbacks.add(foo)
 
-        # add bar
         @callbacks.add
         def bar():
             log.append("bar")
 
-        # add foo again
         callbacks.add(foo)
 
-        # this should call foo(), bar(), foo()
         callbacks.run()
         self.assertEqual(log, ["foo", "bar", "foo"])
 
-        # this should do nothing
         callbacks.run()
         self.assertEqual(log, ["foo", "bar", "foo"])
 
@@ -353,17 +326,14 @@ class TestCallbacks(BaseCase):
         log = []
         callbacks = misc.Callbacks()
 
-        # register foo once
         @callbacks.add
         def foo():
             log.append(callbacks.data["foo"])
 
-        # aggregate data
         callbacks.data.setdefault("foo", []).append(1)
         callbacks.data.setdefault("foo", []).append(2)
         callbacks.data.setdefault("foo", []).append(3)
 
-        # foo() is called once
         callbacks.run()
         self.assertEqual(log, [[1, 2, 3]])
         self.assertFalse(callbacks.data)
@@ -375,7 +345,6 @@ class TestCallbacks(BaseCase):
         log = []
         callbacks = misc.Callbacks()
 
-        # register foo that runs callbacks
         @callbacks.add
         def foo():
             log.append("foo1")
@@ -386,7 +355,6 @@ class TestCallbacks(BaseCase):
         def bar():
             log.append("bar")
 
-        # both foo() and bar() are called once
         callbacks.run()
         self.assertEqual(log, ["foo1", "bar", "foo2"])
 
@@ -425,103 +393,78 @@ class TestAddonsFileAccess(BaseCase):
             file_open(path, filter_ext=filter_ext).close()
 
     def test_file_path(self):
-        # absolute path
         self.assertEqual(__file__, file_path(__file__))
-        self.assertEqual(
-            __file__, file_path(__file__, filter_ext=None)
-        )  # means "no filter" too
+        self.assertEqual(__file__, file_path(__file__, filter_ext=None))
         self.assertEqual(__file__, file_path(__file__, filter_ext=(".py",)))
 
-        # directory target is ok
         self.assertEqual(
             str(Path(__file__).parent), file_path(str(Path(__file__, "..")))
         )
 
-        # relative path
-        relpath = str(Path(*Path(__file__).parts[-3:]))  # 'base/tests/test_misc.py'
+        relpath = str(Path(*Path(__file__).parts[-3:]))
         self.assertEqual(__file__, file_path(relpath))
         self.assertEqual(__file__, file_path(relpath, filter_ext=(".py",)))
 
-        # leading 'addons/' is ignored if present
         self.assertTrue(file_path("addons/web/__init__.py"))
-        relpath = str(Path("addons", relpath))  # 'addons/base/tests/test_misc.py'
+        relpath = str(Path("addons", relpath))
         self.assertEqual(__file__, file_path(relpath))
 
-        # files in root_path are allowed
         self.assertTrue(file_path("tools/misc.py"))
 
-        # absolute or relative inexisting files are ok
         self.assertTrue(
             file_path(config.root_path + "/__inexisting", check_exists=False)
         )
         self.assertTrue(file_path("base/__inexisting_file", check_exists=False))
 
-        # errors when outside addons_paths
         self.assertCannotAccess("/doesnt/exist")
         self.assertCannotAccess("/tmp")
         self.assertCannotAccess("../../../../../../../../../tmp")
         self.assertCannotAccess(str(Path(__file__, "../../../../../")))
 
-        # data_dir is forbidden
         self.assertCannotAccess(config["data_dir"])
 
-        # errors for illegal extensions
         self.assertCannotAccess(__file__, ValueError, filter_ext=(".png",))
-        # file doesnt exist but has wrong extension
         self.assertCannotAccess(
             __file__.replace(".py", ".foo"), ValueError, filter_ext=(".png",)
         )
 
     def test_file_open(self):
-        # The needle includes UTF8, so this also exercises reading non-ASCII files.
-        # Locale-dependent: running with a non-UTF8 locale
-        # (`LC_ALL=fr_FR.iso8859-1 python3...`) should still not crash.
         test_needle = "A needle with non-ascii bytes: ♥"
 
-        # absolute path
         self.assertCanRead(__file__, test_needle)
         self.assertCanRead(__file__, test_needle.encode(), mode="rb")
         self.assertCanRead(
             __file__, test_needle.encode(), mode="rb", filter_ext=(".py",)
         )
 
-        # directory target *is* an error
         with self.assertRaises(IsADirectoryError):
             file_open(str(Path(__file__, "..")))
 
-        # relative path
-        relpath = str(Path(*Path(__file__).parts[-3:]))  # 'base/tests/test_misc.py'
+        relpath = str(Path(*Path(__file__).parts[-3:]))
         self.assertCanRead(relpath, test_needle)
         self.assertCanRead(relpath, test_needle.encode(), mode="rb")
         self.assertCanRead(
             relpath, test_needle.encode(), mode="rb", filter_ext=(".py",)
         )
 
-        # leading 'addons/' is ignored if present
         self.assertCanRead("addons/web/__init__.py", "import")
-        relpath = str(Path("addons", relpath))  # 'addons/base/tests/test_misc.py'
+        relpath = str(Path("addons", relpath))
         self.assertCanRead(relpath, test_needle)
 
-        # files in root_path are allowed
         self.assertCanRead("tools/misc.py")
 
-        # absolute or relative inexisting files are ok
         self.assertCannotRead(config.root_path + "/__inexisting")
         self.assertCannotRead("base/__inexisting_file")
 
-        # errors when outside addons_paths
         self.assertCannotRead("/doesnt/exist")
         self.assertCannotRead("")
         self.assertCannotRead("/tmp")
         self.assertCannotRead("../../../../../../../../../tmp")
         self.assertCannotRead(str(Path(__file__, "../../../../../")))
 
-        # data_dir is forbidden
         self.assertCannotRead(config["data_dir"])
 
-        # errors for illegal extensions
         self.assertCannotRead(__file__, ValueError, filter_ext=(".png",))
-        # file doesnt exist but has wrong extension
         self.assertCannotRead(
             __file__.replace(".py", ".foo"), ValueError, filter_ext=(".png",)
         )
@@ -555,7 +498,6 @@ class TestFormatLang(TransactionCase):
             "If digits is None (default value), it should default to 2",
         )
 
-        # Default rounding is 'HALF_EVEN'
         self.assertEqual(misc.formatLang(self.env, 100.205), "100.20")
         self.assertEqual(misc.formatLang(self.env, 100.215), "100.22")
 
@@ -590,12 +532,10 @@ class TestFormatLang(TransactionCase):
         )
 
     def test_decimal_precision(self):
-        decimal_precision = self.env[
-            "decimal.precision"
-        ].create(
+        decimal_precision = self.env["decimal.precision"].create(
             {
                 "name": "formatLang Decimal Precision",
-                "digits": 3,  # We want .001 decimals to make sure the decimal precision parameter 'dp' is chosen.
+                "digits": 3,
             }
         )
 
@@ -604,13 +544,11 @@ class TestFormatLang(TransactionCase):
         )
 
     def test_currency_object(self):
-        currency_object = self.env[
-            "res.currency"
-        ].create(
+        currency_object = self.env["res.currency"].create(
             {
                 "name": "formatLang Currency",
                 "symbol": "fL",
-                "rounding": 0.1,  # We want .1 decimals to make sure 'currency_obj' is chosen.
+                "rounding": 0.1,
                 "position": "after",
             }
         )
@@ -644,7 +582,6 @@ class TestFormatLang(TransactionCase):
             }
         )
 
-        # If we have a 'dp' and 'currency_obj', we use the decimal precision of 'dp' and the format of 'currency_obj'.
         self.assertEqual(
             misc.formatLang(
                 self.env,
@@ -656,12 +593,8 @@ class TestFormatLang(TransactionCase):
         )
 
     def test_rounding_method(self):
-        self.assertEqual(
-            misc.formatLang(self.env, 100.205), "100.20"
-        )  # Default is 'HALF-EVEN'
-        self.assertEqual(
-            misc.formatLang(self.env, 100.215), "100.22"
-        )  # Default is 'HALF-EVEN'
+        self.assertEqual(misc.formatLang(self.env, 100.205), "100.20")
+        self.assertEqual(misc.formatLang(self.env, 100.215), "100.22")
 
         self.assertEqual(
             misc.formatLang(self.env, 100.205, rounding_method="HALF-UP"),
@@ -755,12 +688,10 @@ class TestFormatLang(TransactionCase):
 class TestUrlValidate(BaseCase):
     def test_url_validate(self):
         for case, truth in [
-            # full URLs should be preserved
             ("http://example.com", "http://example.com"),
             ("http://example.com/index.html", "http://example.com/index.html"),
             ("http://example.com?debug=1", "http://example.com?debug=1"),
             ("http://example.com#h3", "http://example.com#h3"),
-            # URLs with a domain should get a http scheme
             ("example.com", "http://example.com"),
             ("example.com/index.html", "http://example.com/index.html"),
             ("example.com?debug=1", "http://example.com?debug=1"),
@@ -769,7 +700,6 @@ class TestUrlValidate(BaseCase):
             with self.subTest(case=case):
                 self.assertEqual(validate_url(case), truth)
 
-        # broken cases, do we really want that?
         self.assertEqual(validate_url("/index.html"), "http:///index.html")
         self.assertEqual(validate_url("?debug=1"), "http://?debug=1")
         self.assertEqual(
@@ -779,7 +709,6 @@ class TestUrlValidate(BaseCase):
 
 
 class TestUrlJoin(BaseCase):
-    # simple path joins
     def test_basic_relative_path(self):
         self.assertEqual(
             urls.urljoin("http://example.com/", "c"), "http://example.com/c"
@@ -792,7 +721,7 @@ class TestUrlJoin(BaseCase):
         self.assertEqual(
             urls.urljoin("http://example.com/b/", "/c"),
             "http://example.com/b/c",
-        )  # leading / normalized
+        )
         self.assertEqual(
             urls.urljoin("http://example.com/b///", "///c"),
             "http://example.com/b/c",
@@ -800,7 +729,7 @@ class TestUrlJoin(BaseCase):
         self.assertEqual(
             urls.urljoin("http://example.com/b/", "c/"),
             "http://example.com/b/c/",
-        )  # trailing / must be kept
+        )
 
     def test_base_has_no_path(self):
         self.assertEqual(
@@ -822,7 +751,6 @@ class TestUrlJoin(BaseCase):
             urls.urljoin("http://example.com/b", "/"), "http://example.com/b/"
         )
 
-    # Scheme/Netloc
     def test_leading_and_trailing_slashes(self):
         self.assertEqual(
             urls.urljoin("http://example.com/b//c/d/e/////f/g/", "/h/i/j/"),
@@ -883,7 +811,6 @@ class TestUrlJoin(BaseCase):
                 with self.assertRaises(ValueError):
                     urls.urljoin(base, extra)
 
-    # Query Handling
     def test_query_keeps_base_by_default(self):
         self.assertEqual(
             urls.urljoin("http://example.com/b?q1=1", "c?q2=2"),
@@ -916,7 +843,6 @@ class TestUrlJoin(BaseCase):
             "http://example.com/b/c?q1=1&q2=2",
         )
 
-    # Fragment Handling
     def test_only_extra_fragments(self):
         self.assertEqual(
             urls.urljoin("http://example.com/b#f1", "c#f2"),
@@ -931,14 +857,12 @@ class TestUrlJoin(BaseCase):
             "http://example.com/b/c",
         )
 
-    # Input Validation
     def test_not_string_fails(self):
         with self.assertRaises(TypeError):
             urls.urljoin(None, "c")
         with self.assertRaises(TypeError):
             urls.urljoin("http://a", 123)
 
-    # Edge Cases
     def test_whitespaces(self):
         self.assertEqual(
             urls.urljoin("http://example.com/b", " \ta "),
@@ -1019,12 +943,10 @@ class TestFormatAmountFunction(TransactionCase):
             {
                 "name": "format_amount Currency",
                 "symbol": "fA",
-                "rounding": 0.01,  # Makes 12.345 as 12.34
+                "rounding": 0.01,
                 "position": "before",
             }
         )
-        # A language where decimal separator and thousands separator is same to check effectiveness of
-        # regular expression used in format_amount
         cls.kiliki_language = cls.env["res.lang"].create(
             {
                 "name": "Kili kili",
@@ -1051,47 +973,36 @@ class TestFormatAmountFunction(TransactionCase):
         self.assertEqual(result, expected)
 
     def test_trailing_true_on_number_having_no_trailing_zeroes(self):
-        # Has no effect on number not having trailing zeroes
         self.assert_format_amount(1.234, "fA%s1.23" % "\N{NO-BREAK SPACE}")
 
-        # Has no effect on number not having trailing zeroes - currency position after
         self.currency_object_format_amount.position = "after"
         self.assert_format_amount(1.234, "1.23%sfA" % "\N{NO-BREAK SPACE}")
 
     def test_trailing_false_on_number_having_no_trailing_zeroes(self):
-        # Has no effect on number not having trailing zeroes even if trailing zeroes set as False
         self.assert_format_amount(1.234, "fA%s1.23" % "\N{NO-BREAK SPACE}", False)
 
-        # Has no effect on number not having trailing zeroes - currency position after
         self.currency_object_format_amount.position = "after"
         self.assert_format_amount(1.234, "1.23%sfA" % "\N{NO-BREAK SPACE}", False)
 
     def test_trailing_zeroes_true_on_number_having_trailing_zeroes(self):
-        # Has no effect on number having trailing zeroes if trailing zeroes set as True (True by default)
         self.assert_format_amount(1.0000, "fA%s1.00" % "\N{NO-BREAK SPACE}")
 
-        # Has no effect on number having trailing zeroes - currency position after
         self.currency_object_format_amount.position = "after"
         self.assert_format_amount(1.0000, "1.00%sfA" % "\N{NO-BREAK SPACE}")
 
     def test_trailing_false_on_number_having_trailing_zeroes(self):
-        # Has effect (removes trailing zeroes) on number having trailing zeroes if trailing zeroes set as False
         self.assert_format_amount(1.0000, "fA%s1" % "\N{NO-BREAK SPACE}", False)
 
-        # Has effect on number having trailing zeroes - currency position after
         self.currency_object_format_amount.position = "after"
         self.assert_format_amount(1.0000, "1%sfA" % "\N{NO-BREAK SPACE}", False)
 
     def test_trailing_false_on_number_having_trailing_zeroes_with_kilikili_language(
         self,
     ):
-        # The amount is formatted as 10#000#00; the second # is the decimal, so
-        # the RE must target the decimal separator at the last position.
         self.assert_format_amount(
             10000, "fA%s10#000" % "\N{NO-BREAK SPACE}", False, "GFL"
         )
 
-        # Has no effect on number having same decimal and thousandth seperator - currency position after
         self.currency_object_format_amount.position = "after"
         self.assert_format_amount(
             10000, "10#000%sfA" % "\N{NO-BREAK SPACE}", False, "GFL"

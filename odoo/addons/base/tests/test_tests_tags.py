@@ -116,7 +116,6 @@ class TestSelector(TransactionCase):
         self.assertEqual(set(), tags.exclude)
         self.assertIn("Invalid tag", capture.output[0])
 
-        # the well-formed variant still parses as a file filter
         tags = TagsSelector("standard/odoo/addons/base/tests/test_tests_tags.py")
         self.assertEqual(
             {
@@ -179,7 +178,6 @@ class TestSelector(TransactionCase):
             tags.exclude,
         )
 
-        # same with space after the comma
         tags = TagsSelector("+slow, -standard")
         self.assertEqual(
             {
@@ -194,7 +192,6 @@ class TestSelector(TransactionCase):
             tags.exclude,
         )
 
-        # same with space before and after the comma
         tags = TagsSelector("+slow , -standard")
         self.assertEqual(
             {
@@ -221,7 +218,6 @@ class TestSelector(TransactionCase):
             tags.exclude,
         )
 
-        # without +
         tags = TagsSelector("slow, ")
         self.assertEqual(
             {
@@ -231,7 +227,6 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        # duplicates
         tags = TagsSelector("+slow,-standard, slow,-standard ")
         self.assertEqual(
             {
@@ -250,7 +245,7 @@ class TestSelector(TransactionCase):
         self.assertEqual(set(), tags.include)
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector("/module")  # all standard test of a module
+        tags = TagsSelector("/module")
         self.assertEqual(
             {
                 ("standard", "module", None, None, None),
@@ -259,9 +254,7 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector(
-            "/module/tests/test_file.py"
-        )  # all standard test of a module
+        tags = TagsSelector("/module/tests/test_file.py")
         self.assertEqual(
             {
                 ("standard", None, None, None, "/module/tests/test_file.py"),
@@ -270,7 +263,7 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector("*/module")  # all tests of a module
+        tags = TagsSelector("*/module")
         self.assertEqual(
             {
                 (None, "module", None, None, None),
@@ -279,7 +272,7 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector(":class")  # all standard test of a class
+        tags = TagsSelector(":class")
         self.assertEqual(
             {
                 ("standard", None, "class", None, None),
@@ -306,9 +299,7 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector(
-            "/module:class.method"
-        )  # only a specific test func in a module (standard)
+        tags = TagsSelector("/module:class.method")
         self.assertEqual(
             {
                 ("standard", "module", "class", "method", None),
@@ -317,9 +308,7 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector(
-            "*/module:class.method"
-        )  # only a specific test func in a module
+        tags = TagsSelector("*/module:class.method")
         self.assertEqual(
             {
                 (None, "module", "class", "method", None),
@@ -328,21 +317,19 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector(
-            "-/module:class.method"
-        )  # disable a specific test func in a module
+        tags = TagsSelector("-/module:class.method")
         self.assertEqual(
             {
                 ("standard", None, None, None, None),
             },
             tags.include,
-        )  # all standard
+        )
         self.assertEqual(
             {
                 (None, "module", "class", "method", None),
             },
             tags.exclude,
-        )  # except the test func
+        )
 
         tags = TagsSelector("-*/module:class.method")
         self.assertEqual(
@@ -376,23 +363,21 @@ class TestSelector(TransactionCase):
         )
         self.assertEqual(set(), tags.exclude)
 
-        tags = TagsSelector("*/module,-standard")  # all non standard test of a module
+        tags = TagsSelector("*/module,-standard")
         self.assertEqual(
             {
                 (None, "module", None, None, None),
             },
             tags.include,
-        )  # all in module
+        )
         self.assertEqual(
             {
                 ("standard", None, None, None, None),
             },
             tags.exclude,
-        )  # except standard ones
+        )
 
-        tags = TagsSelector(
-            "*/some-paths/with-dash/addons/account/test/test_file.py"
-        )  # a filepath with dashes
+        tags = TagsSelector("*/some-paths/with-dash/addons/account/test/test_file.py")
         self.assertEqual(
             {
                 (
@@ -417,7 +402,7 @@ class TestSelector(TransactionCase):
                 ),
             },
             tags.include,
-        )  # all in module
+        )
 
         tags = TagsSelector("/some/absolute/path/v.3/module.py")
         self.assertEqual(
@@ -431,7 +416,7 @@ class TestSelector(TransactionCase):
                 ),
             },
             tags.include,
-        )  # all in module
+        )
 
         tags = TagsSelector("/module.method")
         self.assertEqual(
@@ -439,7 +424,7 @@ class TestSelector(TransactionCase):
                 ("standard", "module", None, "method", None),
             },
             tags.include,
-        )  # all in module
+        )
 
 
 @tagged("nodatabase")
@@ -472,33 +457,24 @@ class TestSelectorSelection(TransactionCase):
         multiple_tags_standard_obj = Test_D()
         post_install_obj = Test_E()
 
-        # Tests without tags count as 'standard' and run by default unless
-        # '-standard' deselects them or 'standard' is selected with another tag.
-        # same as "--test-tags=''":
         tags = TagsSelector("")
         self.assertFalse(tags.check(no_tags_obj))
 
-        # same as "--test-tags '+slow'":
         tags = TagsSelector("+slow")
         self.assertFalse(tags.check(no_tags_obj))
 
-        # same as "--test-tags '+slow,+fake'":
         tags = TagsSelector("+slow,fake")
         self.assertFalse(tags.check(no_tags_obj))
 
-        # same as "--test-tags '+slow,+standard'":
         tags = TagsSelector("slow,standard")
         self.assertTrue(no_tags_obj)
 
-        # same as "--test-tags '+slow,-standard'":
         tags = TagsSelector("slow,-standard")
         self.assertFalse(tags.check(no_tags_obj))
 
-        # same as "--test-tags '-slow,-standard'":
         tags = TagsSelector("-slow,-standard")
         self.assertFalse(tags.check(no_tags_obj))
 
-        # same as "--test-tags '-slow,+standard'":
         tags = TagsSelector("-slow,+standard")
         self.assertTrue(tags.check(no_tags_obj))
 
@@ -577,14 +553,12 @@ class TestSelectorSelection(TransactionCase):
         tags = TagsSelector("slow,-standard")
         self.assertFalse(tags.check(multiple_tags_standard_obj))
 
-        # Mimic the real post_install use case: a second tags selector.
         tags = TagsSelector("standard")
         position = TagsSelector("post_install")
         self.assertTrue(
             tags.check(post_install_obj) and position.check(post_install_obj)
         )
 
-        # module part
         tags = TagsSelector("/base")
         self.assertTrue(tags.check(no_tags_obj), "Test should match is module path")
         tags = TagsSelector("/base/tests/test_tests_tags.py")
@@ -599,8 +573,7 @@ class TestSelectorSelection(TransactionCase):
             "Test should not match another module path with file",
         )
 
-        # absolute path case (used by test-file)
-        tags = TagsSelector(__file__)  # todo fix if . in path
+        tags = TagsSelector(__file__)
         self.assertTrue(
             tags.check(no_tags_obj), "Test should match its absolute file path"
         )

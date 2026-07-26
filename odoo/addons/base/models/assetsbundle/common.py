@@ -44,14 +44,10 @@ class NativeModuleData(TypedDict):
     bridge_import_map: dict[str, str]
 
 
-# ``xml()`` returns a discriminated union of blocks; ``type`` is the
-# discriminator ``generate_xml_bundle`` branches on. Two TypedDicts (not
-# ``dict[str, Any]``) turn a typo into a static error, not a render KeyError.
 class TemplatesBlock(TypedDict):
     """A run of primary / parentless templates, in source order."""
 
     type: Literal["templates"]
-    # (element, asset url, t-inherit parent name | None)
     templates: list[tuple[etree._Element, str | None, str | None]]
 
 
@@ -59,17 +55,12 @@ class ExtensionsBlock(TypedDict):
     """A run of ``t-inherit-mode="extension"`` templates, grouped by parent."""
 
     type: Literal["extensions"]
-    # {parent template name: [(element, asset url), ...]}
     extensions: dict[str, list[tuple[etree._Element, str | None]]]
 
 
 XMLBlock = TemplatesBlock | ExtensionsBlock
 
 
-# Two families kept separate: AssetError (content could not be obtained/decoded/
-# parsed) is caught as a group via ``except AssetError``; CompileError (a
-# preprocessor subprocess failed) is caught explicitly and must NOT fall into
-# that net, hence a separate RuntimeError.
 class CompileError(RuntimeError):
     """A stylesheet preprocessor (Sass/rtlcss) failed or timed out."""
 
@@ -97,9 +88,6 @@ def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
     :raises CompileError: launch failure, timeout, or non-zero exit
     """
     try:
-        # ``errors="replace"``: non-UTF-8 tool output degrades to replacement
-        # chars instead of a UnicodeDecodeError that would bypass callers'
-        # CompileError policy.
         proc = Popen(
             argv,
             stdin=PIPE,
@@ -120,35 +108,15 @@ def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
         cmd_output = out + err
         if not cmd_output:
             cmd_output = f"Process exited with return code {proc.returncode}\n"
-        # Name the tool: raw output alone can be ambiguous in ``css_errors``.
         raise CompileError(f"{argv[0]!r}: {cmd_output}")
     return out
 
 
-# CSS string-literal / comment tokenizer — the spans every whole-text CSS
-# rewrite (url(), @import, appearance) and the minifier must treat as opaque.
-# Alternation order matters: a left-to-right scan takes whichever of comment/
-# string opens first. One definition shared by
-# ``StylesheetAsset._minify_css_body`` and ``_rewrite_css_outside_strings`` so
-# they never drift.
 _CSS_STRING_OR_COMMENT = re.compile(
     r"""/\*.*?\*/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'""",
     re.DOTALL,
 )
 
-# SCSS-source counterpart of ``_CSS_STRING_OR_COMMENT``, adding the Sass ``//``
-# line comment. Needed because a whole-text rewrite runs over preprocessor
-# *source* (``StylesheetAsset._fetch_content``) before Sass ever strips those
-# comments: without this arm an apostrophe in a ``// don't`` comment opens a
-# phantom string span and every ``url()`` after it silently stops being
-# rewritten, so the bundle's relative font/image URLs 404 against
-# ``/web/assets/<unique>/``.
-#
-# The arm requires whitespace (or start of text) before ``//`` — unlike
-# ``CssPipeline._rx_import_scanner``, which can leave it unanchored because it
-# only guards a directive grammar. Here an unanchored arm would read the ``//``
-# of ``url(//cdn/x.woff)`` as a comment and swallow the rest of the line,
-# taking any later ``url()`` in the same ``src:`` list with it.
 _SCSS_STRING_OR_COMMENT = re.compile(
     rf"""(?:(?<=\s)|\A)//[^\n]*|{_CSS_STRING_OR_COMMENT.pattern}""",
     re.DOTALL,
@@ -176,11 +144,6 @@ def _rewrite_css_outside_strings(
     ``_CSS_STRING_OR_COMMENT``; pass ``_SCSS_STRING_OR_COMMENT`` when the text is
     preprocessor *source*, so Sass ``//`` line comments are protected too.
     """
-    # DOTALL scoped to the string/comment arm via ``(?s:...)`` — only it needs
-    # it (block comments and ``\\.`` continuations span newlines). Applying it
-    # to the whole combined pattern would silently redefine any ``.`` a future
-    # ``target`` carries. ``(?s:...)`` is non-capturing, so ``target``'s group
-    # numbers are unchanged.
     scanner = re.compile(
         f"(?s:{tokens.pattern})|{target.pattern}",
         target.flags,
@@ -189,7 +152,7 @@ def _rewrite_css_outside_strings(
     def _dispatch(match: re.Match) -> str:
         token = match.group(0)
         if token[:2] in ("/*", "//") or token[:1] in ("'", '"'):
-            return token  # protected span — pass through verbatim
+            return token
         return repl(match)
 
     return scanner.sub(_dispatch, text)

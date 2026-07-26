@@ -32,7 +32,6 @@ class FormatVatLabelMixin(models.AbstractModel):
         if vat_label := self.env.company.country_id.vat_label:
             for node in arch.iterfind(".//field[@name='vat']"):
                 node.set("string", vat_label)
-            # Some modules replace the vat field, so also relabel its standalone label
             for node in arch.iterfind(".//label[@for='vat']"):
                 node.set("string", vat_label)
         return arch, view

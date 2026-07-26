@@ -9,7 +9,6 @@ class TestFrozendict(BaseCase):
         vals = {"name": "Joe", "age": 42}
         frozen_vals = frozendict(vals)
 
-        # check __setitem__, __delitem__
         with self.assertRaises(Exception):
             frozen_vals["surname"] = "Jack"
         with self.assertRaises(Exception):
@@ -17,7 +16,6 @@ class TestFrozendict(BaseCase):
         with self.assertRaises(Exception):
             del frozen_vals["name"]
 
-        # check update, setdefault, pop, popitem, clear
         with self.assertRaises(Exception):
             frozen_vals.update({"surname": "Jack"})
         with self.assertRaises(Exception):
@@ -35,10 +33,8 @@ class TestFrozendict(BaseCase):
 
     def test_frozendict_hash(self):
         """Ensure that a frozendict is hashable."""
-        # dict with simple values
         hash(frozendict({"name": "Joe", "age": 42}))
 
-        # dict with tuples, lists, and embedded dicts
         hash(
             frozendict(
                 {
@@ -59,9 +55,8 @@ class TestLazy(BaseCase):
         self.assertEqual(lazy(lambda: 42) != lazy(lambda: 42), False)
         self.assertEqual(lazy(lambda: 1) != lazy(lambda: 42), True)
 
-        # Object like recordset implement __eq__
         class Obj:
-            __hash__ = None  # unhashable like Odoo recordsets (defines __eq__ without __hash__)
+            __hash__ = None
 
             def __init__(self, num):
                 self.num = num

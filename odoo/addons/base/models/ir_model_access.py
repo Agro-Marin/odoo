@@ -23,8 +23,6 @@ class IrModelAccess(models.Model):
     _description = "Model Access"
     _order = "model_id,group_id,name,id"
     _allow_sudo_commands = False
-    # Single source of truth for the four CRUD modes: mode name -> SQL column.
-    # Both mode validation and the ``perm_*`` column names derive from these keys.
     _PERM_COLUMNS = {
         "read": SQL("a.perm_read"),
         "write": SQL("a.perm_write"),
@@ -69,8 +67,6 @@ class IrModelAccess(models.Model):
         """
         self._check_access_mode(access_mode)
         lang = self.env.lang or "en_US"
-        # Cast parameter to text so psycopg3 can infer the type for jsonb->> operators
-        # without resorting to embedding the value as a raw SQL literal.
         perm_column = SQL.identifier(f"perm_{access_mode}")
         self.env.cr.execute(
             SQL(
@@ -111,15 +107,10 @@ class IrModelAccess(models.Model):
         group_definitions = self.env["res.groups"]._get_group_definitions()
         if not accesses:
             return group_definitions.empty
-        if not all(
-            access.group_id for access in accesses
-        ):  # there is some global access
+        if not all(access.group_id for access in accesses):
             return group_definitions.universe
         return group_definitions.from_ids(accesses.group_id.ids)
 
-    # Keyed on the user's group set (not uid): the result depends only on the
-    # groups, so same-group users share one entry and per-user churn can't evict
-    # it. _get_group_ids() is itself ormcached and returns a stable id tuple.
     @tools.ormcache("self.env.user._get_group_ids()", "mode")
     def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
@@ -152,7 +143,6 @@ class IrModelAccess(models.Model):
         self, model: str, mode: str = "read", raise_exception: bool = True
     ) -> bool:
         if self.env.su:
-            # User root has all accesses
             return True
 
         if not isinstance(model, str):
@@ -161,11 +151,6 @@ class IrModelAccess(models.Model):
             )
 
         if model not in self.env:
-            # A typo'd/unknown model is a programming error, not an access
-            # denial: raise a clear error rather than a generic AccessError.
-            # The lenient path stays for raise_exception=False callers, which
-            # legitimately probe models that may not be loaded (e.g. stale
-            # ir.ui.menu/ir.actions visibility checks).
             if raise_exception:
                 raise ValueError(
                     f"Unknown model {model!r}: it does not exist in the registry"
@@ -210,23 +195,11 @@ class IrModelAccess(models.Model):
     @api.model
     def call_cache_clearing_methods(self) -> None:
         self.env.invalidate_all()
-        # Clearing "stable" cascades to the "default" group (see ``_CACHES_BY_KEY``
-        # in the registry), invalidating both _get_access_groups (stable) and
-        # _get_allowed_models (default). Narrowing to "default" would leave
-        # _get_access_groups cached and hand out stale ACLs.
         self.env.registry.clear_cache("stable")
 
-    #
-    # Check rights on actions
-    #
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        self.call_cache_clearing_methods()
         for vals in vals_list:
-            # An access-granting ACL with no group grants that access to every
-            # user (deprecated global access). ``group_id`` defaults to NULL, so
-            # an omitted key is the same global grant as an explicit falsy one --
-            # both must warn.
             if not vals.get("group_id") and any(
                 vals.get(f"perm_{mode}") for mode in self._PERM_COLUMNS
             ):
@@ -234,12 +207,16 @@ class IrModelAccess(models.Model):
                     "Rule %s has no group, this is a deprecated feature. Every access-granting rule should specify a group.",
                     vals.get("name"),
                 )
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        self.call_cache_clearing_methods()
+        return records
 
     def write(self, vals: dict[str, Any]) -> bool:
+        res = super().write(vals)
         self.call_cache_clearing_methods()
-        return super().write(vals)
+        return res
 
     def unlink(self) -> bool:
+        res = super().unlink()
         self.call_cache_clearing_methods()
-        return super().unlink()
+        return res

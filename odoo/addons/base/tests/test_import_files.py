@@ -14,9 +14,6 @@ class TestFieldConverters(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.converter = cls.env["ir.fields.converter"]
-        # Keep Fields in a dict, not class attributes: a Field is a data
-        # descriptor, so ``self.flds["dt"]`` would fire ``Field.__get__`` on the
-        # TestCase (not a recordset) and raise.
         cls.flds = {
             "dt": cls.env["res.partner"]._fields["write_date"],
             "date": cls.env["res.partner"]._fields["write_date"],
@@ -47,7 +44,6 @@ class TestFieldConverters(TransactionCase):
             "2026-03-19 16:09:18",
         )
         self.assertFalse(warnings)
-        # 16:09:18 wall-clock at -06:00 == 22:09:18 UTC.
         self.assertEqual(value, "2026-03-19 22:09:18")
 
     def test_str_to_datetime_utc_z_suffix_not_double_converted(self):
@@ -89,7 +85,6 @@ class TestFieldConverters(TransactionCase):
             result, warnings = self.converter._str_to_date(self.flds["date"], value)
             self.assertFalse(warnings)
             self.assertEqual(result, "2012-12-31", "%r must import as its date" % value)
-        # a tail that is not a valid time is still rejected
         for value in ("2012-12-31xxx", "2012-12-31 nope"):
             with self.assertRaises(ValueError):
                 self.converter._str_to_date(self.flds["date"], value)
@@ -97,7 +92,6 @@ class TestFieldConverters(TransactionCase):
     def test_boolean_value_sets_built_once(self):
         """IFLD-09: true/false token sets are memoized per cursor, not rebuilt
         per boolean cell."""
-        # drop any set cached by an earlier test on this shared cursor
         self.env.cr.cache.get("ir.fields.converter", {}).pop("boolean_value_sets", None)
         calls = []
         orig = type(self.converter)._get_boolean_translations
@@ -108,9 +102,7 @@ class TestFieldConverters(TransactionCase):
 
         with patch.object(type(self.converter), "_get_boolean_translations", spy):
             for _ in range(50):
-                # a value in neither set forces both to be consulted
                 self.converter._str_to_boolean(self.flds["bool"], "maybe")
-        # 4 lookups (true/yes/false/no) to build the sets once, then nothing.
         self.assertLessEqual(
             len(calls),
             4,
@@ -150,10 +142,8 @@ class TestFieldConverters(TransactionCase):
         )
         self.assertEqual(got, partner.id)
         self.assertFalse(warnings)
-        # a falsy token is an empty reference, not an error
         empty, _w = self.converter.db_id_for(self.flds["m2o"], ".id", "0")
         self.assertIs(empty, False)
-        # an id matching no record is an import error
         with self.assertRaises(ValueError):
             self.converter.db_id_for(self.flds["m2o"], ".id", str(partner.id + 10**9))
 
@@ -202,7 +192,6 @@ class TestFieldConverters(TransactionCase):
         model, fname, ftype = target
         fn = self.converter.for_model(model)
         logged = []
-        # Must NOT raise.
         result = fn({fname: "x"}, lambda field, exc: logged.append((field, exc)))
         self.assertNotIn(fname, result, "unconvertible field must not be written")
         self.assertEqual([f for f, _exc in logged], [fname])
@@ -214,7 +203,6 @@ class TestFieldConverters(TransactionCase):
         nested selection must match the full slash-path (``child_ids/type``),
         consistent with ``db_id_for`` and the paths the import UI emits."""
         fld = self.env["res.partner"]._fields["type"]
-        # nested one level under a one2many named 'child_ids'
         nested = self.converter.with_context(
             parent_fields_hierarchy=["child_ids"],
             import_skip_records=["child_ids/type"],
@@ -223,7 +211,6 @@ class TestFieldConverters(TransactionCase):
         self.assertIsNone(value)
         self.assertFalse(warnings)
 
-        # a bare field name must NOT match a nested column (was the bug)
         bare = self.converter.with_context(
             parent_fields_hierarchy=["child_ids"],
             import_skip_records=["type"],
@@ -244,11 +231,8 @@ class TestFieldConverters(TransactionCase):
             return orig(self, env, *args, **kwargs)
 
         with patch.object(type(fld), "_description_selection", spy):
-            # a value that never matches forces a full scan of the selection
             with self.assertRaises(ValueError):
                 self.converter._str_to_selection(fld, "zzz_nonexistent_value")
-        # Old code called this once per selection item (42x for a 19-item
-        # selection). The fix makes it a small constant, independent of size.
         self.assertLessEqual(
             len(calls),
             5,
@@ -263,8 +247,6 @@ class TestFieldConverters(TransactionCase):
         fld = self.env["res.partner"]._fields["tz"]
         n = len(fld.selection)
         self.assertGreater(n, 100, "need a large static selection")
-        # isolate from any index cached by an earlier test on this cursor, and
-        # flush pending writes so only the index-build query runs under the spy
         self.env.cr.cache.get("ir.fields.converter", {}).pop(
             ("import_selection_index", fld.model_name, fld.name, self.env.lang), None
         )
@@ -278,8 +260,6 @@ class TestFieldConverters(TransactionCase):
             calls.append(1)
             return orig(query, params) if params is not None else orig(query)
 
-        # Resolve every one of the ~600 items (valid values only, so the count
-        # reflects the index, not incidental error-path translation loading).
         with patch.object(cr, "execute", spy):
             for item, _label in fld.selection:
                 self.assertEqual(
@@ -314,7 +294,6 @@ class TestFieldConverters(TransactionCase):
         fld = self.env["res.partner"]._fields["child_ids"]
         with self.assertRaises(ValueError) as cm:
             self.converter._str_to_one2many(fld, [{"bogus.x": "42"}])
-        # the raw sub-field name is used as fallback in the error path
         self.assertIn("bogus.x", str(cm.exception.args[0]))
 
     def test_load_o2m_unknown_subfield_logs_not_crash(self):

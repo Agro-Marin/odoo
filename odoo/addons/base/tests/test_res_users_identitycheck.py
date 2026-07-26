@@ -6,7 +6,6 @@ from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
-# Path of the thread-local `request` proxy imported into the wizard module.
 _REQUEST = "odoo.addons.base.models.res_users_identitycheck.request"
 
 
@@ -41,37 +40,29 @@ class TestResUsersIdentityCheck(TransactionCase):
         """A correct password still refuses a method not decorated with
         @check_identity (allow-list guard)."""
         wizard = self._new_wizard()
-        # `read` is a plain ORM method, not decorated for identity-checked use.
         payload = json.dumps([{}, "res.users", [self.user.id], "read", [["login"]], {}])
-        wizard.sudo().request = payload  # `request` field is groups=NO_ACCESS
+        wizard.sudo().request = payload
         fake_request = SimpleNamespace(session={})
         with patch(_REQUEST, fake_request), self.assertRaises(UserError):
             wizard.with_context(password="ric_password").run_check()
-        # RIC-L1 (fixed): the prompt-free 10-min sudo window is stamped only
-        # AFTER the allow-list check passes, so a rejected (undecorated) method
-        # must NOT open the window — a bad payload can no longer refresh it.
         self.assertNotIn("identity-check-last", fake_request.session)
 
     def test_run_check_identity_bound_to_env_user(self):
         """RIC-T3: the password is re-verified against ``self.env.user`` (the
         acting user), so another user's password cannot satisfy the check."""
-        # Another existing user whose password differs from self.user's.
         new_test_user(self.env, login="ric_other", password="other_password")
-        wizard = self._new_wizard()  # acts as self.user (password ric_password)
+        wizard = self._new_wizard()
         with (
             patch(_REQUEST, SimpleNamespace(session={})),
             self.assertRaises(UserError),
         ):
-            # ric_other's password must not unlock a wizard acting as self.user.
             wizard.with_context(password="other_password").run_check()
 
     def test_request_field_is_no_access(self):
         """RIC-T4: the deferred-payload ``request`` field is groups=NO_ACCESS, so
         it cannot be read without sudo, pinning payload confidentiality."""
         wizard = self._new_wizard()
-        # groups=NO_ACCESS denies even the owning user a direct read.
         with self.assertRaises(AccessError):
             wizard.read(["request"])
-        # sudo can still access it (the decorator/run_check path).
         self.assertEqual(wizard.sudo().request, False)
         self.assertEqual(wizard._fields["request"].groups, fields.NO_ACCESS)

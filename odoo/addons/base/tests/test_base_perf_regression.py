@@ -15,7 +15,6 @@ class TestBasePerfRegression(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Partners with unique barcodes (for constraint + compute tests)
         cls.partners = cls.env["res.partner"].create(
             [
                 {"name": f"PerfPartner_{i}", "barcode": f"PERF-BC-{i:04d}"}
@@ -23,9 +22,6 @@ class TestBasePerfRegression(TransactionCase):
             ]
         )
 
-        # Distinctive VAT prefix unique in the whole DB: the optimization skips
-        # per-partner search when the pre-filter _read_group finds a VAT only
-        # in this batch.
         cls.vat_partners = cls.env["res.partner"].create(
             [
                 {
@@ -37,7 +33,6 @@ class TestBasePerfRegression(TransactionCase):
             ]
         )
 
-        # Server actions with code (for show_code_history)
         cls.server_actions = cls.env["ir.actions.server"].create(
             [
                 {
@@ -49,7 +44,6 @@ class TestBasePerfRegression(TransactionCase):
                 for i in range(5)
             ]
         )
-        # Create history entries that differ from current code
         cls.env["ir.actions.server.history"].create(
             [
                 {
@@ -60,7 +54,6 @@ class TestBasePerfRegression(TransactionCase):
             ]
         )
 
-        # Window actions with paths (for _check_path constraint)
         cls.window_actions = cls.env["ir.actions.act_window"].create(
             [
                 {
@@ -72,22 +65,13 @@ class TestBasePerfRegression(TransactionCase):
             ]
         )
 
-    # ------------------------------------------------------------------
-    # _check_path: batch path validation constraint
-    # ------------------------------------------------------------------
-
     @warmup
     def test_check_path_batch(self):
         """Path constraint uses 1 grouped _read_group, not N search_counts."""
         actions = self.window_actions
         self.env.invalidate_all()
         with self.assertQueryCount(2):
-            # 1 flush + 1 _read_group (uniqueness)
             actions._check_path()
-
-    # ------------------------------------------------------------------
-    # _check_barcode_unicity: batch barcode uniqueness
-    # ------------------------------------------------------------------
 
     @warmup
     def test_check_barcode_batch(self):
@@ -95,12 +79,7 @@ class TestBasePerfRegression(TransactionCase):
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(2):
-            # 1 read (barcodes) + 1 search_fetch (uniqueness)
             partners._check_barcode_unicity()
-
-    # ------------------------------------------------------------------
-    # _compute_show_code_history: batch history check
-    # ------------------------------------------------------------------
 
     @warmup
     def test_compute_show_code_history(self):
@@ -108,31 +87,16 @@ class TestBasePerfRegression(TransactionCase):
         actions = self.server_actions
         self.env.invalidate_all()
         with self.assertQueryCount(9):
-            # 1 read (state/code) + 1 search_fetch (history) + cache writes
-            # + extra compute triggers from sale/project modules on ir.actions.server
             actions._compute_show_code_history()
-
-    # ------------------------------------------------------------------
-    # _get_bindings: batch action loading per model
-    # ------------------------------------------------------------------
 
     @warmup
     def test_get_bindings_cold_cache(self):
         """First bindings load does batch reads per action type, not per action."""
         Actions = self.env["ir.actions.actions"]
-        # Clear all ormcaches (includes _get_bindings)
         self.registry.clear_all_caches()
         self.env.invalidate_all()
         with self.assertQueryCount(10):
-            # 1 flush + 1 raw SQL (action ids/types)
-            # + exists() + read() per action type (multiple types bound)
-            # + xml_id lookups for group_ids
-            # + additional binding types from sale/project/account modules
             Actions._get_bindings("res.partner")
-
-    # ------------------------------------------------------------------
-    # _compute_partner_share: batch via _read_group
-    # ------------------------------------------------------------------
 
     @warmup
     def test_compute_partner_share(self):
@@ -140,13 +104,7 @@ class TestBasePerfRegression(TransactionCase):
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(4):
-            # 1 read (superuser partner) + 1 default write + 1 _read_group
-            # + 1 extra read from additional partner computes (sale/project)
             partners._compute_partner_share()
-
-    # ------------------------------------------------------------------
-    # _compute_is_public: precomputed public user set
-    # ------------------------------------------------------------------
 
     @warmup
     def test_compute_is_public(self):
@@ -154,13 +112,7 @@ class TestBasePerfRegression(TransactionCase):
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(6):
-            # 1 ref lookup + 1 _read_group (group membership) + batch writes
-            # + 1 extra from additional partner computes (sale/project)
             partners._compute_is_public()
-
-    # ------------------------------------------------------------------
-    # _compute_main_user_id: batch user resolution
-    # ------------------------------------------------------------------
 
     @warmup
     def test_compute_main_user_id(self):
@@ -168,14 +120,7 @@ class TestBasePerfRegression(TransactionCase):
         partners = self.partners
         self.env.invalidate_all()
         with self.assertQueryCount(5):
-            # 1 xmlid lookup (partner_root) + 1 xmlid lookup (user_root)
-            # + 1 search_fetch (all active users) + cache writes
-            # + 1 extra from additional partner computes (sale/project)
             partners._compute_main_user_id()
-
-    # ------------------------------------------------------------------
-    # _compute_same_vat_partner_id: pre-filtering with _read_group
-    # ------------------------------------------------------------------
 
     @warmup
     def test_compute_same_vat(self):
@@ -183,30 +128,16 @@ class TestBasePerfRegression(TransactionCase):
         partners = self.vat_partners
         self.env.invalidate_all()
         with self.assertQueryCount(10):
-            # Phase 1: reads (vat/country/company/parent)
-            # Phase 2: 2x _read_group (existence check for VATs + registries)
-            # Phase 3: 1-2 batch search_fetch (all candidates)
-            # Phase 4: Python-only matching (0 queries)
-            # + extra reads from additional partner computes (sale/project)
             partners._compute_same_vat_partner_id()
-
-    # ------------------------------------------------------------------
-    # _selection_target_model: ormcache (0 queries on warm cache)
-    # ------------------------------------------------------------------
 
     @warmup
     def test_selection_target_model_cached(self):
         """Second call to _selection_target_model hits ormcache → 0 queries."""
         ServerAction = self.env["ir.actions.server"]
-        # First call warms the cache (done by @warmup decorator)
         ServerAction._selection_target_model()
         self.env.invalidate_all()
         with self.assertQueryCount(0):
             ServerAction._selection_target_model()
-
-    # ------------------------------------------------------------------
-    # ir.model._view_ids: batch view lookup
-    # ------------------------------------------------------------------
 
     @warmup
     def test_ir_model_view_ids(self):
@@ -214,12 +145,7 @@ class TestBasePerfRegression(TransactionCase):
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
-            # 1 flush + 1 read (model names) + 1 search (views) + 1 read (view.model)
             ir_models._compute_view_ids()
-
-    # ------------------------------------------------------------------
-    # ir.model._inherited_models: batch inherited lookup
-    # ------------------------------------------------------------------
 
     @warmup
     def test_ir_model_inherited_models(self):
@@ -227,13 +153,7 @@ class TestBasePerfRegression(TransactionCase):
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
-            # 1 read (model names) + 1 search (parent models)
-            # + additional reads from ir.model computes (sale/project/account)
             ir_models._compute_inherited_model_ids()
-
-    # ------------------------------------------------------------------
-    # ir.model._compute_count: single UNION ALL query
-    # ------------------------------------------------------------------
 
     @warmup
     def test_ir_model_compute_count(self):
@@ -241,5 +161,80 @@ class TestBasePerfRegression(TransactionCase):
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
-            # 1 flush + 1 read (model names) + 1 UNION ALL (all tables)
             ir_models._compute_count()
+
+    def test_create_partners_does_not_fetch_per_record(self):
+        """Creating N partners must not cost a SELECT per partner for the
+        commercial/parent fields the sync helpers read.
+
+        ``_fields_sync`` used to call ``self.fetch([...])`` on the single-record
+        ``self`` it receives. ``fetch()`` queries ``self`` alone (``_as_query``)
+        and ignores ``_prefetch_ids``, so that was one SELECT per partner --
+        the opposite of its intent. Plain attribute access in the helpers does
+        honour the prefetch set, so the batch load happens once, for free.
+
+        Counts only the commercial_partner_id SELECT rather than the total, so
+        unrelated ORM query-count drift (e.g. the attachment lookups the image
+        mixin triggers) cannot make this test flap.
+        """
+        Partner = self.env["res.partner"]
+        cursor_cls = type(self.env.cr)
+        original_execute = cursor_cls.execute
+        seen = []
+
+        def spy(cr_self, query, params=None, **kwargs):
+            code = getattr(query, "code", None) or str(query)
+            if '"commercial_partner_id" FROM "res_partner"' in code:
+                seen.append(code)
+            return original_execute(cr_self, query, params, **kwargs)
+
+        self.env.invalidate_all()
+        cursor_cls.execute = spy
+        try:
+            Partner.create([{"name": f"PerfCreate_{i}"} for i in range(20)])
+            self.env.flush_all()
+        finally:
+            cursor_cls.execute = original_execute
+
+        self.assertLessEqual(
+            len(seen),
+            1,
+            f"expected at most 1 commercial_partner_id SELECT for a 20-partner "
+            f"create, got {len(seen)}",
+        )
+
+    def test_create_records_with_images_batches_attachment_lookups(self):
+        """Creating N records of an image.mixin model must not cost one
+        ir_attachment SELECT per record per resized image field.
+
+        ``Field._compute_related`` assigned the related value one record at a
+        time. Attachment-backed ``Binary.mark_dirty`` runs an ir_attachment
+        search per assignment, so propagating the 4 stored resized image fields
+        cost 4*N SELECTs (each returning nothing) on a plain create. Records
+        receiving the same falsy value are now assigned in one go.
+        """
+        Partner = self.env["res.partner"]
+        cursor_cls = type(self.env.cr)
+        original_execute = cursor_cls.execute
+        seen = []
+
+        def spy(cr_self, query, params=None, **kwargs):
+            code = getattr(query, "code", None) or str(query)
+            if 'FROM "ir_attachment"' in code and '"res_field"' in code:
+                seen.append(code)
+            return original_execute(cr_self, query, params, **kwargs)
+
+        self.env.invalidate_all()
+        cursor_cls.execute = spy
+        try:
+            Partner.create([{"name": f"PerfImg_{i}"} for i in range(20)])
+            self.env.flush_all()
+        finally:
+            cursor_cls.execute = original_execute
+
+        self.assertLessEqual(
+            len(seen),
+            4,
+            f"expected at most 4 ir_attachment lookups for a 20-record create, "
+            f"got {len(seen)}",
+        )

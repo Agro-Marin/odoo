@@ -9,7 +9,7 @@ import warnings
 from base64 import b64encode
 from os import getenv
 from pathlib import Path
-from socket import getaddrinfo  # keep a reference on the non-patched function
+from socket import getaddrinfo
 from unittest.mock import patch
 
 from odoo.exceptions import UserError
@@ -44,7 +44,7 @@ if getenv("ODOO_RUNBOT") and not aiosmtpd:
 
 def _find_free_local_address():
     """Return a (family, address, port) triple on which a local TCP service can bind."""
-    addr = aiosmtpd.controller.get_localhost()  # it returns 127.0.0.1 or ::1
+    addr = aiosmtpd.controller.get_localhost()
     family = socket.AF_INET if addr == "127.0.0.1" else socket.AF_INET6
     with socket.socket(family, socket.SOCK_STREAM) as sock:
         sock.bind((addr, 0))
@@ -68,20 +68,15 @@ class Certificate:
         return f"Certificate({self.key=}, {self.cert=})"
 
 
-# skip when optional dependencies are not found
 @unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
 @unittest.skipUnless(_openssl, "openssl not found in path")
-# fail fast for timeout errors
 @patch("odoo.addons.base.models.ir_mail_server.SMTP_TIMEOUT", SMTP_TIMEOUT)
-# prevent the CLI from interfering with the tests
 @patch.dict(config.options, {"smtp_server": ""})
 class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        # aiosmtpd emits deprecation warnings from its own deprecated features; mute them.
-        # https://github.com/aio-libs/aiosmtpd/issues/347
         class Session(aiosmtpd.smtp.Session):
             @property
             def login_data(self):
@@ -95,8 +90,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
-        # Mute aiosmtpd warnings about unusual configs (e.g. AUTH over clear-text);
-        # we deliberately test those configs.
         warnings.filterwarnings(
             "ignore",
             "Requiring AUTH while not requiring TLS can lead to security vulnerabilities!",
@@ -114,10 +107,8 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
         logging.getLogger("mail.log").addFilter(CustomFilter())
 
-        # decrease aiosmtpd verbosity, odoo INFO = aiosmtpd WARNING
         logging.getLogger("mail.log").setLevel(_logger.getEffectiveLevel() + 10)
 
-        # TLS keys/certs: the CA signed both client and server; self_signed is self-signed.
         cls.ssl_ca, cls.ssl_client, cls.ssl_server, cls.ssl_self_signed = [
             Certificate(None, "base/tests/ssl/ca.cert.pem"),
             Certificate(
@@ -134,18 +125,15 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             ),
         ]
 
-        # Patch the two SMTP client classes into trusting the above CA
         class TEST_SMTP(smtplib.SMTP):
             def starttls(self, *, context):
                 if context is None:
-                    context = ssl._create_stdlib_context()  # what SMTP_SSL does
-                    # context = ssl.create_default_context()  # what it should do
+                    context = ssl._create_stdlib_context()
                 context.load_verify_locations(cafile=str(cls.ssl_ca.cert))
                 super().starttls(context=context)
 
         class TEST_SMTP_SSL(smtplib.SMTP_SSL):
             def _get_socket(self, *args, **kwargs):
-                # self.context = ssl.create_default_context()  # what it should do
                 self.context.load_verify_locations(cafile=str(cls.ssl_ca.cert))
                 return super()._get_socket(*args, **kwargs)
 
@@ -156,16 +144,12 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
-        # Runbot's docker has a single ipv4 stack but resolves "localhost" to ::1;
-        # force aiosmtpd/odoo onto a fixed ipv4 or ipv6 address.
         family, addr, cls.port = _find_free_local_address()
         cls.localhost = getaddrinfo(addr, cls.port, family)
         cls.startClassPatcher(patch("socket.getaddrinfo", cls.getaddrinfo))
 
     def setUp(self):
         super().setUp()
-        # Re-enable sending for this suite; do NOT send via any ir.mail_server
-        # other than the one created in setUp.
         patcher = patch.object(IrMail_Server, "_disable_send", return_value=False)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -197,7 +181,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
 
         kwargs = {}
         if encryption == "starttls":
-            # for aiosmtpd.smtp.SMTP
             kwargs.update(
                 {
                     "require_starttls": True,
@@ -205,7 +188,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                 }
             )
         elif encryption == "ssl":
-            # for aiosmtpd.controller.InetMixin
             kwargs["ssl_context"] = ssl_context
         if auth_required:
             kwargs["authenticator"] = _smtp_authenticate
@@ -251,7 +233,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         client_key = b64encode(self.ssl_client.key.read_bytes())
         client_cert = b64encode(self.ssl_client.cert.read_bytes())
         matrix = [
-            # authentication, name, certificate, private key, error pattern
             (
                 "login",
                 "missing",
@@ -329,7 +310,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         MISSING = ""
         INVALID = "bad password"
         matrix = [
-            # auth_required, password, error_pattern
             (False, MISSING, None),
             (
                 True,
@@ -398,7 +378,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         ssl_context.load_cert_chain(self.ssl_server.cert, self.ssl_server.key)
 
         matrix = [
-            # client, server, error_pattern
             (
                 "none",
                 "ssl",
@@ -483,7 +462,6 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         host_bad = "notlocalhost"
 
         matrix = [
-            # strict?, authentication, certificate, hostname, error_pattern
             (False, "login", cert_bad, host_good, None),
             (False, "login", cert_good, host_bad, None),
             (False, "certificate", cert_bad, host_good, None),

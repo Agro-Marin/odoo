@@ -76,8 +76,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_cannot_delete_default_embedded_action(self):
-        # A record seeded from a data file (external id not __export__/__custom__)
-        # is not deletable and must raise UserError on unlink.
         seeded_action = self.env["ir.embedded.actions"].create(
             {
                 "name": "SeededEmbeddedAction",
@@ -103,8 +101,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             seeded_action.unlink()
 
     def test_python_method_visibility(self):
-        # An embedded action whose python_method does not exist on the parent
-        # model is hidden; one whose python_method exists is shown.
         invalid_method_action = self.env["ir.embedded.actions"].create(
             {
                 "name": "InvalidMethodAction",
@@ -131,8 +127,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_malformed_domain_visibility(self):
-        # A malformed domain literal must be caught (ValueError/SyntaxError) and
-        # yield is_visible=False without raising a traceback.
         malformed_action = self.env["ir.embedded.actions"].create(
             {
                 "name": "MalformedDomainAction",
@@ -148,8 +142,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_user_id_scoping_visibility(self):
-        # A personal embedded action (user_id set) is visible only to its owner;
-        # a shared action (user_id empty) is visible to any user.
         owner = self.user_demo
         other_user = self.env["res.users"].create(
             {
@@ -189,11 +181,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_active_model_gates_visibility(self):
-        # Cross-model id collision: active_id names a record of the context's
-        # active_model only, so an action on another parent_res_model stays
-        # hidden even if that model's table holds a same-id record.
-        # Root user (self.env.user) is active=False and the compute's search
-        # would never find it, so use an active user.
         user = self.user_demo
         cross_model_action = self.env["ir.embedded.actions"].create(
             {
@@ -215,7 +202,6 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
             ).is_visible,
             "An embedded action matching active_model should stay visible",
         )
-        # Flows passing only active_id keep the id-only matching behavior.
         self.assertTrue(
             cross_model_action.with_context(active_id=user.id).is_visible,
             "Without active_model, matching by active_id alone is preserved",
