@@ -58,12 +58,14 @@ class _FieldDescriptionMixin(_FieldStubs):
         model = env[self.model_name]
         query = model._as_query(ordered=False)
         try:
-            model._order_field_to_sql(
+            term = model._order_field_to_sql(
                 model._table, self.name, SQL.EMPTY, SQL.EMPTY, query
             )
-            return True
         except ValueError, AccessError:
             return False
+        # An empty term means the ordering would be dropped (unreadable field,
+        # many2one cycle), so the client must not offer to sort on it.
+        return bool(term)
 
     def _description_groupable(self, env: Environment) -> bool:
         if self.is_column:
