@@ -243,10 +243,26 @@ class EnvironmentMixin(_ModelStubs):
         return record
 
     @property
+    def _has_origin(self) -> bool:
+        """Whether any record in ``self`` maps to a real (origin) id.
+
+        The cheap form of ``bool(self._origin)``: it stops at the first record
+        with an origin and never maps ``_prefetch_ids``, so a caller that only
+        needs the boolean does not pay the O(prefetch group) mapping that
+        :attr:`_origin` performs.
+        """
+        return any(id_ or getattr(id_, "origin", None) for id_ in self._ids)
+
+    @property
     def _origin(self) -> Self:
         """Return the actual records corresponding to ``self``."""
-        if all(self._ids):
+        record_ids = self._ids
+        if all(record_ids):
             return self
-        ids = tuple(_origin_ids(self._ids))
-        prefetch_ids = _origin_ids(self._prefetch_ids)
-        return self._spawn(self.env, ids, prefetch_ids)
+        ids = tuple(_origin_ids(record_ids))
+        prefetch_ids = self._prefetch_ids
+        return self._spawn(
+            self.env,
+            ids,
+            ids if prefetch_ids is record_ids else tuple(_origin_ids(prefetch_ids)),
+        )
