@@ -2,13 +2,15 @@
 
 """ Implementation of "INVENTORY VALUATION TESTS (With valuation layers)" spreadsheet. """
 
+import time
 from unittest import skip
+
+from freezegun import freeze_time
 
 from odoo import fields
 from odoo.tests import Form, tagged
+
 from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
-from freezegun import freeze_time
-import time
 
 
 @skip('Temporary to fast merge new valuation')
@@ -60,7 +62,6 @@ class TestStockValuationLCCommon(TestStockLandedCostsCommon):
         ], order='id')
 
     def _make_lc(self, move, amount):
-        picking = move.picking_id
         lc = Form(self.env['stock.landed.cost'])
         lc.account_journal_id = self.stock_journal
         lc.picking_ids.add(move.picking_id)
@@ -151,9 +152,9 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
 
     def test_normal_1(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_in_move(self.product1, 10, unit_cost=20)
-        lc = self._make_lc(move1, 100)
-        move3 = self._make_out_move(self.product1, 1)
+        self._make_in_move(self.product1, 10, unit_cost=20)
+        self._make_lc(move1, 100)
+        self._make_out_move(self.product1, 1)
 
         self.assertEqual(self.product1.value_svl, 380)
         self.assertEqual(self.product1.quantity_svl, 19)
@@ -161,44 +162,44 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
 
     def test_negative_1(self):
         self.product1.standard_price = 10
-        move1 = self._make_out_move(self.product1, 2, force_assign=True)
+        self._make_out_move(self.product1, 2, force_assign=True)
         move2 = self._make_in_move(self.product1, 10, unit_cost=15, create_picking=True)
-        lc = self._make_lc(move2, 100)
+        self._make_lc(move2, 100)
 
         self.assertEqual(self.product1.value_svl, 200)
         self.assertEqual(self.product1.quantity_svl, 8)
 
     def test_alreadyout_1(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_out_move(self.product1, 10)
-        lc = self._make_lc(move1, 100)
+        self._make_out_move(self.product1, 10)
+        self._make_lc(move1, 100)
 
         self.assertEqual(self.product1.value_svl, 0)
         self.assertEqual(self.product1.quantity_svl, 0)
 
     def test_alreadyout_2(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_in_move(self.product1, 10, unit_cost=20)
-        move2 = self._make_out_move(self.product1, 1)
-        lc = self._make_lc(move1, 100)
+        self._make_in_move(self.product1, 10, unit_cost=20)
+        self._make_out_move(self.product1, 1)
+        self._make_lc(move1, 100)
 
         self.assertEqual(self.product1.value_svl, 380)
         self.assertEqual(self.product1.quantity_svl, 19)
 
     def test_alreadyout_3(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_out_move(self.product1, 10)
+        self._make_out_move(self.product1, 10)
         move1.move_line_ids.quantity = 15
-        lc = self._make_lc(move1, 60)
+        self._make_lc(move1, 60)
 
         self.assertEqual(self.product1.value_svl, 70)
         self.assertEqual(self.product1.quantity_svl, 5)
 
     def test_fifo_to_standard_1(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10)
-        move2 = self._make_in_move(self.product1, 10, unit_cost=15)
-        move3 = self._make_out_move(self.product1, 5)
-        lc = self._make_lc(move1, 100)
+        self._make_in_move(self.product1, 10, unit_cost=15)
+        self._make_out_move(self.product1, 5)
+        self._make_lc(move1, 100)
         self.product1.product_tmpl_id.categ_id.property_cost_method = 'standard'
         out_svl = self.product1.stock_valuation_layer_ids.sorted()[-2]
         in_svl = self.product1.stock_valuation_layer_ids.sorted()[-1]
@@ -210,10 +211,10 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
     def test_rounding_1(self):
         """3@100, out 1, out 1, out 1"""
         move1 = self._make_in_move(self.product1, 3, unit_cost=20, create_picking=True)
-        lc = self._make_lc(move1, 40)
-        move2 = self._make_out_move(self.product1, 1)
-        move3 = self._make_out_move(self.product1, 1)
-        move4 = self._make_out_move(self.product1, 1)
+        self._make_lc(move1, 40)
+        self._make_out_move(self.product1, 1)
+        self._make_out_move(self.product1, 1)
+        self._make_out_move(self.product1, 1)
 
         self.assertEqual(self.product1.stock_valuation_layer_ids.mapped('value'), [60.0, 40.0, -33.33, -33.34, -33.33])
         self.assertEqual(self.product1.value_svl, 0)
@@ -222,7 +223,7 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
     def test_rounding_2(self):
         """3@98, out 1, out 1, out 1"""
         move1 = self._make_in_move(self.product1, 3, unit_cost=20, create_picking=True)
-        lc = self._make_lc(move1, 38)
+        self._make_lc(move1, 38)
         move2 = self._make_out_move(self.product1, 1)
         move3 = self._make_out_move(self.product1, 1)
         move4 = self._make_out_move(self.product1, 1)
@@ -236,10 +237,10 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
     def test_rounding_3(self):
         """3@4.85, out 1, out 1, out 1"""
         move1 = self._make_in_move(self.product1, 3, unit_cost=1, create_picking=True)
-        lc = self._make_lc(move1, 1.85)
-        move2 = self._make_out_move(self.product1, 1)
-        move3 = self._make_out_move(self.product1, 1)
-        move4 = self._make_out_move(self.product1, 1)
+        self._make_lc(move1, 1.85)
+        self._make_out_move(self.product1, 1)
+        self._make_out_move(self.product1, 1)
+        self._make_out_move(self.product1, 1)
 
         self.assertEqual(self.product1.stock_valuation_layer_ids.mapped('value'), [3.0, 1.85, -1.62, -1.62, -1.61])
         self.assertEqual(self.product1.value_svl, 0)
@@ -248,9 +249,9 @@ class TestStockValuationLCFIFO(TestStockValuationLCCommon):
     def test_in_and_out_1(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=100, create_picking=True)
         self.assertEqual(move1.stock_valuation_layer_ids[0].remaining_value, 1000)
-        lc1 = self._make_lc(move1, 100)
+        self._make_lc(move1, 100)
         self.assertEqual(move1.stock_valuation_layer_ids[0].remaining_value, 1100)
-        lc2 = self._make_lc(move1, 50)
+        self._make_lc(move1, 50)
         self.assertEqual(move1.stock_valuation_layer_ids[0].remaining_value, 1150)
         self.assertEqual(self.product1.value_svl, 1150)
         self.assertEqual(self.product1.quantity_svl, 10)
@@ -282,25 +283,25 @@ class TestStockValuationLCAVCO(TestStockValuationLCCommon):
 
     def test_normal_1(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_in_move(self.product1, 10, unit_cost=20)
-        lc = self._make_lc(move1, 100)
-        move3 = self._make_out_move(self.product1, 1)
+        self._make_in_move(self.product1, 10, unit_cost=20)
+        self._make_lc(move1, 100)
+        self._make_out_move(self.product1, 1)
 
         self.assertEqual(self.product1.value_svl, 380)
 
     def test_negative_1(self):
         self.product1.standard_price = 10
-        move1 = self._make_out_move(self.product1, 2, force_assign=True)
+        self._make_out_move(self.product1, 2, force_assign=True)
         move2 = self._make_in_move(self.product1, 10, unit_cost=15, create_picking=True)
-        lc = self._make_lc(move2, 100)
+        self._make_lc(move2, 100)
 
         self.assertEqual(self.product1.value_svl, 200)
         self.assertEqual(self.product1.quantity_svl, 8)
 
     def test_alreadyout_1(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_out_move(self.product1, 10)
-        lc = self._make_lc(move1, 100)
+        self._make_out_move(self.product1, 10)
+        self._make_lc(move1, 100)
 
         self.assertEqual(len(self.product1.stock_valuation_layer_ids), 2)
         self.assertEqual(self.product1.value_svl, 0)
@@ -308,9 +309,9 @@ class TestStockValuationLCAVCO(TestStockValuationLCCommon):
 
     def test_alreadyout_2(self):
         move1 = self._make_in_move(self.product1, 10, unit_cost=10, create_picking=True)
-        move2 = self._make_in_move(self.product1, 10, unit_cost=20)
-        move2 = self._make_out_move(self.product1, 1)
-        lc = self._make_lc(move1, 100)
+        self._make_in_move(self.product1, 10, unit_cost=20)
+        self._make_out_move(self.product1, 1)
+        self._make_lc(move1, 100)
 
         self.assertEqual(self.product1.value_svl, 375)
         self.assertEqual(self.product1.quantity_svl, 19)
@@ -363,7 +364,7 @@ class TestStockValuationLCAVCO(TestStockValuationLCCommon):
 class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
     @classmethod
     def setUpClass(cls):
-        super(TestStockValuationLCFIFOVB, cls).setUpClass()
+        super().setUpClass()
         cls.vendor1 = cls.env['res.partner'].create({'name': 'vendor1'})
         cls.vendor1.property_account_payable_id = cls.company_data['default_account_payable']
         cls.vendor2 = cls.env['res.partner'].create({'name': 'vendor2'})

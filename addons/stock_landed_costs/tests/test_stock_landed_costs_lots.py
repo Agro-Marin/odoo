@@ -2,9 +2,10 @@
 
 from unittest import skip
 
-from odoo.addons.stock_account.tests.test_lot_valuation import TestLotValuation
-from odoo.tests import tagged, Form
 from odoo import Command
+from odoo.tests import Form, tagged
+
+from odoo.addons.stock_account.tests.test_lot_valuation import TestLotValuation
 
 
 @tagged('post_install', '-at_install')
@@ -104,9 +105,9 @@ class TestStockLandedCostsLots(TestLotValuation):
             {'lot_id': lot_product_b[1].id, 'product_id': product2.id, 'stock_valuation_layer_id': og_p2_layers[1].id, 'quantity': 0, 'value': 1.5},
         ])
 
-        for l, price in zip(lot_product_a, [10.2, 10.2, 10.2]):
+        for l, price in zip(lot_product_a, [10.2, 10.2, 10.2], strict=False):
             self.assertEqual(l.standard_price, price)
-        for l, price in zip(lot_product_b, [11.3, 11.3]):
+        for l, price in zip(lot_product_b, [11.3, 11.3], strict=False):
             self.assertEqual(l.standard_price, price)
         outs = self._make_out_move(self.product1, 9, lot_ids=[lot_product_a[0], lot_product_a[1], lot_product_a[2]])
         self.assertRecordValues(outs.stock_valuation_layer_ids.sorted('id'), [

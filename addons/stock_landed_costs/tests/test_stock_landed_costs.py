@@ -2,10 +2,11 @@
 
 from unittest import skip
 
-from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
+from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
-from odoo import fields
+
+from odoo.addons.stock_landed_costs.tests.common import TestStockLandedCostsCommon
 
 
 @tagged('post_install', '-at_install')
@@ -42,17 +43,18 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         picking_default_vals = self.env['stock.picking'].default_get(list(self.env['stock.picking'].fields_get()))
 
         # I create 2 picking moving those products
-        vals = dict(picking_default_vals, **{
-            'name': 'LC_pick_1',
-            'picking_type_id': self.warehouse.out_type_id.id,
-            'move_ids': [(0, 0, {
+        vals = dict(
+            picking_default_vals,
+            name='LC_pick_1',
+            picking_type_id=self.warehouse.out_type_id.id,
+            move_ids=[(0, 0, {
                 'product_id': product_landed_cost_1.id,
                 'product_uom_qty': 15,
                 'product_uom_id': self.ref('uom.product_uom_unit'),
                 'location_id': self.warehouse.lot_stock_id.id,
                 'location_dest_id': self.ref('stock.stock_location_customers'),
             })],
-        })
+        )
         picking_landed_cost_1 = self.env['stock.picking'].new(vals)
         picking_landed_cost_1._onchange_picking_type()
         vals = picking_landed_cost_1._convert_to_write(picking_landed_cost_1._cache)
@@ -67,17 +69,18 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
         picking_landed_cost_1.move_ids.quantity = 5
         picking_landed_cost_1.button_validate()
 
-        vals = dict(picking_default_vals, **{
-            'name': 'LC_pick_2',
-            'picking_type_id': self.warehouse.out_type_id.id,
-            'move_ids': [(0, 0, {
+        vals = dict(
+            picking_default_vals,
+            name='LC_pick_2',
+            picking_type_id=self.warehouse.out_type_id.id,
+            move_ids=[(0, 0, {
                 'product_id': product_landed_cost_2.id,
                 'product_uom_qty': 10,
                 'product_uom_id': self.ref('uom.product_uom_unit'),
                 'location_id': self.warehouse.lot_stock_id.id,
                 'location_dest_id': self.ref('stock.stock_location_customers'),
             })],
-        })
+        )
         picking_landed_cost_2 = self.env['stock.picking'].new(vals)
         picking_landed_cost_2._onchange_picking_type()
         vals = picking_landed_cost_2._convert_to_write(picking_landed_cost_2._cache)

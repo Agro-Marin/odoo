@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
@@ -25,7 +24,7 @@ class AccountMove(models.Model):
         self.ensure_one()
         landed_costs_lines = self.line_ids.filtered(lambda line: line.is_landed_costs_line)
 
-        sign = -1 if self.move_type in ['in_refund'] else 1
+        sign = -1 if self.move_type == 'in_refund' else 1
         landed_costs = self.env['stock.landed.cost'].with_company(self.company_id).create({
             'vendor_bill_id': self.id,
             'cost_lines': [(0, 0, {
