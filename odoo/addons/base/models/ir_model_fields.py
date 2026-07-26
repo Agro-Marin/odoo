@@ -156,7 +156,15 @@ class IrModelFields(models.Model):
         "For example: [('color','=','red')]",
     )
     groups = fields.Many2many(
-        "res.groups", "ir_model_fields_group_rel", "field_id", "group_id"
+        "res.groups",
+        "ir_model_fields_group_rel",
+        "field_id",
+        "group_id",
+        string="Restricted to Groups",
+        help="Groups allowed to read and write this field.  Only honoured for "
+        "manual (custom) fields: a base field's restriction is declared in "
+        "Python and reflected from the code, not from this table.  Each group "
+        "needs an external id to be enforceable.",
     )
     group_expand = fields.Boolean(
         string="Expand Groups",
@@ -997,9 +1005,23 @@ class IrModelFields(models.Model):
         cr = self.env.cr
         cr.execute(
             """
-            SELECT *, field_description->>'en_US' AS field_description, help->>'en_US' AS help
-            FROM ir_model_fields
-            WHERE state = 'manual'
+            SELECT f.*,
+                   f.field_description->>'en_US' AS field_description,
+                   f.help->>'en_US' AS help,
+                   (
+                       SELECT string_agg(d.module || '.' || d.name, ',' ORDER BY d.module, d.name)
+                       FROM ir_model_fields_group_rel r
+                       JOIN ir_model_data d
+                         ON d.model = 'res.groups' AND d.res_id = r.group_id
+                       WHERE r.field_id = f.id
+                   ) AS group_xmlids,
+                   (
+                       SELECT count(*)
+                       FROM ir_model_fields_group_rel r
+                       WHERE r.field_id = f.id
+                   ) AS group_count
+            FROM ir_model_fields f
+            WHERE f.state = 'manual'
         """,
             prepare=False,
         )
@@ -1026,6 +1048,21 @@ class IrModelFields(models.Model):
             "store": bool(field_data["store"]),
             "company_dependent": bool(field_data["company_dependent"]),
         }
+        if group_count := field_data.get("group_count"):
+            group_xmlids = field_data.get("group_xmlids")
+            if group_xmlids:
+                attrs["groups"] = group_xmlids
+            if not group_xmlids or group_xmlids.count(",") + 1 != group_count:
+                _logger.warning(
+                    "Field %s.%s is restricted to %d group(s) but only %d of them "
+                    "have an external id; the field is enforced against those only. "
+                    "Give every restricting group an external id, or the "
+                    "restriction is weaker than it looks.",
+                    field_data["model"],
+                    field_data["name"],
+                    group_count,
+                    0 if not group_xmlids else group_xmlids.count(",") + 1,
+                )
         if field_data["ttype"] in ("char", "text", "html"):
             attrs["translate"] = FIELD_TRANSLATE.get(field_data["translate"], True)
             if field_data["ttype"] == "char":
