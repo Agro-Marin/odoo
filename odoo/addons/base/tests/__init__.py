@@ -51,6 +51,10 @@ from . import test_ir_autovacuum_audit
 from . import test_ir_demo
 from . import test_ir_logging
 from . import test_ir_mail_server_audit
+from . import test_cache_scan_predicates
+from . import test_log_access_cache
+from . import test_sort_collation
+from . import test_unaccent_parity
 from . import test_mail
 from . import test_base_language_wizards_audit
 from . import test_base_module_wizards

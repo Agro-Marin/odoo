@@ -30,7 +30,21 @@ class _BaseModelRef:
 
 
 def set_base_model(base_model: type[BaseModel]) -> None:
-    """Register the concrete ``BaseModel`` class (called once by the model layer)."""
+    """Register the concrete ``BaseModel`` class (called once by the model layer).
+
+    Write-once.  A second injection would swap the class every predicate below
+    tests against, so recordsets built from the first one stop being recognised
+    as recordsets -- a failure that surfaces far from its cause.  Re-injecting
+    the *same* class (a re-executed import) is accepted as a no-op.
+
+    :raises RuntimeError: if a different ``BaseModel`` is injected.
+    """
+    current = _BaseModelRef.cls
+    if current is not None and current is not base_model:
+        raise RuntimeError(
+            f"BaseModel is already injected as {current!r}; refusing to replace "
+            f"it with {base_model!r}"
+        )
     _BaseModelRef.cls = base_model
 
 

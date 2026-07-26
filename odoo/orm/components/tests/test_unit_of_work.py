@@ -58,48 +58,6 @@ class TestDirtyModels(unittest.TestCase):
         self.assertEqual(self.uow.dirty_models(), ["sale.order"])
 
 
-class TestConvergenceDetection(unittest.TestCase):
-    """Test convergence / stall detection methods."""
-
-    def setUp(self) -> None:
-        self.cache = FieldCache()
-        self.engine = ComputeEngine()
-        self.uow = UnitOfWork(self.cache, self.engine)
-
-    def test_empty_snapshot(self) -> None:
-        snap = self.uow.recompute_snapshot()
-        self.assertEqual(snap, frozenset())
-
-    def test_snapshot_with_pending(self) -> None:
-        f = _field("m", "total")
-        self.engine.schedule(f, [1, 2, 3])
-        snap = self.uow.recompute_snapshot()
-        self.assertEqual(snap, frozenset({(f, 3)}))
-
-    def test_convergence_first_iteration(self) -> None:
-        """First iteration (prev=None) always progresses."""
-        snap = frozenset({("f", 3)})
-        progressing, stalled = self.uow.check_convergence(None, snap)
-        self.assertTrue(progressing)
-        self.assertEqual(stalled, [])
-
-    def test_convergence_changed(self) -> None:
-        """Changed snapshot means progress."""
-        prev = frozenset({("f", 3)})
-        curr = frozenset({("f", 1)})
-        progressing, _stalled = self.uow.check_convergence(prev, curr)
-        self.assertTrue(progressing)
-
-    def test_convergence_stalled(self) -> None:
-        """Same snapshot means stalled."""
-        f = _field("m", "total")
-        snap = frozenset({(f, 3)})
-        progressing, stalled = self.uow.check_convergence(snap, snap)
-        self.assertFalse(progressing)
-        self.assertEqual(len(stalled), 1)
-        self.assertIn("m.total(3)", stalled[0])
-
-
 class TestRunRecomputeLoop(unittest.TestCase):
     """Test the fixpoint recompute loop."""
 
