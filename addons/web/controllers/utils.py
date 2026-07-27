@@ -186,6 +186,11 @@ def get_action(env: Any, path_part: str) -> Any:
     * ``m-<model>`` — model name (act_window's res_model)
     * ``<dotted.model>`` — model name
     * ``<path>`` — ir.actions path
+
+    The path branch reads ``ir.actions.path``, one indexed row per pathed
+    action, rather than scanning the six tables of the ``ir_actions``
+    inheritance tree; it is also the table whose unique index is what stops
+    two actions from answering to the same URL.
     """
     Actions = env["ir.actions.actions"]
 
@@ -214,7 +219,12 @@ def get_action(env: Any, path_part: str) -> Any:
         else:
             action = Actions
     else:
-        action = Actions.sudo().search([("path", "=", path_part)])
+        action = (
+            env["ir.actions.path"]
+            .sudo()
+            .search([("path", "=", path_part)], limit=1)
+            .action_id
+        )
 
     if action and action._name == "ir.actions.actions":
         action = action._as_concrete()

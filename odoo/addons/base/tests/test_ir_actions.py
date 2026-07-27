@@ -1376,9 +1376,9 @@ class TestActionsPath(common.TransactionCase):
 
 
 class TestActionsReadAndXmlId(common.TransactionCase):
-    """Cover act_window.read help path and _for_xml_id guard (IACT-T2)."""
+    """Cover act_window help placeholder and the _for_xml_id guard (IACT-T2)."""
 
-    def test_read_help_with_bad_context(self):
+    def test_placeholder_with_bad_context(self):
         """A malformed/non-dict context degrades to {}; help still populated."""
         action = self.env["ir.actions.act_window"].create(
             {
@@ -1388,11 +1388,9 @@ class TestActionsReadAndXmlId(common.TransactionCase):
                 "help": "<p>Custom help</p>",
             }
         )
-        values = action.read(["help", "res_model", "context"])[0]
-        self.assertIn("help", values)
-        self.assertIsNotNone(values["help"])
+        self.assertIsNotNone(action._get_action_dict()["help"])
 
-    def test_read_help_with_raising_context(self):
+    def test_placeholder_with_raising_context(self):
         """A context that raises on eval degrades to {}; help still populated."""
         action = self.env["ir.actions.act_window"].create(
             {
@@ -1402,26 +1400,47 @@ class TestActionsReadAndXmlId(common.TransactionCase):
                 "help": "<p>Custom help</p>",
             }
         )
-        values = action.read(["help", "res_model", "context"])[0]
-        self.assertIn("help", values)
-        self.assertIsNotNone(values["help"])
+        self.assertIsNotNone(action._get_action_dict()["help"])
 
-    def test_read_help_only_field_enriches(self):
-        """read(['help']) enriches help identically to a full read.
+    PLACEHOLDER = "<p>GENERATED PLACEHOLDER</p>"
 
-        Enrichment sources res_model/context from the record, so it no longer
-        depends on those fields being present in the requested field list.
+    def _action_on_a_model_that_generates_a_placeholder(self, help_text):
+        """An act_window whose target model overrides get_empty_list_help.
+
+        Patched rather than borrowed from ``mail``: these run at base install,
+        where no other module is loaded yet.
         """
-        action = self.env["ir.actions.act_window"].create(
-            {
-                "name": "HelpOnly",
-                "res_model": "res.partner",
-                "help": "<p>raw</p>",
-            }
+        self.patch(
+            type(self.env["res.partner"]),
+            "get_empty_list_help",
+            lambda records, help_message: self.PLACEHOLDER,
         )
-        full = action.read(["help", "res_model", "context"])[0]["help"]
-        only = action.read(["help"])[0]["help"]
-        self.assertEqual(only, full)
+        return self.env["ir.actions.act_window"].create(
+            {"name": "HelpStored", "res_model": "res.partner", "help": help_text}
+        )
+
+    def test_read_returns_the_stored_help_verbatim(self):
+        """The action's own form edits ``help``, so read must not rewrite it.
+
+        The placeholder used to be added in a read() override, so the form
+        displayed the target model's generated text in the editable field and
+        saving wrote it back over the author's.
+        """
+        action = self._action_on_a_model_that_generates_a_placeholder(
+            "<p>MY OWN HELP</p>"
+        )
+        self.env.flush_all()
+        self.assertEqual(action.read(["help"])[0]["help"], "<p>MY OWN HELP</p>")
+
+        # what the web client round-trips when the form is saved
+        action.write({"help": action.read(["help"])[0]["help"]})
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(action.help, "<p>MY OWN HELP</p>")
+
+    def test_the_launch_payload_still_carries_the_placeholder(self):
+        action = self._action_on_a_model_that_generates_a_placeholder(False)
+        self.assertEqual(action._get_action_dict()["help"], self.PLACEHOLDER)
 
     def test_for_xml_id_valid_window(self):
         """_for_xml_id of a valid window returns a dict limited to readable fields."""

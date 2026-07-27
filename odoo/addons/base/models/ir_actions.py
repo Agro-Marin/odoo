@@ -1,5 +1,4 @@
 import base64
-import collections.abc
 import logging
 import re
 from collections import defaultdict
@@ -327,12 +326,21 @@ class IrActionsActions(models.Model):
     def _window_view_types(self) -> frozenset[str]:
         """The view types an action can display, as a comma-separated field.
 
-        Every ``ir.ui.view`` type — so a module registering one extends this by
-        extending that selection, and nothing here — minus the ones no action
-        window can render (:data:`NON_WINDOW_VIEW_TYPES`).
+        Read off ``ir.actions.act_window.view.view_mode`` rather than off
+        ``ir.ui.view.type`` minus :data:`NON_WINDOW_VIEW_TYPES`: that selection
+        is the list a module extends when it adds a view type an action window
+        can render — ``web_gantt``, ``web_cohort``, ``mail`` and the rest each
+        do — so it states the vocabulary directly, where the subtraction only
+        approximates it and happens to agree because a post-install test says
+        it must.  The comma-separated fields and the ``view_ids`` lines then
+        cannot offer different modes.
         """
-        view_types = self.env["ir.ui.view"]._fields["type"].get_values(self.env)
-        return frozenset(view_types).difference(NON_WINDOW_VIEW_TYPES)
+        view_modes = (
+            self.env["ir.actions.act_window.view"]
+            ._fields["view_mode"]
+            .get_values(self.env)
+        )
+        return frozenset(view_modes)
 
     def _check_view_type_vocabulary(self, field_name: str) -> None:
         """Reject view types the client has no view to render for.
@@ -1145,28 +1153,22 @@ class IrActionsAct_Window(models.Model):
             views.extend((False, mode) for mode in missing_modes)
             act.views = views
 
-    def read(
-        self,
-        fields: collections.abc.Sequence[str] | None = None,
-        load: str = "_classic_read",
-    ) -> list[ValuesType]:
-        """Enrich the ``help`` field with the target model's empty-list help."""
-        result = super().read(fields, load=load)
-        if fields and "help" not in fields:
-            return result
-        eval_ctx = dict(self.env.context)
-        records = {record.id: record for record in self}
-        for values in result:
-            record = records[values["id"]]
-            if record.res_model not in self.env:
-                continue
-            ctx = _safe_eval_dict(record.context, eval_ctx, {})
-            values["help"] = (
-                self.with_context(**ctx)
-                .env[record.res_model]
-                .get_empty_list_help(values.get("help", ""))
-            )
-        return result
+    def _empty_list_help(self, stored_help: str | bool) -> str | bool:
+        """The target model's placeholder for an empty list, from ``help``.
+
+        Evaluated with the action's own ``context`` merged in, because
+        ``get_empty_list_help`` implementations read it — ``mail`` builds an
+        alias out of ``default_*`` keys, for one.
+        """
+        self.ensure_one()
+        if self.res_model not in self.env:
+            return stored_help
+        ctx = _safe_eval_dict(self.context, dict(self.env.context), {})
+        return (
+            self.with_context(**ctx)
+            .env[self.res_model]
+            .get_empty_list_help(stored_help)
+        )
 
     def _menu_access_model_field(self) -> str:
         return "res_model"
@@ -1191,13 +1193,23 @@ class IrActionsAct_Window(models.Model):
         }
 
     def _get_action_dict(self) -> dict[str, Any]:
-        """Override to expand embedded actions into full read() dicts."""
+        """Expand embedded actions, and fill ``help`` in for an empty list.
+
+        The placeholder belongs to the payload the client launches, not to
+        ``read``.  It used to be a ``read`` override, so every reader got it —
+        including the action's own form, where ``help`` is an editable field:
+        it displayed the model's generated text instead of the stored one, and
+        saving the form wrote that text back over whatever its author had
+        written.  Nothing else asks ``read`` for an action's help, so nothing
+        else loses the placeholder by moving it here.
+        """
         result = super()._get_action_dict()
         if embedded_action_ids := result["embedded_action_ids"]:
             embedded = self.env["ir.embedded.actions"].browse(embedded_action_ids)
             result["embedded_action_ids"] = embedded.read(
                 sorted(embedded._get_readable_fields())
             )
+        result["help"] = self._empty_list_help(result.get("help", ""))
         return result
 
 

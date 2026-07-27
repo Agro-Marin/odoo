@@ -1444,7 +1444,22 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
     render -- had been shipping that way undetected.
     """
 
-    def test_the_vocabulary_is_the_view_types_minus_the_unrenderable_ones(self):
+    def test_the_comma_separated_fields_and_the_lines_share_one_vocabulary(self):
+        """The Char fields and the view_ids Selection must offer the same modes.
+
+        _window_view_types reads that Selection directly, so a module adding a
+        renderable view type extends one list and both follow.
+        """
+        allowed = self.env["ir.actions.actions"]._window_view_types()
+        line_modes = set(
+            self.env["ir.actions.act_window.view"]
+            ._fields["view_mode"]
+            .get_values(self.env)
+        )
+        self.assertEqual(allowed, line_modes)
+
+    def test_that_vocabulary_is_still_the_view_types_minus_the_unrenderable(self):
+        """Tying it back to ir.ui.view.type, which the lines only mirror."""
         from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
 
         allowed = self.env["ir.actions.actions"]._window_view_types()
