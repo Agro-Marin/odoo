@@ -15,6 +15,23 @@ if typing.TYPE_CHECKING:
 MAXINT = 2**31 - 1
 
 
+def _pg_float_text(value: float) -> str:
+    """Render *value* as PostgreSQL renders a stored float column with ``::text``.
+
+    Every numeric column the ORM creates is either ``float8`` or a *scale-less*
+    ``numeric`` fed with Python floats, so PostgreSQL prints both in shortest
+    round-trip form -- identical to ``repr()`` except that an integral value
+    loses its ``.0`` (``1.0`` -> ``1``, ``100.0`` -> ``100``), which is exactly
+    the divergence that made ``('rounding', 'ilike', '1.0')`` match 8 records
+    under ``filtered_domain()`` and none under ``search()``.
+
+    Verified against the server over the full float8 range used by the field
+    types (integral, fractional, negative zero, 1e20, 1e-7): zero mismatches.
+    """
+    text = repr(float(value))
+    return text.removesuffix(".0")
+
+
 def _is_exact_number(value) -> bool:
     """Whether *value* is a number a comparison can use as-is.
 
@@ -82,6 +99,18 @@ class Integer(Field[int]):
         self, value, record: ModelLike
     ) -> int | typing.Literal[False]:
         return value or 0
+
+    @override
+    def _pattern_text(self, cache_value: typing.Any) -> str:
+        """``int4::text`` is ``str(int)``; only NULL needs distinguishing.
+
+        The base rule would already be right, but :meth:`convert_to_record`
+        maps NULL to ``0``, so the override exists to make explicit that the
+        ``None`` handled here is a real SQL NULL and not an unset zero.
+        """
+        if cache_value is None:
+            return ""
+        return str(cache_value)
 
     @override
     def convert_to_read(
@@ -247,6 +276,12 @@ class Float(Field[float]):
         self, value, record: ModelLike
     ) -> float | typing.Literal[False]:
         return value or 0.0
+
+    @override
+    def _pattern_text(self, cache_value: typing.Any) -> str:
+        if cache_value is None:
+            return ""
+        return _pg_float_text(cache_value)
 
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
@@ -427,6 +462,12 @@ class Monetary(Field[float]):
         self, value, record: ModelLike
     ) -> float | typing.Literal[False]:
         return value or 0.0
+
+    @override
+    def _pattern_text(self, cache_value: typing.Any) -> str:
+        if cache_value is None:
+            return ""
+        return _pg_float_text(cache_value)
 
     @override
     def convert_to_read(
