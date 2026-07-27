@@ -2,13 +2,14 @@
 
 from odoo.fields import Domain
 from odoo.http import request
+
 from odoo.addons.website_profile.controllers.main import WebsiteProfile
 
 
 class WebsiteSlidesSurvey(WebsiteProfile):
     def _prepare_user_profile_values(self, user, **kwargs):
         """Loads all data required to display the certification attempts of the given user"""
-        values = super(WebsiteSlidesSurvey, self)._prepare_user_profile_values(user, **kwargs)
+        values = super()._prepare_user_profile_values(user, **kwargs)
         values['show_certification_tab'] = ('user' in values) and (
             values['user'].id == request.env.user.id or \
             request.env.user.has_group('survey.group_survey_manager')

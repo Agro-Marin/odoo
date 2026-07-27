@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 
-from odoo.addons.website_slides.tests.common import SlidesCase
 from odoo.exceptions import ValidationError
 from odoo.tests.common import users
+
+from odoo.addons.website_slides.tests.common import SlidesCase
 
 
 class TestSurvey(SlidesCase):
     def setUp(self):
-        super(TestSurvey, self).setUp()
+        super().setUp()
 
         self.survey = self.env['survey.survey'].create({'title': 'TestSurvey', 'certification': True})
         self.survey2 = self.env['survey.survey'].create({'title': 'TestSurvey', 'certification': True})
