@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import odoo.tests
 import re
-from odoo.addons.website_blog.tests.common import TestWebsiteBlogCommon
 from datetime import datetime
+
+import odoo.tests
+
+from odoo.addons.website_blog.tests.common import TestWebsiteBlogCommon
 
 
 @odoo.tests.tagged('post_install', '-at_install')

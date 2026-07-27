@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.tests import common
@@ -6,7 +5,7 @@ from odoo.tests import common
 
 class TestWebsiteBlogCommon(common.TransactionCase):
     def setUp(self):
-        super(TestWebsiteBlogCommon, self).setUp()
+        super().setUp()
 
         Users = self.env['res.users']
 
