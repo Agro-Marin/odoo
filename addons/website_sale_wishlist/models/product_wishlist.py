@@ -40,7 +40,7 @@ class ProductWishlist(models.Model):
 
     @api.model
     def _add_to_wishlist(self, pricelist_id, currency_id, website_id, price, product_id, partner_id=False):
-        wish = self.env['product.wishlist'].create({
+        return self.env['product.wishlist'].create({
             'partner_id': partner_id,
             'product_id': product_id,
             'currency_id': currency_id,
@@ -48,7 +48,6 @@ class ProductWishlist(models.Model):
             'price': price,
             'website_id': website_id,
         })
-        return wish
 
     @api.model
     def _check_wishlist_from_session(self):
