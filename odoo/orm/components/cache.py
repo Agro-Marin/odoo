@@ -18,6 +18,12 @@ _MISSING = object()
 class FieldCache:
     """Standalone cache for field values, keyed by field objects and record IDs.
 
+    Keys are otherwise opaque -- any hashable will do -- with one exception:
+    :meth:`pop_dirty_for_model` reads ``key.model_name``.  That is the single
+    place this component knows what a field is; it is kept here rather than
+    behind a caller-supplied predicate because ``OrmCore`` mirrors each method
+    of this class by name, an invariant its own drift-guard test enforces.
+
     Internal data structures:
 
     * ``_data``: ``{field: {record_id: value}}`` — cached values.
