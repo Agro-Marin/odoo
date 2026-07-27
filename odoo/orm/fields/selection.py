@@ -172,16 +172,26 @@ class Selection(Field[str | typing.Literal[False]]):
                     if callable(val) or val in ("set null", "cascade"):
                         continue
                     if val == "set default":
-                        assert self.default is not None, (
-                            f"{self!r}: ondelete policy of type 'set default' is invalid for this field "
-                            "as it does not define a default! Either define one in the base "
-                            "field, or change the chosen ondelete policy"
-                        )
+                        # ``raise``, not ``assert``: this validates a field
+                        # definition at registry build, and ``python -O`` strips
+                        # asserts.  Both invalid policies below were then
+                        # accepted silently, and wrote an invalid value (or NULL
+                        # into a required column) when the selection entry was
+                        # finally deleted.  The ``else`` branch of this very
+                        # chain already raised, so the block disagreed with
+                        # itself about how an invalid policy is rejected.
+                        if self.default is None:
+                            raise ValueError(
+                                f"{self!r}: ondelete policy of type 'set default' is invalid for this field "
+                                "as it does not define a default! Either define one in the base "
+                                "field, or change the chosen ondelete policy"
+                            )
                     elif val.startswith("set "):
-                        assert val[4:] in values, (
-                            f"{self}: ondelete policy of type 'set %' must be either 'set null', "
-                            "'set default', or 'set value' where value is a valid selection value."
-                        )
+                        if val[4:] not in values:
+                            raise ValueError(
+                                f"{self}: ondelete policy of type 'set %' must be either 'set null', "
+                                "'set default', or 'set value' where value is a valid selection value."
+                            )
                     else:
                         raise ValueError(
                             f"{self!r}: ondelete policy {val!r} for selection value {key!r} is not a valid ondelete"
