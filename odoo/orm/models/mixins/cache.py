@@ -31,17 +31,43 @@ class RecordCache(Mapping):
             raise ValueError(f"Unexpected RecordCache({record})")
         self._record = record
 
+    def _peek(self, field) -> Mapping | None:
+        """Return *field*'s ``{id: value}`` cache without creating it.
+
+        ``Field._get_cache`` is a *write*: for a context-dependent field it
+        ``setdefault``s a sub-dict under the current cache key.  Probing a
+        record's cache is a read, so going through it made ``"name" in
+        record._cache`` leave an empty per-context bucket behind -- one per
+        distinct company/language/... a transaction touches, cleared but never
+        removed until a transaction-wide ``invalidate_all()``.  :meth:`__iter__`
+        already read the cache without creating it; the other two now agree.
+        """
+        record = self._record
+        env = record.env
+        cache = env._core.get_field_data_or_none(field)
+        if cache is None:
+            return None
+        if field in env._field_depends_context:
+            return cache.get(env.cache_key(field))
+        return cache
+
     def __contains__(self, name: object) -> bool:
         """Return whether `record` has a cached value for field ``name``."""
         record = self._record
         field = record._fields.get(name)
-        return field is not None and record.id in field._get_cache(record.env)
+        if field is None:
+            return False
+        cache = self._peek(field)
+        return cache is not None and record.id in cache
 
     def __getitem__(self, name: str) -> object:
         """Return the cached value of field ``name`` for `record`."""
         record = self._record
         field = record._fields[name]
-        return field._get_cache(record.env)[record.id]
+        cache = self._peek(field)
+        if cache is None:
+            raise KeyError(record.id)
+        return cache[record.id]
 
     def __iter__(self) -> typing.Iterator[str]:
         """Iterate over the field names with a cached value."""
