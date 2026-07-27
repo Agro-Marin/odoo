@@ -205,8 +205,8 @@ class AssetAttachmentStore:
             for attach_id, fname in fname_by_id.items()
             if attach_id in deleted_ids
         }
-        for fpath in to_delete:
-            attachments._storage_delete(fpath)
+        if to_delete:
+            attachments._storage_delete_multi(to_delete)
 
     def _clean_attachments(self, extension: str, keep_url: str) -> None:
         """Delete outdated ir.attachment records for this bundle, keeping *keep_url*.
@@ -332,11 +332,35 @@ class AssetAttachmentStore:
         self._clean_attachments(extension, url)
 
         if "bus.bus" in self.env and self.name in self.TRACKED_BUNDLES:
-            self.env["bus.bus"]._sendone(
-                "broadcast",
-                "bundle_changed",
-                {"server_version": release.version},
-            )
-            _logger.debug("Asset Changed: bundle: %s -- version: %s", self.name, unique)
+            self._broadcast_bundle_changed(unique)
 
         return attachment
+
+    _BROADCAST_KEY = "assetsbundle.bundle_changed"
+
+    def _broadcast_bundle_changed(self, unique: str) -> None:
+        """Tell connected clients this bundle was rebuilt, once per transaction.
+
+        One rebuild saves several artifacts — ``js``, ``js.map``, ``css``,
+        ``css.map`` — and every one of them landed here, so a debug rebuild
+        inserted four ``bus.bus`` rows carrying the identical payload and every
+        client was told four times to reload the same bundle. The channel set
+        in ``postcommit`` was already deduplicated; the messages were not.
+
+        The guard lives in ``cr.precommit.data``, which the cursor clears once
+        the callbacks run, so the next transaction notifies again — the same
+        scoping ``bus.bus`` itself uses for its pending-values buffer.
+
+        ``_sendone`` only buffers: nothing reaches a client unless the
+        transaction commits, so a rolled-back rebuild cannot trigger a reload.
+        """
+        sent = self.env.cr.precommit.data.setdefault(self._BROADCAST_KEY, set())
+        if self.name in sent:
+            return
+        sent.add(self.name)
+        self.env["bus.bus"]._sendone(
+            "broadcast",
+            "bundle_changed",
+            {"server_version": release.version},
+        )
+        _logger.debug("Asset Changed: bundle: %s -- version: %s", self.name, unique)

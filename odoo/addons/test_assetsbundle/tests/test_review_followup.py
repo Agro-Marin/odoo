@@ -555,6 +555,11 @@ class TestRunRtlcssEmptyOutputGuard(BaseCase):
     def _run(self, source, fake_out):
         bundle = SimpleNamespace(css_errors=[], name="t.b", stylesheets=[])
         pipe = CssPipeline(bundle)
+        # These cases feed ONE source through several different rtlcss
+        # outcomes, which the process-wide memo collapses by design (in
+        # production the same bytes always yield the same bytes). Reset it so
+        # each case exercises the guard rather than the previous case's result.
+        CssPipeline._compiled_cache.clear()
         with (
             patch.object(_ab.css_pipeline, "_check_rtlcss", return_value=True),
             patch.object(_ab.css_pipeline, "_rtlcss_bin", return_value="rtlcss"),
@@ -662,7 +667,7 @@ class TestImportMapSpecCollision(BaseCase):
 
     def _data(self, modules):
         fake = SimpleNamespace(native_modules=modules, name="my.bundle")
-        return AssetsBundle.get_native_module_data(fake, with_bridges=False)
+        return AssetsBundle._native_module_data(fake, with_bridges=False)
 
     def test_colliding_specs_warn_and_keep_last_wins(self):
         mods = [

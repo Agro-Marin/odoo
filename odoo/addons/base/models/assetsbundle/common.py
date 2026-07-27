@@ -10,17 +10,40 @@ from typing import Literal, NotRequired, TypedDict
 
 from lxml import etree
 
+import odoo.tools
 from odoo.libs.asset_log import get_asset_logger
 
 _logger = logging.getLogger("odoo.addons.base.models.assetsbundle")
 
 _bundle_log = get_asset_logger("bundle")
 
-_PIPELINE_SOURCES = (
-    Path(__file__).parent,
-    Path(__file__).parents[3] / "tools" / "assets",
-    Path(__file__).parents[3] / "tools" / "sass_embedded.py",
-)
+
+def _pipeline_sources() -> tuple[Path, ...]:
+    """Every source file whose content decides how assets compile.
+
+    Anchored on the ``odoo.tools`` package rather than counted in
+    ``__file__.parents``: the previous ``parents[3]`` landed on ``odoo/addons``
+    instead of ``odoo``, so both ``tools`` entries resolved to paths that exist
+    nowhere. Neither ``is_dir()`` nor ``is_file()`` matched, the loop skipped
+    them without a word, and the digest covered only this package — leaving
+    esbuild, the ESM graph and the Sass driver outside the very invalidation
+    this exists to provide.
+
+    Resolved on demand, not at import: ``__file__`` is ``None`` for a namespace
+    package or a frozen build (``odoo`` itself is a namespace package in this
+    fork), and reading it at import turned that deployment into a hard
+    ``TypeError`` on ``import base`` instead of the coarse fallback
+    :func:`_pipeline_fingerprint` documents. Returning ``()`` routes it there.
+    """
+    tools_file = getattr(odoo.tools, "__file__", None)
+    if not tools_file or not __file__:
+        return ()
+    tools_dir = Path(tools_file).resolve().parent
+    return (
+        Path(__file__).resolve().parent,
+        tools_dir / "assets",
+        tools_dir / "sass_embedded.py",
+    )
 
 
 @functools.cache
@@ -48,11 +71,17 @@ def _pipeline_fingerprint() -> str:
     """
     digest = hashlib.sha256()
     files: list[Path] = []
-    for source in _PIPELINE_SOURCES:
+    for source in _pipeline_sources():
         if source.is_dir():
             files.extend(source.glob("*.py"))
         elif source.is_file():
             files.append(source)
+        else:
+            _logger.warning(
+                "Asset pipeline source %s does not exist; changes to it will "
+                "not invalidate cached bundles.",
+                source,
+            )
     try:
         for path in sorted(files):
             digest.update(path.name.encode())

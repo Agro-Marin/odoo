@@ -1,13 +1,16 @@
 import functools
+import hashlib
 import os
 import re
 import subprocess
+from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from subprocess import PIPE, Popen
 from typing import TYPE_CHECKING
 
 from odoo.tools import misc
+from odoo.tools.config import config
 from odoo.tools.misc import file_path
 from odoo.tools.sass_embedded import SassCompileError
 
@@ -246,17 +249,102 @@ class CssPipeline:
         )
 
         try:
-            return compiler(source).strip()
+            return self._compile_memoized(compiler, source)
         except (CompileError, SassCompileError) as e:
             error = self._format_compiler_error(str(e))
             _logger.warning(error)
             bundle.css_errors.append(error)
             return ""
 
+    _compiled_cache: OrderedDict[tuple, str] = OrderedDict()
+    _COMPILED_CACHE_SIZE = 8
+
+    @classmethod
+    def _memoized_transform(
+        cls, key: tuple, source: str, transform: Callable[[str], str]
+    ) -> str:
+        """Run *transform* on *source*, reusing an identical earlier run.
+
+        One bundle is compiled several times over with byte-identical input:
+        direction (RTL) and vendor-prefixing are post-compile passes, so the
+        LTR, RTL, autoprefixed and RTL+autoprefixed attachments of a bundle
+        share one Sass compile, as does every website whose customisation left
+        the stylesheets alone. Measured on ``web.assets_web``, six variants
+        collapse to two distinct compile inputs at ~1.6 s of Dart Sass each.
+        Only :attr:`WebAsset.id` being deterministic makes them comparable —
+        with a random split marker no two of them were ever byte-equal.
+
+        The same holds one stage later: ``rtlcss`` is a second subprocess over
+        the now-deterministic compiled CSS.
+
+        *key* is completed with a digest of *source* rather than the source
+        itself, so the cache does not also pin the ~1 MB input.
+
+        Only a *successful* transform is stored: a raising ``transform``
+        propagates with nothing written. That is load-bearing rather than
+        incidental — callers signal failure by raising ``CompileError``, and
+        caching one transient subprocess failure would re-serve the degraded
+        result for every later build of that input until the worker restarts.
+        This is why ``run_rtlcss`` validates its output *inside* the callable
+        instead of after the call.
+
+        Disabled in ``--dev`` mode: the key covers the bundle's own files, not
+        a ``@use``-only dependency such as a Bootstrap partial, so a developer
+        editing one would otherwise keep getting the previous compile. The DB
+        attachment has the same blind spot, but it is at least invalidated by
+        restarting; a process-local cache would not be.
+        """
+        if config["dev_mode"]:
+            return transform(source)
+        cache = cls._compiled_cache
+        key = (*key, hashlib.sha256(source.encode()).hexdigest())
+        if (hit := cache.get(key)) is not None:
+            cache.move_to_end(key)
+            return hit
+        result = transform(source)
+        cache[key] = result
+        while len(cache) > cls._COMPILED_CACHE_SIZE:
+            cache.popitem(last=False)
+        return result
+
+    @classmethod
+    def _compile_memoized(cls, compiler: Callable[[str], str], source: str) -> str:
+        """Memoize one stylesheet compile; see :meth:`_memoized_transform`.
+
+        The compiler's identity enters the key through its owning class and
+        output style, the two things that change its result.
+        """
+        asset = getattr(compiler, "__self__", None)
+        key = ("compile", type(asset).__name__, getattr(asset, "output_style", None))
+        return cls._memoized_transform(key, source, lambda src: compiler(src).strip())
+
     _RX_APPEARANCE = re.compile(
-        r"(?P<lead>[{; \t])appearance:\s*(?P<value>[\w-]+)"
-        r"(?P<important>\s*!important)?(?P<semicolon>;?)"
+        r"(?<=[{;\s])appearance\s*:\s*(?P<value>[\w-]+)(?P<important>\s*!important)?"
     )
+    """Match one ``appearance`` declaration, consuming neither side of it.
+
+    The declaration boundary is a zero-width lookbehind and the trailing ``;``
+    stays out of the match, so consecutive declarations both match. The
+    previous form consumed a leading ``[{; \\t]`` AND the trailing ``;``, which
+    left the next declaration with no boundary character of its own: in the
+    compressed output ``.b{appearance:auto;appearance:textfield}`` only the
+    first of the two was prefixed. Expanded output happened to escape this —
+    Sass indents with spaces, so a space remained as the lead — which is why
+    the gap only ever showed in production builds.
+
+    Widening the class to ``\\s`` also covers an unindented hand-written
+    ``.a{\\nappearance:none}``, which the old ``[{; \\t]`` missed outright.
+
+    No stylesheet in this tree currently hits either case (verified: old and
+    new match the same 7 declarations in ``web.assets_frontend`` and the same
+    13 in ``web.assets_web``, in both debug and production) — this closes a
+    latent gap rather than fixing observed output.
+
+    The lookbehind is what keeps the match to declarations: a selector
+    (``.appearance:hover``) or an attribute (``[appearance]``) is preceded by
+    ``.``/``[``, and an already-prefixed ``-webkit-appearance`` by ``-`` —
+    none of which are in ``[{;\\s]``.
+    """
 
     @classmethod
     def _autoprefix_css(cls, source: str) -> str:
@@ -265,41 +353,52 @@ class CssPipeline:
         Intentionally minimal — only the ``appearance`` property, not a
         general-purpose autoprefixer. String-aware: an ``appearance:`` inside a
         ``content: "…"`` value is left untouched.
+
+        Not idempotent, and does not check for a hand-written prefix next to
+        the standard property: both cases emit a duplicate declaration with the
+        same value, which is bloat rather than a rendering difference.
         """
 
         def _prefix(match: re.Match) -> str:
-            lead, value = match.group("lead"), match.group("value")
+            value = match.group("value")
             important = match.group("important") or ""
-            semicolon = match.group("semicolon")
             return (
-                f"{lead}-webkit-appearance:{value}{important};"
+                f"-webkit-appearance:{value}{important};"
                 f"-moz-appearance:{value}{important};"
-                f"appearance:{value}{important}{semicolon}"
+                f"appearance:{value}{important}"
             )
 
         return _rewrite_css_outside_strings(cls._RX_APPEARANCE, _prefix, source.strip())
 
     def run_rtlcss(self, source: str) -> str:
-        """Transform CSS for right-to-left languages using rtlcss."""
+        """Transform CSS for right-to-left languages using rtlcss.
+
+        Memoized on the compiled CSS (see :meth:`_memoized_transform`): with a
+        deterministic split marker the input is stable, and every RTL variant
+        of a bundle — plain and autoprefixed, and one per website — feeds this
+        the same bytes. It is a second subprocess of the same order as the Sass
+        compile (~600 ms on ``web.assets_web``).
+        """
         if not _check_rtlcss():
             return source
 
         cmd = [_rtlcss_bin(), "-c", _rtlcss_config_path(), "-"]
 
+        def _transform(src: str) -> str:
+            out = _run_cli_pipe(cmd, src, self._RTLCSS_TIMEOUT_S).strip()
+            if src.strip() and not out:
+                raise CompileError("rtlcss: error processing payload\n")
+            return out
+
         try:
-            out = _run_cli_pipe(cmd, source, self._RTLCSS_TIMEOUT_S)
+            return self._memoized_transform(("rtlcss",), source, _transform)
         except CompileError as e:
-            error = self._format_compiler_error(str(e))
+            error = str(e)
+            if "error processing payload" not in error:
+                error = self._format_compiler_error(error)
             _logger.warning("%s", error)
             self._bundle.css_errors.append(error)
             return ""
-        out = out.strip()
-        if source.strip() and not out:
-            error = "rtlcss: error processing payload\n"
-            _logger.warning("%s", error)
-            self._bundle.css_errors.append(error)
-            return ""
-        return out
 
     def _format_compiler_error(self, stderr: str) -> str:
         """Clean up and contextualize a CSS compiler error message.

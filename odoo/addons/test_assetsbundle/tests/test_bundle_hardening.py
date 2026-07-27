@@ -401,9 +401,11 @@ class TestUnlinkAttachmentsReturning(TransactionCase):
         )
         expected_fnames = set(attachments.mapped("store_fname")) - {False}
         bundle = AssetsBundle("test_assetsbundle.unlink", [], env=self.env)
-        with patch.object(IrAttachment, "_file_delete") as file_delete:
+        with patch.object(IrAttachment, "_file_delete_multi") as file_delete:
             bundle._store._unlink_attachments(attachments)
-        marked = {call.args[-1] for call in file_delete.call_args_list}
+        marked = {
+            fname for call in file_delete.call_args_list for fname in call.args[-1]
+        }
         self.assertEqual(marked, expected_fnames)
         self.assertFalse(
             self.env["ir.attachment"].search(
@@ -1078,7 +1080,12 @@ class TestEmbeddedSassFallbackWarning(BaseCase):
 
 
 class _NativeStubBundle:
-    """Minimal bundle exposing only what ``get_native_module_data`` reads."""
+    """Minimal bundle exposing only what ``_native_module_data`` reads.
+
+    Drives the pure computation, not the memoizing ``get_native_module_data``
+    façade — the cache the façade owns is bundle state, not part of the
+    specifier derivation these cover.
+    """
 
     name = "web.assets_test"
 
@@ -1113,7 +1120,7 @@ class TestNativeModuleDataSpecifiers(BaseCase):
 
     def _data(self, urls, **kw):
         bundle = _NativeStubBundle([self._asset(u) for u in urls])
-        return bundle, AssetsBundle.get_native_module_data(bundle, **kw)
+        return bundle, AssetsBundle._native_module_data(bundle, **kw)
 
     def test_index_js_keeps_both_specifier_forms(self):
         _, res = self._data(["/web/static/src/core/utils/index.js"], with_bridges=False)
@@ -1618,9 +1625,13 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
                 env = api.Environment(cr, SUPERUSER_ID, {})
                 store = AssetsBundle("test_assetsbundle.skiplock", [], env=env)._store
                 attachments = env["ir.attachment"].browse(ids)
-                with patch.object(IrAttachment, "_file_delete") as file_delete:
+                with patch.object(IrAttachment, "_file_delete_multi") as file_delete:
                     store._unlink_attachments(attachments)
-                marked = {call.args[-1] for call in file_delete.call_args_list}
+                marked = {
+                    fname
+                    for call in file_delete.call_args_list
+                    for fname in call.args[-1]
+                }
                 cr.commit()
 
             self.assertEqual(

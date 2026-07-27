@@ -231,6 +231,7 @@ class AssetsBundle:
         self.has_css = css
         self.has_js = js
         self._checksum_cache = {}
+        self._native_module_data_cache: dict[bool, NativeModuleData] = {}
         self.is_debug_assets = debug_assets
         self.external_assets = []
         for url in external_assets:
@@ -278,6 +279,9 @@ class AssetsBundle:
                     bundle=name,
                     url=f["url"],
                 )
+
+        for index, stylesheet in enumerate(self.stylesheets):
+            stylesheet.id = f"{index:04x}"
 
         self._version_assets = {
             "css": tuple(self.stylesheets),
@@ -339,6 +343,14 @@ class AssetsBundle:
     def get_native_module_data(self, with_bridges: bool = True) -> NativeModuleData:
         """Return import map and preload data for native ESM modules.
 
+        Memoized per ``with_bridges``: the answer is a pure function of
+        ``native_modules``, which is fixed at construction, but ``ir_qweb``
+        asks for it from several places in one render. Recomputing walked all
+        1467 modules of ``web.assets_web`` and re-ran the bridge's regex
+        discovery — ~155 ms per repeat call, for a byte-identical result. The
+        returned dict is shared, so callers must treat it as immutable (the
+        ``ormcache``d wrapper in ``ir_qweb`` already states that contract).
+
         Returns a dict with:
 
         - ``import_map``: ``{specifier: url}`` for the import map
@@ -351,6 +363,13 @@ class AssetsBundle:
             empty). Callers that merge only ``import_map`` pass ``False`` to
             skip the bridge's regex discovery and attachment persistence.
         """
+        if with_bridges not in self._native_module_data_cache:
+            self._native_module_data_cache[with_bridges] = self._native_module_data(
+                with_bridges
+            )
+        return self._native_module_data_cache[with_bridges]
+
+    def _native_module_data(self, with_bridges: bool) -> NativeModuleData:
         if not self.native_modules:
             log_event(
                 _bundle_log,

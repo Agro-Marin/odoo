@@ -72,6 +72,63 @@ def _find_esbuild() -> str | None:
     )
 
 
+_TEMPLATE_LITERAL_TOKENS = re.compile(r"\\.|`|\$\{|\}", re.DOTALL)
+
+
+def has_nested_template_literal(source: str) -> bool:
+    """Whether *source* nests a template literal inside a ``${…}`` substitution.
+
+    This is the one JS construct rjsmin 1.2.5 mangles: it tracks the outer
+    literal but re-enters whitespace-collapsing mode inside the substitution,
+    so ```A${`B  ${1}  C`}D``` loses the inner literal's spaces. A plain
+    template literal — interpolated or not, multi-line or not — survives
+    rjsmin intact.
+
+    Deliberately conservative rather than a JS parser: a backtick inside a
+    string, a comment or a regex literal can desynchronise the depth stack, and
+    every such desync errs toward returning ``True``. A false positive costs
+    one esbuild subprocess; a false negative would ship corrupted JS.
+
+    Validated against acorn over every ``.js`` under all five addons roots
+    (2158 files hold both a backtick and a ``${`` — the condition this
+    replaced; 35 MB). Comparing the parsed template-literal chunks of the
+    source against those of ``rjsmin(source)``: 49 flagged here, 11 of which
+    rjsmin genuinely alters (one, ``ol.js``, it renders unparseable),
+    **0 missed**. So 97.7% of those files keep the in-process minifier instead
+    of paying ~5 ms of subprocess each.
+
+    Do NOT re-validate by diffing ``esbuild --minify`` of both sides: that
+    reports differences which are not corruption at all — rjsmin drops
+    ``/** @license`` blocks that esbuild keeps, and its whitespace removal
+    changes esbuild's ``var`` statement-merging. Both produced false
+    "corrupted" verdicts on ``prism.js`` and ``three.module.js``. Compare
+    parsed template-literal chunks, which is the actual question.
+
+    :param source: JS source text
+    :return: whether rjsmin must be bypassed for this source
+    """
+    if "`" not in source or "${" not in source:
+        return False
+    stack: list[str] = []
+    for match in _TEMPLATE_LITERAL_TOKENS.finditer(source):
+        token = match.group()
+        if token[0] == "\\":
+            continue
+        if token == "`":
+            if stack and stack[-1] == "tpl":
+                stack.pop()
+            elif "sub" in stack:
+                return True
+            else:
+                stack.append("tpl")
+        elif token == "${":
+            if stack and stack[-1] == "tpl":
+                stack.append("sub")
+        elif stack and stack[-1] == "sub":
+            stack.pop()
+    return False
+
+
 def minify_js(
     source: str, *, label: str = "<asset>", timeout_s: int = 60
 ) -> str | None:
