@@ -805,6 +805,20 @@ class IrActionsServer(models.Model):
                 )
             )
 
+    @api.model
+    @tools.ormcache(cache="stable")
+    def _unconditional_clear_fields(self) -> frozenset[str]:
+        """``model_name`` is related to ``model_id``, so both spellings count.
+
+        The related one is what menus resolve and comes from
+        :meth:`_menu_access_model_field`; the source column is what a caller
+        actually writes, and only this model has the two.
+        """
+        return super()._unconditional_clear_fields() | {"model_id"}
+
+    def _menu_access_model_field(self) -> str:
+        return "model_name"
+
     def _get_readable_fields(self) -> frozenset[str]:
         return super()._get_readable_fields() | {
             "group_ids",

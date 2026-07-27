@@ -3,6 +3,7 @@ from psycopg.errors import IntegrityError
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.base.models.ir_actions import _safe_eval_dict
 
@@ -145,6 +146,11 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
     """
 
     def test_registry_sweep_lists_every_declared_reference(self):
+        """Every reference that owns its column, and only those.
+
+        A related field names the same column but does not own it: its policy
+        is the source field's, which is listed here in its own right.
+        """
         Actions = self.env["ir.actions.actions"]
         declared = {
             (model_name, field_name)
@@ -152,6 +158,8 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
             if not model._abstract
             for field_name, field in model._fields.items()
             if field.type == "many2one"
+            and field.store
+            and not field.related
             and field.comodel_name
             in ("ir.actions.actions", "ir.actions.act_window_close")
         }
@@ -880,15 +888,996 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
                 )
 
     def test_many2many_relations_to_the_root_are_swept_on_unlink(self):
-        """No such field exists today; the sweep must be ready if one appears."""
+        """No such field exists today; the sweep must be ready if one appears.
+
+        Both ends: update_db_foreign_keys skips a root whether it is the model
+        or the comodel, so a many2many declared *on* an action leaks its
+        relation rows exactly as one pointing *at* an action does.
+        """
         Actions = self.env["ir.actions.actions"]
+        roots = Actions._root_model_names()
         declared = {
-            (field.relation, field.column2)
-            for model in self.env.registry.values()
+            (field.relation, column)
+            for model_name, model in self.env.registry.items()
             if not model._abstract
             for field in model._fields.values()
-            if field.type == "many2many"
-            and field.store
-            and field.comodel_name in Actions._root_model_names()
+            if field.type == "many2many" and field.store
+            for column, end in (
+                (field.column2, field.comodel_name),
+                (field.column1, model_name),
+            )
+            if end in roots
         }
         self.assertEqual(set(Actions._unenforced_reference_relations()), declared)
+
+    def test_no_foreign_key_backs_either_end_of_such_a_relation(self):
+        """What makes the sweep necessary, asserted against the catalog."""
+        Actions = self.env["ir.actions.actions"]
+        for relation, column in Actions._unenforced_reference_relations():
+            with self.subTest(relation=relation, column=column):
+                self.env.cr.execute(
+                    """
+                    SELECT 1 FROM information_schema.key_column_usage k
+                      JOIN information_schema.table_constraints t
+                        ON t.constraint_name = k.constraint_name
+                     WHERE t.constraint_type = 'FOREIGN KEY'
+                       AND k.table_name = %s AND k.column_name = %s
+                    """,
+                    [relation, column],
+                )
+                self.assertIsNone(self.env.cr.fetchone())
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsPathUniquenessAcrossSubtypes(TransactionCase):
+    """A path is unique across the whole ir_actions inheritance tree.
+
+    A ``unique(path)`` declared on the root is built once per subtype table --
+    PostgreSQL does not inherit UNIQUE, so the ORM creates one index per
+    model's own table -- and none of them spans the tree. The guarantee now
+    rests on ir.actions.path's single index; the Python check that stood in for
+    it could not see a sibling subtype's pending write, and could never have
+    seen a concurrently committed one at all.
+    """
+
+    def _duplicate_rows(self, path):
+        self.env.cr.execute(
+            "SELECT id, type FROM ir_actions WHERE path = %s ORDER BY id", [path]
+        )
+        return self.env.cr.fetchall()
+
+    def test_pending_write_on_a_sibling_subtype_is_seen(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "audit-path-w", "res_model": "res.currency"}
+        )
+        self.env.flush_all()
+        window.path = "audit-dupe-a"
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["ir.actions.client"].create(
+                    {"name": "audit-path-c", "tag": "audit", "path": "audit-dupe-a"}
+                )
+                self.env.flush_all()
+        self.env.clear()
+
+    def test_two_subtypes_written_in_one_transaction(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "audit-path-w2", "res_model": "res.currency"}
+        )
+        client = self.env["ir.actions.client"].create(
+            {"name": "audit-path-c2", "tag": "audit"}
+        )
+        self.env.flush_all()
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                window.path = "audit-dupe-b"
+                client.path = "audit-dupe-b"
+                self.env.flush_all()
+        self.env.clear()
+        self.assertEqual(self._duplicate_rows("audit-dupe-b"), [])
+
+    def test_a_free_path_is_still_accepted(self):
+        window = self.env["ir.actions.act_window"].create(
+            {"name": "audit-path-w3", "res_model": "res.currency", "path": "audit-free"}
+        )
+        self.env.flush_all()
+        self.assertEqual(len(self._duplicate_rows("audit-free")), 1)
+        self.assertEqual(window.path, "audit-free")
+
+    def test_tree_covers_every_subtype(self):
+        Actions = self.env["ir.actions.actions"]
+        expected = {
+            name
+            for name, model in self.env.registry.items()
+            if not model._abstract and model._table_inheritance_root == "ir_actions"
+        }
+        self.assertEqual(Actions._inheritance_tree_model_names(), expected)
+        self.assertLessEqual(Actions._root_model_names(), expected)
+        self.assertIn("ir.actions.act_window", expected)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
+    """Only a field that owns its column can carry an ondelete policy.
+
+    A related field's ondelete is None -- an absence, since it never reaches
+    Many2one.setup_nonrelated -- and applying a coerced 'set null' to it blanks
+    a derived column while its source field, listed separately, still holds the
+    real policy. A non-stored one has no column and no search method.
+    """
+
+    def test_only_owned_columns_are_swept(self):
+        Actions = self.env["ir.actions.actions"]
+        roots = Actions._root_model_names()
+        expected = {
+            (model_name, field.name, field.ondelete)
+            for model_name, model in self.env.registry.items()
+            if not model._abstract
+            for field in model._fields.values()
+            if field.type == "many2one"
+            and field.store
+            and not field.related
+            and field.comodel_name in roots
+        }
+        self.assertEqual(set(Actions._unenforced_reference_fields()), expected)
+
+    def test_no_related_or_unstored_field_is_swept(self):
+        for model_name, field_name, ondelete in self.env[
+            "ir.actions.actions"
+        ]._unenforced_reference_fields():
+            field = self.env[model_name]._fields[field_name]
+            with self.subTest(field=f"{model_name}.{field_name}"):
+                self.assertTrue(field.store)
+                self.assertFalse(field.related)
+                self.assertIn(ondelete, ("cascade", "set null", "restrict"))
+
+    def test_every_policy_found_is_dispatched(self):
+        """The sweep dispatches restrict/cascade/set null; nothing else exists."""
+        policies = {
+            ondelete
+            for __, __, ondelete in self.env[
+                "ir.actions.actions"
+            ]._unenforced_reference_fields()
+        }
+        self.assertLessEqual(policies, {"restrict", "cascade", "set null"})
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsBindingOrder(TransactionCase):
+    """Bindings are ordered by (sequence, id).
+
+    Reading per action type rather than per action groups the accumulation by
+    model, so without the id tie-break the bucket no longer follows the
+    ORDER BY a.id the query asks for.
+    """
+
+    def test_id_breaks_ties_across_action_types(self):
+        model_id = self.env["ir.model"]._get_id("res.currency")
+        Actions = self.env["ir.actions.actions"]
+        server = self.env["ir.actions.server"].create(
+            {
+                "name": "audit-order-server",
+                "model_id": model_id,
+                "state": "code",
+                "code": "pass",
+                "binding_model_id": model_id,
+                "sequence": 0,
+            }
+        )
+        window = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-order-window",
+                "res_model": "res.currency",
+                "binding_model_id": model_id,
+            }
+        )
+        self.env.registry.clear_cache()
+        ids = [vals["id"] for vals in Actions._get_bindings("res.currency")["action"]]
+        self.assertLess(server.id, window.id)
+        self.assertLess(ids.index(server.id), ids.index(window.id))
+
+    def test_sequence_still_wins_over_id(self):
+        model_id = self.env["ir.model"]._get_id("res.currency")
+        Actions = self.env["ir.actions.actions"]
+        common = {
+            "model_id": model_id,
+            "state": "code",
+            "code": "pass",
+            "binding_model_id": model_id,
+        }
+        first = self.env["ir.actions.server"].create(
+            {**common, "name": "audit-seq-late", "sequence": 90}
+        )
+        second = self.env["ir.actions.server"].create(
+            {**common, "name": "audit-seq-early", "sequence": 10}
+        )
+        self.env.registry.clear_cache()
+        ids = [vals["id"] for vals in Actions._get_bindings("res.currency")["action"]]
+        self.assertLess(first.id, second.id)
+        self.assertLess(ids.index(second.id), ids.index(first.id))
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsCacheOnEmptyWrite(TransactionCase):
+    """A write reaching no record changes nothing, whichever field it names."""
+
+    def test_empty_recordset_write_keeps_the_cache(self):
+        Actions = self.env["ir.actions.actions"]
+        self.env.registry.clear_cache()
+        before = Actions._get_bindings("res.partner")
+        self.env["ir.actions.act_window"].browse().write({"path": "audit-noop"})
+        self.assertIs(Actions._get_bindings("res.partner"), before)
+
+    def test_a_real_write_still_clears_the_cache(self):
+        Actions = self.env["ir.actions.actions"]
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-noop-real", "res_model": "res.currency"}
+        )
+        self.env.registry.clear_cache()
+        before = Actions._get_bindings("res.partner")
+        action.path = "audit-noop-real-path"
+        self.assertIsNot(Actions._get_bindings("res.partner"), before)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
+    """Repointing a menu's action at another model invalidates the menu cache.
+
+    ir.ui.menu._visible_menu_ids resolves each menu action's destination model
+    and caches whether the user may read it. It does that for every action a
+    menu points at, so write()'s "is this action inside a registry cache" test
+    -- which answers only for bound or pathed ones -- cannot gate it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = cls.env["res.users"].create(
+            {
+                "name": "audit-menu-acl",
+                "login": "audit_menu_acl",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+
+    def _menu_visible(self, menu):
+        return menu.id in self.env["ir.ui.menu"].with_user(self.user)._visible_menu_ids(
+            False
+        )
+
+    def test_res_model_write_on_an_unbound_action_clears_the_cache(self):
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-menu-acl-act", "res_model": "res.currency"}
+        )
+        menu = self.env["ir.ui.menu"].create(
+            {
+                "name": "audit-menu-acl-menu",
+                "action": f"ir.actions.act_window,{action.id}",
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+
+        self.assertFalse(action._is_cached_registry_wide())
+        self.assertTrue(self._menu_visible(menu))
+
+        action.write({"res_model": "ir.config_parameter"})
+        self.env.flush_all()
+        self.assertFalse(self._menu_visible(menu))
+
+    def test_every_subtype_declares_its_destination_model_field(self):
+        """The field ir.ui.menu access-checks must be in the unconditional set.
+
+        Derived from the declaration rather than a literal copy of it: the copy
+        this replaces was the third one, and it agreed with the two it checked
+        only because all three were edited together.
+        """
+        Actions = self.env["ir.actions.actions"]
+        declared = {}
+        for model_name in Actions._inheritance_tree_model_names():
+            field_name = self.env[model_name]._menu_access_model_field()
+            if field_name:
+                declared[model_name] = field_name
+                with self.subTest(model=model_name):
+                    self.assertIn(
+                        field_name, self.env[model_name]._unconditional_clear_fields()
+                    )
+        self.assertEqual(
+            declared,
+            {
+                "ir.actions.act_window": "res_model",
+                "ir.actions.client": "res_model",
+                "ir.actions.report": "model",
+                "ir.actions.server": "model_name",
+            },
+        )
+
+    def test_the_declared_field_is_a_real_field_of_that_subtype(self):
+        Actions = self.env["ir.actions.actions"]
+        for model_name in Actions._inheritance_tree_model_names():
+            model = self.env[model_name]
+            field_name = model._menu_access_model_field()
+            if field_name:
+                with self.subTest(model=model_name):
+                    self.assertIn(field_name, model._fields)
+
+    def test_a_client_action_gates_on_res_model_like_the_others(self):
+        """The one field the two consumers used to disagree about.
+
+        Menus never access-checked a client action's ``res_model`` while
+        get_bindings did; declaring it once makes both check it. No shipped
+        client action is bound and no menu pointing at one sets it, so the
+        tightening is inert today.
+        """
+        self.assertEqual(
+            self.env["ir.actions.client"]._menu_access_model_field(), "res_model"
+        )
+        self.assertIn(
+            "res_model", self.env["ir.actions.client"]._unconditional_clear_fields()
+        )
+
+    def test_an_uncached_field_still_skips_the_clear(self):
+        """The optimisation the gate exists for must survive the correction."""
+        Actions = self.env["ir.actions.actions"]
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-menu-acl-keep", "res_model": "res.currency"}
+        )
+        self.env.registry.clear_cache()
+        before = Actions._get_bindings("res.partner")
+        action.write({"help": "<p>nothing cached reads this</p>"})
+        self.assertIs(Actions._get_bindings("res.partner"), before)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsTypeMatchesItsModel(TransactionCase):
+    """``type`` is a denormalised copy of the model name, and everything
+    dispatches on it: clean_action does env[action["type"]], ir.actions.todo
+    browses through it, unlink used to delete through it. Nothing kept the two
+    in sync, so an act_window could claim to be a client action and become
+    undeletable while unlink reported success.
+    """
+
+    def test_a_type_naming_another_subtype_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.actions.act_window"].create(
+                {
+                    "name": "audit-type-mismatch",
+                    "res_model": "res.partner",
+                    "type": "ir.actions.client",
+                }
+            )
+            self.env.flush_all()
+
+    def test_the_default_type_is_the_model_name_for_every_subtype(self):
+        Actions = self.env["ir.actions.actions"]
+        for name in Actions._inheritance_tree_model_names():
+            if name == "ir.actions.actions":
+                continue
+            with self.subTest(model=name):
+                model = self.env[name]
+                self.assertEqual(model.default_get(["type"])["type"], name)
+
+    def test_every_stored_action_agrees_with_its_table(self):
+        """The invariant the constraint only enforces going forward."""
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT a.id, a.type, c.relname FROM ir_actions a"
+            " JOIN pg_class c ON c.oid = a.tableoid"
+        )
+        mismatched = [
+            (action_id, action_type, table)
+            for action_id, action_type, table in self.env.cr.fetchall()
+            if self.env[action_type]._table != table
+        ]
+        self.assertEqual(mismatched, [])
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
+    """Deleting through the root dispatches on where the row actually lives.
+
+    Dispatching on the ``type`` column deleted nothing at all when the two
+    disagreed -- unlink aimed at a table the row is not in, removed zero rows
+    and still returned True -- which is unrecoverable from the UI because the
+    action stays visible and every further delete repeats the no-op.
+    """
+
+    def test_a_row_whose_type_lies_is_still_deleted(self):
+        """And deleted *through its own model*, which the row alone cannot show.
+
+        Deleting an act_window as an ir.actions.actions removes the row either
+        way — PostgreSQL reaches the child through the parent — so asserting
+        only that it is gone passes even when the dispatch fell back to the
+        root. The xml id is what tells the two apart: its cleanup is keyed on
+        the model name.
+        """
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-legacy-type", "res_model": "res.partner"}
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "audit_legacy_type_xmlid",
+                "model": "ir.actions.act_window",
+                "res_id": action.id,
+            }
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_actions SET type = 'ir.actions.client' WHERE id = %s",
+            [action.id],
+        )
+        self.env.invalidate_all()
+
+        self.env["ir.actions.actions"].browse(action.id).unlink()
+
+        self.env.cr.execute("SELECT id FROM ir_actions WHERE id = %s", [action.id])
+        self.assertEqual(self.env.cr.fetchall(), [])
+        self.assertFalse(
+            self.env["ir.model.data"].search(
+                [("module", "=", "base"), ("name", "=", "audit_legacy_type_xmlid")]
+            ),
+            "the dispatch went to the root, so the subtype's xml id survived",
+        )
+
+    def test_each_subtype_table_maps_back_to_its_model(self):
+        Actions = self.env["ir.actions.actions"]
+        by_table = Actions._tree_model_names_by_table()
+        for name in Actions._inheritance_tree_model_names():
+            with self.subTest(model=name):
+                self.assertIn(name, by_table[self.env[name]._table])
+
+    def test_the_root_table_is_the_only_ambiguous_one(self):
+        """Which is why ``type`` still arbitrates there, and only there."""
+        Actions = self.env["ir.actions.actions"]
+        ambiguous = {
+            table: names
+            for table, names in Actions._tree_model_names_by_table().items()
+            if len(names) > 1
+        }
+        self.assertEqual(list(ambiguous), [Actions._table])
+
+    def test_an_already_deleted_id_unlinks_like_any_other_model(self):
+        action = self.env["ir.actions.act_url"].create(
+            {"name": "audit-gone", "url": "/audit/gone"}
+        )
+        self.env.flush_all()
+        action_id = action.id
+        action.unlink()
+        self.assertTrue(self.env["ir.actions.actions"].browse(action_id).unlink())
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsReferenceSweep(TransactionCase):
+    """A Reference gets no foreign key against any comodel, ever.
+
+    It stores "model,id" in a varchar and checks the target exists only when
+    the value is written, so ir.ui.menu.action went on naming a deleted
+    act_window; the menu vanished from the UI purely because _visible_menu_ids
+    re-resolves every action on each load.
+    """
+
+    def test_a_menu_reference_is_cleared_when_its_action_dies(self):
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-ref-sweep", "res_model": "res.partner"}
+        )
+        menu = self.env["ir.ui.menu"].create(
+            {
+                "name": "audit-ref-sweep-menu",
+                "action": f"ir.actions.act_window,{action.id}",
+            }
+        )
+        self.env.flush_all()
+
+        action.unlink()
+        self.env.invalidate_all()
+
+        self.env.cr.execute("SELECT action FROM ir_ui_menu WHERE id = %s", [menu.id])
+        self.assertEqual(self.env.cr.fetchall(), [(None,)])
+        self.assertFalse(menu.action)
+
+    def test_a_reference_to_another_action_is_left_alone(self):
+        kept = self.env["ir.actions.act_window"].create(
+            {"name": "audit-ref-keep", "res_model": "res.partner"}
+        )
+        doomed = self.env["ir.actions.act_window"].create(
+            {"name": "audit-ref-doomed", "res_model": "res.partner"}
+        )
+        menu = self.env["ir.ui.menu"].create(
+            {
+                "name": "audit-ref-keep-menu",
+                "action": f"ir.actions.act_window,{kept.id}",
+            }
+        )
+        self.env.flush_all()
+
+        doomed.unlink()
+        self.env.invalidate_all()
+
+        self.assertEqual(menu.action, kept)
+
+    def test_the_sweep_covers_every_reference_that_can_name_an_action(self):
+        Actions = self.env["ir.actions.actions"]
+        tree = Actions._inheritance_tree_model_names()
+        expected = {
+            (model_name, field.name)
+            for model_name, model in self.env.registry.items()
+            if not model._abstract
+            for field in model._fields.values()
+            if field.type == "reference"
+            and field.store
+            and (
+                not isinstance(field.selection, list)
+                or any(value in tree for value, __ in field.selection)
+            )
+        }
+        self.assertEqual(set(Actions._unenforced_reference_selections()), expected)
+        self.assertIn(("ir.ui.menu", "action"), expected)
+
+    def test_a_reference_that_can_never_name_an_action_is_not_swept(self):
+        swept = {
+            model
+            for model, __ in self.env[
+                "ir.actions.actions"
+            ]._unenforced_reference_selections()
+        }
+        for model_name, model in self.env.registry.items():
+            for field in model._fields.values():
+                if (
+                    field.type == "reference"
+                    and isinstance(field.selection, list)
+                    and not any(
+                        value.startswith("ir.actions.") for value, __ in field.selection
+                    )
+                ):
+                    with self.subTest(model=model_name, field=field.name):
+                        self.assertNotIn(model_name, swept)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsViewTypeVocabulary(TransactionCase):
+    """view_mode and its siblings are free Chars the web client dispatches on.
+
+    An unknown type reaches buildActionViews and throws "View types not
+    defined" with only the action id to go on; the six records carrying
+    "search" -- which NON_WINDOW_VIEW_TYPES declares an action window can never
+    render -- had been shipping that way undetected.
+    """
+
+    def test_the_vocabulary_is_the_view_types_minus_the_unrenderable_ones(self):
+        from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
+
+        allowed = self.env["ir.actions.actions"]._window_view_types()
+        view_types = set(self.env["ir.ui.view"]._fields["type"].get_values(self.env))
+        self.assertEqual(allowed, view_types - set(NON_WINDOW_VIEW_TYPES))
+        self.assertNotIn("search", allowed)
+        self.assertIn("list", allowed)
+
+    def test_a_view_type_from_an_earlier_version_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.actions.act_window"].create(
+                {
+                    "name": "audit-view-mode-tree",
+                    "res_model": "res.partner",
+                    "view_mode": "tree,form",
+                }
+            )
+            self.env.flush_all()
+
+    def test_a_search_view_is_not_a_view_mode(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.actions.act_window"].create(
+                {
+                    "name": "audit-view-mode-search",
+                    "res_model": "res.partner",
+                    "view_mode": "list,search",
+                }
+            )
+            self.env.flush_all()
+
+    def test_the_mobile_and_binding_spellings_are_checked_too(self):
+        for field_name in ("mobile_view_mode", "binding_view_types"):
+            with self.subTest(field=field_name):
+                with self.assertRaises(ValidationError):
+                    self.env["ir.actions.act_window"].create(
+                        {
+                            "name": f"audit-{field_name}",
+                            "res_model": "res.partner",
+                            field_name: "nonesuch",
+                        }
+                    )
+                    self.env.flush_all()
+                self.env.invalidate_all()
+
+    def test_every_shipped_action_uses_a_renderable_view_type(self):
+        """What the constraint only guards going forward, over the data files."""
+        allowed = self.env["ir.actions.actions"]._window_view_types()
+        offenders = []
+        for action in self.env["ir.actions.act_window"].search([]):
+            for field_name in ("view_mode", "mobile_view_mode"):
+                unknown = [
+                    mode
+                    for mode in (action[field_name] or "").split(",")
+                    if mode and mode not in allowed
+                ]
+                if unknown:
+                    offenders.append((action.xml_id or action.id, field_name, unknown))
+        self.assertEqual(offenders, [])
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsContextDegradesQuietly(TransactionCase):
+    """A context that fails to evaluate at read time is the normal case.
+
+    ir.actions.act_window.read evaluates ``context`` with nothing but the
+    environment's own context bound, so every action mentioning ``active_id``
+    raises NameError and degrades to {} exactly as designed. Logging that
+    buries the rare real corruption: a plain base+web+mail database emits it
+    for 10 of its 134 act_windows on a single read.
+    """
+
+    def test_an_active_id_context_is_the_normal_case_not_a_warning(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-ctx-active-id",
+                "res_model": "res.partner",
+                "context": "{'default_parent_id': active_id}",
+            }
+        )
+        with self.assertNoLogs("odoo.addons.base.models.ir_actions"):
+            values = action.read(["help", "context"])
+        self.assertEqual(values[0]["context"], "{'default_parent_id': active_id}")
+
+    def test_a_shipped_database_would_drown_such_a_log(self):
+        """The measurement behind the decision, kept as the reason."""
+        failing = 0
+        for action in self.env["ir.actions.act_window"].search([]):
+            try:
+                safe_eval(action.context or "{}", dict(self.env.context))
+            except Exception:
+                failing += 1
+        self.assertGreater(
+            failing,
+            0,
+            "if no shipped action has a context needing an active id any more, "
+            "logging the degradation becomes affordable again",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMenuActionReferenceIsJunkTolerant(TransactionCase):
+    """The Reference column can hold a model that declares no menu gating.
+
+    The ORM will not write one -- Reference validates against its selection --
+    but raw SQL and legacy data can, and resolving the gating field per action
+    model must miss rather than raise, or one junk row takes the whole menu
+    tree down.
+    """
+
+    def test_a_reference_to_a_non_action_model_does_not_break_the_menu(self):
+        menu = self.env["ir.ui.menu"].create({"name": "audit-junk-ref"})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_ui_menu SET action = %s WHERE id = %s",
+            [f"res.partner,{self.env.user.partner_id.id}", menu.id],
+        )
+        self.env.invalidate_all()
+        self.env.registry.clear_cache()
+
+        visible = self.env["ir.ui.menu"]._visible_menu_ids(False)
+        self.assertIsInstance(visible, frozenset)
+
+    def test_the_gating_map_does_not_depend_on_what_menus_point_at(self):
+        Actions = self.env["ir.actions.actions"]
+        gating = {
+            name: self.env[name]._menu_access_model_field()
+            for name in Actions._inheritance_tree_model_names()
+        }
+        self.assertEqual(
+            {name: field for name, field in gating.items() if field},
+            {
+                "ir.actions.act_window": "res_model",
+                "ir.actions.client": "res_model",
+                "ir.actions.report": "model",
+                "ir.actions.server": "model_name",
+            },
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsPathReservation(TransactionCase):
+    """Path uniqueness lives in one index over one table.
+
+    ``unique(path)`` declared on the root is built once per subtype table --
+    PostgreSQL does not inherit UNIQUE, so the ORM creates ir_act_window_...,
+    ir_act_url_... and so on -- and none of them spans the tree. The Python
+    check that stood in for them could not span a transaction either: cursors
+    are REPEATABLE READ, so a re-check cannot see a concurrently committed row.
+    """
+
+    def test_the_reservation_table_holds_the_only_tree_wide_index(self):
+        self.env.cr.execute(
+            """
+            SELECT c.relname FROM pg_index x
+              JOIN pg_class c ON c.oid = x.indrelid
+              JOIN pg_class i ON i.oid = x.indexrelid
+             WHERE x.indisunique AND pg_get_indexdef(i.oid) LIKE '%(path)'
+            """
+        )
+        tables = {row[0] for row in self.env.cr.fetchall()}
+        self.assertIn(self.env["ir.actions.path"]._table, tables)
+
+    def test_every_pathed_action_holds_a_reservation(self):
+        """What init() backfills, asserted over the whole database."""
+        self.env.flush_all()
+        self.env.cr.execute(
+            """
+            SELECT a.id, a.path FROM ir_actions a
+             LEFT JOIN ir_actions_path p ON p.action_id = a.id
+             WHERE a.path IS NOT NULL AND p.id IS NULL
+            """
+        )
+        self.assertEqual(self.env.cr.fetchall(), [])
+
+    def test_no_reservation_outlives_its_action(self):
+        self.env.flush_all()
+        self.env.cr.execute(
+            """
+            SELECT p.id FROM ir_actions_path p
+             LEFT JOIN ir_actions a ON a.id = p.action_id
+             WHERE a.id IS NULL OR a.path IS DISTINCT FROM p.path
+            """
+        )
+        self.assertEqual(self.env.cr.fetchall(), [])
+
+    def test_two_subtypes_cannot_share_a_path(self):
+        self.env["ir.actions.act_window"].create(
+            {"name": "audit-res-a", "res_model": "res.partner", "path": "audit-res-x"}
+        )
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["ir.actions.act_url"].create(
+                    {"name": "audit-res-b", "url": "/a", "path": "audit-res-x"}
+                )
+                self.env.flush_all()
+
+    def test_the_reservation_follows_the_path(self):
+        Reservation = self.env["ir.actions.path"]
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-res-follow", "res_model": "res.partner", "path": "audit-f1"}
+        )
+        self.env.flush_all()
+        self.assertEqual(
+            Reservation.search([("action_id", "=", action.id)]).mapped("path"),
+            ["audit-f1"],
+        )
+
+        action.write({"path": "audit-f2"})
+        self.env.flush_all()
+        self.assertEqual(
+            Reservation.search([("action_id", "=", action.id)]).mapped("path"),
+            ["audit-f2"],
+        )
+
+        action.write({"path": False})
+        self.env.flush_all()
+        self.assertFalse(Reservation.search([("action_id", "=", action.id)]))
+
+    def test_deleting_an_action_frees_its_path(self):
+        """Through the ondelete sweep, which finds the many2one on its own."""
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-res-free", "res_model": "res.partner", "path": "audit-free"}
+        )
+        self.env.flush_all()
+        action.unlink()
+        self.env.flush_all()
+        self.assertFalse(
+            self.env["ir.actions.path"].search([("path", "=", "audit-free")])
+        )
+        reused = self.env["ir.actions.act_url"].create(
+            {"name": "audit-res-reuse", "url": "/reuse", "path": "audit-free"}
+        )
+        self.env.flush_all()
+        self.assertEqual(reused.path, "audit-free")
+
+    def test_the_reservation_is_swept_like_any_other_reference(self):
+        swept = {
+            (model, field)
+            for model, field, __ in self.env[
+                "ir.actions.actions"
+            ]._unenforced_reference_fields()
+        }
+        self.assertIn(("ir.actions.path", "action_id"), swept)
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsBindingAccessGate(TransactionCase):
+    """One access gate for menus and for bindings, asked the same way.
+
+    get_bindings used to check ``res_model``, which only act_window and client
+    declare, so a server or report binding whose destination differed from the
+    model it was bound to showed its name and domain to anyone who could read
+    the latter.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = cls.env["res.users"].create(
+            {
+                "name": "audit-gate",
+                "login": "audit_gate",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+        cls.secret = cls.env["ir.model"]._get("ir.cron")
+        cls.bound = cls.env["ir.model"]._get("res.partner")
+        cls.env["ir.model.access"].search([("model_id", "=", cls.secret.id)]).unlink()
+
+    def _visible_names(self):
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        bindings = (
+            self.env["ir.actions.actions"]
+            .with_user(self.user)
+            .get_bindings("res.partner")
+        )
+        return {action["name"] for bucket in bindings.values() for action in bucket}
+
+    def test_a_server_binding_on_an_unreadable_model_is_hidden(self):
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "audit-gate-server",
+                "model_id": self.secret.id,
+                "state": "code",
+                "code": "pass",
+                "binding_model_id": self.bound.id,
+            }
+        )
+        self.assertNotIn(action.name, self._visible_names())
+
+    def test_a_report_binding_on_an_unreadable_model_is_hidden(self):
+        action = self.env["ir.actions.report"].create(
+            {
+                "name": "audit-gate-report",
+                "model": "ir.cron",
+                "report_name": "audit.gate.report",
+                "binding_type": "report",
+                "binding_model_id": self.bound.id,
+            }
+        )
+        self.assertNotIn(action.name, self._visible_names())
+
+    def test_a_binding_on_a_readable_model_is_still_shown(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-gate-ok",
+                "res_model": "res.partner",
+                "binding_model_id": self.bound.id,
+            }
+        )
+        self.assertIn(action.name, self._visible_names())
+
+    def test_the_gating_model_never_reaches_the_browser(self):
+        """get_views ships the rest of the dict to the client as a toolbar."""
+        self.env["ir.actions.act_window"].create(
+            {
+                "name": "audit-gate-keys",
+                "res_model": "res.partner",
+                "binding_model_id": self.bound.id,
+            }
+        )
+        self.env.flush_all()
+        self.env.registry.clear_cache()
+        bindings = self.env["ir.actions.actions"].get_bindings("res.partner")
+        keys = {k for bucket in bindings.values() for action in bucket for k in action}
+        for leaked in ("res_model", "model", "model_name"):
+            self.assertNotIn(leaked, keys)
+        self.assertFalse({k for k in keys if k.startswith("__")})
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsAsConcrete(TransactionCase):
+    """Re-browsing an action through its own model, in one place.
+
+    Three callers did it by hand off ``type`` -- unlink, web's URL-path
+    resolver and ir.actions.todo -- putting a denormalised column between a URL
+    and the model that answers it.
+    """
+
+    def test_each_subtype_round_trips_through_the_root(self):
+        Actions = self.env["ir.actions.actions"]
+        made = [
+            self.env["ir.actions.act_window"].create(
+                {"name": "audit-conc-w", "res_model": "res.partner"}
+            ),
+            self.env["ir.actions.act_url"].create(
+                {"name": "audit-conc-u", "url": "/audit/conc"}
+            ),
+            self.env["ir.actions.client"].create(
+                {"name": "audit-conc-c", "tag": "audit"}
+            ),
+        ]
+        self.env.flush_all()
+        for action in made:
+            with self.subTest(model=action._name):
+                concrete = Actions.browse(action.id)._as_concrete()
+                self.assertEqual(concrete._name, action._name)
+                self.assertEqual(concrete.id, action.id)
+
+    def test_it_follows_the_storage_not_the_type_column(self):
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-conc-lie", "res_model": "res.partner"}
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_actions SET type = 'ir.actions.client' WHERE id = %s",
+            [action.id],
+        )
+        self.env.invalidate_all()
+        concrete = self.env["ir.actions.actions"].browse(action.id)._as_concrete()
+        self.assertEqual(concrete._name, "ir.actions.act_window")
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsTodoSurvivor(TransactionCase):
+    """Which todo stays open must be the one the queue will run.
+
+    ir.module.module._next_todo_action takes search(state=open, limit=1), which
+    reads _order; keeping whichever came first out of create() left the queue
+    running a different record than the one that "won".
+    """
+
+    def test_the_survivor_is_the_one_the_queue_picks(self):
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-todo-act", "res_model": "res.partner"}
+        )
+        self.env["ir.actions.todo"].search([("state", "=", "open")]).write(
+            {"state": "done"}
+        )
+        todos = self.env["ir.actions.todo"].create(
+            [
+                {"action_id": action.id, "state": "open", "sequence": 30},
+                {"action_id": action.id, "state": "open", "sequence": 10},
+                {"action_id": action.id, "state": "open", "sequence": 20},
+            ]
+        )
+        self.env.flush_all()
+
+        still_open = todos.filtered(lambda todo: todo.state == "open")
+        self.assertEqual(len(still_open), 1)
+        self.assertEqual(still_open.sequence, 10)
+        self.assertEqual(
+            self.env["ir.actions.todo"].search([("state", "=", "open")], limit=1),
+            still_open,
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestIrActionsBindingModelIsChecked(TransactionCase):
+    """binding_model_id is a root field, so the check belongs to the root.
+
+    ir.model rows outlive their registry entry, so a binding can point at a
+    model that is gone; only ir.actions.act_window used to notice.
+    """
+
+    def test_every_subtype_rejects_a_binding_to_a_missing_model(self):
+        stale = self.env["ir.model"].create(
+            {"name": "audit-stale", "model": "x_audit.stale.model"}
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_model SET model = %s WHERE id = %s",
+            ["x_audit.not.in.registry", stale.id],
+        )
+        self.env.invalidate_all()
+
+        for model_name, vals in (
+            ("ir.actions.act_url", {"name": "audit-bm-u", "url": "/audit/bm"}),
+            ("ir.actions.client", {"name": "audit-bm-c", "tag": "audit"}),
+        ):
+            with self.subTest(model=model_name):
+                with self.assertRaises(ValidationError):
+                    self.env[model_name].create({**vals, "binding_model_id": stale.id})
+                    self.env.flush_all()
+                self.env.invalidate_all()
