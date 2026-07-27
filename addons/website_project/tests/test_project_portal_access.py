@@ -5,9 +5,9 @@ from re import search
 from odoo import http
 from odoo.tests import HttpCase
 
+from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.project.tests.test_project_sharing import TestProjectSharingCommon
-from odoo.addons.http_routing.tests.common import MockRequest
 
 
 class TestProjectPortalAccess(TestProjectSharingCommon, HttpCase):

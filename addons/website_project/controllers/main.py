@@ -1,11 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.http import request
-
 from odoo import _
+from odoo.http import request
 from odoo.libs.text.html import nl2br, nl2br_enclose
-from odoo.addons.website.controllers import form
 from odoo.tools import html2plaintext
+
+from odoo.addons.website.controllers import form
 
 
 class WebsiteForm(form.WebsiteForm):
