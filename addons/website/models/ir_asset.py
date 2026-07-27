@@ -1,6 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 
@@ -11,6 +11,11 @@ class IrAsset(models.Model):
         copy=False
     )  # used to resolve multiple assets in a multi-website environment
     website_id = fields.Many2one("website", ondelete="cascade")
+
+    @api.model
+    def _resolution_fields(self):
+        """``website_id`` and ``key`` decide which record wins, so they count."""
+        return super()._resolution_fields() | {"website_id", "key"}
 
     def _get_asset_params(self):
         params = super()._get_asset_params()
@@ -52,8 +57,21 @@ class IrAsset(models.Model):
             domain = (
                 Domain(domain) & self.env["website"].browse(website_id).website_domain()
             )
-        assets = super()._get_related_assets(domain, **params)
-        return assets.filter_duplicate(website_id)
+        return super()._get_related_assets(domain, **params)
+
+    def _filter_bundle_assets(self, assets, *, website_id=None, **params):
+        """Keep the most specific record per ``key``, within one bundle.
+
+        Applied per bundle by ``_fetch_bundle_assets``: ``filter_duplicate``
+        lets a website-specific record hide the generic one it shadows, and two
+        records only shadow each other when they compete for the same slot of
+        the same bundle. A COW write that also moves the record to another
+        bundle produces exactly that pair across two bundles, and filtering them
+        together would drop the generic one from a bundle it still belongs to.
+        """
+        return super()._filter_bundle_assets(assets, **params).filter_duplicate(
+            website_id
+        )
 
     def _get_active_addons_list(self, *, website_id=None, **params):
         """Overridden to discard inactive themes."""

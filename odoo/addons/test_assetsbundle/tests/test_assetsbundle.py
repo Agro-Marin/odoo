@@ -2,6 +2,7 @@ import base64
 import os
 import pathlib
 import shutil
+import tempfile
 import textwrap
 import time
 import unittest
@@ -25,7 +26,7 @@ from odoo.addons.base.models.assetsbundle import (
     JavascriptAsset,
     XMLAssetError,
 )
-from odoo.addons.base.models.ir_asset import AssetPaths, _glob_static_file
+from odoo.addons.base.models.ir_asset import Resolution, _glob_static_file
 from odoo.addons.base.models.ir_attachment import IrAttachment
 
 ORIGINAL_PATH_STAT = pathlib.Path.stat
@@ -33,7 +34,8 @@ ORIGINAL_PATH_STAT = pathlib.Path.stat
 
 class TestAddonPaths(TransactionCase):
     def test_operations(self):
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         self.assertFalse(asset_paths.list)
 
         asset_paths.append(
@@ -129,7 +131,8 @@ class TestAddonPaths(TransactionCase):
 
     def test_replace_empty_source(self):
         """REPLACE with empty source should remove target without replacement."""
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         asset_paths.append(
             [
                 ("/web/a.js", "/full/a.js", 1),
@@ -149,29 +152,70 @@ class TestAddonPaths(TransactionCase):
 
     def test_glob_static_file_race_condition(self):
         """Files deleted between glob() and stat() should be skipped."""
-        deleted_file = "/tmp/_test_asset_race_condition.js"
-        with patch(
-            "odoo.addons.base.models.ir_asset.glob",
-            return_value=[deleted_file],
-        ):
-            result = _glob_static_file("/tmp/*.js")
+        with tempfile.TemporaryDirectory() as tmp:
+            static_dir = str(pathlib.Path(tmp).resolve())
+            deleted_file = f"{static_dir}/_test_asset_race_condition.js"
+            with patch(
+                "odoo.addons.base.models.ir_asset.glob",
+                return_value=[deleted_file],
+            ):
+                result = _glob_static_file(f"{static_dir}/*.js", static_dir)
         self.assertEqual(result, [], "Deleted files should be silently skipped")
 
     def test_glob_static_file_filters_extensions(self):
         """Only ASSET_EXTENSIONS files should be returned."""
-        with (
-            patch(
-                "odoo.addons.base.models.ir_asset.glob",
-                return_value=["/tmp/file.js", "/tmp/file.py", "/tmp/file.css"],
-            ),
-            patch("odoo.addons.base.models.ir_asset.Path") as MockPath,
-        ):
-            MockPath.return_value.stat.return_value.st_mtime = 100.0
-            result = _glob_static_file("/tmp/*")
+        with tempfile.TemporaryDirectory() as tmp:
+            static_dir = str(pathlib.Path(tmp).resolve())
+            for name in ("file.js", "file.py", "file.css"):
+                pathlib.Path(static_dir, name).write_text("")
+            result = _glob_static_file(f"{static_dir}/*", static_dir)
         paths = [r[0] for r in result]
-        self.assertIn("/tmp/file.js", paths)
-        self.assertIn("/tmp/file.css", paths)
-        self.assertNotIn("/tmp/file.py", paths)
+        self.assertIn(f"{static_dir}/file.js", paths)
+        self.assertIn(f"{static_dir}/file.css", paths)
+        self.assertNotIn(f"{static_dir}/file.py", paths)
+
+    @mute_logger("odoo.addons.base.models.ir_asset")
+    def test_glob_static_file_memo_is_not_shared_across_roots(self):
+        """The containment cache is shared by every glob of one resolution, so
+        its answers must be keyed by the root they were computed against — a
+        directory contained in addon A's static/ says nothing about addon B's.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root_a = pathlib.Path(tmp, "a", "static")
+            root_b = pathlib.Path(tmp, "b", "static")
+            (root_a / "src").mkdir(parents=True)
+            root_b.mkdir(parents=True)
+            (root_a / "src" / "in_a.js").write_text("var a;")
+            (root_b / "in_b.js").write_text("var b;")
+
+            memo = {}
+            found_a = _glob_static_file(f"{root_a}/**/*.js", str(root_a), memo)
+            found_b = _glob_static_file(f"{root_b}/*.js", str(root_b), memo)
+
+        self.assertEqual([pathlib.Path(f).name for f, _mtime in found_a], ["in_a.js"])
+        self.assertEqual([pathlib.Path(f).name for f, _mtime in found_b], ["in_b.js"])
+
+    def test_glob_static_file_drops_matches_linking_out_of_static(self):
+        """A wildcard expanding onto a symlink out of static/ must not bundle it.
+
+        The caller only vets the pattern's literal prefix, so containment has to
+        be re-checked on what the glob actually matched.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp).resolve()
+            static_dir = root / "static"
+            (static_dir / "src").mkdir(parents=True)
+            (static_dir / "src" / "inside.js").write_text("")
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "secret.js").write_text("")
+            (static_dir / "escape").symlink_to(outside)
+
+            result = _glob_static_file(f"{static_dir}/*/*.js", str(static_dir))
+
+        self.assertEqual(
+            [path for path, _mtime in result], [f"{static_dir}/src/inside.js"]
+        )
 
 
 class TestParseBundleName(TransactionCase):
@@ -241,21 +285,18 @@ class TestSilentNoopDirectives(TransactionCase):
     def test_remove_unresolved_path_warns(self):
         """REMOVE pointing at a path that resolves to nothing emits a WARNING."""
         IrAsset = self._make_ir_asset()
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         with (
             patch.object(self._ir_asset_cls, "_get_paths", return_value=[]),
             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
         ):
             IrAsset._process_path(
-                bundle="some.bundle",
-                directive="remove",
-                target=None,
-                path_def="/some_addon/static/src/moved_or_deleted.js",
-                asset_paths=asset_paths,
-                seen=[],
-                addons=[],
-                installed=set(),
-                bundle_start_index=0,
+                resolution.open_bundle("some.bundle"),
+                resolution,
+                "remove",
+                None,
+                "/some_addon/static/src/moved_or_deleted.js",
             )
         self.assertEqual(asset_paths.list, [])
         joined = " ".join(cm.output)
@@ -266,7 +307,8 @@ class TestSilentNoopDirectives(TransactionCase):
     def test_after_missing_target_warns(self):
         """AFTER with a target that resolves to nothing emits a WARNING."""
         IrAsset = self._make_ir_asset()
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
 
         side_effects = [
             [("/web/source.scss", "/full/source.scss", 1)],
@@ -277,15 +319,11 @@ class TestSilentNoopDirectives(TransactionCase):
             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
         ):
             IrAsset._process_path(
-                bundle="some.bundle",
-                directive="after",
-                target="/web/missing_anchor.scss",
-                path_def="/web/source.scss",
-                asset_paths=asset_paths,
-                seen=[],
-                addons=[],
-                installed=set(),
-                bundle_start_index=0,
+                resolution.open_bundle("some.bundle"),
+                resolution,
+                "after",
+                "/web/missing_anchor.scss",
+                "/web/source.scss",
             )
         self.assertEqual(asset_paths.list, [])
         joined = " ".join(cm.output)
@@ -296,7 +334,8 @@ class TestSilentNoopDirectives(TransactionCase):
     def test_before_missing_target_warns(self):
         """BEFORE with a missing target emits a WARNING (same path as AFTER)."""
         IrAsset = self._make_ir_asset()
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         with (
             patch.object(
                 self._ir_asset_cls,
@@ -306,15 +345,11 @@ class TestSilentNoopDirectives(TransactionCase):
             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
         ):
             IrAsset._process_path(
-                bundle="b.b",
-                directive="before",
-                target="/web/missing.js",
-                path_def="/web/x.js",
-                asset_paths=asset_paths,
-                seen=[],
-                addons=[],
-                installed=set(),
-                bundle_start_index=0,
+                resolution.open_bundle("b.b"),
+                resolution,
+                "before",
+                "/web/missing.js",
+                "/web/x.js",
             )
         self.assertEqual(asset_paths.list, [])
         joined = " ".join(cm.output)
@@ -324,7 +359,8 @@ class TestSilentNoopDirectives(TransactionCase):
     def test_after_no_target_warns(self):
         """AFTER with target=None emits a WARNING."""
         IrAsset = self._make_ir_asset()
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         with (
             patch.object(
                 self._ir_asset_cls,
@@ -334,15 +370,11 @@ class TestSilentNoopDirectives(TransactionCase):
             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
         ):
             IrAsset._process_path(
-                bundle="x.y",
-                directive="after",
-                target=None,
-                path_def="/web/x.js",
-                asset_paths=asset_paths,
-                seen=[],
-                addons=[],
-                installed=set(),
-                bundle_start_index=0,
+                resolution.open_bundle("x.y"),
+                resolution,
+                "after",
+                None,
+                "/web/x.js",
             )
         self.assertEqual(asset_paths.list, [])
         joined = " ".join(cm.output)
@@ -356,19 +388,16 @@ class TestSilentNoopDirectives(TransactionCase):
         path-resolution log.
         """
         IrAsset = self._make_ir_asset()
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         with patch.object(self._ir_asset_cls, "_get_paths", return_value=[]):
             with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
                 IrAsset._process_path(
-                    bundle="x.y",
-                    directive="append",
-                    target=None,
-                    path_def="/web/x.js",
-                    asset_paths=asset_paths,
-                    seen=[],
-                    addons=[],
-                    installed=set(),
-                    bundle_start_index=0,
+                    resolution.open_bundle("x.y"),
+                    resolution,
+                    "append",
+                    None,
+                    "/web/x.js",
                 )
         self.assertEqual(asset_paths.list, [])
 
@@ -377,7 +406,8 @@ class TestSilentNoopDirectives(TransactionCase):
         spurious warning when the manifest is correct.
         """
         IrAsset = self._make_ir_asset()
-        asset_paths = AssetPaths()
+        resolution = Resolution(installed=set())
+        asset_paths = resolution.paths
         asset_paths.append(
             [("/web/x.js", "/full/x.js", 1)],
             "preexisting",
@@ -391,15 +421,11 @@ class TestSilentNoopDirectives(TransactionCase):
             self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"),
         ):
             IrAsset._process_path(
-                bundle="x.y",
-                directive="remove",
-                target=None,
-                path_def="/web/x.js",
-                asset_paths=asset_paths,
-                seen=[],
-                addons=[],
-                installed=set(),
-                bundle_start_index=0,
+                resolution.open_bundle("x.y"),
+                resolution,
+                "remove",
+                None,
+                "/web/x.js",
             )
         self.assertEqual(asset_paths.list, [])
 
@@ -2630,14 +2656,14 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertEqual(
             files,
-            [
+            (
                 (
                     "/test_assetsbundle/../../tests/dummy.xml",
                     None,
                     "test_assetsbundle.irassetsec",
                     None,
-                )
-            ],
+                ),
+            ),
         )
 
     @mute_logger("odoo.addons.base.models.ir_asset")
@@ -2659,14 +2685,14 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertEqual(
             files,
-            [
+            (
                 (
                     "../../tests/dummy.xml",
                     None,
                     "test_assetsbundle.irassetsec",
                     None,
-                )
-            ],
+                ),
+            ),
         )
 
     def test_33(self):
@@ -2730,14 +2756,14 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertEqual(
             files,
-            [
+            (
                 (
                     "/test_assetsbundle/data/ir_asset.xml",
                     None,
                     "test_assetsbundle.irassetsec",
                     None,
-                )
-            ],
+                ),
+            ),
         )
 
     def test_36(self):
@@ -2757,14 +2783,14 @@ class TestAssetsManifest(AddonManifestPatched):
 
         self.assertEqual(
             files,
-            [
+            (
                 (
                     "/test_assetsbundle/static/accessible.xml",
                     f"{base_path}/static/accessible.xml",
                     "test_assetsbundle.irassetsec",
                     modified,
-                )
-            ],
+                ),
+            ),
         )
 
     def test_37_path_can_be_an_attachment(self):

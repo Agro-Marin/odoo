@@ -48,6 +48,7 @@ _schema = logging.getLogger("odoo.schema")
 _REGISTRY_CACHES = {
     "default": 8192,
     "assets": 512,
+    "assets.links": 8192,
     "stable": 1024,
     "templates": 1024,
     "routing": 1024,
@@ -58,7 +59,7 @@ _REGISTRY_CACHES = {
 
 _CACHES_BY_KEY = {
     "default": ("default", "templates.cached_values"),
-    "assets": ("assets", "templates.cached_values"),
+    "assets": ("assets", "assets.links", "templates.cached_values"),
     "stable": ("stable", "default", "templates.cached_values"),
     "templates": ("templates", "templates.cached_values"),
     "routing": ("routing", "routing.rewrites", "templates.cached_values"),

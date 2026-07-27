@@ -22,6 +22,7 @@ __all__ = [
     "STYLE_EXTENSIONS",
     "SUPPORTED_DEBUGGER",
     "TEMPLATE_EXTENSIONS",
+    "ExternalAsset",
 ]
 
 SCRIPT_EXTENSIONS = ("js",)
@@ -30,7 +31,20 @@ TEMPLATE_EXTENSIONS = ("xml",)
 ASSET_EXTENSIONS = SCRIPT_EXTENSIONS + STYLE_EXTENSIONS + TEMPLATE_EXTENSIONS
 
 SUPPORTED_DEBUGGER = {"pdb", "ipdb", "wdb", "pudb"}
-EXTERNAL_ASSET = object()
+
+
+class ExternalAsset:
+    """Type of :data:`EXTERNAL_ASSET`, named so it reads in logs and tracebacks."""
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        """Render as the constant's name."""
+        return "EXTERNAL_ASSET"
+
+
+EXTERNAL_ASSET = ExternalAsset()
+"""Marks a resolved asset as an external URL, served as-is instead of bundled."""
 
 PREFETCH_MAX = 1000
 """Maximum number of prefetched records"""
