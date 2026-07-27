@@ -2,7 +2,7 @@
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 from odoo.fields import Domain
 
 

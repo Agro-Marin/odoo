@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.addons.survey.tests.common import TestSurveyCommon
@@ -79,10 +78,7 @@ class TestCourseCertificationFailureFlow(TestSurveyCommon):
         # Step 5: simulate a 'retry'
         retry_user_input = self.slide_certification.survey_id.sudo()._create_answer(
             partner=self.user_portal.partner_id,
-            **{
-                'slide_id': self.slide_certification.id,
-                'slide_partner_id': slide_partner.id
-            },
+            slide_id=self.slide_certification.id, slide_partner_id=slide_partner.id,
             invite_token=slide_partner.user_input_ids[0].invite_token
         )
         second_attempt_in_first_pool = retry_user_input

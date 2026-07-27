@@ -1,11 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import werkzeug
-import werkzeug.utils
 import werkzeug.exceptions
 
-from odoo import _
-from odoo import http
+from odoo import _, http
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.http import request
@@ -19,13 +16,13 @@ class WebsiteSlidesSurvey(WebsiteSlides):
     def slide_get_certification_url(self, slide_id, **kw):
         fetch_res = self._fetch_slide(slide_id)
         if fetch_res.get('error'):
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
         slide = fetch_res['slide']
         if slide.channel_id.is_member:
             slide.action_set_viewed()
         certification_url = slide._generate_certification_url().get(slide.id)
         if not certification_url:
-            raise werkzeug.exceptions.NotFound()
+            raise werkzeug.exceptions.NotFound
         return request.redirect(certification_url)
 
     @http.route(['/slides_survey/certification/search_read'], type='jsonrpc', auth='user', methods=['POST'], website=True)
@@ -71,7 +68,7 @@ class WebsiteSlidesSurvey(WebsiteSlides):
             post['survey_id'] = post['survey']['id']
 
         # Then create the slide
-        result = super(WebsiteSlidesSurvey, self).create_slide(*args, **post)
+        result = super().create_slide(*args, **post)
 
         if post['slide_category'] == "certification":
             # Set the url to redirect the user to the survey
@@ -85,17 +82,17 @@ class WebsiteSlidesSurvey(WebsiteSlides):
     def _slide_mark_completed(self, slide):
         if slide.slide_category == 'certification':
             raise werkzeug.exceptions.Forbidden(_("Certification slides are completed when the survey is succeeded."))
-        return super(WebsiteSlidesSurvey, self)._slide_mark_completed(slide)
+        return super()._slide_mark_completed(slide)
 
     def _get_valid_slide_post_values(self):
-        result = super(WebsiteSlidesSurvey, self)._get_valid_slide_post_values()
+        result = super()._get_valid_slide_post_values()
         result.append('survey_id')
         return result
 
     # Profile
     # ---------------------------------------------------
     def _prepare_user_slides_profile(self, user):
-        values = super(WebsiteSlidesSurvey, self)._prepare_user_slides_profile(user)
+        values = super()._prepare_user_slides_profile(user)
         values.update({
             'certificates': self._get_users_certificates(user)[user.id]
         })
@@ -104,7 +101,7 @@ class WebsiteSlidesSurvey(WebsiteSlides):
     # All Users Page
     # ---------------------------------------------------
     def _prepare_all_users_values(self, users):
-        result = super(WebsiteSlidesSurvey, self)._prepare_all_users_values(users)
+        result = super()._prepare_all_users_values(users)
         certificates_per_user = self._get_users_certificates(users)
         for index, user in enumerate(users):
             result[index].update({
@@ -120,19 +117,18 @@ class WebsiteSlidesSurvey(WebsiteSlides):
             ('slide_partner_id.survey_scoring_success', '=', True)
         ]
         certificates = request.env['survey.user_input'].sudo().search(domain)
-        users_certificates = {
+        return {
             user.id: [
                 certificate for certificate in certificates if certificate.partner_id == user.partner_id
             ] for user in users
         }
-        return users_certificates
 
     # Badges & Ranks Page
     # ---------------------------------------------------
     def _prepare_ranks_badges_values(self, **kwargs):
         """ Extract certification badges, to render them in ranks/badges page in another section.
         Order them by number of granted users desc and show only badges linked to opened certifications."""
-        values = super(WebsiteSlidesSurvey, self)._prepare_ranks_badges_values(**kwargs)
+        values = super()._prepare_ranks_badges_values(**kwargs)
 
         # 1. Getting all certification badges, sorted by granted user desc
         domain = Domain.AND([[('survey_id', '!=', False)], self._prepare_badges_domain(**kwargs)])
