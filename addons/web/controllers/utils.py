@@ -64,8 +64,11 @@ def clean_action(action: dict, env: Any) -> dict:
 
     # Keep only fields readable on this action's type, plus any custom
     # (non-model) properties — drop unreadable model fields.
-    readable_fields = env[action["type"]]._get_readable_fields()
-    action_type_fields = env[action["type"]]._fields.keys()
+    action_model = env[action["type"]]
+    readable_fields = (
+        action_model._get_readable_fields() | action_model._get_client_only_keys()
+    )
+    action_type_fields = action_model._fields.keys()
 
     cleaned_action = {
         field: value

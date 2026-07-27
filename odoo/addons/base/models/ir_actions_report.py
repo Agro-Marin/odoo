@@ -1289,15 +1289,20 @@ class IrActionsReport(models.Model):
             return NotImplemented
         return Domain("model", "in", model_records.mapped("model"))
 
-    def _get_readable_fields(self) -> set[str]:
+    def _get_readable_fields(self) -> frozenset[str]:
         return super()._get_readable_fields() | {
             "report_name",
             "report_type",
+            "domain",
+        }
+
+    def _get_client_only_keys(self) -> frozenset[str]:
+        """Keys carried by the report action dicts that ``report_action`` builds."""
+        return super()._get_client_only_keys() | {
             "target",
             "context",
             "data",
             "close_on_report_download",
-            "domain",
         }
 
     def associated_view(self) -> dict[str, Any] | bool:
