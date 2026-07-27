@@ -55,6 +55,9 @@ def file_path(
         >>> file_path("hr/static/description/icon.png")  # doctest: +SKIP
         >>> file_path("hr/static/description/icon.png", filter_ext=(".png", ".jpg"))  # doctest: +SKIP
 
+    Successful resolutions are memoized (see :func:`_file_path_resolved`); a
+    transaction holding temporary directories bypasses the cache entirely.
+
     :param str file_path: absolute file path, or relative path within any `addons_path` directory
     :param filter_ext: optional tuple of supported extensions (lowercase, with leading
         dot); must be a tuple — it is passed straight to ``str.endswith()``
@@ -65,6 +68,49 @@ def file_path(
     :raise FileNotFoundError: if the file is not found under the known `addons_path` directories
     :raise ValueError: if the file doesn't have one of the supported extensions (`filter_ext`)
     """
+    if env is not None and env.transaction.file_open_tmp_paths:
+        return _file_path_uncached(file_path, filter_ext, env, check_exists)
+    return _file_path_resolved(file_path, filter_ext, check_exists)
+
+
+@functools.lru_cache(maxsize=8192)
+def _file_path_resolved(
+    file_path: str, filter_ext: tuple[str, ...], check_exists: bool
+) -> str:
+    """Memoized :func:`file_path` for the no-temporary-directory case.
+
+    Path resolution dominated stylesheet preprocessing: building
+    ``web.assets_web``'s CSS spent 31% of its wall clock here across 3613
+    calls, because the Sass importer re-resolves its load paths per ``@use``
+    — one addon directory was validated 167 times in a single build. The
+    answer only depends on ``addons_path`` and the filesystem layout, both
+    fixed for the process, so the repeats are pure waste.
+
+    Two properties make this safe rather than a stale-cache hazard:
+
+    * ``lru_cache`` does not memoize exceptions, so a *miss* is never sticky.
+      A file added after a failed lookup (a new addon in a dev session) is
+      found on the next call, and only successful resolutions are retained.
+    * A cached success that is later deleted still returns a path; the caller's
+      ``open()`` then raises as it would have anyway. Path resolution is not a
+      liveness check.
+
+    Environments carrying ``file_open_tmp_paths`` never reach here. Those
+    directories are deliberately scoped to one transaction
+    (:func:`file_open_temporary_directory`), so caching a resolution made
+    through one would let a later transaction read it — the exact isolation
+    that function exists to provide.
+    """
+    return _file_path_uncached(file_path, filter_ext, None, check_exists)
+
+
+def _file_path_uncached(
+    file_path: str,
+    filter_ext: tuple[str, ...],
+    env: Environment | None,
+    check_exists: bool,
+) -> str:
+    """Resolve a path against ``addons_path``; see :func:`file_path`."""
     fp = Path(file_path)
     is_abs = fp.is_absolute()
     normalized = (

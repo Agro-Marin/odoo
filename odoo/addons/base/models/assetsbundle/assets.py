@@ -15,6 +15,7 @@ from odoo.libs.constants import (
 )
 from odoo.tools import profiler
 from odoo.tools.assets.esbuild import (
+    has_nested_template_literal,
     minify_js,
 )
 from odoo.tools.assets.esm_graph import (
@@ -72,6 +73,22 @@ class WebAsset:
 
     @functools.cached_property
     def id(self) -> str:
+        """Identity used to split compiled CSS back into per-file fragments.
+
+        :class:`AssetsBundle` overwrites this with the asset's index in
+        ``stylesheets`` (``0000``, ``0001``, …), which is what makes the
+        concatenated Sass document a pure function of the bundle's file list.
+        With a random value here, two bundles over the very same sources
+        produced two byte-different compile inputs, so an identical ~600 ms
+        Dart Sass compile could never be reused between them — and the LTR,
+        RTL, autoprefixed and RTL+autoprefixed variants of one bundle all
+        compile the *same* SCSS (direction and prefixing are post-compile
+        passes).
+
+        The random fallback covers assets built outside a bundle
+        (:meth:`ScssStylesheetAsset.for_inline_compile`, the synthesised
+        at-rules fragment), which are never split.
+        """
         return str(uuid.uuid4())
 
     @functools.cached_property
@@ -208,8 +225,16 @@ class JavascriptAsset(WebAsset):
         return super().content
 
     def minify(self) -> str:
+        """Minify in-process, falling back to esbuild only where rjsmin breaks.
+
+        The bypass used to trigger on any file holding both a backtick and a
+        ``${`` — a quarter of the JS in this tree — spending an esbuild
+        subprocess per file to protect against a defect that needs a NESTED
+        template literal. :func:`has_nested_template_literal` asks the precise
+        question instead.
+        """
         content = self.content
-        if "`" not in content or "${" not in content:
+        if not has_nested_template_literal(content):
             return self.with_header(rjsmin(content, keep_bang_comments=True))
         minified = minify_js(content, label=self.url or self.name)
         return self.with_header(minified if minified is not None else content)
@@ -310,11 +335,19 @@ class StylesheetAsset(WebAsset):
         r"""@import\s+(?P<q>'|")(?!'|"|/|https?://)(?P<path>[^'"]*)(?P=q)"""
     )
     rx_url = re.compile(
-        r"""(?<!")url\s*\(\s*(?P<q>['"]|)"""
+        r"""url\s*\(\s*(?P<q>['"]|)"""
         r"""(?!['"]|/|https?://|data:|\#\{str|\#(?!\{))"""
         r"""(?P<body>[^'")\s]*)(?P=q)""",
     )
     """Match a ``url(…)`` whose body is a *relative path* needing rewriting.
+
+    Carried no leading ``(?<!")`` guard since string protection moved into
+    :func:`_rewrite_css_outside_strings`. That lookbehind used to keep the
+    rewrite out of ``content: "…url(x)…"``; the scanner now consumes string
+    literals as opaque spans, so the only thing it could still do was refuse a
+    genuine ``url()`` that happened to abut a closing quote
+    (``background:"x"url(y.png)``), leaving that reference relative to the
+    bundle URL — a silent 404.
 
     The lookahead skips what must be left alone:
 
@@ -335,6 +368,16 @@ class StylesheetAsset(WebAsset):
     rx_charset = re.compile(r'(@charset "[^"]+";)')
     _CSS_TOKEN_RE = _CSS_STRING_OR_COMMENT
     _SOURCE_TOKEN_RE = _CSS_STRING_OR_COMMENT
+    _IDENT_CHAR = re.compile(r"[\w-]")
+    """Characters that can continue an identifier, a number or a dimension.
+
+    A CSS comment is not whitespace, so dropping one usually joins nothing —
+    ``.a/*x*/.b`` really is ``.a.b``. But between two of THESE characters the
+    comment is the only thing keeping two tokens apart, and deleting it fuses
+    them: ``@media/*c*/screen`` became the single at-keyword ``@mediascreen``
+    and the browser dropped the whole block; ``1px/*c*/2px`` became the invalid
+    dimension ``1px2px``. Only that case substitutes a space.
+    """
 
     def __init__(
         self, *args: Any, rtl: bool = False, autoprefix: bool = False, **kw: Any
@@ -420,6 +463,10 @@ class StylesheetAsset(WebAsset):
             if token[0] in "\"'" or token.startswith("/*!"):
                 protected.append(token)
                 return f"\x00{len(protected) - 1}\x00"
+            before = content[match.start() - 1 : match.start()]
+            after = content[match.end() : match.end() + 1]
+            if cls._IDENT_CHAR.match(before) and cls._IDENT_CHAR.match(after):
+                return " "
             return ""
 
         masked = cls._CSS_TOKEN_RE.sub(_mask, content)
