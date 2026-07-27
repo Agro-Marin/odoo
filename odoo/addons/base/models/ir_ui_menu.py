@@ -187,7 +187,12 @@ class IrUiMenu(models.Model):
             if not action or action not in existing_actions:
                 continue
             model_fname = MODEL_BY_TYPE.get(action._name)
-            if model_fname and not access.check(action[model_fname], "read", False):
+            # An action type can name a gating field and still leave it empty:
+            # ir.actions.client.res_model is optional, and no model named means
+            # no model-level gate -- which is what get_bindings, asking the same
+            # question, has always done with the same answer.
+            gating_model = action[model_fname] if model_fname else None
+            if gating_model and not access.check(gating_model, "read", False):
                 continue
             menu_id = menu.id
             while menu_id not in visible_ids and menu_id in menu_ids:
