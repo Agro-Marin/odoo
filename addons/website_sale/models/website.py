@@ -793,7 +793,7 @@ class Website(models.Model):
             try:
                 # fetch the record field or raise a missingError
                 # avoids a query with the use of exists()
-                _ = sale_order_sudo and sale_order_sudo.state
+                _state = sale_order_sudo and sale_order_sudo.state
             except MissingError:
                 self.sale_reset()
                 sale_order_sudo = SaleOrderSudo

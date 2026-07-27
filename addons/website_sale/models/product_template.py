@@ -943,7 +943,7 @@ class ProductTemplate(models.Model):
         with_price = 'detail' in mapping
         results_data = super()._search_render_results(fetch_fields, mapping, icon, limit)
         current_website = self.env['website'].get_current_website()
-        for product, data in zip(self, results_data, strict=True):
+        for product, data in zip(self, results_data, strict=False):
             categ_ids = product.public_categ_ids.filtered(lambda c: not c.website_id or c.website_id == current_website)
             if with_price:
                 combination_info = product._get_combination_info(only_template=True)
