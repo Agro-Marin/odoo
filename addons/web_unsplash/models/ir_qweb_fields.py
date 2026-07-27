@@ -1,6 +1,6 @@
 from urllib.parse import urlsplit
 
-from odoo import models, api
+from odoo import api, models
 
 
 class IrQwebFieldImage(models.AbstractModel):

@@ -2,14 +2,15 @@
 
 import logging
 import mimetypes
-import requests
-import werkzeug.utils
 from urllib.parse import urlencode
 
-from odoo import http, modules, _
+import requests
+import werkzeug.utils
+
+from odoo import _, http, modules
 from odoo.http import request
-from odoo.tools.image import image_process
 from odoo.libs.filesystem.mimetypes import guess_mimetype
+from odoo.tools.image import image_process
 
 from odoo.addons.html_editor.controllers.main import HTML_Editor
 
@@ -32,11 +33,11 @@ class Web_Unsplash(http.Controller):
         '''
         try:
             if not url.startswith('https://api.unsplash.com/photos/') and not modules.module.current_test:
-                raise Exception(_("ERROR: Unknown Unsplash notify URL!"))
+                raise ValueError(_("ERROR: Unknown Unsplash notify URL!"))
             access_key = self._get_access_key()
             requests.get(url, params=urlencode({'client_id': access_key}))
-        except Exception as e:
-            logger.exception("Unsplash download notification failed: " + str(e))
+        except Exception:
+            logger.exception("Unsplash download notification failed")
 
     # ------------------------------------------------------
     # add unsplash image url
@@ -82,8 +83,8 @@ class Web_Unsplash(http.Controller):
             url = value.get('url')
             try:
                 if not url.startswith(('https://images.unsplash.com/', 'https://plus.unsplash.com/')) and not modules.module.current_test:
-                    logger.exception("ERROR: Unknown Unsplash URL!: " + url)
-                    raise Exception(_("ERROR: Unknown Unsplash URL!"))
+                    logger.exception("ERROR: Unknown Unsplash URL!: %s", url)
+                    raise ValueError(_("ERROR: Unknown Unsplash URL!"))
 
                 req = requests.get(url)
                 if req.status_code != requests.codes.ok:
@@ -91,11 +92,11 @@ class Web_Unsplash(http.Controller):
 
                 # get mime-type of image url because unsplash url dosn't contains mime-types in url
                 image = req.content
-            except requests.exceptions.ConnectionError as e:
-                logger.exception("Connection Error: " + str(e))
+            except requests.exceptions.ConnectionError:
+                logger.exception("Connection Error")
                 continue
-            except requests.exceptions.Timeout as e:
-                logger.exception("Timeout: " + str(e))
+            except requests.exceptions.Timeout:
+                logger.exception("Timeout")
                 continue
 
             image = image_process(image, verify_resolution=True)
@@ -151,4 +152,4 @@ class Web_Unsplash(http.Controller):
             request.env['ir.config_parameter'].sudo().set_param('unsplash.app_id', post.get('appId'))
             request.env['ir.config_parameter'].sudo().set_param('unsplash.access_key', post.get('key'))
             return True
-        raise werkzeug.exceptions.NotFound()
+        raise werkzeug.exceptions.NotFound
