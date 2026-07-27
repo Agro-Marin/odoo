@@ -170,22 +170,20 @@ class IrEmbeddedActions(models.Model):
                     self.env._("You cannot delete a default embedded action")
                 )
 
-    def _get_readable_fields(self) -> frozenset[str]:
-        """Return the ORM fields safe to read."""
-        return frozenset(
-            {
-                "name",
-                "parent_action_id",
-                "parent_res_id",
-                "parent_res_model",
-                "action_id",
-                "python_method",
-                "user_id",
-                "is_deletable",
-                "default_view_mode",
-                "filter_ids",
-                "domain",
-                "context",
-                "group_ids",
-            }
-        )
+    def _get_readable_fields(self) -> set[str]:
+        """Return the set of fields safe to read."""
+        return {
+            "name",
+            "parent_action_id",
+            "parent_res_id",
+            "parent_res_model",
+            "action_id",
+            "python_method",
+            "user_id",
+            "is_deletable",
+            "default_view_mode",
+            "filter_ids",
+            "domain",
+            "context",
+            "group_ids",
+        }
