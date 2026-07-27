@@ -1,4 +1,5 @@
 from odoo.tests import TransactionCase, tagged, users
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 
 
