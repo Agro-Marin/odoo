@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import contextlib
 
@@ -40,7 +39,7 @@ class GoogleMap(http.Controller):
         elif post.get('dom'):
             domain = self._get_gmap_domains(**post)
 
-        limit = post.get('limit') and int(post['limit']) or 80
+        limit = (post.get('limit') and int(post['limit'])) or 80
 
         if domain:  # [] is not allowed
             domain += [('website_published', '=', True)]
