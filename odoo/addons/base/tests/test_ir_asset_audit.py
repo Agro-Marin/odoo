@@ -10,149 +10,8 @@ from odoo.exceptions import ValidationError
 from odoo.modules import Manifest
 from odoo.tests.common import TransactionCase, tagged
 
-from odoo.addons.base.models.ir_asset import (
-    AssetPaths,
-    Resolution,
-    _glob_static_file,
-)
-
-
-@tagged("post_install", "-at_install")
-class TestReplaceDirective(TransactionCase):
-    """IRASSET-L1 / IRASSET-C2: pin the real ``IrAsset._process_path`` REPLACE
-    branch. A present source is repositioned to the target slot (not dropped), a
-    source set including the target keeps it, and sources land in source order
-    (IRASSET-C2 — the old new-then-present order reordered interleaved sources).
-    """
-
-    @staticmethod
-    def _paths(resolution):
-        return [a.path for a in resolution.paths.list]
-
-    def _seed(self, paths):
-        resolution = Resolution(installed=set())
-        resolution.paths.append([(p, "/full" + p, 1) for p in paths], "bundle1")
-        return resolution
-
-    def _run_replace(self, resolution, target_path, source_list):
-        """Invoke the real _process_path REPLACE branch with resolution mocked."""
-        IrAsset = self.env["ir.asset"]
-
-        def fake_get_paths(_self, path_def, _resolution):
-            if path_def == "TARGET":
-                return [(target_path, "/full" + target_path, 1)]
-            if path_def == "SOURCE":
-                return list(source_list)
-            return []
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            IrAsset._process_path(
-                resolution.open_bundle("bundle1"),
-                resolution,
-                "replace",
-                "TARGET",
-                "SOURCE",
-            )
-
-    def test_replace_source_already_present(self):
-        ap = self._seed(["/a", "/b", "/c"])
-        self._run_replace(ap, "/c", [("/a", "/full/a", 1)])
-        self.assertEqual(self._paths(ap), ["/b", "/a"])
-        self.assertIn("/a", ap.paths.memo)
-        self.assertNotIn("/c", ap.paths.memo)
-
-    def test_replace_new_source(self):
-        ap = self._seed(["/a", "/b", "/c"])
-        self._run_replace(ap, "/c", [("/d", "/full/d", 1)])
-        self.assertEqual(self._paths(ap), ["/a", "/b", "/d"])
-
-    def test_replace_self_keeps_target(self):
-        ap = self._seed(["/a", "/b", "/c"])
-        self._run_replace(ap, "/c", [("/c", "/full/c", 1)])
-        self.assertEqual(self._paths(ap), ["/a", "/b", "/c"])
-        self.assertIn("/c", ap.paths.memo)
-
-    def test_replace_empty_source_removes_target(self):
-        ap = self._seed(["/a", "/b", "/c"])
-        self._run_replace(ap, "/b", [])
-        self.assertEqual(self._paths(ap), ["/a", "/c"])
-        self.assertNotIn("/b", ap.paths.memo)
-
-    def test_replace_preserves_source_order(self):
-        ap = self._seed(["/a", "/b", "/T"])
-        source = [
-            ("/a", "/full/a", 1),
-            ("/x", "/full/x", 1),
-            ("/b", "/full/b", 1),
-            ("/y", "/full/y", 1),
-        ]
-        self._run_replace(ap, "/T", source)
-        self.assertEqual(self._paths(ap), ["/a", "/x", "/b", "/y"])
-        self.assertNotIn("/T", ap.paths.memo)
-
-    def test_replace_glob_including_target_keeps_target_and_orders_new(self):
-        ap = self._seed(["/T", "/c"])
-        source = [
-            ("/n1", "/full/n1", 1),
-            ("/T", "/full/T", 1),
-            ("/n2", "/full/n2", 1),
-        ]
-        self._run_replace(ap, "/T", source)
-        self.assertEqual(self._paths(ap), ["/n1", "/n2", "/T", "/c"])
-
-
-@tagged("post_install", "-at_install")
-class TestDirectiveAbsentTarget(TransactionCase):
-    """IRASSET-T1: pin the resolves-but-absent-in-bundle contract. A target/path
-    resolving to a real file absent from THIS bundle makes after/before/replace
-    raise via ``AssetPaths.index`` and remove raise via ``AssetPaths.remove``.
-    The empty-resolution case (warn+no-op) lives in test_assetsbundle.py.
-    """
-
-    def _seed(self):
-        ap = AssetPaths()
-        ap.append(
-            [
-                ("/web/a.js", "/full/a.js", 1),
-                ("/web/b.js", "/full/b.js", 1),
-            ],
-            "bundle1",
-        )
-        return ap
-
-    def test_index_absent_target_raises_with_bundle(self):
-        ap = self._seed()
-        with self.assertRaises(ValueError) as cm:
-            ap.index("/web/absent.js", "bundle1")
-        self.assertIn("bundle1", str(cm.exception))
-        self.assertIn("/web/absent.js", str(cm.exception))
-
-    def test_remove_resolvable_absent_path_raises_with_bundle(self):
-        ap = self._seed()
-        with self.assertRaises(ValueError) as cm:
-            ap.remove([("/web/absent.js", "/full/absent.js", 1)], "bundle1")
-        self.assertIn("bundle1", str(cm.exception))
-        self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
-
-    def test_replace_absent_target_raises_via_process_path(self):
-        IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=set())
-        resolution.paths = self._seed()
-
-        def fake_get_paths(_self, path_def, _resolution):
-            return [(path_def, "/full" + path_def, 1)]
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            with self.assertRaises(ValueError) as cm:
-                IrAsset._process_path(
-                    resolution.open_bundle("bundle1"),
-                    resolution,
-                    "replace",
-                    "/web/absent.js",
-                    "/web/x.js",
-                )
-        self.assertIn("/web/absent.js", str(cm.exception))
-        self.assertIn("bundle1", str(cm.exception))
+from odoo.addons.base.models.ir_asset import Resolution
+from odoo.addons.base.models.ir_asset_paths import _glob_static_file
 
 
 @tagged("post_install", "-at_install")
@@ -169,32 +28,153 @@ class TestGetPathsEscapeWarning(TransactionCase):
         IrAsset = self.env["ir.asset"]
         installed = Resolution(installed=IrAsset._get_installed_addons_list())
         escaping = "/base/static/../../../../etc/passwd"
-        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
+        with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
             result = IrAsset._get_paths(escaping, installed)
         joined = "\n".join(cm.output)
         self.assertIn("resolves outside the static/", joined)
-        self.assertEqual(result, [(escaping, None, None)])
+        self.assertEqual(result, ((escaping, None, None),))
 
     def test_missing_literal_inside_static_warns_typo(self):
         IrAsset = self.env["ir.asset"]
         installed = Resolution(installed=IrAsset._get_installed_addons_list())
         inside = "/base/static/src/scss/__does_not_exist__.scss"
-        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
+        with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
             result = IrAsset._get_paths(inside, installed)
         joined = "\n".join(cm.output)
         self.assertIn("matches no bundleable file in the static/", joined)
         self.assertNotIn("resolves outside the static/", joined)
-        self.assertEqual(result, [(inside, None, None)])
+        self.assertEqual(result, ((inside, None, None),))
 
     def test_existing_literal_inside_static_does_not_warn(self):
         IrAsset = self.env["ir.asset"]
         installed = Resolution(installed=IrAsset._get_installed_addons_list())
         inside = "/base/static/src/scss/res_users.scss"
-        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
+        with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
             result = IrAsset._get_paths(inside, installed)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], inside)
         self.assertIsNotNone(result[0][1])
+
+
+@tagged("post_install", "-at_install")
+class TestAttachmentBackedPath(TransactionCase):
+    """A literal path with no file behind it degrades to an attachment URL, and
+    the bundle later resolves that URL through
+    ``ir.attachment._get_serve_attachment`` -- an exact ``url =`` match. The
+    warning that decides whether the degradation is legitimate accepted *either*
+    spelling (``x`` or ``/x``), so a definition whose attachment is registered
+    the other way round passed silently here and failed at bundle build with a
+    bare ``Could not find ...``.
+    """
+
+    URL = "/base/static/src/scss/__served_by_an_attachment__.scss"
+
+    def _resolve(self, path_def):
+        IrAsset = self.env["ir.asset"]
+        resolution = Resolution(installed=IrAsset._get_installed_addons_list())
+        return IrAsset._get_paths(path_def, resolution)
+
+    def _attach(self, url):
+        return self.env["ir.attachment"].create(
+            {"name": "probe", "type": "binary", "url": url, "raw": b""}
+        )
+
+    def test_a_matching_attachment_silences_the_warning(self):
+        self._attach(self.URL)
+        with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
+            resolved = self._resolve(self.URL)
+        self.assertEqual(resolved[0].path, self.URL)
+
+    def test_both_spellings_keep_working_when_each_backs_itself(self):
+        """Either spelling is legal; they are simply not interchangeable."""
+        unslashed = self.URL.lstrip("/")
+        self._attach(unslashed)
+        with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
+            resolved = self._resolve(unslashed)
+        self.assertEqual(resolved[0].path, unslashed)
+        self.assertTrue(
+            self.env["ir.attachment"].sudo()._get_serve_attachment(resolved[0].path)
+        )
+
+    def test_the_other_spelling_is_reported_instead_of_certified(self):
+        self._attach(self.URL)
+        with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
+            resolved = self._resolve(self.URL.lstrip("/"))
+        joined = "\n".join(cm.output)
+        self.assertIn("registered as", joined)
+        self.assertIn(self.URL, joined)
+        self.assertNotIn("typo in the path", joined)
+        self.assertFalse(
+            self.env["ir.attachment"].sudo()._get_serve_attachment(resolved[0].path),
+            "the warning must fire exactly when the bundle lookup will miss",
+        )
+
+    def test_no_attachment_at_all_still_reads_as_a_typo(self):
+        with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
+            self._resolve(self.URL)
+        self.assertIn("typo in the path", "\n".join(cm.output))
+
+    def test_a_path_outside_every_addon_is_diagnosed_too(self):
+        """The shape website's customisations take.
+
+        ``WebsiteAssets._make_custom_asset_url`` mints
+        ``/_custom/<bundle>/<addon>/static/...``; its first segment is not a
+        module, so no manifest is found and the path went straight to the
+        attachment fallback with no diagnostic at all. An ``ir.asset`` row and
+        its ``ir.attachment`` are created as a pair and deleted separately, so
+        losing the attachment is the expected way for one to break -- and it
+        surfaced only as a CSS error banner on the frontend.
+        """
+        custom = "/_custom/web.assets_frontend/web/static/src/scss/probe.scss"
+        with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
+            resolved = self._resolve(custom)
+        self.assertEqual(resolved[0].path, custom)
+        self.assertIn("no attachment claims that URL", "\n".join(cm.output))
+
+        self.env["ir.attachment"].create(
+            {"name": "custom", "type": "binary", "url": custom, "raw": b""}
+        )
+        with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
+            self._resolve(custom)
+
+
+@tagged("post_install", "-at_install")
+class TestResolvedPathsAreShared(TransactionCase):
+    """The ``assets`` store keeps one resolution per ``(bundle, assets_params)``
+    -- 512 slots, because ``assets_params`` exists so that each website gets its
+    own. Every one of them minted its own copies of the same file names, so the
+    store held ``websites x bundles`` unshared copies of one addons directory:
+    ``web.assets_backend`` alone is 1592 entries / 528 KiB, and a second
+    resolution of it shared nothing with the first (measured 527 KiB of new
+    strings, 174 KiB once interned).
+    """
+
+    BUNDLE = "web.assets_backend"
+
+    def test_a_second_resolution_reuses_the_first_strings(self):
+        IrAsset = self.env["ir.asset"]
+        first = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
+        second = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
+        self.assertTrue(first, "the probe bundle must resolve to something")
+        pairs = list(zip(first, second, strict=True))
+        self.assertTrue(all(a.path is b.path for a, b in pairs))
+        self.assertTrue(
+            all(
+                a.full_path is b.full_path
+                for a, b in pairs
+                if isinstance(a.full_path, str)
+            )
+        )
+
+    def test_the_two_resolutions_are_still_distinct_objects(self):
+        """Sharing the strings must not turn into sharing the tuples: the
+        ormcache already relies on each entry being its own value.
+        """
+        IrAsset = self.env["ir.asset"]
+        first = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
+        second = IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
+        self.assertIsNot(first, second)
+        self.assertEqual(first, second)
 
 
 @tagged("post_install", "-at_install")
@@ -221,144 +201,32 @@ class TestProcessCommandMalformed(TransactionCase):
             self.env["ir.asset"]._process_command(["after", "only_two"])
         self.assertIn("only_two", str(cm.exception))
 
+    def test_a_non_string_member_is_rejected_here_not_two_frames_down(self):
+        """Right shape, wrong kind of value.
 
-@tagged("post_install", "-at_install")
-class TestReorderPresentSourceWarns(TransactionCase):
-    """IRASSET-A1: AFTER/BEFORE with an already-present source is a silent no-op
-    (``insert`` dedups it, so it is not repositioned — unlike REPLACE, which
-    pulls present sources out and re-inserts them at the target slot). Pin that
-    this asymmetry now emits a WARNING so the ineffective directive is visible.
-    """
-
-    def _run(self, directive, target, source_path):
+        These reached ``_resolve_path_def`` and died on ``path_def.split("/")``
+        with ``AttributeError``, which neither attribution wrapper catches (both
+        catch ``ValueError``) -- so the traceback named neither the addon nor
+        the bundle, which is the whole point of IRASSET-A2.
+        """
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=set())
-        ap = resolution.paths
-        ap.append([("/a", "/f/a", 1), ("/b", "/f/b", 1), ("/c", "/f/c", 1)], "bundle1")
+        for command in (["append", 123], ["append", ["a", "b"]], ["after", 7, "/x.js"]):
+            with self.subTest(command=command), self.assertRaises(ValueError) as cm:
+                IrAsset._process_command(command)
+            self.assertIn("non-string", str(cm.exception))
 
-        def fake_get_paths(_self, path_def, _resolution):
-            resolved = target if path_def == target else source_path
-            return [(resolved, "/f" + resolved, 1)]
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            with self.assertLogs(
-                "odoo.addons.base.models.ir_asset", level="WARNING"
-            ) as cm:
-                IrAsset._process_path(
-                    resolution.open_bundle("bundle1"),
-                    resolution,
-                    directive,
-                    target,
-                    source_path,
-                )
-        return [a.path for a in ap.list], " ".join(cm.output)
-
-    def test_after_present_source_warns_and_is_noop(self):
-        paths, log = self._run("after", "/a", "/c")
-        self.assertEqual(paths, ["/a", "/b", "/c"])
-        self.assertIn("already present", log)
-        self.assertIn("bundle1", log)
-        self.assertIn("/c", log)
-
-    def test_before_present_source_warns(self):
-        _paths, log = self._run("before", "/b", "/c")
-        self.assertIn("already present", log)
-        self.assertIn("/c", log)
-
-
-@tagged("post_install", "-at_install")
-class TestRemovePartialAbsentWarns(TransactionCase):
-    """IRASSET-A3: ``AssetPaths.remove`` of a mix of present and absent paths
-    removes the present ones but used to silently ignore the absent ones —
-    inconsistent with the all-absent (raises) and empty-resolution (warns) cases.
-    Pin that the stale subset now emits a WARNING while all-present stays silent.
-    """
-
-    def _seed(self):
-        ap = AssetPaths()
-        ap.append([("/a", "/f/a", 1), ("/b", "/f/b", 1)], "bundle1")
-        return ap
-
-    def test_partial_absent_remove_warns_and_removes_present(self):
-        ap = self._seed()
-        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
-            ap.remove([("/b", "/f/b", 1), ("/zzz", "/f/zzz", 1)], "bundle1")
-        self.assertEqual([a.path for a in ap.list], ["/a"])
-        joined = " ".join(cm.output)
-        self.assertIn("/zzz", joined)
-        self.assertIn("bundle1", joined)
-
-    def test_all_present_remove_is_silent(self):
-        ap = self._seed()
-        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
-            ap.remove([("/b", "/f/b", 1)], "bundle1")
-        self.assertEqual([a.path for a in ap.list], ["/a"])
-
-
-@tagged("post_install", "-at_install")
-class TestGlobRemoveIsSetSubtraction(TransactionCase):
-    """Task 23534: a wildcarded ``remove`` resolves against files on disk while
-    the bundle usually holds only a subset of them (e.g. mail removes
-    ``discuss/**/*`` before re-adding allowed subsets; ``**/*.dark.scss`` matches
-    files only in the dark bundles). Absent disk matches are expected set
-    subtraction, so a glob remove stays silent on partial/full absence, while a
-    literal remove keeps the IRASSET-A3 contract (warn on partial, raise on all).
-    """
-
-    def _seed(self):
-        ap = AssetPaths()
-        ap.append(
-            [("/web/a.js", "/f/a.js", 1), ("/web/b.js", "/f/b.js", 1)],
-            "bundle1",
-        )
-        return ap
-
-    def _run_remove(self, path_def, resolved, ap):
+    def test_a_non_string_path_is_attributed_to_its_addon(self):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(installed=set())
-        resolution.paths = ap
-
-        def fake_get_paths(_self, _path_def, _resolution):
-            return resolved
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            IrAsset._process_path(
-                resolution.open_bundle("bundle1"),
-                resolution,
-                "remove",
-                None,
-                path_def,
-            )
-
-    def test_glob_remove_partial_absent_is_silent(self):
-        ap = self._seed()
-        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
-            self._run_remove(
-                "/web/**/*.js",
-                [("/web/b.js", "/f/b.js", 1), ("/web/zzz.js", "/f/zzz.js", 1)],
-                ap,
-            )
-        self.assertEqual([a.path for a in ap.list], ["/web/a.js"])
-
-    def test_glob_remove_none_present_is_silent_noop(self):
-        ap = self._seed()
-        with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
-            self._run_remove(
-                "/web/**/*.dark.scss",
-                [("/web/x.dark.scss", "/f/x.dark.scss", 1)],
-                ap,
-            )
-        self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
-
-    def test_literal_remove_absent_still_raises(self):
-        ap = self._seed()
-        with self.assertRaises(ValueError):
-            self._run_remove(
-                "/web/absent.js",
-                [("/web/absent.js", "/f/absent.js", 1)],
-                ap,
-            )
-        self.assertEqual([a.path for a in ap.list], ["/web/a.js", "/web/b.js"])
+        with patch.object(
+            type(IrAsset),
+            "_get_manifest_assets",
+            lambda _s, addons: {"probe.bundle": (("culprit", ["append", 123]),)},
+        ):
+            with self.assertRaises(ValueError) as cm:
+                IrAsset._get_asset_paths.__wrapped__(IrAsset, "probe.bundle", {})
+        message = str(cm.exception)
+        self.assertIn("culprit", message)
+        self.assertIn("probe.bundle", message)
 
 
 @tagged("post_install", "-at_install")
@@ -532,7 +400,7 @@ class TestManifestAssetsIndex(TransactionCase):
             patch.object(
                 type(IrAsset),
                 "_get_paths",
-                lambda _s, path_def, _resolution: [(path_def, "/full" + path_def, 1)],
+                lambda _s, path_def, resolution: [(path_def, "/full" + path_def, 1)],
             ),
             patch.object(
                 type(IrAsset), "_get_related_assets", lambda _s, domain, **k: IrAsset
@@ -560,12 +428,35 @@ class TestCachedResultsAreImmutable(TransactionCase):
         self.assertIsInstance(IrAsset._get_installed_addons_list(), frozenset)
         self.assertIsInstance(IrAsset._topological_sort(("base",)), tuple)
 
+    def test_the_manifest_index_is_read_only(self):
+        """The one accessor this class used to miss.
+
+        ``_get_manifest_assets`` handed out a plain ``dict``: the tuples inside
+        it were immutable, the mapping holding them was not. Adding a bundle to
+        it -- the obvious way to write an override that injects one -- made that
+        bundle a permanent part of every later resolution in the worker, with no
+        write to invalidate it.
+        """
+        IrAsset = self.env["ir.asset"]
+        index = IrAsset._get_manifest_assets(("base", "web"))
+        with self.assertRaises(TypeError):
+            index["injected.bundle"] = ()
+        with self.assertRaises(TypeError):
+            del index["web.assets_backend"]
+        self.assertNotIn(
+            "injected.bundle", IrAsset._get_manifest_assets(("base", "web"))
+        )
+
     def test_repeated_calls_return_the_identical_object(self):
         """Identity is the point: it is why mutability would be a cache bug."""
         IrAsset = self.env["ir.asset"]
         self.assertIs(
             IrAsset._get_asset_paths("web.assets_backend", {}),
             IrAsset._get_asset_paths("web.assets_backend", {}),
+        )
+        self.assertIs(
+            IrAsset._get_manifest_assets(("base", "web")),
+            IrAsset._get_manifest_assets(("base", "web")),
         )
 
 
@@ -680,185 +571,9 @@ class TestDirectiveTargetValidation(TransactionCase):
         self.assertFalse(asset.target)
 
 
-def _fake_get_paths(_self, path_def, _resolution):
+def _fake_get_paths(_self, path_def, resolution):
     """Resolve every path definition to itself, one file, no filesystem."""
     return [(path_def, "/full" + path_def, 1)]
-
-
-@tagged("post_install", "-at_install")
-class TestPrependAnchor(TransactionCase):
-    """``prepend`` inserts at the start of the segment the current bundle
-    contributed. That start was captured as a plain index before any directive
-    ran, so a directive that later removed something *in front of* it shifted
-    the segment and left the index pointing one slot too far right — inside an
-    ``include``, far enough to fall off the end and degrade to ``append``.
-    """
-
-    def _resolve(self, bundle, manifest_assets):
-        IrAsset = self.env["ir.asset"]
-        resolution = Resolution(
-            installed=set(),
-            manifest_assets={
-                name: tuple(("an_addon", command) for command in commands)
-                for name, commands in manifest_assets.items()
-            },
-        )
-        with patch.object(type(IrAsset), "_get_paths", _fake_get_paths):
-            IrAsset._fill_asset_paths(bundle, resolution, ())
-        return [entry.path for entry in resolution.paths.list]
-
-    def test_prepend_in_included_bundle_after_a_remove(self):
-        paths = self._resolve(
-            "t.outer",
-            {
-                "t.outer": ["/a.js", "/b.js", ["include", "t.inner"]],
-                "t.inner": [["remove", "/a.js"], "/c.js", ["prepend", "/d.js"]],
-            },
-        )
-        self.assertEqual(paths, ["/b.js", "/d.js", "/c.js"])
-
-    def test_prepend_in_included_bundle_without_a_remove(self):
-        paths = self._resolve(
-            "t.outer",
-            {
-                "t.outer": ["/a.js", "/b.js", ["include", "t.inner"]],
-                "t.inner": ["/c.js", ["prepend", "/d.js"]],
-            },
-        )
-        self.assertEqual(paths, ["/a.js", "/b.js", "/d.js", "/c.js"])
-
-    def test_prepend_stays_ahead_of_earlier_prepends(self):
-        """Two prepends in one bundle keep the later one first, as before."""
-        paths = self._resolve(
-            "t.root", {"t.root": ["/a.js", ["prepend", "/b.js"], ["prepend", "/c.js"]]}
-        )
-        self.assertEqual(paths, ["/c.js", "/b.js", "/a.js"])
-
-    def test_nested_includes_each_prepend_into_their_own_segment(self):
-        paths = self._resolve(
-            "t.a",
-            {
-                "t.a": ["/a.js", ["include", "t.b"], ["prepend", "/pa.js"]],
-                "t.b": ["/b.js", ["include", "t.c"], ["prepend", "/pb.js"]],
-                "t.c": ["/c.js", ["prepend", "/pc.js"]],
-            },
-        )
-        self.assertEqual(
-            paths, ["/pa.js", "/a.js", "/pb.js", "/b.js", "/pc.js", "/c.js"]
-        )
-
-    def test_prepend_in_root_bundle_after_a_remove(self):
-        paths = self._resolve(
-            "t.root",
-            {"t.root": ["/a.js", "/b.js", ["remove", "/a.js"], ["prepend", "/c.js"]]},
-        )
-        self.assertEqual(paths, ["/c.js", "/b.js"])
-
-
-@tagged("post_install", "-at_install")
-class TestReplaceGlobTarget(TransactionCase):
-    """A ``replace`` whose target is a glob designates every file the glob
-    matched. Resolving the target to only its first match left every other
-    matched file in the bundle: ``replace`` three files with one and two
-    survived, silently, next to their replacement.
-    """
-
-    def _seed(self, paths):
-        resolution = Resolution(installed=set())
-        resolution.paths.append([(p, "/full" + p, 1) for p in paths], "bundle1")
-        return resolution
-
-    def _run_replace(self, resolution, target_def, targets, sources):
-        IrAsset = self.env["ir.asset"]
-
-        def fake_get_paths(_self, path_def, _resolution):
-            resolved = targets if path_def == target_def else sources
-            return [(p, "/full" + p, 1) for p in resolved]
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            IrAsset._process_path(
-                resolution.open_bundle("bundle1"),
-                resolution,
-                "replace",
-                target_def,
-                "SOURCE",
-            )
-        return [entry.path for entry in resolution.paths.list]
-
-    def test_every_matched_target_is_replaced(self):
-        resolution = self._seed(["/f1.js", "/f2.js", "/keep.js"])
-        paths = self._run_replace(
-            resolution, "/f*.js", ["/f1.js", "/f2.js"], ["/new.js"]
-        )
-        self.assertEqual(paths, ["/new.js", "/keep.js"])
-
-    def test_matches_absent_from_the_bundle_are_tolerated(self):
-        """A glob resolves against disk; the bundle holds any subset of it."""
-        resolution = self._seed(["/f2.js", "/keep.js"])
-        paths = self._run_replace(
-            resolution, "/f*.js", ["/f1.js", "/f2.js"], ["/new.js"]
-        )
-        self.assertEqual(paths, ["/new.js", "/keep.js"])
-
-    def test_a_matched_target_that_is_also_a_source_survives(self):
-        resolution = self._seed(["/f1.js", "/f2.js", "/keep.js"])
-        paths = self._run_replace(
-            resolution, "/f*.js", ["/f1.js", "/f2.js"], ["/new.js", "/f2.js"]
-        )
-        self.assertEqual(paths, ["/new.js", "/f2.js", "/keep.js"])
-
-    def test_no_matched_target_present_still_raises(self):
-        resolution = self._seed(["/keep.js"])
-        with self.assertRaises(ValueError) as cm:
-            self._run_replace(resolution, "/f*.js", ["/f1.js", "/f2.js"], ["/new.js"])
-        self.assertIn("/f1.js", str(cm.exception))
-        self.assertIn("bundle1", str(cm.exception))
-
-    def test_anchor_follows_target_order_not_bundle_order(self):
-        """The anchor is the first RESOLVED target the bundle holds, so it is
-        decided by the target definition, not by how the bundle got ordered.
-        """
-        IrAsset = self.env["ir.asset"]
-        resolution = self._seed(["/f2.js", "/f1.js", "/keep.js"])
-
-        def fake_get_paths(_self, path_def, _resolution):
-            resolved = ["/f1.js", "/f2.js"] if path_def == "/f*.js" else ["/new.js"]
-            return [(p, "/full" + p, 1) for p in resolved]
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            IrAsset._process_path(
-                resolution.open_bundle("bundle1"),
-                resolution,
-                "before",
-                "/f*.js",
-                "SOURCE",
-            )
-        self.assertEqual(
-            [entry.path for entry in resolution.paths.list],
-            ["/f2.js", "/new.js", "/f1.js", "/keep.js"],
-        )
-
-    def test_after_anchors_on_the_first_matched_target_present(self):
-        """A positional directive anchors on a match the bundle actually has."""
-        IrAsset = self.env["ir.asset"]
-        resolution = self._seed(["/f2.js", "/keep.js"])
-
-        def fake_get_paths(_self, path_def, _resolution):
-            resolved = ["/f1.js", "/f2.js"] if path_def == "/f*.js" else ["/new.js"]
-            return [(p, "/full" + p, 1) for p in resolved]
-
-        with patch.object(type(IrAsset), "_get_paths", fake_get_paths):
-            IrAsset._process_path(
-                resolution.open_bundle("bundle1"),
-                resolution,
-                "after",
-                "/f*.js",
-                "SOURCE",
-            )
-        self.assertEqual(
-            [entry.path for entry in resolution.paths.list],
-            ["/f2.js", "/new.js", "/keep.js"],
-        )
 
 
 @tagged("post_install", "-at_install")
@@ -951,7 +666,9 @@ class TestBundleAssetsFetch(TransactionCase):
         with (
             spy,
             patch.object(
-                type(IrAsset), "_get_manifest_assets", lambda _s, addons: manifest_assets
+                type(IrAsset),
+                "_get_manifest_assets",
+                lambda _s, addons: manifest_assets,
             ),
             patch.object(type(IrAsset), "_get_paths", _fake_get_paths),
         ):
@@ -988,9 +705,7 @@ class TestBundleAssetsFetch(TransactionCase):
                 "path": "rec.inner",
             }
         )
-        IrAsset.create(
-            {"name": "leaf", "bundle": "rec.inner", "path": "/some/leaf.js"}
-        )
+        IrAsset.create({"name": "leaf", "bundle": "rec.inner", "path": "/some/leaf.js"})
         calls, spy = self._spy()
         with (
             spy,
@@ -1000,6 +715,40 @@ class TestBundleAssetsFetch(TransactionCase):
             paths = IrAsset._get_asset_paths.__wrapped__(IrAsset, "rec.outer", {})
         self.assertEqual([entry.path for entry in paths], ["/some/leaf.js"])
         self.assertEqual(len(calls), 2, f"one prefetch + one on demand, got {calls}")
+
+    def test_a_record_include_prefetches_its_own_manifest_closure(self):
+        """The bundle a record ``include`` reveals gets the same treatment the
+        root does. Fetching just that one bundle left the chain its manifest
+        includes to be discovered one query at a time — the round-trips the
+        batched fetch exists to remove, reintroduced one level down.
+        """
+        IrAsset = self.env["ir.asset"]
+        IrAsset.create(
+            {
+                "name": "record include",
+                "bundle": "deep.outer",
+                "directive": "include",
+                "path": "deep.m0",
+            }
+        )
+        manifest_assets = {
+            f"deep.m{i}": (("an_addon", ["include", f"deep.m{i + 1}"]),)
+            for i in range(4)
+        }
+        calls, spy = self._spy()
+        with (
+            spy,
+            patch.object(
+                type(IrAsset), "_get_manifest_assets", lambda _s, a: manifest_assets
+            ),
+            patch.object(type(IrAsset), "_get_paths", _fake_get_paths),
+        ):
+            IrAsset._get_asset_paths.__wrapped__(IrAsset, "deep.outer", {})
+        self.assertEqual(len(calls), 2, f"root + one on demand, got {calls}")
+        self.assertEqual(
+            sorted(calls[1][0][2]),
+            ["deep.m0", "deep.m1", "deep.m2", "deep.m3", "deep.m4"],
+        )
 
     def test_each_bundle_is_fetched_at_most_once(self):
         IrAsset = self.env["ir.asset"]
@@ -1084,9 +833,9 @@ class TestStaticContainment(TransactionCase):
         self.assertEqual(self._glob("src/file_link.js"), ["src/real/in.js"])
 
     def test_symlink_landing_outside_static_is_refused(self):
-        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
+        with self.assertLogs("odoo.addons.base.models.ir_asset_paths", level="WARNING"):
             self.assertEqual(self._glob("src/escape/secret.js"), [])
-        with self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
+        with self.assertLogs("odoo.addons.base.models.ir_asset_paths", level="WARNING"):
             self.assertEqual(self._glob("src/escape/*.js"), [])
 
     def test_a_link_and_its_target_collapse_to_one_entry(self):
@@ -1125,9 +874,7 @@ class TestPerBundleFiltering(TransactionCase):
         with patch.object(type(IrAsset), "_filter_bundle_assets", spy):
             IrAsset._fetch_bundle_assets(resolution, ["split.a", "split.b"])
 
-        self.assertEqual(
-            sorted(seen), [["split.a", "split.a"], ["split.b", "split.b"]]
-        )
+        self.assertEqual(sorted(seen), [["split.a", "split.a"], ["split.b", "split.b"]])
         self.assertEqual(len(resolution.bundle_assets["split.a"]), 2)
         self.assertEqual(len(resolution.bundle_assets["split.b"]), 2)
 
@@ -1239,6 +986,57 @@ class TestExternalUrlShortCircuit(TransactionCase):
         self.assertEqual(len(resolved), 1)
         self.assertFalse(resolved[0].is_external)
         self.assertIn("base", resolution._manifests)
+
+
+@tagged("post_install", "-at_install")
+class TestEveryServableBundleResolves(TransactionCase):
+    """A bundle whose name parses as a filename is reachable by URL, so it must
+    resolve on its own — an ``after``/``before`` whose anchor only exists once
+    some *other* bundle has included this one raises, and the route turns that
+    into a 404 for a URL the templates hand out.
+
+    The exception is the ``<addon>._name`` convention: a leading underscore
+    marks a fragment meant to be ``include``\\ d, and ``web._dark_mode_variables``
+    is exactly that — it positions its dark variables relative to files
+    ``web.assets_web_dark`` appended before including it. Naming is the only
+    signal available, since standalone resolvability is a property of the whole
+    graph and cannot be checked when a record is written.
+    """
+
+    @staticmethod
+    def _is_include_only(bundle):
+        return bundle.split(".", 1)[1].startswith("_")
+
+    def test_every_publicly_named_bundle_resolves_standalone(self):
+        IrAsset = self.env["ir.asset"]
+        addons = tuple(sorted(IrAsset._get_active_addons_list()))
+        servable = sorted(
+            bundle
+            for bundle in IrAsset._get_manifest_assets(addons)
+            if bundle.count(".") == 1 and not self._is_include_only(bundle)
+        )
+        self.assertGreater(len(servable), 20, "the probe must see real bundles")
+        broken = {}
+        for bundle in servable:
+            try:
+                IrAsset._get_asset_paths(bundle, {})
+            except Exception as exc:
+                broken[bundle] = f"{type(exc).__name__}: {exc}"
+        self.assertEqual(broken, {})
+
+    def test_an_include_only_fragment_may_legitimately_need_its_parent(self):
+        """Pins the reason for the exemption, so it cannot quietly widen."""
+        IrAsset = self.env["ir.asset"]
+        addons = tuple(sorted(IrAsset._get_active_addons_list()))
+        fragments = [
+            bundle
+            for bundle in IrAsset._get_manifest_assets(addons)
+            if bundle.count(".") == 1 and self._is_include_only(bundle)
+        ]
+        self.assertTrue(fragments, "the convention must actually be in use")
+        for bundle in fragments:
+            with self.subTest(bundle=bundle):
+                self.assertTrue(bundle.split(".", 1)[1].startswith("_"))
 
 
 @tagged("post_install", "-at_install")

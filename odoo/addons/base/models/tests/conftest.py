@@ -1,8 +1,9 @@
-"""Enable standalone (database-free) testing of the view ``NameManager``.
+"""Enable standalone (database-free) testing of ``base``'s leaf modules.
 
 Registers ``sys.modules`` stubs for the ``odoo.addons.base.models`` package
-chain (see :mod:`odoo._testing_bootstrap`) so the ``ir_ui_view_name_manager``
-leaf module imports without booting the framework or a database.
+chain (see :mod:`odoo._testing_bootstrap`) so a leaf module — the view
+``NameManager`` (``ir_ui_view_name_manager``), the ``ir.asset`` bundle algebra
+(``ir_asset_paths``) — imports without booting the framework or a database.
 
 The leaf module pulls ``_`` and ``frozendict`` from ``odoo.tools``. To avoid
 executing the real ``odoo/tools/__init__.py`` (and to stay compatible with a
