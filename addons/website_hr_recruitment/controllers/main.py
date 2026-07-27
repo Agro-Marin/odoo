@@ -1,19 +1,19 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import warnings
-
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from functools import partial
 from operator import itemgetter
 
-from odoo import http, _
-from odoo.addons.website.controllers.form import WebsiteForm
+from dateutil.relativedelta import relativedelta
+
+from odoo import _, http
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import email_normalize, escape_psql
 from odoo.tools.translate import LazyTranslate
+
+from odoo.addons.website.controllers.form import WebsiteForm
 
 _lt = LazyTranslate(__name__)
 
@@ -21,6 +21,7 @@ _lt = LazyTranslate(__name__)
 class WebsiteHrRecruitment(WebsiteForm):
     _jobs_per_page = 12
 
+    @staticmethod
     def sitemap_jobs(env, rule, qs):
         if not qs or qs.lower() in '/jobs':
             yield {'loc': '/jobs'}

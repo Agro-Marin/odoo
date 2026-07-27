@@ -1,13 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.api import Environment
 import odoo.tests
 from odoo.tools import html2plaintext
-import unittest
 
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website_hr_recruitment.controllers.main import WebsiteHrRecruitment
+
 
 @odoo.tests.tagged('post_install', '-at_install')
 class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
