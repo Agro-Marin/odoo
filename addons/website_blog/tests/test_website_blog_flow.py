@@ -2,15 +2,16 @@
 import json
 
 from odoo.exceptions import UserError
-from odoo.tests.common import users, HttpCase, tagged
+from odoo.tests.common import HttpCase, tagged, users
+
 from odoo.addons.http_routing.tests.common import MockRequest
-from odoo.addons.website_blog.tests.common import TestWebsiteBlogCommon
 from odoo.addons.mail.controllers.thread import ThreadController
+from odoo.addons.website_blog.tests.common import TestWebsiteBlogCommon
 
 
 class TestWebsiteBlogFlow(TestWebsiteBlogCommon):
     def setUp(self):
-        super(TestWebsiteBlogFlow, self).setUp()
+        super().setUp()
         group_portal = self.env.ref('base.group_portal')
         self.user_portal = self.env['res.users'].with_context({'no_reset_password': True}).create({
             'name': 'Dorian Portal',
@@ -122,7 +123,7 @@ class TestWebsiteBlogFlow(TestWebsiteBlogCommon):
 
 @tagged('-at_install', 'post_install')
 class TestWebsiteBlogTranslationFlow(HttpCase, TestWebsiteBlogCommon):
-    
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -188,14 +189,14 @@ class TestWebsiteBlogTranslationFlow(HttpCase, TestWebsiteBlogCommon):
         # Setup
         br_lang = self.env['res.lang']._activate_lang('pt_BR')
         en_lang = self.env['res.lang']._activate_lang('en_US')
-        
+
         website = self.env['website'].browse(1)
         website.language_ids += br_lang
         website.default_lang_id = br_lang
 
         blog_post = self.env['blog.post'].with_context(lang=br_lang.code).create({
             'name':'Test Blog',
-            'content':'Todos os blogs', 
+            'content':'Todos os blogs',
         })
         # sha256 encoding of 'Todos os blogs'
         sha = 'c10cb3d9aeec6fe03ed86f24efb262c65ed9de7e9263db1605e3196c343de7a3'
@@ -206,7 +207,7 @@ class TestWebsiteBlogTranslationFlow(HttpCase, TestWebsiteBlogCommon):
         })
         self.assertEqual('Todos os blogs', blog_post.with_context(lang=br_lang.code).content)
         self.assertEqual('All blogs', blog_post.with_context(lang=en_lang.code).content)
-        
+
         # Test updating translation
         payload = self.build_rpc_payload({
             'model': blog_post._name,
