@@ -16,6 +16,9 @@ from odoo.addons.html_editor.controllers.main import HTML_Editor
 
 logger = logging.getLogger(__name__)
 
+# seconds — cap outbound Unsplash API/CDN calls so a stalled remote cannot hang the worker
+REQUEST_TIMEOUT = 10
+
 
 class Web_Unsplash(http.Controller):
 
@@ -35,7 +38,7 @@ class Web_Unsplash(http.Controller):
             if not url.startswith('https://api.unsplash.com/photos/') and not modules.module.current_test:
                 raise ValueError(_("ERROR: Unknown Unsplash notify URL!"))
             access_key = self._get_access_key()
-            requests.get(url, params=urlencode({'client_id': access_key}))
+            requests.get(url, params=urlencode({'client_id': access_key}), timeout=REQUEST_TIMEOUT)
         except Exception:
             logger.exception("Unsplash download notification failed")
 
@@ -86,7 +89,7 @@ class Web_Unsplash(http.Controller):
                     logger.exception("ERROR: Unknown Unsplash URL!: %s", url)
                     raise ValueError(_("ERROR: Unknown Unsplash URL!"))
 
-                req = requests.get(url)
+                req = requests.get(url, timeout=REQUEST_TIMEOUT)
                 if req.status_code != requests.codes.ok:
                     continue
 
@@ -134,7 +137,7 @@ class Web_Unsplash(http.Controller):
                 return {'error': 'no_access'}
             return {'error': 'key_not_found'}
         post['client_id'] = access_key
-        response = requests.get('https://api.unsplash.com/search/photos/', params=urlencode(post))
+        response = requests.get('https://api.unsplash.com/search/photos/', params=urlencode(post), timeout=REQUEST_TIMEOUT)
         if response.status_code == requests.codes.ok:
             return response.json()
         else:
