@@ -99,14 +99,15 @@ class IrAttachment(models.Model):
         stale_artifacts = self.browse()
         if artifacts:
             live_ids = set()
-            _seen_names = set()
-            for att in self.sudo().search(
+            seen_names = set()
+            for att in self.sudo().search_fetch(
                 self._generated_asset_domain()
                 & Domain("name", "in", list(set(artifacts.mapped("name")))),
+                ["name"],
                 order="write_date desc, id desc",
             ):
-                if att.name not in _seen_names:
-                    _seen_names.add(att.name)
+                if att.name not in seen_names:
+                    seen_names.add(att.name)
                     live_ids.add(att.id)
             stale_artifacts = artifacts.filtered(lambda a: a.id not in live_ids)
 
