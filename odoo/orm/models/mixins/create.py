@@ -408,12 +408,43 @@ class CreateMixin(_ModelStubs):
 
         records = self.browse().concat(*(self.new(vals) for vals in vals_list_todo))
 
-        for record, vals in zip(records, vals_list_todo, strict=True):
-            vals["__precomputed__"] = precomputed = set()
-            for fname, field in precomputable.items():
-                if fname not in vals:
-                    vals[fname] = field.convert_to_write(record[fname], self)
-                    precomputed.add(field)
+        try:
+            for record, vals in zip(records, vals_list_todo, strict=True):
+                vals["__precomputed__"] = precomputed = set()
+                for fname, field in precomputable.items():
+                    if fname not in vals:
+                        vals[fname] = field.convert_to_write(record[fname], self)
+                        precomputed.add(field)
+        finally:
+            self._discard_precompute_scratch(records)
+
+    def _discard_precompute_scratch(self, records: Self) -> None:
+        """Drop the cache the throwaway ``new()`` records of the precompute pass left.
+
+        :meth:`_add_precomputed_values` materialises one in-memory record per
+        row purely to evaluate the ``precompute=True`` computes; every value it
+        wanted is copied into ``vals`` before it returns, so the cache those
+        records populate is dead weight afterwards -- but nothing dropped it, so
+        it accumulated for the whole transaction: 16 entries per row on
+        ``res.partner``, 170 000 after 10 000 rows, and ``load()`` never
+        invalidates between batches, so a 100 000-row import carried ~1.6M dead
+        entries plus their :class:`NewId` keys.  ``flush_all()`` does not release
+        them (they are not dirty); only a transaction-wide ``invalidate_all()``
+        did, which an import never calls.
+
+        Only this model's own fields are swept.  Values written as ``(0, 0,
+        {...})`` mint further ``NewId`` corecords on *other* models, reachable
+        only by walking every relational field of every scratch record -- the
+        same cost as the pass itself.  Those are left behind, which is no worse
+        than before; the sweep is sound either way, because the inverse writes
+        those corecords receive land on new records only, never on real ones.
+        """
+        ids = records._ids
+        if not ids:
+            return
+        env = self.env
+        for field in self._fields.values():
+            field._invalidate_cache(env, ids)
 
     def _build_insert_rows(
         self, stored_list: list, columns: list[str], col_fields: list[Field]
