@@ -95,6 +95,59 @@ class TestMenuVisibility(TransactionCase):
         self.assertNotIn(menu_restricted.id, emp_visible)
         self.assertIn(root.id, emp_visible)
 
+    def test_visible_menu_ids_client_action_without_a_model(self):
+        """A gating field that exists but is empty means no model gates the action.
+
+        ``ir.actions.client.res_model`` is optional ("mostly used for
+        needactions") and is empty on every client action this workspace ships
+        — all of which are pointed at by a menu. Once ``ir.actions.client``
+        joined the gating map, the visibility walk read that empty field and
+        handed ``False`` to ``ir.model.access.check``, which is typed for a
+        model name: ``TypeError: Model name must be a string, got bool: False``
+        out of ``/web/webclient/load_menus``, i.e. no backend at all.
+
+        ``get_bindings`` asks the same question and has always guarded the
+        empty answer; the two consumers must agree, which is the whole reason
+        the mapping was unified.
+        """
+        action = self.env["ir.actions.client"].create(
+            {"name": "modelless client action", "tag": "test_tag"}
+        )
+        self.assertFalse(action.res_model, "the case under test")
+        root = self.Menu.create({"name": "Client root"})
+        menu = self.Menu.create(
+            {
+                "name": "Client",
+                "parent_id": root.id,
+                "action": f"{action._name},{action.id}",
+            }
+        )
+
+        visible = self.Menu.with_user(self.employee)._visible_menu_ids()
+        self.assertIn(menu.id, visible, "no model named means no model-level gate")
+        self.assertIn(root.id, visible)
+
+    def test_visible_menu_ids_client_action_with_a_model_is_still_gated(self):
+        """The gate itself must keep working for client actions that do name one."""
+        action = self.env["ir.actions.client"].create(
+            {
+                "name": "restricted client action",
+                "tag": "test_tag",
+                "res_model": "ir.config_parameter",
+            }
+        )
+        root = self.Menu.create({"name": "Gated client root"})
+        menu = self.Menu.create(
+            {
+                "name": "Gated client",
+                "parent_id": root.id,
+                "action": f"{action._name},{action.id}",
+            }
+        )
+
+        self.assertIn(menu.id, self.Menu._visible_menu_ids())
+        self.assertNotIn(menu.id, self.Menu.with_user(self.employee)._visible_menu_ids())
+
     def test_visible_menu_ids_deleted_action_hidden(self):
         """A menu pointing at a deleted action is hidden (no force-visibility)."""
         action = self._act_window("res.partner")
