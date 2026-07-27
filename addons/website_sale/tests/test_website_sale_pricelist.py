@@ -9,7 +9,10 @@ from odoo.fields import Command
 from odoo.tests import tagged
 from odoo.tools import SQL
 
-from odoo.addons.base.tests.common import HttpCaseWithUserPortal, TransactionCaseWithUserDemo
+from odoo.addons.base.tests.common import (
+    HttpCaseWithUserPortal,
+    TransactionCaseWithUserDemo,
+)
 from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
 
 r''' /!\/!\
@@ -443,7 +446,7 @@ class TestWebsitePriceList(WebsiteSaleCommon):
             website.env, website=website,
             website_sale_current_pl=list_benelux_2.id,
             website_sale_selected_pl_id=list_benelux_2.id
-        ) as request:
+        ):
             order_sudo._update_address({'partner_id': partner.id})
         self.assertEqual(order_sudo.pricelist_id, list_benelux_2)
 
@@ -784,7 +787,7 @@ class TestWebsitePriceListMultiCompany(TransactionCaseWithUserDemo):
         # Indeed, the ir.rule for pricelists rights about company should allow to
         # also read a pricelist from another company if that company is the one
         # from the currently visited website.
-        self.env(user=self.user_demo)['product.pricelist'].browse(demo_pl.id).name
+        _ = self.env(user=self.user_demo)['product.pricelist'].browse(demo_pl.id).name
 
     def test_archive_pricelist_1(self):
         ''' Test that when a pricelist is archived, the check that verify that

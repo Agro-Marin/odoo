@@ -38,7 +38,7 @@ class Cart(PaymentPortal):
         if id and access_token:
             abandoned_order = request.env['sale.order'].sudo().browse(int(id)).exists()
             if not abandoned_order or not consteq(abandoned_order.access_token, access_token):  # wrong token (or SO has been deleted)
-                raise NotFound()
+                raise NotFound
             if abandoned_order.state != 'draft':  # abandoned cart already finished
                 values.update({'abandoned_proceed': True})
             elif revive_method == 'squash' or (revive_method == 'merge' and not request.session.get('sale_order_id')):  # restore old cart or merge with unexistant

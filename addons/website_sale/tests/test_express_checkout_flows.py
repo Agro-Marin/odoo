@@ -3,13 +3,15 @@
 from unittest.mock import Mock, patch
 
 from odoo.http import root
-from odoo.tests import HttpCase, tagged
 from odoo.libs.web import urls
+from odoo.tests import HttpCase, tagged
 
 from odoo.addons.payment import utils as payment_utils
-from odoo.addons.website_sale.controllers.delivery import Delivery as WebsiteSaleDeliveryController
-from odoo.addons.website_sale.controllers.main import WebsiteSale
 from odoo.addons.website_sale.controllers.cart import Cart
+from odoo.addons.website_sale.controllers.delivery import (
+    Delivery as WebsiteSaleDeliveryController,
+)
+from odoo.addons.website_sale.controllers.main import WebsiteSale
 from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
 
 

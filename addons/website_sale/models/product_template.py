@@ -2,7 +2,6 @@
 
 import logging
 from collections import defaultdict
-
 from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
@@ -830,6 +829,7 @@ class ProductTemplate(models.Model):
             next_prodcut_tmpl.website_sequence, self.website_sequence = self.website_sequence, next_prodcut_tmpl.website_sequence
         else:
             return self.set_sequence_bottom()
+        return None
 
     def _default_website_meta(self):
         res = super()._default_website_meta()
@@ -943,7 +943,7 @@ class ProductTemplate(models.Model):
         with_price = 'detail' in mapping
         results_data = super()._search_render_results(fetch_fields, mapping, icon, limit)
         current_website = self.env['website'].get_current_website()
-        for product, data in zip(self, results_data):
+        for product, data in zip(self, results_data, strict=True):
             categ_ids = product.public_categ_ids.filtered(lambda c: not c.website_id or c.website_id == current_website)
             if with_price:
                 combination_info = product._get_combination_info(only_template=True)

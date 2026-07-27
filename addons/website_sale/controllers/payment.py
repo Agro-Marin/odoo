@@ -10,7 +10,6 @@ from odoo.tools import SQL
 
 from odoo.addons.payment.controllers import portal as payment_portal
 
-
 # TODO ANVFE part of payment routes ? /shop/payment ? express_checkout ?
 
 class PaymentPortal(payment_portal.PaymentPortal):
@@ -46,8 +45,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
             raise
         except AccessError as e:
             raise ValidationError(_("The access token is invalid.")) from e
-        except LockNotAvailable:
-            raise UserError(_("Payment is already being processed."))
+        except LockNotAvailable as e:
+            raise UserError(_("Payment is already being processed.")) from e
 
         if order_sudo.state == "cancel":
             raise ValidationError(_("The order has been cancelled."))

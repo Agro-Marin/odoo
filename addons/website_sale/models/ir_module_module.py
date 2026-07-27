@@ -1,8 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, models
 from itertools import batched
 
+from odoo import api, models
 from odoo.tools import SQL
 
 
@@ -27,7 +27,7 @@ class IrModuleModule(models.Model):
                 for lang in to_langs
             )
             # PSQL functions take 100 args max, and we're generating 2 per lang
-            batched_lang_items = batched(lang_items, 50)
+            batched_lang_items = batched(lang_items, 50, strict=False)
             update_jsonb = SQL(' || ').join(
                 SQL('jsonb_build_object(%s)', SQL(', ').join(batch))
                 for batch in batched_lang_items

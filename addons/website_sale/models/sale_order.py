@@ -55,7 +55,7 @@ class SaleOrder(models.Model):
         order_lines = self.env['sale.order.line'].search_fetch([('order_id', 'in', self.ids)])
         for order in self:
             order.website_order_line = order_lines.filtered(
-                lambda sol: sol.order_id == order and sol._show_in_cart(),
+                lambda sol, order=order: sol.order_id == order and sol._show_in_cart(),
             )
 
     @api.depends('line_ids.price_total', 'line_ids.price_subtotal')
@@ -338,11 +338,11 @@ class SaleOrder(models.Model):
         self = self.with_company(self.company_id)
 
         if not uom_id:
-            uom_id = self.env['product.product'].browse(product_id).uom_id.id  # type: ignore
+            uom_id = self.env['product.product'].browse(product_id).uom_id.id  # type: ignore[attr-defined]
         if existing_sol := self._cart_find_product_line(product_id, uom_id=uom_id, **kwargs)[:1]:
             # If a matching line is found, update the existing line instead.
             return self._cart_update_line_quantity(
-                line_id=existing_sol.id,  # type: ignore
+                line_id=existing_sol.id,  # type: ignore[attr-defined]
                 quantity=existing_sol.product_qty + quantity,
                 **kwargs,
             )
@@ -437,7 +437,7 @@ class SaleOrder(models.Model):
         if self:
             self.ensure_one()
 
-        self = self.with_company(self.company_id)  # noqa: PLW0642
+        self = self.with_company(self.company_id)
 
         if not (order_line := self.line_ids.filtered(lambda sol: sol.id == line_id)):
             # If the line isn't found because of wrong parameters, or because the user updated
@@ -687,7 +687,7 @@ class SaleOrder(models.Model):
             if accessory_products:
                 # Do not read ptavs if there is no accessory products to filter
                 combination = line.product_id.product_template_attribute_value_ids + line.product_no_variant_attribute_value_ids
-                all_accessory_products |= accessory_products.filtered(lambda product:
+                all_accessory_products |= accessory_products.filtered(lambda product, line=line, combination=combination:
                     product.id not in product_ids
                     and product._website_show_quick_add()
                     and product.filtered_domain(self.env['product.product']._check_company_domain(line.company_id))

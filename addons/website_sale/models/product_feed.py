@@ -3,16 +3,16 @@
 import base64
 import gzip
 import uuid
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dateutil.relativedelta import relativedelta
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools import float_is_zero, float_round
 from odoo.libs.web import urls
+from odoo.tools import float_is_zero, float_round
 
 from odoo.addons.website_sale import const, utils
 
@@ -158,7 +158,7 @@ class ProductFeed(models.Model):
         self.ensure_one()
         # Set the language context for rendering.
         # Ensures all links, product names, descriptions, etc., are localized.
-        self = self.with_context(lang=self.lang_id.code)  # noqa: PLW0642
+        self = self.with_context(lang=self.lang_id.code)
 
         # Override the pricelist of the request to localize the currency and prices, otherwise, uses
         # the website default pricelist.

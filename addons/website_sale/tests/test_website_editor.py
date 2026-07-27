@@ -2,14 +2,13 @@
 
 import logging
 
-from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
 from odoo.addons.http_routing.tests.common import MockRequest
+from odoo.addons.website.tests.common import HttpCaseWithWebsiteUser
 from odoo.addons.website_sale.controllers.main import WebsiteSale
-
 
 _logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ class TestProductPictureController(HttpCase):
 
     def _get_product_image_data(self):
         return [
-            hasattr(image, 'video_url') and image.video_url or image.image_1920
+            (hasattr(image, 'video_url') and image.video_url) or image.image_1920
             for image in self.product._get_images()
         ]
 

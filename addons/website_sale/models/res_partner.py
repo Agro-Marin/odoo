@@ -2,7 +2,6 @@
 
 from odoo import SUPERUSER_ID, _, api, models
 from odoo.fields import Domain
-from odoo.http import request
 
 
 class ResPartner(models.Model):
@@ -27,6 +26,7 @@ class ResPartner(models.Model):
                     "Also, the cart might not be visible for the customer until you update the pricelist of that cart."
                 ),
             }}
+        return None
 
     def _get_current_partner(self, *, order_sudo=False, **kwargs):
         """ Override `portal` to get current partner from order_sudo if user is not signed up. """
