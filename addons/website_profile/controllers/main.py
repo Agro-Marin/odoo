@@ -1,13 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from urllib.parse import urlsplit
-import werkzeug
-import werkzeug.exceptions
-import werkzeug.wrappers
 import math
-
-from dateutil.relativedelta import relativedelta
 from operator import itemgetter
+from urllib.parse import urlsplit
+
+import werkzeug.exceptions
+from dateutil.relativedelta import relativedelta
 
 from odoo import _, fields, http, tools
 from odoo.exceptions import UserError
@@ -31,7 +29,7 @@ class WebsiteProfile(http.Controller):
         frontend applications like forum or elearning. """
         try:
             user = request.env['res.users'].sudo().browse(user_id).exists()
-        except:
+        except Exception:
             return False
         if user:
             return user.website_published and user.karma > 0
@@ -60,13 +58,12 @@ class WebsiteProfile(http.Controller):
 
     def _prepare_user_values(self, **kwargs):
         kwargs.pop('edit_translations', None) # avoid nuking edit_translations
-        values = {
+        return {
             'user': request.env.user,
             'is_public_user': request.website.is_public_user(),
             'validation_email_sent': request.session.get('validation_email_sent', False),
             'validation_email_done': request.session.get('validation_email_done', False),
         }
-        return values
 
     def _prepare_user_profile_parameters(self, **post):
         return post
@@ -194,18 +191,15 @@ class WebsiteProfile(http.Controller):
     # All Users Page
     # ---------------------------------------------------
     def _prepare_all_users_values(self, users):
-        user_values = []
-        for user in users:
-            user_values.append({
-                'id': user.id,
-                'name': user.name,
-                'company_name': user.company_id.name,
-                'rank': user.rank_id.name,
-                'karma': user.karma,
-                'badge_count': len(user.badge_ids),
-                'website_published': user.website_published
-            })
-        return user_values
+        return [{
+            'id': user.id,
+            'name': user.name,
+            'company_name': user.company_id.name,
+            'rank': user.rank_id.name,
+            'karma': user.karma,
+            'badge_count': len(user.badge_ids),
+            'website_published': user.website_published
+        } for user in users]
 
     @http.route(['/profile/users',
                  '/profile/users/page/<int:page>'], type='http', auth="public", website=True, sitemap=True, readonly=True, list_as_website_content=_lt("User Profiles"))
@@ -229,7 +223,7 @@ class WebsiteProfile(http.Controller):
         if user_count:
             page_count = math.ceil(user_count / self._users_per_page)
             pager = request.website.pager(url="/profile/users", total=user_count, page=page, step=self._users_per_page,
-                                          scope=page_count if page_count < self._pager_max_pages else self._pager_max_pages,
+                                          scope=min(self._pager_max_pages, page_count),
                                           url_args=kwargs)
 
             users = User.sudo().search(dom, limit=self._users_per_page, offset=pager['offset'], order='karma DESC')
@@ -241,7 +235,7 @@ class WebsiteProfile(http.Controller):
 
             max_position = max([user_data['karma_position'] for user_data in position_map.values()], default=1)
             for user in user_values:
-                user_data = position_map.get(user['id'], dict())
+                user_data = position_map.get(user['id'], {})
                 user['position'] = user_data.get('karma_position', max_position + 1)
                 user['karma_gain'] = user_data.get('karma_gain_total', 0)
             user_values.sort(key=itemgetter('position'))
@@ -273,7 +267,7 @@ class WebsiteProfile(http.Controller):
             position_map = self._get_user_tracking_karma_gain_position(position_domain, users.ids, group_by)
         else:
             position_results = users._get_karma_position(position_domain)
-            position_map = dict((user_data['user_id'], dict(user_data)) for user_data in position_results)
+            position_map = {user_data['user_id']: dict(user_data) for user_data in position_results}
         return position_map
 
     def _get_user_tracking_karma_gain_position(self, domain, user_ids, group_by):
@@ -287,7 +281,7 @@ class WebsiteProfile(http.Controller):
         else:
             from_date = None
         results = request.env['res.users'].browse(user_ids)._get_tracking_karma_gain_position(domain, from_date=from_date, to_date=to_date)
-        return dict((item['user_id'], dict(item)) for item in results)
+        return {item['user_id']: dict(item) for item in results}
 
     # User and validation
     # --------------------------------------------------
