@@ -1,11 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import UTC, datetime
+
 from dateutil.relativedelta import relativedelta
 
 from odoo.tests import tagged
 
-from odoo.addons.website_sale.tests.test_website_sale_cart_abandoned import TestWebsiteSaleCartAbandonedCommon
+from odoo.addons.website_sale.tests.test_website_sale_cart_abandoned import (
+    TestWebsiteSaleCartAbandonedCommon,
+)
 from odoo.addons.website_sale_stock.tests.common import WebsiteSaleStockCommon
 
 
