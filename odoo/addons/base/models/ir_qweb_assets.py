@@ -32,7 +32,6 @@ from odoo.libs.constants import (
 from odoo.modules import module as _module
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
-    _parse_odoo_module_header,
     discover_transitive_import_specifiers,
 )
 from odoo.tools.assets.esm_registry import esm_registry
@@ -184,7 +183,7 @@ class IrQweb(models.AbstractModel):
             "tuple(sorted(assets_params.items()))",
             "rtl",
             "autoprefix",
-            cache="assets",
+            cache="assets.links",
         ),
     )
     def _generate_asset_links_cache(
@@ -196,6 +195,16 @@ class IrQweb(models.AbstractModel):
         rtl: bool = False,
         autoprefix: bool = False,
     ) -> list[str]:
+        """Cached URLs for a bundle, in a sibling LRU of the ``assets`` group.
+
+        Keyed on six values where ``ir.asset._get_asset_paths`` is keyed on two,
+        so it mints several entries per bundle -- measured at 4x as many, each
+        1/742 the size, because a list of URLs is not a resolved file list.
+        Sharing one 512-slot store meant those cheap entries evicted the
+        resolutions they are derived from, each costing ~43 ms to rebuild; a
+        small install already filled 415 of the 512 slots. Separate stores, same
+        clear group, so invalidating ``assets`` still drops both together.
+        """
         return self._generate_asset_links(
             bundle, css, js, False, assets_params, rtl, autoprefix=autoprefix
         )
@@ -1440,7 +1449,11 @@ class IrQweb(models.AbstractModel):
             self_bridges = asset_bundle._bridges._build_parent_self_bridge()
             prod_import_map.update(self_bridges)
             for asset in asset_bundle.native_modules:
-                header = _parse_odoo_module_header(asset.raw_content)
+                # ``parsed_header`` is the cached form of exactly this parse;
+                # calling the free function re-read and re-scanned every module
+                # (1467 of them for web.assets_web) for a result the asset was
+                # already holding.
+                header = asset.parsed_header
                 if not (header and header["alias"]):
                     continue
                 alias = header["alias"]
