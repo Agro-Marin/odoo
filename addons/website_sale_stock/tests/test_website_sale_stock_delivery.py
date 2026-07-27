@@ -2,14 +2,14 @@
 
 from odoo import Command
 from odoo.exceptions import ValidationError
-from odoo.tests import tagged
 from odoo.http import request
+from odoo.tests import tagged
 
+from odoo.addons.delivery.tests.common import DeliveryCommon
 from odoo.addons.payment.tests.common import PaymentCommon
 from odoo.addons.website_sale.controllers.cart import Cart
 from odoo.addons.website_sale.controllers.main import WebsiteSale
 from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
-from odoo.addons.delivery.tests.common import DeliveryCommon
 
 
 @tagged('post_install', '-at_install')
