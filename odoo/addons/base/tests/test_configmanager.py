@@ -125,6 +125,7 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "",
                 "smtp_ssl_certificate_filename": "",
                 "smtp_ssl_private_key_filename": "",
+                "smtp_timeout": 60,
                 "db_name": [],
                 "db_user": "",
                 "db_password": "",
@@ -241,6 +242,7 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "Tigrou0072",
                 "smtp_ssl_certificate_filename": "/tmp/tlscert",
                 "smtp_ssl_private_key_filename": "/tmp/tlskey",
+                "smtp_timeout": 60,
                 "db_name": ["horizon"],
                 "db_user": "kiwi",
                 "db_password": "Tigrou0073",
@@ -400,6 +402,7 @@ class TestConfigManager(TransactionCase):
                 "smtp_port": 25,
                 "smtp_server": "localhost",
                 "smtp_ssl": False,
+                "smtp_timeout": 60,
                 "smtp_user": "",
                 "syslog": False,
                 "test_enable": False,
@@ -504,8 +507,10 @@ class TestConfigManager(TransactionCase):
         self.assertEqual(
             capture_warn.output,
             [
-                "WARNING:odoo.tools.config:missing --http-interface/http_interface, "
-                "using 0.0.0.0 by default, will change to 127.0.0.1 in 20.0",
+                (
+                    "WARNING:odoo.tools.config:missing --http-interface/http_interface, "
+                    "using 0.0.0.0 by default, will change to 127.0.0.1 in 20.0"
+                ),
             ],
         )
 
@@ -594,6 +599,7 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "Tigrou0072",
                 "smtp_ssl_certificate_filename": "/tmp/tlscert",
                 "smtp_ssl_private_key_filename": "/tmp/tlskey",
+                "smtp_timeout": 60,
                 "db_name": ["horizon"],
                 "db_user": "kiwi",
                 "db_password": "Tigrou0073",
@@ -723,6 +729,7 @@ class TestConfigManager(TransactionCase):
                 "smtp_password": "Tigrou0072",
                 "smtp_ssl_certificate_filename": "/tmp/tlscert",
                 "smtp_ssl_private_key_filename": "/tmp/tlskey",
+                "smtp_timeout": 60,
                 "db_name": ["horizon"],
                 "db_user": "kiwi",
                 "db_password": "Tigrou0073",

@@ -208,7 +208,7 @@ class Many2many(_RelationalMulti):
     def update_db_foreign_keys(self, model: BaseModel) -> None:
         """Add the foreign keys corresponding to the field's relation table."""
         comodel = model.env[self.comodel_name]
-        if model._is_an_ordinary_table():
+        if model._is_an_ordinary_table() and not model._is_table_inheritance_root():
             model.pool.add_foreign_key(
                 self.relation,
                 self.column1,
@@ -219,7 +219,7 @@ class Many2many(_RelationalMulti):
                 self._module,
                 force=False,
             )
-        if comodel._is_an_ordinary_table():
+        if comodel._is_an_ordinary_table() and not comodel._is_table_inheritance_root():
             model.pool.add_foreign_key(
                 self.relation,
                 self.column2,

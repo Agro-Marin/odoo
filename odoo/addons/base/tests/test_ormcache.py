@@ -1,7 +1,20 @@
 from threading import Barrier, Thread
 
+from odoo.orm.runtime.registry import _CACHES_BY_KEY
 from odoo.tests.common import BaseCase, TransactionCase, get_cache_key_counter, tagged
 from odoo.tools.cache import get_cache_size
+
+
+def _cleared_by(*cache_names: str) -> str:
+    """The sub-caches ``clear_cache(*cache_names)`` empties, as logged.
+
+    Derived from ``_CACHES_BY_KEY`` rather than spelled out: the composite
+    groups gain sub-caches over time (``assets.links``, ``routing.rewrites``),
+    and a literal list here turns every such addition into a failure of a test
+    that is about signalling, not about cache membership.
+    """
+    cleared = {sub for name in cache_names for sub in _CACHES_BY_KEY[name]}
+    return repr(sorted(cleared))
 
 
 class TestCacheSize(BaseCase):
@@ -177,7 +190,8 @@ class TestOrmCache(TransactionCase):
         self.assertEqual(
             logs.output,
             [
-                "INFO:odoo.registry:Invalidating caches after database signaling: ['assets', 'templates.cached_values']"
+                "INFO:odoo.registry:Invalidating caches after database signaling: "
+                + _cleared_by("assets")
             ],
         )
 
@@ -224,7 +238,8 @@ class TestOrmCache(TransactionCase):
         self.assertEqual(
             logs.output,
             [
-                "INFO:odoo.registry:Invalidating caches after database signaling: ['assets', 'default', 'templates.cached_values']"
+                "INFO:odoo.registry:Invalidating caches after database signaling: "
+                + _cleared_by("assets", "default")
             ],
         )
 

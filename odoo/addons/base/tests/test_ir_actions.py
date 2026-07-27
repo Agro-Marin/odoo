@@ -1457,16 +1457,21 @@ class TestActionsReadAndXmlId(common.TransactionCase):
     def test_write_binding_irrelevant_field_skips_cache_clear(self):
         """Writing only binding-irrelevant fields must not clear the cache (IRA-L3).
 
-        Writing a binding input (e.g. name) still must.
+        Neither does writing a cached field of an action no registry cache can
+        hold: _get_bindings selects only rows with binding_model_id set and
+        load_menus only embeds a path, so an action with neither is in nothing
+        -- the same rule create() applies (test_unbound_create_keeps_bindings_
+        cache). Acquiring a binding or a path changes that membership, so those
+        two always clear.
         """
         action = self.env["ir.actions.act_url"].create(
             {"name": "CacheAction", "url": "https://example.com"}
         )
         Registry = type(self.env.registry)
 
-        def clears_for(vals):
+        def clears_for(vals, record=action):
             with patch.object(Registry, "clear_cache") as spy:
-                action.write(vals)
+                record.write(vals)
             return spy.call_count
 
         self.assertEqual(
@@ -1474,10 +1479,22 @@ class TestActionsReadAndXmlId(common.TransactionCase):
             0,
             "writing only binding-irrelevant fields should not clear the cache",
         )
-        self.assertGreaterEqual(
+        self.assertEqual(
             clears_for({"name": "Renamed"}),
+            0,
+            "an unbound, unpathed action is in no registry cache to stale",
+        )
+        self.assertGreaterEqual(
+            clears_for(
+                {"binding_model_id": self.env["ir.model"]._get_id("res.partner")}
+            ),
             1,
-            "writing a binding input (name) must clear the cache",
+            "acquiring a binding puts the action in a cache, so it must clear",
+        )
+        self.assertGreaterEqual(
+            clears_for({"name": "RenamedAgain"}),
+            1,
+            "writing a binding input of a bound action must clear the cache",
         )
 
     def test_write_server_action_value_field_skips_cache_clear(self):
@@ -1598,12 +1615,11 @@ class TestActionsBindings(common.TransactionCase):
         ]
         self.assertEqual(ordered, ["Alpha action", "Zeta action"])
 
-    def test_cache_safe_fields_disjoint_from_binding_inputs(self):
-        """_CACHE_SAFE_FIELDS must exclude every field _get_bindings consumes.
+    def test_cache_invalidating_fields_cover_binding_inputs(self):
+        """_cache_invalidating_fields() must contain every _get_bindings input.
 
-        If a binding input were wrongly marked cache-safe, write() would skip
-        invalidation and get_bindings would serve stale data. This locks the
-        invariant that the _CACHE_SAFE_FIELDS comment only states informally.
+        A missing one means write() skips invalidation and get_bindings serves
+        stale data.
         """
         binding_inputs = {
             "name",
@@ -1616,12 +1632,12 @@ class TestActionsBindings(common.TransactionCase):
             "sequence",
             "domain",
         }
-        safe = self.env["ir.actions.actions"]._CACHE_SAFE_FIELDS
-        overlap = safe & binding_inputs
+        invalidating = self.env["ir.actions.actions"]._cache_invalidating_fields()
+        missing = binding_inputs - invalidating
         self.assertFalse(
-            overlap,
-            "cache-safe set overlaps binding inputs %s; writing them would "
-            "leave stale bindings" % sorted(overlap),
+            missing,
+            "binding inputs %s are not cache-invalidating; writing them would "
+            "leave stale bindings" % sorted(missing),
         )
 
     def test_rename_bound_action_invalidates_bindings(self):
@@ -1643,8 +1659,13 @@ class TestActionsBindings(common.TransactionCase):
         self.assertIn("BindRenamed", names)
         self.assertNotIn("BindOrig", names)
 
-    def test_group_ids_resolved_to_xml_ids(self):
-        """group_ids in bindings are external-id strings across many actions."""
+    def test_group_ids_stay_database_ids(self):
+        """group_ids in bindings are ids, never external-id strings.
+
+        Resolving them here made this cached read create an ir.model.data row
+        for any group that had none; see TestIrActionsBindingGroupsStayIds in
+        test_ir_actions_audit.py for the desync that caused.
+        """
         gid = self.env.ref("base.group_user").id
         for i in range(3):
             self.env["ir.actions.act_window"].create(
@@ -1660,7 +1681,7 @@ class TestActionsBindings(common.TransactionCase):
         ours = [d for d in raw.get("action", ()) if d["name"].startswith("Grp")]
         self.assertEqual(len(ours), 3)
         for data in ours:
-            self.assertEqual(data["group_ids"], ["base.group_user"])
+            self.assertEqual(data["group_ids"], (gid,))
 
 
 class TestCommonCustomFields(common.TransactionCase):

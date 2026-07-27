@@ -1490,6 +1490,26 @@ class ResUsers(models.Model):
         group_id = self.env["res.groups"]._get_group_definitions().get_id(group_ext_id)
         return group_id in self._effective_group_ids()
 
+    def has_any_group_id(self, group_ids: collections.abc.Collection[int]) -> bool:
+        """Return whether user ``self`` belongs to any of the groups, by id.
+
+        Equivalent to ``any(self.has_group(x) for x in xml_ids)`` including the
+        debug-mode gate on ``base.group_no_one``, for callers that already hold
+        group ids.  Those callers must not route through :meth:`has_group`:
+        turning an id into an external id means *creating* one for groups that
+        have none (``res.groups._ensure_xml_id``), so a read ends up writing.
+        """
+        self.ensure_one()
+        self._assert_group_query_allowed()
+
+        group_ids = set(group_ids)
+        if not (request and request.session.debug):
+            no_one = self.env["ir.model.data"]._xmlid_to_res_id(
+                "base.group_no_one", raise_if_not_found=False
+            )
+            group_ids.discard(no_one)
+        return not group_ids.isdisjoint(self._effective_group_ids())
+
     def _action_show(self) -> dict[str, Any]:
         """If self is a singleton, directly access the form view. If it is a recordset, open a list view"""
         view_id = self.env.ref("base.view_users_form").id
