@@ -70,7 +70,6 @@ if typing.TYPE_CHECKING:
 
     from ..._typing import (
         CommandValue,
-        ContextType,
         DomainType,
         Environment,
         ModelLike,
@@ -85,7 +84,6 @@ class _Relational(Field["BaseModel"]):
     relational: typing.Literal[True] = True
     comodel_name: str
     domain: DomainType = []
-    context: ContextType = {}
     bypass_search_access: bool = False
     check_company: bool = False
 

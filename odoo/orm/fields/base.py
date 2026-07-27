@@ -36,7 +36,14 @@ from ._field_description import _FieldDescriptionMixin
 from ._field_sql import _FieldSqlMixin
 
 if typing.TYPE_CHECKING:
-    from .._typing import BaseModel, DomainType, ModelLike, ModelType, Self
+    from .._typing import (
+        BaseModel,
+        ContextType,
+        DomainType,
+        ModelLike,
+        ModelType,
+        Self,
+    )
     from ..primitives import IdType
     from ..runtime import Environment, Registry
 
@@ -346,6 +353,16 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
     name: str = ""
     model_name: str = ""
     comodel_name: str | None = None
+    context: ContextType = {}
+    """Extra context a relational field applies to its comodel.
+
+    Declared on the base class, with an inert default, for the same reason as
+    ``comodel_name``: consumers key on it without first proving the field is
+    relational.  ``Environment.cache_key`` is the one that made this load-bearing
+    -- its ``active_test`` branch reads ``field.context`` for any field whose
+    ``depends_context`` mentions it, so ``@api.depends_context("active_test")``
+    on a computed scalar raised ``AttributeError`` on every read of that field.
+    """
 
     store: bool = True
     index: str | None = None
