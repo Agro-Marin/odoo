@@ -60,7 +60,7 @@ class PaymentProvider(models.Model):
     def copy(self, default=None):
         res = super().copy(default=default)
         if not default or 'website_id' not in default:
-            for src, copy in zip(self, res):
+            for src, copy in zip(self, res, strict=True):
                 if src.website_id and src.company_id in copy.company_id.parent_ids:
                     copy.website_id = src.website_id
         return res
