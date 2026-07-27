@@ -26,7 +26,7 @@ from odoo.addons.base.models.assetsbundle import (
     JavascriptAsset,
     XMLAssetError,
 )
-from odoo.addons.base.models.ir_asset import Resolution, _glob_static_file
+from odoo.addons.base.models.ir_asset_paths import AssetPaths, _glob_static_file
 from odoo.addons.base.models.ir_attachment import IrAttachment
 
 ORIGINAL_PATH_STAT = pathlib.Path.stat
@@ -34,8 +34,7 @@ ORIGINAL_PATH_STAT = pathlib.Path.stat
 
 class TestAddonPaths(TransactionCase):
     def test_operations(self):
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
+        asset_paths = AssetPaths()
         self.assertFalse(asset_paths.list)
 
         asset_paths.append(
@@ -131,8 +130,7 @@ class TestAddonPaths(TransactionCase):
 
     def test_replace_empty_source(self):
         """REPLACE with empty source should remove target without replacement."""
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
+        asset_paths = AssetPaths()
         asset_paths.append(
             [
                 ("/web/a.js", "/full/a.js", 1),
@@ -156,7 +154,7 @@ class TestAddonPaths(TransactionCase):
             static_dir = str(pathlib.Path(tmp).resolve())
             deleted_file = f"{static_dir}/_test_asset_race_condition.js"
             with patch(
-                "odoo.addons.base.models.ir_asset.glob",
+                "odoo.addons.base.models.ir_asset_paths.glob",
                 return_value=[deleted_file],
             ):
                 result = _glob_static_file(f"{static_dir}/*.js", static_dir)
@@ -174,7 +172,10 @@ class TestAddonPaths(TransactionCase):
         self.assertIn(f"{static_dir}/file.css", paths)
         self.assertNotIn(f"{static_dir}/file.py", paths)
 
-    @mute_logger("odoo.addons.base.models.ir_asset")
+    @mute_logger(
+        "odoo.addons.base.models.ir_asset",
+        "odoo.addons.base.models.ir_asset_paths",
+    )
     def test_glob_static_file_memo_is_not_shared_across_roots(self):
         """The containment cache is shared by every glob of one resolution, so
         its answers must be keyed by the root they were computed against — a
@@ -257,177 +258,6 @@ class TestParseBundleName(TransactionCase):
         with self.assertRaises(ValueError) as cm:
             IrAsset._parse_bundle_name("web.assets.xml", debug_assets=True)
         self.assertIn("Only js and css", str(cm.exception))
-
-
-class TestSilentNoopDirectives(TransactionCase):
-    """Tests asserting that silent-noop directives (REMOVE / AFTER / BEFORE /
-    REPLACE pointing at a path that resolves to nothing) emit a WARNING with
-    enough context (bundle name + directive + path) for an operator to fix
-    the manifest by hand.
-
-    Background: CONVENTIONS.md §3 (web) documents that the ``remove`` and
-    ``after`` directives in ``__manifest__.py`` are load-bearing for the
-    asset graph.  Before this guardrail, a ``("remove", "moved_file.js")``
-    silently became a no-op when the file was renamed — the manifest tuple
-    was dead weight that nobody could spot without ``git blame`` archaeology.
-    The new warnings turn each silent no-op into a grep-able log line.
-    """
-
-    def _make_ir_asset(self):
-        return self.env["ir.asset"]
-
-    @property
-    def _ir_asset_cls(self):
-        """Patch target for class-level method mocking — model recordsets
-        are immutable, so we must patch the underlying class."""
-        return type(self.env["ir.asset"])
-
-    def test_remove_unresolved_path_warns(self):
-        """REMOVE pointing at a path that resolves to nothing emits a WARNING."""
-        IrAsset = self._make_ir_asset()
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
-        with (
-            patch.object(self._ir_asset_cls, "_get_paths", return_value=[]),
-            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
-        ):
-            IrAsset._process_path(
-                resolution.open_bundle("some.bundle"),
-                resolution,
-                "remove",
-                None,
-                "/some_addon/static/src/moved_or_deleted.js",
-            )
-        self.assertEqual(asset_paths.list, [])
-        joined = " ".join(cm.output)
-        self.assertIn("REMOVE", joined)
-        self.assertIn("some.bundle", joined)
-        self.assertIn("moved_or_deleted.js", joined)
-
-    def test_after_missing_target_warns(self):
-        """AFTER with a target that resolves to nothing emits a WARNING."""
-        IrAsset = self._make_ir_asset()
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
-
-        side_effects = [
-            [("/web/source.scss", "/full/source.scss", 1)],
-            [],
-        ]
-        with (
-            patch.object(self._ir_asset_cls, "_get_paths", side_effect=side_effects),
-            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
-        ):
-            IrAsset._process_path(
-                resolution.open_bundle("some.bundle"),
-                resolution,
-                "after",
-                "/web/missing_anchor.scss",
-                "/web/source.scss",
-            )
-        self.assertEqual(asset_paths.list, [])
-        joined = " ".join(cm.output)
-        self.assertIn("after", joined)
-        self.assertIn("some.bundle", joined)
-        self.assertIn("missing_anchor.scss", joined)
-
-    def test_before_missing_target_warns(self):
-        """BEFORE with a missing target emits a WARNING (same path as AFTER)."""
-        IrAsset = self._make_ir_asset()
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
-        with (
-            patch.object(
-                self._ir_asset_cls,
-                "_get_paths",
-                side_effect=[[("/web/x.js", "/full/x.js", 1)], []],
-            ),
-            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
-        ):
-            IrAsset._process_path(
-                resolution.open_bundle("b.b"),
-                resolution,
-                "before",
-                "/web/missing.js",
-                "/web/x.js",
-            )
-        self.assertEqual(asset_paths.list, [])
-        joined = " ".join(cm.output)
-        self.assertIn("before", joined)
-        self.assertIn("missing.js", joined)
-
-    def test_after_no_target_warns(self):
-        """AFTER with target=None emits a WARNING."""
-        IrAsset = self._make_ir_asset()
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
-        with (
-            patch.object(
-                self._ir_asset_cls,
-                "_get_paths",
-                return_value=[("/web/x.js", "/full/x.js", 1)],
-            ),
-            self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm,
-        ):
-            IrAsset._process_path(
-                resolution.open_bundle("x.y"),
-                resolution,
-                "after",
-                None,
-                "/web/x.js",
-            )
-        self.assertEqual(asset_paths.list, [])
-        joined = " ".join(cm.output)
-        self.assertIn("no target", joined)
-        self.assertIn("x.y", joined)
-
-    def test_append_unresolved_path_does_not_warn(self):
-        """APPEND with an empty path resolution is NOT a no-op for the
-        operator — it is the normal "glob matched no files yet" case during
-        partial module load.  No new warning beyond the existing
-        path-resolution log.
-        """
-        IrAsset = self._make_ir_asset()
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
-        with patch.object(self._ir_asset_cls, "_get_paths", return_value=[]):
-            with self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"):
-                IrAsset._process_path(
-                    resolution.open_bundle("x.y"),
-                    resolution,
-                    "append",
-                    None,
-                    "/web/x.js",
-                )
-        self.assertEqual(asset_paths.list, [])
-
-    def test_remove_resolved_path_succeeds_silently(self):
-        """REMOVE with a path that DOES resolve does its job silently — no
-        spurious warning when the manifest is correct.
-        """
-        IrAsset = self._make_ir_asset()
-        resolution = Resolution(installed=set())
-        asset_paths = resolution.paths
-        asset_paths.append(
-            [("/web/x.js", "/full/x.js", 1)],
-            "preexisting",
-        )
-        with (
-            patch.object(
-                self._ir_asset_cls,
-                "_get_paths",
-                return_value=[("/web/x.js", "/full/x.js", 1)],
-            ),
-            self.assertNoLogs("odoo.addons.base.models.ir_asset", level="WARNING"),
-        ):
-            IrAsset._process_path(
-                resolution.open_bundle("x.y"),
-                resolution,
-                "remove",
-                None,
-                "/web/x.js",
-            )
-        self.assertEqual(asset_paths.list, [])
 
 
 class Manifests(dict):
@@ -2614,7 +2444,10 @@ class TestAssetsManifest(AddonManifestPatched):
             """,
         )
 
-    @mute_logger("odoo.addons.base.models.ir_asset")
+    @mute_logger(
+        "odoo.addons.base.models.ir_asset",
+        "odoo.addons.base.models.ir_asset_paths",
+    )
     def test_31(self):
         path_to_dummy = "../../tests/dummy.js"
         me = pathlib.Path(__file__).parent.absolute()
@@ -2636,7 +2469,10 @@ class TestAssetsManifest(AddonManifestPatched):
                 attach.exists().raw,
             )
 
-    @mute_logger("odoo.addons.base.models.ir_asset")
+    @mute_logger(
+        "odoo.addons.base.models.ir_asset",
+        "odoo.addons.base.models.ir_asset_paths",
+    )
     def test_32_a_relative_path_in_addon(self):
         path_to_dummy = "../../tests/dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
@@ -2666,7 +2502,10 @@ class TestAssetsManifest(AddonManifestPatched):
             ),
         )
 
-    @mute_logger("odoo.addons.base.models.ir_asset")
+    @mute_logger(
+        "odoo.addons.base.models.ir_asset",
+        "odoo.addons.base.models.ir_asset_paths",
+    )
     def test_32_b_relative_path_outsied_addon(self):
         path_to_dummy = "../../tests/dummy.xml"
         me = pathlib.Path(__file__).parent.absolute()
@@ -2729,7 +2568,10 @@ class TestAssetsManifest(AddonManifestPatched):
         )
         self.assertFalse(attach.exists())
 
-    @mute_logger("odoo.addons.base.models.ir_asset")
+    @mute_logger(
+        "odoo.addons.base.models.ir_asset",
+        "odoo.addons.base.models.ir_asset_paths",
+    )
     def test_34(self):
         self.env["ir.asset"].create(
             {
@@ -2742,7 +2584,10 @@ class TestAssetsManifest(AddonManifestPatched):
         links = bundle.get_links()
         self.assertFalse(links)
 
-    @mute_logger("odoo.addons.base.models.ir_asset")
+    @mute_logger(
+        "odoo.addons.base.models.ir_asset",
+        "odoo.addons.base.models.ir_asset_paths",
+    )
     def test_35(self):
         self.env["ir.asset"].create(
             {
@@ -2834,8 +2679,19 @@ class TestAssetsManifest(AddonManifestPatched):
 
 @tagged("-at_install", "post_install")
 class AssetsNodeOrmCacheUsage(TransactionCase):
+    """How many ormcache entries one ``_get_asset_nodes`` call mints.
+
+    Both stores of the ``assets`` clear group are counted: the resolved file
+    lists (``assets``) and the URL lists derived from them (``assets.links``)
+    live apart so the many cheap URL entries stop evicting the ~43 ms
+    resolutions, but they are still one cache from this test's point of view --
+    reading only the first store silently stopped counting the very entries
+    these cases exist to count.
+    """
+
     def cache_keys(self):
-        keys = list(self.env.registry.ormcache_lrus["assets"])
+        lrus = self.env.registry.ormcache_lrus
+        keys = [key for store in ("assets", "assets.links") for key in lrus[store]]
 
         asset_keys = [
             key

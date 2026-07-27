@@ -330,6 +330,12 @@ ignore = [
 # Security-critical path validation — os.path is intentional
 "**/tools/files.py" = ["PTH"]
 
+# Asset globbing — `pathlib` is not a drop-in here. `Path.glob` is a different
+# implementation from `glob.glob`: measured on 3.14, it matches dotfiles that
+# `glob.glob` excludes, which would silently add files to shipped bundles. The
+# `os.sep` split in `fs2web` is a deliberate no-op fast path on POSIX.
+"**/models/ir_asset_paths.py" = ["PTH"]
+
 # D and ANN: enforced ONLY in pure Python packages that have zero Odoo ORM imports:
 #   odoo/libs/            — utility library (~838 D violations, ~1,076 ANN violations)
 #   odoo/orm/components/  — ORM data structures (same pool, counted together above)
