@@ -11,7 +11,6 @@ from markupsafe import Markup
 from markupsafe import escape as markup_escape
 
 from odoo.exceptions import AccessError, UserError
-from odoo.libs._field_access import scalar_cache_get as _scalar_cache_get
 from odoo.logutils import COLOR_PATTERN, DEFAULT, GREEN, RED, ColoredFormatter
 from odoo.tools import (
     SQL,
@@ -79,9 +78,13 @@ class BaseString(Field[str | typing.Literal[False]]):
         if self.is_stored_computed and env._core.has_pending_field(self):
             self.recompute(record)
         record_id = ids[0]
-        value = _scalar_cache_get(env.__dict__, self, record_id, PENDING, SENTINEL)
-        if value is not SENTINEL:
-            return False if value is None else value
+        try:
+            value = env.__dict__["_field_cache_memo"][self][record_id]
+        except KeyError:
+            pass
+        else:
+            if value is not PENDING:
+                return False if value is None else value
         if self._needs_translate_fallback(record_id):
             fb_val = self._scalar_translate_fallback(env, record_id)
             if fb_val is not SENTINEL:

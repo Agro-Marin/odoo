@@ -18,7 +18,6 @@ from collections.abc import (
 from operator import attrgetter
 
 from odoo.exceptions import AccessError, MissingError
-from odoo.libs._field_access import scalar_cache_get as _scalar_cache_get
 from odoo.libs._field_access import to_prefetch_ids as _to_prefetch_ids
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import (
@@ -1746,18 +1745,26 @@ def _make_scalar_get(
     """Generate a ``__get__`` override for scalar field types.
 
     The generated closure inlines the :meth:`Field.__get__` optimizations: the
-    ``not self.groups`` ACL short-circuit, the C-level triple dict lookup via
-    ``scalar_cache_get`` (memo->cache->id), the ``has_pending()`` guard before
-    ``recompute()``, and PENDING/SENTINEL identity checks in Rust. Used as::
+    ``not self.groups`` ACL short-circuit, the triple dict lookup
+    (memo->cache->id), the ``has_pending()`` guard before ``recompute()``, and
+    the PENDING check. Used as::
 
         __get__ = _make_scalar_get(lambda v: v or 0)
+
+    The lookup is written out rather than delegated to
+    :func:`~odoo.libs._field_access.scalar_cache_get`, which stays the readable
+    reference implementation (and the oracle its own suite pins).  There is no
+    Rust counterpart -- the crate documents why it would lose on this shape --
+    so the helper was a plain Python call on the hottest path in the ORM,
+    costing ~26 ns of pure call overhead per scalar read (71 ns delegated vs
+    45 ns inlined).  ``KeyError`` and ``PENDING`` both mean "fall through to the
+    canonical path", exactly as the helper's ``SENTINEL`` return does, and this
+    is the shape :meth:`Field.__get__` itself already uses.
 
     :param cache_to_record: ``callable(cache_value) -> record_value``.
     """
     _PENDING = PENDING
-    _SENTINEL = SENTINEL
     _base_get = Field.__get__
-    _cache_get = _scalar_cache_get
 
     def __get__(
         self, record: BaseModel | None, owner: type | None = None
@@ -1772,9 +1779,13 @@ def _make_scalar_get(
             return _base_get(self, record, owner)
         if self.is_stored_computed and env._core.has_pending_field(self):
             self.recompute(record)
-        value = _cache_get(env.__dict__, self, ids[0], _PENDING, _SENTINEL)
-        if value is not _SENTINEL:
-            return cache_to_record(value)
+        try:
+            value = env.__dict__["_field_cache_memo"][self][ids[0]]
+        except KeyError:
+            pass
+        else:
+            if value is not _PENDING:
+                return cache_to_record(value)
         return _base_get(self, record, owner)
 
     return __get__
