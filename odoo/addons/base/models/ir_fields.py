@@ -2,7 +2,7 @@ import functools
 import itertools
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any, NamedTuple
 
@@ -18,7 +18,7 @@ from odoo.tools.translate import LazyTranslate, _, code_translations
 _logger = logging.getLogger(__name__)
 _lt = LazyTranslate(__name__)
 
-REFERENCING_FIELDS = {None, "id", ".id"}
+REFERENCING_FIELDS = frozenset({None, "id", ".id"})
 
 DATE_LENGTH = 10
 
@@ -29,6 +29,15 @@ def only_ref_fields(record: dict[str | None, Any]) -> dict[str | None, Any]:
 
 def exclude_ref_fields(record: dict[str | None, Any]) -> dict[str | None, Any]:
     return {k: v for k, v in record.items() if k not in REFERENCING_FIELDS}
+
+
+def escape_import_message(text: str) -> str:
+    """Escape ``%`` so ``text`` survives the second ``%``-formatting pass that
+    ``odoo.orm.models.mixins.load._convert_records`` applies to every import
+    message. Only the ``%(field)s`` placeholder is meant to reach that pass, so
+    any interpolated data has to be escaped here first.
+    """
+    return text.replace("%", "%%")
 
 
 BOOLEAN_TRANSLATIONS = (_lt("yes"), _lt("no"), _lt("true"), _lt("false"))
@@ -64,6 +73,16 @@ class OdooImportWarning(Warning):
     pass
 
 
+class ImportReferenceNotFound(ValueError):
+    """A relational reference matched no record.
+
+    Distinguished from a reference that resolved to something *invalid* (a
+    malformed database id, an external id belonging to another model) so that
+    ``_str_to_one2many`` can create the missing sub-record for the former
+    without also masking the latter.
+    """
+
+
 class IrFieldsConverter(models.AbstractModel):
     _name = "ir.fields.converter"
     _description = "Fields Converter"
@@ -76,8 +95,8 @@ class IrFieldsConverter(models.AbstractModel):
         error_params: str | dict[str, Any] | tuple = (),
         error_args: dict[str, Any] | None = None,
     ) -> Exception:
-        def sanitize(p: Any) -> Any:
-            return p.replace("%", "%%") if isinstance(p, str) else p
+        def sanitize(p: Any) -> str:
+            return escape_import_message(str(p))
 
         if error_params:
             match error_params:
@@ -102,44 +121,86 @@ class IrFieldsConverter(models.AbstractModel):
         )
 
     @api.model
-    def _import_field_policy(self, field: FieldLike) -> tuple[bool, bool]:
-        """Return ``(skip_record, set_empty)`` for ``field`` from the import
-        context, keyed off the field's full slash-path
-        (:meth:`_import_policy_path`). The ``import_skip_records`` /
-        ``import_set_empty_fields`` lists are only ever populated alongside
-        ``import_file`` (see ``base_import``), so no extra guard is needed.
+    def _import_policy_lists(self) -> tuple[Sequence[str], Sequence[str]]:
+        """Return the ``(skip_records, set_empty_fields)`` policy paths.
+
+        Both are empty unless ``import_file`` is set. The policies are choices
+        made in the import UI, which always sets that key alongside them; a bare
+        ``load()`` call passing one on its own used to be honoured here but not
+        by the record-level check in ``load()``, and the two disagreeing
+        silently dropped data. Gating in one place keeps them in step.
         """
-        path = self._import_policy_path(field)
-        ctx = self.env.context
+        context = self.env.context
+        if not context.get("import_file"):
+            return (), ()
         return (
-            path in ctx.get("import_skip_records", []),
-            path in ctx.get("import_set_empty_fields", []),
+            context.get("import_skip_records") or (),
+            context.get("import_set_empty_fields") or (),
         )
 
     @api.model
-    def _error_field_path(self, field: str, value: str | list) -> list[str]:
+    def _import_field_policy(self, field: FieldLike) -> tuple[bool, bool]:
+        """Return ``(skip_record, set_empty)`` for ``field``, keyed off the
+        field's full slash-path (:meth:`_import_policy_path`).
+        """
+        path = self._import_policy_path(field)
+        skip_records, set_empty_fields = self._import_policy_lists()
+        return path in skip_records, path in set_empty_fields
+
+    @api.model
+    def _nested_skip_subfields(self, hierarchy: list[str]) -> set[str]:
+        """Return the immediate sub-field names under ``hierarchy`` that
+        ``import_skip_records`` marks as "skip the record".
+
+        A skipped *nested* field (e.g. ``child_ids/state``) leaves its ``None``
+        sentinel inside the one2many payload, where the record-level check in
+        ``load()`` -- which only ever sees top-level keys -- can never find it.
+        The sub-record's converter therefore reports the skip upward, by
+        propagating ``None`` as the whole one2many's converted value, and
+        ``load()`` finds it under ``child_ids``. Only the sub-fields named in the
+        policy count: a ``None`` from some other cause (an unparseable boolean)
+        must stay an error rather than silently drop the record.
+
+        Deeper paths are folded onto their first segment, so a nested one2many
+        that propagated its own ``None`` is recognized in turn.
+        """
+        skip_records, _set_empty = self._import_policy_lists()
+        prefix = "/".join(hierarchy) + "/"
+        return {
+            path[len(prefix) :].partition("/")[0]
+            for path in skip_records
+            if path.startswith(prefix)
+        }
+
+    @api.model
+    def _error_field_path(self, field: str, value: Any) -> list[str]:
         """Rebuild the full field path for import-error attribution in the UI.
 
         Prepends the ``parent_fields_hierarchy`` context key (built by
-        ``_str_to_one2many``) and descends into nested one2many values so the
-        error binds to the deepest imported field, e.g. ``['partner_id', 'type']``.
+        ``_str_to_one2many``) and appends the referencing sub-field a relational
+        value was addressed by, so that a failed ``value/id`` cell reports
+        ``['value', 'id']`` rather than just ``['value']``.
+
+        The descent stops as soon as the value is not a reference record. It
+        used to walk into the first key of *any* sub-record dict, which for a
+        Properties value picked up its ``name`` metadata key and reported it as
+        the failing field. A one2many does not need the guesswork either: its
+        sub-field errors carry their own path, attached by
+        :meth:`_str_to_one2many`'s ``log``, the only place that knows which
+        sub-field actually failed.
 
         :param str field: field the value is imported into.
-        :param str | list value: the raw value, or, for a one2many, a list of
-            per-record dicts to descend into.
+        :param value: the raw value, descended into while it references records.
         """
-        field_path = [field]
-        if parent_fields_hierarchy := self.env.context.get("parent_fields_hierarchy"):
-            field_path = parent_fields_hierarchy + field_path
-
-        field_path_value = value
-        while isinstance(field_path_value, list):
-            if not field_path_value:
+        field_path = [*(self.env.context.get("parent_fields_hierarchy") or []), field]
+        while isinstance(value, list) and value:
+            record = value[0]
+            if not isinstance(record, dict) or not record.keys() <= REFERENCING_FIELDS:
                 break
-            key = next(iter(field_path_value[0].keys()))
-            if key:
-                field_path.append(key)
-            field_path_value = field_path_value[0][key]
+            subfield = next(iter(record))
+            if subfield:
+                field_path.append(subfield)
+            value = record[subfield]
         return field_path
 
     @api.model
@@ -154,68 +215,80 @@ class IrFieldsConverter(models.AbstractModel):
         :rtype: RecordConverter
         """
         model = self.env[model._name]
-        fields = model._fields
+        model_fields = model._fields
 
         converter_cache: dict[str, Converter | None] = {}
 
-        def get_converter(name: str) -> Converter | None:
+        def get_converter(name: str, field: fields.Field) -> Converter | None:
             if name not in converter_cache:
-                field = fields.get(name)
-                converter_cache[name] = (
-                    self.to_field(field, fromtype) if field is not None else None
-                )
+                converter_cache[name] = self.to_field(field, fromtype)
             return converter_cache[name]
+
+        import_file_context = self.env.context.get("import_file")
 
         def fn(record: dict, log: Callable) -> dict:
             converted = {}
-            import_file_context = self.env.context.get("import_file")
-            for field, value in record.items():
-                if field in REFERENCING_FIELDS:
+            for fname, value in record.items():
+                if fname in REFERENCING_FIELDS:
+                    continue
+                field = model_fields.get(fname)
+                if field is None:
+                    log(
+                        fname,
+                        self._format_import_error(
+                            ValueError,
+                            self.env._(
+                                "Field '%%(field)s' does not exist on model '%s'"
+                            ),
+                            model._name,
+                        ),
+                    )
                     continue
                 if not value:
-                    converted[field] = False
+                    converted[fname] = False
                     continue
-                converter = get_converter(field)
+                converter = get_converter(fname, field)
                 if converter is None:
-                    field_obj = fields.get(field)
                     log(
-                        field,
+                        fname,
                         self._format_import_error(
                             ValueError,
                             self.env._(
                                 "Field '%%(field)s' cannot be imported (unsupported field type '%s')"
                             ),
-                            field_obj.type if field_obj is not None else "unknown",
+                            field.type,
                         ),
                     )
                     continue
                 try:
-                    converted[field], ws = converter(value)
+                    converted[fname], ws = converter(value)
                     for w in ws:
                         if isinstance(w, str):
                             w = OdooImportWarning(w)
-                        log(field, w)
-                except (UnicodeEncodeError, UnicodeDecodeError) as e:
-                    log(field, ValueError(str(e)))
-                except psycopg.DataError as e:
-                    log(field, ValueError(str(e)))
+                        log(fname, w)
+                except (
+                    UnicodeEncodeError,
+                    UnicodeDecodeError,
+                    psycopg.DataError,
+                ) as e:
+                    log(fname, ValueError(escape_import_message(str(e))))
                 except ValueError as e:
                     if import_file_context:
                         error_info = len(e.args) > 1 and e.args[1]
                         if error_info and not error_info.get("field_path"):
                             error_info["field_path"] = self._error_field_path(
-                                field, value
+                                fname, value
                             )
-                    log(field, e)
+                    log(fname, e)
                 except AttributeError, TypeError:
                     _logger.warning(
                         "Import converter for field %r rejected a %s value",
-                        field,
+                        fname,
                         type(value).__name__,
                         exc_info=True,
                     )
                     log(
-                        field,
+                        fname,
                         self._format_import_error(
                             ValueError,
                             self.env._(
@@ -231,7 +304,7 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def to_field(
-        self, field: FieldLike, fromtype: type | str = str
+        self, field: fields.Field, fromtype: type | str = str
     ) -> Converter | None:
         """Return the converter for ``field`` from ``fromtype``, or ``None`` if
         none matches.
@@ -338,7 +411,7 @@ class IrFieldsConverter(models.AbstractModel):
                     coerced, ws = self._property_to_boolean(field, val, property_dict)
                 case "many2one" | "many2many":
                     coerced, ws = self._property_to_relational(
-                        property_dict["type"], property_dict
+                        field, property_dict["type"], property_dict
                     )
                 case "integer":
                     coerced, ws = self._property_to_integer(val, property_dict)
@@ -404,17 +477,17 @@ class IrFieldsConverter(models.AbstractModel):
         """
         if isinstance(val, bool):
             return val, []
-        new_val, bool_warnings = self._str_to_boolean(field, str(val))
-        if bool_warnings:
+        try:
+            return self._str_to_boolean(field, str(val))
+        except ValueError:
             msg = self.env._(
                 "Unknown value '%(value)s' for boolean '%(label_property)s' property (subfield of '%%(field)s' field)."
             )
-            raise self._property_import_error(msg, val, property_dict)
-        return new_val, []
+            raise self._property_import_error(msg, val, property_dict) from None
 
     @api.model
     def _property_to_relational(
-        self, property_type: str, property_dict: dict
+        self, field: FieldLike, property_type: str, property_dict: dict
     ) -> tuple[Any, list]:
         """Resolve a Properties ``many2one`` / ``many2many`` sub-value to ids via
         the shared reference resolver. Returns a single id for m2o, a list for
@@ -432,7 +505,7 @@ class IrFieldsConverter(models.AbstractModel):
             ) from None
         fake_field = FakeField(
             comodel_name=property_dict["comodel"],
-            name=property_dict["string"],
+            name=f"{field.name}.{property_dict['name']}",
         )
         multi = property_type == "many2many"
         ids, warnings = self._resolve_reference_ids(fake_field, record, multi=multi)
@@ -461,6 +534,20 @@ class IrFieldsConverter(models.AbstractModel):
             raise self._property_import_error(msg, val, property_dict) from None
 
     @api.model
+    def _import_memo(self) -> dict:
+        """Per-cursor memo shared by the import-time lookups that are worth
+        computing once (boolean tokens, selection indexes).
+
+        Every key is a tuple whose first element names the lookup. The four
+        memoizers used to share this dict with key shapes that had nothing in
+        common -- a bare ``"boolean_value_sets"`` string next to raw translation
+        sources next to 4-tuples -- so nothing but reading all of them told you
+        which namespace a key belonged to, and tests reached in by literal key.
+        Cleared by cursor lifetime; clear it wholesale to force a rebuild.
+        """
+        return self.env.cr.cache.setdefault(self._name, {})
+
+    @api.model
     def _boolean_value_sets(self) -> tuple[frozenset, frozenset]:
         """Return ``(trues, falses)``: the lowercased literal and translated
         tokens accepted as boolean ``True`` / ``False`` on import.
@@ -468,8 +555,8 @@ class IrFieldsConverter(models.AbstractModel):
         Memoized per cursor to avoid rebuilding the sets for every boolean and
         every relational-by-id cell (:meth:`db_id_for`) of an import.
         """
-        tnx_cache = self.env.cr.cache.setdefault(self._name, {})
-        cache_key = "boolean_value_sets"
+        tnx_cache = self._import_memo()
+        cache_key = ("boolean_value_sets",)
         if cache_key not in tnx_cache:
             trues = frozenset(
                 word.lower()
@@ -506,6 +593,18 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _str_to_boolean(self, field: FieldLike, value: str) -> tuple[bool | None, list]:
+        """Convert an import cell to a boolean.
+
+        Returns ``None`` only for a cell ``import_skip_records`` covers -- the
+        record-skip sentinel every converter shares. An unrecognized token
+        raises, like every other ``_str_to_*``.
+
+        It used to return ``None`` *and* an error smuggled through the warnings
+        list, which made ``None`` mean both "skip this record" and "this cell is
+        broken", and, by bypassing the ``except ValueError`` arm of
+        :meth:`for_model`, made a boolean the one field type whose error reached
+        the client with no ``field_path`` to highlight.
+        """
         trues, falses = self._boolean_value_sets()
         value_lower = str(value).lower()
         if value_lower in trues:
@@ -517,14 +616,12 @@ class IrFieldsConverter(models.AbstractModel):
         if skip_record:
             return None, []
 
-        return None, [
-            self._format_import_error(
-                ValueError,
-                self.env._("Unknown value '%s' for boolean field '%%(field)s'"),
-                value,
-                {"moreinfo": self.env._("Use '1' for yes and '0' for no")},
-            )
-        ]
+        raise self._format_import_error(
+            ValueError,
+            self.env._("Unknown value '%s' for boolean field '%%(field)s'"),
+            value,
+            {"moreinfo": self.env._("Use '1' for yes and '0' for no")},
+        )
 
     @api.model
     def _str_to_integer(self, field: FieldLike, value: str) -> tuple[int, list]:
@@ -566,6 +663,15 @@ class IrFieldsConverter(models.AbstractModel):
 
     @api.model
     def _str_to_date(self, field: FieldLike, value: str) -> tuple[str, list]:
+        """Convert an import cell to a date.
+
+        A cell carrying a time part is parsed as a datetime purely to reject a
+        tail that is not a valid time ("2012-12-31 nope"); the result is
+        deliberately discarded. The stored date is the literal one in the cell,
+        ``value[:DATE_LENGTH]`` -- taking ``.date()`` off that datetime instead
+        would shift the calendar day for any offset-bearing cell, which is wrong
+        for a field that has no time zone to be shifted into.
+        """
         try:
             if isinstance(value, str) and value[DATE_LENGTH:].strip():
                 fields.Datetime.from_string(value)
@@ -586,9 +692,37 @@ class IrFieldsConverter(models.AbstractModel):
         return self.env.tz
 
     @api.model
+    def _parse_import_datetime(self, value: Any) -> tuple[datetime, bool]:
+        """Parse ``value`` into ``(naive_utc_datetime, was_tz_aware)``.
+
+        ``fields.Datetime.from_string`` normalizes an offset away, so whether the
+        cell carried one is only knowable while parsing. That answer used to be
+        recovered by parsing every cell a second time with ``fromisoformat``
+        purely to inspect ``tzinfo``; parsing once and reporting both keeps the
+        accepted formats identical -- ISO first, then ``from_string``'s
+        ``DATETIME_FORMAT`` fallback and its non-string handling.
+
+        An already-aware ``datetime`` object reports as aware too. The old
+        re-parse could not see one (it was guarded by ``isinstance(value, str)``),
+        so such a value was treated as naive and had the input time zone applied
+        on top of an instant that already knew its own.
+        """
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                pass
+            else:
+                if parsed.tzinfo is not None:
+                    return parsed.astimezone(utc).replace(tzinfo=None), True
+                return parsed, False
+        tzinfo = getattr(value, "tzinfo", None)
+        return fields.Datetime.from_string(value), tzinfo is not None
+
+    @api.model
     def _str_to_datetime(self, field: FieldLike, value: str) -> tuple[str, list]:
         try:
-            parsed_value = fields.Datetime.from_string(value)
+            parsed_value, tz_aware = self._parse_import_datetime(value)
         except ValueError:
             raise self._format_import_error(
                 ValueError,
@@ -599,28 +733,18 @@ class IrFieldsConverter(models.AbstractModel):
                 {"moreinfo": self.env._("Use the format '%s'", "2012-12-31 23:59:59")},
             ) from None
 
-        if isinstance(value, str) and self._iso_value_is_tz_aware(value):
+        if tz_aware:
             return fields.Datetime.to_string(parsed_value), []
 
-        input_tz = self._input_tz()
-        dt = parsed_value.replace(tzinfo=input_tz)
+        dt = parsed_value.replace(tzinfo=self._input_tz())
         return fields.Datetime.to_string(dt.astimezone(utc)), []
 
     @api.model
-    def _iso_value_is_tz_aware(self, value: str) -> bool:
-        """Return whether an ISO datetime string carries timezone information
-        (an offset or ``Z``).
-        """
-        try:
-            return datetime.fromisoformat(value).tzinfo is not None
-        except ValueError:
-            return False
-
-    @api.model
     def _get_boolean_translations(self, src: str) -> list[str]:
-        tnx_cache = self.env.cr.cache.setdefault(self._name, {})
-        if src in tnx_cache:
-            return tnx_cache[src]
+        tnx_cache = self._import_memo()
+        cache_key = ("boolean_translations", src)
+        if cache_key in tnx_cache:
+            return tnx_cache[cache_key]
 
         values = OrderedSet()
         for lang, __ in self.env["res.lang"].get_installed():
@@ -628,11 +752,11 @@ class IrFieldsConverter(models.AbstractModel):
             if src in translations:
                 values.add(translations[src])
 
-        result = tnx_cache[src] = list(values)
+        result = tnx_cache[cache_key] = list(values)
         return result
 
     @api.model
-    def _selection_for_import(self, field: FieldLike) -> tuple[list, dict | None]:
+    def _selection_for_import(self, field: fields.Field) -> tuple[list, dict | None]:
         """Return ``(untranslated_selection, current_lang_labels)`` for a
         selection ``field``, memoized per cursor for the life of an import.
 
@@ -642,8 +766,8 @@ class IrFieldsConverter(models.AbstractModel):
         current language, built only for callable selections (static ones are
         translated in bulk by :meth:`_selection_import_index`).
         """
-        tnx_cache = self.env.cr.cache.setdefault(self._name, {})
-        cache_key = ("import_selection", field.model_name, field.name, self.env.lang)
+        tnx_cache = self._import_memo()
+        cache_key = ("selection", field.model_name, field.name, self.env.lang)
         if cache_key not in tnx_cache:
             selection = field._description_selection(self.with_context(lang=None).env)
             current_lang_labels = (
@@ -655,7 +779,7 @@ class IrFieldsConverter(models.AbstractModel):
         return tnx_cache[cache_key]
 
     @api.model
-    def _selection_import_index(self, field: FieldLike) -> dict[str, Any]:
+    def _selection_import_index(self, field: fields.Field) -> dict[str, Any]:
         """Return a memoized ``{normalized_token: item}`` index for a selection
         ``field``: every accepted spelling of a value -- technical key, label,
         and every translated label -- lowercased, mapped to the selection item to
@@ -666,13 +790,8 @@ class IrFieldsConverter(models.AbstractModel):
         ``setdefault`` keeps the earliest item on a token collision, preserving
         the old scan's "first match wins" order.
         """
-        tnx_cache = self.env.cr.cache.setdefault(self._name, {})
-        cache_key = (
-            "import_selection_index",
-            field.model_name,
-            field.name,
-            self.env.lang,
-        )
+        tnx_cache = self._import_memo()
+        cache_key = ("selection_index", field.model_name, field.name, self.env.lang)
         if cache_key not in tnx_cache:
             selection, current_lang_labels = self._selection_for_import(field)
             index: dict[str, Any] = {}
@@ -698,6 +817,7 @@ class IrFieldsConverter(models.AbstractModel):
                     FROM ir_model_fields_selection s
                     JOIN ir_model_fields f ON s.field_id = f.id
                     WHERE f.model = %s AND f.name = %s
+                    ORDER BY s.sequence, s.id
                     """,
                     [field.model_name, field.name],
                 )
@@ -711,7 +831,7 @@ class IrFieldsConverter(models.AbstractModel):
         return tnx_cache[cache_key]
 
     @api.model
-    def _str_to_selection(self, field: FieldLike, value: str) -> tuple[Any, list]:
+    def _str_to_selection(self, field: fields.Field, value: str) -> tuple[Any, list]:
         item = self._selection_import_index(field).get(str(value).lower())
         if item is not None:
             return item, []
@@ -756,6 +876,32 @@ class IrFieldsConverter(models.AbstractModel):
         return action
 
     @api.model
+    def _reference_cache_entry(
+        self, field: FieldLike, subfield: str | None, value: Any
+    ) -> tuple[Any, tuple | None]:
+        """Return ``(cache, key)`` for memoizing a resolved reference, or
+        ``(None, None)`` when the reference must not be cached.
+
+        Resolving a reference by name costs a full ``name_search`` (~13 queries
+        per cell on ``res.partner``) and by database id an ``exists()``, and an
+        import repeats the same references across rows -- 100 rows pointing at
+        one parent issued 1308 queries. The results are memoized in the
+        per-``load()`` ``import_cache`` LRU, which already holds the external-id
+        lookups (keyed by plain xmlid strings, so the tuple keys used here
+        cannot collide).
+
+        Only *successful* resolutions are cached, by the caller: a miss may be
+        resolved by a record the same import creates later, so caching it would
+        make row order change the outcome. The ``id`` sub-field is resolved (and
+        cached) by :meth:`_xmlid_to_record_id` instead, which must stay on the
+        uncached path here so its ``import_flush`` still runs.
+        """
+        cache = self.env.context.get("import_cache")
+        if cache is None or subfield not in (None, ".id") or not isinstance(value, str):
+            return None, None
+        return cache, (field.comodel_name, subfield, value)
+
+    @api.model
     def db_id_for(
         self,
         field: FieldLike,
@@ -771,6 +917,12 @@ class IrFieldsConverter(models.AbstractModel):
         :return: a pair of the matched id (if any) and the warnings
         :rtype: tuple[int | None, list]
         """
+        cache, cache_key = self._reference_cache_entry(field, subfield, value)
+        if cache is not None:
+            if (cached := cache.get(cache_key)) is not None:
+                cached_id, cached_warnings = cached
+                return cached_id, list(cached_warnings)
+
         if subfield == ".id":
             lookup = self._db_id_from_dbid(field, value)
         elif subfield == "id":
@@ -783,9 +935,10 @@ class IrFieldsConverter(models.AbstractModel):
                 self.env._("Unknown sub-field “%s”", subfield),
             )
 
-        skip_record = set_empty = False
-        if self.env.context.get("import_file"):
-            skip_record, set_empty = self._import_field_policy(field)
+        if cache is not None and lookup.id:
+            cache[cache_key] = (lookup.id, lookup.warnings)
+
+        skip_record, set_empty = self._import_field_policy(field)
         if lookup.id is None and not set_empty and not skip_record:
             raise self._import_ref_not_found_error(
                 field, subfield, lookup.field_type, value, lookup.error_msg
@@ -840,6 +993,21 @@ class IrFieldsConverter(models.AbstractModel):
         """Resolve a name reference via ``name_search`` (creating the record with
         ``name_create`` when the field opts in via ``name_create_enabled_fields``).
 
+        The ``name_create`` attempt runs in its own savepoint. A failing one can
+        raise ``psycopg.Error``, which aborts the transaction, so the rollback
+        is what makes the "cannot create from name alone" message recoverable at
+        all -- reporting it on a dead cursor only turned the next statement into
+        ``InFailedSqlTransaction``. Rolling back the caller's whole-import
+        savepoint (passed down as ``import_savepoint``) did contain it, but
+        discarded every record converted so far, and left direct callers of
+        :meth:`db_id_for`, which have no such context key, on the dead cursor.
+
+        That savepoint also subsumes the explicit ``flush_all()`` this used to
+        run per created record: it flushes on entry (so earlier rows persist
+        into the outer transaction and survive the rollback) and again before
+        ``RELEASE`` (so the new record lands inside the savepoint), turning a
+        flush failure into a rollback instead of an escape mid-block.
+
         :return: a :class:`RefLookup`; ``error_msg`` is non-empty only when an
             enabled ``name_create`` failed, and ``warnings`` carries the
             "multiple matches" notice when relevant.
@@ -858,7 +1026,7 @@ class IrFieldsConverter(models.AbstractModel):
                     OdooImportWarning(
                         _(
                             'Found multiple matches for value "%(value)s" in field "%%(field)s" (%(match_count)s matches)',
-                            value=str(value).replace("%", "%%"),
+                            value=escape_import_message(str(value)),
                             match_count=len(ids),
                         )
                     )
@@ -871,13 +1039,10 @@ class IrFieldsConverter(models.AbstractModel):
         )
         if name_create_enabled_fields.get(field.name):
             try:
-                id, _name = RelatedModel.name_create(name=value)
-                RelatedModel.env.flush_all()
+                with self.env.cr.savepoint():
+                    id, _name = RelatedModel.name_create(name=value)
                 return RefLookup(id, field_type, "", warnings)
             except UserError, ValueError, psycopg.Error:
-                savepoint = self.env.context.get("import_savepoint")
-                if savepoint is not None:
-                    savepoint.rollback()
                 error_msg = self.env._(
                     "Cannot create new '%s' records from their name alone. Please create those records manually and try importing again.",
                     RelatedModel._description,
@@ -912,7 +1077,7 @@ class IrFieldsConverter(models.AbstractModel):
             if error_msg:
                 error_info_dict["error_message"] = error_msg
         return self._format_import_error(
-            ValueError,
+            ImportReferenceNotFound,
             message,
             {
                 "field_type": field_type,
@@ -949,8 +1114,18 @@ class IrFieldsConverter(models.AbstractModel):
         if result:
             res_model, res_id = import_cache[xmlid] = result
             if res_model != model._name:
-                raise ValueError(
-                    f"Invalid external ID {xmlid}: expected model {model._name!r}, found {res_model!r}"
+                raise self._format_import_error(
+                    ValueError,
+                    self.env._(
+                        "External id '%(xmlid)s' refers to a '%(found_model)s' "
+                        "record, but field '%%(field)s' expects a "
+                        "'%(expected_model)s' record"
+                    ),
+                    {
+                        "xmlid": xmlid,
+                        "found_model": res_model,
+                        "expected_model": model._name,
+                    },
                 )
             return res_id
         return None
@@ -987,6 +1162,50 @@ class IrFieldsConverter(models.AbstractModel):
         [subfield] = fieldset
         return subfield
 
+    @staticmethod
+    def _split_references(raw: str) -> list[str]:
+        """Split a comma-separated relational cell into individual references,
+        dropping blank segments and the whitespace around each separator.
+
+        A blank segment is not a reference: without this, a trailing or doubled
+        comma ("tag1," / "tag1,,tag2") resolves to ``False`` and leaks into the
+        ``Command`` payload, which fails at write time with a raw column type
+        error, or silently creates an empty one2many record. Whitespace around a
+        comma is separator noise too ("tag1, tag2"), and base_import only strips
+        float and date cells, so it would otherwise reach ``name_search`` intact
+        and fail the record.
+        """
+        return [
+            stripped for reference in raw.split(",") if (stripped := reference.strip())
+        ]
+
+    @api.model
+    def _single_reference_record(self, values: Any) -> dict:
+        """Return the one referencing record ``values`` must hold.
+
+        The extractor yields exactly one reference record per many2one /
+        many2many cell, but ``load()`` is a public API and a malformed payload
+        reached the bare ``[record] = values`` unpacking, surfacing
+        "too many values to unpack (expected 1, got 2)" to the user as the
+        import message.
+        """
+        if not isinstance(values, list) or len(values) != 1:
+            raise self._format_import_error(
+                ValueError,
+                self.env._(
+                    "Field '%%(field)s' expects a single reference per record, got '%s'"
+                ),
+                values,
+            )
+        record = values[0]
+        if not isinstance(record, dict):
+            raise self._format_import_error(
+                ValueError,
+                self.env._("Field '%%(field)s' expects a reference record, got '%s'"),
+                record,
+            )
+        return record
+
     @api.model
     def _resolve_reference_ids(
         self, field: FieldLike, record: dict, *, multi: bool
@@ -1006,7 +1225,7 @@ class IrFieldsConverter(models.AbstractModel):
         """
         subfield = self._referencing_subfield(record)
         raw = record[subfield]
-        references = raw.split(",") if multi else [raw]
+        references = self._split_references(raw) if multi else [raw]
         ids = []
         warnings = []
         for reference in references:
@@ -1019,7 +1238,7 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_many2one(
         self, field: FieldLike, values: list[dict]
     ) -> tuple[int | None, list]:
-        [record] = values
+        record = self._single_reference_record(values)
         ids, warnings = self._resolve_reference_ids(field, record, multi=False)
         return ids[0], warnings
 
@@ -1029,16 +1248,14 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_many2many(
         self, field: FieldLike, value: list[dict]
     ) -> tuple[list | None, list]:
-        [record] = value
+        record = self._single_reference_record(value)
         ids, warnings = self._resolve_reference_ids(field, record, multi=True)
 
         skip_record, set_empty = self._import_field_policy(field)
-        has_unresolved = any(id is None for id in ids)
-        if set_empty and has_unresolved:
-            ids = [id for id in ids if id]
-        elif skip_record and has_unresolved:
+        if any(id is None for id in ids) and skip_record and not set_empty:
             return None, warnings
 
+        ids = [id for id in ids if id]
         if self.env.context.get("update_many2many"):
             return [Command.link(id) for id in ids], warnings
         else:
@@ -1047,7 +1264,7 @@ class IrFieldsConverter(models.AbstractModel):
     @api.model
     def _str_to_one2many(
         self, field: FieldLike, records: list[dict]
-    ) -> tuple[list, list]:
+    ) -> tuple[list | None, list]:
         name_create_enabled_fields = (
             self.env.context.get("name_create_enabled_fields") or {}
         )
@@ -1063,7 +1280,13 @@ class IrFieldsConverter(models.AbstractModel):
         if len(records) == 1 and set(records[0]) <= REFERENCING_FIELDS:
             record = records[0]
             subfield = self._referencing_subfield(record)
-            records = ({subfield: item} for item in record[subfield].split(","))
+            records = (
+                {subfield: item} for item in self._split_references(record[subfield])
+            )
+
+        parent_fields_hierarchy = self.env.context.get(
+            "parent_fields_hierarchy", []
+        ) + [field.name]
 
         def log(f: str, exception: Exception | Warning) -> None:
             if not isinstance(exception, Warning):
@@ -1073,34 +1296,39 @@ class IrFieldsConverter(models.AbstractModel):
                     "%(field)s", "%(field)s/" + current_field_name
                 )
                 exception.args = (arg0, *exception.args[1:])
+                error_info = len(exception.args) > 1 and exception.args[1]
+                if isinstance(error_info, dict) and not error_info.get("field_path"):
+                    error_info["field_path"] = [*parent_fields_hierarchy, f]
                 raise exception
             warnings.append(exception)
-
-        parent_fields_hierarchy = self.env.context.get(
-            "parent_fields_hierarchy", []
-        ) + [field.name]
 
         convert = self.with_context(
             name_create_enabled_fields=relative_name_create_enabled_fields,
             parent_fields_hierarchy=parent_fields_hierarchy,
         ).for_model(self.env[field.comodel_name])
 
+        skipping_subfields = self._nested_skip_subfields(parent_fields_hierarchy)
+
         for record in records:
             id = None
             refs = only_ref_fields(record)
             writable = convert(exclude_ref_fields(record), log)
+            if any(writable.get(f, False) is None for f in skipping_subfields):
+                return None, warnings
             if refs:
                 subfield = self._referencing_subfield(refs)
                 try:
                     id, w2 = self.db_id_for(field, subfield, record[subfield])
                     warnings.extend(w2)
-                except ValueError:
+                except ImportReferenceNotFound:
                     if subfield != "id":
                         raise
                     writable["id"] = record["id"]
 
             if id:
-                commands.extend((Command.link(id), Command.update(id, writable)))
+                commands.append(Command.link(id))
+                if writable:
+                    commands.append(Command.update(id, writable))
             else:
                 commands.append(Command.create(writable))
 

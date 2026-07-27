@@ -1,7 +1,12 @@
+import contextlib
 import unittest
 from unittest.mock import patch
 
+import psycopg
+
+from odoo import Command
 from odoo.exceptions import UserError
+from odoo.libs.lru import LRU
 from odoo.tests import TransactionCase, can_import, loaded_demo_data, tagged
 from odoo.tools.misc import file_open
 
@@ -91,8 +96,16 @@ class TestFieldConverters(TransactionCase):
 
     def test_boolean_value_sets_built_once(self):
         """IFLD-09: true/false token sets are memoized per cursor, not rebuilt
-        per boolean cell."""
-        self.env.cr.cache.get("ir.fields.converter", {}).pop("boolean_value_sets", None)
+        per boolean cell.
+
+        The rejected cells are caught with a bare ``except``, not
+        ``assertRaises``: the latter runs ``traceback.clear_frames()``, which
+        drops the traceback's frame locals and, through the resulting collection,
+        reaches ``Transaction.clear()`` -- which empties ``cr.cache`` and so the
+        memo under test. ``for_model`` catches converter errors with a plain
+        ``except ValueError``, so this measures the path the import actually
+        takes."""
+        self.converter._import_memo().clear()
         calls = []
         orig = type(self.converter)._get_boolean_translations
 
@@ -102,7 +115,8 @@ class TestFieldConverters(TransactionCase):
 
         with patch.object(type(self.converter), "_get_boolean_translations", spy):
             for _ in range(50):
-                self.converter._str_to_boolean(self.flds["bool"], "maybe")
+                with contextlib.suppress(ValueError):
+                    self.converter._str_to_boolean(self.flds["bool"], "maybe")
         self.assertLessEqual(
             len(calls),
             4,
@@ -159,14 +173,39 @@ class TestFieldConverters(TransactionCase):
             self.assertFalse(warnings)
             self.assertEqual(result, expected)
 
-    def test_str_to_boolean_unknown_returns_none(self):
-        """IFLD-03: an unknown boolean yields ``None`` (not ``True``) + a warning."""
-        value, warnings = self.converter._str_to_boolean(
-            self.flds["bool"],
-            "maybe",
+    def test_str_to_boolean_unknown_raises(self):
+        """IFLD-03: an unknown boolean raises (never silently becomes ``True``).
+
+        It used to return ``None`` plus an error smuggled through the warnings
+        list, overloading the ``None`` that means "skip this record"."""
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_boolean(self.flds["bool"], "maybe")
+        self.assertIn("maybe", str(cm.exception.args[0]))
+
+    def test_str_to_boolean_skip_policy_still_returns_none(self):
+        """IFLD-03 guard: ``None`` survives as the record-skip sentinel, and
+        only for a field the policy actually covers."""
+        skipping = self.converter.with_context(
+            import_file=True, import_skip_records=["is_company"]
         )
+        value, warnings = skipping._str_to_boolean(self.flds["bool"], "maybe")
         self.assertIsNone(value)
-        self.assertTrue(warnings)
+        self.assertFalse(warnings)
+
+    def test_boolean_error_carries_field_path(self):
+        """IFLD-03: a boolean error is decorated like every other converter
+        error. Routing it through the warnings list bypassed ``for_model``'s
+        ``except ValueError`` arm, so it was the one field type reaching the
+        client with no ``field_path`` to highlight."""
+        result = (
+            self.env["res.partner"]
+            .with_context(import_file=True)
+            .load(["name", "is_company"], [["IFLD03 P", "maybe"]])
+        )
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors)
+        self.assertEqual(errors[0].get("field_path"), ["is_company"])
+        self.assertEqual(errors[0].get("moreinfo"), "Use '1' for yes and '0' for no")
 
     def test_str_to_boolean_known_values(self):
         """IFLD-03 guard: recognized true/false values still resolve."""
@@ -201,9 +240,13 @@ class TestFieldConverters(TransactionCase):
     def test_nested_selection_skip_uses_full_path(self):
         """IFLD-C2: ``import_skip_records`` / ``import_set_empty_fields`` for a
         nested selection must match the full slash-path (``child_ids/type``),
-        consistent with ``db_id_for`` and the paths the import UI emits."""
+        consistent with ``db_id_for`` and the paths the import UI emits.
+
+        ``import_file`` is part of the policy's precondition, so the contexts
+        here carry it exactly as ``base_import`` builds them."""
         fld = self.env["res.partner"]._fields["type"]
         nested = self.converter.with_context(
+            import_file=True,
             parent_fields_hierarchy=["child_ids"],
             import_skip_records=["child_ids/type"],
         )
@@ -212,6 +255,7 @@ class TestFieldConverters(TransactionCase):
         self.assertFalse(warnings)
 
         bare = self.converter.with_context(
+            import_file=True,
             parent_fields_hierarchy=["child_ids"],
             import_skip_records=["type"],
         )
@@ -247,9 +291,7 @@ class TestFieldConverters(TransactionCase):
         fld = self.env["res.partner"]._fields["tz"]
         n = len(fld.selection)
         self.assertGreater(n, 100, "need a large static selection")
-        self.env.cr.cache.get("ir.fields.converter", {}).pop(
-            ("import_selection_index", fld.model_name, fld.name, self.env.lang), None
-        )
+        self.converter._import_memo().clear()
         self.env["ir.model.fields.selection"].flush_model()
 
         cr = self.env.cr
@@ -340,6 +382,486 @@ class TestFieldConverters(TransactionCase):
         ):
             converter.db_id_for(self.flds["m2o"], None, "zzz no such partner ifld16")
         self.assertIn("Cannot create new", str(cm.exception.args[0]))
+
+    def test_m2m_blank_comma_segments_dropped(self):
+        """IFLD-17: a trailing / leading / doubled comma in a many2many cell is
+        not a reference. Resolving it to ``False`` used to leak into
+        ``Command.set``, which fails at write time with a raw column type
+        error."""
+        tag = self.env["res.partner.category"].create({"name": "IFLD17 Tag"})
+        converter = self.converter.to_field(
+            self.env["res.partner"]._fields["category_id"], str
+        )
+        for raw in ("IFLD17 Tag,", ",IFLD17 Tag", "IFLD17 Tag, ", "IFLD17 Tag,,"):
+            commands, warnings = converter([{None: raw}])
+            self.assertFalse(warnings)
+            self.assertEqual(
+                commands,
+                [Command.set([tag.id])],
+                f"{raw!r} must resolve to exactly one reference",
+            )
+
+    def test_load_m2m_trailing_comma_imports(self):
+        """IFLD-17 (end to end): a many2many column with a trailing comma must
+        import cleanly instead of failing the record with a PostgreSQL
+        "column is of type integer but expression is of type boolean" error."""
+        self.env["res.partner.category"].create({"name": "IFLD17 E2E"})
+        result = self.env["res.partner"].load(
+            ["name", "category_id"], [["IFLD17 Partner", "IFLD17 E2E,"]]
+        )
+        self.assertFalse(result["messages"])
+        self.assertTrue(result["ids"])
+        partner = self.env["res.partner"].browse(result["ids"])
+        self.assertEqual(partner.category_id.mapped("name"), ["IFLD17 E2E"])
+
+    def test_o2m_blank_comma_segment_creates_no_record(self):
+        """IFLD-18: a trailing comma in a one2many reference cell must not emit
+        a ``Command.create({})`` that silently inserts a blank child record."""
+        child = self.env["res.partner"].create({"name": "IFLD18 Child"})
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "ifld18_child",
+                "model": "res.partner",
+                "res_id": child.id,
+            }
+        )
+        commands, warnings = self.converter._str_to_one2many(
+            self.env["res.partner"]._fields["child_ids"],
+            [{"id": "base.ifld18_child,"}],
+        )
+        self.assertFalse(warnings)
+        self.assertEqual(commands, [Command.link(child.id)])
+
+    def test_o2m_link_omits_empty_update(self):
+        """IFLD-18: linking an existing one2many row with no writable values
+        must not append a no-op ``Command.update(id, {})`` (a pointless UPDATE
+        per imported row)."""
+        child = self.env["res.partner"].create({"name": "IFLD18b Child"})
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "ifld18b_child",
+                "model": "res.partner",
+                "res_id": child.id,
+            }
+        )
+        commands, _warnings = self.converter._str_to_one2many(
+            self.env["res.partner"]._fields["child_ids"],
+            [{"id": "base.ifld18b_child"}],
+        )
+        self.assertNotIn(
+            Command.update(child.id, {}),
+            commands,
+            "an empty update command must not be emitted",
+        )
+
+    def test_non_str_error_param_survives_second_format_pass(self):
+        """IFLD-19: import messages are ``%``-formatted twice (here, then in
+        ``_convert_records``). A ``%`` inside a non-string error parameter used
+        to reach the second pass unescaped and abort the whole import with a
+        ``TypeError``."""
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_properties(
+                self.flds["bool"], [{"name": "x", "string": "100% off"}]
+            )
+        message = str(cm.exception.args[0])
+        formatted = message % {"record": 0, "field": "Props"}
+        self.assertIn("100% off", formatted)
+
+    def test_xmlid_model_mismatch_is_reportable_import_error(self):
+        """IFLD-20: an external id pointing at another model reports a
+        per-record import message. The message used to be a raw f-string, so a
+        ``%`` in the external id crashed the second formatting pass and aborted
+        the entire ``load()`` call."""
+        lang = self.env["res.lang"].search([], limit=1)
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "ifld20_pct%x",
+                "model": "res.lang",
+                "res_id": lang.id,
+            }
+        )
+        self.env.flush_all()
+        result = self.env["res.partner"].load(
+            ["name", "parent_id/id"], [["IFLD20", "base.ifld20_pct%x"]]
+        )
+        self.assertFalse(result["ids"])
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors, "expected a per-record import error message")
+        self.assertIn("base.ifld20_pct%x", errors[0]["message"])
+        self.assertIn("res.lang", errors[0]["message"])
+
+    def test_driver_error_text_with_percent_is_escaped(self):
+        """IFLD-21: a driver/codec exception message is user data too. Passing
+        ``str(e)`` through unescaped broke the second formatting pass whenever
+        the driver quoted a value containing ``%``."""
+        converter = self.converter
+
+        def boom(_value):
+            raise psycopg.DataError('invalid input syntax for integer: "50%"')
+
+        messages = []
+        with patch.object(type(converter), "to_field", lambda *a, **kw: boom):
+            convert = converter.for_model(self.env["res.partner"])
+            convert({"name": "x"}, lambda f, e: messages.append(str(e.args[0])))
+
+        self.assertTrue(messages, "expected the driver error to be logged")
+        formatted = messages[0] % {"record": 0, "field": "Name"}
+        self.assertIn('"50%"', formatted)
+
+    def test_unknown_field_reported_and_not_written(self):
+        """IFLD-22: an unknown field name is reported as a missing field and
+        must not land in the converted values. A falsy value used to short
+        circuit before the field-existence check, leaking the key into
+        ``write()`` as ``False`` and raising a raw "Invalid field" ORM error."""
+        convert = self.converter.for_model(self.env["res.partner"])
+        logged = []
+        converted = convert(
+            {"name": "x", "ifld22_empty": "", "ifld22_filled": "v"},
+            lambda f, e: logged.append((f, str(e.args[0]))),
+        )
+        self.assertEqual(converted, {"name": "x"})
+        self.assertEqual(
+            sorted(f for f, _m in logged), ["ifld22_empty", "ifld22_filled"]
+        )
+        for _field, message in logged:
+            self.assertIn("does not exist", message)
+
+    def test_relational_property_policy_path_matches_column(self):
+        """IFLD-24: a relational Properties sub-value must resolve its import
+        policy under the column path ``<field>.<property>`` (the name
+        ``_extract_records`` splits on). Keying it off the property's display
+        label meant ``import_skip_records`` / ``name_create_enabled_fields``
+        never matched a many2one/many2many property."""
+        captured = []
+
+        def spy(this, field, record, *, multi):
+            captured.append(field.name)
+            return [], []
+
+        with patch.object(type(self.converter), "_resolve_reference_ids", spy):
+            self.converter._str_to_properties(
+                self.flds["bool"],
+                [
+                    {
+                        "name": "my_prop",
+                        "type": "many2many",
+                        "string": "My Display Label",
+                        "comodel": "res.partner",
+                        "value": [{None: "whatever"}],
+                    }
+                ],
+            )
+        self.assertEqual(captured, ["is_company.my_prop"])
+
+    def test_selection_translation_index_is_ordered(self):
+        """IFLD-23: the selection label index keeps the first token on a
+        collision (``setdefault``), so the translation query must be ordered.
+        Without ``ORDER BY`` the winner depended on PostgreSQL row order."""
+        field = self.env["res.partner"]._fields["type"]
+        self.converter._import_memo().clear()
+        queries = []
+        orig_execute = type(self.env.cr).execute
+
+        def spy(cr, query, *args, **kwargs):
+            queries.append(str(query))
+            return orig_execute(cr, query, *args, **kwargs)
+
+        with patch.object(type(self.env.cr), "execute", spy):
+            self.converter._selection_import_index(field)
+        selection_queries = [q for q in queries if "ir_model_fields_selection" in q]
+        self.assertTrue(selection_queries, "expected the selection label query")
+        self.assertTrue(
+            any("ORDER BY" in q.upper() for q in selection_queries),
+            "the selection label query must be deterministically ordered",
+        )
+
+    def test_load_unknown_column_reports_instead_of_crashing(self):
+        """IFLD-25: an unknown import column must produce a per-field message.
+
+        A dotted name slipped past ``_extract_records`` and reached ``_log``,
+        which looked its label up with ``field_names[field]`` and raised a raw
+        ``KeyError`` out of ``load()``; a plain name raised ``Invalid field
+        name`` there. Either way the caller got an exception instead of the
+        documented ``{ids, messages}``, and ``load()``'s savepoint was left
+        open, so the next ``cr.rollback()`` failed too."""
+        for column in ("bogus.x", "nosuchfield"):
+            with self.subTest(column=column):
+                result = self.env["res.partner"].load(
+                    ["name", column], [["IFLD25", "42"]]
+                )
+                self.assertFalse(result["ids"])
+                errors = [m for m in result["messages"] if m.get("type") == "error"]
+                self.assertTrue(errors, "expected a per-field import error")
+                self.assertEqual(errors[0].get("field"), column)
+                self.assertIn("does not exist", errors[0]["message"])
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(self.env.cr.fetchone(), (1,))
+
+    def test_skip_records_ignores_columns_absent_from_the_import(self):
+        """IFLD-26: ``import_skip_records`` naming a field that is not one of
+        this import's columns must not drop anything.
+
+        The check was ``record.get(path) is None``, so an absent key matched on
+        *every* record: the whole import was silently discarded and reported no
+        message at all."""
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_skip_records=["type"]
+        )
+        result = model.load(["name"], [["IFLD26 A"], ["IFLD26 B"]])
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"] or []), 2, "no record may be skipped")
+
+    def test_skip_records_still_skips_the_unresolved_record(self):
+        """IFLD-26 guard: a listed top-level field whose cell does not resolve
+        still skips just that record."""
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_skip_records=["type"]
+        )
+        result = model.load(
+            ["name", "type"],
+            [["IFLD26 bad", "not_a_real_type"], ["IFLD26 ok", "contact"]],
+        )
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"] or []), 1, "only the bad row is skipped")
+
+    def test_nested_skip_records_skips_the_parent_record(self):
+        """IFLD-27: ``import_skip_records`` on a nested field (``child_ids/type``)
+        must skip the record.
+
+        The converter's ``None`` sentinel stayed buried in the one2many payload
+        where ``load()``'s top-level check could never see it, so the record was
+        imported with the unresolved value instead of being skipped."""
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_skip_records=["child_ids/type"]
+        )
+        result = model.load(
+            ["name", "child_ids/name", "child_ids/type"],
+            [["IFLD27 Parent", "IFLD27 Child", "not_a_real_type"]],
+        )
+        self.assertFalse(result["messages"])
+        self.assertFalse(result["ids"], "the record must be skipped")
+        self.assertFalse(
+            self.env["res.partner"].search([("name", "=", "IFLD27 Parent")])
+        )
+
+    def test_nested_skip_records_keeps_resolvable_records(self):
+        """IFLD-27 guard: with the same policy, a row whose nested cell *does*
+        resolve must still import."""
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_skip_records=["child_ids/type"]
+        )
+        result = model.load(
+            ["name", "child_ids/name", "child_ids/type"],
+            [["IFLD27 Good", "IFLD27 Good Child", "contact"]],
+        )
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"] or []), 1)
+
+    def test_name_create_driver_error_leaves_cursor_usable(self):
+        """IFLD-28: a ``name_create`` that fails with a driver error aborts the
+        PostgreSQL transaction. It is now contained in its own savepoint.
+
+        Before, the rollback was the caller's whole-import savepoint, taken from
+        the ``import_savepoint`` context key -- absent for any direct caller of
+        ``db_id_for``, which was then handed the friendly "cannot create from
+        name alone" message on a dead cursor, turning every later statement into
+        ``InFailedSqlTransaction``."""
+        converter = self.converter.with_context(
+            name_create_enabled_fields={"parent_id": True}
+        )
+
+        def boom(*args, **kwargs):
+            self.env.cr.execute("SELECT 1 / 0")
+
+        PartnerClass = type(self.env["res.partner"])
+        with patch.object(PartnerClass, "name_create", side_effect=boom):
+            with self.assertRaises(ValueError) as cm:
+                converter.db_id_for(
+                    self.flds["m2o"], None, "zzz no such partner ifld28"
+                )
+        self.assertIn("Cannot create new", str(cm.exception.args[0]))
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(self.env.cr.fetchone(), (1,))
+
+    def test_repeated_references_resolved_once_per_import(self):
+        """IFLD-29: identical references must be resolved once per ``load()``.
+
+        ``name_search`` ran per cell, so 100 rows pointing at one parent issued
+        1308 queries; only the external-id path was memoized."""
+        parent = self.env["res.partner"].create({"name": "IFLD29 Shared Parent"})
+        self.env.flush_all()
+        PartnerClass = type(self.env["res.partner"])
+        calls = []
+        orig = PartnerClass.name_search
+
+        def spy(this, *args, **kwargs):
+            calls.append(kwargs.get("name"))
+            return orig(this, *args, **kwargs)
+
+        rows = [[f"IFLD29 c{i}", "IFLD29 Shared Parent"] for i in range(6)]
+        with patch.object(PartnerClass, "name_search", spy):
+            result = self.env["res.partner"].load(["name", "parent_id"], rows)
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"] or []), 6)
+        self.assertEqual(
+            len(calls), 1, f"6 identical references must search once, got {len(calls)}"
+        )
+        self.assertEqual(
+            self.env["res.partner"].browse(result["ids"]).mapped("parent_id"), parent
+        )
+
+    def test_reference_miss_is_not_cached(self):
+        """IFLD-29 guard: only successful lookups may be memoized. A reference
+        that misses can be satisfied by a record created later in the same
+        import, so caching the miss would let row order decide the outcome.
+
+        Driven through ``db_id_for`` directly with a record created between the
+        two lookups: an end-to-end ``load()`` cannot distinguish the two
+        implementations, because a miss that is never re-queried also never
+        reveals that it was cached."""
+        converter = self.converter.with_context(
+            import_file=True,
+            import_set_empty_fields=["parent_id"],
+            import_cache=LRU(1024),
+        )
+        first, _w = converter.db_id_for(self.flds["m2o"], None, "IFLD29b Target")
+        self.assertIsNone(first, "the record does not exist yet")
+        target = self.env["res.partner"].create({"name": "IFLD29b Target"})
+        self.env.flush_all()
+        second, _w = converter.db_id_for(self.flds["m2o"], None, "IFLD29b Target")
+        self.assertEqual(
+            second, target.id, "a cached miss would still report 'not found'"
+        )
+
+    def test_reference_cache_does_not_outlive_one_load(self):
+        """IFLD-29 guard: the memo lives in the per-``load()`` ``import_cache``,
+        so a reference resolved by one import is re-resolved by the next."""
+        target = self.env["res.partner"].create({"name": "IFLD29c Target"})
+        self.env.flush_all()
+        first = self.env["res.partner"].load(
+            ["name", "parent_id"], [["IFLD29c child", "IFLD29c Target"]]
+        )
+        self.assertFalse(first["messages"])
+        self.env["res.partner"].browse(first["ids"]).unlink()
+        target.unlink()
+        self.env.flush_all()
+        second = self.env["res.partner"].load(
+            ["name", "parent_id"], [["IFLD29c child2", "IFLD29c Target"]]
+        )
+        self.assertFalse(second["ids"], "the deleted target must not resolve")
+        self.assertTrue(
+            [m for m in second["messages"] if m.get("type") == "error"],
+            "expected a 'no matching record' error",
+        )
+
+    def test_nested_skip_policy_requires_import_file(self):
+        """IFLD-27 guard: ``import_skip_records`` without ``import_file`` is not
+        in force, so an unresolvable cell is an ordinary reported error.
+
+        ``ir.fields.converter`` and ``load()`` have to agree on when the policy
+        applies. While only the converter honoured it, the one2many propagated
+        its ``None`` upward, ``load()`` declined to skip the record, and the
+        ``None`` was written -- silently dropping the child. Both of the wrong
+        behaviours are silent, so what pins this down is that a message is
+        reported at all."""
+        model = self.env["res.partner"].with_context(
+            import_skip_records=["child_ids/type"]
+        )
+        result = model.load(
+            ["name", "child_ids/name", "child_ids/type"],
+            [["IFLD27b Parent", "IFLD27b Child", "not_a_real_type"]],
+        )
+        self.assertFalse(result["ids"])
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors, "the bad cell must be reported, not skipped")
+        self.assertEqual(errors[0].get("field_path"), ["child_ids", "type"])
+
+    def test_nested_o2m_without_policy_still_creates_the_child(self):
+        """IFLD-27 guard: with no policy in force and a resolvable nested cell,
+        the one2many must convert normally -- the skip sentinel must never be
+        propagated spuriously."""
+        model = self.env["res.partner"].with_context(
+            import_skip_records=["child_ids/type"]
+        )
+        result = model.load(
+            ["name", "child_ids/name", "child_ids/type"],
+            [["IFLD27d Parent", "IFLD27d Child", "contact"]],
+        )
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"] or []), 1)
+        parent = self.env["res.partner"].browse(result["ids"])
+        self.assertEqual(parent.child_ids.mapped("name"), ["IFLD27d Child"])
+
+    def test_deeply_nested_skip_records_propagates(self):
+        """IFLD-27: a skip policy two one2many levels down still skips the
+        record -- each level folds the deeper path onto its own field and
+        propagates the sentinel upward in turn."""
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_skip_records=["child_ids/child_ids/type"]
+        )
+        result = model.load(
+            [
+                "name",
+                "child_ids/name",
+                "child_ids/child_ids/name",
+                "child_ids/child_ids/type",
+            ],
+            [["IFLD27c P", "IFLD27c C", "IFLD27c GC", "not_a_real_type"]],
+        )
+        self.assertFalse(result["messages"])
+        self.assertFalse(result["ids"], "the record must be skipped")
+        self.assertFalse(self.env["res.partner"].search([("name", "=", "IFLD27c P")]))
+
+    def test_many2one_multiple_reference_records_clean_error(self):
+        """IFLD-30: a malformed many2one payload must not surface Python's
+        "too many values to unpack (expected 1, got 2)" as the import message."""
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_many2one(
+                self.flds["m2o"], [{None: "a"}, {None: "b"}]
+            )
+        self.assertNotIn("unpack", str(cm.exception.args[0]))
+        self.assertIn("single reference", str(cm.exception.args[0]))
+
+    def test_error_field_path_does_not_invent_property_subfields(self):
+        """IFLD-31: the error path for a Properties value must name the column,
+        not its ``name`` metadata key. The old walk into the first key of the
+        first sub-dict reported ``['props', 'name']`` as the failing field."""
+        properties_value = [
+            {"name": "p1", "type": "integer", "string": "P1", "value": "x"}
+        ]
+        self.assertEqual(
+            self.converter._error_field_path("props", properties_value), ["props"]
+        )
+
+    def test_error_field_path_keeps_the_referencing_subfield(self):
+        """IFLD-31 guard: a relational value is still attributed to the
+        sub-field it was addressed by, so ``value/id`` reports
+        ``['value', 'id']`` and a bare name reports just ``['value']``."""
+        self.assertEqual(
+            self.converter._error_field_path("value", [{"id": "noxidhere"}]),
+            ["value", "id"],
+        )
+        self.assertEqual(
+            self.converter._error_field_path("value", [{None: "somename"}]), ["value"]
+        )
+        nested = self.converter.with_context(parent_fields_hierarchy=["child_ids"])
+        self.assertEqual(nested._error_field_path("type", "bad"), ["child_ids", "type"])
+
+    def test_nested_error_carries_its_own_field_path(self):
+        """IFLD-31 guard: a one2many sub-field error still reports the deep path
+        -- attached where the failing sub-field is actually known."""
+        messages = []
+        model = self.env["res.partner"].with_context(import_file=True)
+        result = model.load(
+            ["name", "child_ids/name", "child_ids/type"],
+            [["IFLD31 Parent", "IFLD31 Child", "not_a_real_type"]],
+        )
+        messages = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(messages)
+        self.assertEqual(messages[0].get("field_path"), ["child_ids", "type"])
 
 
 @tagged("post_install", "-at_install")
