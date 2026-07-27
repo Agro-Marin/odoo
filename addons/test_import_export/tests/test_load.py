@@ -317,6 +317,7 @@ class test_integer_field(ImporterCase):
             [
                 {
                     'field_name': 'Value',
+                    'field_path': ['value'],
                     'type': 'error',
                     'rows': {'from': 0, 'to': 0},
                     'record': 0,
@@ -456,7 +457,7 @@ class test_float_field(ImporterCase):
     def test_nonsense(self):
         result = self.import_(['value'], [['foobar']])
         self.assertIs(result['ids'], False)
-        self.assertEqual(result['messages'], [message("'foobar' does not seem to be a number for field 'Value'", field_name='Value')])
+        self.assertEqual(result['messages'], [message("'foobar' does not seem to be a number for field 'Value'", field_name='Value', field_path=['value'])])
 
 
 class test_string_field(ImporterCase):
@@ -832,7 +833,16 @@ class test_m2o(ImporterCase):
         import m2o subfields (at all)...
         """
         result = self.import_(['value/value'], [['42']])
-        self.assertEqual(result['messages'], [message("Can not create Many-To-One records indirectly, import the field separately")])
+        self.assertEqual(
+            result['messages'],
+            [
+                message(
+                    "Can not create Many-To-One records indirectly, import the field separately",
+                    field_name='Value',
+                    field_path=['value'],
+                ),
+            ],
+        )
         self.assertIs(result['ids'], False)
 
     def test_fail_noids(self):
@@ -886,7 +896,16 @@ class test_m2o(ImporterCase):
 
     def test_fail_multiple(self):
         result = self.import_(['value', 'value/id'], [['somename', 'somexid']])
-        self.assertEqual(result['messages'], [message("Ambiguous specification for field 'Value', only provide one of name, external id or database id")])
+        self.assertEqual(
+            result['messages'],
+            [
+                message(
+                    "Ambiguous specification for field 'Value', only provide one of name, external id or database id",
+                    field_name='Value',
+                    field_path=['value'],
+                ),
+            ],
+        )
         self.assertIs(result['ids'], False)
 
     def test_fail_id(self):

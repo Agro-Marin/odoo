@@ -266,7 +266,7 @@ class Base_ImportImport(models.TransientModel):
             return importable_fields
 
         model_fields = Model.fields_get(attributes=[
-            'string', 'required', 'type', 'readonly', 'relation',
+            'string', 'required', 'type', 'readonly', 'relation', 'selection',
             'definition_record', 'definition_record_field',
         ])
         blacklist = models.MAGIC_COLUMNS
@@ -314,6 +314,8 @@ class Base_ImportImport(models.TransientModel):
                     }
                     if definition_type in ('many2one', 'many2many'):
                         model_fields[id_field]['relation'] = definition['comodel']
+                    elif definition_type == 'selection':
+                        model_fields[id_field]['selection'] = definition.get('selection') or []
 
         for name, field in model_fields.items():
             if name in blacklist:
@@ -330,6 +332,11 @@ class Base_ImportImport(models.TransientModel):
                 'type': field['type'],
                 'model_name': model,
             }
+
+            if field['type'] == 'selection':
+                # A Properties sub-column is not a field of `model`, so the
+                # client cannot recover its selection with a second fields_get.
+                field_value['selection'] = field.get('selection') or []
 
             if field['type'] in ('many2many', 'many2one'):
                 field_value['fields'] = [

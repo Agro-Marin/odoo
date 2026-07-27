@@ -8,6 +8,7 @@ recovery. Disjoint from the export pipeline (see :mod:`.export`).
 import functools
 import itertools
 import logging
+import re
 import typing
 from collections import defaultdict
 from typing import Self
@@ -134,6 +135,16 @@ class LoadMixin(_ModelStubs):
                         rec = self._load_records([rec_data], mode == "update")
                         cr.flush()
                     ids.append(rec.id)
+                except psycopg.Warning as e:
+                    # DB-API keeps Warning outside the Error hierarchy, so it
+                    # reached the catch-all below and was reported as "Unknown
+                    # error during import" -- which resets `ids` to False and
+                    # discards every row that did import cleanly. The record's
+                    # own savepoint has already rolled back, so it is simply
+                    # absent from `ids`; nothing about that is an error.
+                    messages.append(
+                        dict(rec_data["info"], type="warning", message=str(e))
+                    )
                 except psycopg.Error as e:
                     info = rec_data["info"]
                     pg_error_info = {"message": self._sql_error_to_message(e)}
@@ -236,9 +247,14 @@ class LoadMixin(_ModelStubs):
         a record holding one is dropped. Two things make the raw policy list
         unusable as-is here:
 
-        * its entries are slash-paths (``child_ids/state``), which never match a
-          key of the converted record. ``ir.fields.converter`` folds a nested
-          skip onto its top-level field, so only the first segment is compared.
+        * its entries are nested paths, which never match a key of the converted
+          record. ``ir.fields.converter`` folds a nested skip onto its top-level
+          field, so only the first segment is compared. A one2many sub-field
+          separates with ``/`` (``child_ids/state``) and a Properties sub-value
+          with ``.`` (``properties.my_prop``, the name ``_extract_records``
+          splits on); folding on ``/`` alone left every Properties path
+          unmatchable, so "Skip record" on such a column silently created the
+          record with that property set to null.
         * a path naming a field absent from *this* import's columns matched
           ``record.get(path) -> None`` on every record, silently dropping the
           entire import and reporting nothing. Only a key that is present and
@@ -248,7 +264,8 @@ class LoadMixin(_ModelStubs):
         if not context.get("import_file"):
             return frozenset()
         return frozenset(
-            path.partition("/")[0] for path in context.get("import_skip_records") or []
+            re.split(r"[/.]", path, maxsplit=1)[0]
+            for path in context.get("import_skip_records") or []
         )
 
     def _extract_records(

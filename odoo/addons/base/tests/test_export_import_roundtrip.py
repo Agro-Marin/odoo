@@ -129,10 +129,7 @@ class TestExportImportRoundtrip(TransactionCase):
         messages = result["messages"]
         self.assertTrue(messages, "an unconvertible cell was silently accepted")
         self.assertTrue(
-            any(
-                "cannot import a value of type" in m.get("message", "")
-                for m in messages
-            ),
+            any("of type 'list'" in m.get("message", "") for m in messages),
             messages,
         )
         self.assertFalse(result["ids"])

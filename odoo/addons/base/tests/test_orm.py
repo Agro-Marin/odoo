@@ -501,3 +501,34 @@ class TestReadFormatPrefetch(TransactionCase):
         new_records = Partner.new({"name": "new a"}) | Partner.new({"name": "new b"})
         result = new_records._read_format({"name"})
         self.assertEqual([vals["name"] for vals in result], ["new a", "new b"])
+
+
+class TestOrdinaryTableMemo(TransactionCase):
+    """``Registry.is_an_ordinary_table`` must survive a registry that grew."""
+
+    def test_a_table_absent_from_the_memo_is_requeried(self):
+        """The memo used to be the bare result set of one bulk query over
+        ``self.models``, so a table absent from it was indistinguishable from a
+        table the query never covered.
+
+        A first call from a partially-loaded registry (129 of 342 models in a
+        ``--test-tags`` run) therefore froze "not an ordinary table" in for every
+        model set up afterwards, and exporting their ``ID`` column raised
+        ``You can not export the column ID ...``. Only ``init_models`` resets the
+        memo, so nothing recovered until the process restarted.
+        """
+        registry = self.env.registry
+        saved = registry._ordinary_tables
+        try:
+            registry._ordinary_tables = {"res_partner": True}
+            self.assertTrue(
+                self.env["res.users"]._is_an_ordinary_table(),
+                "a table the memo never queried must be looked up, not denied",
+            )
+            self.assertIs(registry._ordinary_tables.get("res_users"), True)
+        finally:
+            registry._ordinary_tables = saved
+
+    def test_a_model_without_a_table_stays_negative(self):
+        """The re-query must not turn every miss into a positive answer."""
+        self.assertFalse(self.env["ir.fields.converter"]._is_an_ordinary_table())

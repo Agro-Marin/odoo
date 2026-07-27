@@ -367,7 +367,7 @@ class Registry(
         self._database_translated_fields: dict[str, str] = {}
         self._database_company_dependent_fields: set[str] = set()
         self._assertion_report = _get_assertion_report(db_name)
-        self._ordinary_tables: set[str] | None = None
+        self._ordinary_tables: dict[str, bool] = {}
         self._constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]] = {}
         self._caches = _RegistryCaches()
 
@@ -702,7 +702,7 @@ class Registry(
             env["ir.model.constraint"]._reflect_constraints(model_names)
             env["ir.model.inherit"]._reflect_inherits(model_names)
 
-            self._ordinary_tables = None
+            self._ordinary_tables = {}
 
             while self._post_init_queue:
                 func = self._post_init_queue.popleft()

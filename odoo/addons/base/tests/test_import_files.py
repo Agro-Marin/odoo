@@ -1,4 +1,5 @@
 import contextlib
+import json
 import unittest
 from unittest.mock import patch
 
@@ -850,6 +851,217 @@ class TestFieldConverters(TransactionCase):
         nested = self.converter.with_context(parent_fields_hierarchy=["child_ids"])
         self.assertEqual(nested._error_field_path("type", "bad"), ["child_ids", "type"])
 
+    def test_o2m_subfield_label_with_percent_is_reported(self):
+        """IFLD-32: a one2many sub-field whose *label* contains a ``%`` must
+        still report a per-record message.
+
+        The label is spliced into the message's ``%(field)s`` slot before
+        ``_convert_records`` runs its own ``%``-formatting pass, so an unescaped
+        one blew that pass up with a ``TypeError`` -- raised outside every
+        converter's reach, aborting the whole ``load()``. Real labels carry
+        ``%`` routinely (``order_line/discount`` is "Discount (%)")."""
+        fld = self.env["res.partner"]._fields["type"]
+        with patch.object(fld, "string", "Address Type (%)"):
+            result = (
+                self.env["res.partner"]
+                .with_context(import_file=True)
+                .load(
+                    ["name", "child_ids/name", "child_ids/type"],
+                    [["IFLD32 Parent", "IFLD32 Child", "not_a_real_type"]],
+                )
+            )
+        self.assertFalse(result["ids"])
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors, "expected a per-record import error message")
+        self.assertIn("Address Type (%)", errors[0]["message"])
+        self.assertEqual(errors[0].get("field_path"), ["child_ids", "type"])
+
+    def test_o2m_unknown_subfield_with_percent_is_reported(self):
+        """IFLD-32 guard: the same holds for the fallback label, the raw column
+        name, used when the sub-field does not exist on the comodel."""
+        result = self.env["res.partner"].load(
+            ["name", "child_ids/name", "child_ids/bogus%x"],
+            [["IFLD32b Parent", "IFLD32b Child", "42"]],
+        )
+        self.assertFalse(result["ids"])
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors, "expected a per-field import error message")
+        self.assertIn("bogus%x", errors[0]["message"])
+
+    def test_property_missing_type_metadata_is_reported(self):
+        """IFLD-33: a Properties payload whose entry lacks the metadata its type
+        needs must raise a reportable ``ValueError``.
+
+        The coercion arms read ``selection`` / ``tags`` / ``comodel`` straight
+        out of what is user data (a Properties column may hold the whole field
+        as a JSON string), so a missing key surfaced as a bare ``KeyError`` --
+        which ``for_model`` does not catch, aborting the entire ``load()``."""
+        for ptype, missing in (
+            ("selection", "selection"),
+            ("tags", "tags"),
+            ("many2one", "comodel"),
+            ("many2many", "comodel"),
+        ):
+            with self.subTest(type=ptype):
+                with self.assertRaises(ValueError) as cm:
+                    self.converter._str_to_properties(
+                        self.flds["bool"],
+                        [
+                            {
+                                "name": "p",
+                                "type": ptype,
+                                "string": "P",
+                                "value": "whatever",
+                            }
+                        ],
+                    )
+                self.assertIn(missing, str(cm.exception.args[0]))
+
+    def test_boolean_property_policy_path_matches_column(self):
+        """IFLD-34: a boolean Properties sub-value must resolve its import
+        policy under the column path ``<field>.<property>``, like the relational
+        ones (IFLD-24). Keyed off the parent Properties field, "Skip record"
+        chosen on a property column never applied, and the option offered on the
+        parent applied to every property at once.
+
+        The sentinel is the *whole field's* value, not a ``None`` parked inside
+        the payload: that payload is a non-empty list, so it is never ``None``
+        itself and the record-level check in ``load()`` could not see it
+        (IFLD-46)."""
+        payload = [
+            {"name": "mybool", "type": "boolean", "string": "My Bool", "value": "maybe"}
+        ]
+        column = self.converter.with_context(
+            import_file=True, import_skip_records=["is_company.mybool"]
+        )
+        value, warnings = column._str_to_properties(self.flds["bool"], payload)
+        self.assertIsNone(value, "the skip sentinel must propagate")
+        self.assertFalse(warnings)
+
+        parent = self.converter.with_context(
+            import_file=True, import_skip_records=["is_company"]
+        )
+        with self.assertRaises(ValueError):
+            parent._str_to_properties(self.flds["bool"], payload)
+
+    def test_xmlid_model_mismatch_does_not_depend_on_id_overlap(self):
+        """IFLD-35: an external id belonging to another model is reported as
+        such whether or not the expected model happens to own a record with the
+        same id.
+
+        The existence check was an inner ``JOIN`` on ``d.res_id = r.id`` with
+        nothing constraining ``d.model``, so a foreign xmlid was only diagnosed
+        when some unrelated record collided on the id, and otherwise reported
+        the same "no matching record found" a plain typo gives."""
+        self.env.cr.execute("SELECT COALESCE(max(id), 0) + 1000 FROM res_partner")
+        [free_id] = self.env.cr.fetchone()
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "ifld35_elsewhere",
+                "model": "res.lang",
+                "res_id": free_id,
+            }
+        )
+        self.env.flush_all()
+        result = self.env["res.partner"].load(
+            ["name", "parent_id/id"], [["IFLD35", "base.ifld35_elsewhere"]]
+        )
+        self.assertFalse(result["ids"])
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors)
+        self.assertIn("res.lang", errors[0]["message"])
+        self.assertNotIn("No matching record", errors[0]["message"])
+
+    def test_name_create_enabled_uses_the_full_field_path(self):
+        """IFLD-36: ``name_create_enabled_fields`` is keyed by the import UI's
+        field paths (``child_ids/parent_id``), like the two policy lists, and is
+        resolved through the same ``_import_policy_path``."""
+        result = (
+            self.env["res.partner"]
+            .with_context(
+                import_file=True,
+                name_create_enabled_fields={"child_ids/parent_id": True},
+            )
+            .load(
+                ["name", "child_ids/name", "child_ids/parent_id"],
+                [["IFLD36 Parent", "IFLD36 Child", "IFLD36 Created By Name"]],
+            )
+        )
+        self.assertFalse(result["messages"])
+        self.assertTrue(result["ids"])
+        created = self.env["res.partner"].search(
+            [("name", "=", "IFLD36 Created By Name")]
+        )
+        self.assertTrue(created, "the nested reference must have been name_created")
+
+    def test_import_policy_is_a_single_decision(self):
+        """IFLD-37: every converter resolves the import options to one
+        :class:`ImportPolicy`. They used to read an independent
+        ``(skip, set_empty)`` pair and each invent its own precedence for the
+        combination the UI cannot emit: a selection skipped the record while a
+        many2many quietly emptied itself."""
+        both = self.converter.with_context(
+            import_file=True,
+            import_skip_records=["type", "category_id", "parent_id"],
+            import_set_empty_fields=["type", "category_id", "parent_id"],
+        )
+        partner_fields = self.env["res.partner"]._fields
+        self.assertIsNone(both._str_to_selection(partner_fields["type"], "zzz")[0])
+        self.assertIsNone(
+            both._str_to_many2many(partner_fields["category_id"], [{None: "zzz"}])[0]
+        )
+        self.assertIsNone(
+            both._str_to_many2one(partner_fields["parent_id"], [{None: "zzz"}])[0]
+        )
+
+    def test_non_text_reference_is_a_clean_error(self):
+        """IFLD-38: a non-text reference must name the offending value's type,
+        not reach ``for_model``'s catch-all as ``'int' object has no attribute
+        'split'`` -- which reports the *enclosing list*'s type instead.
+
+        Both splitting call sites are covered: ``_resolve_reference_ids`` for
+        many2many, and ``_str_to_one2many``'s single-reference-cell branch,
+        which calls ``_split_references`` directly. The guard therefore lives in
+        ``_split_references``, the one place that requires text."""
+        partner_fields = self.env["res.partner"]._fields
+        converters = {
+            "category_id": self.converter._str_to_many2many,
+            "child_ids": self.converter._str_to_one2many,
+        }
+        for fname, convert in converters.items():
+            for raw in (12345, ["a", "b"]):
+                with self.subTest(field=fname, raw=raw):
+                    with self.assertRaises(ValueError) as cm:
+                        convert(partner_fields[fname], [{None: raw}])
+                    self.assertIn(type(raw).__name__, str(cm.exception.args[0]))
+
+    def test_name_create_enabled_does_not_leak_across_depths(self):
+        """IFLD-36 guard: a ``name_create_enabled_fields`` key at one depth must
+        not enable creation at another.
+
+        This is what the prefix-stripping the refactor removed used to enforce
+        structurally, by rebuilding a per-level dict; the full-path lookup has
+        to keep enforcing it, or a top-level "Create new values" would silently
+        start creating records for every same-named nested column."""
+        result = (
+            self.env["res.partner"]
+            .with_context(
+                import_file=True,
+                name_create_enabled_fields={"parent_id": True},
+            )
+            .load(
+                ["name", "child_ids/name", "child_ids/parent_id"],
+                [["IFLD36b Parent", "IFLD36b Child", "IFLD36b Must Not Exist"]],
+            )
+        )
+        errors = [m for m in result["messages"] if m.get("type") == "error"]
+        self.assertTrue(errors, "the nested reference must not resolve")
+        self.assertFalse(
+            self.env["res.partner"].search([("name", "=", "IFLD36b Must Not Exist")]),
+            "a top-level name_create option must not apply to a nested column",
+        )
+
     def test_nested_error_carries_its_own_field_path(self):
         """IFLD-31 guard: a one2many sub-field error still reports the deep path
         -- attached where the failing sub-field is actually known."""
@@ -862,6 +1074,293 @@ class TestFieldConverters(TransactionCase):
         messages = [m for m in result["messages"] if m.get("type") == "error"]
         self.assertTrue(messages)
         self.assertEqual(messages[0].get("field_path"), ["child_ids", "type"])
+
+    def test_many2one_reference_is_stripped_like_many2many(self):
+        """IFLD-39: whitespace around a reference is separator noise in a
+        many2one cell exactly as it is in a many2many one.
+
+        base_import strips only float and date cells, so " Foo " reached
+        ``name_search`` verbatim and failed the record, while the same spelling
+        in a many2many column resolved -- the two paths disagreeing about the
+        same character.
+        """
+        partner = self.env["res.partner"].create({"name": "IFLD39 Parent"})
+        tag = self.env["res.partner.category"].create({"name": "IFLD39 Tag"})
+        fields = self.env["res.partner"]._fields
+        for raw in (
+            "IFLD39 Parent",
+            " IFLD39 Parent",
+            "IFLD39 Parent ",
+            "\tIFLD39 Parent\n",
+        ):
+            with self.subTest(raw=raw):
+                got, warnings = self.converter._str_to_many2one(
+                    fields["parent_id"], [{None: raw}]
+                )
+                self.assertFalse(warnings)
+                self.assertEqual(got, partner.id)
+        commands, _w = self.converter._str_to_many2many(
+            fields["category_id"], [{None: " IFLD39 Tag "}]
+        )
+        self.assertEqual(commands, [Command.set([tag.id])])
+
+    def test_many2one_reference_accepts_a_raw_database_id(self):
+        """IFLD-39 guard: stripping must not impose a text requirement on the
+        single-reference path. ``load()`` is called with a record's ``int`` id
+        for a ``.id`` sub-field, which needs no splitting and so no text."""
+        partner = self.env["res.partner"].create({"name": "IFLD39b Partner"})
+        got, warnings = self.converter._str_to_many2one(
+            self.env["res.partner"]._fields["parent_id"], [{".id": partner.id}]
+        )
+        self.assertFalse(warnings)
+        self.assertEqual(got, partner.id)
+
+    def test_set_empty_many2one_is_false_not_the_skip_sentinel(self):
+        """IFLD-40: ``None`` is the record-skip sentinel every converter shares,
+        so "set value as empty" on a many2one must report ``False`` -- as the
+        selection and many2many converters already do -- not ``db_id_for``'s
+        bare ``None``."""
+        fields = self.env["res.partner"]._fields
+        converter = self.converter.with_context(
+            import_file=True,
+            import_set_empty_fields=["parent_id", "type"],
+        )
+        got, _w = converter._str_to_many2one(
+            fields["parent_id"], [{None: "IFLD40 nope"}]
+        )
+        self.assertIs(got, False)
+        self.assertIs(
+            converter._str_to_selection(fields["type"], "IFLD40 nope")[0], False
+        )
+
+    def test_skip_record_many2one_still_returns_none(self):
+        """IFLD-40 guard: the skip policy keeps the sentinel, so ``load()``
+        still drops the record."""
+        converter = self.converter.with_context(
+            import_file=True, import_skip_records=["parent_id"]
+        )
+        got, _w = converter._str_to_many2one(
+            self.env["res.partner"]._fields["parent_id"], [{None: "IFLD40b nope"}]
+        )
+        self.assertIsNone(got)
+
+    def test_database_id_possible_values_shows_database_ids(self):
+        """IFLD-41: both id sub-fields point at ``ir.model.data`` because its
+        list view shows ``res_id`` -- the database id a ``.id`` cell needs, and
+        which no comodel list view exposes by default. Retargeting ``.id`` at
+        the comodel on the grounds that external ids are not valid ``.id``
+        values drops the one column that answers the question."""
+        field = self.env["res.partner"]._fields["parent_id"]
+        for subfield in ("id", ".id"):
+            action = self.converter._possible_values_action(field, subfield)
+            self.assertEqual(action["res_model"], "ir.model.data")
+            self.assertEqual(action["domain"], [("model", "=", "res.partner")])
+        by_name = self.converter._possible_values_action(field, None)
+        self.assertEqual(by_name["res_model"], "res.partner")
+
+    def test_unparseable_datetime_is_reported_not_a_server_fault(self):
+        """IFLD-42: a value holding no datetime must be reported like any other
+        unparseable cell. ``fields.Datetime.from_string`` answers ``None`` for a
+        falsy value, which reached ``.replace(tzinfo=...)`` as an
+        ``AttributeError`` -- routed to ``for_model``'s catch-all, which logs a
+        traceback at ERROR and tells the user to read the server logs."""
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_datetime(self.flds["dt"], "")
+        self.assertIn("datetime", str(cm.exception.args[0]))
+
+    def test_malformed_property_definition_is_reported(self):
+        """IFLD-43: a Properties column may carry the whole field as JSON, so
+        the definitions are user data too. Their shape must be validated where
+        the presence of the keys already is, instead of surfacing as raw Python:
+        "not enough values to unpack (expected 3, got 2)" for a short ``tags``
+        row, or ``TypeError: unhashable`` for a non-text ``type``."""
+        field = self.env["res.partner"]._fields["properties"]
+        base = {"name": "p1", "string": "P1"}
+        cases = {
+            "short tags row": dict(base, type="tags", tags=[["a", "A"]], value="a"),
+            "short selection row": dict(
+                base, type="selection", selection=[["a"]], value="a"
+            ),
+            "non-text type": dict(base, type=["nonsense"], value=1),
+        }
+        for label, property_dict in cases.items():
+            with self.subTest(case=label):
+                with self.assertRaises(ValueError) as cm:
+                    self.converter._str_to_properties(field, [property_dict])
+                message = str(cm.exception.args[0])
+                self.assertNotIn("unpack", message)
+                self.assertNotIn("unhashable", message)
+
+    def test_non_numeric_property_value_is_reported(self):
+        """IFLD-43: a Properties sub-value is user data, so a JSON list or
+        object reaches ``int()`` / ``float()`` as readily as a bad string does.
+        Catching only ``ValueError`` sent that spelling to ``for_model``'s
+        catch-all, which logs a traceback at ERROR per cell."""
+        field = self.env["res.partner"]._fields["properties"]
+        base = {"name": "p1", "string": "P1"}
+        for property_type, value in (("integer", [1, 2]), ("float", {"a": 1})):
+            with self.subTest(type=property_type):
+                with self.assertRaises(ValueError) as cm:
+                    self.converter._str_to_properties(
+                        field, [dict(base, type=property_type, value=value)]
+                    )
+                self.assertIn("P1", str(cm.exception.args[0]))
+
+    def _define_partner_properties(self, definition):
+        """Install ``definition`` as res.partner's shared Properties definition."""
+        record = (
+            self.env["properties.base.definition"]
+            .sudo()
+            ._get_definition_for_property_field("res.partner", "properties")
+        )
+        record.properties_definition = definition
+        self.env.cr.flush()
+        self.env.registry.clear_cache()
+
+    def test_unknown_property_comodel_does_not_abort_the_import(self):
+        """IFLD-45: a relational property's ``comodel`` reaches ``self.env[...]``
+        as a ``KeyError``, which ``for_model`` does not catch -- so one bad name
+        in a pasted Properties JSON payload propagated out of ``load()`` and lost
+        every row, not just its own.
+
+        ``base_import`` drops relational property *columns* whose comodel is
+        unknown, but the whole-field JSON column it does offer carries its own
+        definitions, so the payload is user data all the way down."""
+        blob = json.dumps(
+            [
+                {
+                    "name": "p",
+                    "type": "many2one",
+                    "string": "P",
+                    "comodel": "no.such.model",
+                    "value": [{"id": "base.x"}],
+                }
+            ]
+        )
+        model = self.env["res.partner"].with_context(import_file=True)
+        result = model.load(
+            ["name", "properties"], [["IFLD45 Bad", blob], ["IFLD45 Good", ""]]
+        )
+        self.assertTrue(result["messages"], "the bad cell must be reported")
+        self.assertIn(
+            "no.such.model",
+            " ".join(m.get("message", "") for m in result["messages"]),
+        )
+
+    def test_skip_record_on_a_property_column_skips_the_record(self):
+        """IFLD-46: "Skip record" on a Properties column silently created the
+        record with that property set to null.
+
+        Two things kept the sentinel from arriving: ``_str_to_properties`` left
+        the sub-value's ``None`` inside its payload -- a non-empty list, so never
+        ``None`` itself -- and ``load()._import_skip_fields`` folded policy paths
+        on ``/`` only, leaving the ``.``-separated Properties path unmatchable.
+        """
+        self._define_partner_properties(
+            [{"name": "pb", "type": "boolean", "string": "PB"}]
+        )
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_skip_records=["properties.pb"]
+        )
+        self.assertEqual(model._import_skip_fields(), frozenset({"properties"}))
+        result = model.load(["name", "properties.pb"], [["IFLD46 SkipMe", "maybe"]])
+        self.assertFalse(result["ids"], "the record must be skipped, not created")
+        self.assertFalse(
+            self.env["res.partner"].search([("name", "=", "IFLD46 SkipMe")])
+        )
+
+    def test_set_empty_property_many2many_does_not_fail_the_import(self):
+        """IFLD-47: an unresolved reference arrives as ``None`` and has to be
+        spent by the Properties relational converter, exactly as the field
+        converters spend it. Kept in the payload, the list reached the ORM as
+        ``Wrong many2many value [42, None]`` -- a ``ValueError`` raised past
+        every converter, failing the whole import rather than the one cell the
+        policy was chosen for."""
+        self._define_partner_properties(
+            [
+                {
+                    "name": "pm",
+                    "type": "many2many",
+                    "string": "PM",
+                    "comodel": "res.partner.category",
+                }
+            ]
+        )
+        tag = self.env["res.partner.category"].create({"name": "IFLD47 Tag"})
+        model = self.env["res.partner"].with_context(
+            import_file=True, import_set_empty_fields=["properties.pm"]
+        )
+        result = model.load(
+            ["name", "properties.pm"], [["IFLD47 Mixed", "IFLD47 Tag,zzz nope zzz"]]
+        )
+        self.assertFalse(result["messages"])
+        self.assertTrue(result["ids"])
+        partner = self.env["res.partner"].browse(result["ids"][0])
+        self.assertEqual(partner.properties["pm"].ids, [tag.id])
+
+    def test_property_selection_obeys_the_import_policy(self):
+        """IFLD-48: the import UI offers "Set value as empty" and "Skip record"
+        on a property selection column exactly as it does on a selection field
+        (``get_fields`` publishes the sub-column under the property's own type),
+        but this arm consulted no policy at all, so both choices raised."""
+        field = self.flds["bool"]
+        payload = [
+            {
+                "name": "sel",
+                "type": "selection",
+                "string": "Sel",
+                "selection": [["a", "A"]],
+                "value": "nope",
+            }
+        ]
+        empty = self.converter.with_context(
+            import_file=True, import_set_empty_fields=["is_company.sel"]
+        )
+        self.assertIs(empty._str_to_properties(field, payload)[0][0]["value"], False)
+
+        skip = self.converter.with_context(
+            import_file=True, import_skip_records=["is_company.sel"]
+        )
+        self.assertIsNone(skip._str_to_properties(field, payload)[0])
+
+        with self.assertRaises(ValueError):
+            self.converter._str_to_properties(field, payload)
+
+    def test_nested_converter_is_built_once_per_import(self):
+        """IFLD-49: ``for_model`` exists to build each field's converter once per
+        model, but a one2many rebuilt that whole table -- plus an ``Environment``
+        fork for the hierarchy context -- for every *record*, so the cache never
+        survived a row (401 ``for_model`` calls for 400 records)."""
+        calls = []
+        converter_type = type(self.converter)
+        original = converter_type.for_model
+
+        def spy(this, model, fromtype=str):
+            calls.append(model._name)
+            return original(this, model, fromtype)
+
+        rows = [[f"IFLD49 P{i}", f"IFLD49 C{i}"] for i in range(25)]
+        with patch.object(converter_type, "for_model", spy):
+            result = self.env["res.partner"].load(["name", "child_ids/name"], rows)
+        self.assertFalse(result["messages"])
+        self.assertEqual(len(result["ids"]), 25)
+        self.assertLessEqual(
+            len(calls),
+            4,
+            "the one2many converter must be reused across records, not rebuilt "
+            f"per row (built {len(calls)} times for {len(rows)} records)",
+        )
+
+    def test_one2many_payload_is_validated_like_the_others(self):
+        """IFLD-44: the many2one / many2many converters validate their payload
+        because ``load()`` is public; the one holding *many* did not, so a
+        malformed payload surfaced as "'str' object has no attribute 'items'"
+        -- naming the type of the enclosing list, not of the bad element."""
+        with self.assertRaises(ValueError) as cm:
+            self.converter._str_to_one2many(
+                self.env["res.partner"]._fields["child_ids"], ["notadict"]
+            )
+        self.assertNotIn("has no attribute", str(cm.exception.args[0]))
 
 
 @tagged("post_install", "-at_install")

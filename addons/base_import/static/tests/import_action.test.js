@@ -634,7 +634,10 @@ describe("Import view", () => {
         mockService("action", {
             doAction(action) {
                 expect.step("action");
-                if (action !== 1) {
+                // Only the generated act_window is asserted: the ids dispatched
+                // by the harness (action 1 here, and action 2 from the
+                // `redirect` below) are not the subject of this test.
+                if (typeof action === "object") {
                     expect(action).toEqual(
                         {
                             type: "ir.actions.act_window",
@@ -666,7 +669,9 @@ describe("Import view", () => {
         redirect("/odoo/action-2");
         await mountWebClient();
         await getService("action").doAction(1);
-        expect.verifySteps(["action"]);
+        // `redirect("/odoo/action-2")` makes the web client dispatch action 2
+        // before this one, so two actions are seen here.
+        expect.verifySteps(["action", "action"]);
         queryOne(".o_nocontent_help").draggable = true;
         const file = new File(["fake_file"], "fake_file.csv", {
             type: "text/plain",
