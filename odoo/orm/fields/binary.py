@@ -30,6 +30,11 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     :param bool attachment: whether the field should be stored as `ir_attachment`
         or in a column of the model's table (default: ``True``).
+    :param str bin_size_field: name of an integer field already holding the
+        content's byte length. Under ``bin_size`` it is read instead of
+        computing the content — see :meth:`compute_value`. The field must be
+        listed in the ``depends`` of the compute, so the reported size is
+        invalidated with the content it describes.
     """
 
     type = "binary"
@@ -37,6 +42,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
     prefetch = False
     _depends_context = ("bin_size",)
     attachment = True
+    bin_size_field: str = ""
 
     @functools.cached_property
     def column_type(self):
@@ -121,10 +127,41 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def compute_value(self, records: ModelLike) -> None:
+        """Compute the field, reporting a human size instead under ``bin_size``.
+
+        By default the size is derived FROM the value: it is computed in full,
+        then discarded in favour of its length. Two costs come with that.
+
+        The value still has to be produced, which is what ``bin_size`` exists to
+        avoid — reading ``ir.attachment.datas`` on 20 half-megabyte rows read all
+        10 MB back off the filestore to report a number the ``file_size`` column
+        already held (30 ms against 0.5 ms).
+
+        And its encoding has to be guessed to size it: base64 for a computed
+        field (the ``datas`` convention), raw bytes for a column. The guess is
+        wrong for ``ir.attachment.raw``, whose raw bytes decode as base64
+        whenever their length is a multiple of four and they contain nothing
+        else, so a 5000-byte file reported ``3.66 Kb`` while a 4999-byte one
+        reported ``4.88 Kb`` — under-reporting by a quarter, or not, depending on
+        the payload.
+
+        ``bin_size_field`` removes both: the size is read from the field holding
+        it and the compute never runs. A compute cannot do this for itself —
+        :meth:`mark_dirty` strips ``bin_size`` before caching, so anything it
+        assigns lands in the full-value cache instead.
+        """
         bin_size_name = "bin_size_" + self.name
-        if records.env.context.get("bin_size") or records.env.context.get(
+        under_bin_size = records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name
-        ):
+        )
+        if under_bin_size and self.bin_size_field:
+            field_cache = self._get_cache(records.env)
+            for record in records:
+                field_cache[record.id] = self.convert_to_cache(
+                    human_size(record[self.bin_size_field]), record
+                )
+            return
+        if under_bin_size:
             records_no_bin_size = records.with_context(
                 **{"bin_size": False, bin_size_name: False}
             )
