@@ -2759,10 +2759,15 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         )
         self.assertEqual(messages, self.message_2 | self.message_3)
 
+        # "has any of", like the ``in`` of an ordinary many2many field, and
+        # like the single-value assertions above.  This used to be ``<@``
+        # ("every id I hold is among these"), which excluded message_1 -- even
+        # though ``in partners[0].ids`` above matches it -- so widening the
+        # list dropped records.
         messages = self.env["test_orm.message"].search(
             [("attributes.mymany2many", "in", partners[0:2].ids)]
         )
-        self.assertEqual(messages, self.message_2)
+        self.assertEqual(messages, self.message_1 | self.message_2)
 
     def test_properties_field_search_many2one(self):
         self.messages.discussion = self.discussion_1
@@ -2870,10 +2875,13 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
             [("attributes.mytags", "in", ["aa"])]
         )
         self.assertEqual(messages, self.message_3)
+        # message_1 holds ["a", "b"], so it has "b" and matches too -- as the
+        # ``in ["b", "a"]`` assertion above already shows.  The previous
+        # expectation excluded it, which is the ``<@`` subset semantics.
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "in", ["aa", "b"])]
         )
-        self.assertEqual(messages, self.message_3 | self.message_2)
+        self.assertEqual(messages, self.message_1 | self.message_2 | self.message_3)
         messages = self.env["test_orm.message"].search(
             [("attributes.mytags", "not in", ["a", "b"])]
         )
@@ -4313,6 +4321,60 @@ class PropertiesFilteredDomainParityCase(
             ),
             Message.browse(),
         )
+
+    def test_filtered_domain_tags_property_in(self):
+        """A tags property matches in memory, and ``in`` means "has any of".
+
+        ``Property.__getitem__`` renders a tags value as its joined display
+        LABELS (``"A, B"``), while the stored value -- and everything SQL
+        matches on -- is the list of KEYS (``["a", "b"]``).  ``selection`` has
+        the same split and ``expression_getter`` resolves it with the
+        ``property_selection_get_key`` context; tags had no equivalent, so
+        every in-memory domain on a tags property silently matched NOTHING
+        while ``search`` returned rows.
+
+        The multi-value cases also pin monotonicity: widening an ``in`` list
+        may only add records.  The SQL side used ``<@`` ("every key I hold is
+        among these") for two or more values but ``@>`` ("holds this one") for
+        exactly one, so ``in ["a"]`` matched a record that ``in ["a", "c"]``
+        then dropped.
+        """
+        self.messages.discussion = self.discussion_1
+        self.message_1.attributes = [
+            {
+                "name": "mytags",
+                "type": "tags",
+                "value": ["a", "b"],
+                "tags": [["a", "A", 1], ["b", "B", 2], ["c", "C", 3]],
+                "definition_changed": True,
+            }
+        ]
+        self.message_2.attributes = {"mytags": ["b"]}
+        self.message_3.attributes = {"mytags": []}
+
+        Message = self.env["test_orm.message"]
+
+        for domain, expected in (
+            ([("attributes.mytags", "in", ["a"])], self.message_1),
+            ([("attributes.mytags", "in", ["b"])], self.message_1 | self.message_2),
+            ([("attributes.mytags", "in", ["c"])], Message.browse()),
+            # widening never removes a match
+            (
+                [("attributes.mytags", "in", ["a", "c"])],
+                self.message_1,
+            ),
+            (
+                [("attributes.mytags", "in", ["a", "b"])],
+                self.message_1 | self.message_2,
+            ),
+            (
+                [("attributes.mytags", "in", ["a", "b", "c"])],
+                self.message_1 | self.message_2,
+            ),
+        ):
+            with self.subTest(domain=domain):
+                self.assertEqual(self._search(Message, domain), expected)
+                self.assertEqual(self.messages.filtered_domain(domain), expected)
 
     def test_filtered_domain_integer_property_zero(self):
         self.messages.discussion = self.discussion_1

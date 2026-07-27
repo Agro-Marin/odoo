@@ -205,12 +205,20 @@ class Properties(Field):
         decides. When it cannot be read (no container, or a write spanning
         several containers) an unresolvable recordset is refused by name, which
         is still far better than the psycopg failure it replaces.
+
+        Only the three ways the definition can legitimately be unreadable are
+        swallowed: no single container to ask (``ValueError`` from
+        ``ensure_one``), a deleted one (``MissingError``), or one this user may
+        not read (``AccessError``).  Catching everything also hid real faults --
+        a typo'd ``definition``, a broken ``_get_properties_definition``
+        override -- and reported them as "this property declares no relational
+        type", which points at the caller's value instead of the actual defect.
         """
         if not any(is_recordset(value) for value in values.values()):
             return values
 
         types_by_name: dict[str, str] = {}
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(AccessError, MissingError, ValueError):
             for definition in self._get_properties_definition(record) or ():
                 if definition.get("name"):
                     types_by_name[definition["name"]] = definition.get("type")
@@ -773,7 +781,29 @@ class Properties(Field):
             domain = Domain("id", "in", value).optimize(records)
         if domain is not None:
             return lambda rec: getter(rec).filtered_domain(domain)
-        return super().filter_function(records, field_expr, operator, value)
+
+        match = super().filter_function(records, field_expr, operator, value)
+        if operator != "in" or not isinstance(value, COLLECTION_TYPES):
+            return match
+
+        # A ``tags`` property holds a LIST of keys, so the scalar membership
+        # test the base class builds is wrong for it -- and raises outright on
+        # the unhashable list.  ``in`` means "has any of" here, as it does for
+        # every other collection-valued field (a many2many property already
+        # gets that from the recordset branch above).  The base class keeps
+        # owning the falsy case, so an empty list matches exactly when it did.
+        # Shape is probed per record, not once: the definition comes from the
+        # container, so two records of one recordset can disagree on the type.
+        value_set = value if isinstance(value, abc.Set) else set(value)
+        match_empty = False in value_set or self.falsy_value in value_set
+
+        def match_collection(rec):
+            rec_value = getter(rec)
+            if type(rec_value) is not list:
+                return match(rec)
+            return match_empty if not rec_value else not value_set.isdisjoint(rec_value)
+
+        return match_collection
 
     def property_to_sql(
         self,
@@ -784,7 +814,15 @@ class Properties(Field):
         query: Query,
     ) -> SQL:
         check_property_field_value_name(property_name)
-        return SQL("(%%s -> '%s')" % property_name, field_sql)
+        # Bound, not spliced into the SQL text.  The name was safe -- the check
+        # above allows only ``[a-z0-9_]`` -- but that made a validator three
+        # frames up the sole thing standing between a caller-supplied string
+        # and the query, which is exactly how this pattern stops being safe.
+        # The sibling read path (:meth:`condition_to_sql`) already bound it.
+        # A grouping key still compares byte-identically between SELECT and
+        # GROUP BY: ``_read_group_groupby`` ends with ``SQL.inlined(cr)``,
+        # which turns the parameter back into a literal for that one use.
+        return SQL("(%s -> %s)", field_sql, property_name)
 
     @override
     def condition_to_sql(
@@ -831,26 +869,41 @@ class Properties(Field):
                             SQL("NOT (%s ? %s)", raw_sql_field, property_name),
                         )
                     )
-            if len(value) == 1:
-                sql_operator = SQL_OPERATORS["=" if operator == "in" else "!="]
-                sql_right = SQL("%s", json.dumps(value[0]))
-                sqls.append(SQL("%s%s%s", sql_left, sql_operator, sql_right))
-            if value:
-                sql_not = SQL("NOT ") if operator == "not in" else SQL.EMPTY
-                if len(value) > 1:
-                    sql_operator = SQL(" <@ ")
-                else:
-                    sql_operator = SQL(" @> ")
-                sql_right = SQL("%s", json.dumps(value))
-                sqls.append(
-                    SQL(
-                        "%s%s%s%s",
-                        sql_not,
-                        sql_left,
-                        sql_operator,
-                        sql_right,
+            # One test per value, not one test for the whole set.  A property
+            # holds either a scalar (char, selection, ...) or a LIST (tags,
+            # many2many), so matching one value means "equals it" OR "contains
+            # it" -- which is what the single-value case always did.  The
+            # multi-value case instead used ``<@``, "every value I hold is
+            # among these", and that is a different question: with tags
+            # ``["a", "b"]``, ``in ["a"]`` matched but ``in ["a", "c"]`` did
+            # not, so *widening* an ``in`` list dropped records.  It also
+            # disagreed with ``filtered_domain`` and with the ``in`` of an
+            # ordinary many2many field, both of which mean "has any of".
+            # ``?|`` would express it in one operator but only for string
+            # elements, so it cannot serve many2many ids.
+            for one_value in value:
+                sql_value = SQL("%s", json.dumps(one_value))
+                sql_array = SQL("%s", json.dumps([one_value]))
+                if operator == "in":
+                    sqls.append(
+                        SQL(
+                            "(%s = %s OR %s @> %s)",
+                            sql_left,
+                            sql_value,
+                            sql_left,
+                            sql_array,
+                        )
                     )
-                )
+                else:
+                    sqls.append(
+                        SQL(
+                            "(%s != %s AND NOT %s @> %s)",
+                            sql_left,
+                            sql_value,
+                            sql_left,
+                            sql_array,
+                        )
+                    )
             assert sqls, "No SQL generated for property"
             if len(sqls) == 1:
                 return sqls[0]
@@ -984,9 +1037,16 @@ class Property(abc.Mapping):
             )
 
         if prop.get("type") == "tags" and prop.get("value"):
-            return ", ".join(
-                tag[1] for tag in prop.get("tags") if tag[0] in prop["value"]
-            )
+            tags = prop.get("tags") or ()
+            if self.record.env.context.get("property_selection_get_key"):
+                # Same escape hatch as ``selection`` just above, for the same
+                # reason: domain evaluation needs the stored KEYS, not the
+                # labels.  Without it ``expression_getter`` handed
+                # ``filtered_domain`` a ``"A, B"`` display string while the SQL
+                # side matched ``["a", "b"]``, so every in-memory domain on a
+                # tags property silently matched nothing.
+                return [tag[0] for tag in tags if tag[0] in prop["value"]]
+            return ", ".join(tag[1] for tag in tags if tag[0] in prop["value"])
 
         value = prop.get("value")
         if prop.get("type") not in ("integer", "float") or value != 0:
