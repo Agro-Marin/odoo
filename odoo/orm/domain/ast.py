@@ -1264,6 +1264,64 @@ class DomainCondition(Domain):
             )
         )
 
+    def _is_search_defined(self, records: BaseModel) -> bool:
+        """Whether a ``search`` method, not the field's value, defines this condition.
+
+        The rewrites registered at ``FULL`` -- a field's ``search`` method, and
+        the inherited-field hop onto the parent -- were reached by ``_to_sql``
+        and never by ``_as_predicate``, which stops at ``DYNAMIC_VALUES``.  The
+        two evaluators therefore answered different *questions* for the same
+        domain: ``('currency_id', 'like', 'a')`` asked PostgreSQL for currencies
+        whose ``full_name`` or ``name`` matches
+        (``res.currency._search_display_name``) and asked Python whether the
+        rendered ``display_name`` matches, so ``search()`` returned 10 countries
+        and ``filtered_domain()`` none.  A search-vs-filter differential over
+        24 150 ``(model, field, operator, value)`` triples found 116 such
+        divergences, every one of this shape.
+
+        ``search()`` is the reference: ``filtered_domain`` exists to reproduce
+        it over an in-memory subset, which is how the web client uses it.
+        """
+        field = self._field(records)
+        return bool((field.search and field.name == self.field_expr) or field.inherited)
+
+    def _search_defined_predicate(
+        self, records: BaseModel
+    ) -> Callable[[BaseModel], bool]:
+        """Answer a search-defined condition by running the search itself.
+
+        Evaluating the *rewritten* domain in memory instead is wrong, and
+        expensively so: the rewrite names fields of the corecords, and reading
+        them raises ``AccessError`` for any record a rule hides, where
+        ``search()`` simply filters it out inside the sub-SELECT.  That turned
+        116 silent disagreements into hard failures on ordinary record rules
+        (``test_like_complement_m2o_access``).
+
+        Delegating to ``_search`` over exactly the records being filtered gets
+        the semantics right by construction -- it *is* the SQL path, so record
+        rules, field ACL and the search method's own rewriting all behave as
+        they do for ``search()`` -- at one query per condition, not per record.
+        This is the pattern the ``SQL``-valued branch below already uses.
+
+        New records have no row to search, so they keep the in-memory answer:
+        it is the only one available, and it is what ``filtered_domain`` gave
+        before.  ``active_test=False`` matches the surrounding predicate
+        contract -- filtering must not silently drop archived records.
+        """
+        real_ids = [id_ for id_ in records._ids if id_]
+        matched: set = set()
+        if real_ids:
+            query = records.with_context(active_test=False)._search(
+                DomainCondition("id", "in", OrderedSet(real_ids)) & self
+            )
+            matched = set(query.get_result_ids())
+
+        if all(records._ids):
+            return lambda rec: rec._ids[0] in matched
+
+        in_memory = self._value_predicate(records)
+        return lambda rec: rec._ids[0] in matched if rec._ids[0] else in_memory(rec)
+
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         if not records:
             return lambda _: False
@@ -1279,6 +1337,19 @@ class DomainCondition(Domain):
                 domain = self._optimize(records, OptimizationLevel.FULL)
             return domain._as_predicate(records)
 
+        if self._is_search_defined(records):
+            return self._search_defined_predicate(records)
+
+        return self._value_predicate(records)
+
+    def _value_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
+        """Build the predicate from the field's own value.
+
+        The tail of :meth:`_as_predicate`, split out so
+        :meth:`_search_defined_predicate` can reuse it verbatim for the new
+        records it cannot delegate a search for.
+        """
+        op = self.operator
         if not all(records._ids):
             fallback = getattr(self, "_predicate_fallback", None)
             if fallback is not None:
