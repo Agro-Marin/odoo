@@ -805,7 +805,7 @@ class IrActionsServer(models.Model):
                 )
             )
 
-    def _get_readable_fields(self) -> frozenset[str]:
+    def _get_readable_fields(self) -> set[str]:
         return super()._get_readable_fields() | {
             "group_ids",
             "model_name",
