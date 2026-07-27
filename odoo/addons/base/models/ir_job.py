@@ -8,6 +8,19 @@ or vanish together).  Dedicated workers (``WorkerJob`` in prefork mode, the
 on a ``job_queue`` NOTIFY, claim work with ``FOR NO KEY UPDATE SKIP LOCKED``
 and execute it in-process, each job in its own transaction.
 
+``pending`` means *claimable this instant*, nothing weaker.  A job waiting on
+its ``eta`` -- a caller's "run this tonight", or the exponential backoff of a
+retry -- is ``scheduled`` until :meth:`IrJob._promote_due_jobs` moves it over.
+The distinction is what keeps ``ir_job_claim_idx`` exact: while delayed jobs
+shared ``pending``, they sat in that index ahead of the ready ones (they are
+older, and it is ordered by ``priority, create_date``), so every claim walked
+past them and Postgres eventually abandoned the index for a sequential scan.
+Measured on the real table: a claim costs 0.055 ms on an idle queue, 5.5 ms
+behind 50k delayed jobs and 23.6 ms behind 200k -- linear, and since claims
+serialize on one advisory lock that figure *is* the database's claim
+throughput.  Holding delayed jobs in their own state keeps it at 0.055 ms
+however many of them are waiting.
+
 Enqueue API (only methods decorated with :func:`odoo.api.job` are accepted)::
 
     records.delayed(priority=5, eta=60)._my_job_method("a", k=2)
@@ -25,6 +38,7 @@ import logging
 import os
 import socket
 import threading
+import time
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -35,16 +49,31 @@ from typing import Any
 import psycopg.errors
 
 from odoo import api, db, fields, models
-from odoo.exceptions import RetryableJobError, UserError, ValidationError
+from odoo.api import SUPERUSER_ID
+from odoo.exceptions import (
+    RetryableJobError,
+    TerminalJobError,
+    UserError,
+    ValidationError,
+)
 from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
 from odoo.tools import SQL
 
-from .ir_cron import ODOO_NOTIFY_FUNCTION, BadVersionError, IrCron
+from .ir_cron import (
+    ODOO_NOTIFY_FUNCTION,
+    BadModuleStateError,
+    BadVersionError,
+    IrCron,
+    worker_real_time_budget,
+)
 
 _logger = logging.getLogger(__name__)
 
 JOB_QUEUE_CHANNEL = "job_queue"
+
+NOTIFY_PENDING_KEY = "ir.job.notify"
+"""``cr.postcommit.data`` key coalescing a transaction's worker wake-ups."""
 
 ALLOWED_CONTEXT_KEYS = ("lang", "tz", "allowed_company_ids")
 
@@ -55,8 +84,24 @@ RETRY_BACKOFF_MAX_S = 3600
 
 CLAIM_MAX_ATTEMPTS = 10
 
+DRAIN_BUDGET_RATIO = 0.4
+"""Fraction of the worker's real-time limit a single drain pass may consume.
+
+Below a half because the prefork worker pings its watchdog *before* sleeping:
+``WorkerCron.sleep`` caps its select at half the watchdog timeout, so a pass
+that starts after a full idle sleep only has the other half of the window left.
+Unlike the cron backstop, a drain reaches this bound on any real backlog, so it
+is sized for the worst case rather than the typical one.
+"""
+
+MAINTENANCE_INTERVAL_S = 30
+REAP_BATCH_SIZE = 1000
+
 DONE_RETENTION = timedelta(days=7)
 FAILED_RETENTION = timedelta(days=30)
+
+_last_maintenance: dict[str, float] = {}
+"""Per-process monotonic clock of the last maintenance sweep, by database."""
 
 
 class JobState(StrEnum):
@@ -70,6 +115,7 @@ class JobState(StrEnum):
     """
 
     WAIT_DEPS = "wait_deps"
+    SCHEDULED = "scheduled"
     PENDING = "pending"
     STARTED = "started"
     DONE = "done"
@@ -79,6 +125,7 @@ class JobState(StrEnum):
 
 STATES = [
     (JobState.WAIT_DEPS, "Waiting Dependencies"),
+    (JobState.SCHEDULED, "Scheduled"),
     (JobState.PENDING, "Pending"),
     (JobState.STARTED, "Started"),
     (JobState.DONE, "Done"),
@@ -86,8 +133,31 @@ STATES = [
     (JobState.CANCELLED, "Cancelled"),
 ]
 
-QUEUED_STATES = (JobState.WAIT_DEPS, JobState.PENDING, JobState.STARTED)
+QUEUED_STATES = (
+    JobState.WAIT_DEPS,
+    JobState.SCHEDULED,
+    JobState.PENDING,
+    JobState.STARTED,
+)
 """States in which a job still owes work, and so holds its ``identity_key``."""
+
+CANCELLABLE_STATES = (JobState.WAIT_DEPS, JobState.SCHEDULED, JobState.PENDING)
+"""States a job can still be cancelled from -- everything not yet running."""
+
+RUNNABLE_STATES = (JobState.SCHEDULED, JobState.PENDING)
+"""States "Run Manually" accepts: a job whose only obstacle is its clock."""
+
+_DUE_STATE_SQL = SQL(
+    "CASE WHEN eta IS NULL OR eta <= (now() AT TIME ZONE 'UTC')"
+    " THEN 'pending' ELSE 'scheduled' END"
+)
+"""Which queued state a job belongs in *right now*, given its ``eta``.
+
+``pending`` means claimable this instant; a job waiting on its clock is
+``scheduled``.  Every writer that puts a job back in the queue -- enqueue, retry
+backoff, dependency release, the repair sweep -- has to make that distinction,
+and each one spelling it out separately is how they drift.
+"""
 
 DEAD_DEPENDENCY_STATES = (JobState.FAILED, JobState.CANCELLED)
 """Dependency states that cascade-cancel whatever is waiting on them."""
@@ -108,6 +178,48 @@ def _states_sql(states: tuple[JobState, ...]) -> str:
 QUEUED_STATES_SQL = _states_sql(QUEUED_STATES)
 
 
+def _format_exception(exc: BaseException) -> str:
+    """Render *exc* and its traceback.
+
+    Formatted from the exception object rather than from ``format_exc()``,
+    which reads the *caller's* ``except`` block: every caller outside one --
+    a test, a future direct call -- silently stored ``"NoneType: None"`` as
+    the job's traceback, and the coupling was invisible at the call site.
+    """
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+def _job_config_of(model_cls: type, method_name: str) -> dict | None:
+    """The :func:`odoo.api.job` configuration of *method_name*, or ``None``.
+
+    Resolved along the MRO rather than off the most-derived function, because
+    ``@api.job`` marks a *function* while Odoo composes models out of one class
+    per extending module.  A module doing the ordinary thing::
+
+        class ResPartner(models.Model):
+            _inherit = "res.partner"
+
+            def _sync_to_wms(self, batch_size=100):
+                ...
+                return super()._sync_to_wms(batch_size)
+
+    puts an undecorated function first in the MRO, and the marker vanished:
+    every enqueue of that method started raising, and rows already queued for it
+    refused to run.  Nothing said so at import time -- the trap sprang in
+    production, on a method the module never meant to change the nature of.
+
+    Walking the chain means "declared a job anywhere in its own inheritance" is
+    what counts, which is the property the decorator was always describing.  It
+    does not widen the security contract :meth:`IrJob._run_claimed` rests on: a
+    name that no class in the chain decorated still resolves to ``None``.
+    """
+    for klass in model_cls.__mro__:
+        func = klass.__dict__.get(method_name)
+        if func is not None and (job_config := getattr(func, "_job_config", None)):
+            return job_config
+    return None
+
+
 def _advisory_key_sql(job_id: int) -> SQL:
     """Bigint advisory-lock key for a job id (single source for claim/reaper)."""
     return SQL("hashtextextended('ir_job:' || %s::text, 0)", job_id)
@@ -123,8 +235,16 @@ def _job_session_lock(cr, job_id: int, *, blocking: bool = True) -> Iterator[boo
     (:meth:`IrJob._reap_dead_jobs`), so the acquire/release pair must not drift
     between its two call sites: releasing a lock never taken would decrement
     somebody else's hold, and leaking one would make a finished job look
-    forever running.  It is session-scoped, so it deliberately survives the
-    ``commit`` the claim loop does inside the block.
+    forever running.  It is session-scoped, so it deliberately survives every
+    ``commit`` made inside the block -- the claim loop's, and any the job's own
+    code performs.
+
+    The release tolerates a failure: leaving the block through a database error
+    leaves the transaction aborted, and an unlock that raised there would mask
+    the exception that caused it.  Nothing leaks, because the pool runs
+    ``pg_advisory_unlock_all()`` when the connection goes back (see
+    ``odoo.db.lifecycle``), and a lock still held within the same session is
+    re-entrant rather than self-blocking.
     """
     if blocking:
         cr.execute(SQL("SELECT pg_advisory_lock(%s)", _advisory_key_sql(job_id)))
@@ -136,7 +256,16 @@ def _job_session_lock(cr, job_id: int, *, blocking: bool = True) -> Iterator[boo
         yield acquired
     finally:
         if acquired:
-            cr.execute(SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id)))
+            try:
+                cr.execute(
+                    SQL("SELECT pg_advisory_unlock(%s)", _advisory_key_sql(job_id))
+                )
+            except psycopg.Error:
+                _logger.warning(
+                    "Job %s: could not release its liveness lock, "
+                    "leaving it to the connection pool",
+                    job_id,
+                )
 
 
 class DelayedProxy:
@@ -218,10 +347,17 @@ class IrJobChannel(models.Model):
     ``capacity`` bounds how many jobs of the channel run concurrently across
     the whole cluster (enforced by the claim query).  A channel referenced by
     jobs but absent from this table has an implicit capacity of 1.
+
+    Archiving a channel *pauses* it: its jobs stay ``pending`` and claimable
+    again the moment it is unarchived.  It deliberately does not fall back to
+    the implicit capacity, which would silently turn "switch this channel off"
+    into "run it one at a time" -- the opposite of the intent, and invisible
+    because an archived row also drops out of the default list view.
     """
 
     _name = "ir.job.channel"
     _description = "Background Job Channel"
+    _order = "name"
     _allow_sudo_commands = False
 
     name = fields.Char(required=True)
@@ -231,13 +367,52 @@ class IrJobChannel(models.Model):
         help="Maximum number of jobs of this channel running concurrently, "
         "across all job workers.",
     )
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(
+        default=True,
+        help="Archived channels are paused: none of their jobs is claimed "
+        "until the channel is restored.",
+    )
+    running_count = fields.Integer(
+        string="Running",
+        compute="_compute_running_count",
+        help="Jobs of this channel currently executing, across all workers.",
+    )
+    pending_count = fields.Integer(
+        string="Pending",
+        compute="_compute_running_count",
+        help="Jobs of this channel waiting to be claimed.",
+    )
 
     _name_uniq = models.UniqueIndex("(name)", "Channel names must be unique.")
     _check_capacity = models.Constraint(
         "CHECK(capacity > 0)",
         "The channel capacity must be strictly positive.",
     )
+
+    @api.depends("name")
+    def _compute_running_count(self) -> None:
+        """Count this channel's in-flight and queued jobs.
+
+        Depends only on ``name`` — the ``ir_job`` rows it counts are not a
+        field path the ORM can trigger on, so the pair is a read-time snapshot
+        (as an operational gauge should be) rather than a maintained value.
+        """
+        counts = {
+            (channel, state): count
+            for channel, state, count in self.env["ir.job"]
+            .sudo()
+            ._read_group(
+                [
+                    ("channel", "in", self.mapped("name")),
+                    ("state", "in", (JobState.STARTED, JobState.PENDING)),
+                ],
+                ["channel", "state"],
+                ["__count"],
+            )
+        }
+        for record in self:
+            record.running_count = counts.get((record.name, JobState.STARTED), 0)
+            record.pending_count = counts.get((record.name, JobState.PENDING), 0)
 
 
 class IrJob(models.Model):
@@ -303,7 +478,11 @@ class IrJob(models.Model):
     )
 
     _claim_idx = models.Index("(priority, create_date, id) WHERE state = 'pending'")
+    _due_idx = models.Index("(eta) WHERE state = 'scheduled'")
     _capacity_idx = models.Index("(channel) WHERE state = 'started'")
+    _retention_idx = models.Index(
+        "(done_at) WHERE state IN ('done', 'failed', 'cancelled')"
+    )
     _identity_uniq = models.UniqueIndex(
         f"(identity_key) WHERE state IN {QUEUED_STATES_SQL}"
         " AND identity_key IS NOT NULL",
@@ -381,8 +560,7 @@ class IrJob(models.Model):
         ``record_ids = []`` and the job would later run against nothing, doing
         no work and reporting success.
         """
-        func = getattr(type(records), method_name, None)
-        job_config = getattr(func, "_job_config", None)
+        job_config = _job_config_of(type(records), method_name)
         if job_config is None:
             raise UserError(
                 self.env._(
@@ -404,7 +582,9 @@ class IrJob(models.Model):
         try:
             args_json = json.dumps(list(args))
             kwargs_json = json.dumps(dict(kwargs or {}))
-        except TypeError as exc:
+        except (TypeError, ValueError) as exc:
+            # ValueError too: a self-referential argument raises "Circular
+            # reference detected", not TypeError, and escaped as a raw traceback
             raise UserError(
                 self.env._(
                     "Job arguments for %(model)s.%(method)s must be "
@@ -419,19 +599,24 @@ class IrJob(models.Model):
             eta = fields.Datetime.now() + timedelta(seconds=eta)
 
         env = self.env
-        state = JobState.PENDING
+        state = (
+            JobState.SCHEDULED
+            if eta and eta > fields.Datetime.now()
+            else JobState.PENDING
+        )
         dep_ids: list[int] = []
         if after:
             if after._name != self._name:
                 raise UserError(self.env._("Job dependencies must be ir.job records."))
-            dep_ids = after.ids
             env.cr.execute(
                 SQL(
-                    "SELECT state FROM ir_job WHERE id IN %s",
-                    tuple(dep_ids),
+                    "SELECT id, state FROM ir_job WHERE id IN %s",
+                    tuple(after.ids),
                 )
             )
-            dep_states = {r[0] for r in env.cr.fetchall()}
+            dep_rows = env.cr.fetchall()
+            dep_ids = [row[0] for row in dep_rows]
+            dep_states = {row[1] for row in dep_rows}
             if dep_states & set(DEAD_DEPENDENCY_STATES):
                 raise UserError(
                     self.env._(
@@ -498,6 +683,17 @@ class IrJob(models.Model):
                 )
             )
             row = env.cr.fetchone()
+            if dep_ids:
+                _logger.warning(
+                    "ir.job %s.%s deduplicated on identity key %r: the job it "
+                    "was chained after (%s) is NOT a dependency of the "
+                    "existing job %s, which may therefore run first",
+                    records._name,
+                    method_name,
+                    identity_key,
+                    dep_ids,
+                    row[0] if row else None,
+                )
         elif dep_ids:
             env.cr.execute(
                 SQL(
@@ -508,13 +704,28 @@ class IrJob(models.Model):
                 )
             )
         if state == JobState.PENDING:
-            env.cr.postcommit.add(self._notifydb)
+            self._notify_after_commit(env.cr)
         return self.browse(row[0])
 
-    @api.model
-    def _notifydb(self) -> None:
-        """Wake up the job workers (cross-database: they LISTEN on 'postgres')."""
-        IrJob._notify_workers(self.env.cr.dbname)
+    @staticmethod
+    def _notify_after_commit(cr) -> None:
+        """Queue exactly one worker wake-up for the whole transaction.
+
+        ``postcommit`` is an append-only queue, so registering the wake-up per
+        enqueue made a transaction that queued N jobs pay N round-trips to the
+        ``postgres`` database *after* commit -- measured at 1.4 s for 500 jobs,
+        all of it latency the enqueuing request cannot overlap with anything.
+        One NOTIFY wakes every worker, so the extra ones bought nothing.
+
+        ``postcommit.data`` is the sentinel's home because it is cleared with
+        the callback queue itself, on commit *and* on rollback, so the flag
+        cannot leak into the next transaction on the same cursor.
+        """
+        if cr.postcommit.data.get(NOTIFY_PENDING_KEY):
+            return
+        cr.postcommit.data[NOTIFY_PENDING_KEY] = True
+        db_name = cr.dbname
+        cr.postcommit.add(lambda: IrJob._notify_workers(db_name))
 
     @staticmethod
     def _notify_workers(db_name: str) -> None:
@@ -532,43 +743,53 @@ class IrJob(models.Model):
 
     @staticmethod
     def _process_jobs(db_name: str) -> None:
-        """Claim and execute every ready job of this database.
+        """Claim and execute the ready jobs of this database.
 
         Entry point for ``WorkerJob.process_work`` and the threaded server's
         ``job_thread`` — the ``ir.job`` counterpart of
         ``IrCron._process_jobs``, sharing its guard structure: pre-flight
         checks run on a raw cursor without loading the registry (a
         wrong-version or mid-upgrade database must not be loaded at all).
+
+        The drain is bounded by :meth:`_drain_deadline` rather than by the
+        queue: both servers measure a worker against ``limit_time_real_cron``
+        over the *whole* call (the prefork master pings its watchdog once per
+        ``process_work``, the threaded server stamps ``thread.start_time`` once
+        per database), so an unbounded drain of a large backlog guaranteed a
+        SIGKILL mid-job — which then reaped and retried that job, burning its
+        budget one watchdog period at a time.  Returning at the deadline lets
+        the worker loop ping, re-check its limits and come straight back.
         """
+        previous_dbname = getattr(threading.current_thread(), "dbname", None)
         try:
             db_conn = db.db_connect(db_name)
             threading.current_thread().dbname = db_name
             with db_conn.cursor() as pre_cr:
                 IrCron._check_version(pre_cr)
-                pre_cr.execute(
-                    "SELECT EXISTS (SELECT 1 FROM ir_module_module"
-                    " WHERE state IN ('to install', 'to upgrade', 'to remove'))"
-                )
-                if pre_cr.fetchone()[0]:
+                if IrCron._modules_are_changing(pre_cr):
                     _logger.debug(
                         "Skipping database %s because of modules to"
                         " install/upgrade/remove.",
                         db_name,
                     )
                     return
-                IrJob._reap_dead_jobs(pre_cr)
-                IrJob._resolve_dependencies(pre_cr)
-                pre_cr.commit()
+            IrJob._run_maintenance(db_conn)
+            IrJob._run_promotion(db_conn)
+            with db_conn.cursor() as pre_cr:
                 pre_cr.execute(
-                    "SELECT EXISTS (SELECT 1 FROM ir_job WHERE state = 'pending'"
-                    " AND (eta IS NULL OR eta <= (now() AT TIME ZONE 'UTC')))"
+                    "SELECT EXISTS (SELECT 1 FROM ir_job WHERE state = 'pending')"
                 )
                 if not pre_cr.fetchone()[0]:
                     return
-            IrJob._claim_and_run_loop(db_name)
+            IrJob._claim_and_run_loop(db_name, deadline=IrJob._drain_deadline())
         except BadVersionError:
             _logger.warning(
                 "Skipping database %s as its base version is not current.", db_name
+            )
+        except BadModuleStateError:
+            _logger.warning(
+                "Skipping database %s because of modules to install/upgrade/remove.",
+                db_name,
             )
         except psycopg.errors.UndefinedTable:
             _logger.debug("No ir_job table on database %s.", db_name)
@@ -577,26 +798,184 @@ class IrJob(models.Model):
         except Exception:
             _logger.exception("Unexpected exception in job queue for %s:", db_name)
         finally:
-            if hasattr(threading.current_thread(), "dbname"):
-                del threading.current_thread().dbname
+            if previous_dbname is None:
+                if hasattr(threading.current_thread(), "dbname"):
+                    del threading.current_thread().dbname
+            else:
+                threading.current_thread().dbname = previous_dbname
 
     @staticmethod
-    def _claim_and_run_loop(db_name: str) -> None:
-        """Drain ready jobs: claim → lock → commit → execute → finalize."""
+    def _drain_deadline() -> float | None:
+        """Monotonic instant at which a drain pass must hand back control.
+
+        Derived from :func:`worker_real_time_budget`, the same option the
+        servers police workers with.  The margin leaves room for the job that is
+        running when the deadline falls due, which is not interrupted — a
+        *single* job longer than the budget is still killed by the watchdog,
+        which no bound here can prevent.
+        """
+        budget = worker_real_time_budget()
+        return time.monotonic() + budget * DRAIN_BUDGET_RATIO if budget else None
+
+    @staticmethod
+    def _promote_due_jobs(cr) -> int:
+        """Move ``scheduled`` jobs whose ``eta`` has arrived into ``pending``.
+
+        The counterpart of holding delayed work out of ``pending``: something
+        has to put it back.  Driven by ``ir_job_due_idx``, so on an idle queue
+        it matches nothing and touches no heap page.
+
+        Takes a cursor, like :meth:`_reap_dead_jobs` and
+        :meth:`_resolve_dependencies`, so the whole queue state machine stays
+        exercisable inside a single test transaction; :meth:`_run_promotion`
+        is the wrapper that gives it a transaction of its own in a worker.
+        """
+        cr.execute(
+            "UPDATE ir_job SET state = 'pending',"
+            " write_date = (now() AT TIME ZONE 'UTC')"
+            " WHERE state = 'scheduled'"
+            " AND (eta IS NULL OR eta <= (now() AT TIME ZONE 'UTC'))"
+        )
+        if cr.rowcount:
+            _logger.debug("Promoted %s scheduled job(s) now due", cr.rowcount)
+        return cr.rowcount
+
+    @staticmethod
+    def _run_promotion(db_conn) -> int:
+        """Run :meth:`_promote_due_jobs` once, on a transaction of its own.
+
+        Every pass, *unthrottled*: this is what bounds a delayed job's latency,
+        since nothing NOTIFYs the queue when a clock runs out and an ``eta`` is
+        only noticed when a worker looks.  Deliberately not folded into
+        :meth:`_run_maintenance`, whose 30 s throttle covers two expensive
+        database-wide repairs and would charge that delay to every scheduled
+        job.
+
+        Elected and transaction-scoped for the same reason the repair sweep is,
+        and with the lock as the transaction's first statement for the same
+        reason: concurrent promoters of the same rows would have all but one
+        fail with ``40001`` on a ``REPEATABLE READ`` cursor.  Whoever holds the
+        lock is already doing this pass's work, so skipping is free.
+        """
+        with db_conn.cursor() as cr:
+            cr.execute(
+                "SELECT pg_try_advisory_xact_lock("
+                "hashtextextended('ir_job_promote', 0))"
+            )
+            if not cr.fetchone()[0]:
+                return 0
+            promoted = IrJob._promote_due_jobs(cr)
+            cr.commit()
+        return promoted
+
+    @staticmethod
+    def _run_maintenance(db_conn) -> None:
+        """Reap dead jobs and repair dependency states, at most one at a time.
+
+        Both sweeps are database-wide repairs whose result does not depend on
+        which worker runs them, yet every worker ran both on every pass: their
+        cost was multiplied by the worker count for no added effect (measured
+        at 55-130 ms per pass on a 50k-row queue, on the critical path of every
+        NOTIFY).  A try-lock elects a single sweeper and the
+        per-process clock throttles it, so a busy queue spends its passes
+        claiming work instead of re-deriving the same repairs.
+
+        The throttle is advanced even when the lock is not obtained: another
+        worker is sweeping *right now*, which is exactly what this pass would
+        have done.
+
+        The sweep opens its own transaction instead of borrowing the
+        pre-flight's.  Both sweeps ``UPDATE`` rows that a concurrently
+        committing worker writes too -- ``_release_dependents`` promotes
+        exactly the ``wait_deps`` rows ``_resolve_dependencies`` promotes -- and
+        on a ``REPEATABLE READ`` cursor whose snapshot was already pinned by the
+        version and module-state reads, such an ``UPDATE`` raises ``40001``
+        instead of quietly matching no row.  That escaped into
+        ``_process_jobs``'s catch-all, so losing one race cost the worker its
+        entire pass: the drain never ran and ready jobs waited for the next
+        NOTIFY.  Electing the sweeper is now the transaction's *first*
+        statement, which pins a fresh snapshot -- the discipline
+        :meth:`_claim_next` documents -- and a race lost anyway costs only this
+        sweep, which the next pass repeats.
+        """
+        now = time.monotonic()
+        if (
+            now - _last_maintenance.get(db_conn.dbname, float("-inf"))
+            < MAINTENANCE_INTERVAL_S
+        ):
+            return
+        _last_maintenance[db_conn.dbname] = now
+        with db_conn.cursor() as cr:
+            cr.execute(
+                "SELECT pg_try_advisory_xact_lock(hashtextextended('ir_job_gc', 0))"
+            )
+            if not cr.fetchone()[0]:
+                return
+            try:
+                IrJob._reap_dead_jobs(cr)
+                IrJob._resolve_dependencies(cr)
+                cr.commit()
+            except psycopg.errors.SerializationFailure:
+                cr.rollback()
+                _logger.info(
+                    "Job maintenance sweep of %s lost a race with a worker;"
+                    " the next sweep repeats it",
+                    db_conn.dbname,
+                )
+
+    @staticmethod
+    def _claim_and_run_loop(
+        db_name: str,
+        *,
+        channels: list[str] | None = None,
+        deadline: float | None = None,
+    ) -> bool:
+        """Drain ready jobs: claim → lock → commit → execute → finalize.
+
+        Returns whether the drain stopped on its *deadline* — that is, whether
+        ready work may remain.  It notifies the workers on the way out so the
+        remainder is picked up immediately rather than at the next poll.
+
+        Registry and cache invalidations are published (and, on failure, rolled
+        back) around every job, exactly as ``IrCron._callback`` does for cron
+        actions.  Without it a job that changed the registry — a new field, a
+        view, a record rule — left every *other* process serving a stale
+        registry indefinitely, and left *this* long-lived worker process with
+        an in-memory registry built from writes its own rollback had undone.
+
+        Signalling is also checked per job rather than once per pass: a drain
+        lasts as long as its time budget, and a registry reloaded by another
+        process halfway through it would otherwise be picked up only by the
+        next pass.  The reload swaps the registry object, so the cursor's
+        transaction — which is what ``api.Environment`` resolves model classes
+        from — has to be re-pointed at it.
+        """
         registry = Registry(db_name).check_signaling()
         worker_ident = f"{socket.gethostname()}:{os.getpid()}"
         with registry.cursor() as cr:
             while True:
-                job = IrJob._claim_next(cr, worker_ident)
+                if deadline is not None and time.monotonic() >= deadline:
+                    _logger.info(
+                        "Job drain of %s yielded on its time budget; notifying",
+                        db_name,
+                    )
+                    IrJob._notify_workers(db_name)
+                    return True
+                job = IrJob._claim_next(cr, worker_ident, channels)
                 if job is None:
                     cr.rollback()
-                    break
+                    return False
+                if (reloaded := registry.check_signaling()) is not registry:
+                    registry = reloaded
+                    cr.transaction.reset()
                 with _job_session_lock(cr, job["id"]):
                     cr.commit()
                     try:
                         registry[IrJob._name]._run_claimed(cr, job)
                         cr.commit()
+                        registry.signal_changes()
                     except Exception as exc:
+                        registry.reset_changes()
                         cr.rollback()
                         if not isinstance(exc, RetryableJobError):
                             _logger.exception(
@@ -621,10 +1000,21 @@ class IrJob(models.Model):
             database-wide, so a caller sharing the database with a live queue
             claims and commits somebody else's work.
 
+        The ``eta`` test is kept even though ``pending`` now means "claimable
+        this instant" and :meth:`_promote_due_jobs` owns the transition.  It
+        costs nothing -- the partial index holds only ready rows, so the filter
+        passes on all of them -- and it keeps the claim correct if a future
+        ``eta`` is written straight onto a ``pending`` row, which the form view
+        allows.  The index is what the state buys; the predicate is what keeps
+        the invariant from being load-bearing.
+
         The per-database advisory xact-lock serializes concurrent claims:
         ``SKIP LOCKED`` alone cannot prevent two workers from both observing
         a channel below capacity and over-admitting.  A channel with no
         ``ir_job_channel`` row has an implicit capacity of 1.
+
+        An archived (``active = False``) channel is paused rather than reset to
+        the implicit capacity of 1: see :class:`IrJobChannel`.
 
         Saturated channels are collected once, in the ``saturated`` CTE, rather
         than by re-counting each candidate row's channel: as a correlated
@@ -678,6 +1068,10 @@ class IrJob(models.Model):
                                 HAVING count(*) >= COALESCE(
                                     (SELECT c.capacity FROM ir_job_channel c
                                      WHERE c.name = b.channel AND c.active), 1)
+                            ), paused AS (
+                                SELECT c.name AS channel
+                                FROM ir_job_channel c
+                                WHERE NOT c.active
                             )
                             SELECT j.id
                             FROM ir_job j
@@ -686,7 +1080,8 @@ class IrJob(models.Model):
                                    OR j.eta <= (now() AT TIME ZONE 'UTC'))
                               %s
                               AND j.channel NOT IN (
-                                  SELECT channel FROM saturated)
+                                  SELECT channel FROM saturated
+                                  UNION ALL SELECT channel FROM paused)
                             ORDER BY j.priority, j.create_date, j.id
                             LIMIT 1
                             FOR NO KEY UPDATE SKIP LOCKED
@@ -725,6 +1120,12 @@ class IrJob(models.Model):
         re-execution can only happen when the effects were rolled back too.
         Raises on business failure; the caller rolls back and records it.
 
+        The scheduling user is re-checked here rather than trusted from enqueue
+        time: archiving an account is how access is revoked, and a queue holds
+        that account's work for as long as its ``eta`` and retry backoff last.
+        ``ir.cron`` refuses to run a server action as an archived user for the
+        same reason.
+
         The company comes from the stored context's ``allowed_company_ids``, or
         (when the enqueue carried none, as a cron/shell/nested enqueue does)
         from the user's companies as they stand at execution time.  The
@@ -738,9 +1139,17 @@ class IrJob(models.Model):
         ``allowed_company_ids`` against ``user.company_ids``).
         """
         env = api.Environment(cr, job["user_id"], dict(job["context"] or {}))
+        if not env.user.active and env.uid != SUPERUSER_ID:
+            raise TerminalJobError(
+                env._(
+                    "Job %(id)s runs as %(login)s, whose account has been "
+                    "archived since the job was enqueued.",
+                    id=job["id"],
+                    login=env.user.login,
+                )
+            )
         records = env[job["model_name"]].browse(job["record_ids"] or [])
-        func = getattr(type(records), job["method_name"], None)
-        if getattr(func, "_job_config", None) is None:
+        if _job_config_of(type(records), job["method_name"]) is None:
             raise TypeError(
                 f"ir.job {job['id']}: {job['model_name']}.{job['method_name']} "
                 "is not declared with @api.job"
@@ -762,15 +1171,14 @@ class IrJob(models.Model):
             SQL(
                 "UPDATE ir_job SET state = 'done',"
                 " done_at = (now() AT TIME ZONE 'UTC'),"
+                " exc_name = NULL, exc_message = NULL, exc_info = NULL,"
                 " write_date = (now() AT TIME ZONE 'UTC')"
                 " WHERE id = %s AND state = 'started'",
                 job["id"],
             )
         )
-        released = IrJob._release_dependents(cr, job["id"])
-        if released:
-            db_name = cr.dbname
-            cr.postcommit.add(lambda: IrJob._notify_workers(db_name))
+        if IrJob._release_dependents(cr, job["id"]):
+            IrJob._notify_after_commit(cr)
         _logger.info("Job %s: done", job["id"])
 
     @classmethod
@@ -779,21 +1187,29 @@ class IrJob(models.Model):
 
         Runs on a fresh transaction (the caller rolled the business one back).
         Every exception consumes a retry; ``RetryableJobError`` only differs
-        in that it may carry an explicit delay and is not logged as an error.
+        in that it may carry an explicit delay and is not logged as an error,
+        and ``TerminalJobError`` in that it consumes the budget outright --
+        it names a condition the next attempt is certain to hit again, so
+        climbing the backoff ladder only buys one traceback per rung.
         A classmethod (not staticmethod) so the registry dispatch in
         ``_claim_and_run_loop`` lets per-database overrides of
         ``_notify_failed`` apply.
         """
         retry = job["retry"]
-        if retry < job["max_retries"]:
-            delay = getattr(exc, "seconds", None) or min(
-                RETRY_BACKOFF_BASE_S * 2**retry, RETRY_BACKOFF_MAX_S
+        exc_info = _format_exception(exc)
+        if retry < job["max_retries"] and not isinstance(exc, TerminalJobError):
+            seconds = getattr(exc, "seconds", None)
+            delay = (
+                seconds
+                if seconds is not None
+                else min(RETRY_BACKOFF_BASE_S * 2**retry, RETRY_BACKOFF_MAX_S)
             )
             cr.execute(
                 SQL(
                     """
                     UPDATE ir_job
-                    SET state = 'pending', retry = retry + 1,
+                    SET state = CASE WHEN %s > 0 THEN 'scheduled' ELSE 'pending' END,
+                        retry = retry + 1,
                         eta = (now() AT TIME ZONE 'UTC') + %s * interval '1 second',
                         exc_name = %s, exc_message = %s, exc_info = %s,
                         started_at = NULL, worker_ident = NULL,
@@ -801,9 +1217,10 @@ class IrJob(models.Model):
                     WHERE id = %s AND state = 'started'
                     """,
                     delay,
+                    delay,
                     type(exc).__name__,
                     str(exc)[:1000],
-                    traceback.format_exc(),
+                    exc_info,
                     job["id"],
                 )
             )
@@ -828,7 +1245,7 @@ class IrJob(models.Model):
                     """,
                     type(exc).__name__,
                     str(exc)[:1000],
-                    traceback.format_exc(),
+                    exc_info,
                     job["id"],
                 )
             )
@@ -857,12 +1274,19 @@ class IrJob(models.Model):
         session is gone.  The grace period keeps brand-new claims out of
         consideration entirely.  Replaces any heartbeat machinery: liveness
         is the lock itself.
+
+        Capped at ``REAP_BATCH_SIZE`` rows: after a mass worker kill the
+        candidate set is the whole in-flight queue, and every row costs a
+        try-lock round-trip, on the pre-flight cursor that gates all job
+        processing for the database.  Whatever is left over is reaped by the
+        next sweep.
         """
         cr.execute(
             "SELECT id, retry, max_retries FROM ir_job"
             " WHERE state = 'started' AND started_at <"
-            " (now() AT TIME ZONE 'UTC') - %s * interval '1 second'",
-            (DEAD_JOB_GRACE_S,),
+            " (now() AT TIME ZONE 'UTC') - %s * interval '1 second'"
+            " ORDER BY started_at LIMIT %s",
+            (DEAD_JOB_GRACE_S, REAP_BATCH_SIZE),
         )
         for job_id, retry, max_retries in cr.fetchall():
             with _job_session_lock(cr, job_id, blocking=False) as acquired:
@@ -898,17 +1322,22 @@ class IrJob(models.Model):
     @staticmethod
     def _release_dependents(cr, job_id: int) -> int:
         """Promote ``wait_deps`` dependents of ``job_id`` whose every
-        dependency is now done.  Returns the number of promoted jobs.
+        dependency is now done.  Returns the number that became *claimable*.
 
         Called inside the completing job's transaction, after its own row
         turned ``done`` (visible in-snapshot), so promotion is atomic with
         completion.
+
+        A dependent carrying a future ``eta`` lands in ``scheduled``, not
+        ``pending``, and is deliberately excluded from the count: the caller
+        NOTIFYs on it, and waking every worker in the cluster for a job none of
+        them may claim yet buys nothing.
         """
         cr.execute(
             SQL(
                 """
                 UPDATE ir_job d
-                SET state = 'pending', write_date = (now() AT TIME ZONE 'UTC')
+                SET state = %s, write_date = (now() AT TIME ZONE 'UTC')
                 WHERE d.state = 'wait_deps'
                   AND d.id IN (SELECT job_id FROM ir_job_dependency
                                WHERE depends_on_id = %s)
@@ -918,11 +1347,13 @@ class IrJob(models.Model):
                       JOIN ir_job pj ON pj.id = dd.depends_on_id
                       WHERE dd.job_id = d.id AND pj.state != 'done'
                   )
+                RETURNING d.state
                 """,
+                _DUE_STATE_SQL,
                 job_id,
             )
         )
-        return cr.rowcount
+        return sum(1 for (state,) in cr.fetchall() if state == JobState.PENDING)
 
     @staticmethod
     def _cancel_dependents(cr, job_ids: list[int]) -> int:
@@ -969,11 +1400,18 @@ class IrJob(models.Model):
         with ``after=`` reads dependency states without locking them — a
         dependency finishing in the race window is caught here on the next
         worker pass (see ``_enqueue``).
+
+        The dead-dependency scan is restricted to failures that still have a
+        ``wait_deps`` dependent.  Unrestricted, it re-collected every
+        failed/cancelled job in the retention window — thirty days of them —
+        and pushed them all through the recursive cascade on every sweep, to
+        update nothing: the cascade itself only touches ``wait_deps`` rows.
         """
         cr.execute(
-            """
+            SQL(
+                """
             UPDATE ir_job d
-            SET state = 'pending', write_date = (now() AT TIME ZONE 'UTC')
+            SET state = %s, write_date = (now() AT TIME ZONE 'UTC')
             WHERE d.state = 'wait_deps'
               AND NOT EXISTS (
                   SELECT 1
@@ -981,13 +1419,17 @@ class IrJob(models.Model):
                   JOIN ir_job pj ON pj.id = dd.depends_on_id
                   WHERE dd.job_id = d.id AND pj.state != 'done'
               )
-            """
+            """,
+                _DUE_STATE_SQL,
+            )
         )
         promoted = cr.rowcount
         cr.execute(
-            "SELECT DISTINCT depends_on_id FROM ir_job_dependency d"
+            "SELECT DISTINCT d.depends_on_id FROM ir_job_dependency d"
             " JOIN ir_job pj ON pj.id = d.depends_on_id"
+            " JOIN ir_job cj ON cj.id = d.job_id"
             " WHERE pj.state IN ('failed', 'cancelled')"
+            " AND cj.state = 'wait_deps'"
         )
         dead = [r[0] for r in cr.fetchall()]
         if dead:
@@ -1033,35 +1475,58 @@ class IrJob(models.Model):
         ``done`` with the request; on failure the exception propagates to the
         user and the whole transaction rolls back, leaving the job pending
         and untouched.
+
+        The run takes the job's advisory lock first, transaction-scoped so it
+        lasts exactly as long as the inline run.  It is the same lock a worker
+        holds, and it is what proves liveness to :meth:`_reap_dead_jobs`:
+        The manual runner was the one executor that did not hold it, which
+        matters as soon as the job's own code commits: that commit publishes
+        the ``started`` row to every other session while the run is still in
+        flight, and a reaper finding it unlocked past ``DEAD_JOB_GRACE_S``
+        concludes the worker died and requeues it — the work then runs a
+        second time while the first run is still going, and the manual run's
+        closing ``state = 'done'`` matches no row and is silently lost.  The
+        lock is session-scoped precisely so those intermediate commits do not
+        drop it; it is released on the way out, leaving only the return path
+        (rather than the whole run) unprotected.
+
+        Taking it non-blocking also replaces an unbounded wait: a second "Run
+        Manually" used to block on the first run's uncommitted row lock for as
+        long as that run lasted, holding a request worker, before finally
+        reporting that the job is not pending.
         """
         self.ensure_one()
         self.browse().check_access("write")
         self.env.flush_all()
         cr = self.env.cr
-        cr.execute(
-            SQL(
-                """
-                UPDATE ir_job
-                SET state = 'started',
-                    started_at = (now() AT TIME ZONE 'UTC'),
-                    worker_ident = %s,
-                    write_date = (now() AT TIME ZONE 'UTC')
-                WHERE id = %s AND state = 'pending'
-                RETURNING id, uuid, channel, priority, model_name, method_name,
-                          record_ids, args, kwargs, user_id, company_id,
-                          context, retry, max_retries
-                """,
-                f"manual:{self.env.uid}",
-                self.id,
+        with _job_session_lock(cr, self.id, blocking=False) as acquired:
+            if not acquired:
+                raise UserError(self.env._("This job is already running."))
+            cr.execute(
+                SQL(
+                    """
+                    UPDATE ir_job
+                    SET state = 'started',
+                        started_at = (now() AT TIME ZONE 'UTC'),
+                        worker_ident = %s,
+                        write_date = (now() AT TIME ZONE 'UTC')
+                    WHERE id = %s AND state IN %s
+                    RETURNING id, uuid, channel, priority, model_name,
+                              method_name, record_ids, args, kwargs, user_id,
+                              company_id, context, retry, max_retries
+                    """,
+                    f"manual:{self.env.uid}",
+                    self.id,
+                    tuple(RUNNABLE_STATES),
+                )
             )
-        )
-        row = cr.fetchone()
-        if row is None:
-            raise UserError(self.env._("Only pending jobs can be run manually."))
-        job = dict(zip([d.name for d in cr.description], row, strict=True))
-        self.invalidate_recordset()
-        type(self)._run_claimed(cr, job)
-        self.invalidate_recordset()
+            row = cr.fetchone()
+            if row is None:
+                raise UserError(self.env._("Only a queued job can be run manually."))
+            job = dict(zip([d.name for d in cr.description], row, strict=True))
+            self.invalidate_recordset()
+            type(self)._run_claimed(cr, job)
+            self.invalidate_recordset()
 
     def action_requeue(self) -> None:
         """Put failed/cancelled jobs back in the queue (fresh retry budget).
@@ -1070,6 +1535,12 @@ class IrJob(models.Model):
         ``pending``.  Requeue failed dependencies first (or together): a
         requeued dependent whose dependency is still failed gets cancelled
         again by the repair sweep, by design.
+
+        The previous run's traces are cleared along with the retry budget.  A
+        requeued job kept the ``exc_*`` of the failure being retried — so the
+        form showed an Error page on a job that is merely queued — and a
+        ``worker_ident``/``started_at`` naming a worker that is not running it,
+        which is exactly the shape :meth:`_reap_dead_jobs` reads as liveness.
         """
         self.browse().check_access("write")
         for job in self:
@@ -1077,17 +1548,25 @@ class IrJob(models.Model):
                 raise UserError(
                     self.env._("Only failed or cancelled jobs can be requeued.")
                 )
+        requeued = False
         for job in self:
             waiting = any(dep.state != JobState.DONE for dep in job.depends_on_ids)
+            requeued = requeued or not waiting
             job.sudo().write(
                 {
                     "state": JobState.WAIT_DEPS if waiting else JobState.PENDING,
                     "retry": 0,
                     "eta": False,
                     "done_at": False,
+                    "started_at": False,
+                    "worker_ident": False,
+                    "exc_name": False,
+                    "exc_message": False,
+                    "exc_info": False,
                 }
             )
-        self.env.cr.postcommit.add(self._notifydb)
+        if requeued:
+            self._notify_after_commit(self.env.cr)
 
     def action_cancel(self) -> None:
         """Cancel waiting/pending jobs (started jobs cannot be interrupted).
@@ -1097,9 +1576,9 @@ class IrJob(models.Model):
         """
         self.browse().check_access("write")
         for job in self:
-            if job.state not in (JobState.WAIT_DEPS, JobState.PENDING):
+            if job.state not in CANCELLABLE_STATES:
                 raise UserError(
-                    self.env._("Only waiting or pending jobs can be cancelled.")
+                    self.env._("Only jobs that have not started yet can be cancelled.")
                 )
         self.sudo().write(
             {"state": JobState.CANCELLED, "done_at": fields.Datetime.now()}

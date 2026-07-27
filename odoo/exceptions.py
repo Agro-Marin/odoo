@@ -167,3 +167,22 @@ class RetryableJobError(Exception):
     def __init__(self, message: str = "", seconds: int | None = None) -> None:
         super().__init__(message)
         self.seconds = seconds
+
+
+class TerminalJobError(UserError):
+    """Raised inside a background job (model ``ir.job``) to refuse any retry.
+
+    The counterpart of :class:`RetryableJobError`: the job is marked ``failed``
+    at once instead of climbing the backoff ladder.  Use it for a condition the
+    next attempt is certain to hit again — the queue otherwise spends its whole
+    ``max_retries`` budget, and one exception traceback per attempt, re-deriving
+    an answer it already had.
+
+    A :class:`UserError` because these conditions are user-facing: the same
+    exception surfaces in the "Run Manually" action, where it must read as a
+    message rather than a traceback.
+
+    .. admonition:: Example
+
+        The account the job runs as has been archived since it was enqueued.
+    """
