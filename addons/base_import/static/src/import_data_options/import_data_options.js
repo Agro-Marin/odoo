@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { useService } from "@web/core/utils/hooks";
 
 export class ImportDataOptions extends Component {
     static template = "ImportDataOptions";
@@ -12,7 +11,6 @@ export class ImportDataOptions extends Component {
     };
 
     setup() {
-        this.orm = useService("orm");
         this.state = useState({
             options: [],
         });
@@ -40,8 +38,10 @@ export class ImportDataOptions extends Component {
                 options.push(["import_skip_records", _t("Skip record")]);
             }
             if (this.props.fieldInfo.type === "selection") {
-                const fields = await this.orm.call(this.currentModel, "fields_get");
-                const selection = fields[this.props.fieldInfo.name].selection.map((opt) => [
+                // `get_fields` publishes the selection: a Properties sub-column
+                // (`<field>.<property>`) is not a field of the model, so a
+                // fields_get lookup on its name returned undefined and threw.
+                const selection = (this.props.fieldInfo.selection || []).map((opt) => [
                     opt[0],
                     _t("Set to: %s", opt[1]),
                 ]);

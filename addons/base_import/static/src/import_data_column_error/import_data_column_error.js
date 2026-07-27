@@ -19,7 +19,14 @@ export class ImportDataColumnError extends Component {
     }
     get moreInfo() {
         const moreInfoObjects = this.props.errors.map((error) => error.moreinfo);
-        return moreInfoObjects.length && moreInfoObjects[0];
+        const moreInfo = moreInfoObjects.length && moreInfoObjects[0];
+        // An empty array is truthy in JS, so an error carrying no possible
+        // values still rendered the "See possible values" affordance, which
+        // then expanded to an empty list.
+        if (Array.isArray(moreInfo) && !moreInfo.length) {
+            return undefined;
+        }
+        return moreInfo;
     }
     isErrorVisible(index) {
         return this.state.isExpanded || index < 3;

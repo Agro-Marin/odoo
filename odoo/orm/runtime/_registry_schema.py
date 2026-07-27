@@ -11,6 +11,7 @@ from collections.abc import Callable, Iterable
 import psycopg
 
 from odoo.tools import (
+    OrderedSet,
     sql,
 )
 
@@ -283,19 +284,41 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 _logger.error("Model %s has no table.", table2model[table])
 
     def is_an_ordinary_table(self, model: BaseModel) -> bool:
-        """Return whether the given model has an ordinary table."""
-        if self._ordinary_tables is None:
-            cr = model.env.cr
-            query = """
+        """Return whether the given model has an ordinary table.
+
+        The answer is memoized per table. It has to record *which* tables it
+        asked about, not just which of them came back ordinary: the memo used to
+        be the bare result set of one bulk query over ``self.models``, so a table
+        absent from it was indistinguishable from a table the query never
+        covered. First call from a partially-loaded registry (129 of 342 models
+        in a ``--test-tags`` run) therefore froze "not an ordinary table" in for
+        every model set up afterwards, and export of the ``ID`` column raised
+        ``You can not export the column ID ...`` for all of them. Only
+        ``init_models`` resets the memo, so nothing recovered until the process
+        restarted.
+
+        A table that is not in the memo re-runs the bulk query rather than
+        answering from its absence, so a registry that grew is picked up. Each
+        distinct table costs at most one query per growth step.
+        """
+        table = model._table
+        if (known := self._ordinary_tables.get(table)) is not None:
+            return known
+
+        cr = model.env.cr
+        tables = OrderedSet(m._table for m in self.models.values())
+        tables.add(table)
+        cr.execute(
+            """
                 SELECT c.relname
                   FROM pg_class c
                   JOIN pg_namespace n ON (n.oid = c.relnamespace)
                  WHERE c.relname = ANY(%s)
                    AND c.relkind = 'r'
                    AND n.nspname = current_schema
-            """
-            tables = [m._table for m in self.models.values()]
-            cr.execute(query, [tables])
-            self._ordinary_tables = {row[0] for row in cr.fetchall()}
-
-        return model._table in self._ordinary_tables
+            """,
+            [list(tables)],
+        )
+        ordinary = {row[0] for row in cr.fetchall()}
+        self._ordinary_tables.update({t: t in ordinary for t in tables})
+        return table in ordinary
