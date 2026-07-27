@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, time, timedelta
 
 from odoo.addons.event.tests.common import EventCase
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -11,7 +10,7 @@ class OnlineEventCase(EventCase):
 
     @classmethod
     def setUpClass(cls):
-        super(OnlineEventCase, cls).setUpClass()
+        super().setUpClass()
 
         cls.company_main = cls.env.user.company_id
         cls.user_event_web_manager = mail_new_test_user(
@@ -57,7 +56,7 @@ class TestEventOnlineCommon(OnlineEventCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventOnlineCommon, cls).setUpClass()
+        super().setUpClass()
 
         # Mock dates to have reproducible computed fields based on time
         cls.reference_now = datetime(2020, 7, 6, 10, 0, 0)
@@ -76,7 +75,7 @@ class TestEventQuestionCommon(EventCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventQuestionCommon, cls).setUpClass()
+        super().setUpClass()
 
         cls.event_type_questions = cls.env['event.type'].create({
             'name': 'Update Type',

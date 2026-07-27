@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
@@ -24,7 +23,7 @@ class WebsiteEventMenu(models.Model):
 
     def copy(self, default=None):
         new_menus = super().copy(default=default)
-        for new_menu, old_menu in zip(new_menus, self):
+        for new_menu, old_menu in zip(new_menus, self, strict=True):
             if not old_menu.view_id:
                 continue
             # Get the last view modified based on the key and the website of the event

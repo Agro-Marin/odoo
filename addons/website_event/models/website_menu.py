@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
@@ -14,7 +13,7 @@ class WebsiteMenu(models.Model):
         event_updates = {}
         website_event_menus = self.env['website.event.menu'].search([('menu_id', 'in', self.ids)])
         for event_menu in website_event_menus:
-            to_update = event_updates.setdefault(event_menu.event_id, list())
+            to_update = event_updates.setdefault(event_menu.event_id, [])
             for menu_type, fname in event_menu.event_id._get_menu_type_field_matching().items():
                 if event_menu.menu_type == menu_type:
                     to_update.append(fname)
@@ -38,7 +37,7 @@ class WebsiteMenu(models.Model):
         # update events
         for event, to_update in event_updates.items():
             if to_update:
-                event.write(dict((fname, False) for fname in to_update))
+                event.write(dict.fromkeys(to_update, False))
 
         return res
 

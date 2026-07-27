@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
-from odoo.addons.mail.tests.common import MailCase
 from odoo.tests import tagged
+
+from odoo.addons.mail.tests.common import MailCase
+
 
 @tagged('post_install', '-at_install')
 class TestMail(MailCase):

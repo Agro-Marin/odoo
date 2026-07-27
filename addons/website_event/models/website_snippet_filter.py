@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import timedelta
 
-from odoo import models, fields, api, _
+from odoo import _, api, fields, models
 
 
 class WebsiteSnippetFilter(models.Model):
@@ -43,11 +42,11 @@ class WebsiteSnippetFilter(models.Model):
                 'date_begin': fields.Date.today() + timedelta(days=2),
                 'date_end': fields.Date.today() + timedelta(days=4),
             }]
-            merged = []
-            for index in range(0, max(len(samples), len(data))):
-                merged.append({**samples[index % len(samples)], **data[index % len(data)]})
-                # merge definitions
-            samples = merged
+            # merge the sample and data definitions position-wise, cycling the shorter one
+            samples = [
+                {**samples[index % len(samples)], **data[index % len(data)]}
+                for index in range(max(len(samples), len(data)))
+            ]
         return samples
 
     @api.model

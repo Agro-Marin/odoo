@@ -1,17 +1,21 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import fields, http
-from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.website_event.tests.common import TestEventOnlineCommon, OnlineEventCase
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
-from odoo.tools import mute_logger
 from odoo.tests.common import users
+from odoo.tools import mute_logger
+
+from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
+from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.website_event.tests.common import (
+    OnlineEventCase,
+    TestEventOnlineCommon,
+)
 
 
 class TestEventRegisterUTM(HttpCase, TestEventOnlineCommon):
@@ -204,7 +208,7 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
 class TestWebsiteAccess(HttpCaseWithUserDemo, OnlineEventCase):
 
     def setUp(self):
-        super(TestWebsiteAccess, self).setUp()
+        super().setUp()
 
         self.website = self.env['website'].create({'name': 'Website Test'})
         self.partner = self.env['res.partner'].create([{
