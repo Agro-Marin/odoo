@@ -35,9 +35,9 @@ class TestSaleCouponMultiwebsite(TestSaleCouponNumbersCommon):
         def _apply_code(code, backend=True):
             try:
                 self._apply_promo_code(order, code)
-            except UserError as e:
+            except UserError:
                 if backend:
-                    raise e
+                    raise
 
         # ==========================================
         # ========== Programs (with code) ==========
