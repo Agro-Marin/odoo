@@ -2,7 +2,9 @@
 
 from odoo.http import request, route
 
-from odoo.addons.website_sale_stock.controllers.variant import WebsiteSaleStockVariantController
+from odoo.addons.website_sale_stock.controllers.variant import (
+    WebsiteSaleStockVariantController,
+)
 
 
 class WebsiteSaleMrpVariantController(WebsiteSaleStockVariantController):
