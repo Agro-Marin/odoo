@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from odoo import Command
-from odoo.tests import tagged, Form
+from odoo.tests import Form, tagged
 
 from odoo.addons.website_event_sale.tests.common import TestWebsiteEventSaleCommon
 from odoo.addons.website_sale.tests.test_website_sale_cart_abandoned import (

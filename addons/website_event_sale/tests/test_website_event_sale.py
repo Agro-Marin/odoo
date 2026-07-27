@@ -1,4 +1,5 @@
 from odoo import http
+
 from odoo.addons.base.tests.common import HttpCaseWithUserPortal
 from odoo.addons.website_event_sale.tests.common import TestWebsiteEventSaleCommon
 

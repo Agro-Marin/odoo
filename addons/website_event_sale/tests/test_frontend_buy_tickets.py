@@ -8,9 +8,9 @@ from odoo.fields import Datetime
 from odoo.tests import JsonRpcException, tagged
 from odoo.tools import mute_logger
 
+from .common import TestWebsiteEventSaleCommon
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 from odoo.addons.payment.tests.http_common import PaymentHttpCommon
-from .common import TestWebsiteEventSaleCommon
 
 
 @tagged('post_install', '-at_install')
