@@ -713,6 +713,14 @@ class configmanager:
             help="specify the SMTP password for sending email",
         )
         group.add_option(
+            "--smtp-timeout",
+            dest="smtp_timeout",
+            my_default=60,
+            help="specify the socket timeout, in seconds, for each SMTP command "
+            "(0 disables the timeout)",
+            type="int",
+        )
+        group.add_option(
             "--smtp-ssl-certificate-filename",
             dest="smtp_ssl_certificate_filename",
             type="path",

@@ -86,6 +86,30 @@ class IrConfig_Parameter(models.Model):
             return default
 
     @api.model
+    def get_param_float(self, key: str, default: float) -> float:
+        """Retrieve *key* as a ``float``, falling back to *default* when unusable.
+
+        Float counterpart of :meth:`get_param_int`, with the same rationale: a
+        parameter an administrator can type into must never raise out of the
+        reader (``base.default_max_email_size`` is read on every outgoing mail).
+
+        :param str key: the parameter key
+        :param float default: value returned when the parameter is missing or is
+            not a valid float (the bad value is logged once per read)
+        :return: the parameter as a ``float``, or *default*
+        """
+        raw = self.get_param(key)
+        if raw is False or raw is None or raw == "":
+            return default
+        try:
+            return float(raw)
+        except TypeError, ValueError:
+            _logger.warning(
+                "Invalid %s value: %r, falling back to %r", key, raw, default
+            )
+            return default
+
+    @api.model
     @ormcache("key", cache="stable")
     def _get_param(self, key: str) -> str | None:
         self.flush_model(["key", "value"])

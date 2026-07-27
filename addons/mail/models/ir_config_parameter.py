@@ -99,20 +99,15 @@ class IrConfig_Parameter(models.Model):
         the documented default and warn, so the mistake is visible without
         taking a subsystem down with it.
 
+        Parsing lives in ``base``'s :meth:`~odoo.addons.base.models.
+        ir_config_parameter.IrConfig_Parameter.get_param_int`; this stays as the
+        sudo wrapper its callers rely on, since these ICPs are read from flows
+        (gateway, queue cron, list views) whose user cannot read the table.
+
         Callers that treat 0 as meaningful (``... or <fallback>``) keep doing so;
         this only guarantees an ``int`` comes back.
         """
-        raw = self.env["ir.config_parameter"].sudo().get_param(key, default)
-        try:
-            return int(raw)
-        except TypeError, ValueError:
-            _logger.warning(
-                "ir.config_parameter %r is not an integer (%r); falling back to %r.",
-                key,
-                raw,
-                default,
-            )
-            return default
+        return self.sudo().get_param_int(key, default)
 
     @api.model
     def set_param(self, key, value):

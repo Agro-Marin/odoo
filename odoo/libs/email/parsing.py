@@ -45,8 +45,9 @@ def extract_rfc2822_addresses(text: str) -> list[str]:
         ignored", which was never true.
 
         Callers that need an ASCII-only envelope address (SMTP without the
-        SMTPUTF8 extension) must check for themselves -- ``ir_mail_server``
-        currently assumes this function guarantees it and does not.
+        SMTPUTF8 extension) must check for themselves --
+        ``IrMail_Server._check_ascii_envelope`` does, gated on what the session
+        advertised via EHLO.
 
     :param text: Raw text potentially containing email addresses
     :returns: List of formatted email addresses

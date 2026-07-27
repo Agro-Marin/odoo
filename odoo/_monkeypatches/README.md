@@ -25,9 +25,11 @@ This directory contains runtime patches for Python standard library and third-pa
 |------|---------|------|
 | `ast.py` | Limit `ast.literal_eval()` buffer to prevent segfaults (default 100KiB, configurable via `ODOO_LIMIT_LITEVAL_BUFFER`) | SECURITY |
 | `csv.py` | Increase field size limit from 128KiB to 500MiB for image imports; register UNIX dialect | PERF |
+| `email.py` | Replace `email.policy.SMTP` so identification headers (`Message-Id`, `References`, ...) are never folded and user headers fold only at the RFC 5322 limit of 998 chars | COMPAT |
 | `locale.py` | Add missing `D_FMT`, `T_FMT` constants and `nl_langinfo()` for Windows | COMPAT |
 | `mimetypes.py` | Register missing MIME types: fonts (.woff, .eot, .ttf), .webp, .svg, .js | COMPAT |
 | `re.py` | Increase regex cache from 512 to 4096 entries | PERF |
+| `smtplib.py` | Route `SMTP.set_debuglevel` output through `logging` instead of stderr | COMPAT |
 
 ### Web Framework Patches
 

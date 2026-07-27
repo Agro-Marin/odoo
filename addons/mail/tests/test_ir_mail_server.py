@@ -632,6 +632,40 @@ class TestPersonalServer(MailCommon):
         """Duplicating a personal OMS clears the owner so the copy is reachable."""
         self.assertFalse(self.mail_server_1.copy().owner_user_id)
 
+    def test_personal_mail_server_from_filter_is_matched_normalized(self):
+        """from_filter is a plain editable Char: a stored address that differs
+        only in case or surrounding space is the same mailbox.
+
+        Regression: the owner check compared a normalized smtp_from against the
+        RAW field, so an admin retyping "Owner@Example.com" locked that user out
+        of their own server with "cannot be forced as it belongs to a user".
+        """
+        IrMailServer = self.env["ir.mail_server"]
+        owner_email = self.user_1.email
+        self.user_1.outgoing_mail_server_id = self.mail_server_1
+        for stored in (owner_email, owner_email.upper(), f"  {owner_email} "):
+            with self.subTest(from_filter=stored):
+                self.mail_server_1.from_filter = stored
+                IrMailServer._check_forced_mail_server(
+                    self.mail_server_1, True, owner_email
+                )
+
+    def test_personal_mail_server_still_rejects_other_senders(self):
+        """Normalizing both sides must not loosen the check into a domain match."""
+        IrMailServer = self.env["ir.mail_server"]
+        self.user_1.outgoing_mail_server_id = self.mail_server_1
+        domain = self.user_1.email.split("@")[1]
+        for smtp_from, from_filter in (
+            (f"someone.else@{domain}", self.user_1.email),
+            (self.user_1.email, domain),
+        ):
+            with self.subTest(smtp_from=smtp_from, from_filter=from_filter):
+                self.mail_server_1.from_filter = from_filter
+                with self.assertRaises(UserError):
+                    IrMailServer._check_forced_mail_server(
+                        self.mail_server_1, True, smtp_from
+                    )
+
     @mute_logger("odoo.models.unlink")
     def test_personal_mail_server_limit(self):
         # Test the limit per personal mail servers
