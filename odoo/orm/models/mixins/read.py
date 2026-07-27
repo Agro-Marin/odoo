@@ -159,7 +159,13 @@ class ReadMixin(_ModelStubs):
             field = _fields[name]
             field.ensure_computed(self)
             field_cache = field._get_cache(env)
-            none_val: typing.Any = field.convert_to_record(None, None)
+            # ``self[:1]`` rather than ``None``: every ``can_scan_read`` type
+            # ignores the record when converting ``None``, but the parameter is
+            # declared ``ModelLike``, and passing ``None`` made that lie load-
+            # bearing -- the first such type that consults the record would fail
+            # with an opaque ``AttributeError`` deep in the read fast path.  An
+            # empty slice is a real recordset and costs nothing.
+            none_val: typing.Any = field.convert_to_record(None, self[:1])
             if type(field_cache) is dict:
                 miss_indices = _batch_cache_fill_rust(
                     field_cache, ids, results, name, _PENDING, none_val
