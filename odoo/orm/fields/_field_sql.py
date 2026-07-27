@@ -16,6 +16,7 @@ from odoo.tools import (
     SQL,
     Query,
 )
+from odoo.tools.misc import PENDING, SENTINEL
 
 from ..domain import Domain
 from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
@@ -341,6 +342,71 @@ class _FieldSqlMixin(_FieldStubs):
             return self.__get__
         raise ValueError(f"Expression not supported on {self}: {field_expr!r}")
 
+    def _pattern_text(self, cache_value: typing.Any) -> str:
+        """Render a *cache* value the way ``condition_to_sql`` renders the column.
+
+        The single authority for the text a pattern operator matches against, so
+        the two evaluators cannot drift.  ``condition_to_sql`` compares
+        ``column::text``; this must reproduce PostgreSQL's output for the same
+        stored value, because ``like``/``ilike`` on a non-text field is a
+        comparison against a *rendering* that neither side owns on its own.
+
+        The base rule is ``str()``, which matches ``::text`` for every textual,
+        date and selection column.  ``None`` (SQL NULL) and ``False`` render as
+        ``""``: ``NULL LIKE …`` is NULL, i.e. never a match, and the empty
+        string cannot match any pattern that survives ``_optimize_like_str``
+        (which rewrites the degenerate all-wildcard ones into ``=``/``!=``).
+
+        Numeric types override this; see :meth:`Integer._pattern_text` and
+        :meth:`Float._pattern_text`.
+        """
+        if cache_value is None or cache_value is False:
+            return ""
+        return str(cache_value)
+
+    def _pattern_getter(
+        self, records: M, field_expr: str, getter: Callable[[M], typing.Any]
+    ) -> Callable[[M], str]:
+        """Return ``callable(record) -> str`` feeding the pattern comparison.
+
+        Reads the *cache* rather than the record value, because
+        :meth:`convert_to_record` collapses distinctions ``::text`` keeps: an
+        unset Integer reads back as ``0``, so rendering the record value made a
+        NULL column match ``%0%`` while SQL matched only a stored zero.  The
+        cache holds ``None`` for NULL and ``0`` for a real zero.
+
+        Falls back to the record value when the cache cannot answer -- a
+        non-stored field, a miss, or a per-term-translated field, whose cache
+        holds ``{lang: value}`` dicts rather than scalars under
+        ``prefetch_langs``.
+
+        The cache dict is resolved per record rather than captured once:
+        ``getter`` may compute a value, and a compute can invalidate the whole
+        transaction, after which a captured dict is an orphan still holding the
+        pre-invalidation values.  Resolution is a single lookup in
+        ``env._field_cache_memo``, which is noise next to the regex match this
+        feeds.
+        """
+        pattern_text = self._pattern_text
+        if field_expr != self.name or callable(self.translate):
+            return lambda rec: pattern_text(getter(rec))
+
+        env = records.env
+        _MISSING = SENTINEL
+        _PENDING = PENDING
+        get_cache = self._get_cache
+
+        def render(rec: M) -> str:
+            value = get_cache(env).get(rec._ids[0], _MISSING)
+            if value is _MISSING or value is _PENDING:
+                record_value = getter(rec)
+                value = get_cache(env).get(rec._ids[0], _MISSING)
+                if value is _MISSING:
+                    return pattern_text(record_value)
+            return pattern_text(value)
+
+        return render
+
     def filter_function(
         self, records: M, field_expr: str, operator: str, value: typing.Any
     ) -> Callable[[M], bool]:
@@ -370,12 +436,12 @@ class _FieldSqlMixin(_FieldStubs):
                     # case *after* transliteration.  Lowering first hides every
                     # rule whose replacement is upper-case (``₹``->``Rs``,
                     # ``Æ``->``AE``), which is 95 of 9978 characters.
-                    return unaccent_python(str(x)).lower() if x else ""
+                    return unaccent_python(x).lower()
 
             else:
 
                 def unaccent(x):
-                    return str(x) if x else ""
+                    return x
 
             def build_like_regex(value: str, exact: bool):
                 yield "^" if exact else ".*"
@@ -395,11 +461,13 @@ class _FieldSqlMixin(_FieldStubs):
                 if exact:
                     yield "$"
 
+            pattern = value if isinstance(value, str) else self._pattern_text(value)
             like_regex = re.compile(
-                "".join(build_like_regex(unaccent(value), "=" in operator)),
+                "".join(build_like_regex(unaccent(pattern), "=" in operator)),
                 flags=re.DOTALL,
             )
-            return lambda rec: like_regex.match(unaccent(getter(rec)))
+            render = self._pattern_getter(records, field_expr, getter)
+            return lambda rec: like_regex.match(unaccent(render(rec)))
 
         if pyop := PYTHON_INEQUALITY_OPERATOR.get(operator):
             can_be_null = False
