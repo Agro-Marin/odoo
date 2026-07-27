@@ -3,12 +3,11 @@
 from unittest.mock import patch
 
 import odoo
-
 from odoo import SUPERUSER_ID, fields
 from odoo.tests import tagged
 
-from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.base.tests.common import HttpCaseWithUserPortal
+from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.website_sale.tests.common import WebsiteSaleCommon
 
 

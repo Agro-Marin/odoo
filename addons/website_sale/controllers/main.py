@@ -3,7 +3,6 @@
 import base64
 import itertools
 from datetime import datetime
-
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from werkzeug.exceptions import Forbidden, NotFound
@@ -12,15 +11,15 @@ from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
 from odoo.http import request, route
-from odoo.tools import SQL, clean_context, float_round, groupby, lazy
+from odoo.tools import SQL, clean_context, float_round, lazy
 from odoo.tools.json import scriptsafe as json_scriptsafe
 from odoo.tools.translate import LazyTranslate, _
 
+from odoo.addons.html_editor.tools import get_video_thumbnail
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.controllers import portal as payment_portal
 from odoo.addons.portal.controllers.portal import _parse_bool_param, _parse_record_id
 from odoo.addons.sale.controllers import portal as sale_portal
-from odoo.addons.html_editor.tools import get_video_thumbnail
 from odoo.addons.website.controllers.main import QueryURL
 from odoo.addons.website.models.ir_http import sitemap_qs2dom
 from odoo.addons.website_sale.const import SHOP_PATH
@@ -85,10 +84,9 @@ class TableCompute:
     def process(self, products, ppg=20, ppr=4):
         # Compute products positions on the grid
         minpos = 0
-        index = 0
         maxy = 0
         x = 0
-        for p in products:
+        for index, p in enumerate(products):
             x = min(max(p.website_size_x, 1), ppr)
             y = min(max(p.website_size_y, 1), ppr)
             if index >= ppg:
@@ -117,7 +115,6 @@ class TableCompute:
             }
             if index <= ppg:
                 maxy = max(maxy, y + (pos // ppr))
-            index += 1
 
         # Format table according to HTML needs
         rows = sorted(self.table.items())
@@ -183,6 +180,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         return Domain.AND(domains)
 
+    @staticmethod
     def sitemap_shop(env, rule, qs):
         website = env['website'].get_current_website()
         if website and website.ecommerce_access == 'logged_in' and not qs:
@@ -201,6 +199,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             if not qs or qs.lower() in loc:
                 yield {'loc': loc}
 
+    @staticmethod
     def sitemap_products(env, rule, qs):
         website = env['website'].get_current_website()
         if website and website.ecommerce_access == 'logged_in' and not qs:
@@ -380,7 +379,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if filter_by_price_enabled:
             # TODO Find an alternative way to obtain the domain through the search metadata.
             Product = request.env['product.template'].with_context(bin_size=True)
-            search_term = fuzzy_search_term if fuzzy_search_term else search
+            search_term = fuzzy_search_term or search
             domain = self._get_shop_domain(search_term, category, attribute_value_dict)
 
             # This is ~4 times more efficient than a search for the cheapest and most expensive products
@@ -437,10 +436,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         category_entries = Category
         if category:
-            category_entries = not search and category.child_id or category.child_id.filtered(lambda c: c.id in search_categories.ids)
+            category_entries = (not search and category.child_id) or category.child_id.filtered(lambda c: c.id in search_categories.ids)
             if not category_entries:
                 parent = category.parent_id
-                category_entries = not search and parent.child_id or parent.child_id.filtered(lambda c: c.id in search_categories.ids)
+                category_entries = (not search and parent.child_id) or parent.child_id.filtered(lambda c: c.id in search_categories.ids)
         else:
             category_entries = categs
         if not request.env.user._is_internal():
@@ -456,7 +455,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         # map each product to its variant, and prefetch the variants
         variants = request.env['product.product'].sudo().browse(product._get_first_possible_variant_id() for product in products)
         variants.fetch()
-        product_variants = dict(zip(products, variants))
+        product_variants = dict(zip(products, variants, strict=True))
 
         ProductAttribute = request.env['product.attribute']
         if products:
@@ -548,10 +547,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if pricelist is not None:
             try:
                 pricelist_id = int(pricelist)
-            except ValueError:
+            except ValueError as e:
                 raise ValidationError(request.env._(
                     "Wrong format: got `pricelist=%s`, expected an integer", pricelist,
-                ))
+                )) from e
             if not self._apply_selectable_pricelist(pricelist_id):
                 return request.redirect(self._get_shop_path(category))
 
@@ -636,15 +635,13 @@ class WebsiteSale(payment_portal.PaymentPortal):
         """
 
         if not request.env.user.has_group('website.group_website_restricted_editor'):
-            raise NotFound()
+            raise NotFound
 
         if type == 'image':  # Image case
             image_ids = request.env["ir.attachment"].browse(i['id'] for i in media)
             media_create_data = [Command.create({
                 'name': image.name,   # Images uploaded from url do not have any datas. This recovers them manually
-                'image_1920': image.datas
-                    if image.datas
-                    else request.env['ir.qweb.field.image'].load_remote_url(image.url),
+                'image_1920': image.datas or request.env['ir.qweb.field.image'].load_remote_url(image.url),
             }) for image in image_ids]
         elif type == 'video':  # Video case
             video_data = media[0]
@@ -688,7 +685,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         Unlinks all images from the product.
         """
         if not request.env.user.has_group('website.group_website_restricted_editor'):
-            raise NotFound()
+            raise NotFound
 
         product_product = request.env['product.product'].browse(_parse_record_id(product_product_id))
         product_template = request.env['product.template'].browse(_parse_record_id(product_template_id))
@@ -722,7 +719,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             or image_res_model not in ['product.product', 'product.template', 'product.image']
             or move not in ['first', 'left', 'right', 'last']
         ):
-            raise NotFound()
+            raise NotFound
 
         image_res_id = _parse_record_id(image_res_id)
         image_to_resequence = request.env[image_res_model].browse(image_res_id)
@@ -1289,7 +1286,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             partner_sudo
             and not partner_sudo._can_be_edited_by_current_customer(order_sudo=order_sudo)
         ):
-            raise Forbidden()
+            raise Forbidden
 
         return partner_sudo, address_type
 
@@ -1483,11 +1480,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
             ('type', 'in', ('invoice', 'delivery', 'other')),
         ])
         if (
-            partner_sudo != order_sudo.partner_id
-            and partner_sudo != order_sudo.partner_id.commercial_partner_id
-            and partner_sudo.id not in children
+            partner_sudo not in (order_sudo.partner_id, order_sudo.partner_id.commercial_partner_id) and partner_sudo.id not in children
         ):
-            raise Forbidden()
+            raise Forbidden
 
         partner_fnames = set()
         if (
@@ -1705,6 +1700,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         if redirection := self._check_addresses(order_sudo):
             return redirection
+        return None
 
     def _check_cart(self, order_sudo):
         """ Check whether the cart is a valid, and redirect to the appropriate page if not.
@@ -1731,6 +1727,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         # Check that public orders are allowed.
         if request.env.user._is_public() and request.website.account_on_checkout == 'mandatory':
             return request.redirect('/web/login?redirect=/shop/checkout')
+        return None
 
     def _check_addresses(self, order_sudo):
         """ Check whether the cart's addresses are complete and valid.
@@ -1769,6 +1766,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             return request.redirect(
                 f'/shop/address?partner_id={invoice_partner_sudo.id}&address_type=billing'
             )
+        return None
 
     # ------------------------------------------------------
     # Edit
@@ -1777,7 +1775,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     @route(['/shop/config/product'], type='jsonrpc', auth='user')
     def change_product_config(self, product_id, **options):
         if not request.env.user.has_group('website.group_website_restricted_editor'):
-            raise NotFound()
+            raise NotFound
 
         product = request.env['product.template'].browse(product_id)
         if "sequence" in options:
@@ -1796,7 +1794,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     @route(['/shop/config/attribute'], type='jsonrpc', auth='user')
     def change_attribute_config(self, attribute_id, **options):
         if not request.env.user.has_group('website.group_website_restricted_editor'):
-            raise NotFound()
+            raise NotFound
 
         attribute = request.env['product.attribute'].browse(attribute_id)
         if 'display_type' in options:
@@ -1806,7 +1804,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     @route(['/shop/config/website'], type='jsonrpc', auth='user')
     def _change_website_config(self, **options):
         if not request.env.user.has_group('website.group_website_restricted_editor'):
-            raise NotFound()
+            raise NotFound
 
         current_website = request.env['website'].get_current_website()
         # Restrict options we can write to.
@@ -1838,7 +1836,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def _change_category_config(self, category_id, **options):
         category = request.env['product.public.category'].browse(_parse_record_id(category_id))
         if not category.exists():
-            raise NotFound()
+            raise NotFound
 
         # Restrict options we can write to.
         targeted_options = {'show_category_title', 'show_category_description', 'align_category_content'}
@@ -1888,7 +1886,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     @route('/shop/products/recently_viewed_delete', type='jsonrpc', auth='public', website=True)
     def products_recently_viewed_delete(self, product_id=None, product_template_id=None, **kwargs):
         if not (product_id or product_template_id):
-            return
+            return None
         visitor_sudo = request.env['website.visitor']._get_visitor_from_request()
         if visitor_sudo:
             domain = [('visitor_id', '=', visitor_sudo.id)]
@@ -1911,7 +1909,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         :raise Forbidden: If the user does not have website editing access
         """
         if not request.env.user.has_group('website.group_website_restricted_editor'):
-            raise Forbidden()
+            raise Forbidden
         category = request.env['product.public.category'].browse(category_id).exists()
         if category:
             image_data = request.env['ir.attachment'].browse(attachment_id).datas

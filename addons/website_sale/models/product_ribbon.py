@@ -102,7 +102,7 @@ class ProductRibbon(models.Model):
 
         # Check if a discount is applied to the product using a pricelist, comparison price, or
         # others.
-        if (  # noqa: SIM103
+        if (
             self.assign == 'sale'
             and price_data
             and (

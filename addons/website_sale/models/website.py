@@ -3,10 +3,9 @@
 import base64
 import json
 import logging
-
-from lxml import etree
 from urllib.parse import urlsplit, urlunsplit
 
+from lxml import etree
 from werkzeug.exceptions import NotFound
 
 from odoo import SUPERUSER_ID, api, fields, models
@@ -285,7 +284,7 @@ class Website(models.Model):
     def _compute_currency_id(self):
         for website in self:
             website.currency_id = (
-                request and hasattr(request, 'pricelist') and request.pricelist.currency_id
+                (request and hasattr(request, 'pricelist') and request.pricelist.currency_id)
                 or website.company_id.sudo().currency_id
             )
 
@@ -414,14 +413,13 @@ class Website(models.Model):
                         "Failed to match footer width with header in ecommerce footer view %s",
                         footer_id,
                     )
-                else:
-                    # Logic for matching header width
-                    if 'website.footer_copyright_content_width_fluid' in views_to_enable:
-                        footer_updated = True
-                        footer_div_node[0].set("class", "container-fluid s_allow_columns")
-                    elif 'website.footer_copyright_content_width_small' in views_to_enable:
-                        footer_updated = True
-                        footer_div_node[0].set("class", "o_container_small s_allow_columns")
+                # Logic for matching header width
+                elif 'website.footer_copyright_content_width_fluid' in views_to_enable:
+                    footer_updated = True
+                    footer_div_node[0].set("class", "container-fluid s_allow_columns")
+                elif 'website.footer_copyright_content_width_small' in views_to_enable:
+                    footer_updated = True
+                    footer_div_node[0].set("class", "o_container_small s_allow_columns")
 
                 if footer_id == 'website_sale.template_footer_website_sale':
                     ecommerce_categories_node = arch_tree.xpath("//t[@t-set='ecommerce_categories']")
@@ -516,11 +514,11 @@ class Website(models.Model):
 
         if self.env['product.public.category'].search_count([], limit=1):
             logger.info("Categories already exist, skipping AI generation.")
-            return
+            return None
 
         category_specs = generate_categories(industry_name)
         if not isinstance(category_specs, dict):
-            return
+            return None
 
         if len(category_specs.get('categories')) == 8:
             images_names = [f'shape_mixed_{i}.png' for i in range(1, 9)]
@@ -627,7 +625,7 @@ class Website(models.Model):
             partner_pricelist_id = False
         website_pricelists = website.sudo().pricelist_ids
 
-        current_pricelist_id = request and request.session.get(PRICELIST_SESSION_CACHE_KEY) or None
+        current_pricelist_id = (request and request.session.get(PRICELIST_SESSION_CACHE_KEY)) or None
 
         pricelist_ids = website._get_pl_partner_order(
             country_code,
@@ -648,7 +646,7 @@ class Website(models.Model):
         return pl_id in self.get_pricelist_available(show_visible=False).ids
 
     def _get_geoip_country_code(self):
-        return request and request.geoip.country_code or False
+        return (request and request.geoip.country_code) or False
 
     def sale_product_domain(self):
         website_domain = self.get_current_website().website_domain()
@@ -795,7 +793,7 @@ class Website(models.Model):
             try:
                 # fetch the record field or raise a missingError
                 # avoids a query with the use of exists()
-                sale_order_sudo and sale_order_sudo.state
+                _ = sale_order_sudo and sale_order_sudo.state
             except MissingError:
                 self.sale_reset()
                 sale_order_sudo = SaleOrderSudo
@@ -972,10 +970,9 @@ class Website(models.Model):
         ]
 
     def _get_checkout_steps(self):
-        steps = self.env['website.checkout.step'].sudo().search(
+        return self.env['website.checkout.step'].sudo().search(
             self._get_allowed_steps_domain(), order='sequence'
         )
-        return steps
 
     def _get_checkout_step_values(self):
         def rewrite(path):

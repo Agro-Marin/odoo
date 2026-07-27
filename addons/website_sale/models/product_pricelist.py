@@ -110,7 +110,7 @@ class ProductPricelist(models.Model):
         self.ensure_one()
         if self.company_id and self.company_id != website.company_id:
             return False
-        return self.active and self.website_id.id == website.id or (not self.website_id and (self.selectable or self.sudo().code))
+        return (self.active and self.website_id.id == website.id) or (not self.website_id and (self.selectable or self.sudo().code))
 
     def _is_available_in_country(self, country_code):
         self.ensure_one()

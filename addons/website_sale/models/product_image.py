@@ -48,7 +48,7 @@ class ProductImage(models.Model):
     @api.depends('video_url')
     def _compute_embed_code(self):
         for image in self:
-            image.embed_code = image.video_url and get_video_embed_code(image.video_url) or False
+            image.embed_code = (image.video_url and get_video_embed_code(image.video_url)) or False
 
     #=== ONCHANGE METHODS ===#
 
@@ -56,7 +56,7 @@ class ProductImage(models.Model):
     def _onchange_video_url(self):
         if not self.image_1920:
             thumbnail = get_video_thumbnail(self.video_url)
-            self.image_1920 = thumbnail and base64.b64encode(thumbnail) or False
+            self.image_1920 = (thumbnail and base64.b64encode(thumbnail)) or False
 
     #=== CONSTRAINT METHODS ===#
 

@@ -4,7 +4,6 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
-from odoo.tools import float_round
 
 
 class ProductProduct(models.Model):

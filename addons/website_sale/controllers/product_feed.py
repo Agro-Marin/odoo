@@ -36,7 +36,7 @@ class ProductFeed(Controller):
         :rtype: bytes
         """
         if not request.website.enabled_gmc_src:
-            raise NotFound()
+            raise NotFound
 
         feed_sudo = self._find_and_check_feed_access(feed_id, access_token)
 
@@ -63,13 +63,13 @@ class ProductFeed(Controller):
         """
         try:
             feed_id = int(feed_id)
-        except ValueError:
-            raise BadRequest()
+        except ValueError as e:
+            raise BadRequest from e
         feed_sudo = request.env['product.feed'].sudo().browse(feed_id).exists()
         if not feed_sudo:
-            raise NotFound()
+            raise NotFound
 
         if not consteq(feed_sudo.access_token, access_token):
-            raise Forbidden()
+            raise Forbidden
 
         return feed_sudo
