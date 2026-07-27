@@ -195,6 +195,7 @@ class test_boolean_field(ImporterCase):
                     'field': 'value',
                     'message': "Unknown value '%s' for boolean field 'Value'" % v[0],
                     'moreinfo': "Use '1' for yes and '0' for no",
+                    'field_path': ['value'],
                     'field_name': 'Value',
                 }
                 for i, v in enumerate(trues)

@@ -58,7 +58,6 @@ class LoadMixin(_ModelStubs):
         self = self.with_context(_import_current_module=current_module)
 
         cr = self.env.cr
-        savepoint = cr.savepoint()
 
         fields = [fix_import_export_id_paths(f) for f in fields]
 
@@ -190,36 +189,33 @@ class LoadMixin(_ModelStubs):
         limit = self.env.context.get("_import_limit")
         if limit is None:
             limit = float("inf")
-        extracted = flush_recordset._extract_records(
-            fields, data, log=messages.append, limit=limit
-        )
 
-        converted = flush_recordset._convert_records(
-            extracted, log=messages.append, savepoint=savepoint
-        )
-
+        skip_fields = self._import_skip_fields()
         info = {"rows": {"to": -1}}
-        for id, xid, record, info in converted:
-            if self.env.context.get("import_file") and self.env.context.get(
-                "import_skip_records"
-            ):
-                if any(
-                    record.get(field) is None
-                    for field in self.env.context["import_skip_records"]
-                ):
+        savepoint = cr.savepoint()
+        try:
+            extracted = flush_recordset._extract_records(
+                fields, data, log=messages.append, limit=limit
+            )
+            converted = flush_recordset._convert_records(extracted, log=messages.append)
+            for id, xid, record, info in converted:
+                if any(record.get(field, False) is None for field in skip_fields):
                     continue
-            if xid:
-                xid = xid if "." in xid else f"{current_module}.{xid}"
-                batch_xml_ids.add(xid)
-            elif id:
-                record["id"] = id
-            batch.append((xid, record, info))
+                if xid:
+                    xid = xid if "." in xid else f"{current_module}.{xid}"
+                    batch_xml_ids.add(xid)
+                elif id:
+                    record["id"] = id
+                batch.append((xid, record, info))
 
-        flush()
-        if any(message["type"] == "error" for message in messages):
-            savepoint.rollback()
-            ids = False
-            self.pool.reset_changes()
+            flush()
+            if any(message["type"] == "error" for message in messages):
+                savepoint.rollback()
+                ids = False
+                self.pool.reset_changes()
+        except Exception:
+            savepoint.close(rollback=True)
+            raise
         savepoint.close(rollback=False)
 
         nextrow = info["rows"]["to"] + 1
@@ -230,6 +226,30 @@ class LoadMixin(_ModelStubs):
             "messages": messages,
             "nextrow": nextrow,
         }
+
+    @api.model
+    def _import_skip_fields(self) -> frozenset[str]:
+        """Return the top-level field names whose ``None`` converted value means
+        "skip this record", per the ``import_skip_records`` policy.
+
+        ``ir.fields.converter`` yields ``None`` for a cell it was told to skip;
+        a record holding one is dropped. Two things make the raw policy list
+        unusable as-is here:
+
+        * its entries are slash-paths (``child_ids/state``), which never match a
+          key of the converted record. ``ir.fields.converter`` folds a nested
+          skip onto its top-level field, so only the first segment is compared.
+        * a path naming a field absent from *this* import's columns matched
+          ``record.get(path) -> None`` on every record, silently dropping the
+          entire import and reporting nothing. Only a key that is present and
+          ``None`` counts, hence ``get(field, False)``.
+        """
+        context = self.env.context
+        if not context.get("import_file"):
+            return frozenset()
+        return frozenset(
+            path.partition("/")[0] for path in context.get("import_skip_records") or []
+        )
 
     def _extract_records(
         self,
@@ -279,12 +299,9 @@ class LoadMixin(_ModelStubs):
         for fname, *__ in field_paths:
             if not fname:
                 continue
-            if "." not in fname:
-                if fname not in fields:
-                    raise ValueError(f"Invalid field name {fname!r}")
+            f_prop_name, sep, property_name = fname.partition(".")
+            if not sep:
                 continue
-
-            f_prop_name, property_name = fname.split(".")
             if f_prop_name not in fields or fields[f_prop_name].type != "properties":
                 continue
 
@@ -379,7 +396,6 @@ class LoadMixin(_ModelStubs):
         records: Generator[tuple[dict, dict]],
         *,
         log: Callable = lambda a: None,
-        savepoint: typing.Any,
     ) -> Generator[tuple[int | bool, str | bool, dict, dict]]:
         """Convert source records (recursive dicts of strings) into forms
         writable to the database (via ``self.create`` or
@@ -391,15 +407,11 @@ class LoadMixin(_ModelStubs):
         if self.env.lang:
             field_names.update(self.env["ir.model.fields"].get_field_string(self._name))
 
-        convert = (
-            self.env["ir.fields.converter"]
-            .with_context(import_savepoint=savepoint)
-            .for_model(self)
-        )
+        convert = self.env["ir.fields.converter"].for_model(self)
 
         def _log(base, record, field, exception):
             type = "warning" if isinstance(exception, Warning) else "error"
-            field_name = field_names[field]
+            field_name = field_names.get(field, field)
             exc_vals = dict(base, record=record, field=field_name)
             record = dict(
                 base,
