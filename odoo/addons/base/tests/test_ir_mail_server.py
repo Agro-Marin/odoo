@@ -952,14 +952,10 @@ class TestSslContexts(TransactionCase):
 
     def test_ssl_context_from_certificate_key_mismatch_raises_usererror(self):
         """A private key that does not match the certificate surfaces as a
-        clean UserError (via _ssl_load_error), not a raw OpenSSL error."""
-        server = self._make_cert_server(
-            "starttls_strict", key_pem=self.mismatched_key_pem
-        )
+        clean UserError, and does so when the server is saved rather than at
+        the first send through it."""
         with self.assertRaises(UserError):
-            self.env["ir.mail_server"]._ssl_context_from_certificate(
-                server, "smtp.example.com"
-            )
+            self._make_cert_server("starttls_strict", key_pem=self.mismatched_key_pem)
 
     def _capture_connect_context(self, **connect_kwargs):
         """Open a connection through the raw-parameter path and return the

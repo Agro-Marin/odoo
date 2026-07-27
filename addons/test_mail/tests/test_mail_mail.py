@@ -856,10 +856,10 @@ class TestMailMailServer(MailCommon):
         self.assertEqual(self.connect_mocked.call_count, 4, 'Must be called once per batch which share the same mail server and the same smtp from')
         self.connect_mocked.assert_has_calls(
             calls=[
-                call(smtp_from=f'{self.default_from}@{self.alias_domain}', mail_server_id=self.mail_server_notification.id),
-                call(smtp_from='user_1@test_2.com', mail_server_id=self.mail_server_domain_2.id),
-                call(smtp_from='user_2@test_2.com', mail_server_id=self.mail_server_domain_2.id),
-                call(smtp_from='user_1@test_2.com', mail_server_id=self.mail_server_domain.id),
+                call(smtp_from=f'{self.default_from}@{self.alias_domain}', mail_server_id=self.mail_server_notification.id, resolve_server=False),
+                call(smtp_from='user_1@test_2.com', mail_server_id=self.mail_server_domain_2.id, resolve_server=False),
+                call(smtp_from='user_2@test_2.com', mail_server_id=self.mail_server_domain_2.id, resolve_server=False),
+                call(smtp_from='user_1@test_2.com', mail_server_id=self.mail_server_domain.id, resolve_server=False),
             ],
             any_order=True,
         )

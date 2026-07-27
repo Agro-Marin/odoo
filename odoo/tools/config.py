@@ -721,6 +721,14 @@ class configmanager:
             type="int",
         )
         group.add_option(
+            "--smtp-helo-name",
+            dest="smtp_helo_name",
+            my_default="",
+            help="specify the hostname announced in the SMTP HELO/EHLO command; "
+            "defaults to the machine's FQDN, which resolves to a bare IP literal "
+            "on hosts without one and is rejected by strict MTAs",
+        )
+        group.add_option(
             "--smtp-ssl-certificate-filename",
             dest="smtp_ssl_certificate_filename",
             type="path",

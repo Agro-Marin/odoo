@@ -59,12 +59,16 @@ class MailMail(models.Model):
             )
         return body
 
-    def _prepare_outgoing_list(self, mail_server=False, doc_to_followers=None):
+    def _prepare_outgoing_list(
+        self, mail_server=False, doc_to_followers=None, smtp_session=None
+    ):
         """Update mailing specific links to replace generic unsubscribe and
         view links by email-specific links. Also add headers to allow
         unsubscribe from email managers."""
         email_list = super()._prepare_outgoing_list(
-            mail_server=mail_server, doc_to_followers=doc_to_followers
+            mail_server=mail_server,
+            doc_to_followers=doc_to_followers,
+            smtp_session=smtp_session,
         )
         if not self.res_id or not self.mailing_id:
             return email_list

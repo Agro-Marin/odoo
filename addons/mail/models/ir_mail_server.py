@@ -56,12 +56,9 @@ class IrMail_Server(models.Model):
 
     def _get_test_email_from(self):
         self.ensure_one()
-        if from_filter_parts := self._parse_from_filter(self.from_filter):
-            # find first found complete email in filter parts
-            if mail_from := next(
-                (email for email in from_filter_parts if "@" in email), None
-            ):
-                return mail_from
+        if mail_from := self._from_filter_sender():
+            return mail_from
+        if domain := self._from_filter_domain():
             # the mail server is configured for a domain that matches the default email address
             alias_domains = self.env["mail.alias.domain"].sudo().search([])
             matching = next(
@@ -77,9 +74,8 @@ class IrMail_Server(models.Model):
             if matching:
                 return matching.default_from_email
             # fake default_from "odoo@domain"
-            return f"odoo@{from_filter_parts[0]}"
-        # no from_filter or from_filter is configured for a domain different that
-        # the default_from of company's alias_domain -> fallback
+            return f"odoo@{domain}"
+        # no from_filter, or nothing usable in it -> fallback
         return super()._get_test_email_from()
 
     @api.model
