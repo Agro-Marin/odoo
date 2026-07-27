@@ -196,5 +196,85 @@ class TestLegacyProbingWrapper(unittest.TestCase):
         self.assertEqual(cache._data["G"][("es_MX",)], {2: "two_es"})
 
 
+class TestKeepDirty(unittest.TestCase):
+    """``keep_dirty=True`` spares the values a pending write still needs.
+
+    The default drops values regardless of the dirty flag, and the caller-facing
+    paths refuse up front instead (``_check_no_pending_write``).  The
+    inverse-field pass of ``CacheMixin._invalidate_cache`` has no such guard --
+    it drops a whole field as a side effect of invalidating its counterpart --
+    so it opts in here.
+    """
+
+    def test_flat_all_ids_keeps_dirty_values(self) -> None:
+        cache = FieldCache()
+        cache.set_value("partner_id", 1, 10)
+        cache.set_value("partner_id", 2, 20)
+        cache.mark_dirty("partner_id", [1])
+        cache.invalidate("partner_id", None, context_dependent=False, keep_dirty=True)
+        self.assertEqual(cache.get_value("partner_id", 1), 10)
+        self.assertFalse(cache.has_value("partner_id", 2))
+
+    def test_flat_specific_ids_keeps_dirty_values(self) -> None:
+        cache = FieldCache()
+        cache.set_value("partner_id", 1, 10)
+        cache.set_value("partner_id", 2, 20)
+        cache.mark_dirty("partner_id", [1])
+        cache.invalidate("partner_id", [1, 2], context_dependent=False, keep_dirty=True)
+        self.assertEqual(cache.get_value("partner_id", 1), 10)
+        self.assertFalse(cache.has_value("partner_id", 2))
+
+    def test_flat_clear_preserves_dict_identity(self) -> None:
+        cache = FieldCache()
+        cache.set_value("partner_id", 1, 10)
+        cache.mark_dirty("partner_id", [1])
+        live = cache.get_field_data("partner_id")
+        cache.invalidate("partner_id", None, context_dependent=False, keep_dirty=True)
+        self.assertIs(cache.get_field_data("partner_id"), live)
+
+    def test_context_dependent_all_ids_keeps_dirty_across_subcaches(self) -> None:
+        cache = FieldCache()
+        cache._data["G"][("en_US",)] = {1: "one_en", 2: "two_en"}
+        cache._data["G"][("es_MX",)] = {1: "one_es", 2: "two_es"}
+        live = cache._data["G"][("en_US",)]
+        cache.mark_dirty("G", [1])
+        cache.invalidate("G", None, context_dependent=True, keep_dirty=True)
+        self.assertEqual(cache._data["G"][("en_US",)], {1: "one_en"})
+        self.assertEqual(cache._data["G"][("es_MX",)], {1: "one_es"})
+        self.assertIs(cache._data["G"][("en_US",)], live)
+
+    def test_context_dependent_specific_ids_keeps_dirty(self) -> None:
+        cache = FieldCache()
+        cache._data["G"][("en_US",)] = {1: "one_en", 2: "two_en"}
+        cache.mark_dirty("G", [1])
+        cache.invalidate("G", [1, 2], context_dependent=True, keep_dirty=True)
+        self.assertEqual(cache._data["G"][("en_US",)], {1: "one_en"})
+
+    def test_context_dependent_stale_flat_entry_is_kept_when_dirty(self) -> None:
+        """The setup-window mixed state: a flat leftover keyed by a dirty id."""
+        cache = FieldCache()
+        cache._data["G"][8] = "stale-scalar"
+        cache._data["G"][9] = "stale-scalar-2"
+        cache.mark_dirty("G", [8])
+        cache.invalidate("G", None, context_dependent=True, keep_dirty=True)
+        self.assertEqual(cache._data["G"], {8: "stale-scalar"})
+
+    def test_default_still_drops_dirty_values(self) -> None:
+        """Unchanged for every caller that does not opt in."""
+        cache = FieldCache()
+        cache.set_value("partner_id", 1, 10)
+        cache.mark_dirty("partner_id", [1])
+        cache.invalidate("partner_id", None, context_dependent=False)
+        self.assertFalse(cache.has_value("partner_id", 1))
+        self.assertTrue(cache.has_dirty_field("partner_id"))
+
+    def test_keep_dirty_does_not_clear_the_dirty_flags(self) -> None:
+        cache = FieldCache()
+        cache.set_value("partner_id", 1, 10)
+        cache.mark_dirty("partner_id", [1])
+        cache.invalidate("partner_id", None, context_dependent=False, keep_dirty=True)
+        self.assertEqual(cache.get_dirty("partner_id"), {1})
+
+
 if __name__ == "__main__":
     unittest.main()

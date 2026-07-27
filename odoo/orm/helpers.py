@@ -14,6 +14,7 @@ from odoo.tools import SQL
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from .fields.base import Field
     from .models.base import BaseModel
 
 
@@ -33,6 +34,29 @@ def _origin_ids(ids: Iterable) -> list[int]:
     if isinstance(ids, tuple):
         return _origin_ids_rust(ids)
     return _origin_ids_python(ids)
+
+
+def resolve_fnames(model: BaseModel, fnames: Iterable[str]) -> list[Field]:
+    """Resolve caller-supplied field *names* on *model*, or raise ``ValueError``.
+
+    The cache/flush/recompute entry points (``invalidate_model``,
+    ``flush_recordset``, ``_recompute_model``, ...) all take an ``fnames``
+    argument straight from their caller.  Indexing ``self._fields`` raw makes a
+    typo surface as a bare ``KeyError('bogus')`` naming neither the model nor
+    the API that rejected it, while the sibling entry points on the same object
+    raise a ``ValueError`` that names both.  One resolver keeps that one
+    behaviour instead of one per call site.
+    """
+    fields = []
+    _fields = model._fields
+    for fname in fnames:
+        try:
+            fields.append(_fields[fname])
+        except KeyError:
+            raise ValueError(
+                f"Invalid field {fname!r} on model {model._name!r}"
+            ) from None
+    return fields
 
 
 ORM_CLASS_MEMOS: tuple[str, ...] = (

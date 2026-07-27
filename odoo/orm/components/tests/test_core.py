@@ -50,7 +50,14 @@ _NON_PASSTHROUGH = {
 }
 
 _KWARG_DELEGATIONS = [
-    ("invalidate", "cache", "invalidate", 2, ("context_dependent",), False),
+    (
+        "invalidate",
+        "cache",
+        "invalidate",
+        2,
+        ("context_dependent", "keep_dirty"),
+        False,
+    ),
     ("all_cached_ids", "cache", "all_cached_ids", 1, ("context_dependent",), True),
 ]
 

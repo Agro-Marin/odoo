@@ -1142,16 +1142,26 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
         return cache
 
     def _invalidate_cache(
-        self, env: Environment, ids: Collection[IdType] | None = None
+        self,
+        env: Environment,
+        ids: Collection[IdType] | None = None,
+        *,
+        keep_dirty: bool = False,
     ) -> None:
         """Invalidate cached values for the given ids (all if ``None``).
 
         Delegates to :meth:`FieldCache.invalidate` with the shape bit (see the
         shape note above): the cache owns the nested-shape decode, including
         the mixed setup-window state and dict-valued flat caches.
+
+        Pass ``keep_dirty=True`` when the invalidation is a consistency side
+        effect rather than a caller request; see :meth:`FieldCache.invalidate`.
         """
         env._core.invalidate(
-            self, ids, context_dependent=self._is_context_dependent(env)
+            self,
+            ids,
+            context_dependent=self._is_context_dependent(env),
+            keep_dirty=keep_dirty,
         )
 
     def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:

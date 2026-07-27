@@ -142,32 +142,56 @@ class FieldCache:
         ids: Iterable | None = None,
         *,
         context_dependent: bool,
+        keep_dirty: bool = False,
     ) -> None:
         """Invalidate cached values for *field* (all if *ids* is ``None``).
 
         The context-dependent branch walks *ids* once per sub-cache, so a
         one-shot iterator is materialized first; without that it invalidates
         nothing and reports no error.
+
+        :param keep_dirty: spare the ids currently marked dirty for *field*,
+            upholding the "dirty ⇒ value present" invariant that
+            :meth:`invalidate_all` upholds unconditionally.  For invalidations
+            the caller did not ask for -- the inverse-field pass in
+            ``CacheMixin._invalidate_cache``, which drops a *whole* field as a
+            consistency side effect -- a dirty entry is the authoritative
+            pending value, never a stale read, so dropping it loses a write
+            with no error.  Caller-requested invalidation leaves this ``False``
+            and is refused up front instead (``_check_no_pending_write``).
         """
         field_cache = self._data.get(field)
         if not field_cache:
             return
+        dirty = (self._dirty.get(field) or None) if keep_dirty else None
         if not context_dependent:
             if ids is None:
-                field_cache.clear()
+                if dirty is None:
+                    field_cache.clear()
+                else:
+                    for id_ in [k for k in field_cache if k not in dirty]:
+                        del field_cache[id_]
             else:
                 for id_ in ids:
-                    field_cache.pop(id_, None)
+                    if dirty is None or id_ not in dirty:
+                        field_cache.pop(id_, None)
             return
         if ids is None:
             for key in list(field_cache):
                 if isinstance(key, tuple):
-                    field_cache[key].clear()
-                else:
+                    sub_cache = field_cache[key]
+                    if dirty is None:
+                        sub_cache.clear()
+                    else:
+                        for id_ in [k for k in sub_cache if k not in dirty]:
+                            del sub_cache[id_]
+                elif dirty is None or key not in dirty:
                     del field_cache[key]
             return
         if isinstance(ids, Iterator):
             ids = tuple(ids)
+        if dirty is not None:
+            ids = [id_ for id_ in ids if id_ not in dirty]
         for id_ in ids:
             field_cache.pop(id_, None)
         for key, sub_cache in field_cache.items():

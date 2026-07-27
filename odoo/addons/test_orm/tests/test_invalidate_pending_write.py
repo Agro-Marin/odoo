@@ -102,3 +102,137 @@ class TestInvalidatePendingWrite(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(record.ref, "R1")
+
+
+class TestFnameResolution(TransactionCase):
+    """An unknown field name names the field *and* the model, on every entry point.
+
+    ``invalidate_model`` / ``invalidate_recordset`` already raised a ``ValueError``
+    saying both; the flush and recompute siblings indexed ``self._fields`` raw and
+    surfaced a bare ``KeyError('bogus')`` — same caller mistake, same object, two
+    unrelated exception types and one of them naming neither the model nor the API
+    that rejected it.  ``helpers.resolve_fnames`` is now the single resolver.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.record = self.env["res.partner"].create({"name": "x"})
+
+    def _assert_names_field_and_model(self, func, *args):
+        with self.assertRaises(ValueError) as ctx:
+            func(*args)
+        message = str(ctx.exception)
+        self.assertIn("bogus", message)
+        self.assertIn("res.partner", message)
+
+    def test_flush_model(self):
+        self._assert_names_field_and_model(
+            self.env["res.partner"].flush_model, ["bogus"]
+        )
+
+    def test_flush_recordset(self):
+        self._assert_names_field_and_model(self.record.flush_recordset, ["bogus"])
+
+    def test_recompute_model(self):
+        self._assert_names_field_and_model(
+            self.env["res.partner"]._recompute_model, ["bogus"]
+        )
+
+    def test_recompute_recordset(self):
+        self._assert_names_field_and_model(self.record._recompute_recordset, ["bogus"])
+
+    def test_invalidate_recordset_unchanged(self):
+        self._assert_names_field_and_model(self.record.invalidate_recordset, ["bogus"])
+
+    def test_invalidate_model_unchanged(self):
+        self._assert_names_field_and_model(
+            self.env["res.partner"].invalidate_model, ["bogus"]
+        )
+
+    def test_valid_names_still_pass(self):
+        self.record.write({"ref": "R"})
+        self.record.flush_recordset(["ref"])
+        self.env["res.partner"].flush_model(["ref"])
+        self.record._recompute_recordset(["display_name"])
+        self.env["res.partner"]._recompute_model(["display_name"])
+
+
+class TestInvalidateInversePendingWrite(TransactionCase):
+    """The inverse-field pass must not drop a pending write either.
+
+    ``_invalidate_cache`` also invalidates the *inverse* of every field it was
+    asked to invalidate, across all ids — a consistency side effect the caller
+    never requested, and one the ``flush=False`` guard does not cover (it scans
+    only the requested fields).  Invalidating a one2many therefore used to wipe
+    the counterpart many2one on every record, dirty ones included: the flag
+    survived, the value did not, and the next flush re-read the database value
+    and wrote it straight back.  The write vanished with no error.
+
+    ``account_full_reconcile`` and ``account_move_send`` both invalidate a
+    one2many with ``flush=False``, so this was reachable from stock addons.
+    """
+
+    def _dirty_inverse(self):
+        """Return ``(bank, target_partner)`` with a pending write on the
+        many2one that is the inverse of ``res.partner.bank_ids``."""
+        source = self.env["res.partner"].create({"name": "source"})
+        target = self.env["res.partner"].create({"name": "target"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "ACC-1", "partner_id": source.id}
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        bank.write({"partner_id": target.id})
+        field = self.env["res.partner.bank"]._fields["partner_id"]
+        self.assertIn(
+            bank.id,
+            self.env._core.get_dirty(field) or (),
+            "precondition: the write must leave 'partner_id' dirty",
+        )
+        return source, bank, target
+
+    def test_inverse_invalidation_keeps_the_pending_write(self):
+        source, bank, target = self._dirty_inverse()
+        source.invalidate_recordset(["bank_ids"], flush=False)
+
+        field = self.env["res.partner.bank"]._fields["partner_id"]
+        self.assertIn(
+            bank.id,
+            field._get_cache(self.env),
+            "the dirty value must survive the inverse-field invalidation",
+        )
+
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(bank.partner_id, target)
+
+    def test_inverse_invalidation_still_drops_clean_values(self):
+        """Only the dirty ids are spared; the rest is invalidated as before."""
+        source = self.env["res.partner"].create({"name": "source"})
+        target = self.env["res.partner"].create({"name": "target"})
+        Bank = self.env["res.partner.bank"]
+        bank = Bank.create({"acc_number": "ACC-1", "partner_id": source.id})
+        clean = Bank.create({"acc_number": "ACC-2", "partner_id": source.id})
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        field = Bank._fields["partner_id"]
+        clean.partner_id  # noqa: B018 - populate the cache
+        bank.write({"partner_id": target.id})
+        cache = field._get_cache(self.env)
+        self.assertIn(bank.id, cache)
+        self.assertIn(clean.id, cache)
+
+        source.invalidate_recordset(["bank_ids"], flush=False)
+
+        cache = field._get_cache(self.env)
+        self.assertIn(bank.id, cache)
+        self.assertNotIn(clean.id, cache)
+
+    def test_invalidate_model_inverse_keeps_the_pending_write(self):
+        _source, bank, target = self._dirty_inverse()
+        self.env["res.partner"].invalidate_model(["bank_ids"], flush=False)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(bank.partner_id, target)

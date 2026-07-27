@@ -26,7 +26,7 @@ from odoo.tools.orm_profiler import _OrmProfile
 
 from ... import decorators as api
 from ...components.recompute import RecomputeScheduler
-from ...helpers import own_class_memo
+from ...helpers import own_class_memo, resolve_fnames
 from ...primitives import NewId
 from ._model_stubs import _ModelStubs
 
@@ -309,39 +309,45 @@ class RecomputeMixin(_ModelStubs):
     def _recompute_model(self, fnames: Collection[str] | None = None) -> None:
         """Process the pending computations of the fields of ``self``'s model.
 
+        Names are resolved before the "nothing pending" shortcut, so an invalid
+        one is rejected whether or not there happened to be work to do.
+
         :param fnames: optional iterable of field names to compute
         """
-        core = self.env._core
-        if not core.has_pending():
-            return
-
-        if fnames is None:
-            for field in self._get_stored_computed_fields():
-                self._recompute_field(field)
-        else:
-            for fname in fnames:
-                field = self._fields[fname]
-                if field.is_stored_computed:
-                    self._recompute_field(field)
+        self._recompute_fields(self._resolve_recompute_fields(fnames), None)
 
     def _recompute_recordset(self, fnames: Collection[str] | None = None) -> None:
         """Process the pending computations of the fields of the records in ``self``.
 
+        Names are resolved before the "nothing pending" shortcut, so an invalid
+        one is rejected whether or not there happened to be work to do.
+
         :param fnames: optional iterable of field names to compute
         """
-        core = self.env._core
-        if not core.has_pending():
-            return
+        self._recompute_fields(self._resolve_recompute_fields(fnames), self._ids)
 
+    def _resolve_recompute_fields(
+        self, fnames: Collection[str] | None
+    ) -> Collection[Field]:
+        """Resolve *fnames* to fields, defaulting to this model's stored-computed ones."""
         if fnames is None:
-            ids = self._ids
-            for field in self._get_stored_computed_fields():
+            return self._get_stored_computed_fields()
+        return resolve_fnames(self, fnames)
+
+    def _recompute_fields(
+        self, fields: Collection[Field], ids: Sequence[IdType] | None
+    ) -> None:
+        """Process the pending computations of already-resolved *fields*.
+
+        The shared tail of :meth:`_recompute_model` / :meth:`_recompute_recordset`
+        and the flush entry points, which resolve their names once and hand the
+        fields down rather than re-resolving them here.
+        """
+        if not self.env._core.has_pending():
+            return
+        for field in fields:
+            if field.is_stored_computed:
                 self._recompute_field(field, ids)
-        else:
-            for fname in fnames:
-                field = self._fields[fname]
-                if field.is_stored_computed:
-                    self._recompute_field(field, self._ids)
 
     def _recompute_field(
         self, field: Field, ids: Sequence[IdType] | None = None
@@ -384,21 +390,25 @@ class RecomputeMixin(_ModelStubs):
         If *none* of the given fields are dirty, no flush occurs.
         Pass ``None`` to flush unconditionally.
 
+        Invalid names are rejected before the "nothing dirty" shortcut, so the
+        rejection does not depend on transaction state.
+
         :param fnames: optional iterable of field names to check for dirtiness
         """
-        if fnames is not None:
+        fields = None if fnames is None else resolve_fnames(self, fnames)
+        if fields is not None:
             core = self.env._core
             if not core.has_pending() and not core.is_any_dirty():
                 return
 
         prof = _OrmProfile(_orm_cache)
 
-        self._recompute_model(fnames)
+        self._recompute_fields(
+            self._get_stored_computed_fields() if fields is None else fields, None
+        )
         prof.mark("recompute")
         core = self.env._core
-        if fnames is None or any(
-            core.has_dirty_field(self._fields[fname]) for fname in fnames
-        ):
+        if fields is None or any(map(core.has_dirty_field, fields)):
             self._flush()
 
         prof.stop()
@@ -418,20 +428,27 @@ class RecomputeMixin(_ModelStubs):
         least the given fields on records ``self`` are flushed to the database.
         More fields and records can be flushed, though.
 
+        Invalid names are rejected before the "empty recordset" and "nothing
+        dirty" shortcuts, so the rejection does not depend on either.
+
         :param fnames: optional iterable of field names to flush
         """
+        named_fields = None if fnames is None else resolve_fnames(self, fnames)
         if not self:
             return
-        if fnames is not None:
+        if named_fields is not None:
             core = self.env._core
             if not core.has_pending() and not core.is_any_dirty():
                 return
-        self._recompute_recordset(fnames)
-        fields: Collection[Field]
-        if fnames is None:
-            fields = self._fields.values()
-        else:
-            fields = [self._fields[fname] for fname in fnames]
+        self._recompute_fields(
+            self._get_stored_computed_fields()
+            if named_fields is None
+            else named_fields,
+            self._ids,
+        )
+        fields: Collection[Field] = (
+            self._fields.values() if named_fields is None else named_fields
+        )
         core = self.env._core
         ids = self._ids
         if len(ids) == 1:

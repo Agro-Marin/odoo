@@ -79,13 +79,17 @@ class OrmCore:
         ids: Iterable | None = None,
         *,
         context_dependent: bool,
+        keep_dirty: bool = False,
     ) -> None:
         """Invalidate *field*'s cached values (all if *ids* is ``None``).
 
         The caller supplies the cache shape (``Field._is_context_dependent``);
-        the cache owns the shape decode. See :meth:`FieldCache.invalidate`.
+        the cache owns the shape decode. See :meth:`FieldCache.invalidate`,
+        including the meaning of *keep_dirty*.
         """
-        self.cache.invalidate(field, ids, context_dependent=context_dependent)
+        self.cache.invalidate(
+            field, ids, context_dependent=context_dependent, keep_dirty=keep_dirty
+        )
 
     def all_cached_ids(
         self, field: Any, *, context_dependent: bool
