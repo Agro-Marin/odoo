@@ -6,17 +6,25 @@ whole claim/execute/finalize state machine is exercised inside the test
 transaction, without workers or extra connections.
 """
 
+import time
 from datetime import timedelta
 from unittest.mock import patch
 
 import odoo
 from odoo import api, fields
-from odoo.exceptions import RetryableJobError, UserError, ValidationError
+from odoo.exceptions import (
+    RetryableJobError,
+    TerminalJobError,
+    UserError,
+    ValidationError,
+)
 from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.base.models import ir_job
+from odoo.addons.base.models.ir_cron import IrCron
 from odoo.addons.base.models.ir_job import IrJob
 
 
@@ -52,7 +60,7 @@ def _isolate_queue(env):
     """
     env.cr.execute(
         "UPDATE ir_job SET state = 'cancelled'"
-        " WHERE state IN ('wait_deps', 'pending', 'started')"
+        " WHERE state IN ('wait_deps', 'scheduled', 'pending', 'started')"
     )
     env.cr.execute("DELETE FROM ir_job_channel")
 
@@ -138,7 +146,68 @@ class TestIrJob(TransactionCase):
 
         self.env.cr.execute("UPDATE ir_job SET state = 'done' WHERE id = %s", (low.id,))
         self.assertIsNone(self._claim())
-        self.assertEqual(future.state, "pending")
+        self.assertEqual(
+            future.state, "scheduled", "a job waiting on its clock is not claimable"
+        )
+
+    def test_delayed_work_is_kept_out_of_the_claim_index(self):
+        """``pending`` means claimable *now* — that is what keeps the index exact.
+
+        While delayed jobs shared ``pending`` they sat in ``ir_job_claim_idx``
+        ahead of the ready ones (older, and the index is ordered by
+        ``priority, create_date``), so every claim walked past them and Postgres
+        eventually abandoned the index for a sequential scan: 0.055 ms on an
+        idle queue against 23.9 ms behind 200k delayed jobs, and claims
+        serialize on one advisory lock, so that is the whole database's ceiling.
+        """
+        later = self.partner.delayed(eta=3600)._ir_job_test_append()
+        soon = self.partner.delayed()._ir_job_test_append()
+        self.assertEqual(later.state, "scheduled")
+        self.assertEqual(soon.state, "pending")
+
+        self.env.cr.execute(
+            "SELECT count(*) FROM ir_job WHERE state = 'pending'"
+            " AND eta IS NOT NULL AND eta > (now() AT TIME ZONE 'UTC')"
+        )
+        self.assertEqual(
+            self.env.cr.fetchone()[0], 0, "no delayed row may sit in the claim index"
+        )
+
+        claimed = self._claim()
+        self.assertEqual(claimed["id"], soon.id)
+
+    def test_promotion_moves_a_job_over_when_its_clock_runs_out(self):
+        job = self.partner.delayed(eta=3600)._ir_job_test_append()
+        self.assertEqual(IrJob._promote_due_jobs(self.env.cr), 0, "not due yet")
+
+        self.env.cr.execute(
+            "UPDATE ir_job SET eta = (now() AT TIME ZONE 'UTC') - interval '1 second'"
+            " WHERE id = %s",
+            (job.id,),
+        )
+        self.assertEqual(IrJob._promote_due_jobs(self.env.cr), 1)
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "pending")
+        self.assertEqual(self._claim()["id"], job.id)
+
+    def test_a_scheduled_job_can_be_cancelled_and_run_manually(self):
+        """Its only obstacle is a clock, so both operator actions accept it."""
+        job = self.partner.delayed(eta=3600)._ir_job_test_append(" now")
+        job.action_run_now()
+        self.assertEqual(job.state, "done")
+
+        other = self.partner.delayed(eta=3600)._ir_job_test_append()
+        other.action_cancel()
+        self.assertEqual(other.state, "cancelled")
+
+    def test_scheduled_job_still_holds_its_identity_key(self):
+        """It owes work, so it must keep deduplicating against new enqueues."""
+        first = self.partner.delayed(
+            eta=3600, identity_key="nightly"
+        )._ir_job_test_append()
+        self.assertEqual(first.state, "scheduled")
+        twin = self.partner.delayed(identity_key="nightly")._ir_job_test_append()
+        self.assertEqual(first.id, twin.id)
 
     def test_claim_respects_channel_capacity(self):
         self.partner.delayed(channel="bulk")._ir_job_test_append()
@@ -178,13 +247,17 @@ class TestIrJob(TransactionCase):
         IrJob._record_failure(self.env.cr, job, RetryableJobError("x", seconds=42))
 
         record = self.env["ir.job"].browse(job["id"])
-        self.assertEqual(record.state, "pending")
+        self.assertEqual(record.state, "scheduled", "backing off is waiting on a clock")
         self.assertEqual(record.retry, 1)
         self.assertEqual(record.exc_name, "RetryableJobError")
         delta = record.eta - fields.Datetime.now()
         self.assertTrue(timedelta(seconds=37) < delta < timedelta(seconds=47))
+        self.assertIsNone(self._claim(), "not claimable while it is backing off")
 
         self.env.cr.execute("UPDATE ir_job SET eta = NULL WHERE id = %s", (job["id"],))
+        self.assertEqual(IrJob._promote_due_jobs(self.env.cr), 1)
+        record.invalidate_recordset()
+        self.assertEqual(record.state, "pending")
         job = self._claim()
         self.assertEqual(job["id"], record.id)
         IrJob._record_failure(self.env.cr, job, ValueError("boom"))
@@ -356,6 +429,132 @@ class TestIrJob(TransactionCase):
         job.invalidate_recordset()
         self.assertEqual(job.state, "failed")
 
+    def test_success_clears_the_previous_failure_trace(self):
+        """A job that succeeds on a retry must not keep the failure's traceback.
+
+        ``exc_info`` survived into ``done``, so the form view -- whose Error
+        page is shown whenever ``exc_name`` is set -- reported a completed job
+        as failed, and every triage tool reading ``exc_name`` agreed with it.
+        """
+        job = self.partner.delayed(max_retries=3)._ir_job_test_boom()
+        claimed = self._claim()
+        IrJob._record_failure(self.env.cr, claimed, ValueError("boom"))
+        job.invalidate_recordset()
+        self.assertEqual(job.exc_name, "ValueError")
+
+        self.env.cr.execute("UPDATE ir_job SET eta = NULL WHERE id = %s", (job.id,))
+        IrJob._promote_due_jobs(self.env.cr)
+        claimed = self._claim()
+        claimed["method_name"] = "_ir_job_test_append"
+        IrJob._run_claimed(self.env.cr, claimed)
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "done")
+        self.assertFalse(job.exc_name)
+        self.assertFalse(job.exc_message)
+        self.assertFalse(job.exc_info)
+        self.assertEqual(job.retry, 1, "the retry count still records the failure")
+
+    def test_requeue_clears_the_previous_run_traces(self):
+        """Requeueing restores a clean queued row, not a failed-looking one."""
+        job = self.partner.delayed(max_retries=0)._ir_job_test_boom()
+        claimed = self._claim()
+        IrJob._record_failure(self.env.cr, claimed, ValueError("boom"))
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "failed")
+        self.assertTrue(job.worker_ident)
+
+        job.action_requeue()
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "pending")
+        self.assertFalse(job.exc_name)
+        self.assertFalse(job.exc_info)
+        self.assertFalse(job.worker_ident, "names a worker that is not running it")
+        self.assertFalse(job.started_at, "reads as liveness to the reaper")
+
+    def test_archived_scheduling_user_is_refused(self):
+        """Archiving an account revokes it, including for work already queued.
+
+        ``eta`` and retry backoff let a job outlive the account that enqueued
+        it by hours; running it anyway acts with revoked credentials.
+        ``ir.cron`` refuses the same thing for its server actions.
+        """
+        user = self.env["res.users"].create(
+            {
+                "name": "queued then archived",
+                "login": "job_archived_user",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        self.partner.with_user(user).delayed()._ir_job_test_append()
+        user.active = False
+        self.env.flush_all()
+
+        claimed = self._claim()
+        # the group makes the call itself permitted, so being archived is the
+        # only thing left that can refuse it
+        with self.assertRaisesRegex(TerminalJobError, "archived"):
+            IrJob._run_claimed(self.env.cr, claimed)
+
+    def test_permanent_condition_does_not_climb_the_backoff_ladder(self):
+        """``TerminalJobError`` spends the budget at once, not one rung at a time.
+
+        An archived account is not going to un-archive itself between retries,
+        yet the job took ``max_retries`` + 1 executions across ~5 minutes of
+        backoff to conclude that, logging a traceback on every one.
+        """
+        job = self.partner.delayed(max_retries=5)._ir_job_test_append()
+        claimed = self._claim()
+        IrJob._record_failure(
+            self.env.cr, claimed, TerminalJobError("archived, and staying so")
+        )
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "failed")
+        self.assertEqual(job.retry, 0, "the budget was never spent one rung at a time")
+        self.assertFalse(job.eta, "no rescheduling for a condition that cannot change")
+
+    def test_job_marker_survives_an_override_that_does_not_redecorate(self):
+        """Extending a job method must not quietly stop it being a job.
+
+        ``@api.job`` marks a function, but Odoo composes a model from one class
+        per extending module, so an ordinary ``super()``-calling override sits
+        first in the MRO undecorated.  Reading the marker off the most-derived
+        function therefore lost it: enqueues started raising and rows already
+        queued for that method refused to run, with nothing failing at import
+        time to say why.
+        """
+
+        class Declaring:
+            @api.job(channel="heavy", max_retries=3)
+            def _sync(self):
+                pass
+
+        class Extending(Declaring):
+            def _sync(self):  # the ordinary super()-calling override
+                return super()._sync()
+
+        self.assertIsNone(
+            getattr(Extending._sync, "_job_config", None),
+            "the override itself carries no marker — that is the whole trap",
+        )
+        self.assertEqual(
+            ir_job._job_config_of(Extending, "_sync"),
+            {"channel": "heavy", "priority": 10, "max_retries": 3},
+            "the declaration is still reachable along the MRO",
+        )
+
+    def test_job_marker_is_still_required_somewhere_in_the_chain(self):
+        """Walking the MRO must not become "anything callable is a job".
+
+        The marker is what stops a hand-written ``ir_job`` row naming an
+        arbitrary method, so widening how it is *found* must not widen what
+        counts as marked.
+        """
+        self.assertIsNone(
+            ir_job._job_config_of(self.partner_cls, "_compute_display_name")
+        )
+        with self.assertRaises(UserError):
+            self.partner.delayed()._compute_display_name()
+
     def test_display_name(self):
         job = self.partner.delayed()._ir_job_test_append()
         self.assertEqual(
@@ -392,6 +591,115 @@ class TestIrJob(TransactionCase):
             @api.job
             def public_method(self):
                 pass
+
+    def test_bulk_enqueue_queues_a_single_worker_wakeup(self):
+        """One NOTIFY wakes every worker, so N enqueues must not queue N of them.
+
+        ``postcommit`` is append-only: registering the wake-up per enqueue put
+        one round-trip to the ``postgres`` database per job on the enqueuing
+        transaction's commit path (1.4s for 500 jobs).
+        """
+        before = len(self.env.cr.postcommit)
+        for index in range(20):
+            self.partner.delayed()._ir_job_test_append(str(index))
+        self.assertEqual(len(self.env.cr.postcommit) - before, 1)
+
+    def test_retryable_error_with_an_explicit_zero_delay_retries_at_once(self):
+        """``seconds=0`` means "right now", not "no delay given"."""
+        self.partner.delayed()._ir_job_test_boom()
+        job = self._claim()
+        IrJob._record_failure(self.env.cr, job, RetryableJobError("go", seconds=0))
+        record = self.env["ir.job"].browse(job["id"])
+        self.assertEqual(record.state, "pending")
+        self.assertLess(record.eta - fields.Datetime.now(), timedelta(seconds=5))
+
+    def test_failure_records_the_traceback_of_the_exception(self):
+        """The traceback comes from the exception, not from the caller's
+        ``except`` block, which every caller outside one used to leave empty.
+        """
+        self.partner.delayed()._ir_job_test_boom()
+        job = self._claim()
+        try:
+            raise ValueError("boom")
+        except ValueError as exc:
+            caught = exc
+        IrJob._record_failure(self.env.cr, job, caught)
+        record = self.env["ir.job"].browse(job["id"])
+        self.assertIn("ValueError: boom", record.exc_info)
+        self.assertIn("test_failure_records_the_traceback", record.exc_info)
+
+    def test_archived_channel_is_paused_not_reset_to_capacity_one(self):
+        """Archiving is the pause switch, so its jobs stop being claimed.
+
+        Falling back to the implicit capacity turned "switch this channel off"
+        into "run it one at a time", on a row the default list view hides.
+        """
+        self.partner.delayed(channel="paused")._ir_job_test_append()
+        channel = self.env["ir.job.channel"].create(
+            {"name": "paused", "capacity": 4, "active": False}
+        )
+        self.env.flush_all()
+        self.assertIsNone(self._claim())
+
+        channel.active = True
+        self.env.flush_all()
+        self.assertIsNotNone(self._claim())
+
+    def test_channel_counts_running_and_pending_jobs(self):
+        channel = self.env["ir.job.channel"].create({"name": "counted", "capacity": 5})
+        self.partner.delayed(channel="counted")._ir_job_test_append()
+        self.partner.delayed(channel="counted")._ir_job_test_append()
+        self.env.flush_all()
+        self.assertEqual((channel.running_count, channel.pending_count), (0, 2))
+
+        self._claim()
+        channel.invalidate_recordset()
+        self.assertEqual((channel.running_count, channel.pending_count), (1, 1))
+
+    def test_identity_dedup_warns_when_it_drops_the_dependencies(self):
+        """A dedup hit returns the existing job, which does NOT gain ``after``.
+
+        The chain the caller asked for silently does not exist, so the drop has
+        to be visible in the log rather than only in the docstring.
+        """
+        first = self.partner.delayed(identity_key="chained")._ir_job_test_append()
+        blocker = self.partner.delayed()._ir_job_test_append()
+        with self.assertLogs("odoo.addons.base.models.ir_job", "WARNING") as logs:
+            twin = self.partner.delayed(
+                identity_key="chained", after=blocker
+            )._ir_job_test_append()
+        self.assertEqual(twin, first)
+        self.assertFalse(twin.depends_on_ids)
+        self.assertIn("deduplicated on identity key", logs.output[0])
+
+    def test_enqueue_after_a_vanished_dependency_is_pending(self):
+        """A garbage-collected dependency is gone, not unfinished: the raw
+        dependency INSERT used to hit the foreign key instead.
+        """
+        gone = self.partner.delayed()._ir_job_test_append()
+        gone_id = gone.id
+        self.env.cr.execute("DELETE FROM ir_job WHERE id = %s", (gone_id,))
+        gone.invalidate_recordset()
+        job = self.partner.delayed(after=self.env["ir.job"].browse(gone_id))
+        job = job._ir_job_test_append()
+        self.assertEqual(job.state, "pending")
+        self.assertFalse(job.depends_on_ids)
+
+    def test_maintenance_sweep_is_throttled_per_database(self):
+        """The sweep repairs the database, not this worker's view of it, so
+        running it on every pass of every worker only multiplied its cost.
+        """
+        db_name = self.env.cr.dbname
+        ir_job._last_maintenance.pop(db_name, None)
+        self.addCleanup(ir_job._last_maintenance.pop, db_name, None)
+        db_conn = odoo.db.db_connect(db_name)
+        with (
+            patch.object(IrJob, "_reap_dead_jobs") as reaper,
+            patch.object(IrJob, "_resolve_dependencies"),
+        ):
+            IrJob._run_maintenance(db_conn)
+            IrJob._run_maintenance(db_conn)
+        reaper.assert_called_once()
 
 
 class TestIrJobDependencyCycle(TransactionCase):
@@ -498,6 +806,114 @@ class TestIrJobClaimSnapshot(BaseCase):
             self.assertNotEqual(job_b["id"], job_a["id"])
 
 
+class TestIrJobMaintenanceSnapshot(BaseCase):
+    """The repair sweep racing a worker that completes a dependency.
+
+    The sibling of :class:`TestIrJobClaimSnapshot`: the same stale-snapshot
+    hazard, on the other database-wide writer.
+    """
+
+    CHANNEL = "sweeptest"
+
+    def setUp(self):
+        super().setUp()
+        self.db_name = common.get_db_name()
+        self.db_conn = odoo.db.db_connect(self.db_name)
+        self.registry = Registry(self.db_name)
+        self.addCleanup(self._clear_jobs)
+        self._clear_jobs()
+        with self.registry.cursor() as cr:
+            cr.execute(
+                "INSERT INTO ir_job (channel, state, model_name, method_name,"
+                " user_id, max_retries, retry, priority, create_uid, create_date,"
+                " write_uid, write_date) VALUES"
+                " (%s,'done','ir.job','_job_ping',1,5,0,10,1,now(),1,now()),"
+                " (%s,'wait_deps','ir.job','_job_ping',1,5,0,10,1,now(),1,now())"
+                " RETURNING id",
+                (self.CHANNEL, self.CHANNEL),
+            )
+            self.dependency_id, self.waiter_id = (row[0] for row in cr.fetchall())
+            cr.execute(
+                "INSERT INTO ir_job_dependency (job_id, depends_on_id) VALUES (%s, %s)",
+                (self.waiter_id, self.dependency_id),
+            )
+            cr.commit()
+
+    def _clear_jobs(self):
+        with self.registry.cursor() as cr:
+            cr.execute(
+                "DELETE FROM ir_job_dependency WHERE job_id IN"
+                " (SELECT id FROM ir_job WHERE channel = %s)",
+                (self.CHANNEL,),
+            )
+            cr.execute("DELETE FROM ir_job WHERE channel = %s", (self.CHANNEL,))
+            cr.commit()
+        ir_job._last_maintenance.pop(self.db_name, None)
+
+    def _promote_the_waiter(self):
+        """What a concurrently completing worker's ``_release_dependents`` does."""
+        with self.registry.cursor() as other:
+            other.execute(
+                "UPDATE ir_job SET state = 'pending'"
+                " WHERE id = %s AND state = 'wait_deps'",
+                (self.waiter_id,),
+            )
+            other.commit()
+
+    def _state(self, job_id):
+        with self.registry.cursor() as cr:
+            cr.execute("SELECT state FROM ir_job WHERE id = %s", (job_id,))
+            return cr.fetchone()[0]
+
+    def test_pass_survives_a_lost_maintenance_race(self):
+        """A race lost by the sweep must not cost the worker its drain.
+
+        ``_process_jobs`` pins its ``REPEATABLE READ`` snapshot at the version
+        check, several statements before the sweep runs; a worker committing
+        ``_release_dependents`` in between makes ``_resolve_dependencies``
+        ``UPDATE`` a row it can no longer see, which raises ``40001`` rather
+        than matching nothing.  That escaped into the catch-all and skipped the
+        drain entirely, so ready jobs waited for the next NOTIFY.
+        """
+        with self.registry.cursor() as cr:
+            cr.execute(
+                "INSERT INTO ir_job (channel, state, model_name, method_name,"
+                " user_id, max_retries, retry, priority, create_uid, create_date,"
+                " write_uid, write_date) VALUES"
+                " (%s,'pending','ir.job','_job_ping',1,5,0,10,1,now(),1,now())"
+                " RETURNING id",
+                (self.CHANNEL,),
+            )
+            runnable_id = cr.fetchone()[0]
+            cr.commit()
+
+        real_check_version = IrCron._check_version
+
+        def check_version_then_race(pre_cr):
+            real_check_version(pre_cr)
+            self._promote_the_waiter()
+
+        with (
+            patch.object(
+                IrCron, "_check_version", staticmethod(check_version_then_race)
+            ),
+            # the suite may be running while `base` itself is still 'to install'
+            # or 'to upgrade', which makes _process_jobs return at the module
+            # gate — the test would then assert nothing about the sweep at all
+            patch.object(
+                IrCron, "_modules_are_changing", staticmethod(lambda cr: False)
+            ),
+            patch.object(IrJob, "_notify_workers"),
+        ):
+            IrJob._process_jobs(self.db_name)
+
+        self.assertEqual(
+            self._state(runnable_id),
+            "done",
+            "the drain was skipped because the maintenance sweep raised",
+        )
+
+
 class TestIrJobEnqueueTarget(TransactionCase):
     """``delayed()`` must not accept a target it cannot persist."""
 
@@ -528,6 +944,162 @@ class TestIrJobEnqueueTarget(TransactionCase):
         """An empty recordset is a legitimate model-level target."""
         job = self.env["ir.job"].delayed()._job_ping("hi")
         self.assertEqual(job.record_ids, [])
+
+
+class TestIrJobExecutorLiveness(BaseCase):
+    """Two real connections: the executor's and the queue's own maintenance.
+
+    ``_reap_dead_jobs`` reads liveness from the advisory lock, so anything that
+    executes a job outside a worker has to hold it too.
+    """
+
+    CHANNEL = "livenesstest"
+
+    def setUp(self):
+        super().setUp()
+        self.registry = Registry(common.get_db_name())
+        self.addCleanup(self._clear_jobs)
+        self._clear_jobs()
+
+    def _clear_jobs(self):
+        with self.registry.cursor() as cr:
+            cr.execute("DELETE FROM ir_job WHERE channel = %s", (self.CHANNEL,))
+
+    def _enqueue(self, cr):
+        env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+        job = env["ir.job"].delayed(channel=self.CHANNEL)._job_ping("manual")
+        env.flush_all()
+        cr.commit()
+        return env["ir.job"].browse(job.id)
+
+    @mute_logger("odoo.addons.base.models.ir_job")
+    def test_reaper_spares_a_job_running_manually(self):
+        """A job that commits mid-run publishes its ``started`` row while the
+        manual run is still going; unlocked, that row reads as abandoned.
+        """
+        with self.registry.cursor() as cr_run, self.registry.cursor() as cr_reap:
+            job = self._enqueue(cr_run)
+
+            def _commit_and_hang(cr, claimed):
+                cr.commit()
+                with patch.object(ir_job, "DEAD_JOB_GRACE_S", -1):
+                    IrJob._reap_dead_jobs(cr_reap)
+                cr_reap.commit()
+
+            with patch.object(IrJob, "_run_claimed", staticmethod(_commit_and_hang)):
+                job.action_run_now()
+
+            cr_reap.execute("SELECT state FROM ir_job WHERE id = %s", (job.id,))
+            self.assertEqual(
+                cr_reap.fetchone()[0],
+                "started",
+                "the reaper requeued a job that was running right then",
+            )
+
+    def test_second_manual_run_is_refused_instead_of_blocking(self):
+        with self.registry.cursor() as cr_run, self.registry.cursor() as cr_other:
+            job = self._enqueue(cr_run)
+            other = odoo.api.Environment(cr_other, common.ADMIN_USER_ID, {})[
+                "ir.job"
+            ].browse(job.id)
+
+            def _run_concurrently(cr, claimed):
+                with self.assertRaises(UserError):
+                    other.action_run_now()
+
+            with patch.object(IrJob, "_run_claimed", staticmethod(_run_concurrently)):
+                job.action_run_now()
+
+
+@common.tagged("post_install", "-at_install")
+class TestIrJobDrainLoop(BaseCase):
+    """The worker-side drain loop, on a real registry cursor.
+
+    ``post_install`` because ``signal_changes`` is a no-op (with a warning)
+    until the registry is ready, which is exactly what one of these asserts.
+    """
+
+    CHANNEL = "draintest"
+
+    def setUp(self):
+        super().setUp()
+        self.db_name = common.get_db_name()
+        self.registry = Registry(self.db_name)
+        self.addCleanup(self._clear_jobs)
+        self._clear_jobs()
+
+    def _clear_jobs(self):
+        with self.registry.cursor() as cr:
+            cr.execute("DELETE FROM ir_job WHERE channel = %s", (self.CHANNEL,))
+
+    def _enqueue(self, count):
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            for index in range(count):
+                env["ir.job"].delayed(channel=self.CHANNEL)._job_ping(str(index))
+            env.flush_all()
+            cr.commit()
+
+    def _states(self):
+        with self.registry.cursor() as cr:
+            cr.execute(
+                "SELECT state, count(*) FROM ir_job WHERE channel = %s GROUP BY state",
+                (self.CHANNEL,),
+            )
+            return dict(cr.fetchall())
+
+    def test_drain_runs_the_queue_and_reports_it_is_empty(self):
+        self._enqueue(3)
+        with patch.object(ir_job.IrJob, "_notify_workers"):
+            deadlined = IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+        self.assertFalse(deadlined)
+        self.assertEqual(self._states(), {"done": 3})
+
+    def test_drain_yields_on_its_deadline_and_notifies(self):
+        """An unbounded drain outlives the worker's real-time limit, and both
+        servers police that limit over the whole call: the backlog got the
+        worker killed mid-job instead of processed.
+        """
+        self._enqueue(2)
+        with patch.object(ir_job.IrJob, "_notify_workers") as notify:
+            deadlined = IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() - 1
+            )
+        self.assertTrue(deadlined)
+        notify.assert_called_once_with(self.db_name)
+        self.assertEqual(self._states(), {"pending": 2}, "nothing was claimed")
+
+    def test_drain_publishes_cache_invalidations(self):
+        """A job that invalidates a cache must signal it like a cron does,
+        or every other process keeps serving the stale one.
+        """
+        job_model = self.registry["ir.job"]
+
+        @api.job(max_retries=0)
+        def _job_test_invalidate(self):
+            self.env.registry.clear_cache()
+
+        job_model._job_test_invalidate = _job_test_invalidate
+        self.addCleanup(delattr, job_model, "_job_test_invalidate")
+
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            env["ir.job"].delayed(channel=self.CHANNEL)._job_test_invalidate()
+            env.flush_all()
+            cr.commit()
+
+        self.registry.cache_invalidated.clear()
+        with patch.object(ir_job.IrJob, "_notify_workers"):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+        self.assertEqual(self._states(), {"done": 1})
+        self.assertFalse(
+            self.registry.cache_invalidated,
+            "the invalidation was never published to the other processes",
+        )
 
 
 class TestIrJobClaimCapacity(TransactionCase):

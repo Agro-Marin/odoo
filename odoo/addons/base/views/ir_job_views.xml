@@ -13,6 +13,7 @@
                 <field name="identity_key" />
                 <separator />
                 <filter string="Waiting Dependencies" name="wait_deps" domain="[('state', '=', 'wait_deps')]" />
+                <filter string="Scheduled" name="scheduled" domain="[('state', '=', 'scheduled')]" />
                 <filter string="Pending" name="pending" domain="[('state', '=', 'pending')]" />
                 <filter string="Started" name="started" domain="[('state', '=', 'started')]" />
                 <filter string="Done" name="done" domain="[('state', '=', 'done')]" />
@@ -46,7 +47,7 @@
                 <field name="state" widget="badge"
                        decoration-success="state == 'done'"
                        decoration-info="state in ('pending', 'started')"
-                       decoration-warning="state == 'wait_deps'"
+                       decoration-warning="state in ('wait_deps', 'scheduled')"
                        decoration-danger="state == 'failed'" />
                 <field name="retry" optional="show" />
                 <field name="eta" optional="show" />
@@ -66,13 +67,13 @@
             <form string="Background Job" create="false">
                 <header>
                     <button name="action_run_now" type="object" string="Run Manually"
-                            class="oe_highlight" invisible="state != 'pending'" />
+                            class="oe_highlight" invisible="state not in ('scheduled', 'pending')" />
                     <button name="action_cancel" type="object" string="Cancel"
-                            invisible="state not in ('wait_deps', 'pending')" />
+                            invisible="state not in ('wait_deps', 'scheduled', 'pending')" />
                     <button name="action_requeue" type="object" string="Requeue"
                             class="oe_highlight" invisible="state not in ('failed', 'cancelled')" />
                     <field name="state" widget="statusbar"
-                           statusbar_visible="pending,started,done" />
+                           statusbar_visible="scheduled,pending,started,done" />
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -135,11 +136,23 @@
     <record id="ir_job_channel_view_tree" model="ir.ui.view">
         <field name="model">ir.job.channel</field>
         <field name="arch" type="xml">
-            <list string="Job Channels" editable="bottom">
+            <list string="Job Channels" editable="bottom" decoration-muted="not active">
                 <field name="name" />
                 <field name="capacity" />
+                <field name="running_count" />
+                <field name="pending_count" />
                 <field name="active" widget="boolean_toggle" />
             </list>
+        </field>
+    </record>
+
+    <record id="ir_job_channel_view_search" model="ir.ui.view">
+        <field name="model">ir.job.channel</field>
+        <field name="arch" type="xml">
+            <search string="Job Channels">
+                <field name="name" />
+                <filter string="Paused" name="paused" domain="[('active', '=', False)]" />
+            </search>
         </field>
     </record>
 
@@ -147,11 +160,13 @@
         <field name="name">Job Channels</field>
         <field name="res_model">ir.job.channel</field>
         <field name="view_mode">list</field>
+        <field name="context">{'active_test': False}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Define a job channel</p>
             <p>A channel bounds how many background jobs of its kind run
             concurrently across all job workers. Jobs whose channel is not
-            listed here run with a capacity of 1.</p>
+            listed here run with a capacity of 1. Archiving a channel pauses
+            it: none of its jobs is claimed until it is restored.</p>
         </field>
     </record>
 

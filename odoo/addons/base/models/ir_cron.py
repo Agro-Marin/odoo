@@ -20,7 +20,7 @@ from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
-from odoo.tools import SQL, str2bool
+from odoo.tools import SQL, config, str2bool
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
@@ -41,6 +41,14 @@ BASE_VERSION = Manifest.for_addon("base")["version"]
 MAX_FAIL_TIME = timedelta(hours=5)
 MIN_RUNS_PER_JOB = 10
 MIN_TIME_PER_JOB = 10
+RUN_BUDGET_RATIO = 0.8
+"""Fraction of the worker's real-time limit one cron run may consume.
+
+A deliberately loose backstop against a run that would otherwise be unbounded:
+it must not cut short the ``MIN_RUNS_PER_JOB`` passes of a healthy cron, which
+finish in ``MIN_TIME_PER_JOB`` seconds and never come near it.  It bounds one
+job, not the whole pass -- ``_process_jobs_loop`` still runs every ready cron.
+"""
 CONSECUTIVE_TIMEOUT_FOR_FAILURE = 3
 MIN_FAILURE_COUNT_BEFORE_DEACTIVATION = 5
 MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
@@ -49,6 +57,23 @@ PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
 NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), default=False)
+
+
+def worker_real_time_budget() -> float:
+    """Seconds a cron/job worker may run before its watchdog intervenes, 0 = none.
+
+    ``limit_time_real_cron`` is the option both servers actually police these
+    workers with, falling back to ``limit_time_real`` when negative and to no
+    limit when zero — the rule ``PreforkServer.cron_timeout`` applies.  Read
+    from here by every deadline derived from it (``IrCron._run_deadline``,
+    ``IrJob._drain_deadline``), which differ only in the fraction they take:
+    spelling the fallback chain out per call site is how one of them ends up
+    policing against an option the server does not use.
+    """
+    budget = config["limit_time_real_cron"]
+    if budget < 0:
+        budget = config["limit_time_real"]
+    return max(budget, 0)
 
 
 class BadVersionError(Exception):
@@ -191,6 +216,7 @@ class IrCron(models.Model):
     @staticmethod
     def _process_jobs(db_name: str) -> None:
         """Execute every job ready to be run on this database."""
+        previous_dbname = getattr(threading.current_thread(), "dbname", None)
         try:
             db_conn = db.db_connect(db_name)
             threading.current_thread().dbname = db_name
@@ -222,8 +248,11 @@ class IrCron(models.Model):
         except Exception:
             _logger.exception("Unexpected exception in cron for database %s:", db_name)
         finally:
-            if hasattr(threading.current_thread(), "dbname"):
-                del threading.current_thread().dbname
+            if previous_dbname is None:
+                if hasattr(threading.current_thread(), "dbname"):
+                    del threading.current_thread().dbname
+            else:
+                threading.current_thread().dbname = previous_dbname
 
     @staticmethod
     def _process_jobs_loop(cron_cr: BaseCursor, *, job_ids: Iterable[int] = ()) -> None:
@@ -273,18 +302,24 @@ class IrCron(models.Model):
             raise BadVersionError
 
     @staticmethod
-    def _check_modules_state(cr: BaseCursor, jobs: list[dict[str, Any]]) -> None:
-        """Ensure no module is installing, upgrading or removing."""
+    def _modules_are_changing(cr: BaseCursor) -> bool:
+        """Whether any module is installing, upgrading or removing.
+
+        The gate both schedulers refuse to run behind, single-sourced: ``ir.job``
+        spelled it as an explicit three-state ``IN`` list, so the two could
+        disagree about a fourth ``to …`` state and one queue would keep running
+        through a migration the other was hiding from.
+        """
         cr.execute(
-            """
-            SELECT COUNT(*)
-            FROM ir_module_module
-            WHERE state LIKE %s
-            """,
+            "SELECT EXISTS (SELECT 1 FROM ir_module_module WHERE state LIKE %s)",
             ["to %"],
         )
-        (changes,) = cr.fetchone()
-        if not changes:
+        return cr.fetchone()[0]
+
+    @staticmethod
+    def _check_modules_state(cr: BaseCursor, jobs: list[dict[str, Any]]) -> None:
+        """Ensure no module is installing, upgrading or removing."""
+        if not IrCron._modules_are_changing(cr):
             return
 
         if not jobs:
@@ -483,6 +518,7 @@ class IrCron(models.Model):
         loop_count: int,
         now: float,
         end_time: float,
+        hard_deadline: float | None = None,
     ) -> bool:
         """Whether :meth:`_run_job` should execute another pass.
 
@@ -491,11 +527,34 @@ class IrCron(models.Model):
         until BOTH ``MIN_RUNS_PER_JOB`` passes are reached AND the time budget
         (``MIN_TIME_PER_JOB``, as ``end_time``) is spent.
 
-        ``now`` and ``end_time`` are ``time.monotonic()`` readings (seconds).
+        ``hard_deadline`` overrides the ``MIN_RUNS_PER_JOB`` floor.  That floor
+        is a count, not a duration, so a job whose batch takes longer than
+        ``MIN_TIME_PER_JOB`` committed itself to ten of them however long that
+        took -- ten thirty-second batches against a default
+        ``limit_time_real_cron`` of 120s is a guaranteed watchdog SIGKILL, and
+        the kill lands mid-batch, so the run is charged a timeout and the next
+        pass starts over.  Stopping instead reports ``'partially done'``, which
+        reschedules the job ASAP and resumes with a fresh budget.
+
+        ``now``, ``end_time`` and ``hard_deadline`` are ``time.monotonic()``
+        readings (seconds).
         """
         if status is not None:
             return False
+        if hard_deadline is not None and now >= hard_deadline:
+            return False
         return loop_count < MIN_RUNS_PER_JOB or now < end_time
+
+    @staticmethod
+    def _run_deadline(start_time: float) -> float | None:
+        """Monotonic instant past which :meth:`_run_job` must not start a pass.
+
+        Derived from :func:`worker_real_time_budget`, the option the servers
+        actually police a cron worker with.  The margin leaves the last pass
+        room to finish and the caller room to reschedule.
+        """
+        budget = worker_real_time_budget()
+        return start_time + budget * RUN_BUDGET_RATIO if budget else None
 
     @classmethod
     def _run_job(cls, job: dict[str, Any]) -> CompletionStatus:
@@ -529,6 +588,7 @@ class IrCron(models.Model):
             status = None
             loop_count = 0
             done, remaining = 0, 0
+            hard_deadline = cls._run_deadline(start_time)
             _logger.info("Job %r (%s) starting", job["cron_name"], job["id"])
 
             if not env.user.active and env.user != env.ref("base.user_root"):
@@ -544,6 +604,7 @@ class IrCron(models.Model):
                 loop_count=loop_count,
                 now=time.monotonic(),
                 end_time=env.context["cron_end_time"],
+                hard_deadline=hard_deadline,
             ):
                 cron, progress = cron._add_progress(timed_out_counter=timed_out_counter)
                 job_cr.commit()
@@ -1005,6 +1066,7 @@ class IrCronProgress(models.Model):
     _name = "ir.cron.progress"
     _description = "Progress of Scheduled Actions"
     _rec_name = "cron_id"
+    _allow_sudo_commands = False
 
     cron_id = fields.Many2one("ir.cron", required=True, index=True, ondelete="cascade")
     remaining = fields.Integer(default=0)
@@ -1013,12 +1075,30 @@ class IrCronProgress(models.Model):
     timed_out_counter = fields.Integer(default=0)
 
     _cron_id_id_idx = models.Index("(cron_id, id DESC)")
+    _create_date_idx = models.Index("(create_date)")
 
     @api.autovacuum
     def _gc_cron_progress(self) -> tuple[int, bool]:
+        """Prune progress rows past the retention period, except the last one
+        of each cron.
+
+        ``_acquire_one_job`` reads ``timed_out_counter`` from a cron's most
+        recent progress row; collecting it resets the timeout streak to zero.
+        A cron that runs less often than the retention period — a monthly one,
+        or any cron that has been timing out and so never finishing — had its
+        streak wiped between runs and could never reach
+        ``CONSECUTIVE_TIMEOUT_FOR_FAILURE``.
+        """
         records = self.search(
             [("create_date", "<", self.env.cr.now() - PROGRESS_RETENTION_PERIOD)],
             limit=GC_UNLINK_LIMIT,
         )
+        full_batch = len(records) == GC_UNLINK_LIMIT
+        self.env.cr.execute(
+            "SELECT max(id) FROM ir_cron_progress"
+            " WHERE cron_id = ANY(%s) GROUP BY cron_id",
+            [records.cron_id.ids],
+        )
+        records -= self.browse(row[0] for row in self.env.cr.fetchall())
         records.unlink()
-        return len(records), len(records) == GC_UNLINK_LIMIT
+        return len(records), full_batch

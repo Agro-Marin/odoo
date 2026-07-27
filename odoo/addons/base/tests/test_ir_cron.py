@@ -14,7 +14,7 @@ from odoo.exceptions import UserError
 from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase, Like, RecordCapturer, TransactionCase, tagged
-from odoo.tools import mute_logger
+from odoo.tools import config, mute_logger
 
 from odoo.addons.base.models.ir_cron import (
     MAX_FAIL_TIME,
@@ -23,6 +23,7 @@ from odoo.addons.base.models.ir_cron import (
     MIN_RUNS_PER_JOB,
     MIN_TIME_PER_JOB,
     PROGRESS_RETENTION_PERIOD,
+    RUN_BUDGET_RATIO,
     TRIGGER_RETENTION_PERIOD,
     BadModuleStateError,
     BadVersionError,
@@ -864,17 +865,37 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
 
     def test_gc_cron_progress_uses_transaction_clock(self):
+        old, recent = self.env["ir.cron.progress"].create(
+            [
+                {"cron_id": self.cron.id, "remaining": 0, "done": 0},
+                {"cron_id": self.cron.id, "remaining": 0, "done": 0},
+            ]
+        )
+        self.env.flush_all()
+        db_future = old.create_date + PROGRESS_RETENTION_PERIOD + timedelta(days=1)
+        self.patch(self.env.cr, "now", lambda: db_future)
+        self.env["ir.cron.progress"]._gc_cron_progress()
+        self.assertFalse(
+            old.exists(),
+            "GC must follow the transaction clock, not the process wall clock",
+        )
+        self.assertTrue(recent.exists())
+
+    def test_gc_cron_progress_keeps_the_latest_row_of_each_cron(self):
+        """``_acquire_one_job`` reads the timeout streak from a cron's newest
+        progress row, so collecting it silently resets the streak — and a cron
+        running less often than the retention period could then never reach
+        ``CONSECUTIVE_TIMEOUT_FOR_FAILURE``.
+        """
         progress = self.env["ir.cron.progress"].create(
-            [{"cron_id": self.cron.id, "remaining": 0, "done": 0}]
+            [{"cron_id": self.cron.id, "timed_out_counter": 2}]
         )
         self.env.flush_all()
         db_future = progress.create_date + PROGRESS_RETENTION_PERIOD + timedelta(days=1)
         self.patch(self.env.cr, "now", lambda: db_future)
-        self.env["ir.cron.progress"]._gc_cron_progress()
-        self.assertFalse(
-            progress.exists(),
-            "GC must follow the transaction clock, not the process wall clock",
-        )
+        removed, _more = self.env["ir.cron.progress"]._gc_cron_progress()
+        self.assertEqual(removed, 0)
+        self.assertTrue(progress.exists())
 
 
 class TestIrCronUser(TransactionCaseWithUserDemo, TestIrCron):
@@ -1219,6 +1240,42 @@ class TestIrCronShouldContinue(BaseCase):
                 end_time=100.0,
             )
         )
+
+    def test_hard_deadline_overrides_the_minimum_run_count(self):
+        """``MIN_RUNS_PER_JOB`` is a count, not a duration: ten slow batches
+        outlive the worker's real-time limit and end in a SIGKILL mid-batch,
+        which costs a timeout and restarts the job from scratch.
+        """
+        self.assertFalse(
+            IrCron._should_continue_run(
+                status=None,
+                loop_count=1,
+                now=100.0,
+                end_time=1e9,
+                hard_deadline=100.0,
+            )
+        )
+
+    def test_hard_deadline_not_reached_keeps_the_previous_rule(self):
+        self.assertTrue(
+            IrCron._should_continue_run(
+                status=None,
+                loop_count=1,
+                now=10.0,
+                end_time=0.0,
+                hard_deadline=100.0,
+            )
+        )
+
+    def test_run_deadline_follows_the_worker_time_limit(self):
+        with patch.dict(config.options, {"limit_time_real_cron": 100}):
+            self.assertEqual(IrCron._run_deadline(0.0), 100 * RUN_BUDGET_RATIO)
+        with patch.dict(
+            config.options, {"limit_time_real_cron": -1, "limit_time_real": 50}
+        ):
+            self.assertEqual(IrCron._run_deadline(0.0), 50 * RUN_BUDGET_RATIO)
+        with patch.dict(config.options, {"limit_time_real_cron": 0}):
+            self.assertIsNone(IrCron._run_deadline(0.0))
 
 
 class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
