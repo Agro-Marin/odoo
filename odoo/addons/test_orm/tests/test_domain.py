@@ -919,7 +919,8 @@ class TestDomainOptimize(TransactionCase):
         )
         self.assertEqual(
             Domain("moment", ">", "2024-01-01 10:00:00").optimize(model),
-            Domain("moment", ">=", datetime(2024, 1, 1, 10, second=1)),
+            Domain("moment", ">", datetime(2024, 1, 1, 10)),
+            "a datetime comparand is compared exactly, not widened to its second",
         )
         self.assertEqual(
             Domain("moment", ">", "2024-01-01").optimize(model),
@@ -941,16 +942,13 @@ class TestDomainOptimize(TransactionCase):
             Domain("moment", "not in", ["2024-01-05", datetime(2023, 1, 1)]).optimize(
                 model
             ),
-            (
-                Domain("moment", "in", OrderedSet([False]))
-                | Domain("moment", "<", datetime(2023, 1, 1))
-                | Domain("moment", ">=", datetime(2023, 1, 1, second=1))
-            )
+            Domain("moment", "not in", OrderedSet([datetime(2023, 1, 1)]))
             & (
                 Domain("moment", "in", OrderedSet([False]))
                 | Domain("moment", "<", datetime(2024, 1, 5))
                 | Domain("moment", ">=", datetime(2024, 1, 6))
             ),
+            "only the date element is widened to its day",
         )
 
         with self.assertRaises(ValueError):
@@ -998,30 +996,37 @@ class TestDomainOptimize(TransactionCase):
         )
 
     def test_condition_optimize_datetime_millisecond(self):
+        """Sub-second precision in the comparand survives optimization.
+
+        The column keeps microseconds (``Datetime.to_datetime`` never truncates,
+        and every ``create_date``/``write_date`` comes from PostgreSQL's
+        microsecond ``now()``), so rounding the comparand to its second moved
+        the boundary past real rows.
+        """
         model = self.env["test_orm.mixed"].with_context(tz="UTC")
         self.assertEqual(
             Domain("moment", "=", "2024-01-05").optimize(model),
             Domain("moment", "<", datetime(2024, 1, 6))
             & Domain("moment", ">=", datetime(2024, 1, 5)),
+            "a bare date still covers its whole day",
         )
         self.assertEqual(
             Domain("moment", "=", "2024-01-05 11:06:02.123").optimize(model),
-            Domain("moment", "<", datetime(2024, 1, 5, 11, 6, 3))
-            & Domain("moment", ">=", datetime(2024, 1, 5, 11, 6, 2)),
+            Domain(
+                "moment", "in", OrderedSet([datetime(2024, 1, 5, 11, 6, 2, 123000)])
+            ),
         )
         self.assertEqual(
             Domain("moment", "=", "2024-01-05 11:06:02").optimize(model),
-            Domain("moment", "<", datetime(2024, 1, 5, 11, 6, 3))
-            & Domain("moment", ">=", datetime(2024, 1, 5, 11, 6, 2)),
+            Domain("moment", "in", OrderedSet([datetime(2024, 1, 5, 11, 6, 2)])),
         )
         self.assertEqual(
             Domain("moment", "=", datetime(2024, 1, 5, 11, 6, 2)).optimize(model),
-            Domain("moment", "<", datetime(2024, 1, 5, 11, 6, 3))
-            & Domain("moment", ">=", datetime(2024, 1, 5, 11, 6, 2)),
+            Domain("moment", "in", OrderedSet([datetime(2024, 1, 5, 11, 6, 2)])),
         )
         self.assertEqual(
             Domain("moment", ">=", "2024-01-05 11:06:02.123").optimize(model),
-            Domain("moment", ">=", datetime(2024, 1, 5, 11, 6, 2)),
+            Domain("moment", ">=", datetime(2024, 1, 5, 11, 6, 2, 123000)),
         )
         self.assertEqual(
             Domain("moment", ">=", "2024-01-05 11:06:02").optimize(model),
@@ -2023,3 +2028,241 @@ class TestDomainAgainstRawRows(TransactionCase):
         expected = {rid for rid, row in self.rows.items() if row["city"] in (None, "")}
         self.assertEqual(set(found.ids), expected)
         self.assertTrue(expected)
+
+
+class TestDatetimeSubSecondBoundaries(TransactionCase):
+    """Datetime comparisons must agree with the ``timestamp`` column, exactly.
+
+    The datetime axis is the one place where the ORM rewrites a comparand
+    instead of passing it through: a bare *date* is widened to its whole day
+    (deliberate, and asserted below). Upstream widened *every* comparand to its
+    whole second as well, compensating with ``+1s`` on ``>``/``<=`` and not at
+    all on ``<``/``>=``/``=``.
+
+    That is only sound if no stored value ever carries a microsecond, which is
+    false: ``Datetime.to_datetime`` does not truncate, and ``create_date`` /
+    ``write_date`` are written by PostgreSQL's microsecond-precision ``now()``,
+    so *every row in every table* has one. ``('write_date', '>', T)`` therefore
+    dropped every row written during second ``T`` — an incremental-sync cursor
+    silently losing records — and ``'<='`` silently gained them.
+
+    Both evaluators consume the rewritten domain, so they agreed with each other
+    while disagreeing with the table: invisible to
+    :class:`TestSearchFilteredDomainParity`. The expectation here comes from a
+    plain ``SELECT``, which is the only oracle that can see it.
+    """
+
+    STAMPS = (
+        datetime(2024, 1, 1, 10, 0, 0),
+        datetime(2024, 1, 1, 10, 0, 0, 1),
+        datetime(2024, 1, 1, 10, 0, 0, 500000),
+        datetime(2024, 1, 1, 10, 0, 0, 999999),
+        datetime(2024, 1, 1, 10, 0, 1),
+        datetime(2024, 1, 2, 0, 0, 0),
+    )
+    COMPARANDS = ("2024-01-01 10:00:00", "2024-01-01 10:00:00.500000")
+    OPERATORS = ("<", "<=", ">", ">=", "=", "!=")
+
+    def setUp(self):
+        super().setUp()
+        self.records = self.env["test_orm.mixed"].create(
+            [{"moment": stamp} for stamp in self.STAMPS]
+        )
+        self.env.flush_all()
+
+    def _raw(self, operator, value):
+        """Ground truth: the rows PostgreSQL itself selects."""
+        return {
+            row[0]
+            for row in self.env.execute_query(
+                SQL(
+                    "SELECT id FROM test_orm_mixed WHERE id = ANY(%s) AND moment %s %s",
+                    self.records.ids,
+                    SQL("<>" if operator == "!=" else operator),
+                    value,
+                )
+            )
+        }
+
+    def test_stored_values_keep_their_microseconds(self):
+        """The premise: the ORM really does persist sub-second precision."""
+        stored = {
+            row[0]
+            for row in self.env.execute_query(
+                SQL(
+                    "SELECT moment FROM test_orm_mixed WHERE id = ANY(%s)",
+                    self.records.ids,
+                )
+            )
+        }
+        self.assertEqual(stored, set(self.STAMPS))
+        self.assertTrue(any(stamp.microsecond for stamp in stored))
+
+    def test_datetime_comparands_match_the_raw_rows(self):
+        model = self.env["test_orm.mixed"]
+        scope = [("id", "in", self.records.ids)]
+        for value in self.COMPARANDS:
+            for operator in self.OPERATORS:
+                leaf = ("moment", operator, value)
+                with self.subTest(leaf=leaf):
+                    expected = self._raw(operator, value)
+                    self.assertEqual(set(model.search(scope + [leaf]).ids), expected)
+                    self.assertEqual(
+                        set(self.records.filtered_domain([leaf]).ids), expected
+                    )
+
+    def test_audit_columns_carry_microseconds(self):
+        """Why this matters in practice, not just for a hand-built column.
+
+        ``create_date``/``write_date`` are written by PostgreSQL's ``now()``, so
+        the sub-second rows the rounding mishandles exist on every table in the
+        database without anyone opting in.
+        """
+        stamps = self.env.execute_query(
+            SQL(
+                "SELECT create_date, write_date FROM test_orm_mixed WHERE id = ANY(%s)",
+                self.records.ids,
+            )
+        )
+        self.assertTrue(stamps)
+        self.assertTrue(
+            any(value.microsecond for row in stamps for value in row),
+            "audit columns are expected to carry sub-second precision",
+        )
+
+    def test_cursor_partition_loses_no_record(self):
+        """The incremental-sync shape: ``> T`` and ``<= T`` partition the rows.
+
+        ``T`` is a real stored timestamp read back from a previous pass, so the
+        rows to pick up next are exactly those inside ``T``'s own second — the
+        ones second-rounding moved to the wrong side. The partition alone stays
+        intact under the bug (both sides shift together), so the sizes are
+        asserted too.
+        """
+        cursor = datetime(2024, 1, 1, 10, 0, 0)
+        self.assertIn(cursor, self.STAMPS)
+        model = self.env["test_orm.mixed"]
+        scope = [("id", "in", self.records.ids)]
+        after = model.search(scope + [("moment", ">", cursor)])
+        upto = model.search(scope + [("moment", "<=", cursor)])
+        self.assertEqual(after | upto, self.records)
+        self.assertFalse(after & upto)
+        self.assertEqual(len(upto), 1, "only the exact match is at or before T")
+        self.assertEqual(len(after), 5, "every later row, including T's own second")
+
+    def test_bare_date_still_covers_the_whole_day(self):
+        """The one intentional widening is preserved."""
+        model = self.env["test_orm.mixed"]
+        scope = [("id", "in", self.records.ids)]
+        first_day = self.records.filtered(lambda r: r.moment.date() == date(2024, 1, 1))
+        self.assertEqual(len(first_day), 5)
+        self.assertEqual(
+            model.search(scope + [("moment", "=", "2024-01-01")]), first_day
+        )
+        self.assertEqual(
+            model.search(scope + [("moment", ">", "2024-01-01")]),
+            self.records - first_day,
+        )
+
+
+class TestDatetimeWholeDayAcrossDST(TransactionCase):
+    """A bare date covers the user's local *calendar* day, however long it is.
+
+    The widening builds the window from local midnight; closing it with a fixed
+    ``+24h`` is only right when the local day is 24 hours. On the two DST
+    transition days it is 23 or 25, so the window was an hour too long (matching
+    into the next day) or an hour too short (dropping the day's last hour) — for
+    the single most ordinary datetime domain there is, ``('create_date', '=',
+    <date>)``, on every user in a DST timezone, twice a year.
+
+    Ground truth is the local calendar: a record belongs to day D exactly when
+    its instant, read back in the user's timezone, falls on D.
+    """
+
+    TZ = "Europe/Brussels"
+
+    def setUp(self):
+        super().setUp()
+        from zoneinfo import ZoneInfo
+
+        self.zone = ZoneInfo(self.TZ)
+        self.utc = ZoneInfo("UTC")
+        self.Model = self.env["test_orm.mixed"].with_context(tz=self.TZ)
+
+    def _at(self, y, mo, d, h, mi=0):
+        """The UTC-naive instant of a wall-clock time in ``TZ``."""
+        return (
+            datetime(y, mo, d, h, mi, tzinfo=self.zone)
+            .astimezone(self.utc)
+            .replace(tzinfo=None)
+        )
+
+    def _local_day(self, record):
+        return record.moment.replace(tzinfo=self.utc).astimezone(self.zone).date()
+
+    def _check(self, day, moments):
+        records = self.Model.create([{"moment": m} for m in moments])
+        self.env.flush_all()
+        expected = records.filtered(lambda r: self._local_day(r) == day)
+        self.assertTrue(expected, "fixture must contain a record inside the day")
+        scope = [("id", "in", records.ids)]
+        iso = day.isoformat()
+        self.assertEqual(self.Model.search(scope + [("moment", "=", iso)]), expected)
+        self.assertEqual(
+            self.Model.search(scope + [("moment", "!=", iso)]), records - expected
+        )
+        self.assertEqual(
+            self.Model.search(scope + [("moment", ">", iso)]),
+            records.filtered(lambda r: self._local_day(r) > day),
+        )
+        self.assertEqual(
+            self.Model.search(scope + [("moment", "<=", iso)]),
+            records.filtered(lambda r: self._local_day(r) <= day),
+        )
+
+    def test_dst_start_day_is_23_hours(self):
+        self._check(
+            date(2024, 3, 31),
+            [
+                self._at(2024, 3, 30, 23, 30),
+                self._at(2024, 3, 31, 12),
+                self._at(2024, 3, 31, 23, 30),
+                self._at(2024, 4, 1, 0, 30),
+            ],
+        )
+
+    def test_dst_end_day_is_25_hours(self):
+        self._check(
+            date(2024, 10, 27),
+            [
+                self._at(2024, 10, 26, 23, 30),
+                self._at(2024, 10, 27, 12),
+                self._at(2024, 10, 27, 23, 30),
+                self._at(2024, 10, 28, 0, 30),
+            ],
+        )
+
+    def test_ordinary_day_is_unaffected(self):
+        self._check(
+            date(2024, 6, 15),
+            [
+                self._at(2024, 6, 14, 23, 30),
+                self._at(2024, 6, 15, 12),
+                self._at(2024, 6, 15, 23, 30),
+                self._at(2024, 6, 16, 0, 30),
+            ],
+        )
+
+    def test_utc_user_is_unaffected(self):
+        """The ``tz is None or utc`` shortcut must agree with the general path."""
+        model = self.env["test_orm.mixed"].with_context(tz="UTC")
+        records = model.create(
+            [
+                {"moment": datetime(2024, 3, 30, 23, 30)},
+                {"moment": datetime(2024, 3, 31, 12)},
+                {"moment": datetime(2024, 4, 1, 0, 30)},
+            ]
+        )
+        self.env.flush_all()
+        found = model.search([("id", "in", records.ids), ("moment", "=", "2024-03-31")])
+        self.assertEqual(found, records[1])
