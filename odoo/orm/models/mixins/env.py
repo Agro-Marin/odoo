@@ -187,17 +187,28 @@ class EnvironmentMixin(_ModelStubs):
                 f"Invalid field {e.args[0]!r} on model {self._name!r}"
             ) from e
 
-        for field, value in sorted(
-            field_values, key=lambda item: item[0].write_sequence
-        ):
+        if len(field_values) > 1:
+            field_values.sort(key=lambda item: item[0].write_sequence)
+
+        field_inverses = self.pool.field_inverses
+        for field, value in field_values:
             value = field.convert_to_cache(value, self, validate)
             field._update_cache(self, value)
 
             if field.relational:
+                # Ask for the inverses before reading the field: without an
+                # inverse there is nothing to propagate, and ``self[field.name]``
+                # is a full ``__get__`` (a fetch, on a relational field that is
+                # not already cached) followed by a per-record ``filtered``.
+                # Most relational fields have no inverse -- 13 of 18 on
+                # ``res.partner`` -- so the read was pure waste for them.
+                inverses = field_inverses[field]
+                if not inverses:
+                    continue
                 inv_recs = self[field.name].filtered(lambda r: not r.id)
                 if not inv_recs:
                     continue
-                for invf in self.pool.field_inverses[field]:
+                for invf in inverses:
                     invf._update_inverse(inv_recs, self)
 
     def _convert_to_write(self, values: dict) -> ValuesType:
