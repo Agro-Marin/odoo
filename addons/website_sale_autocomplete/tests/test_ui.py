@@ -6,7 +6,6 @@ from odoo.addons.google_address_autocomplete.controllers.google_address_autocomp
     AutoCompleteController,
 )
 
-
 CONTROLLER_PATH = 'odoo.addons.google_address_autocomplete.controllers.google_address_autocomplete.AutoCompleteController'
 MOCK_GOOGLE_ID = 'aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQ=='
 MOCK_API_KEY = 'Tm9ib2R5IGV4cGVjdHMgdGhlIFNwYW5pc2ggaW5xdWlzaXRpb24gIQ=='
