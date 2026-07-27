@@ -385,25 +385,26 @@ class TestBooleanSearchableTautology(unittest.TestCase):
 
 
 class TestDatetimeEqualityGranularity(unittest.TestCase):
-    """'=' on a datetime field matches per element granularity: a datetime
-    value covers its whole second, a date value covers its whole *day*.
+    """'=' on a datetime field matches per element granularity: a *date* value
+    covers its whole day, a datetime value is compared exactly.
 
     Regression: the equality rewrite used ``timedelta(seconds=1)``
     unconditionally, so ``dt = date(2024, 1, 1)`` (and ``dt = 'today'`` once
     the DYNAMIC pass resolved it to a date) matched only ``[00:00:00,
     00:00:01)`` — e.g. ``search_count([('create_date', '=', 'today')])``
-    returned 0.  The whole-second/whole-day windows mirror the inequality
-    granularity so '=', '<' and '>' partition the axis exactly.
+    returned 0.
+
+    The whole-day window applies only to date-derived values. A datetime
+    comparand keeps its own precision: widening it to its whole second made the
+    domain disagree with the table for any row storing a non-zero microsecond,
+    which every ``create_date``/``write_date`` does (see
+    ``_optimize_type_datetime`` and ``TestDatetimeSubSecondBoundaries``).
     """
 
-    def test_eq_datetime_expands_to_whole_second(self):
+    def test_eq_datetime_is_exact(self):
         self.assertEqual(
             _opt(Domain("dt", "=", datetime(2024, 1, 1, 10, 30, 15, 123456))),
-            [
-                "&",
-                ("dt", "<", datetime(2024, 1, 1, 10, 30, 16)),
-                ("dt", ">=", datetime(2024, 1, 1, 10, 30, 15)),
-            ],
+            [("dt", "in", [datetime(2024, 1, 1, 10, 30, 15, 123456)])],
         )
 
     def test_eq_date_expands_to_whole_day(self):
@@ -439,16 +440,15 @@ class TestDatetimeEqualityGranularity(unittest.TestCase):
         )
 
     def test_in_mixed_date_and_datetime_granularities(self):
+        """Only the date element is widened; the datetime one stays exact."""
         self.assertEqual(
             _opt(Domain("dt", "in", [date(2024, 1, 1), datetime(2024, 3, 4, 5, 6, 7)])),
             [
                 "|",
+                ("dt", "in", [datetime(2024, 3, 4, 5, 6, 7)]),
                 "&",
                 ("dt", "<", datetime(2024, 1, 2)),
                 ("dt", ">=", datetime(2024, 1, 1)),
-                "&",
-                ("dt", "<", datetime(2024, 3, 4, 5, 6, 8)),
-                ("dt", ">=", datetime(2024, 3, 4, 5, 6, 7)),
             ],
         )
 

@@ -255,6 +255,22 @@ def _optimize_in_set_falsy_value(condition, model):
     keeps one spelling of null flowing downstream, so the set merges, the
     ``_optimize_in_required`` strip (which early-exits on ``False not in
     value``) and the query cache all see the same node.
+
+    The scan is *guarded* by two hashed membership tests rather than replaced by
+    them. An element can only be a null alias by being ``None`` or by comparing
+    equal to ``falsy``, and ``in`` already tests equality, so when neither is
+    present nothing qualifies and the pass exits without walking the set. That
+    matters because the hot shape is the prefetch domain ``('id', 'in', ids)`` —
+    hundreds of machine-built ints, re-optimized on every pass — where the
+    per-element Python closure dominated this pass (the same reason
+    ``_canonicalize_numeric_sets`` refuses to scan id sets).
+
+    The guard only *admits*; it never decides. ``falsy in value`` is also
+    answered by a ``False`` element (``0 == False`` and they share a hash), so
+    on a numeric field ``('color', 'in', [False, 5])`` passes the guard with
+    nothing to canonicalize. Rebuilding on the strength of the guard alone made
+    that ordinary "unset or 5" filter 2.4x slower than the plain scan it
+    replaced, so the exact check still runs and still short-circuits.
     """
     value = condition.value
     if not isinstance(value, OrderedSet):
@@ -262,11 +278,15 @@ def _optimize_in_set_falsy_value(condition, model):
     falsy = condition._field(model).falsy_value
     has_falsy_alias = falsy is not None and falsy is not False
 
+    if None not in value and not (has_falsy_alias and falsy in value):
+        return condition
+
     def is_null_alias(v):
         return v is None or (has_falsy_alias and v is not False and v == falsy)
 
     if not any(is_null_alias(v) for v in value):
         return condition
+
     return DomainCondition(
         condition.field_expr,
         condition.operator,
@@ -888,18 +908,61 @@ def _value_to_datetime(
     raise ValueError(f"Failed to cast {value!r} into a datetime")
 
 
+def _end_of_local_day(start: datetime, env: typing.Any) -> datetime:
+    """Return the UTC instant at which the local day beginning at *start* ends.
+
+    Day N's end is day N+1's start, produced by the very rule
+    :func:`_value_to_datetime` applies to a date comparand, so the two agree by
+    construction. A fixed ``+24h`` does not: a local day is 23 hours when DST
+    starts and 25 when it ends, so ``('moment', '=', '2024-03-31')`` in
+    Europe/Brussels matched an hour of 2024-04-01 and ``'2024-10-27'`` dropped
+    the day's last local hour (``TestDatetimeWholeDayAcrossDST``).
+
+    :raises OverflowError: past ``date.max``, as ``start + timedelta(days=1)``
+        would; callers already handle it.
+    """
+    tz = env.tz
+    if tz is None or tz == utc:
+        return start + timedelta(days=1)
+    local_date = start.replace(tzinfo=UTC).astimezone(tz).date()
+    end, _is_date = _value_to_datetime(local_date + timedelta(days=1), env)
+    return end
+
+
 @field_type_optimization(["datetime"])
 def _optimize_type_datetime(condition, model):
-    """Make sure we have a datetime type in the value"""
+    """Coerce a datetime comparand, widening a *date* comparand to its whole day.
+
+    A comparand written as a bare date denotes the whole day in the user's
+    timezone, so ``moment > 2024-01-01`` means "after that day ends" and
+    ``moment = 2024-01-01`` means "somewhere inside that day". That widening is
+    the only rewrite performed here; it applies exactly to the values
+    :func:`_value_to_datetime` flagged as date-derived (``dates`` below).
+
+    A comparand that already carries a time is compared *exactly*, at whatever
+    precision it and the column have. Truncating it to the whole second — which
+    upstream does for every datetime comparand, ``>``/``<=`` compensating with
+    ``+1s`` and ``<``/``>=``/``=`` not compensating at all — moves the boundary
+    for any row whose stored value has a non-zero microsecond, and the ORM
+    stores those routinely: ``Datetime.to_datetime`` never truncates, and every
+    ``create_date``/``write_date`` in the database comes from PostgreSQL's
+    microsecond-precision ``now()``. So ``('write_date', '>', T)`` silently
+    dropped every row written during second ``T`` (an incremental-sync cursor
+    loses records), ``'<='`` silently included them, and ``'='`` matched the
+    whole second. Both evaluators consume this rewrite, so they agreed with each
+    other and disagreed with the table — invisible to a search/filtered_domain
+    differential (see ``TestDatetimeSubSecondBoundaries``).
+    """
     field_expr = condition.field_expr
     operator = condition.operator
     if operator not in ("in", "not in", ">", "<", "<=", ">=") or "." in field_expr:
         return condition
     value = condition.value
+    dates: set = set()
     if isinstance(value, COLLECTION_TYPES):
         pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
         value = OrderedSet(v for v, _is_date in pairs)
-        dates = {v for v, is_date in pairs if is_date}
+        dates = {v for v, is_date in pairs if is_date and isinstance(v, datetime)}
         is_date = False
     else:
         value, is_date = _value_to_datetime(value, model.env, iso_only=True)
@@ -909,51 +972,39 @@ def _optimize_type_datetime(condition, model):
             return _FALSE_DOMAIN
         if not isinstance(value, datetime):
             return condition
-        if value.microsecond:
-            assert not is_date, "date don't have microseconds"
-            value = value.replace(microsecond=0)
-        delta = timedelta(days=1) if is_date else timedelta(seconds=1)
-        if operator == ">":
-            try:
-                value += delta
-            except OverflowError:
-                return _FALSE_DOMAIN
-            operator = ">="
-        elif operator == "<=":
-            try:
-                value += delta
-            except OverflowError:
-                return DomainCondition(field_expr, "!=", False)
-            operator = "<"
+        if is_date:
+            if operator == ">":
+                try:
+                    value = _end_of_local_day(value, model.env)
+                except OverflowError:
+                    return _FALSE_DOMAIN
+                operator = ">="
+            elif operator == "<=":
+                try:
+                    value = _end_of_local_day(value, model.env)
+                except OverflowError:
+                    return DomainCondition(field_expr, "!=", False)
+                operator = "<"
 
-    if (
-        operator in ("in", "not in")
-        and isinstance(value, COLLECTION_TYPES)
-        and any(isinstance(v, datetime) for v in value)
-    ):
+    if operator in ("in", "not in") and isinstance(value, COLLECTION_TYPES):
+        day_values = OrderedSet(v for v in value if v in dates)
+        if day_values:
 
-        def equality_range(v: datetime) -> Domain:
-            start = v.replace(microsecond=0)
-            delta = timedelta(days=1) if v in dates else timedelta(seconds=1)
-            try:
-                end = start + delta
-            except OverflowError:
-                return DomainCondition(field_expr, ">=", start)
-            return DomainCondition(field_expr, ">=", start) & DomainCondition(
-                field_expr, "<", end
-            )
+            def whole_day(v: datetime) -> Domain:
+                try:
+                    end = _end_of_local_day(v, model.env)
+                except OverflowError:
+                    return DomainCondition(field_expr, ">=", v)
+                return DomainCondition(field_expr, ">=", v) & DomainCondition(
+                    field_expr, "<", end
+                )
 
-        domain = DomainOr.apply(
-            (
-                equality_range(v)
-                if isinstance(v, datetime)
-                else DomainCondition(field_expr, "=", v)
-            )
-            for v in value
-        )
-        if operator == "not in":
-            domain = ~domain
-        return domain
+            domain = DomainOr.apply(whole_day(v) for v in day_values)
+            if exact := OrderedSet(v for v in value if v not in day_values):
+                domain |= DomainCondition(field_expr, "in", exact)
+            if operator == "not in":
+                domain = ~domain
+            return domain
 
     if operator == condition.operator and (
         value is condition.value
