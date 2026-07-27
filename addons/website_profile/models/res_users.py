@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import hashlib
 import uuid
-
 from datetime import datetime
 from urllib.parse import urlencode
+
 from odoo import api, models
 
 VALIDATION_KARMA_GAIN = 3
@@ -33,7 +32,7 @@ class ResUsers(models.Model):
         if not profile_uuid:
             profile_uuid = str(uuid.uuid4())
             self.env['ir.config_parameter'].sudo().set_param('website_profile.uuid', profile_uuid)
-        return hashlib.sha256((u'%s-%s-%s-%s' % (
+        return hashlib.sha256(('%s-%s-%s-%s' % (
             datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),
             profile_uuid,
             user_id,

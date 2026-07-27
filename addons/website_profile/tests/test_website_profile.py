@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import odoo.tests
+
 from odoo.addons.gamification.tests.common import HttpCaseGamification
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website_profile.controllers.main import WebsiteProfile
