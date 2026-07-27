@@ -1,18 +1,26 @@
 import base64
+import contextlib
 import email.policy
 import logging
+import re
 import smtplib
+import ssl
 import tempfile
 from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import patch
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
+from odoo.service.model import call_kw, get_public_method
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
-from odoo.tools import config, mute_logger
+from odoo.tools import config, email_domain_extract, email_normalize, mute_logger
 
-from odoo.addons.base.models.ir_mail_server import MailDeliveryError, OutgoingEmailError
+from odoo.addons.base.models.ir_mail_server import (
+    MailDeliveryError,
+    OutgoingEmailError,
+    _log_smtp_debug,
+)
 
 _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
 
@@ -180,9 +188,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         """
         message = self._make_message()
         message["X-Msg-To-Add"] = "added@example.com"
-        self.IrMailServer._alter_message__(
-            message, "sender@example.com", ["added@example.com"]
-        )
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(message["To"], "added@example.com")
         self.assertIsNone(message["X-Msg-To-Add"])
 
@@ -192,9 +198,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         message = self._make_message()
         message["To"] = "keep@example.com"
         message["X-Msg-To-Add"] = "keep@example.com, extra@example.com"
-        self.IrMailServer._alter_message__(
-            message, "sender@example.com", ["keep@example.com"]
-        )
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(message["To"], "keep@example.com, extra@example.com")
 
     def test_alter_message_x_forge_to_overrides_and_scrubs_headers(self):
@@ -205,9 +209,7 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         message["Bcc"] = "hidden@example.com"
         message["X-Forge-To"] = "forged@example.com"
         message["X-Msg-To-Add"] = "ignored@example.com"
-        self.IrMailServer._alter_message__(
-            message, "sender@example.com", ["forged@example.com"]
-        )
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(message["To"], "forged@example.com")
         self.assertIsNone(message["Bcc"])
         self.assertIsNone(message["X-Forge-To"])
@@ -440,18 +442,18 @@ class TestAlterMessageWireFormat(TransactionCase):
     def test_no_original_to_emits_no_leading_comma(self):
         """Regression: an absent To produced ``To: , added@example.com``."""
         message = self._message(None, "added@example.com")
-        self.IrMailServer._alter_message__(message, "sender@example.com", [])
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(self._to_line(message), "To: added@example.com")
 
     def test_fully_redundant_addition_emits_no_trailing_comma(self):
         """Regression: an addition already in To produced ``To: keep@…, ``."""
         message = self._message("keep@example.com", "keep@example.com")
-        self.IrMailServer._alter_message__(message, "sender@example.com", [])
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(self._to_line(message), "To: keep@example.com")
 
     def test_genuine_addition_is_appended(self):
         message = self._message("keep@example.com", "extra@example.com")
-        self.IrMailServer._alter_message__(message, "sender@example.com", [])
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(
             self._to_line(message), "To: keep@example.com, extra@example.com"
         )
@@ -498,9 +500,7 @@ class TestEnvelopeOnlyHeaders(TransactionCase):
 
     def test_alter_message_strips_return_path(self):
         message = self._message()
-        self.IrMailServer._alter_message__(
-            message, "sender@example.com", ["rcpt@example.com"]
-        )
+        self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertIsNone(message["Return-Path"])
 
     def test_falsy_header_value_emits_no_header(self):
@@ -804,18 +804,17 @@ class TestCertificateLoadErrors(TransactionCase):
         cls.IrMailServer = cls.env["ir.mail_server"]
 
     def test_invalid_stored_certificate_raises_user_error(self):
-        server = self.IrMailServer.create(
-            {
-                "name": "bad-cert",
-                "smtp_host": "smtp.example.com",
-                "smtp_authentication": "certificate",
-                "smtp_encryption": "starttls_strict",
-                "smtp_ssl_certificate": base64.b64encode(b"not a certificate"),
-                "smtp_ssl_private_key": base64.b64encode(b"not a key"),
-            }
-        )
         with self.assertRaises(UserError) as ctx:
-            self.IrMailServer._ssl_context_from_certificate(server, "smtp.example.com")
+            self.IrMailServer.create(
+                {
+                    "name": "bad-cert",
+                    "smtp_host": "smtp.example.com",
+                    "smtp_authentication": "certificate",
+                    "smtp_encryption": "starttls_strict",
+                    "smtp_ssl_certificate": base64.b64encode(b"not a certificate"),
+                    "smtp_ssl_private_key": base64.b64encode(b"not a key"),
+                }
+            )
         self.assertIn("not a valid file", str(ctx.exception))
 
     def test_invalid_certificate_files_raise_user_error(self):
@@ -832,15 +831,1108 @@ class TestCertificateLoadErrors(TransactionCase):
 
     def test_non_base64_certificate_field_raises_user_error(self):
         """A corrupted Binary field value must not escape as binascii.Error."""
-        server = self.IrMailServer.create(
+        with self.assertRaises(UserError):
+            self.IrMailServer.create(
+                {
+                    "name": "corrupt-cert",
+                    "smtp_host": "smtp.example.com",
+                    "smtp_authentication": "certificate",
+                    "smtp_encryption": "starttls",
+                    "smtp_ssl_certificate": b"!!!not base64!!!",
+                    "smtp_ssl_private_key": b"!!!not base64!!!",
+                }
+            )
+
+
+def _self_signed(common_name, issuer_key=None, issuer_name=None, ca=False):
+    """Return ``(certificate, private_key)`` for a throwaway RSA certificate."""
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+    now = datetime.datetime.now(datetime.UTC)
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer_name or subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=365))
+    )
+    if ca:
+        builder = builder.add_extension(
+            x509.BasicConstraints(ca=True, path_length=None), critical=True
+        )
+    return builder.sign(issuer_key or key, hashes.SHA256()), key
+
+
+@tagged("post_install", "-at_install")
+class TestCertificateChain(TransactionCase):
+    """A stored ``fullchain.pem`` must reach the server whole.
+
+    Regression: only the first PEM block was loaded, so the intermediates a CA
+    ships next to the leaf were silently dropped and a peer that cannot build a
+    path from the leaf alone rejected the client certificate.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from cryptography.hazmat.primitives import serialization
+
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        ca_cert, ca_key = _self_signed("Intermediate CA", ca=True)
+        leaf_cert, leaf_key = _self_signed(
+            "smtp.example.com", issuer_key=ca_key, issuer_name=ca_cert.subject
+        )
+        cls.leaf_pem = leaf_cert.public_bytes(serialization.Encoding.PEM)
+        cls.chain_pem = cls.leaf_pem + ca_cert.public_bytes(serialization.Encoding.PEM)
+        cls.key_pem = leaf_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+
+    def _server(self, cert_pem):
+        return self.IrMailServer.create(
             {
-                "name": "corrupt-cert",
+                "name": "chain",
                 "smtp_host": "smtp.example.com",
                 "smtp_authentication": "certificate",
-                "smtp_encryption": "starttls",
-                "smtp_ssl_certificate": b"!!!not base64!!!",
-                "smtp_ssl_private_key": b"!!!not base64!!!",
+                "smtp_encryption": "starttls_strict",
+                "smtp_ssl_certificate": base64.b64encode(cert_pem),
+                "smtp_ssl_private_key": base64.b64encode(self.key_pem),
             }
         )
+
+    def _loaded_chain(self, cert_pem):
+        """Return the certificates handed to OpenSSL for the given stored PEM."""
+        loaded = []
+        real_context = self.IrMailServer._client_ssl_context
+
+        def capturing(encryption, smtp_server):
+            context = real_context(encryption, smtp_server)
+            openssl_context = context._ctx
+            use_certificate = openssl_context.use_certificate
+            add_extra = openssl_context.add_extra_chain_cert
+
+            def track_leaf(cert):
+                loaded.append(cert)
+                return use_certificate(cert)
+
+            def track_intermediate(cert):
+                loaded.append(cert)
+                return add_extra(cert)
+
+            openssl_context.use_certificate = track_leaf
+            openssl_context.add_extra_chain_cert = track_intermediate
+            return context
+
+        with patch.object(
+            type(self.IrMailServer), "_client_ssl_context", staticmethod(capturing)
+        ):
+            self.IrMailServer._ssl_context_from_certificate(
+                self._server(cert_pem), "smtp.example.com"
+            )
+        return [cert.subject.rfc4514_string() for cert in loaded]
+
+    def test_full_chain_is_presented(self):
+        self.assertEqual(
+            self._loaded_chain(self.chain_pem),
+            ["CN=smtp.example.com", "CN=Intermediate CA"],
+            "the intermediate must be added to the chain, not dropped",
+        )
+
+    def test_leaf_only_certificate_still_works(self):
+        self.assertEqual(self._loaded_chain(self.leaf_pem), ["CN=smtp.example.com"])
+
+
+@tagged("post_install", "-at_install")
+class TestPrepareEmailMessageIsNonDestructive(TransactionCase):
+    """``send_email`` documents that a caller should catch MailDeliveryError so
+    "the mail is never lost", i.e. retry. Preparing a message consumes the
+    envelope-only headers, so the caller's object must come back untouched or
+    the retry silently drops every Bcc recipient and the bounce address.
+    """
+
+    class _Session:
+        from_filter = False
+        smtp_from = False
+        esmtp_features = {"smtputf8": ""}
+
+        def __init__(self):
+            self.sent = []
+
+        def send_message(self, message, smtp_from, smtp_to_list):
+            self.sent.append((smtp_from, smtp_to_list))
+
+    def _message(self):
+        return self.env["ir.mail_server"]._build_email__(
+            "sender@example.com",
+            "to@example.com",
+            "Subject",
+            "Body",
+            email_bcc=["bcc@example.com"],
+            headers={"Return-Path": "bounce@example.com"},
+        )
+
+    def test_prepare_leaves_the_caller_message_intact(self):
+        IrMailServer = self.env["ir.mail_server"]
+        message = self._message()
+        smtp_from, smtp_to, prepared = IrMailServer._prepare_email_message__(
+            message, self._Session()
+        )
+
+        self.assertEqual(message["Bcc"], "bcc@example.com")
+        self.assertEqual(message["Return-Path"], "bounce@example.com")
+        self.assertIsNot(prepared, message)
+        self.assertIsNone(prepared["Bcc"], "the wire copy must not carry Bcc")
+        self.assertIsNone(prepared["Return-Path"])
+        self.assertEqual(smtp_from, "bounce@example.com")
+        self.assertEqual(smtp_to, ["to@example.com", "bcc@example.com"])
+
+    def test_preparing_twice_is_idempotent(self):
+        IrMailServer = self.env["ir.mail_server"]
+        message = self._message()
+        first = IrMailServer._prepare_email_message__(message, self._Session())[:2]
+        second = IrMailServer._prepare_email_message__(message, self._Session())[:2]
+        self.assertEqual(first, second, "a retry must resolve the same envelope")
+
+    def test_send_email_does_not_consume_the_caller_message(self):
+        IrMailServer = self.env["ir.mail_server"]
+        message = self._message()
+        session = self._Session()
+        with patch.object(type(IrMailServer), "_disable_send", lambda _: False):
+            IrMailServer.send_email(message, smtp_session=session)
+            IrMailServer.send_email(message, smtp_session=session)
+        self.assertEqual(
+            session.sent[0], session.sent[1], "resending must reach the same envelope"
+        )
+        self.assertEqual(message["Bcc"], "bcc@example.com")
+
+
+@tagged("post_install", "-at_install")
+class TestFindMailServerOrdering(TransactionCase):
+    """Server selection must be reproducible.
+
+    ``sequence`` defaults to 10, so equal-priority servers are the norm rather
+    than the exception; searching on ``sequence`` alone left the winner to
+    Postgres' physical row order, which moves on any update to a competing row.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.IrMailServer.sudo().search([]).unlink()
+        cls.servers = cls.IrMailServer.create(
+            [
+                {
+                    "name": f"tie-{index}",
+                    "smtp_host": f"{index}.example.com",
+                    "smtp_encryption": "none",
+                    "from_filter": "shared.example.com",
+                }
+                for index in range(4)
+            ]
+        )
+
+    def test_equal_sequence_resolves_by_id(self):
+        self.assertEqual(
+            self.servers.mapped("sequence"), [10] * 4, "same priority by default"
+        )
+        expected = self.servers[0]
+        for _attempt in range(2):
+            server, _from = self.IrMailServer.sudo()._find_mail_server(
+                "someone@shared.example.com"
+            )
+            self.assertEqual(server, expected)
+            # a plain rename rewrites the row, moving it to the end of the heap
+            self.env.cr.execute(
+                "UPDATE ir_mail_server SET name = name || '.' WHERE id = %s",
+                (self.servers[0].id,),
+            )
+            self.env.invalidate_all()
+
+    def test_sequence_still_wins_over_id(self):
+        self.servers[-1].sequence = 1
+        self.assertEqual(
+            self.IrMailServer.sudo()._find_mail_server("someone@shared.example.com")[0],
+            self.servers[-1],
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMailServerDeletionGuard(TransactionCase):
+    """Deleting an in-use server must fail as loudly as archiving one.
+
+    Every reference is a many2one defaulting to ``ondelete='set null'``, so the
+    delete that ``write({'active': False})`` refuses used to go through and
+    quietly unhook the mail templates and mailings pointing at the server.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.server = cls.IrMailServer.create(
+            {
+                "name": "Used Server",
+                "smtp_host": "smtp_host",
+                "smtp_encryption": "none",
+            }
+        )
+
+    def test_unused_server_can_be_deleted(self):
+        self.assertTrue(self.server.unlink())
+
+    @mute_logger(_IR_MAIL_SERVER_LOGGER, "odoo.models.unlink")
+    def test_used_server_cannot_be_deleted(self):
+        usages = {self.server.id: ["Used by a mail template"]}
+        with patch.object(
+            type(self.IrMailServer), "_active_usages_compute", lambda self: usages
+        ):
+            with self.assertRaises(UserError) as ctx:
+                self.server.unlink()
+        message = str(ctx.exception)
+        self.assertIn("You cannot delete this Outgoing Mail Server", message)
+        self.assertIn("Used Server", message)
+        self.assertIn("- Used by a mail template", message)
+        self.assertTrue(self.server.exists())
+
+
+@tagged("post_install", "-at_install")
+class TestConnectionTestErrorClassification(TransactionCase):
+    """A failed connection test must name the likely cause instead of falling
+    back to the generic 'here is what we got instead', which also logs a full
+    traceback at WARNING for what is only ever a misconfiguration."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.server = cls.IrMailServer.create(
+            {"name": "probe", "smtp_host": "smtp_host", "smtp_encryption": "none"}
+        )
+
+    def _message_for(self, exc):
+        with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
+            return str(self.IrMailServer._connection_test_error(exc, self.server))
+
+    def test_connection_refused_is_reported_as_a_reachability_problem(self):
+        message = self._message_for(ConnectionRefusedError(111, "Connection refused"))
+        self.assertIn("Check the port number", message)
+        self.assertIn("Connection refused", message)
+
+    def test_network_unreachable_is_reported_without_a_traceback(self):
+        message = self._message_for(OSError(101, "Network is unreachable"))
+        self.assertIn("Check the server address", message)
+        self.assertIn("Network is unreachable", message)
+
+    def test_more_specific_handlers_still_win_over_oserror(self):
+        """smtplib and ssl errors derive from OSError; the catch-all is last."""
+        self.assertIn(
+            "Server replied with following exception",
+            self._message_for(smtplib.SMTPResponseException(550, "nope")),
+        )
+        self.assertIn(
+            "An option is not supported by the server",
+            self._message_for(smtplib.SMTPNotSupportedError("no STARTTLS")),
+        )
+        self.assertIn(
+            "An SSL exception occurred",
+            self._message_for(ssl.SSLError("handshake failure")),
+        )
+        self.assertIn(
+            "No response received",
+            self._message_for(TimeoutError("timed out")),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestSmtpDebugGoesThroughTheLogger(TransactionCase):
+    """``smtp_debug`` claims the transcript lands in the Odoo log; smtplib's own
+    implementation ``print()``s to stderr, so it never reached ``--logfile``."""
+
+    def test_debug_transcript_is_logged(self):
+        with self.assertLogs(_IR_MAIL_SERVER_LOGGER, logging.DEBUG) as captured:
+            _log_smtp_debug("send:", "'EHLO odoo\\r\\n'")
+        self.assertIn("EHLO odoo", captured.output[0])
+
+    def test_open_connection_redirects_smtplib_debug(self):
+        IrMailServer = self.env["ir.mail_server"]
+        captured = {}
+
+        class _FakeConn:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_debuglevel(self, level):
+                captured["level"] = level
+                captured["print_debug"] = self._print_debug
+
+            def _print_debug(self, *args):
+                raise AssertionError("smtplib's stderr printer must be replaced")
+
+            def ehlo_or_helo_if_needed(self):
+                pass
+
+        with (
+            patch.object(type(IrMailServer), "_disable_send", lambda _: False),
+            patch("smtplib.SMTP", _FakeConn),
+        ):
+            IrMailServer._connect__(host="smtp.example.com", smtp_debug=True)
+
+        self.assertTrue(captured["level"])
+        self.assertIs(captured["print_debug"], _log_smtp_debug)
+
+
+@tagged("post_install", "-at_install")
+class TestCertificateChainOnTheWire(TransactionCase):
+    """Prove the intermediate is actually transmitted, not merely loaded.
+
+    A real TLS handshake against a server that trusts ONLY the root and demands
+    a client certificate: the leaf is issued by an intermediate, so verification
+    can only succeed if the client puts leaf+intermediate on the wire.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from cryptography.hazmat.primitives import serialization
+
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.pem = serialization.Encoding.PEM
+        root, root_key = _self_signed("Chain Root", ca=True)
+        inter, inter_key = _self_signed(
+            "Chain Intermediate", issuer_key=root_key, issuer_name=root.subject, ca=True
+        )
+        leaf, leaf_key = _self_signed(
+            "client.example.com", issuer_key=inter_key, issuer_name=inter.subject
+        )
+        server_cert, server_key = _self_signed(
+            "localhost", issuer_key=root_key, issuer_name=root.subject
+        )
+        cls.leaf_pem = leaf.public_bytes(cls.pem)
+        cls.chain_pem = cls.leaf_pem + inter.public_bytes(cls.pem)
+        cls.key_pem = leaf_key.private_bytes(
+            cls.pem,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+        cls.root_pem = root.public_bytes(cls.pem)
+        cls.server_pem = server_cert.public_bytes(cls.pem) + server_key.private_bytes(
+            cls.pem,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+
+    def _handshake(self, cert_pem):
+        """Present ``cert_pem`` to a root-only-trusting server; return its verdict."""
+        import socket
+        import threading
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root_path = Path(tmp) / "root.pem"
+            server_path = Path(tmp) / "server.pem"
+            root_path.write_bytes(self.root_pem)
+            server_path.write_bytes(self.server_pem)
+
+            server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            server_context.load_cert_chain(str(server_path))
+            server_context.load_verify_locations(str(root_path))
+            server_context.verify_mode = ssl.CERT_REQUIRED
+
+            listener = socket.socket()
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            verdict = {}
+
+            def serve():
+                try:
+                    raw, _ = listener.accept()
+                    raw.settimeout(10)
+                    tls = server_context.wrap_socket(raw, server_side=True)
+                    verdict["chain"] = len(tls.get_verified_chain() or ())
+                    tls.close()
+                except ssl.SSLError as exc:
+                    verdict["error"] = type(exc).__name__
+
+            thread = threading.Thread(target=serve, daemon=True)
+            thread.start()
+            try:
+                server = self.IrMailServer.create(
+                    {
+                        "name": "wire",
+                        "smtp_host": "localhost",
+                        "smtp_authentication": "certificate",
+                        "smtp_encryption": "starttls",
+                        "smtp_ssl_certificate": base64.b64encode(cert_pem),
+                        "smtp_ssl_private_key": base64.b64encode(self.key_pem),
+                    }
+                )
+                context = self.IrMailServer._ssl_context_from_certificate(
+                    server, "localhost"
+                )
+                context.verify_mode = ssl.CERT_NONE
+                plain = socket.create_connection(listener.getsockname(), timeout=10)
+                # no `with`: urllib3's WrappedSocket is not a context manager
+                with contextlib.suppress(OSError):
+                    context.wrap_socket(plain, server_hostname="localhost").close()
+            finally:
+                thread.join(timeout=10)
+                listener.close()
+            return verdict
+
+    def test_intermediate_reaches_the_peer(self):
+        self.assertEqual(
+            self._handshake(self.chain_pem).get("chain"),
+            3,
+            "the peer must verify leaf -> intermediate -> root",
+        )
+
+    def test_leaf_alone_cannot_be_verified(self):
+        """The failure a truncated chain produces, pinned so the fix cannot rot."""
+        self.assertEqual(
+            self._handshake(self.leaf_pem).get("error"),
+            "SSLCertVerificationError",
+            "without the intermediate the peer cannot build a trust path",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestDetachedCopyIsolation(TransactionCase):
+    """``_detached_copy`` must isolate *both* mutable containers of an
+    EmailMessage. ``copy.copy`` shares them, so a ``_alter_message__`` override
+    that sets a header or attaches a part would reach back into the caller's
+    message.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def _multipart(self):
+        return self.IrMailServer._build_email__(
+            "a@example.com",
+            "to@example.com",
+            "Sub",
+            "<p>Body</p>",
+            subtype="html",
+            message_id="<pinned@example.com>",
+            attachments=[("f.txt", b"data", "text/plain")],
+        )
+
+    def test_setting_a_header_on_the_copy_does_not_reach_the_original(self):
+        original = self._multipart()
+        detached = self.IrMailServer._detached_copy(original)
+        detached["X-Injected"] = "value"
+        self.assertIsNone(original["X-Injected"])
+
+    def test_attaching_to_the_copy_does_not_reach_the_original(self):
+        original = self._multipart()
+        parts_before = len(original.get_payload())
+        detached = self.IrMailServer._detached_copy(original)
+        extra = EmailMessage(policy=email.policy.SMTP)
+        extra.set_content("added by an override")
+        detached.attach(extra)
+        self.assertEqual(len(original.get_payload()), parts_before)
+        self.assertEqual(len(detached.get_payload()), parts_before + 1)
+
+    def test_parts_are_shared_not_cloned(self):
+        """A big attachment must not be duplicated in memory by the copy."""
+        original = self._multipart()
+        detached = self.IrMailServer._detached_copy(original)
+        self.assertIs(detached.get_payload(1), original.get_payload(1))
+
+    def test_prepared_message_is_byte_identical_to_in_place_preparation(self):
+        """The copy is an isolation change only -- the wire format must not move."""
+
+        class _Session:
+            from_filter = False
+            smtp_from = False
+            esmtp_features = {"smtputf8": ""}
+
+        in_place = self._multipart()
+        self.IrMailServer._alter_message__(in_place, in_place["From"])
+
+        copied = self._multipart()
+        _from, _to, prepared = self.IrMailServer._prepare_email_message__(
+            copied, _Session()
+        )
+
+        boundary = re.compile(rb"===============\d+==")
+        self.assertEqual(
+            boundary.sub(b"B", in_place.as_bytes()),
+            boundary.sub(b"B", prepared.as_bytes()),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestConnectionErrorDispatchMatrix(TransactionCase):
+    """Every branch of ``_connection_test_error`` must be reachable.
+
+    The handlers are an ordered tuple over exception classes that inherit from
+    one another (``SMTPException``, ``ssl.SSLError`` and ``gaierror`` are all
+    ``OSError``; ``CertificateError`` and ``UnicodeError`` are both
+    ``ValueError``), so a reordering silently makes a branch dead. This walks
+    the whole matrix rather than sampling it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.server = cls.IrMailServer.create(
+            {"name": "probe", "smtp_host": "smtp_host", "smtp_encryption": "none"}
+        )
+
+    def test_every_handler_is_reachable(self):
+        import socket
+
+        import idna
+        from urllib3.util.ssl_match_hostname import CertificateError
+
+        cases = [
+            (idna.IDNAError("bad host"), "Invalid server name"),
+            (TimeoutError("timed out"), "No response received"),
+            (socket.gaierror(-2, "Name or service not known"), "No response received"),
+            (
+                ConnectionRefusedError(111, "refused"),
+                "Could not establish a connection",
+            ),
+            (ConnectionResetError(104, "reset"), "Could not establish a connection"),
+            (
+                smtplib.SMTPServerDisconnected("gone"),
+                "closed the connection unexpectedly",
+            ),
+            (smtplib.SMTPResponseException(550, "no"), "Server replied with following"),
+            (
+                smtplib.SMTPAuthenticationError(535, b"bad"),
+                "Server replied with following",
+            ),
+            (smtplib.SMTPNotSupportedError("nope"), "option is not supported"),
+            (smtplib.SMTPException("generic"), "An SMTP exception occurred"),
+            (CertificateError("hostname mismatch"), "CertificateError"),
+            (ssl.SSLCertVerificationError("verify"), "An SSL exception occurred"),
+            (ssl.SSLError("handshake"), "An SSL exception occurred"),
+            (OSError(101, "Network is unreachable"), "connection to the server failed"),
+        ]
+        for exc, expected in cases:
+            with self.subTest(exception=type(exc).__name__):
+                with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
+                    message = str(
+                        self.IrMailServer._connection_test_error(exc, self.server)
+                    )
+                self.assertIn(expected, message)
+
+    @mute_logger(_IR_MAIL_SERVER_LOGGER)
+    def test_unclassified_error_still_falls_through_with_a_warning(self):
+        message = str(
+            self.IrMailServer._connection_test_error(ValueError("boom"), self.server)
+        )
+        self.assertIn("Connection Test Failed", message)
+
+
+@tagged("post_install", "-at_install")
+class TestNotificationsEmailNormalization(TransactionCase):
+    """``_find_mail_server`` must normalize the notifications address it is
+    given before matching it against ``from_filter``.
+
+    ``mail.alias.domain.name`` is validated but never lower-cased (its own
+    ``_check_name`` refuses to rewrite what the admin typed), so
+    ``default_from_email`` -- which ``mail.mail`` puts in the
+    ``domain_notifications_email`` context key -- legitimately reaches this
+    method as ``notifications@Example.COM``. Compared raw against the
+    normalized ``from_filter`` index it matches nothing, and the dedicated
+    server is skipped in favour of whatever sorts first.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.IrMailServer.search([]).unlink()
+        cls.decoy = cls.IrMailServer.create(
+            {
+                "name": "decoy",
+                "smtp_host": "decoy.example.com",
+                "sequence": 1,
+                "from_filter": "unrelated.example.com",
+            }
+        )
+        cls.notifier = cls.IrMailServer.create(
+            {
+                "name": "notifier",
+                "smtp_host": "notifier.example.com",
+                "sequence": 2,
+                "from_filter": "notifications@example.com",
+            }
+        )
+
+    def _find(self, notifications_email):
+        """Resolve as ``mail.mail`` does: a sender no server is dedicated to, so
+        selection falls through to the notifications address."""
+        return self.IrMailServer.with_context(
+            domain_notifications_email=notifications_email
+        )._find_mail_server("stranger@nowhere.example.com")
+
+    def test_uppercase_domain_selects_the_notifications_server(self):
+        # Asserted outside assertNoLogs: which server carries the mail is the
+        # finding, the spurious warning is only its symptom, and a context
+        # manager that raises on exit would hide the real assertion.
+        server, email_from = self._find("notifications@Example.COM")
+        self.assertEqual(server, self.notifier)
+        self.assertEqual(email_from, "notifications@example.com")
+
+    def test_uppercase_domain_does_not_fall_back_past_an_open_server(self):
+        """The realistic multi-server shape: an unrestricted catch-all outranks
+        the fallback branch, so the mail leaves through a server that was never
+        meant to carry the notification address."""
+        self.IrMailServer.create(
+            {"name": "open", "smtp_host": "open.example.com", "sequence": 5}
+        )
+        server, _email_from = self._find("notifications@Example.COM")
+        self.assertEqual(server, self.notifier)
+
+    def test_formatted_address_selects_the_notifications_server(self):
+        server, email_from = self._find('"Notif" <notifications@example.com>')
+        self.assertEqual(server, self.notifier)
+        self.assertEqual(email_from, "notifications@example.com")
+
+    def test_uppercase_domain_matches_a_domain_filter(self):
+        self.notifier.from_filter = "example.com"
+        server, email_from = self._find("notifications@Example.COM")
+        self.assertEqual(server, self.notifier)
+        self.assertEqual(email_from, "notifications@example.com")
+
+    def test_already_normalized_address_is_unaffected(self):
+        server, email_from = self._find("notifications@example.com")
+        self.assertEqual(server, self.notifier)
+        self.assertEqual(email_from, "notifications@example.com")
+
+    def test_matching_a_server_logs_no_fallback_warning(self):
+        for notifications_email in (
+            "notifications@Example.COM",
+            '"Notif" <notifications@example.com>',
+            "notifications@example.com",
+        ):
+            with self.subTest(notifications_email=notifications_email):
+                with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
+                    self._find(notifications_email)
+
+
+@tagged("post_install", "-at_install")
+class TestTestEmailFromSelection(TransactionCase):
+    """The "Test Connection" sender is taken from ``from_filter``; a part that
+    is not a parseable address must not be handed to ``MAIL FROM`` just because
+    it contains an ``@``.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def _server(self, from_filter):
+        return self.IrMailServer.create(
+            {
+                "name": "tested",
+                "smtp_host": "smtp.example.com",
+                "from_filter": from_filter,
+            }
+        )
+
+    def test_unparseable_part_is_not_used_as_a_sender(self):
+        self.env.user.email = "admin@example.com"
+        self.assertEqual(
+            self._server("@@@")._get_test_email_from(), "admin@example.com"
+        )
+
+    def test_unparseable_part_does_not_shadow_a_usable_domain(self):
+        # The local part is left to the override chain (``mail`` prefers an
+        # alias domain's default_from); the invariant is that the sender is a
+        # real address in the domain the filter authorizes.
+        self._assert_sender_in_domain(self._server("@@@, example.com"), "example.com")
+
+    def test_formatted_filter_entry_yields_a_bare_address(self):
+        self.assertEqual(
+            self._server('"Bob" <bob@example.com>')._get_test_email_from(),
+            "bob@example.com",
+        )
+
+    def test_first_usable_address_wins(self):
+        self.assertEqual(
+            self._server("b@example.com, a@example.com")._get_test_email_from(),
+            "b@example.com",
+        )
+
+    def test_domain_only_filter_builds_a_sender_in_that_domain(self):
+        self._assert_sender_in_domain(self._server("example.com"), "example.com")
+
+    def _assert_sender_in_domain(self, server, domain):
+        email_from = server._get_test_email_from()
+        normalized = email_normalize(email_from)
+        self.assertTrue(normalized, f"{email_from!r} is not a usable sender")
+        self.assertEqual(email_domain_extract(normalized), domain)
+
+
+@tagged("post_install", "-at_install")
+class TestCertificateMaterialValidatedOnWrite(TransactionCase):
+    """Certificate authentication must reject unusable PEM material when it is
+    saved, not hours later inside a cron send.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from cryptography.hazmat.primitives import serialization
+
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cert, key = _self_signed("smtp.example.com")
+        _, other_key = _self_signed("other.example.com")
+        cls.cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+        cls.key_pem = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+        cls.other_key_pem = other_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+
+    def _create(self, cert_pem, key_pem):
+        return self.IrMailServer.create(
+            {
+                "name": "cert",
+                "smtp_host": "smtp.example.com",
+                "smtp_authentication": "certificate",
+                "smtp_encryption": "starttls_strict",
+                "smtp_ssl_certificate": base64.b64encode(cert_pem),
+                "smtp_ssl_private_key": base64.b64encode(key_pem),
+            }
+        )
+
+    def test_matching_pair_is_accepted(self):
+        self.assertTrue(self._create(self.cert_pem, self.key_pem))
+
+    def test_key_from_another_certificate_is_rejected(self):
         with self.assertRaises(UserError):
-            self.IrMailServer._ssl_context_from_certificate(server, "smtp.example.com")
+            self._create(self.cert_pem, self.other_key_pem)
+
+    def test_garbage_certificate_is_rejected(self):
+        with self.assertRaises(UserError):
+            self._create(b"not a certificate", self.key_pem)
+
+    def test_garbage_key_is_rejected(self):
+        with self.assertRaises(UserError):
+            self._create(self.cert_pem, b"not a key")
+
+    def test_swapping_in_a_bad_key_later_is_rejected(self):
+        server = self._create(self.cert_pem, self.key_pem)
+        with self.assertRaises(UserError):
+            server.smtp_ssl_private_key = base64.b64encode(self.other_key_pem)
+
+    def test_material_is_ignored_while_authentication_is_not_certificate(self):
+        self.assertTrue(
+            self.IrMailServer.create(
+                {
+                    "name": "login",
+                    "smtp_host": "smtp.example.com",
+                    "smtp_authentication": "login",
+                    "smtp_ssl_certificate": base64.b64encode(b"leftover"),
+                    "smtp_ssl_private_key": base64.b64encode(b"leftover"),
+                }
+            )
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestSmtpHeloName(TransactionCase):
+    """The EHLO/HELO name Odoo announces must be configurable.
+
+    smtplib derives it from ``socket.getfqdn()``, which on a container or any
+    host without a resolvable FQDN yields a domain literal such as
+    ``[172.17.0.2]``; MTAs that require a fully-qualified HELO reject the
+    session outright, and nothing in Odoo could override it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+
+    def test_unset_option_defers_to_smtplib(self):
+        with patch.dict(config.options, {"smtp_helo_name": ""}):
+            self.assertIsNone(self.IrMailServer._get_smtp_local_hostname())
+
+    def test_configured_name_is_returned(self):
+        with patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}):
+            self.assertEqual(
+                self.IrMailServer._get_smtp_local_hostname(), "mail.example.com"
+            )
+
+    def test_connection_announces_the_configured_name(self):
+        announced = {}
+
+        class FakeSMTP:
+            esmtp_features = {}
+
+            def __init__(self, host, port, timeout=None, local_hostname=None, **kw):
+                announced["local_hostname"] = local_hostname
+
+            def set_debuglevel(self, level):
+                pass
+
+            def ehlo_or_helo_if_needed(self):
+                pass
+
+        transport = self.IrMailServer._resolve_smtp_transport(
+            self.IrMailServer.create({"name": "helo", "smtp_host": "smtp.example.com"})
+        )
+        with (
+            patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}),
+            patch.object(smtplib, "SMTP", FakeSMTP),
+        ):
+            self.IrMailServer._open_smtp_connection(transport, "from@example.com")
+        self.assertEqual(announced["local_hostname"], "mail.example.com")
+
+
+@tagged("post_install", "-at_install")
+class TestRemoteCallSurface(TransactionCase):
+    """``ir.mail_server`` must expose over RPC only its two UI buttons.
+
+    ``send_email`` accepts caller-supplied ``smtp_server`` / ``smtp_port``, and
+    dials them before it ever looks at the message. Every one of its arguments
+    is JSON-expressible, so a plain ``call_kw`` with a dict for ``message`` was
+    enough to make the Odoo host open a TCP connection to any address, with the
+    outcome reflected back in the error -- a blind SSRF and port scanner. Read
+    access on this model is not an admin privilege (``mass_mailing`` grants it
+    to ``group_mass_mailing_user``), so this is reachable by non-admins.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.reader = cls.env["res.users"].create(
+            {
+                "name": "Mail Server Reader",
+                "login": "mail_server_reader",
+                "group_ids": [(6, 0, [cls.env.ref("base.group_user").id])],
+            }
+        )
+        # Reproduce mass_mailing's grant without depending on that module.
+        cls.env["ir.model.access"].create(
+            {
+                "name": "ir_mail_server read for the audit",
+                "model_id": cls.env["ir.model"]._get_id("ir.mail_server"),
+                "group_id": cls.env.ref("base.group_user").id,
+                "perm_read": True,
+                "perm_write": False,
+                "perm_create": False,
+                "perm_unlink": False,
+            }
+        )
+        cls.env.registry.clear_cache()
+        cls.server = cls.env["ir.mail_server"].create(
+            {"name": "acl", "smtp_host": "smtp.example.com"}
+        )
+
+    def test_reader_really_has_read_but_not_write(self):
+        """Guard the premise: without it the two tests below pass vacuously."""
+        as_reader = self.env["ir.mail_server"].with_user(self.reader)
+        self.assertTrue(as_reader.has_access("read"))
+        self.assertFalse(as_reader.has_access("write"))
+
+    def test_send_email_is_not_rpc_callable(self):
+        with self.assertRaises(AccessError):
+            call_kw(
+                self.env["ir.mail_server"].with_user(self.reader),
+                "send_email",
+                [{"From": "attacker@example.com"}],
+                {"smtp_server": "127.0.0.1", "smtp_port": 9, "smtp_encryption": "none"},
+            )
+
+    def test_connection_test_requires_write_access(self):
+        with self.assertRaises(AccessError):
+            call_kw(
+                self.server.with_user(self.reader),
+                "test_smtp_connection",
+                [[self.server.id]],
+                {},
+            )
+
+    def test_ui_buttons_stay_rpc_callable_for_an_administrator(self):
+        for name in ("test_smtp_connection", "action_retrieve_max_email_size"):
+            with self.subTest(method=name):
+                self.assertTrue(get_public_method(self.env["ir.mail_server"], name))
+
+
+@tagged("post_install", "-at_install")
+class TestSessionAdvertisedSizeLimit(TransactionCase):
+    """``_get_max_email_size`` must respect both bounds that exist.
+
+    ``max_email_size`` is an admin policy (it decides when attachments become
+    links) and the EHLO ``SIZE`` is what the provider enforces right now. The
+    stored value is a snapshot somebody had to refresh by hand, so once a
+    provider tightens its limit every oversized mail fails at DATA instead of
+    being converted to links.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.server = cls.IrMailServer.create(
+            {"name": "sized", "smtp_host": "smtp.example.com", "max_email_size": 25.0}
+        )
+
+    def _session(self, size):
+        class _Session:
+            esmtp_features = {} if size is None else {"size": size}
+
+        return _Session()
+
+    def test_a_tighter_server_limit_wins(self):
+        self.assertEqual(
+            self.server._get_max_email_size(self._session(str(10 * 1024**2))), 10.0
+        )
+
+    def test_a_looser_server_limit_does_not_override_the_policy(self):
+        self.assertEqual(
+            self.server._get_max_email_size(self._session(str(50 * 1024**2))), 25.0
+        )
+
+    def test_no_session_keeps_the_configured_value(self):
+        self.assertEqual(self.server._get_max_email_size(), 25.0)
+
+    def test_size_advertised_without_a_value_is_not_a_zero_limit(self):
+        """``250-SIZE`` with no number means "supported, no stated limit"."""
+        self.assertEqual(self.server._get_max_email_size(self._session("")), 25.0)
+
+    def test_a_server_not_advertising_size_keeps_the_configured_value(self):
+        self.assertEqual(self.server._get_max_email_size(self._session(None)), 25.0)
+
+    def test_a_garbage_size_is_ignored(self):
+        self.assertEqual(self.server._get_max_email_size(self._session("lots")), 25.0)
+
+    def test_the_parameter_fallback_is_capped_too(self):
+        unsized = self.IrMailServer.create(
+            {"name": "unsized", "smtp_host": "smtp.example.com"}
+        )
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.default_max_email_size", "30"
+        )
+        self.assertEqual(
+            unsized._get_max_email_size(self._session(str(2 * 1024**2))), 2.0
+        )
+        self.assertEqual(unsized._get_max_email_size(), 30.0)
+
+
+@tagged("post_install", "-at_install")
+class TestResolvedServerIsNotResolvedTwice(TransactionCase):
+    """A caller that already ran ``_find_mail_server`` must be able to say so.
+
+    ``mail.mail`` groups its batches by the outcome, then handed ``_connect__``
+    a falsy ``mail_server_id`` that was indistinguishable from "not resolved
+    yet" -- so the search ran again for every batch and could reach a different
+    verdict than the one the batch was grouped under.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.IrMailServer = cls.env["ir.mail_server"]
+        cls.IrMailServer.search([]).unlink()
+        cls.IrMailServer.create(
+            {"name": "catch-all", "smtp_host": "catchall.example.com"}
+        )
+
+    @contextlib.contextmanager
+    def _capture(self):
+        """Open a connection against a stub, yielding the stashed session context."""
+        captured = {}
+
+        class _FakeConn:
+            esmtp_features = {}
+
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def set_debuglevel(self, level):
+                pass
+
+            def ehlo_or_helo_if_needed(self):
+                pass
+
+        with (
+            patch.dict(config.options, {"smtp_server": "cli.example.com"}),
+            patch.object(smtplib, "SMTP", _FakeConn),
+            patch.object(
+                type(self.IrMailServer),
+                "_disable_send",
+                classmethod(lambda cls: False),
+            ),
+        ):
+            yield captured
+
+    def _connect(self, **kwargs):
+        with self._capture():
+            session = self.IrMailServer._connect__(
+                smtp_from="notifications@example.com", **kwargs
+            )
+        return self.IrMailServer._read_session_context(session)
+
+    def test_resolving_is_skipped_when_the_caller_already_resolved(self):
+        calls = []
+        real = type(self.IrMailServer)._find_mail_server
+
+        def counting(self, *args, **kwargs):
+            calls.append(1)
+            return real(self, *args, **kwargs)
+
+        with patch.object(type(self.IrMailServer), "_find_mail_server", counting):
+            self._connect(resolve_server=False)
+            self.assertEqual(calls, [], "the batch's verdict was second-guessed")
+            self._connect()
+            self.assertEqual(len(calls), 1, "the default must still resolve")
+
+    def test_the_session_context_is_the_same_either_way(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "mail.default.from_filter", "example.com"
+        )
+        self.assertEqual(
+            self._connect(resolve_server=False),
+            self.IrMailServer._read_session_context(
+                self._fake_cli_session_context_reference()
+            ),
+        )
+
+    def _fake_cli_session_context_reference(self):
+        """The session an explicit-host connection produces, which is the
+        transport a resolved-to-no-server batch must also get."""
+        with self._capture():
+            return self.IrMailServer._connect__(
+                host="cli.example.com", smtp_from="notifications@example.com"
+            )
+
+    def test_a_forced_server_is_still_validated(self):
+        archived = self.IrMailServer.create(
+            {"name": "gone", "smtp_host": "gone.example.com", "active": False}
+        )
+        with self._capture(), self.assertRaises(UserError):
+            self.IrMailServer._connect__(
+                mail_server_id=archived.id,
+                smtp_from="a@example.com",
+                resolve_server=False,
+            )

@@ -68,6 +68,19 @@ class Certificate:
         return f"Certificate({self.key=}, {self.cert=})"
 
 
+class _EhloRecordingHandler(aiosmtpd.handlers.Debugging if aiosmtpd else object):
+    """Debugging handler that records the name the client announced in EHLO."""
+
+    def __init__(self):
+        super().__init__()
+        self.hostnames = []
+
+    async def handle_EHLO(self, server, session, envelope, hostname, responses):
+        self.hostnames.append(hostname)
+        session.host_name = hostname
+        return responses
+
+
 @unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
 @unittest.skipUnless(_openssl, "openssl not found in path")
 @patch.dict(config.options, {"smtp_server": "", "smtp_timeout": SMTP_TIMEOUT})
@@ -167,12 +180,14 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
         ssl_context=None,
         auth_required=True,
         stop_on_cleanup=True,
+        handler=None,
     ):
         """Start an SMTP daemon in a background thread; stop it on context exit.
 
         :param encryption: 'none', 'ssl' or 'starttls', the kind of server to start.
         :param ssl_context: ``ssl.SSLContext`` to use with 'ssl' or 'starttls'.
         :param auth_required: whether the server enforces password authentication.
+        :param handler: aiosmtpd handler, to observe what reaches the server.
         """
         encryption = encryption.removesuffix("_strict")
         assert encryption in ("none", "ssl", "starttls")
@@ -192,7 +207,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             kwargs["authenticator"] = _smtp_authenticate
 
         smtpd_thread = aiosmtpd.controller.Controller(
-            aiosmtpd.handlers.Debugging(),
+            handler if handler is not None else aiosmtpd.handlers.Debugging(),
             hostname=aiosmtpd.controller.get_localhost(),
             server_hostname="localhost",
             port=self.port,
@@ -206,6 +221,45 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             yield smtpd_thread
         finally:
             smtpd_thread.stop()
+
+    def _announced_name(self):
+        handler = _EhloRecordingHandler()
+        with self.start_smtpd("none", auth_required=False, handler=handler):
+            self.env["ir.mail_server"].create(
+                {
+                    "name": "helo probe",
+                    "from_filter": "localhost",
+                    "smtp_host": "localhost",
+                    "smtp_port": self.port,
+                    "smtp_authentication": "login",
+                    "smtp_user": "",
+                    "smtp_pass": "",
+                }
+            ).test_smtp_connection()
+        self.assertTrue(handler.hostnames, "the server received no EHLO")
+        return handler.hostnames[0]
+
+    @mute_logger("mail.log")
+    def test_configured_name_reaches_the_server(self):
+        with patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}):
+            self.assertEqual(self._announced_name(), "mail.example.com")
+
+    @mute_logger("mail.log")
+    def test_unset_option_keeps_the_smtplib_default(self):
+        fqdn = socket.getfqdn()
+        expected = (
+            fqdn if "." in fqdn else f"[{socket.gethostbyname(socket.gethostname())}]"
+        )
+        with patch.dict(config.options, {"smtp_helo_name": ""}):
+            self.assertEqual(self._announced_name(), expected)
+
+    @mute_logger("mail.log")
+    def test_the_option_actually_changes_the_wire(self):
+        with patch.dict(config.options, {"smtp_helo_name": ""}):
+            default_name = self._announced_name()
+        with patch.dict(config.options, {"smtp_helo_name": "mail.example.com"}):
+            configured_name = self._announced_name()
+        self.assertNotEqual(default_name, configured_name)
 
     @mute_logger("mail.log")
     def test_authentication_certificate_matrix(self):

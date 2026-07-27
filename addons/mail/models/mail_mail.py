@@ -550,7 +550,9 @@ class MailMail(models.Model):
             body = re.sub(_UNFOLLOW_REGEX, "", body)
         return body
 
-    def _prepare_outgoing_list(self, mail_server=False, doc_to_followers=None):
+    def _prepare_outgoing_list(
+        self, mail_server=False, doc_to_followers=None, smtp_session=None
+    ):
         """Return a list of emails to send based on current mail.mail. Each
         is a dictionary for specific email values, depending on a partner, or
         generic to the whole recipients given by mail.email_to.
@@ -558,6 +560,8 @@ class MailMail(models.Model):
         :param mail_server: <ir.mail_server> mail server that will be used to send the mails,
           False if it is the default one
         :param dict doc_to_followers: see ``Followers._get_mail_doc_to_followers()``
+        :param smtp_session: open session, whose advertised RFC 1870 size caps the
+          configured limit when deciding which attachments become links
         :returns: list of dicts used in IrMailServer._build_email__()
         :rtype: list[dict]
         """
@@ -716,7 +720,9 @@ class MailMail(models.Model):
                 headers, body, [a.file_size for a in attachments.sudo()]
             )
             max_email_size_bytes = (
-                (mail_server or self.env["ir.mail_server"]).sudo()._get_max_email_size()
+                (mail_server or self.env["ir.mail_server"])
+                .sudo()
+                ._get_max_email_size(smtp_session)
                 * 1024
                 * 1024
             )
@@ -1044,22 +1050,16 @@ class MailMail(models.Model):
 
             smtp_session = None
             try:
-                # Same alias-domain context _split_by_mail_configuration resolved
-                # under: with no forced server, _connect__ re-runs _find_mail_server
-                # itself, and without the context it derives smtp_from from the
-                # company default instead of this record's alias domain -- then
-                # stashes that on the session as the envelope sender.
-                ConnectIrMailServer = self.env["ir.mail_server"]
-                if alias_domain_id:
-                    alias_domain = (
-                        self.env["mail.alias.domain"].sudo().browse(alias_domain_id)
-                    )
-                    ConnectIrMailServer = ConnectIrMailServer.with_context(
-                        domain_notifications_email=alias_domain.default_from_email,
-                        domain_bounce_address=alias_domain.bounce_email,
-                    )
-                smtp_session = ConnectIrMailServer._connect__(
-                    mail_server_id=mail_server_id, smtp_from=smtp_from
+                # resolve_server=False: _split_by_mail_configuration already ran
+                # _find_mail_server for this batch and mail_server_id carries its
+                # verdict, a falsy value meaning "no server applies". Re-resolving
+                # repeated that search per batch, and matched the grouping only
+                # because the alias-domain context was rebuilt here and handed
+                # back to it -- a coupling this drops along with the search.
+                smtp_session = self.env["ir.mail_server"]._connect__(
+                    mail_server_id=mail_server_id,
+                    smtp_from=smtp_from,
+                    resolve_server=False,
                 )
             except Exception as exc:
                 if raise_exception:
@@ -1234,6 +1234,7 @@ class MailMail(models.Model):
                 email_list = mail._prepare_outgoing_list(
                     mail_server=mail_server or mail.mail_server_id,
                     doc_to_followers=doc_to_followers,
+                    smtp_session=smtp_session,
                 )
 
                 # send each sub-email
