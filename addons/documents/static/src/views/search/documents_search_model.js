@@ -306,7 +306,12 @@ export class DocumentsSearchModel extends SearchModel {
         }
         const orderBy = super.orderBy;
         if (!orderBy.length) {
-            orderBy.push({ name: "create_date", asc: false });
+            // super.orderBy is the base search model's memoized getter —
+            // frozen in dev mode ("consumers only read or rebuild it"), so
+            // mutating it in place with push() throws
+            // "Cannot add property 0, object is not extensible". Build a
+            // fresh array instead.
+            return [{ name: "create_date", asc: false }];
         }
         return orderBy;
     }
