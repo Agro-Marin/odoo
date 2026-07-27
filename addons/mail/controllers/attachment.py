@@ -64,8 +64,6 @@ class AttachmentController(ThreadController):
         if not thread:
             raise NotFound
         vals = {
-            "name": ufile.filename,
-            "raw": ufile.read(),
             # reuse the id already coerced+access-checked by
             # _get_thread_with_access_for_post rather than re-parsing the raw
             # client input (which could diverge / ValueError).
@@ -83,7 +81,12 @@ class AttachmentController(ThreadController):
             )
         try:
             # sudo: ir.attachment - posting a new attachment on an accessible thread
-            attachment = request.env["ir.attachment"].sudo().create(vals)
+            # _from_request_file streams the payload into storage instead of
+            # holding the whole upload in the worker; DERIVE types the row
+            # exactly as create() did from the same filename.
+            attachment = (
+                request.env["ir.attachment"].sudo()._from_request_file(ufile, **vals)
+            )
             attachment._post_add_create(**kwargs)
             res = {
                 "data": {

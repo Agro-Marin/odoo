@@ -482,13 +482,14 @@ class Binary(http.Controller):
                 filename = unicodedata.normalize("NFD", uploaded_file.filename)
 
             try:
-                attachment = Attachment.create(
-                    {
-                        "name": filename,
-                        "raw": uploaded_file.read(),
-                        "res_model": model,
-                        "res_id": int(id),
-                    }
+                # streams the payload into storage rather than holding the
+                # whole upload in the worker; DERIVE types the row exactly as
+                # create() did from the same filename.
+                uploaded_file.filename = filename
+                attachment = Attachment._from_request_file(
+                    uploaded_file,
+                    res_model=model,
+                    res_id=int(id),
                 )
                 attachment._post_add_create()
             except AccessError:
