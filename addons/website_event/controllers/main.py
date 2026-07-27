@@ -1,24 +1,26 @@
-import babel.dates
-from urllib.parse import urlencode
-
 from ast import literal_eval
 from collections import Counter
+from urllib.parse import urlencode
+
+import babel.dates
 from werkzeug.exceptions import NotFound
 
-from odoo import fields, http, _
-from odoo.addons.website.controllers.main import QueryURL
+from odoo import _, fields, http
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools.misc import get_lang
 from odoo.tools import lazy
+from odoo.tools.misc import get_lang
 from odoo.tools.translate import LazyTranslate
-from odoo.exceptions import UserError, ValidationError
+
+from odoo.addons.website.controllers.main import QueryURL
 
 _lt = LazyTranslate(__name__)
 
 
 class WebsiteEventController(http.Controller):
 
+    @staticmethod
     def sitemap_event(env, rule, qs):
         if not qs or qs.lower() in '/events':
             yield {'loc': '/events'}
@@ -247,10 +249,10 @@ class WebsiteEventController(http.Controller):
                 continue
             ticket_order[int(registration_items[1])] = int(value)
 
-        ticket_dict = dict((ticket.id, ticket) for ticket in request.env['event.event.ticket'].sudo().search([
-            ('id', 'in', [tid for tid in ticket_order.keys() if tid]),
+        ticket_dict = {ticket.id: ticket for ticket in request.env['event.event.ticket'].sudo().search([
+            ('id', 'in', [tid for tid in ticket_order if tid]),
             ('event_id', '=', event.id)
-        ]))
+        ])}
 
         tickets = request.env['event.event.ticket'].browse(ticket_dict.keys())
         slot = request.env['event.slot'].browse(int(slot)) if (slot := form_details.get("event_slot_id", False)) else slot
@@ -280,7 +282,7 @@ class WebsiteEventController(http.Controller):
             'event_slot': slot,
             'seats_available_slot_tickets': {
                 ticket.id: availability
-                for (_, ticket), availability in zip(slot_tickets, event._get_seats_availability(slot_tickets))
+                for (_, ticket), availability in zip(slot_tickets, event._get_seats_availability(slot_tickets), strict=True)
             }
         })
 
@@ -341,7 +343,7 @@ class WebsiteEventController(http.Controller):
         """
         allowed_fields = request.env['event.registration']._get_website_registration_allowed_fields()
         registration_fields = {key: v for key, v in request.env['event.registration']._fields.items() if key in allowed_fields}
-        for ticket_id in list(filter(lambda x: x is not None, [form_details[field] if 'event_ticket_id' in field else None for field in form_details.keys()])):
+        for ticket_id in list(filter(lambda x: x is not None, [form_details[field] if 'event_ticket_id' in field else None for field in form_details])):
             if int(ticket_id) not in event.event_ticket_ids.ids and len(event.event_ticket_ids.ids) > 0:
                 raise UserError(_("This ticket is not available for sale for this event"))
         registrations = {}
@@ -361,7 +363,7 @@ class WebsiteEventController(http.Controller):
                 registration_index, field_name = key_values
                 if field_name not in registration_fields:
                     continue
-                registrations.setdefault(registration_index, dict())[field_name] = int(value) or False
+                registrations.setdefault(registration_index, {})[field_name] = int(value) or False
                 continue
 
             if len(key_values) != 3:
@@ -383,8 +385,8 @@ class WebsiteEventController(http.Controller):
             if answer_values and not int(registration_index):
                 general_answer_ids.append((0, 0, answer_values))
             elif answer_values:
-                registrations.setdefault(registration_index, dict())\
-                    .setdefault('registration_answer_ids', list()).append((0, 0, answer_values))
+                registrations.setdefault(registration_index, {})\
+                    .setdefault('registration_answer_ids', []).append((0, 0, answer_values))
 
             if question_type in ('name', 'email', 'phone', 'company_name')\
                 and question_type not in already_handled_fields_data.get(registration_index, []):
@@ -392,16 +394,16 @@ class WebsiteEventController(http.Controller):
                     continue
 
                 field_name = question_type
-                already_handled_fields_data.setdefault(registration_index, list()).append(field_name)
+                already_handled_fields_data.setdefault(registration_index, []).append(field_name)
 
                 if not int(registration_index):
                     general_identification_answers[field_name] = value
                 else:
-                    registrations.setdefault(registration_index, dict())[field_name] = value
+                    registrations.setdefault(registration_index, {})[field_name] = value
 
         if general_answer_ids:
             for registration in registrations.values():
-                registration.setdefault('registration_answer_ids', list()).extend(general_answer_ids)
+                registration.setdefault('registration_answer_ids', []).extend(general_answer_ids)
 
         if general_identification_answers:
             for registration in registrations.values():
@@ -463,7 +465,7 @@ class WebsiteEventController(http.Controller):
         # fetch the related registrations, make sure they belong to the correct visitor / event pair
         visitor = request.env['website.visitor']._get_visitor_from_request()
         if not visitor:
-            raise NotFound()
+            raise NotFound
         attendees_sudo = request.env['event.registration'].sudo().search([
             ('id', 'in', [str(registration_id) for registration_id in registration_ids.split(',')]),
             ('event_id', '=', event.id),
@@ -493,7 +495,7 @@ class WebsiteEventController(http.Controller):
         start_date = fields.Datetime.from_string(event.date_begin).date()
         end_date = fields.Datetime.from_string(event.date_end).date()
         month = babel.dates.get_month_names('abbreviated', locale=get_lang(event.env).code)[start_date.month]
-        return ('%s %s%s') % (month, start_date.strftime("%e"), (end_date != start_date and ("-" + end_date.strftime("%e")) or ""))
+        return ('%s %s%s') % (month, start_date.strftime("%e"), ((end_date != start_date and ("-" + end_date.strftime("%e"))) or ""))
 
     def _extract_searched_event_tags(self, searches, slug_tags):
         tags = request.env['event.tag']
@@ -523,7 +525,7 @@ class WebsiteEventController(http.Controller):
         EventTag = request.env['event.tag']
         try:
             tag_ids = literal_eval(search_tags or '')
-        except Exception:  # noqa: BLE001
+        except Exception:
             return EventTag
 
         return EventTag.search([('id', 'in', tag_ids)]) if tag_ids else EventTag
@@ -533,7 +535,7 @@ class WebsiteEventController(http.Controller):
         EventTag = request.env['event.tag']
         try:
             tag_ids = list(filter(None, [request.env['ir.http']._unslug(tag)[1] for tag in (search_tags or '').split(',')]))
-        except Exception:  # noqa: BLE001
+        except Exception:
             return EventTag
 
         return EventTag.search([('id', 'in', tag_ids)]) if tag_ids else EventTag

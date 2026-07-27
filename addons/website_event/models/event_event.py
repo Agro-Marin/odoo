@@ -1,17 +1,17 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from ast import literal_eval
-from dateutil.relativedelta import relativedelta
 import json
+from ast import literal_eval
 from urllib.parse import urlencode
 
+from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
-from pytz import utc, timezone
+from pytz import timezone, utc
 
-from odoo import api, fields, models, tools, _
-from odoo.exceptions import UserError, ValidationError
+from odoo import _, api, fields, models, tools
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
-from odoo.tools.misc import get_lang, format_date
+from odoo.tools.misc import format_date, get_lang
 
 GOOGLE_CALENDAR_URL = 'https://www.google.com/calendar/render?'
 
@@ -97,7 +97,7 @@ class EventEvent(models.Model):
         """Fall back on the website_url to share the event."""
         for event in self:
             event.event_share_url = event.event_url or tools.urls.urljoin(event.get_base_url(), event.website_url)
- 
+
     @api.depends('registration_ids')
     @api.depends_context('uid')
     def _compute_is_participating(self):
@@ -154,9 +154,7 @@ class EventEvent(models.Model):
             self.is_visible_on_website = True
             return
         for event in self:
-            if event.website_visibility == 'public' or event.is_participating:
-                event.is_visible_on_website = True
-            elif not self.env.user._is_public() and event.website_visibility == 'logged_users':
+            if event.website_visibility == 'public' or event.is_participating or (not self.env.user._is_public() and event.website_visibility == 'logged_users'):
                 event.is_visible_on_website = True
             else:
                 event.is_visible_on_website = False
@@ -245,7 +243,7 @@ class EventEvent(models.Model):
         return res
 
     def copy_event_menus(self, old_events):
-        for new_event, old_event in zip(self, old_events):
+        for new_event, old_event in zip(self, old_events, strict=True):
             default_menu_values = {'event_id': new_event.id}
             new_event.menu_id = old_event.menu_id.copy({'name': new_event.name, 'website_id': new_event.website_id.id})
             new_event.introduction_menu_ids = old_event.introduction_menu_ids.copy(default_menu_values)
@@ -298,9 +296,9 @@ class EventEvent(models.Model):
           'activated': subset of self having its menu currently set to True
           'deactivated': subset of self having its menu currently set to False
         } """
-        menus_state_by_field = dict()
+        menus_state_by_field = {}
         for fname in self._get_menu_update_fields():
-            activated = self.filtered(lambda event: event[fname])
+            activated = self.filtered(lambda event, fname=fname: event[fname])
             menus_state_by_field[fname] = {
                 'activated': activated,
                 'deactivated': self - activated,
@@ -321,14 +319,14 @@ class EventEvent(models.Model):
           'activated': subset of self having its menu toggled to True
           'deactivated': subset of self having its menu toggled to False
         } """
-        menus_update_by_field = dict()
+        menus_update_by_field = {}
         for fname in self._get_menu_update_fields():
             if fname in force_update:
                 menus_update_by_field[fname] = self
             else:
                 menus_update_by_field[fname] = self.env['event.event']
-                menus_update_by_field[fname] |= menus_state_by_field[fname]['activated'].filtered(lambda event: not event[fname])
-                menus_update_by_field[fname] |= menus_state_by_field[fname]['deactivated'].filtered(lambda event: event[fname])
+                menus_update_by_field[fname] |= menus_state_by_field[fname]['activated'].filtered(lambda event, fname=fname: not event[fname])
+                menus_update_by_field[fname] |= menus_state_by_field[fname]['deactivated'].filtered(lambda event, fname=fname: event[fname])
         return menus_update_by_field
 
     def _get_website_menu_entries(self):
@@ -578,8 +576,7 @@ class EventEvent(models.Model):
             # Doing it this way allows to only get events who are tagged "age: 10-12" AND "activity: football".
             # Add another tag "age: 12-15" to the search and it would fetch the ones who are tagged:
             # ("age: 10-12" OR "age: 12-15") AND "activity: football
-            for tags in search_tags.grouped('category_id').values():
-                domain.append([('tag_ids', 'in', tags.ids)])
+            domain.extend([('tag_ids', 'in', tags.ids)] for tags in search_tags.grouped('category_id').values())
 
         no_country_domain = domain.copy()
         if country:
@@ -639,7 +636,7 @@ class EventEvent(models.Model):
         with_date = 'detail' in mapping
         results_data = super()._search_render_results(fetch_fields, mapping, icon, limit)
         if with_date:
-            for event, data in zip(self, results_data):
+            for event, data in zip(self, results_data, strict=True):
                 begin = self.env['ir.qweb.field.date'].record_to_html(event, 'date_begin', {})
                 end = self.env['ir.qweb.field.date'].record_to_html(event, 'date_end', {})
                 data['range'] = (

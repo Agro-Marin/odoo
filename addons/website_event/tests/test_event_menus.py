@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime, timedelta
 
 from odoo import fields
-from odoo.addons.website_event.tests.common import OnlineEventCase
 from odoo.tests.common import HttpCase, users
+
+from odoo.addons.website_event.tests.common import OnlineEventCase
 
 
 class TestEventMenus(OnlineEventCase, HttpCase):
@@ -221,7 +221,7 @@ class TestEventMenus(OnlineEventCase, HttpCase):
             lambda menu: menu.name == "Home"
         )
 
-        for event_1_menu, event_2_menu in zip(event_1_home_menu, event_2_home_menu):
+        for event_1_menu, event_2_menu in zip(event_1_home_menu, event_2_home_menu, strict=True):
             end_url_1 = event_1_menu.url.split("/")[-1]
             end_url_2 = event_2_menu.url.split("/")[-1]
             self.assertNotEqual(end_url_1, end_url_2)
