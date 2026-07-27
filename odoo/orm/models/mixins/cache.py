@@ -11,6 +11,7 @@ import typing
 from collections.abc import Collection, Mapping, Sequence
 
 from ... import decorators as api
+from ...helpers import resolve_fnames
 from ._model_stubs import _ModelStubs
 
 _orm_cache = logging.getLogger("odoo.orm.cache")
@@ -127,6 +128,21 @@ class CacheMixin(_ModelStubs):
         ids: Sequence[IdType] | None = None,
         flush: bool = True,
     ) -> None:
+        """Drop ``fnames`` (all fields if ``None``) on ``ids`` (all if ``None``).
+
+        Each field's **inverse** is invalidated too, and deliberately for *every*
+        id rather than only ``ids``: the whole point of invalidating is that the
+        database may no longer agree with the cache, so a corecord whose relation
+        was repointed at one of ``ids`` behind the ORM's back is exactly the case
+        that must be caught -- and that corecord is, by construction, not
+        reachable from the cached relation being dropped.  Narrowing this to the
+        corecords currently cached under ``ids`` looks like an easy win and
+        silently reintroduces stale reads.
+
+        The inverse pass carries ``keep_dirty=True`` because, unlike ``fields``,
+        it is a side effect the caller never asked for and no guard covers it
+        (see :meth:`_check_no_pending_write`).
+        """
         if ids is not None and not ids:
             return
 
@@ -134,12 +150,7 @@ class CacheMixin(_ModelStubs):
         if fnames is None:
             fields = self._fields.values()
         else:
-            try:
-                fields = [self._fields[fname] for fname in fnames]
-            except KeyError as e:
-                raise ValueError(
-                    f"Invalid field {e.args[0]!r} on model {self._name!r}"
-                ) from e
+            fields = resolve_fnames(self, fnames)
 
         env = self.env
         if not flush:
@@ -152,7 +163,7 @@ class CacheMixin(_ModelStubs):
                 for invf in inverses:
                     if flush:
                         env[invf.model_name].flush_model([invf.name])
-                    invf._invalidate_cache(env)
+                    invf._invalidate_cache(env, keep_dirty=True)
 
     def _check_no_pending_write(
         self, fields: Collection[Field], ids: Sequence[IdType] | None

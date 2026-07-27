@@ -245,7 +245,15 @@ class Cache:
         (silent loss) or died with "Could not find all values ... to flush".
         The check is the same one ``invalidate_model`` / ``invalidate_recordset``
         run — :meth:`OrmCore.find_pending_write` — so the modern and legacy
-        entry points cannot disagree.  Flush first if you need both.
+        entry points cannot disagree *about the guard*.  Flush first if you need
+        both.
+
+        They do differ in **scope**, and deliberately: ``invalidate_model`` /
+        ``invalidate_recordset`` also invalidate each field's inverse (see
+        ``CacheMixin._invalidate_cache``), this does not — it drops exactly the
+        ``(field, ids)`` pairs it is handed.  Code migrating off this shim onto
+        the model-level API therefore invalidates strictly more, which is safe;
+        code moving the other way is not.
         """
         if spec is None:
             self.transaction.invalidate_field_data()
