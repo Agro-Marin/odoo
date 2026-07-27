@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import http, _
+from odoo import _, http
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.http import request
@@ -30,7 +29,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         kwargs['is_donation'] = True
         kwargs['currency_id'] = self._cast_as_int(kwargs.get('currency_id')) or request.env.company.currency_id.id
         kwargs['amount'] = self._cast_as_float(kwargs.get('amount')) or 25.0
-        kwargs['donation_options'] = kwargs.get('donation_options', json_safe.dumps(dict(customAmount="freeAmount")))
+        kwargs['donation_options'] = kwargs.get('donation_options', json_safe.dumps({'customAmount': "freeAmount"}))
 
         if request.env.user._is_public():
             kwargs['partner_id'] = request.env.user.partner_id.id

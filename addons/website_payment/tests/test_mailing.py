@@ -1,6 +1,7 @@
+from odoo.tests import tagged, users
+
 from odoo.addons.mail.tests.common import MockEmail
 from odoo.addons.payment.tests.common import PaymentCommon
-from odoo.tests import tagged, users
 
 
 @tagged("mail_template", "post_install", "-at_install")
