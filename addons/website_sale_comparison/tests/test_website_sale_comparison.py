@@ -6,8 +6,7 @@ from collections import OrderedDict
 from lxml import etree
 
 from odoo.fields import Command
-from odoo.tests import HttpCase, TransactionCase, loaded_demo_data, tagged
-
+from odoo.tests import HttpCase, TransactionCase, tagged
 
 _logger = logging.getLogger(__name__)
 
@@ -113,7 +112,7 @@ class TestWebsiteSaleComparisonUi(HttpCase):
         } for v in cls.values_varieties])
         cls.variants_margaux = cls.template_margaux._get_possible_variants_sorted()
 
-        for variant, price in zip(cls.variants_margaux, [487.32, 394.05, 532.44, 1047.84]):
+        for variant, price in zip(cls.variants_margaux, [487.32, 394.05, 532.44, 1047.84], strict=True):
             variant.product_template_attribute_value_ids.filtered(lambda ptav: ptav.attribute_id == cls.attribute_vintage).price_extra = price
 
     def test_01_admin_tour_product_comparison(self):
@@ -209,7 +208,7 @@ class TestWebsiteSaleComparisonUi(HttpCase):
 
         products = table.xpath('//div[@id="o_comparelist_product_name"]/a/h6')
         self.assertEqual(len(products), 4)
-        for product, name in zip(products, ['ChâteauMargaux(2018)', 'ChâteauMargaux(2017)', 'ChâteauMargaux(2016)', 'ChâteauMargaux(2015)']):
+        for product, name in zip(products, ['ChâteauMargaux(2018)', 'ChâteauMargaux(2017)', 'ChâteauMargaux(2016)', 'ChâteauMargaux(2015)'], strict=True):
             text = etree.tostring(product, encoding='unicode', method='text')
             self.assertEqual(text.replace(' ', '').replace('\n', ''), name)
 

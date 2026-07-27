@@ -32,9 +32,9 @@ class ProductProduct(models.Model):
             categories[pa.category_id][pa] = OrderedDict([(
                 product,
                 product.product_template_attribute_value_ids.filtered(
-                    lambda ptav: ptav.attribute_id == pa
+                    lambda ptav, pa=pa: ptav.attribute_id == pa
                 ) or  # If no_variant, show all possible values
-                product.attribute_line_ids.filtered(lambda ptal: ptal.attribute_id == pa).value_ids
+                product.attribute_line_ids.filtered(lambda ptal, pa=pa: ptal.attribute_id == pa).value_ids
             ) for product in self])
         return categories
 
