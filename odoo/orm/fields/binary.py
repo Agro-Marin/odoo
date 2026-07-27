@@ -48,6 +48,26 @@ class Binary(Field[bytes | typing.Literal[False]]):
     def column_type(self):
         return None if self.attachment else ("bytea", "bytea")
 
+    @override
+    def get_depends(
+        self, model: BaseModel
+    ) -> tuple[typing.Iterable[str], typing.Iterable[str]]:
+        """Add the field-scoped ``bin_size_<name>`` flag to the cache key.
+
+        ``read``, :meth:`compute_value`, :meth:`convert_to_cache` and
+        :meth:`get_column_update` all honour ``bin_size_<name>`` alongside the
+        global ``bin_size``, but only the global one was declared here — so both
+        contexts shared ONE cache entry. Reading a field under
+        ``bin_size_<name>`` therefore wrote the human size string into the entry
+        every plain reader uses: after one such read, ``record.raw`` returned
+        ``b"1.96 Kb"`` for a caller with no ``bin_size`` in context at all.
+
+        Contexts that set neither flag key exactly as before, so this only
+        separates the entries that were being conflated.
+        """
+        depends, depends_context = super().get_depends(model)
+        return depends, (*depends_context, "bin_size_" + self.name)
+
     def _get_attrs(self, model_class, name):
         attrs = super()._get_attrs(model_class, name)
         if not attrs.get("store", True):
@@ -185,6 +205,27 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     @override
     def read(self, records: BaseModel) -> None:
+        """Read an attachment-backed field out of its ``ir.attachment`` rows.
+
+        The size flags are read from the HOST field's context and answered from
+        ``file_size``; the attachment is then read through
+        ``ir.attachment._unsized()``, which clears every ``bin_size`` axis.
+
+        Both halves were missing. The per-field flag ``bin_size_<name>`` was
+        ignored here although :meth:`compute_value` and ``_fetch_query`` both
+        honour it, so the same flag shortened a column-stored or computed binary
+        field and did nothing to an attachment-backed one — while
+        :meth:`get_depends` still keyed a separate cache entry on it. And the
+        attachment was read under whatever context the host carried, so
+        ``bin_size_datas`` — a flag scoped to ``ir.attachment.datas``, naming a
+        field the caller never asked for — made ``partner.image_1920`` return
+        ``b"70.00 bytes"``. That value lands in the entry keyed by ``bin_size``
+        and ``bin_size_image_1920``, neither of which is set, so it is served to
+        every later plain reader in the transaction: the cross-field poisoning
+        :meth:`get_depends` fixed for one field, arriving through the storage
+        model instead.
+        """
+
         def _encode(s: str | bool) -> bytes | bool:
             if isinstance(s, str):
                 return s.encode("utf-8")
@@ -196,10 +237,12 @@ class Binary(Field[bytes | typing.Literal[False]]):
             ("res_field", "=", self.name),
             ("res_id", "in", records.ids),
         ]
-        bin_size = records.env.context.get("bin_size")
+        context = records.env.context
+        bin_size = context.get("bin_size") or context.get("bin_size_" + self.name)
+        attachments = records.env["ir.attachment"].sudo()._unsized()
         data = {
             att.res_id: (_encode(human_size(att.file_size)) if bin_size else att.datas)
-            for att in records.env["ir.attachment"].sudo().search_fetch(domain)
+            for att in attachments.search_fetch(domain)
         }
         self._insert_cache(records, map(data.get, records._ids))
 

@@ -54,16 +54,53 @@ class TestHttpStaticCommon(TestHttpBase):
         }
 
         if x_sendfile:
-            sha = pathlib.Path(x_sendfile).name
+            # the redirect path is the store key as written, taken relative to
+            # the filestore root — never re-derived from the digest. Assuming
+            # the sha1 layout (`<shard>/<digest>`) here made every x_sendfile
+            # subtest fail the moment ir.attachment started tagging keys with
+            # their algorithm (`b3/<shard>/<digest>`), for a header the server
+            # was building correctly.
+            key = pathlib.Path(x_sendfile).relative_to(
+                config.filestore(self.env.cr.dbname)
+            )
             headers["X-Sendfile"] = x_sendfile
             headers["X-Accel-Redirect"] = (
-                f"/web/filestore/{self.cr.dbname}/{sha[:2]}/{sha}"
+                f"/web/filestore/{self.cr.dbname}/{key.as_posix()}"
             )
             headers["Content-Length"] = "0"
 
         return self.assertDownload(
             url, {}, 200, headers, b"" if x_sendfile else self.gizeh_data
         )
+
+    def _inline_checksumless_attachment(self, vals):
+        """Build a legacy row: content inline in ``db_datas``, and no checksum.
+
+        Such rows exist — written before the column was populated, or by a
+        migration that never derived it — and the point of the two tests below
+        is that ``Stream`` still serves them through its ``data`` leg, without
+        an ETag. They used to be built by passing ``db_datas`` to ``create``,
+        which landed that shape only as a side effect of skipping the content
+        pipeline entirely. ``ir.attachment`` treats ``db_datas`` as content now
+        (IRA-R2), so the row is built explicitly by SQL — which also keeps the
+        two properties under test independent of how a row can be written, and
+        pins the inline leg rather than the filestore one a plain ``create``
+        would produce.
+        """
+        attachment = self.env["ir.attachment"].create(vals)
+        attachment.flush_recordset()
+        self.env.cr.execute(
+            """UPDATE ir_attachment
+                  SET db_datas = %s, store_fname = NULL, checksum = NULL
+                WHERE id = %s""",
+            [attachment.raw, attachment.id],
+        )
+        attachment.invalidate_recordset()
+        self.assertFalse(attachment.checksum)
+        self.assertFalse(attachment.store_fname)
+        self.assertTrue(attachment.db_datas)
+        self.assertEqual(attachment._to_http_stream().type, "data")
+        return attachment
 
     def assertDownloadPlaceholder(self, url):
         headers = {
@@ -348,14 +385,9 @@ class TestHttpStatic(TestHttpStaticCommon):
             self.assertEqual(res.status_code, 404)
 
     def test_static17_content_missing_checksum(self):
-        att = self.env["ir.attachment"].create(
-            {
-                "name": "testhttp.txt",
-                "db_datas": "some data",
-                "public": True,
-            }
+        att = self._inline_checksumless_attachment(
+            {"name": "testhttp.txt", "raw": b"some data", "public": True}
         )
-        self.assertFalse(att.checksum)
         self.assertDownload(
             url=f"/web/content/{att.id}",
             headers={},
@@ -370,15 +402,14 @@ class TestHttpStatic(TestHttpStaticCommon):
 
     def test_static18_image_missing_checksum(self):
         with file_open("test_http/static/src/img/gizeh.png", "rb") as file:
-            att = self.env["ir.attachment"].create(
+            att = self._inline_checksumless_attachment(
                 {
                     "name": "gizeh.png",
-                    "db_datas": file.read(),
+                    "raw": file.read(),
                     "mimetype": "image/png",
                     "public": True,
                 }
             )
-        self.assertFalse(att.checksum)
         self.assertDownloadGizeh(f"/web/image/{att.id}")
 
     def test_static19_fallback_redirection_loop(self):

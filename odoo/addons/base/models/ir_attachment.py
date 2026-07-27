@@ -36,6 +36,7 @@ from odoo.tools import (
     consteq,
     file_open,
     image,
+    ormcache,
     str2bool,
 )
 from odoo.tools.hashing import (
@@ -61,6 +62,13 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 SECURITY_FIELDS = ("res_model", "res_id", "create_uid", "public", "res_field")
+
+BIN_SIZE_KEYS = {
+    "bin_size": False,
+    "bin_size_raw": False,
+    "bin_size_datas": False,
+    "bin_size_db_datas": False,
+}
 
 
 @functools.cache
@@ -202,6 +210,8 @@ class IrAttachment(models.Model):
 
     _SEARCH_MODEL_DOMAIN_LIMIT = 5
 
+    _SEARCH_MODEL_DISCOVERY_LIMIT = 12
+
     _URL_AUDIT_WINDOW = 20
 
     _INDEX_MAX_BYTES = 4 * 1024 * 1024
@@ -236,14 +246,33 @@ class IrAttachment(models.Model):
         agree; this makes them agree BY CONSTRUCTION, because the state they
         disagreed about can no longer be written.
 
-        Only a resolvable field on a live model is judged. An unknown
-        ``res_model`` or ``res_field`` is left to :meth:`_check_res_field_access`
-        (which already refuses it for anyone but the superuser) so that a module
-        being uninstalled, or a field mid-removal, does not start raising here.
+        A MISSING ``res_model`` is refused outright, for everyone: the pair is
+        what carries the meaning, and a ``res_field`` without one names a field
+        of nothing. No reader can resolve such a row — :meth:`Binary.read`
+        matches it against no model, :meth:`_check_access` refuses it to
+        everyone but the superuser — so it is a leak with a lifetime, not a
+        state to tolerate. It became reachable through ``write`` once clearing
+        ``res_model`` alone was gated at all (see :meth:`_res_field_targets`),
+        where it surfaced as an ``AccessError``; that is the wrong answer to
+        "this pair does not make sense".
 
-        :raise ValidationError: if *res_field* names a non-attachment field
+        An UNKNOWN (rather than missing) ``res_model``, or an unknown field on
+        a live model, is left to :meth:`_check_res_field_access` — which already
+        refuses it for anyone but the superuser — so that a module being
+        uninstalled, or a field mid-removal, does not start raising here.
+
+        :raise ValidationError: if *res_field* names a non-attachment field, or
+            is set without a ``res_model``
         """
-        comodel = self.env.get(res_model)
+        if not res_model:
+            raise ValidationError(
+                _(
+                    "An attachment standing for the field %(field)s must name "
+                    "the model the field belongs to.",
+                    field=res_field,
+                )
+            )
+        comodel = self.env.get(self._as_model_name(res_model))
         field = comodel._fields.get(res_field) if comodel is not None else None
         if field is None or self._is_attachment_backed_field(field):
             return
@@ -274,10 +303,47 @@ class IrAttachment(models.Model):
         self._check_res_field_valid(res_model, res_field)
         if self.env.su or self.env.is_system():
             return
-        comodel = self.env.get(res_model)
+        comodel = self.env.get(self._as_model_name(res_model))
         field = comodel._fields.get(res_field) if comodel is not None else None
         if field is None or not comodel._has_field_access(field, "write"):
             raise AccessError(_("Sorry, you are not allowed to access this document."))
+
+    def _res_field_targets(self, vals: dict[str, Any]) -> OrderedSet:
+        """Return the ``(res_model, res_field)`` pairs *vals* would leave behind.
+
+        ``res_field`` only means anything paired with ``res_model``: together
+        they assert "this row IS field X of model Y". Either half can move, so
+        both have to open the same gate — but only a write naming ``res_field``
+        did. A write naming ``res_model`` ALONE re-targeted whatever
+        ``res_field`` the rows already carried, and skipped both halves of
+        :meth:`_check_res_field_access`:
+
+        * the data-model invariant, so a row created against a binary field
+          could be re-pointed at a model where that name is an ordinary field,
+          or none at all — exactly the state
+          :meth:`_check_res_field_valid` exists to make unreachable;
+        * the field-group ACL, which is the whole reason the check exists.
+          ``res_field`` is a plain Char with no ``groups``, so the ORM cannot
+          gate it (IRA-L2); ``super().write`` gates the rows in their CURRENT
+          state and knows nothing of the target they are moving to. A user with
+          write access to a record could therefore take a field-backing row of
+          their own and make it back a binary field of that record they are not
+          allowed to write — supplying its content without ever passing the
+          field ACL.
+
+        Rows whose ``res_field`` is (and stays) empty yield a falsy pair, which
+        :meth:`_check_res_field_access` returns on immediately, so an ordinary
+        re-parenting write pays one iteration over the recordset and nothing else.
+        """
+        has_model, has_field = "res_model" in vals, "res_field" in vals
+        new_model = self._as_model_name(vals["res_model"]) if has_model else None
+        if has_model and has_field:
+            return OrderedSet([(new_model, vals["res_field"])])
+        if has_field:
+            return OrderedSet((record.res_model, vals["res_field"]) for record in self)
+        if has_model:
+            return OrderedSet((new_model, record.res_field) for record in self)
+        return OrderedSet()
 
     @api.model
     def _decode_datas(self, datas: Any) -> bytes:
@@ -307,18 +373,44 @@ class IrAttachment(models.Model):
           internally, never through the public API. ``index_content`` had been
           left out, letting a writer inject full-text index text (IRA-C3).
 
-        Vals carrying neither ``raw`` nor ``datas`` are left untouched (url
-        rows, ``db_datas`` passthrough): not treated as empty content (IRA-R1).
+        ``db_datas`` is content too, and is folded in behind ``raw``/``datas``
+        rather than passed through to the column. It used to reach ``super()``
+        untouched, which made it a way to write content that skips the whole
+        pipeline, and it was broken in both directions:
 
-        :return: whether *vals* carried a content key (``raw`` or ``datas``)
+        * on ``create`` it produced a row with content but no ``file_size``, no
+          ``checksum`` and no ``index_content``, stored inline whatever
+          ``ir_attachment.location`` says — so the size the client is told, the
+          ETag :meth:`_to_http_stream` serves and the full-text index are all
+          absent for a row that reads back fine, and every downstream reader has
+          to tolerate the shape;
+        * on ``write`` it was silently DISCARDED. ``store_fname`` wins in every
+          reader (:meth:`_stored_content`), so a row that already had a store
+          key kept serving its old bytes while Postgres gained a second,
+          unreachable copy of the new ones and ``file_size``/``checksum`` went
+          on describing the old ones. The write reported success.
+
+        A falsy ``db_datas`` (what ``copy_data`` emits for a filestore-backed
+        row) is dropped instead, like the other derived columns: it describes
+        where content lives, not that there is none. Clearing content is
+        ``raw = b""``.
+
+        Vals carrying no content key at all are left untouched (url rows): not
+        treated as empty content (IRA-R1).
+
+        :return: whether *vals* carried content (``raw``, ``datas`` or ``db_datas``)
         """
         has_content = "raw" in vals or "datas" in vals
         datas = vals.pop("datas", None)
+        db_datas = vals.pop("db_datas", None)
         if "raw" in vals:
             raw = vals["raw"] or b""
             vals["raw"] = raw.encode() if isinstance(raw, str) else raw
         elif has_content:
             vals["raw"] = self._decode_datas(datas)
+        elif db_datas:
+            has_content = True
+            vals["raw"] = db_datas.encode() if isinstance(db_datas, str) else db_datas
         for field in ("file_size", "checksum", "store_fname", "index_content"):
             vals.pop(field, None)
         return has_content
@@ -333,7 +425,9 @@ class IrAttachment(models.Model):
         for values in vals_list:
             if res_field := values.get("res_field"):
                 self._check_res_field_access(values.get("res_model"), res_field)
-            model_and_ids[values.get("res_model")].add(values.get("res_id"))
+            model_and_ids[self._as_model_name(values.get("res_model"))].add(
+                values.get("res_id")
+            )
         if any(self._inaccessible_comodel_records(model_and_ids, "write")):
             raise AccessError(_("Sorry, you are not allowed to access this document."))
 
@@ -368,23 +462,20 @@ class IrAttachment(models.Model):
         """
         if "res_model" in vals or "res_id" in vals:
             model_and_ids = defaultdict(OrderedSet)
+            new_model = self._as_model_name(vals.get("res_model"))
             if "res_model" in vals and "res_id" in vals:
-                model_and_ids[vals["res_model"]].add(vals["res_id"])
+                model_and_ids[new_model].add(vals["res_id"])
             else:
                 for record in self:
-                    model_and_ids[vals.get("res_model", record.res_model)].add(
-                        vals.get("res_id", record.res_id)
-                    )
+                    model_and_ids[
+                        new_model if "res_model" in vals else record.res_model
+                    ].add(vals.get("res_id", record.res_id))
             if any(self._inaccessible_comodel_records(model_and_ids, "write")):
                 raise AccessError(
                     _("Sorry, you are not allowed to access this document.")
                 )
-        if res_field := vals.get("res_field"):
-            if "res_model" in vals:
-                self._check_res_field_access(vals["res_model"], res_field)
-            else:
-                for res_model in OrderedSet(record.res_model for record in self):
-                    self._check_res_field_access(res_model, res_field)
+        for res_model, res_field in self._res_field_targets(vals):
+            self._check_res_field_access(res_model, res_field)
         has_content = self._normalize_content_vals(vals)
         if has_content or "mimetype" in vals:
             if "mimetype" not in vals:
@@ -399,10 +490,18 @@ class IrAttachment(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if not default.keys() & {"datas", "db_datas", "raw"}:
-            for attachment, vals in zip(self, vals_list, strict=True):
-                if not attachment.store_fname and (
-                    attachment.checksum or attachment.db_datas
-                ):
+            for attachment, vals in zip(self._unsized(), vals_list, strict=True):
+                if attachment.store_fname:
+                    # A keyed row's content is at its store key, which
+                    # :meth:`copy` points the copy at; the inline column is
+                    # dropped rather than carried over. It is normally empty,
+                    # but a legacy row can hold both (a half-finished
+                    # migration, a restore) — and since ``db_datas`` became
+                    # content, carrying those dead bytes made the copy hash and
+                    # write them to the filestore before :meth:`copy` replaced
+                    # the key, for a file nothing ever references.
+                    vals.pop("db_datas", None)
+                elif attachment.checksum or attachment.db_datas:
                     vals["raw"] = attachment.raw
         return vals_list
 
@@ -464,8 +563,18 @@ class IrAttachment(models.Model):
 
     @api.depends("store_fname", "db_datas", "file_size")
     def _compute_datas(self) -> None:
+        """Encode the content as base64.
+
+        ``raw`` is read UNSIZED even though this compute is skipped whenever
+        ``datas`` is itself under ``bin_size``: the two fields have independent
+        per-field flags, and ``bin_size_raw`` alone reaches here. It then made
+        ``datas`` the base64 of ``b"1.97 Kb"`` — which decodes cleanly, so the
+        caller receives a well-formed 7-byte payload instead of the file
+        (IRA-Z1). Only ``bin_size``/``bin_size_datas`` may shorten ``datas``,
+        and those never run this method.
+        """
         for attach in self:
-            attach.datas = base64.b64encode(attach.raw or b"")
+            attach.datas = base64.b64encode(attach._unsized().raw or b"")
 
     @api.depends("store_fname", "db_datas", "file_size")
     def _compute_raw(self) -> None:
@@ -535,7 +644,7 @@ class IrAttachment(models.Model):
                 active_test=active_test,
             )
 
-        domain &= sec_domain | Domain("res_model", "!=", False)
+        domain &= self._scan_prefilter(sec_domain)
         domain = domain.optimize_full(self)
         ordered = bool(order)
         if limit is None:
@@ -695,15 +804,27 @@ class IrAttachment(models.Model):
 
     @api.model
     def _file_write(self, bin_value: bytes, checksum: str) -> str:
+        """Store *bin_value* under its content-addressed key and return it.
+
+        The GC marker is written BEFORE the content is published, and on both
+        the fresh-write and dedup-hit paths. Order matters: the marker is what
+        makes a file reclaimable, and the sweep walks the checklist, not the
+        filestore. A crash between publishing the file and marking it therefore
+        stranded content whose row had rolled back with the transaction — not
+        forever (writing the same bytes again takes the dedup branch, which
+        marks it) but for as long as nobody re-uploads that exact payload, which
+        for a one-off document is indefinitely.
+
+        Reversing the order leaks nothing in exchange: a marker whose file does
+        not exist unlinks nothing and is dropped by the next sweep (IRA-G2).
+        """
         fname, full_path = self._get_path(bin_value, checksum)
-        if Path(full_path).exists():
-            self._mark_for_gc(fname)
-            return fname
-        with self._staged_filestore_temp("write") as tmp_path:
-            with tmp_path.open("wb") as fp:
-                fp.write(bin_value)
-            tmp_path.replace(full_path)
         self._mark_for_gc(fname)
+        if not Path(full_path).exists():
+            with self._staged_filestore_temp("write") as tmp_path:
+                with tmp_path.open("wb") as fp:
+                    fp.write(bin_value)
+                tmp_path.replace(full_path)
         return fname
 
     @api.model
@@ -715,7 +836,8 @@ class IrAttachment(models.Model):
         Chunks *fileobj* to a temp file while updating a running digest, then
         atomically moves it into its content-addressed path (or drops it on a
         dedup hit). Peak memory is one chunk — the streaming counterpart of
-        :meth:`_file_write`, which needs the full ``bytes`` up front.
+        :meth:`_file_write`, which needs the full ``bytes`` up front and whose
+        marker-before-publish ordering this shares (IRA-G2).
 
         :param fileobj: a binary file-like supporting ``read(size)``
         :return: ``(store_fname, file_size, checksum)``; ``store_fname`` is
@@ -739,12 +861,12 @@ class IrAttachment(models.Model):
             fname, full_path_str = self._get_path(
                 None, checksum, source_path=str(tmp_path)
             )
+            self._mark_for_gc(fname)
             full_path = Path(full_path_str)
             if full_path.is_file():
                 tmp_path.unlink(missing_ok=True)
             else:
                 tmp_path.replace(full_path)
-        self._mark_for_gc(fname)
         return fname, size, checksum
 
     @api.model
@@ -894,7 +1016,7 @@ class IrAttachment(models.Model):
             "application/pdf"
         ):
             return None
-        return self.raw or None
+        return self._unsized().raw or None
 
     def _get_datas_related_values(
         self,
@@ -961,7 +1083,7 @@ class IrAttachment(models.Model):
         :param str operation: what is being skipped, for the log line
         :return: the content, or ``None`` when the row must be left alone
         """
-        raw = attach.raw
+        raw = attach._unsized().raw
         if self._content_read_back_failed(
             raw,
             attach.file_size,
@@ -1112,10 +1234,7 @@ class IrAttachment(models.Model):
         needing only a head (text thumbnails, sniffers) used to re-implement
         this triage against ``store_fname``/``db_datas``/``url`` themselves.
 
-        ``bin_size`` is neutralized on purpose: under it a stored binary column
-        reads back as ``pg_size_pretty(length(...))``, so a caller in a
-        ``bin_size`` context would otherwise receive a human size string
-        (``b"1.5 kB"``) and mistake it for content.
+        ``bin_size`` is neutralized by :meth:`_stored_content` (:meth:`_unsized`).
 
         :param size: maximum number of bytes to read; ``None`` reads it all
         :return: the content prefix, or ``b""`` when there is nothing readable
@@ -1129,6 +1248,36 @@ class IrAttachment(models.Model):
                 return file.read(size)
         return b""
 
+    def _unsized(self) -> Self:
+        """Return this recordset with every ``bin_size`` flag cleared.
+
+        Under ``bin_size`` a binary field does not read back as its content:
+        a stored column becomes ``pg_size_pretty(length(...))`` and a computed
+        one with a ``bin_size_field`` becomes ``human_size(...)`` of it — so
+        ``raw``/``datas``/``db_datas`` all yield a human size string
+        (``b"1.5 kB"``) that is indistinguishable from content to the caller.
+        That is a presentation mode for a client read; NOTHING in the content
+        pipeline may observe it.
+
+        It used to be neutralized reader by reader, and the readers that were
+        missed did not fail — they silently substituted the size string for the
+        payload. A content ``write`` under ``bin_size`` blanked the row (the
+        inverse reads ``raw`` back, and its value was cached under the
+        ``bin_size`` the ORM had stripped, so the read missed and came back
+        empty); ``copy`` of a db-stored row, ``_migrate``/``force_storage`` and
+        :meth:`_gc_rehash_legacy_keys` each stored ``b"4.90 Kb"`` as the
+        content of every row they touched. Those are whole-table sweeps, and
+        nothing downstream can tell the result from a legitimately tiny file
+        (IRA-Z1).
+
+        Both axes must be cleared: ``bin_size`` alone keys the ORM cache, while
+        ``bin_size_<field>`` is read straight from the context by
+        ``Binary.compute_value`` without taking part in that key.
+        """
+        if not any(self.env.context.get(key) for key in BIN_SIZE_KEYS):
+            return self
+        return self.with_context(**BIN_SIZE_KEYS)
+
     def _stored_content(self, size: int | None = None) -> bytes | None:
         """Return up to *size* bytes of the content THIS row stores itself.
 
@@ -1137,13 +1286,6 @@ class IrAttachment(models.Model):
         they do when there is nothing stored, so that decision is left to them.
         :meth:`_to_http_stream` runs the same triage a third time, in terms of
         streams rather than bytes.
-
-        ``bin_size`` is neutralized on purpose: under it a stored binary column
-        reads back as ``pg_size_pretty(length(...))``, so a caller in a
-        ``bin_size`` context would otherwise receive a human size string
-        (``b"1.5 kB"``) and mistake it for content. Computes inherit that
-        neutralization from ``Binary.compute_value``; a plain method call does
-        not, which is why it is spelled out here.
 
         :param size: maximum number of bytes to read; ``None`` reads it all
         :return: the content, or ``None`` when this row stores none (no store
@@ -1156,8 +1298,7 @@ class IrAttachment(models.Model):
                 data, self.file_size, self.id, self.store_fname, "serving empty bytes"
             )
             return data
-        attach = self.with_context(bin_size=False, bin_size_db_datas=False)
-        if db_datas := attach.db_datas:
+        if db_datas := self._unsized().db_datas:
             return db_datas if size is None else db_datas[:size]
         return None
 
@@ -1267,6 +1408,34 @@ class IrAttachment(models.Model):
         """Neutralize traversal vectors in a store path (dots, colons, leading/trailing separators)."""
         return re.sub(r"[.:]", "", path).strip("/\\")
 
+    @api.model
+    def _is_canonical_store_key(self, fname: str) -> bool:
+        """Whether *fname* survives :meth:`_sanitize_store_path` unchanged.
+
+        The GC recovers a store key from the NAME of its checklist marker, then
+        addresses two different things with it: the ``store_fname`` column (to
+        learn whether any row still references the content) and, through
+        :meth:`_full_path`, the file to unlink. Sanitizing happens only on the
+        second, so for any name it rewrites the two stop being the same file —
+        the GC would ask about ``ab/cd.ef`` and delete ``ab/cdef``, which no
+        checklist entry ever named and which may be live content.
+
+        Every key :meth:`_file_store_path` produces is hex and ``/``, hence
+        already canonical, so this rejects nothing the filestore wrote. What it
+        rejects is a stray file dropped under ``checklist/`` by something else —
+        an editor swap file, an NFS silly-rename (``.nfs0000...``), a backup
+        tool — which is exactly the case where the two addresses diverge
+        (IRA-G3).
+
+        A rejected entry is DELETED rather than left alone: it can never match a
+        ``store_fname``, so skipping it would pin it in the checklist forever,
+        where it still counts against :attr:`_GC_MAX_ENTRIES` and can eventually
+        crowd out real markers. Deleting the marker is what the sweep did before
+        the guard; the guard only stops it from also unlinking a filestore path
+        that no marker named.
+        """
+        return bool(fname) and self._sanitize_store_path(fname) == fname
+
     def _set_attachment_data(self, asbytes: Callable[[Any], bytes]) -> None:
         """Store new content for each row and release the keys it replaces.
 
@@ -1284,7 +1453,7 @@ class IrAttachment(models.Model):
         memo_key: tuple[bytes, str] | None = None
         memo_vals: dict[str, Any] = {}
 
-        for attach in self:
+        for attach in self._unsized():
             bin_data = asbytes(attach)
             if memo_key and memo_key[0] is bin_data and memo_key[1] == attach.mimetype:
                 vals = memo_vals
@@ -1489,8 +1658,24 @@ class IrAttachment(models.Model):
             return self._INDEX_MAX_BYTES
         return 0
 
+    @api.model
+    def _as_model_name(self, res_model: Any) -> str | None:
+        """Return *res_model* if it can name a model, else ``None``.
+
+        ``res_model`` arrives straight from ``create``/``write`` values, i.e.
+        from RPC, before the ORM has converted anything. Every consumer here
+        treats it as a hashable string — a dict key in :meth:`create` and
+        :meth:`write`, a registry lookup in :meth:`_check_res_field_valid` — so
+        a client passing a list turned an access check into
+        ``TypeError: cannot use 'list' as a dict key``, a 500 out of a security
+        gate rather than a refusal. A non-string is not a model, so it resolves
+        to no comodel and is refused by the same path that refuses an unknown
+        one.
+        """
+        return res_model if isinstance(res_model, str) and res_model else None
+
     def _inaccessible_comodel_records(
-        self, model_and_ids: dict[str, Collection[int]], operation: str
+        self, model_and_ids: dict[Any, Collection[int]], operation: str
     ) -> Generator[tuple[str, int]]:
         if self.env.su:
             return
@@ -1514,6 +1699,87 @@ class IrAttachment(models.Model):
             res_ids.difference_update(records._ids)
             for res_id in res_ids:
                 yield res_model, res_id
+
+    @api.model
+    def _scan_prefilter(self, sec_domain: Domain) -> Domain:
+        """Return the SQL condition narrowing what the access scan has to read.
+
+        The scan (:meth:`_fetch_accessible_ids`) is the authority: it fetches
+        rows and asks :meth:`_check_access` about each, so its cost is set by
+        how many rows SQL hands it — and ``res_model != False`` excludes nothing
+        on a table whose rows are almost all linked. An unbounded scan is
+        therefore linear in the TABLE, not in the result (measured 10.7 / 21.0 /
+        43.8 / 83.5 ms at 2.5k / 5k / 10k / 20k rows).
+
+        What is cheap to exclude in SQL is a model the user cannot read AT ALL:
+        :meth:`_check_access` refuses every attachment linked to one, and the
+        answer is a model-level ACL lookup that is already ormcached, so the
+        whole term is a ``res_model NOT IN (...)`` list with no subquery and no
+        planning cost. Portal and low-privilege users — the ones whose scans are
+        worst, because almost nothing they touch is accessible — are exactly the
+        ones this prunes for.
+
+        Per-RECORD exclusion is deliberately NOT done here. The obvious
+        extension is to OR in :meth:`_search_models_security_domain`'s
+        per-comodel subqueries, and it was measured to be a net LOSS: an
+        unrestricted comodel contributes a subquery that excludes nothing, so a
+        bounded search went from 5.5 ms to 13.9 ms and an unbounded count from
+        92 ms to 112 ms, buying a 2.8x win only when the accessible set happens
+        to be sparse — which cannot be known without doing the work. The domain
+        naming its models keeps taking that path (``_SEARCH_MODEL_DOMAIN_LIMIT``)
+        because there the planner can use ``res_model`` to cut the scan first.
+
+        This is a PREFILTER, not a path switch: the post-filter stays the
+        authority, so letting too much through only costs time. It must never
+        DROP a row the authority would allow, hence the trailing ``not in``
+        shape — anything the discovery did not report, ``res_model``-less rows
+        included, passes through untouched.
+        """
+        model_names, capped = self._attached_model_names()
+        if capped:
+            return sec_domain | Domain("res_model", "!=", False)
+        unreadable = [
+            name
+            for name in model_names
+            if (comodel := self.env.get(name)) is not None
+            and not comodel.has_access("read")
+        ]
+        if not unreadable:
+            return sec_domain | Domain("res_model", "!=", False)
+        return sec_domain | Domain("res_model", "not in", unreadable)
+
+    @api.model
+    @ormcache()
+    def _attached_model_names(self) -> tuple[list[str], bool]:
+        """Return ``(model names, capped)`` for the whole table.
+
+        The distinct ``res_model`` values, read straight from SQL and cached per
+        registry. Three deliberate choices, all of which the ``not in`` shape of
+        :meth:`_scan_prefilter` is what makes affordable:
+
+        * **not per domain.** Grouping under the caller's domain would name
+          fewer models, but it has to run inside :meth:`_search` — which is
+          re-entered from ``fetch()`` while a field read is in flight, and
+          issuing a grouped ORM read there blows up in the cache layer.
+        * **cached, and never invalidated on write.** A model whose first
+          attachment appears after the cache was filled is simply not pruned
+          until the next registry cache clear, which is what happens today for
+          every model anyway. Correctness does not depend on freshness, so it
+          buys the one full pass this needs (1.9 ms over 20k rows; 0.3 us
+          cached).
+        * **raw SQL**, one grouped index-only scan of ``_res_field_idx``'s
+          leading column, returning plain values.
+
+        *capped* reports more distinct models than the prefilter is willing to
+        enumerate, one past the limit being enough to know.
+        """
+        limit = self._SEARCH_MODEL_DISCOVERY_LIMIT + 1
+        self.env.cr.execute(
+            "SELECT res_model FROM ir_attachment GROUP BY res_model LIMIT %s",
+            [limit],
+        )
+        rows = [row[0] for row in self.env.cr.fetchall()]
+        return sorted(name for name in rows if name), len(rows) >= limit
 
     @api.model
     def _search_models_security_domain(
@@ -1661,6 +1927,21 @@ class IrAttachment(models.Model):
         :meth:`_accessible_batch_seek` can derive a seek predicate for the
         effective order, and by OFFSET otherwise.
 
+        A batch's ``SECURITY_FIELDS`` are dropped from the ORM cache once
+        ANOTHER batch is known to follow. Batching bounded the QUERY size but
+        nothing bounded the cache: the five fields of every row ever examined
+        stayed resident for the rest of the request, so an unbounded scan cost
+        O(accessible rows) of memory to produce a list of ints — 23 MB to count
+        50k attachments, and the count is the one caller that never passes a
+        bound (P2-9). Only the ids leave this method, and :meth:`_check_access`
+        already invalidates the rows it refuses.
+
+        The LAST batch is deliberately left cached, because it is the one a
+        caller reads next: every bounded search the web client issues fits in
+        one batch, and invalidating it made ``search(limit=80)`` followed by a
+        read of ``res_model`` re-fetch rows it had just loaded. Keeping it costs
+        one batch of memory — the bound this method exists to establish.
+
         :param bound: stop once this many ids are collected (None: collect all)
         :return: the accessible ids
         """
@@ -1685,10 +1966,13 @@ class IrAttachment(models.Model):
             result.extend(records._filtered_access("read")._ids)
             if len(records) < PREFETCH_MAX:
                 break
+            if bound is not None and len(result) >= bound:
+                break
             if keyset is not None:
                 batch_domain = domain & keyset(records.sudo()[-1])
             else:
                 sub_offset += PREFETCH_MAX
+            records.invalidate_recordset(SECURITY_FIELDS)
         return result
 
     def _post_add_create(self, **kwargs: Any) -> None:
@@ -1726,6 +2010,29 @@ class IrAttachment(models.Model):
         :meth:`create`, they keep ``checksum = False`` and any ``db_datas``
         passthrough they were given.
 
+        Field-backing rows (``res_field`` set) take no part in dedup, on EITHER
+        side: they are excluded from the match set, and a value that asks for
+        one is always given a row of its own. Only the first half was enforced,
+        and the other two directions were each wrong in their own way. A value
+        carrying ``res_field`` matched a free-standing row and was handed its id
+        — so the caller asked for "field X of record Y" and got back an
+        unrelated attachment, with the field left unbacked and nothing
+        indicating it. And within one batch a ``res_field`` value could register
+        the key first, handing the NEXT, free-standing value a field-backing id:
+        the guard below, arrived at from the other end.
+
+        The id returned here is one the CALLER keeps — it puts it in a message body,
+        a ``/web/image/<id>`` url, a relation. A ``res_field`` row is not free
+        to be kept that way: it IS field X of record Y, so the ORM rewrites its
+        content whenever that field is written
+        (:meth:`Binary.mark_dirty` writes ``datas`` onto the existing row),
+        deletes it when the field is cleared, and deletes it with the host
+        record. Reusing one therefore handed the caller a reference whose bytes
+        change and whose lifetime belongs to somebody else — a partner avatar
+        update silently swapped the image in an already-sent message, and
+        deleting the partner deleted it (IRA-C4). Dedup is an optimization; it
+        may only ever reuse a row that stands on its own.
+
         :raise UserError: if a value is not base64-encoded or omits ``mimetype``
 
         .. note::
@@ -1751,14 +2058,10 @@ class IrAttachment(models.Model):
         all_checksums = list({key[0] for _vals, key in entries if key})
         existing_by_key: dict[tuple, int] = {}
         if all_checksums:
-            for checksum, file_size, mimetype, att_id in (
-                self.sudo()
-                .with_context(skip_res_field_check=True)
-                ._read_group(
-                    [("checksum", "in", all_checksums)],
-                    groupby=["checksum", "file_size", "mimetype"],
-                    aggregates=["id:max"],
-                )
+            for checksum, file_size, mimetype, att_id in self.sudo()._read_group(
+                [("checksum", "in", all_checksums), ("res_field", "=", False)],
+                groupby=["checksum", "file_size", "mimetype"],
+                aggregates=["id:max"],
             ):
                 existing_by_key[checksum, file_size, mimetype] = att_id
         self._drop_colliding_dedup_matches(existing_by_key, raw_by_key)
@@ -1767,7 +2070,7 @@ class IrAttachment(models.Model):
         new_index_by_key: dict[tuple, int] = {}
         own_indexes: list[int | None] = []
         for vals, key in entries:
-            if key is None:
+            if key is None or vals.get("res_field"):
                 own_indexes.append(len(to_create))
                 to_create.append(vals)
                 continue
@@ -1830,19 +2133,48 @@ class IrAttachment(models.Model):
     def action_get(self) -> dict[str, Any]:
         return self.env["ir.actions.act_window"]._for_xml_id("base.action_attachment")
 
-    def _from_request_file(self, file: Any, *, mimetype: str, **vals: Any) -> Self:
+    def _from_request_file(
+        self, file: Any, *, mimetype: str = "DERIVE", **vals: Any
+    ) -> Self:
         """Create an attachment out of a request file.
+
+        THE upload entry point, and the only one that can stream: it decides
+        per mimetype whether the payload has to be buffered (see
+        :meth:`_should_stream_upload`) and otherwise hands the file object to
+        :meth:`_create_from_stream`, whose peak memory is one chunk. Uploading
+        through ``create({"raw": file.read()})`` instead — which is what the
+        chatter and the backend uploader did — holds the whole file in the
+        worker, twice over once the ORM has a copy.
 
         :param file: the request file
         :param str mimetype: one of —
 
+            * ``"DERIVE"`` (default) — type it exactly as ``create`` would from
+              the same filename: the extension first, the content only if that
+              says nothing. The filename is kept as sent. This is the mode for
+              an upload with no policy of its own, and the only one that leaves
+              the resulting row indistinguishable from the buffered ``create``
+              it replaces;
             * ``"TRUST"`` — use the request file's mimetype/extension unverified;
             * ``"GUESS"`` — detect from content, appending the extension unless
               the filename already has a valid one;
             * ``"{type}/{subtype}"`` — force this mimetype, appending its
               extension unless the filename already has a valid one.
+
+        ``DERIVE`` sniffs at most :data:`MIMETYPE_HEAD_SIZE` bytes where the
+        buffered path sniffed the whole payload. That only differs for a file
+        whose extension says nothing AND whose type needs more than the head to
+        recognise; anything named ``*.xlsx`` or ``*.csv`` is typed from the name
+        and never read.
         """
-        if mimetype == "TRUST":
+        if mimetype == "DERIVE":
+            filename = file.filename
+            mimetype = mimetypes.guess_type(filename or "")[0] or ""
+            if not mimetype or mimetype == "application/octet-stream":
+                head = file.read(MIMETYPE_HEAD_SIZE)
+                file.seek(-len(head), 1)
+                mimetype = guess_mimetype(head)
+        elif mimetype == "TRUST":
             mimetype = file.content_type
             filename = file.filename
         elif mimetype == "GUESS":
@@ -1920,10 +2252,10 @@ class IrAttachment(models.Model):
 
         The keyed / inline / addon-static triage of :meth:`_stored_content`,
         expressed in streams rather than bytes. ``bin_size`` is neutralized on
-        the inline leg for the same reason it is there: under it a stored binary
-        column reads back as its own human-readable size, so this served
-        ``b"4.88 Kb"`` as the response body of a 5000-byte attachment. Both
-        bytes readers spelled the neutralization out; this one did not.
+        the inline leg (:meth:`_unsized`) for the same reason it is everywhere
+        else: under it a stored binary column reads back as its own
+        human-readable size, so this served ``b"4.88 Kb"`` as the response body
+        of a 5000-byte attachment.
         """
         self.ensure_one()
 
@@ -1937,7 +2269,7 @@ class IrAttachment(models.Model):
         if self.store_fname:
             return self._backend_for_key(self.store_fname).to_stream(self, stream)
 
-        inline = self.with_context(bin_size=False, bin_size_db_datas=False).db_datas
+        inline = self._unsized().db_datas
         if inline:
             stream.type = "data"
             stream.data = inline
@@ -2241,6 +2573,30 @@ class IrAttachment(models.Model):
     def _gc_file_store_unsafe(
         self, checklist: dict[str, Path] | None = None, grace: float | None = None
     ) -> None:
+        """Unlink the content of every checklist entry no row still references.
+
+        An entry the filestore cannot address is DROPPED, never raised on. There
+        are two such shapes and they used to be handled inconsistently: a
+        non-canonical name (:meth:`_is_canonical_store_key`) was dropped, while a
+        canonical name whose shard resolves out of the filestore — a symlink
+        planted under it, which :meth:`_full_path` refuses precisely so it is
+        never read — escaped as a ``ValueError`` out of the whole sweep.
+
+        That turned the confinement check into a permanent denial of the GC: the
+        sweep aborts on the first such entry, every later entry in the walk is
+        left unswept, the enclosing autovacuum rolls back and drops the table
+        lock, and the next run walks the same directory and stops in the same
+        place. One planted link stranded 213 of 304 markers here, with the
+        filestore growing unbounded behind them.
+
+        Dropping the marker is right for the same reason it is for a
+        non-canonical name: a key the filestore refuses can address neither the
+        file to unlink nor a live ``store_fname`` (:meth:`_file_read` refuses it
+        too), so keeping the entry reclaims nothing and pins it against
+        :attr:`_GC_MAX_ENTRIES` forever. It is logged at WARNING rather than
+        INFO because, unlike a stray editor file, it means something put a link
+        inside the filestore.
+        """
         if checklist is None:
             checklist = self._gc_checklist()
         if grace is None:
@@ -2256,6 +2612,15 @@ class IrAttachment(models.Model):
 
             for fname in names:
                 filepath = checklist[fname]
+                if not self._is_canonical_store_key(fname):
+                    _logger.info(
+                        "filestore gc: dropping checklist entry %s, whose name is "
+                        "not a store key this filestore writes",
+                        filepath,
+                    )
+                    with contextlib.suppress(OSError):
+                        Path(filepath).unlink()
+                    continue
                 if fname not in whitelist:
                     if grace:
                         try:
@@ -2263,7 +2628,17 @@ class IrAttachment(models.Model):
                                 continue
                         except OSError:
                             pass
-                    full_path = self._full_path(fname)
+                    try:
+                        full_path = self._full_path(fname)
+                    except ValueError:
+                        _logger.warning(
+                            "filestore gc: dropping checklist entry %s, whose "
+                            "store key resolves outside the filestore",
+                            filepath,
+                        )
+                        with contextlib.suppress(OSError):
+                            Path(filepath).unlink()
+                        continue
                     try:
                         Path(full_path).unlink(missing_ok=True)
                         _logger.debug("_file_gc unlinked %s", full_path)
