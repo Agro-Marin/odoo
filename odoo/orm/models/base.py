@@ -179,6 +179,18 @@ class BaseModel(
     _table: str = ""
     _table_query: SQL | str | None = None
     _table_objects: dict[str, TableObject] = frozendict()
+    _table_inheritance_root: str = ""
+    """Name of the table this model's subtypes share through PostgreSQL table
+    inheritance (``CREATE TABLE ... INHERITS``), when it is this model's own.
+
+    A foreign key pointing at such a table is accepted by PostgreSQL but only
+    ever sees the rows of the parent itself, so it rejects every id that lives
+    in a child table: relational fields must not declare one, and their
+    ``ondelete`` has to be applied in Python instead.  Subtypes inherit the
+    attribute but own a different :attr:`_table`, which is what makes
+    :meth:`_is_table_inheritance_root` false for them — they are ordinary
+    tables and do get their foreign keys.
+    """
     _inherit_children: OrderedSet[str]
 
     _rec_name: str | None = None
@@ -380,6 +392,14 @@ class BaseModel(
 
     def _is_an_ordinary_table(self) -> bool:
         return self.pool.is_an_ordinary_table(self)
+
+    def _is_table_inheritance_root(self) -> bool:
+        """Whether this model owns the table its subtypes inherit from.
+
+        See :attr:`_table_inheritance_root`.  Relational fields consult this to
+        skip the foreign key PostgreSQL would let them create but never honour.
+        """
+        return bool(self._table) and self._table == self._table_inheritance_root
 
     def _validate_fields(
         self, field_names: Iterable[str], excluded_names: Iterable[str] = ()

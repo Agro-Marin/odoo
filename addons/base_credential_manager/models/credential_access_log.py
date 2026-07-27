@@ -131,9 +131,14 @@ class CredentialAccessLog(models.Model):
     def unlink(self):
         """Reject deletion to preserve the audit trail; only cron cleanup may delete.
 
-        :raises UserError: if deleting without cleanup authorization.
+        Deleting no records deletes no audit trail, so an empty recordset falls
+        through: batch code reaches ``unlink()`` through a ``filtered``/``search``
+        that legitimately matched nothing, and refusing that turns a no-op into
+        an error the caller never had a way to avoid.
+
+        :raises UserError: if deleting records without cleanup authorization.
         """
-        if not self._is_cleanup_authorized():
+        if self and not self._is_cleanup_authorized():
             raise UserError(  # pylint: disable=raise-unlink-override,no-raise-unlink,E8503
                 self.env._(
                     "Audit log records cannot be deleted!\n\n"

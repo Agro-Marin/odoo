@@ -157,7 +157,7 @@ class Many2one(_Relational):
         comodel = model.env[self.comodel_name]
         if not model._is_an_ordinary_table() or not comodel._is_an_ordinary_table():
             return
-        if not comodel._auto or comodel._table == "ir_actions":
+        if not comodel._auto or comodel._is_table_inheritance_root():
             return
         model.pool.add_foreign_key(
             model._table,

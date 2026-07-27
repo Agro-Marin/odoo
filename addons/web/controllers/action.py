@@ -52,13 +52,8 @@ class Action(Controller):
         action_type = base_action[0]["type"]
         if action_type == "ir.actions.report":
             request.update_context(bin_size=True)
-        if action_type == "ir.actions.act_window":
-            result = (
-                request.env[action_type].sudo().browse([action_id])._get_action_dict()
-            )
-            return clean_action(result, env=request.env) if result else False
-        result = request.env[action_type].sudo().browse([action_id]).read()
-        return clean_action(result[0], env=request.env) if result else False
+        action = request.env[action_type].sudo().browse([action_id])
+        return clean_action(action._get_action_dict(), env=request.env)
 
     @route("/web/action/run", type="jsonrpc", auth="user")
     def run(
