@@ -144,7 +144,7 @@ class SaleOrder(models.Model):
                 order.website_order_line += new_lines
 
     def _compute_cart_info(self):
-        super(SaleOrder, self)._compute_cart_info()
+        super()._compute_cart_info()
         for order in self:
             reward_lines = order.website_order_line.filtered(lambda line: line.is_reward_line)
             order.cart_quantity -= int(sum(reward_lines.mapped('product_qty')))

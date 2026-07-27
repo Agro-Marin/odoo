@@ -1,14 +1,16 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
-from odoo.exceptions import ValidationError
 
 from odoo.addons.base.tests.common import DISABLED_MAIL_CONTEXT
-from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
 from odoo.addons.payment import utils as payment_utils
+from odoo.addons.website_sale.tests.common import MockRequest, WebsiteSaleCommon
 from odoo.addons.website_sale_loyalty.controllers.cart import Cart
-from odoo.addons.website_sale_loyalty.controllers.delivery import WebsiteSaleLoyaltyDelivery
+from odoo.addons.website_sale_loyalty.controllers.delivery import (
+    WebsiteSaleLoyaltyDelivery,
+)
 
 
 @tagged('post_install', '-at_install')
