@@ -217,8 +217,7 @@ def get_action(env: Any, path_part: str) -> Any:
         action = Actions.sudo().search([("path", "=", path_part)])
 
     if action and action._name == "ir.actions.actions":
-        action_type = action.read(["type"])[0]["type"]
-        action = env[action_type].browse(action.id)
+        action = action._as_concrete()
 
     return action
 

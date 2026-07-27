@@ -108,6 +108,7 @@ access_res_users_settings_user,res.users.settings,model_res_users_settings,group
 "access_ir_actions_todo_group_system","ir_actions_todo group system","model_ir_actions_todo","group_system",1,1,1,1
 "access_ir_actions_act_window_view_group_system","ir_actions_act_window_view_group_system","model_ir_actions_act_window_view","group_system",1,1,1,1
 "access_ir_actions_act_url_group_system","ir_actions_act_url_group_system","model_ir_actions_act_url","group_system",1,1,1,1
+"access_ir_actions_path_group_system","ir_actions_path_group_system","model_ir_actions_path","group_system",1,1,1,1
 "access_ir_actions_server_group_system","ir_actions_server_group_system","model_ir_actions_server","group_system",1,1,1,1
 "access_ir_actions_server_history_group_system","ir_actions_server_history_group_system","model_ir_actions_server_history","group_system",1,1,1,0
 "access_ir_embedded_actions_group_user","ir_embedded_actions_group_user","model_ir_embedded_actions","group_user",1,1,1,1

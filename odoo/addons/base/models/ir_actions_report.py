@@ -1289,6 +1289,9 @@ class IrActionsReport(models.Model):
             return NotImplemented
         return Domain("model", "in", model_records.mapped("model"))
 
+    def _menu_access_model_field(self) -> str:
+        return "model"
+
     def _get_readable_fields(self) -> frozenset[str]:
         return super()._get_readable_fields() | {
             "report_name",

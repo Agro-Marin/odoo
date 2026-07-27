@@ -9,6 +9,7 @@ from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
+from odoo.service.transaction import _integrity_error_to_validation
 from odoo.tests import common, tagged
 from odoo.tools import mute_logger
 
@@ -1336,18 +1337,42 @@ class TestActionsPath(common.TransactionCase):
     def test_path_unique_cross_table(self):
         """The same path on an act_window and an act_url is rejected cross-table.
 
-        This proves the parent-table _read_group constraint spans child tables
-        (the PG unique index only fires per child table).
+        Now by ``ir.actions.path``'s unique index rather than by a Python
+        re-read: the per-child indexes each cover one table, and a re-read
+        cannot see a concurrently committed row at all. The database therefore
+        raises IntegrityError, which the service layer turns into the
+        ValidationError a user sees.
         """
         self._make_window("shared-path")
-        with self.assertRaises(ValidationError):
-            self.env["ir.actions.act_url"].create(
-                {
-                    "name": "PathUrl",
-                    "url": "https://example.com",
-                    "path": "shared-path",
-                }
-            )
+        with self.assertRaises(IntegrityError), mute_logger("odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["ir.actions.act_url"].create(
+                    {
+                        "name": "PathUrl",
+                        "url": "https://example.com",
+                        "path": "shared-path",
+                    }
+                )
+                self.env.flush_all()
+
+    def test_the_cross_table_rejection_names_the_path_field(self):
+        """The message the service layer builds from that IntegrityError."""
+        self._make_window("shared-path-msg")
+        try:
+            with self.env.cr.savepoint(), mute_logger("odoo.db.cursor"):
+                self.env["ir.actions.act_url"].create(
+                    {
+                        "name": "PathUrl2",
+                        "url": "https://example.com",
+                        "path": "shared-path-msg",
+                    }
+                )
+                self.env.flush_all()
+        except IntegrityError as exc:
+            message = str(_integrity_error_to_validation(self.env, exc))
+        else:
+            self.fail("a duplicate path must be rejected")
+        self.assertIn("unique", message.lower())
 
 
 class TestActionsReadAndXmlId(common.TransactionCase):

@@ -140,28 +140,38 @@ class IrUiMenu(models.Model):
             if action:
                 action_ids_by_model[action._name].append(action.id)
 
+        # Each action type names the model gating its menu differently, and the
+        # answer has to match the one ir.actions.actions._unconditional_clear_fields
+        # invalidates on -- a literal copy here disagreed with that one about
+        # ir.actions.client and nothing said so.
+        #
+        # Keyed off the inheritance tree rather than off the models the menus
+        # happen to name: a Reference column holding anything else is junk the
+        # ORM cannot write but raw SQL can, and asking it for the hook raises
+        # where the map lookups below simply miss.
+        actions = self.env["ir.actions.actions"]
         MODEL_BY_TYPE = {
-            "ir.actions.act_window": "res_model",
-            "ir.actions.report": "model",
-            "ir.actions.server": "model_name",
+            model_name: field_name
+            for model_name in actions._inheritance_tree_model_names()
+            if (field_name := self.env[model_name]._menu_access_model_field())
         }
 
         def exists_actions(model_name, action_ids):
             """Return existing actions and fetch model name field if exists"""
             if model_name not in MODEL_BY_TYPE:
                 return self.env[model_name].browse(action_ids).exists()
+            field_name = MODEL_BY_TYPE[model_name]
             records = (
                 self.env[model_name]
                 .sudo()
                 .with_context(active_test=False)
                 .search_fetch(
                     [("id", "in", action_ids)],
-                    [MODEL_BY_TYPE[model_name]],
+                    [field_name],
                     order="id",
                 )
             )
-            if model_name == "ir.actions.server":
-                records.mapped("model_name")
+            records.mapped(field_name)
             return records
 
         existing_actions = {
