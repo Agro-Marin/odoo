@@ -13,3 +13,7 @@ mypy==1.19.1
 
 # Testing
 pytest==9.0.2
+# Gates base/tests/test_ir_mail_server_smtpd.py behind @unittest.skipUnless: without
+# it the whole SMTP transport-security matrix (encryption, client certs, MITM)
+# skips silently while the run still reports success.
+aiosmtpd==1.4.6

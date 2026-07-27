@@ -26,6 +26,45 @@ class TestIrConfigParameter(TransactionCase):
                 config_parameter.write({"key": new_key})
 
 
+class TestTypedParams(TransactionCase):
+    """``get_param_int`` / ``get_param_float`` share one contract: a parameter is
+    free text an administrator can edit, so an unusable value must degrade to the
+    default and warn rather than raise out of whatever request happens to read it
+    (``base.default_max_email_size`` is read while sending mail). Tested as a pair
+    so the two cannot drift."""
+
+    KEY = "base.test_typed_param"
+
+    def _read(self, reader, raw, default):
+        ICP = self.env["ir.config_parameter"]
+        if raw is not None:
+            ICP.set_param(self.KEY, raw)
+        return getattr(ICP, reader)(self.KEY, default)
+
+    def test_valid_values_are_parsed(self):
+        self.assertEqual(self._read("get_param_int", "42", 7), 42)
+        self.assertEqual(self._read("get_param_float", "42.5", 7.0), 42.5)
+        self.assertEqual(self._read("get_param_float", "42", 7.0), 42.0)
+
+    def test_missing_or_blank_falls_back_silently(self):
+        for reader, default in (("get_param_int", 7), ("get_param_float", 7.5)):
+            with self.subTest(reader=reader):
+                self.assertEqual(self._read(reader, None, default), default)
+                self.assertEqual(self._read(reader, "", default), default)
+
+    @mute_logger("odoo.addons.base.models.ir_config_parameter")
+    def test_unusable_value_falls_back_and_warns(self):
+        for reader, default in (("get_param_int", 7), ("get_param_float", 7.5)):
+            for raw in ("ten", "1,5", "12px"):
+                with self.subTest(reader=reader, raw=raw):
+                    self.assertEqual(self._read(reader, raw, default), default)
+
+    @mute_logger("odoo.addons.base.models.ir_config_parameter")
+    def test_float_string_is_not_an_int(self):
+        """int() does not silently truncate "4.5"; it degrades to the default."""
+        self.assertEqual(self._read("get_param_int", "4.5", 7), 7)
+
+
 class TestSetGetParam(TransactionCase):
     def test_set_get_param_lifecycle(self):
         """ICP-T1: cover set_param create/update/no-op/unlink and get_param fallback."""

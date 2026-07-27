@@ -96,7 +96,12 @@ class IrMail_Server(models.Model):
         super()._check_forced_mail_server(mail_server, allow_archived, smtp_from)
 
         if mail_server.owner_user_id:
-            if email_normalize(smtp_from) != mail_server.from_filter:
+            # Both sides normalized: from_filter is a plain editable Char, so a
+            # stored "Owner@Example.com" or a stray space used to fail this exact
+            # match and lock the owner out of their own server. Deliberately not
+            # _match_from_filter -- that also accepts a whole domain, which would
+            # let a personal server send as anyone in it.
+            if email_normalize(smtp_from) != email_normalize(mail_server.from_filter):
                 raise UserError(
                     _(
                         'The server "%s" cannot be forced as it belongs to a user.',

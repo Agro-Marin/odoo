@@ -373,13 +373,18 @@ class TestConfigParameterIntegersV11(MailCommon):
     """A typo in one numeric ICP must not take an unrelated subsystem down."""
 
     def test_helper_degrades_and_warns(self):
+        """Parsing lives in ``base.get_param_int``, so the warning is emitted on
+        its logger; what matters is that the bad value degrades and that the
+        offending key and value are both named."""
         icp = self.env["ir.config_parameter"]
         icp.sudo().set_param("mail.batch_size", "not-a-number")
         with self.assertLogs(
-            "odoo.addons.mail.models.ir_config_parameter", level="WARNING"
+            "odoo.addons.base.models.ir_config_parameter", level="WARNING"
         ) as capture:
             self.assertEqual(icp._get_int_param("mail.batch_size", 50), 50)
-        self.assertIn("not an integer", "\n".join(capture.output))
+        logged = "\n".join(capture.output)
+        self.assertIn("mail.batch_size", logged)
+        self.assertIn("not-a-number", logged)
 
     def test_helper_preserves_meaningful_zero(self):
         """0 means "always queue" for the force-send limit; keep it distinct
@@ -397,7 +402,7 @@ class TestConfigParameterIntegersV11(MailCommon):
         self.assertEqual(icp._get_int_param("mail.no.such.param.at.all", 42), 42)
 
     @mute_logger(
-        "odoo.addons.mail.models.ir_config_parameter",
+        "odoo.addons.base.models.ir_config_parameter",
         "odoo.addons.mail.models.mail_thread",
     )
     def test_broken_gateway_icp_does_not_break_loop_detection(self):

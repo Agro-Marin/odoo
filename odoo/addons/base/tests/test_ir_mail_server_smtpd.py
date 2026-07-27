@@ -70,8 +70,7 @@ class Certificate:
 
 @unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
 @unittest.skipUnless(_openssl, "openssl not found in path")
-@patch("odoo.addons.base.models.ir_mail_server.SMTP_TIMEOUT", SMTP_TIMEOUT)
-@patch.dict(config.options, {"smtp_server": ""})
+@patch.dict(config.options, {"smtp_server": "", "smtp_timeout": SMTP_TIMEOUT})
 class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
     @classmethod
     def setUpClass(cls):
@@ -278,10 +277,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             )
                             with (
                                 self.assertRaises(UserError) as error_capture,
-                                patch(
-                                    "odoo.addons.base.models.ir_mail_server.SMTP_TIMEOUT",
-                                    timeout,
-                                ),
+                                patch.dict(config.options, {"smtp_timeout": timeout}),
                             ):
                                 mail_server.test_smtp_connection()
                             self.assertRegex(
@@ -349,10 +345,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                             )
                             with (
                                 self.assertRaises(UserError) as capture,
-                                patch(
-                                    "odoo.addons.base.models.ir_mail_server.SMTP_TIMEOUT",
-                                    timeout,
-                                ),
+                                patch.dict(config.options, {"smtp_timeout": timeout}),
                             ):
                                 mail_server.test_smtp_connection()
                             self.assertRegex(capture.exception.args[0], error_pattern)
@@ -431,10 +424,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
                     timeout = 0.1 if "timed out" in error_pattern else SMTP_TIMEOUT
                     with (
                         self.assertRaises(UserError) as capture,
-                        patch(
-                            "odoo.addons.base.models.ir_mail_server.SMTP_TIMEOUT",
-                            timeout,
-                        ),
+                        patch.dict(config.options, {"smtp_timeout": timeout}),
                     ):
                         mail_server.test_smtp_connection()
                     self.assertRegex(capture.exception.args[0], error_pattern)

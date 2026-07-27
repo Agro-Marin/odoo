@@ -1044,7 +1044,21 @@ class MailMail(models.Model):
 
             smtp_session = None
             try:
-                smtp_session = self.env["ir.mail_server"]._connect__(
+                # Same alias-domain context _split_by_mail_configuration resolved
+                # under: with no forced server, _connect__ re-runs _find_mail_server
+                # itself, and without the context it derives smtp_from from the
+                # company default instead of this record's alias domain -- then
+                # stashes that on the session as the envelope sender.
+                ConnectIrMailServer = self.env["ir.mail_server"]
+                if alias_domain_id:
+                    alias_domain = (
+                        self.env["mail.alias.domain"].sudo().browse(alias_domain_id)
+                    )
+                    ConnectIrMailServer = ConnectIrMailServer.with_context(
+                        domain_notifications_email=alias_domain.default_from_email,
+                        domain_bounce_address=alias_domain.bounce_email,
+                    )
+                smtp_session = ConnectIrMailServer._connect__(
                     mail_server_id=mail_server_id, smtp_from=smtp_from
                 )
             except Exception as exc:
