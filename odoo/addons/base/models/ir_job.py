@@ -233,8 +233,13 @@ def _job_config_of(model_cls: type, method_name: str) -> dict | None:
     return None
 
 
-def _advisory_key_sql(job_id: int) -> SQL:
-    """Bigint advisory-lock key for a job id (single source for claim/reaper)."""
+def _advisory_key_sql(job_id: int | SQL) -> SQL:
+    """Bigint advisory-lock key for a job id (single source for claim/reaper).
+
+    Takes a literal id or an :class:`SQL` expression naming a column, so the
+    set-based reaper derives its keys from the same one expression as the
+    single-id lock helper instead of respelling the hash.
+    """
     return SQL("hashtextextended('ir_job:' || %s::text, 0)", job_id)
 
 
@@ -1470,7 +1475,7 @@ class IrJob(models.Model):
         """
 
     @staticmethod
-    def _reap_dead_jobs(cr) -> None:
+    def _reap_dead_jobs(cr) -> int:
         """Requeue ``started`` jobs whose worker died mid-run.
 
         A live worker holds the job's session advisory lock for the whole
@@ -1480,48 +1485,90 @@ class IrJob(models.Model):
         is the lock itself.
 
         Capped at ``REAP_BATCH_SIZE`` rows: after a mass worker kill the
-        candidate set is the whole in-flight queue, and every row costs a
-        try-lock round-trip, on the pre-flight cursor that gates all job
-        processing for the database.  Whatever is left over is reaped by the
-        next sweep.
+        candidate set is the whole in-flight queue.  Whatever is left over is
+        reaped by the next sweep.
+
+        The whole batch is probed, requeued and released in a fixed four
+        statements rather than three per candidate.  Row by row, a full batch
+        cost 3001 round trips (measured 166 ms against a local socket, and
+        round trips are what a network charges for: ~3 s at 1 ms of latency),
+        all of it with the ``ir_job_gc`` advisory lock held and on the sweep
+        that gates job processing for the database.
+
+        ``MATERIALIZED`` is load-bearing: it forces the candidate set to be
+        computed before ``pg_try_advisory_lock`` is applied to it, so the lock
+        is taken exactly once per candidate and never for a row the planner was
+        merely considering.  The locks are then released explicitly -- the pool
+        would drop them at ``pg_advisory_unlock_all()`` when the sweep's cursor
+        goes back, but until then any worker claiming one of the jobs just
+        requeued would block on the reaper's own lock.
         """
         cr.execute(
-            "SELECT id, retry, max_retries FROM ir_job"
-            " WHERE state = 'started' AND started_at <"
-            " (now() AT TIME ZONE 'UTC') - %s * interval '1 second'"
-            " ORDER BY started_at LIMIT %s",
-            (DEAD_JOB_GRACE_S, REAP_BATCH_SIZE),
+            SQL(
+                """
+                WITH candidates AS MATERIALIZED (
+                    SELECT id, retry < max_retries AS requeue
+                    FROM ir_job
+                    WHERE state = 'started'
+                      AND started_at < (now() AT TIME ZONE 'UTC')
+                          - %s * interval '1 second'
+                    ORDER BY started_at
+                    LIMIT %s
+                )
+                SELECT id, requeue FROM candidates WHERE pg_try_advisory_lock(%s)
+                """,
+                DEAD_JOB_GRACE_S,
+                REAP_BATCH_SIZE,
+                _advisory_key_sql(SQL.identifier("id")),
+            )
         )
-        for job_id, retry, max_retries in cr.fetchall():
-            with _job_session_lock(cr, job_id, blocking=False) as acquired:
-                if not acquired:
-                    continue
-                if retry < max_retries:
-                    cr.execute(
-                        SQL(
-                            "UPDATE ir_job SET state = 'pending',"
-                            " retry = retry + 1, started_at = NULL,"
-                            " worker_ident = NULL, exc_name = 'WorkerDied',"
-                            " exc_message = 'job worker died during execution',"
-                            " write_date = (now() AT TIME ZONE 'UTC')"
-                            " WHERE id = %s AND state = 'started'",
-                            job_id,
-                        )
-                    )
-                else:
-                    cr.execute(
-                        SQL(
-                            "UPDATE ir_job SET state = 'failed',"
-                            " done_at = (now() AT TIME ZONE 'UTC'),"
-                            " exc_name = 'WorkerDied',"
-                            " exc_message = 'job worker died during execution',"
-                            " write_date = (now() AT TIME ZONE 'UTC')"
-                            " WHERE id = %s AND state = 'started'",
-                            job_id,
-                        )
-                    )
-                if cr.rowcount:
-                    _logger.warning("Job %s: reaped from a dead worker", job_id)
+        rows = cr.fetchall()
+        if not rows:
+            return 0
+        requeue_ids = [job_id for job_id, requeue in rows if requeue]
+        fail_ids = [job_id for job_id, requeue in rows if not requeue]
+        reaped = 0
+        if requeue_ids:
+            cr.execute(
+                SQL(
+                    "UPDATE ir_job SET state = 'pending',"
+                    " retry = retry + 1, started_at = NULL,"
+                    " worker_ident = NULL, exc_name = 'WorkerDied',"
+                    " exc_message = 'job worker died during execution',"
+                    " write_date = (now() AT TIME ZONE 'UTC')"
+                    " WHERE id = ANY(%s) AND state = 'started'",
+                    requeue_ids,
+                )
+            )
+            reaped += cr.rowcount
+        if fail_ids:
+            cr.execute(
+                SQL(
+                    "UPDATE ir_job SET state = 'failed',"
+                    " done_at = (now() AT TIME ZONE 'UTC'),"
+                    " exc_name = 'WorkerDied',"
+                    " exc_message = 'job worker died during execution',"
+                    " write_date = (now() AT TIME ZONE 'UTC')"
+                    " WHERE id = ANY(%s) AND state = 'started'",
+                    fail_ids,
+                )
+            )
+            reaped += cr.rowcount
+        cr.execute(
+            SQL(
+                "SELECT pg_advisory_unlock(%s) FROM unnest(%s::bigint[]) AS id",
+                _advisory_key_sql(SQL.identifier("id")),
+                [job_id for job_id, _requeue in rows],
+            )
+        )
+        if reaped:
+            _logger.warning(
+                "Reaped %s job(s) from dead workers: %s requeued, %s out of retries",
+                reaped,
+                len(requeue_ids),
+                len(fail_ids),
+            )
+        return reaped
 
     @staticmethod
     def _release_dependents(cr, job_id: int) -> int:
