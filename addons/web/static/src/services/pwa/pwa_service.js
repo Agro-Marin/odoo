@@ -11,12 +11,19 @@ import {
     isIOS,
     isMacOS,
 } from "@web/core/browser/feature_detection";
+import {
+    isPlainObject,
+    readJSONStorage,
+    writeJSONStorage,
+} from "@web/core/browser/storage_json";
 import { registry } from "@web/core/registry";
 import { get } from "@web/services/http_service";
 
 import { InstallPrompt } from "./install_prompt.js";
 
 const serviceRegistry = registry.category("services");
+
+const INSTALLATION_STATE_KEY = "pwaService.installationState";
 
 /** @type {Event | null} */
 let BEFOREINSTALLPROMPT_EVENT;
@@ -79,18 +86,18 @@ export const pwaService = {
          * parse error would take pwa (and its dependents) down on every
          * boot, and later in show()/decline() it would break the install
          * flow. Treat it as no state (the next write resets it).
+         *
+         * ``validate``: the previous ``|| {}`` caught ``null`` but let a
+         * stored array or number through, and ``_setInstallationState`` then
+         * wrote a scope key onto it — persisting a shape that never reads
+         * back as an installation state again.
          * @returns {Record<string, string>}
          */
         function _readState() {
-            try {
-                return (
-                    JSON.parse(
-                        browser.localStorage.getItem("pwaService.installationState"),
-                    ) || {}
-                );
-            } catch {
-                return {};
-            }
+            return readJSONStorage(INSTALLATION_STATE_KEY, {
+                fallback: /** @type {Record<string, string>} */ ({}),
+                validate: isPlainObject,
+            });
         }
 
         /**
@@ -109,20 +116,14 @@ export const pwaService = {
         function _setInstallationState(value) {
             const ls = _readState();
             ls[state.startUrl] = value;
-            browser.localStorage.setItem(
-                "pwaService.installationState",
-                JSON.stringify(ls),
-            );
+            writeJSONStorage(INSTALLATION_STATE_KEY, ls);
         }
 
         /** Remove the persisted installation state for the current scope. */
         function _removeInstallationState() {
             const ls = _readState();
             delete ls[state.startUrl];
-            browser.localStorage.setItem(
-                "pwaService.installationState",
-                JSON.stringify(ls),
-            );
+            writeJSONStorage(INSTALLATION_STATE_KEY, ls);
         }
 
         if (state.isScopedApp) {

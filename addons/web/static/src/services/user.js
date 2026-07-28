@@ -4,6 +4,7 @@
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
+import { readJSONStorage, writeJSONStorage } from "@web/core/browser/storage_json";
 import { UserEvent } from "@web/core/events";
 import { pyToJsLocale } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network/rpc";
@@ -383,33 +384,19 @@ export const user = _makeUser(session);
 const LAST_CONNECTED_USER_KEY = "web.lastConnectedUser";
 
 /** @returns {any[]} */
-export const getLastConnectedUsers = () => {
-    const raw = browser.localStorage.getItem(LAST_CONNECTED_USER_KEY);
-    if (!raw) {
-        return [];
-    }
-    try {
-        const users = JSON.parse(raw);
-        // `JSON.parse` happily returns a number, string or object here; every
-        // caller then does `.filter` / `.slice` on it and throws, bricking the
-        // quick-login list until localStorage is cleared by hand.
-        if (!Array.isArray(users)) {
-            browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
-            return [];
-        }
-        return users;
-    } catch {
-        browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
-        return [];
-    }
-};
+export const getLastConnectedUsers = () =>
+    // `JSON.parse` happily returns a number, string or object here; every
+    // caller then does `.filter` / `.slice` on it and throws, bricking the
+    // quick-login list until localStorage is cleared by hand.
+    readJSONStorage(LAST_CONNECTED_USER_KEY, {
+        fallback: /** @type {any[]} */ ([]),
+        validate: Array.isArray,
+        clearOnInvalid: true,
+    });
 
 /** @param {any[]} users */
 export const setLastConnectedUsers = (users) => {
-    browser.localStorage.setItem(
-        LAST_CONNECTED_USER_KEY,
-        JSON.stringify(users.slice(0, 5)),
-    );
+    writeJSONStorage(LAST_CONNECTED_USER_KEY, users.slice(0, 5));
 };
 
 if (!session._quick_login_processed) {
