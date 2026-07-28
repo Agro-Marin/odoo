@@ -6,13 +6,18 @@
  * (all 12 components; the data-api auto-binds every component except tooltip,
  * popover, scrollspy and toast, which stay opt-in). Namespace import keeps
  * esbuild from tree-shaking the bundle.
+ *
+ * Upstream also patches Modal.show/_resetAdjustments here to compensate the
+ * scrollbar of a scrolling element that is a child of body. Deliberately not
+ * carried: since 6454eb52086 ("views don't need action manager to scroll") no
+ * Odoo layout has one, so `getScrollingElement()` always answers with the
+ * documentElement, which Bootstrap's own ScrollBarHelper already handles.
+ * Measured over real traffic before removal - 16 modal openings across the
+ * webclient, the frontend and the editor iframe, every one of them skipped.
+ * Re-add only against a page that demonstrably has a scrollable body child.
  */
 
 import * as Bootstrap from "@web/../lib/bootstrap/bootstrap.esm.js";
-import {
-    compensateScrollbar,
-    getScrollingElement,
-} from "@web/core/utils/dom/scrolling";
 
 export const {
     Alert,
@@ -77,6 +82,27 @@ TooltipDefault.container = "body";
 TooltipDefault.boundary = "viewport";
 TooltipDefault.delay = { show: 1000, hide: 0 };
 
+const bsTooltipConfigAfterMerge = Tooltip.prototype._configAfterMerge;
+/**
+ * Patched _configAfterMerge: Bootstrap resolves `container` with its own
+ * `getElement()`, which runs `document.querySelector` against the top-level
+ * document whatever document the anchor lives in. The default "body" therefore
+ * appends the tip next to the webclient while Popper measures the anchor in the
+ * website editor's iframe, placing it by the offset between the two documents.
+ *
+ * Popover inherits this method, so both are covered.
+ * @param {any} config
+ * @returns {any}
+ */
+Tooltip.prototype._configAfterMerge = function (config) {
+    config = bsTooltipConfigAfterMerge.call(this, config);
+    const doc = this._element.ownerDocument;
+    if (config.container === document.body && doc !== document) {
+        config.container = doc.body;
+    }
+    return config;
+};
+
 /**
  * At most one tooltip is on screen at a time, so the previous one is tracked
  * directly instead of being rediscovered from the DOM. Popovers are excluded:
@@ -111,14 +137,15 @@ const bsTooltipShow = Tooltip.prototype.show;
  * @returns {*} The original show() return value, or undefined if skipped.
  */
 Tooltip.prototype.show = function () {
-    if (shownTooltip && shownTooltip !== this) {
+    const isPopover = this instanceof Popover;
+    if (!isPopover && shownTooltip && shownTooltip !== this) {
         dismissTooltip(shownTooltip);
     }
     if (this._element.style.display === "none") {
         return;
     }
     const result = bsTooltipShow.call(this);
-    if (!(this instanceof Popover) && this._isShown()) {
+    if (!isPopover && this._isShown()) {
         shownTooltip = this;
     }
     return result;
@@ -146,50 +173,4 @@ Tooltip.prototype.dispose = function (...args) {
  */
 Dropdown.prototype._detectNavbar = function () {
     return false;
-};
-
-const bsModalShow = Modal.prototype.show;
-/**
- * Patched Modal.show: compensates the scrollbar of the real scrolling element,
- * which is rarely document.body, before Bootstrap applies its own body-level
- * lock.
- *
- * The measurement is only valid while `.modal-open` is off, because it makes
- * the body fixed; hence the reset/remove before and Bootstrap's own re-lock
- * after. Doing it here rather than in `_adjustDialog` keeps it off the
- * unthrottled window-resize path, where a scrollbar width - a UA constant that
- * the open modal has frozen anyway - cannot have changed.
- * @returns {*} The original show() return value.
- */
-Modal.prototype.show = function (...args) {
-    if (this._isShown || this._isTransitioning) {
-        return bsModalShow.apply(this, args);
-    }
-    const doc = this._element.ownerDocument;
-    // ScrollBarHelper is not exported and pins itself to the top-level body, so
-    // an iframe-owned modal would lock the wrong document.
-    this._scrollBar._element = doc.body;
-    const scrollable = getScrollingElement(doc);
-    if (doc.body.contains(scrollable)) {
-        this._scrollBar.reset();
-        doc.body.classList.remove("modal-open");
-        compensateScrollbar(scrollable, true);
-    }
-    return bsModalShow.apply(this, args);
-};
-
-const bsResetAdjustmentsFunction = Modal.prototype._resetAdjustments;
-/**
- * Patched _resetAdjustments: removes the scrollbar compensation applied by
- * show(). Bootstrap's _hideModal already drops `.modal-open` and resets its own
- * scrollbar helper around this call, so neither is repeated here.
- * @returns {*} The original _resetAdjustments() return value.
- */
-Modal.prototype._resetAdjustments = function (...args) {
-    const doc = this._element.ownerDocument;
-    const scrollable = getScrollingElement(doc);
-    if (doc.body.contains(scrollable)) {
-        compensateScrollbar(scrollable, false);
-    }
-    return bsResetAdjustmentsFunction.apply(this, args);
 };

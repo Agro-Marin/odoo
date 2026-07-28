@@ -12,7 +12,7 @@
                                 <FileUploader onUploaded.bind="onUploadProfileImg" acceptedFileExtensions="'image/*'">
                                     <t t-set-slot="toggler">
                                         <button href="#" title="Edit" aria-label="Edit" class="btn btn-primary">
-                                            <i class="fa-solid fa-pencil fa-1g float-sm-none float-md-start"/>
+                                            <i class="fa-solid fa-pencil float-sm-none float-md-start"/>
                                         </button>
                                     </t>
                                     <t t-slot="default"/>

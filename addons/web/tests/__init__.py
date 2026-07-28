@@ -11,6 +11,7 @@ from . import test_export
 from . import test_json_export
 from . import test_favorite
 from . import test_feature_flags
+from . import test_fontawesome
 from . import test_health
 from . import test_image
 from . import test_ir_asset_scope
