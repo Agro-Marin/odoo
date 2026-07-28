@@ -20,11 +20,13 @@ export const MEDIAS_BREAKPOINTS = [
  * @returns {MediaQueryList[]}
  */
 export function getMediaQueryLists() {
+    // `=== undefined`, not falsiness: a breakpoint bound of 0 is a legitimate
+    // value that truthiness would read as "no bound".
     return MEDIAS_BREAKPOINTS.map(({ minWidth, maxWidth }) => {
-        if (!maxWidth) {
+        if (maxWidth === undefined) {
             return window.matchMedia(`(min-width: ${minWidth}px)`);
         }
-        if (!minWidth) {
+        if (minWidth === undefined) {
             return window.matchMedia(`(max-width: ${maxWidth}px)`);
         }
         return window.matchMedia(

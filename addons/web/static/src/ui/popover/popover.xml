@@ -7,8 +7,8 @@
             t-att-class="defaultClassObj"
             t-attf-style="--animation-time: {{ constructor.animationTime }}ms"
             t-att-role="props.role"
-            t-on-pointerenter="() => props.holdOnHover and position.lock()"
-            t-on-pointerleave="() => props.holdOnHover and position.unlock()"
+            t-on-pointerenter="onPointerEnter"
+            t-on-pointerleave="onPointerLeave"
         >
             <t
                 t-component="props.component"

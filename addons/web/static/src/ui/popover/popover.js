@@ -293,9 +293,34 @@ export class Popover extends Component {
         );
     }
 
+    /**
+     * Hovering the popover pins it in place, so a menu does not walk out from
+     * under the pointer when the content behind it reflows.
+     */
+    onPointerEnter() {
+        if (this.props.holdOnHover) {
+            this.position.lock();
+        }
+    }
+
+    /**
+     * Releasing the hover lock must not release a `fixedPosition` lock: that
+     * one is the caller pinning the popover for its whole lifetime, and
+     * unlocking it here let the popover jump on the first pointer that
+     * crossed it.
+     */
+    onPointerLeave() {
+        if (this.props.holdOnHover && !this.props.fixedPosition) {
+            this.position.unlock();
+        }
+    }
+
     /** @param {Node} target - the click target to test for click-away */
     onClickAway(target) {
-        if (this.props.closeOnClickAway(target) && !this.isInside(target)) {
+        // Containment first: `closeOnClickAway` answers "should this click-away
+        // close me", so asking it about a click on the popover's own content is
+        // asking about something that is not a click-away at all.
+        if (!this.isInside(target) && this.props.closeOnClickAway(target)) {
             this.props.close();
         }
     }

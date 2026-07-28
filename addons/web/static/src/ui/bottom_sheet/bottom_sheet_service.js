@@ -5,7 +5,7 @@
 
 import { registry } from "@web/core/registry";
 import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
-import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
+import { asPredicate, makeOverlayPresenter } from "@web/ui/overlay/presenter";
 
 /**
  * Accepts the same options as the popover service — `usePopover` routes to
@@ -46,7 +46,14 @@ export const bottomSheetService = {
             component: BottomSheet,
             toProps: (options) => ({
                 class: options.class ?? options.popoverClass,
-                closeOnClickAway: options.closeOnClickAway,
+                closeOnClickAway: asPredicate(options.closeOnClickAway),
+                /**
+                 * Honoured here too, not just by the popover: `usePopover`
+                 * picks the backend from a live media query, so an option the
+                 * sheet ignores is an option that silently changes meaning
+                 * when the viewport crosses a breakpoint.
+                 */
+                closeOnEscape: options.closeOnEscape,
                 onBack: options.onBack,
                 preventDismissOnContentScroll: options.preventDismissOnContentScroll,
                 ref: options.ref,

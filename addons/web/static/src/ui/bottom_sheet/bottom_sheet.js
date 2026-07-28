@@ -57,6 +57,8 @@ export class BottomSheet extends Component {
 
     static defaultProps = {
         class: "",
+        closeOnClickAway: () => true,
+        closeOnEscape: true,
         componentProps: {},
         setActiveElement: true,
     };
@@ -77,7 +79,8 @@ export class BottomSheet extends Component {
         class: { optional: true },
         role: { optional: true, type: String },
 
-        closeOnClickAway: { optional: true, type: [Boolean, Function] },
+        closeOnClickAway: { optional: true, type: Function },
+        closeOnEscape: { optional: true, type: Boolean },
         onBack: { optional: true, type: Function },
         preventDismissOnContentScroll: { optional: true, type: Boolean },
         setActiveElement: { optional: true, type: Boolean },
@@ -118,6 +121,7 @@ export class BottomSheet extends Component {
         this.measurements = {
             viewportHeight: 0,
             naturalHeight: 0,
+            initialHeight: 0,
             maxHeight: 0,
             dismissThreshold: 0,
         };
@@ -137,7 +141,9 @@ export class BottomSheet extends Component {
             }
         });
 
-        useHotkey("escape", () => this.slideOut());
+        if (this.props.closeOnEscape) {
+            useHotkey("escape", () => this.slideOut());
+        }
 
         useBus(routerBus, RouterEvent.EPHEMERAL_POPPED, ({ detail }) => {
             if (
@@ -262,10 +268,13 @@ export class BottomSheet extends Component {
         scrollRail.style.containerType = "scroll-state size";
     }
 
-    /** Registers the scroll listener on the rail. */
+    /** Registers the scroll listener on the rail, and its disposer. */
     setupEventHandlers() {
         const scrollRail = this.scrollRailRef.el;
         scrollRail.addEventListener("scroll", this.throttledOnScroll);
+        this.animationCleanups.push(() =>
+            scrollRail.removeEventListener("scroll", this.throttledOnScroll),
+        );
     }
 
     /** Updates progress and dismisses the sheet once scroll falls below the threshold. */
@@ -348,12 +357,7 @@ export class BottomSheet extends Component {
      * @param {PointerEvent} ev
      */
     onBackdropClick(ev) {
-        const { closeOnClickAway } = this.props;
-        const allowed =
-            typeof closeOnClickAway === "function"
-                ? closeOnClickAway(/** @type {any} */ (ev.target))
-                : (closeOnClickAway ?? true);
-        if (allowed) {
+        if (this.props.closeOnClickAway(/** @type {any} */ (ev.target))) {
             this.slideOut();
         }
     }

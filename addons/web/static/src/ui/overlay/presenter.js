@@ -46,6 +46,20 @@ export function rootIdOf(target) {
 }
 
 /**
+ * Normalise a boolean-or-predicate option into a predicate, so the hosted
+ * component only ever deals with one shape. Lives here rather than in one
+ * backend: `usePopover` hands the same option bag to the popover or to the
+ * bottom sheet, and the two normalising it differently is how they drift.
+ *
+ * @param {boolean | ((target: HTMLElement) => boolean) | undefined} value
+ * @param {boolean} [fallback]
+ * @returns {(target: HTMLElement) => boolean}
+ */
+export function asPredicate(value, fallback = true) {
+    return typeof value === "function" ? value : () => value ?? fallback;
+}
+
+/**
  * Build the `add` function of a service that shows `component` in an overlay.
  *
  * Owns what every such service repeated by hand: allocating the entry, wiring
@@ -62,7 +76,7 @@ export function rootIdOf(target) {
  *  of `config.component` (the hosted component and its props are added here)
  * @param {(options: any) => void} [config.onOpen] runs after the entry is added
  * @param {() => void} [config.onClosed] runs after the caller's `onClose`
- * @returns {(target: HTMLElement, component: any, props?: object, options?: any) => () => void}
+ * @returns {(target: HTMLElement, component: any, props?: object, options?: any) => (removeParams?: any) => void}
  */
 export function makeOverlayPresenter({
     overlay,
@@ -88,7 +102,13 @@ export function makeOverlayPresenter({
                 target,
                 component: hostedComponent,
                 componentProps: markRaw(props),
-                close: () => remove(),
+                /**
+                 * Forwards its argument, like the dialog service's `close`
+                 * does: a hosted component is the one place that knows WHY it
+                 * is closing, and dropping that here made the reason
+                 * unobservable from `onClose`.
+                 */
+                close: (/** @type {any} */ removeParams) => remove(removeParams),
             },
             {
                 env: options.env,

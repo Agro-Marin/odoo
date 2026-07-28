@@ -7,6 +7,7 @@ import { whenReady } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
+import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
 
 /**
@@ -44,7 +45,6 @@ import { Tooltip } from "@web/ui/tooltip/tooltip";
  */
 
 export const OPEN_DELAY = 400;
-export const CLOSE_DELAY = 200;
 export const SHOW_AFTER_DELAY = 250;
 
 export const tooltipService = {
@@ -132,7 +132,7 @@ export const tooltipService = {
             }
             suppressedTitle = null;
             target = null;
-            stopCleanupInterval();
+            stopWatchingTarget();
             browser.clearTimeout(openTooltipTimeout);
             openTooltipTimeout = null;
             browser.clearTimeout(showTimer);
@@ -142,38 +142,27 @@ export const tooltipService = {
             }
         }
 
-        /** @type {number | null} */
-        let cleanupIntervalId = null;
+        /** @type {(() => void) | null} */
+        let unwatchTarget = null;
 
         /**
-         * While a tooltip is pending or open, regularly check that its target
-         * is still in the DOM and close the tooltip otherwise.  The interval
-         * only runs during that window (see ``cleanup``): keeping it alive
-         * forever would wake the main thread 5 times per second for nothing.
+         * Close the tooltip once its target leaves the DOM.
+         *
+         * Driven by the shared `MutationObserver` the popover already arms for
+         * the very same anchor, not by a timer: the previous 200ms poll woke
+         * the main thread 5 times a second for the whole time any tooltip was
+         * pending or open — which, on a list of `data-tooltip` cells, is most
+         * of the time the pointer is moving — to recompute a fact the observer
+         * reports for free and without the up-to-200ms lag.
          */
-        function startCleanupInterval() {
-            if (cleanupIntervalId === null) {
-                cleanupIntervalId = browser.setInterval(() => {
-                    if (shouldCleanup()) {
-                        cleanup();
-                    }
-                }, CLOSE_DELAY);
-            }
+        function startWatchingTarget() {
+            stopWatchingTarget();
+            unwatchTarget = watchForDetachedTarget(target, cleanup);
         }
 
-        function stopCleanupInterval() {
-            if (cleanupIntervalId !== null) {
-                browser.clearInterval(cleanupIntervalId);
-                cleanupIntervalId = null;
-            }
-        }
-
-        /**
-         * Whether the current target left the DOM and its tooltip should close.
-         * @returns {boolean}
-         */
-        function shouldCleanup() {
-            return Boolean(target) && !target.isConnected;
+        function stopWatchingTarget() {
+            unwatchTarget?.();
+            unwatchTarget = null;
         }
 
         /**
@@ -202,13 +191,17 @@ export const tooltipService = {
             }
 
             target = el;
-            startCleanupInterval();
+            startWatchingTarget();
             suppressedTitle = target.getAttribute("title");
             if (suppressedTitle !== null) {
                 target.removeAttribute("title");
             }
             const timeoutDelay = isHelpNode(el) ? 0 : delay;
             openTooltipTimeout = browser.setTimeout(() => {
+                // Cleared, not left dangling: `onClick` reads this to tell a
+                // still-pending tooltip from an open one, and a fired timeout
+                // id stays truthy forever.
+                openTooltipTimeout = null;
                 if (target.isConnected) {
                     const tooltipId = `o_tooltip_${nextTooltipId++}`;
                     describeTarget(tooltipId);
@@ -317,8 +310,15 @@ export const tooltipService = {
             if (isHelpNode(el)) {
                 ev.preventDefault();
             }
-            cleanupTooltip(ev);
-            if (openTooltipTimeout && !closeTooltip && !isTapToShow(el)) {
+            if (!target || isTapToShow(el)) {
+                return;
+            }
+            // `target.contains(el)`, not `target === ev.target`: the click
+            // lands on the deepest node, so a button's inner <span> is the
+            // common case, and identity left the tooltip up on top of whatever
+            // the click had just triggered. A click anywhere else still
+            // cancels a tooltip that is only pending, for the same reason.
+            if (target.contains(el) || openTooltipTimeout) {
                 cleanup();
             }
         }
@@ -410,7 +410,7 @@ export const tooltipService = {
             },
             destroy() {
                 destroyed = true;
-                stopCleanupInterval();
+                stopWatchingTarget();
                 browser.clearTimeout(openTooltipTimeout);
                 browser.clearTimeout(showTimer);
                 for (const dispose of listenerDisposers) {
