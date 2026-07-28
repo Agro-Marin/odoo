@@ -8,8 +8,9 @@ name: TypeScript Check
 #   N=$(grep -c "error TS" /tmp/tsc.log)
 #   python tooling/ratchet/ratchet.py tsc --count "$N" --update
 #
-# (Floor 2002 as of 2026-06-25 — well below the stale 6,575 from 2026-04-29,
-# which the old warn-only gate hardcoded and never enforced.)
+# The floor's value and its history live in the baseline file itself; do not
+# restate the number here, or the two copies drift (they did: this comment read
+# 2002 while the baseline said 2274 and reality was 2155).
 
 on:
   # Mainline re-verification: re-run the ratchet on every push to a protected
