@@ -165,3 +165,18 @@ test("minWidth props can be updated", async () => {
     });
     expect(".o_resizable_panel").toHaveRect({ width: 40 });
 });
+
+test("a window resize with a detached container does not throw", async () => {
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`<ResizablePanel><p>x</p></ResizablePanel>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    // `useRef().el` is null for an element outside the document, and the
+    // resize listener lives until unmount.
+    queryOne(".o_resizable_panel").remove();
+    await resize({ width: 500 });
+    await animationFrame();
+    expect(".o_resizable_panel").toHaveCount(0);
+});

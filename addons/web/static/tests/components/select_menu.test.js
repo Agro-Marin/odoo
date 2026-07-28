@@ -1497,3 +1497,26 @@ test("an emptied choices prop does not show 'No results' next to grouped options
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha"]);
     expect(".o_select_menu_menu p.fst-italic").toHaveCount(0);
 });
+
+test("sections render in the order they were declared", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu choices="[]" groups="groups" sections="sections"/>`;
+        setup() {
+            // Declared order is the opposite of the technical names' order.
+            this.sections = [
+                { label: "Zebra", name: "zzz" },
+                { label: "Alpha", name: "aaa" },
+            ];
+            this.groups = [
+                { choices: [{ label: "In Alpha", value: "a" }], section: "aaa" },
+                { choices: [{ label: "In Zebra", value: "z" }], section: "zzz" },
+            ];
+        }
+    }
+    await mountSingleApp(Parent);
+    await open();
+    expect(queryAllTexts(".o_select_menu_group")).toEqual(["Zebra", "Alpha"]);
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["In Zebra", "In Alpha"]);
+});
