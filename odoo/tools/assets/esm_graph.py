@@ -211,10 +211,12 @@ def discover_transitive_import_specifiers(
     transitively.  The one-level ``_discover_bridge_specifiers`` scan only
     covers the bundle's own modules; this walk covers the out-of-bundle
     closure.  (Canonical failure: ``web.report_assets_common`` ships only
-    ``@web/libs/bootstrap``, which imports ``@web/core/utils/dom/scrolling``,
-    which imports ``@web/core/browser/browser`` — unmapped, so every
-    ``/report/html`` page on the fallback path died pre-boot with "Failed to
-    resolve module specifier".)
+    ``@web/libs/bootstrap``, which then imported
+    ``@web/core/utils/dom/scrolling``, which imports
+    ``@web/core/browser/browser`` — unmapped, so every ``/report/html`` page on
+    the fallback path died pre-boot with "Failed to resolve module specifier".
+    That import has since been dropped; the walk is what keeps the next one
+    from repeating it.)
 
     Relative imports of walked files are followed for scanning (their bare
     imports matter) but never returned — the browser resolves a relative

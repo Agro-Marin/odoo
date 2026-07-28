@@ -17,6 +17,7 @@ themselves when the binary isn't installed (``npm install``).
 
 import json
 import logging
+import posixpath
 import shutil
 import tempfile
 import time
@@ -37,6 +38,7 @@ from odoo.tools.assets.esm_graph import (
     _scan_import_specifiers,
     discover_transitive_import_specifiers,
 )
+from odoo.tools.misc import file_path
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle, _parse_odoo_module_header
 from odoo.addons.base.models.ir_qweb_assets import _EsmFallbackError
@@ -1250,13 +1252,36 @@ class TestTransitiveImportClosure(TransactionCase):
     import map too.  The one-level ``_discover_bridge_specifiers`` scan only
     covers the bundle's own modules; ``discover_transitive_import_specifiers``
     walks the rest.  Regression anchor: ``web.report_assets_common`` ships
-    ONE native module (``@web/libs/bootstrap``) whose chain reaches
+    ONE native module (``@web/libs/bootstrap``); when that module still
+    imported ``@web/core/utils/dom/scrolling`` its chain reached
     ``@web/core/browser/browser`` two hops out of the bundle — unmapped, every
     ``/report/html`` page rendered through the fallback path (readonly test
     cursor, esbuild circuit open, ``?debug=assets``) failed pre-boot with
     ``Failed to resolve module specifier "@web/core/browser/browser"``
     (caught by ``TestStockReportTour.test_stock_route_diagram_report``).
+
+    That import is gone (the Modal scrollbar patch it served was dropped), so
+    the bundle's live chain is now a single hop.  Naming the specifiers of the
+    day is what let this suite rot into a green no-op, hence
+    ``test_report_bundle_debug_importmap_is_transitively_complete`` asserts the
+    invariant over whatever the bundle happens to reach, while
+    ``test_walk_finds_two_hop_specifier`` keeps driving the multi-hop walk from
+    explicit seeds.
     """
+
+    @staticmethod
+    def _read_static_url(url):
+        """Source behind a mapped URL, or None when it is not a plain file.
+
+        Bridge (``/web/assets/esm/bridges/``) and ``data:`` mappings are
+        generated, not served from disk, and carry no imports of their own.
+        """
+        if not url.startswith("/") or "/static/" not in url:
+            return None
+        try:
+            return Path(file_path(url.lstrip("/"))).read_text(encoding="utf-8")
+        except OSError, ValueError:
+            return None
 
     def test_walk_finds_two_hop_specifier(self):
         """The real bootstrap chain yields the two-hop browser specifier."""
@@ -1299,7 +1324,17 @@ class TestTransitiveImportClosure(TransactionCase):
         self.assertNotIn("@web/dynamic_only", specs)
 
     def test_report_bundle_debug_importmap_is_transitively_complete(self):
-        """The report bundle's debug nodes map the whole reachable graph."""
+        """The report bundle's debug nodes map the whole reachable graph.
+
+        Walks the graph the browser will actually walk — from the bundle's own
+        native module, through every mapped URL it reaches — and requires each
+        bare specifier met on the way to be mapped.  Stating it as an invariant
+        rather than a list of names is deliberate: the previous version pinned
+        the specifiers of a chain that later disappeared, so it failed for a
+        reason unrelated to the defect it guarded, and "fixing" it by deleting
+        those names would have left it asserting only specifiers the baseline
+        seeds unconditionally.
+        """
         nodes, _post = self.env["ir.qweb"]._get_native_module_nodes(
             "web.report_assets_common",
             debug="assets",
@@ -1314,11 +1349,44 @@ class TestTransitiveImportClosure(TransactionCase):
         for spec in (
             "@web/libs/bootstrap",
             "@web/../lib/bootstrap/bootstrap.esm.js",
-            "@web/core/utils/dom/scrolling",
-            "@web/core/browser/browser",
             "@popperjs/core",
         ):
             self.assertIn(spec, imports, msg=f"{spec} missing from import map")
+
+        seed = "@web/libs/bootstrap"
+        queue = [(seed, imports.get(seed))]
+        seen_urls = set()
+        unmapped = []
+        while queue:
+            spec, url = queue.pop()
+            if url is None:
+                unmapped.append(spec)
+                continue
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            source = self._read_static_url(url)
+            if source is None:
+                continue
+            for imported in _scan_import_specifiers(source):
+                if imported.startswith("."):
+                    # relative: the browser resolves it against the importing
+                    # module's URL, so it needs no map entry — but its own bare
+                    # imports still do
+                    queue.append(
+                        (
+                            imported,
+                            posixpath.normpath(f"{posixpath.dirname(url)}/{imported}"),
+                        ),
+                    )
+                else:
+                    queue.append((imported, imports.get(imported)))
+        self.assertFalse(
+            unmapped,
+            "Specifiers reachable from the report bundle but absent from its "
+            "debug import map (the browser cannot resolve them):"
+            "\n- " + "\n- ".join(sorted(unmapped)),
+        )
 
 
 @tagged("web_unit", "web_assets")
