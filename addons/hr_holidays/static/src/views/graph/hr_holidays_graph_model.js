@@ -5,10 +5,13 @@ import { sortBy } from "@web/core/utils/collections/arrays";
 
 export class HrHolidaysGraphModel extends GraphModel {
     async load(searchParams) {
-        if (searchParams.groupBy.length != 0 && !searchParams.groupBy.includes('leave_type')){
-            searchParams.groupBy.push('leave_type');
+        // Never push into searchParams.groupBy: it is the SearchModel's own
+        // memoized array, shared with every other reader of this search state.
+        const { groupBy } = searchParams;
+        if (groupBy.length && !groupBy.includes("leave_type")) {
+            return super.load({ ...searchParams, groupBy: [...groupBy, "leave_type"] });
         }
-        await super.load(...arguments);
+        return super.load(searchParams);
     }
 
     _getLineOverlayDataset() {
