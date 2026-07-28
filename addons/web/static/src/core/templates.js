@@ -96,6 +96,58 @@ export class TemplateRegistry {
         this.blockId = 0;
         /** @type {Set<string>} Recursion guard for circular t-inherit chains. */
         this._inheritanceChain = new Set();
+        /**
+         * Reverse dependency edges: template name -> names whose CACHED
+         * compiled result was built from it.
+         *
+         * ``processedTemplates`` is keyed by the template being compiled, but a
+         * compiled result also embeds its whole ``t-inherit`` ancestry and every
+         * extension layered onto it. Invalidating only the name that changed
+         * therefore left every inheritor holding a result built from the old
+         * parent — a child kept rendering V1 after its parent became V2.
+         *
+         * Recorded from the actual resolution in ``_getTemplate`` rather than by
+         * re-parsing declarations, so it captures the transitive chain and the
+         * extension targets without a second source of truth.
+         *
+         * @type {Map<string, Set<string>>}
+         */
+        this._dependents = new Map();
+        /**
+         * Names read by the compilation currently in progress, collected by
+         * ``_getTemplate`` and folded into ``_dependents`` by ``getTemplate``.
+         * @type {Set<string> | null}
+         */
+        this._currentSources = null;
+    }
+
+    /**
+     * Note that the in-progress compilation read ``name``.
+     * @param {string} name
+     */
+    _recordSource(name) {
+        this._currentSources?.add(name);
+    }
+
+    /**
+     * Drop ``name``'s compiled result and, transitively, that of everything
+     * compiled from it.
+     * @param {string} name
+     */
+    _invalidateProcessed(name) {
+        const stale = [name];
+        const seen = new Set(stale);
+        while (stale.length) {
+            const current = /** @type {string} */ (stale.pop());
+            this.processedTemplates.delete(current);
+            for (const dependent of this._dependents.get(current) || []) {
+                if (!seen.has(dependent)) {
+                    seen.add(dependent);
+                    stale.push(dependent);
+                }
+            }
+            this._dependents.delete(current);
+        }
     }
 
     /**
@@ -127,6 +179,7 @@ export class TemplateRegistry {
      * @param {number | null} [blockId]
      */
     _getTemplate(name, blockId = null) {
+        this._recordSource(name);
         if (!(name in this.parsedTemplates)) {
             if (!(name in this.templates)) {
                 return null;
@@ -238,7 +291,25 @@ export class TemplateRegistry {
     getTemplate(name) {
         if (!this.processedTemplates.has(name)) {
             log("compile", name);
-            this.processedTemplates.set(name, this._getTemplate(name));
+            const outerSources = this._currentSources;
+            const sources = new Set();
+            this._currentSources = sources;
+            try {
+                this.processedTemplates.set(name, this._getTemplate(name));
+            } finally {
+                this._currentSources = outerSources;
+            }
+            for (const source of sources) {
+                if (source === name) {
+                    continue;
+                }
+                let dependents = this._dependents.get(source);
+                if (!dependents) {
+                    dependents = new Set();
+                    this._dependents.set(source, dependents);
+                }
+                dependents.add(name);
+            }
             applyContextToTextNode();
         }
         return this.processedTemplates.get(name);
@@ -277,14 +348,14 @@ export class TemplateRegistry {
         }
         this.templates[name] = templateString;
         this.info[name] = { blockId: this.blockId, url };
-        this.processedTemplates.delete(name);
+        this._invalidateProcessed(name);
 
         return () => {
             delete this.templates[name];
             delete this.info[name];
             delete this.parsedTemplates[name];
             delete this.parsedTemplateExtensions[name];
-            this.processedTemplates.delete(name);
+            this._invalidateProcessed(name);
             this.registered.delete(key);
         };
     }
@@ -329,7 +400,7 @@ export class TemplateRegistry {
             url,
         });
         delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
-        this.processedTemplates.delete(inheritFrom);
+        this._invalidateProcessed(inheritFrom);
 
         return () => {
             const index = this.templateExtensions[inheritFrom]?.[blockId]?.findIndex(
@@ -339,7 +410,7 @@ export class TemplateRegistry {
                 this.templateExtensions[inheritFrom][blockId].splice(index, 1);
             }
             delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
-            this.processedTemplates.delete(inheritFrom);
+            this._invalidateProcessed(inheritFrom);
             this.registered.delete(key);
         };
     }
@@ -392,6 +463,7 @@ export class TemplateRegistry {
      */
     clearProcessedTemplates() {
         this.processedTemplates.clear();
+        this._dependents.clear();
     }
 }
 
