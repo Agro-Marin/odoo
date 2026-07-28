@@ -1,4 +1,3 @@
-
 $o-frontend-min-contrast-ratio: 2.9 !default;
 
 $o-webclient-media: screen !default;
@@ -114,9 +113,11 @@ $o-font-family-monospace: o-add-unicode-support-font(
     )
 ) !default;
 
-$o-headings-font-family: o-add-unicode-support-font(
-    ("Inter", "SF Pro Display", $o-system-fonts)
-) !default;
+// Headings share the body stack. The previous value listed "Inter" ahead of
+// "SF Pro Display" but "Inter" already leads `$o-system-fonts` and is a shipped
+// webfont, so it always resolved first and nothing behind it was ever reached -
+// the two extra entries were dead, and one of them was a duplicate.
+$o-headings-font-family: $o-font-family-sans-serif !default;
 
 $o-main-text-color: $o-gray-900 !default;
 $o-main-color-muted: rgba($o-gray-700, $o-opacity-muted) !default;
