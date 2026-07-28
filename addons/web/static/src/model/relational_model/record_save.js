@@ -92,6 +92,93 @@ async function waitForPendingCommands(record) {
 }
 
 /**
+ * Every x2many list ``record`` owns, as ``[fieldName, list]``.
+ *
+ * Read off ``record.data``, NOT ``record._changes``: the save paths used to
+ * walk the change bag, which silently skipped any list the user had not staged
+ * an edit into — and a list seeded by the creation onchange lives in
+ * ``_values`` only, so the one list that most needed re-baselining was the one
+ * never visited.
+ *
+ * @param {RelationalRecord} record
+ * @returns {Generator<[string, any]>}
+ */
+function* x2manyLists(record) {
+    for (const fieldName of Object.keys(record.activeFields)) {
+        const field = record.fields[fieldName];
+        if (!isX2Many(field) || field.relatedPropertyField) {
+            continue;
+        }
+        const list = record.data[fieldName];
+        if (list) {
+            yield [fieldName, list];
+        }
+    }
+}
+
+/**
+ * Minimal read-back specification letting a ``reload: false`` save re-baseline
+ * the x2many lists it just wrote.
+ *
+ * A bare ``{}`` under a field name asks ``web_read`` for that relation's raw id
+ * list (``fields_to_read = list(specification)`` in ``web_read.py``, and an
+ * empty sub-spec leaves the ids untouched) — enough to map the virtual ids of
+ * the rows just created onto their real ones. A nested ``{ fields: ... }`` is
+ * emitted only when a child list ALSO has staged commands, so the payload stays
+ * empty for the overwhelmingly common save that touched no relation at all.
+ *
+ * @param {RelationalRecord} record
+ * @returns {Record<string, any>}
+ */
+function buildX2manyCommitSpec(record) {
+    /** @type {Record<string, any>} */
+    const spec = {};
+    for (const [fieldName, list] of x2manyLists(record)) {
+        const nested = {};
+        for (const child of Object.values(list._cache)) {
+            Object.assign(nested, buildX2manyCommitSpec(child));
+        }
+        const hasNested = Object.keys(nested).length > 0;
+        if (!list._commands.length && !hasNested) {
+            continue;
+        }
+        spec[fieldName] = hasNested ? { fields: nested } : {};
+    }
+    return spec;
+}
+
+/**
+ * Hand every x2many list under ``record`` the server's post-save value so it
+ * can adopt it as its new baseline. Lists the spec did not cover (nothing was
+ * staged on them) only get their pending log cleared, as before.
+ *
+ * Recursion runs AFTER the parent list committed: ``_commitSave`` re-keys a
+ * created row from its virtual id to its real one, which is what makes the
+ * ``list._cache[row.id]`` lookup below resolve.
+ *
+ * @param {RelationalRecord} record
+ * @param {Record<string, any>} [values] server row for ``record``
+ */
+function commitX2manyLists(record, values) {
+    for (const [fieldName, list] of x2manyLists(record)) {
+        const serverValue = values?.[fieldName];
+        if (serverValue === undefined) {
+            list._clearCommands();
+            continue;
+        }
+        list._commitSave(serverValue);
+        for (const row of serverValue) {
+            if (row && typeof row === "object") {
+                const child = list._cache[row.id];
+                if (child) {
+                    commitX2manyLists(child, row);
+                }
+            }
+        }
+    }
+}
+
+/**
  * Persist a record via web_save. Handles creation, sendBeacon for urgent saves,
  * field spec computation, and post-save reload.
  * @param {RelationalRecord} record
@@ -131,11 +218,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             await record.model.load({ resId: nextId });
             return true;
         }
-        for (const fieldName of Object.keys(record.activeFields)) {
-            const field = record.fields[fieldName];
-            if (isX2Many(field) && !field.relatedPropertyField) {
-                record._changes[fieldName]?._clearCommands();
-            }
+        for (const [, list] of x2manyLists(record)) {
+            list._clearCommands();
         }
         record._clearChanges();
         record.data = { ...record._values };
@@ -169,11 +253,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         if (succeeded) {
             record._urgentBeaconFired = true;
             record._values = markRaw({ ...record._values, ...record._changes });
-            for (const fieldName of Object.keys(record.activeFields)) {
-                const field = record.fields[fieldName];
-                if (isX2Many(field) && !field.relatedPropertyField) {
-                    record._changes[fieldName]?._clearCommands();
-                }
+            for (const [, list] of x2manyLists(record)) {
+                list._clearCommands();
             }
             record._clearChanges();
             record.data = { ...record._values };
@@ -226,6 +307,12 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 getBasicEvalContext(record.config),
                 { orderBys },
             );
+        } else {
+            // Not a reload: just enough to re-baseline the relations this save
+            // wrote (see buildX2manyCommitSpec). Empty — hence byte-identical
+            // to the previous payload — for any save that staged no x2many
+            // command, which is the overwhelming majority.
+            fieldSpec = buildX2manyCommitSpec(record);
         }
         const kwargs = {
             context: record.context,
@@ -284,12 +371,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             if ("id" in record.activeFields) {
                 record._values.id = records[0].id;
             }
-            for (const fieldName of Object.keys(record.activeFields)) {
-                const field = record.fields[fieldName];
-                if (isX2Many(field) && !field.relatedPropertyField) {
-                    record._changes[fieldName]?._clearCommands();
-                }
-            }
+            commitX2manyLists(record, records[0]);
             record._clearChanges();
             record.data = { ...record._values };
             record._setEvalContext();

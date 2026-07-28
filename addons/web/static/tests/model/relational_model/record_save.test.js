@@ -346,7 +346,7 @@ describe("urgent save (sendBeacon path)", () => {
         rec.fields = fields;
         rec.activeFields = activeFields;
         rec._values = markRaw({ name: "orig", partner_id: false, line_ids: [] });
-        rec.data = { line_ids: { _abandonRecords() {} } };
+        rec.data = { line_ids: { _abandonRecords() {}, _clearCommands() {} } };
         rec._getChanges = () =>
             computeChangeset({
                 changes: rawChanges,
