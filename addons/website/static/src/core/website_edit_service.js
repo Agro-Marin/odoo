@@ -177,7 +177,7 @@ export const websiteEditService = {
                         return (...args) =>
                             historyCallbacks.ignoreDOMMutations(() => fn(...args));
                     },
-                    addListener(target, event, fn, options) {
+                    addListener(target, event, fn, options, sel) {
                         // `Colibri.refreshNodes` re-registers, for newly matched
                         // nodes, the very handler a previous `addListener` call
                         // returned — Colibri marks it `isHandler` so its own
@@ -194,7 +194,7 @@ export const websiteEditService = {
                         // without calling them. Pass an already-built handler
                         // straight through.
                         if (fn.isHandler) {
-                            return super.addListener(target, event, fn, options);
+                            return super.addListener(target, event, fn, options, sel);
                         }
                         const boundFn = fn.bind(this.interaction);
                         if (event.startsWith("slide.bs.carousel")) {
@@ -226,7 +226,13 @@ export const websiteEditService = {
                             stealthFn = (...args) =>
                                 historyCallbacks.ignoreDOMMutations(() => fn(...args));
                         }
-                        return super.addListener(target, event, stealthFn, options);
+                        return super.addListener(
+                            target,
+                            event,
+                            stealthFn,
+                            options,
+                            sel,
+                        );
                     },
                     applyAttr(...args) {
                         historyCallbacks.ignoreDOMMutations(() =>

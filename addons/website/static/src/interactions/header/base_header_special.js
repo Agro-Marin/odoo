@@ -132,8 +132,12 @@ export class BaseHeaderSpecial extends BaseHeader {
         }
 
         if (!this.cssAffixed && this.dropdownClickedEl) {
-            const dropdown = Dropdown.getOrCreateInstance(this.dropdownClickedEl);
-            dropdown.show();
+            // The toggle is captured on show.bs.dropdown and reopened once the
+            // smooth scroll settles, so the header may have re-rendered it away
+            // in between.
+            if (this.dropdownClickedEl.isConnected) {
+                Dropdown.getOrCreateInstance(this.dropdownClickedEl).show();
+            }
             this.dropdownClickedEl = null;
         }
 

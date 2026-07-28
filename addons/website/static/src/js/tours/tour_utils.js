@@ -178,27 +178,30 @@ export function changeOption(
  *      ...changeOptionInPopover("Text - Image", "Visibility", "Conditionally")
  */
 export function changeOptionInPopover(blockName, optionName, elementName) {
-    const itemSelector = [
-        `.o_popover div.o-dropdown-item:contains("${elementName}")`,
-        `.o_popover span.o-dropdown-item:contains("${elementName}")`,
-        `.o_popover div.o-dropdown-item[title="${elementName}"]`,
-        `.o_popover span.o-dropdown-item[title="${elementName}"]`,
-        // No bare `.o_popover ${elementName}` alternative: elementName is a human
-        // label ("Conditionally", "Buy Now", "Product Yes Variant 2 (Pink)"), and
-        // interpolating a label into selector position can only match by accident
-        // -- it parses as a chain of type selectors, and no element is named after
-        // a UI label. What it does reliably is put arbitrary user text, including
-        // CSS-significant characters, into the selector every caller of this
-        // helper compiles, and it pads failure messages with a selector that was
-        // never going to match.
-    ].join(", ");
+    // `elementName` is either a human label ("Conditionally") or, for options
+    // that expose no readable text, a CSS selector ("[data-action-value='3']").
+    // Only the latter may be interpolated into selector position: a label such
+    // as "Product Yes Variant 2 (Pink)" carries CSS-significant characters and
+    // would compile to a selector that cannot match, so labels are matched by
+    // text/title instead.
+    const isSelector = /^[[.#]/.test(elementName);
+    const itemSelector = isSelector
+        ? `.o_popover ${elementName}`
+        : [
+              `.o_popover div.o-dropdown-item:contains("${elementName}")`,
+              `.o_popover span.o-dropdown-item:contains("${elementName}")`,
+              `.o_popover div.o-dropdown-item[title="${elementName}"]`,
+              `.o_popover span.o-dropdown-item[title="${elementName}"]`,
+          ].join(", ");
     return [
         changeOption(blockName, `[data-label='${optionName}'] .dropdown-toggle`),
         {
             content: `Check if "${elementName}" option is shown. If not, search for it.`,
             trigger: ".o_popover .o-dropdown-item",
             async run(helpers) {
-                if (!helpers.queryFirst(itemSelector)) {
+                // The fallback types the label into the popover's filter box; a
+                // selector is not text a user could type, so it never applies.
+                if (!isSelector && !helpers.queryFirst(itemSelector)) {
                     await helpers.edit(elementName, ".o_popover input");
                 }
             },

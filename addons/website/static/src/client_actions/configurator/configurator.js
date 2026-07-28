@@ -379,7 +379,12 @@ export class DescriptionScreen extends Component {
         // On safari, hide the previously focused out dropdown if focusin is
         // outside of it
         if (isBrowserSafari() && this.safariHackFocusedOutDropdown) {
-            if (ev.target.closest(".dropdown") !== this.safariHackFocusedOutDropdown) {
+            // The dropdown is captured on focusout and only consulted on the
+            // next focusin, by which point a re-render may have replaced it.
+            if (
+                this.safariHackFocusedOutDropdown.isConnected &&
+                ev.target.closest(".dropdown") !== this.safariHackFocusedOutDropdown
+            ) {
                 Dropdown.getOrCreateInstance(this.safariHackFocusedOutDropdown).hide();
             }
             this.safariHackFocusedOutDropdown = null;
