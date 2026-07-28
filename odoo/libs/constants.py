@@ -12,10 +12,12 @@ from types import MappingProxyType
 __all__ = [
     "ANY_UNIQUE",
     "ASSET_EXTENSIONS",
+    "CRON_TRIGGER_CHANNEL",
     "DOTTED_ASSET_EXTENSIONS",
     "EXTENSION_TO_WEB_MIMETYPES",
     "EXTERNAL_ASSET",
     "GC_UNLINK_LIMIT",
+    "JOB_QUEUE_CHANNEL",
     "ODOO_EXTERNAL_LIBS",
     "PREFETCH_MAX",
     "SCRIPT_EXTENSIONS",
@@ -51,6 +53,12 @@ PREFETCH_MAX = 1000
 
 GC_UNLINK_LIMIT = 100_000
 """Maximum number of records to clean in a single transaction."""
+
+CRON_TRIGGER_CHANNEL = "cron_trigger"
+"""PostgreSQL NOTIFY channel waking the ``ir.cron`` workers."""
+
+JOB_QUEUE_CHANNEL = "job_queue"
+"""PostgreSQL NOTIFY channel waking the ``ir.job`` workers."""
 
 ANY_UNIQUE = "_" * 7
 """Sentinel placeholder for unique asset hashes in URLs."""

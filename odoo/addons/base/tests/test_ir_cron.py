@@ -16,6 +16,7 @@ from odoo.tests import common
 from odoo.tests.common import BaseCase, Like, RecordCapturer, TransactionCase, tagged
 from odoo.tools import config, mute_logger
 
+from odoo.addons.base.models import ir_cron
 from odoo.addons.base.models.ir_cron import (
     MAX_FAIL_TIME,
     MIN_DELTA_BEFORE_DEACTIVATION,
@@ -737,6 +738,87 @@ class TestIrCron(TransactionCase, CronMixinCase):
             process_jobs()
             run.assert_called_once()
 
+    def test_cron_pass_stops_on_its_deadline_instead_of_being_killed(self):
+        """The watchdog budget is charged to the whole pass, not to one job.
+
+        A pass runs every ready cron back to back, so bounding only the
+        individual job left the pass unbounded: six ready crons of two seconds
+        each ran 12.1s against a 5s budget, and the prefork master SIGKILLs the
+        worker mid-job -- which charges *that* cron a ``timed_out_counter``, and
+        ``CONSECUTIVE_TIMEOUT_FOR_FAILURE`` of those mark it failed without it
+        ever having run to completion.
+        """
+        with (
+            self.patch_cron_process_jobs_loop() as process_jobs,
+            self.patch_run_job() as run,
+            patch.object(ir_cron, "notify_channel") as notify,
+        ):
+            other = self.cron.create(self._get_cron_data(self.env))
+            job_ids = self.cron.ids + other.ids
+            self.cron._trigger()
+            other._trigger()
+            yielded = process_jobs(job_ids=job_ids, deadline=time.monotonic() - 1)
+        self.assertTrue(yielded, "it reports that ready crons remain")
+        run.assert_not_called()
+        notify.assert_called_once()
+        self.assertEqual(notify.call_args.args[1], self.env.cr.dbname)
+
+    def test_cron_pass_within_its_deadline_runs_every_ready_cron(self):
+        """And hands each of them the *pass* deadline, so a job cannot restart
+        the budget the pass as a whole is measured against.
+        """
+        deadline = time.monotonic() + 300
+        with (
+            self.patch_cron_process_jobs_loop() as process_jobs,
+            self.patch_run_job() as run,
+        ):
+            other = self.cron.create(self._get_cron_data(self.env))
+            self.cron._trigger()
+            other._trigger()
+            yielded = process_jobs(job_ids=self.cron.ids + other.ids, deadline=deadline)
+        self.assertFalse(yielded)
+        self.assertEqual(run.call_count, 2)
+        for call in run.mock_calls:
+            self.assertEqual(call.kwargs["deadline"], deadline)
+
+    def test_deferred_crons_are_reached_by_the_following_passes(self):
+        """A budget that stops a pass must not starve its tail.
+
+        Deferring is only an improvement if the deferred crons actually run
+        next time: ``_get_all_ready_jobs`` orders deterministically, so a
+        deadline that kept re-running the same head would have turned a
+        watchdog kill into permanent starvation instead of fixing it.
+        """
+        with (
+            self.patch_cron_process_jobs_loop() as process_jobs,
+            patch.object(ir_cron, "notify_channel"),
+        ):
+            crons = self.cron
+            for _ in range(3):
+                crons |= self.cron.create(self._get_cron_data(self.env))
+            crons.write({"nextcall": fields.Datetime.now()})
+            self.env.flush_all()
+
+            ran = []
+            with patch.object(self.registry["ir.cron"], "_run_job") as run:
+                run.return_value = CompletionStatus.FULLY_DONE
+                run.side_effect = lambda job, **kw: (
+                    ran.append(job["id"]),
+                    CompletionStatus.FULLY_DONE,
+                )[1]
+                for _pass in range(4):
+                    ready = self.registry["ir.cron"]._get_all_ready_jobs(self.cr)
+                    ready_ids = [job["id"] for job in ready if job["id"] in crons.ids]
+                    if not ready_ids:
+                        break
+                    process_jobs(
+                        job_ids=ready_ids,
+                        deadline=time.monotonic() + (0.05 if _pass else -1),
+                    )
+        self.assertEqual(
+            set(ran), set(crons.ids), "every deferred cron was reached in the end"
+        )
+
     def test_cron_process_jobs_locked(self):
         with (
             self.patch_cron_process_jobs_loop() as process_jobs,
@@ -1256,6 +1338,31 @@ class TestIrCronShouldContinue(BaseCase):
             )
         )
 
+    def test_a_spent_deadline_still_owes_the_job_its_first_pass(self):
+        """The deadline now belongs to the pass, so it can already be spent when
+        a job starts.  Zero passes would still report ``'partially done'`` and
+        reset ``failure_count`` — wiping a failing cron's streak on a pass that
+        never executed it.
+        """
+        self.assertTrue(
+            IrCron._should_continue_run(
+                status=None,
+                loop_count=0,
+                now=100.0,
+                end_time=0.0,
+                hard_deadline=1.0,
+            )
+        )
+        self.assertFalse(
+            IrCron._should_continue_run(
+                status=None,
+                loop_count=1,
+                now=100.0,
+                end_time=0.0,
+                hard_deadline=1.0,
+            )
+        )
+
     def test_hard_deadline_not_reached_keeps_the_previous_rule(self):
         self.assertTrue(
             IrCron._should_continue_run(
@@ -1276,6 +1383,15 @@ class TestIrCronShouldContinue(BaseCase):
             self.assertEqual(IrCron._run_deadline(0.0), 50 * RUN_BUDGET_RATIO)
         with patch.dict(config.options, {"limit_time_real_cron": 0}):
             self.assertIsNone(IrCron._run_deadline(0.0))
+
+    def test_pass_deadline_follows_the_same_limit(self):
+        with (
+            patch.dict(config.options, {"limit_time_real_cron": 100}),
+            patch.object(time, "monotonic", return_value=1000.0),
+        ):
+            self.assertEqual(IrCron._pass_deadline(), 1000.0 + 100 * RUN_BUDGET_RATIO)
+        with patch.dict(config.options, {"limit_time_real_cron": 0}):
+            self.assertIsNone(IrCron._pass_deadline())
 
 
 class TestIrCronUpdateFailureCount(TransactionCase, CronMixinCase):
