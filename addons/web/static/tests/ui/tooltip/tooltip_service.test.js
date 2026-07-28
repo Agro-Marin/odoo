@@ -507,3 +507,57 @@ test("a hold-to-show tooltip is still cancelled by the click that ends the tap",
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 });
+
+// A11Y-BLOCK
+// The service removes the element's `title` while a custom tooltip is up, so
+// the native one does not show alongside it. Without an ARIA association the
+// replacement is an unreferenced <div>, leaving assistive tech with strictly
+// less than it had before the hover.
+test.tags("desktop");
+test("a custom tooltip is exposed to assistive technology", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" title="native help" data-tooltip="custom help">Action</button>`;
+    }
+    await mountWithCleanup(MyComponent);
+    const btn = queryOne(".mybtn");
+
+    await hover(".mybtn");
+    await advanceTime(OPEN_DELAY);
+    expect(".o_popover").toHaveCount(1);
+
+    const tooltip = queryOne(".o-tooltip");
+    expect(tooltip).toHaveAttribute("role", "tooltip");
+    expect(tooltip.id).not.toBe("");
+    expect(btn).toHaveAttribute("aria-describedby", tooltip.id);
+    expect(btn).not.toHaveAttribute("title");
+
+    await leave();
+    await advanceTime(OPEN_DELAY);
+    expect(".o_popover").toHaveCount(0);
+    expect(btn).toHaveAttribute("title", "native help");
+    expect(btn).not.toHaveAttribute("aria-describedby");
+});
+
+test.tags("desktop");
+test("a tooltip keeps a description the element already had", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`
+            <div>
+                <button class="mybtn" aria-describedby="field_help" data-tooltip="custom help">Action</button>
+                <span id="field_help">the field help</span>
+            </div>`;
+    }
+    await mountWithCleanup(MyComponent);
+    const btn = queryOne(".mybtn");
+
+    await hover(".mybtn");
+    await advanceTime(OPEN_DELAY);
+    const tooltip = queryOne(".o-tooltip");
+    expect(btn).toHaveAttribute("aria-describedby", `field_help ${tooltip.id}`);
+
+    await leave();
+    await advanceTime(OPEN_DELAY);
+    expect(btn).toHaveAttribute("aria-describedby", "field_help");
+});
