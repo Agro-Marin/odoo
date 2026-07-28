@@ -46,19 +46,27 @@ function _cartesian(...args) {
  * @returns {(element: T) => any}
  */
 function _getExtractorFrom(criterion) {
-    if (criterion) {
-        switch (typeof criterion) {
-            case "string":
-                return (element) => element[criterion];
-            case "function":
-                return criterion;
-            default:
-                throw new Error(
-                    `Expected criterion of type 'string' or 'function' and got '${typeof criterion}'`,
-                );
-        }
-    } else {
+    // Only the ABSENCE of a criterion means "use the element itself". Guarding
+    // on truthiness instead conflated absence with the falsy values a caller can
+    // actually pass: `""` is a legitimate property name, and `0` is the kind of
+    // mistake the type check below exists to report. Both slipped through to the
+    // identity extractor, so `sortBy(rows, "")` compared the OBJECTS — never
+    // greater nor less, hence a stable no-op that reads as "already sorted" —
+    // and `groupBy(rows, "")` funnelled every row into one "[object Object]"
+    // bucket. Silent in both cases, and `0` never reached the error it was
+    // supposed to raise.
+    if (criterion === undefined || criterion === null) {
         return (element) => element;
+    }
+    switch (typeof criterion) {
+        case "string":
+            return (element) => element[criterion];
+        case "function":
+            return criterion;
+        default:
+            throw new Error(
+                `Expected criterion of type 'string' or 'function' and got '${typeof criterion}'`,
+            );
     }
 }
 
