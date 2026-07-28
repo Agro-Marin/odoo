@@ -18,6 +18,7 @@ import {
     createTextNode,
     getTag,
 } from "@web/core/utils/dom/xml";
+import { exprToBoolean } from "@web/core/utils/format/strings";
 
 import { BUTTON_CLICK_PARAMS } from "./view_buttons.js";
 import { toStringExpression } from "./view_utils.js";
@@ -366,7 +367,15 @@ export class ViewCompiler {
             if (BUTTON_CLICK_PARAMS.includes(name)) {
                 clickParams[name] = value;
             } else if (name === "disabled") {
-                button.setAttribute("disabled", value ? "true" : "false");
+                // `exprToBoolean`, not a bare truthiness test: `value` is the
+                // raw XML attribute STRING, so `disabled="0"` used to compile
+                // to `disabled="true"` — the exact opposite of what it says.
+                // `trueIfEmpty` stays false so `disabled=""` keeps its
+                // historical meaning here (not the HTML boolean-attribute one).
+                button.setAttribute(
+                    "disabled",
+                    exprToBoolean(value) ? "true" : "false",
+                );
             } else if (BUTTON_STRING_PROPS.includes(name)) {
                 button.setAttribute(name, toStringExpression(value));
             } else if (!name.startsWith("t-")) {
@@ -397,6 +406,7 @@ export class ViewCompiler {
 
     /**
      * @param {Element} el
+     * @param {Record<string, any>} params
      * @returns {Element}
      */
     compileField(el, params) {
@@ -405,17 +415,17 @@ export class ViewCompiler {
 
         const field = createElement("Field");
         const recordExpr = params.recordExpr || "__comp__.props.record";
-        field.setAttribute("id", `'${fieldId}'`);
-        field.setAttribute("name", `'${fieldName}'`);
+        field.setAttribute("id", toStringExpression(fieldId));
+        field.setAttribute("name", toStringExpression(fieldName));
         field.setAttribute("record", recordExpr);
         field.setAttribute(
             "fieldInfo",
-            `__comp__.props.archInfo.fieldNodes['${fieldId}']`,
+            `__comp__.props.archInfo.fieldNodes[${toStringExpression(fieldId)}]`,
         );
         field.setAttribute("readonly", `__comp__.props.readonly`);
 
         if (el.hasAttribute("widget")) {
-            field.setAttribute("type", `'${el.getAttribute("widget")}'`);
+            field.setAttribute("type", toStringExpression(el.getAttribute("widget")));
         }
 
         return field;
@@ -453,12 +463,16 @@ export class ViewCompiler {
         const widgetId = el.getAttribute("widget_id");
         const props = { record: "__comp__.props.record" };
         if (el.hasAttribute("name")) {
-            props.name = `'${el.getAttribute("name")}'`;
+            props.name = toStringExpression(el.getAttribute("name"));
         }
         if (el.hasAttribute("class")) {
-            props.className = `'${el.getAttribute("class")}'`;
+            // `class` is free text, unlike `name`/`widget_id`. Interpolating it
+            // raw into a `'...'` literal made OWL fail to TOKENIZE the whole
+            // compiled template (`could not tokenize 'a'b'`) for any class
+            // holding a quote — the view never rendered at all.
+            props.className = toStringExpression(el.getAttribute("class"));
         }
-        props.widgetInfo = `__comp__.props.archInfo.widgetNodes['${widgetId}']`;
+        props.widgetInfo = `__comp__.props.archInfo.widgetNodes[${toStringExpression(widgetId)}]`;
         const widget = createElement("Widget", props);
         return assignOwlDirectives(widget, el);
     }

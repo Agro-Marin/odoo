@@ -98,14 +98,17 @@ export class FormCompiler extends ViewCompiler {
         } else {
             labelText = labelText
                 ? toStringExpression(labelText)
-                : `__comp__.props.record.fields['${fieldName}'].string`;
+                : `__comp__.props.record.fields[${toStringExpression(fieldName)}].string`;
         }
         const formLabel = createElement("FormLabel", {
-            id: `'${fieldId}'`,
-            fieldName: `'${fieldName}'`,
+            id: toStringExpression(fieldId),
+            fieldName: toStringExpression(fieldName),
             record: `__comp__.props.record`,
-            fieldInfo: `__comp__.props.archInfo.fieldNodes['${fieldId}']`,
-            className: `"${label.className}"`,
+            fieldInfo: `__comp__.props.archInfo.fieldNodes[${toStringExpression(fieldId)}]`,
+            // `class` is free text and lands inside a generated JS literal, so
+            // it must be escaped like every other arch string — an unescaped
+            // quote here made OWL fail to tokenize the whole form template.
+            className: toStringExpression(label.className),
             string: labelText,
         });
         const condition = label.getAttribute("t-if");
@@ -397,14 +400,14 @@ export class FormCompiler extends ViewCompiler {
                     );
                     const fieldId =
                         /** @type {Element} */ (slotContent).getAttribute("id") ||
-                        `'${fieldName}'`;
+                        toStringExpression(fieldName);
                     const props = {
                         id: `${fieldId}`,
-                        fieldName: `'${fieldName}'`,
+                        fieldName: toStringExpression(fieldName),
                         record: `__comp__.props.record`,
                         string: child.hasAttribute("string")
                             ? toStringExpression(child.getAttribute("string"))
-                            : `__comp__.props.record.fields.${fieldName}.string`,
+                            : `__comp__.props.record.fields[${toStringExpression(fieldName)}].string`,
                         fieldInfo: `__comp__.props.archInfo.fieldNodes[${fieldId}]`,
                     };
                     mainSlot.setAttribute("props", objectToString(props));
