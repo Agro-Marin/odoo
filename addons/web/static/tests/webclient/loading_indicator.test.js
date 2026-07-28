@@ -9,6 +9,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { config as transitionConfig } from "@web/components/transition";
+import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { LoadingIndicator } from "@web/webclient/loading_indicator/loading_indicator";
 
@@ -145,4 +146,15 @@ test("loading indicator is not displayed immediately", async () => {
     rpcBus.trigger("RPC:RESPONSE", payload(1));
     await animationFrame();
     expect(".o_loading_indicator").toHaveCount(0);
+});
+
+test("the indicator is announced as a polite status", async () => {
+    // Without a live region the only signal that anything is loading is a
+    // visual rectangle, which a screen-reader user never learns about.
+    await mountWithCleanup(LoadingIndicator, { noMainContainer: true });
+    rpcBus.trigger(RpcEvent.REQUEST, { data: { id: 1 }, settings: {} });
+    await advanceTime(400);
+
+    expect(".o_loading_indicator").toHaveAttribute("role", "status");
+    expect(".o_loading_indicator").toHaveAttribute("aria-live", "polite");
 });
