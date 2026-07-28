@@ -70,10 +70,20 @@ class TestScssDesignSystem(TransactionCase):
             raise AssertionError(f"{bundle_name} produced no CSS attachment")
         return base64.b64decode(attachment.datas).decode()
 
-    def _rules(self, selector):
-        """Bodies of every rule whose (possibly grouped) selector list holds `selector`."""
-        pattern = r"(?:^|[}\s;])([^{}@]*" + re.escape(selector) + r"[^{}]*)\{([^}]*)\}"
-        return [body for _, body in re.findall(pattern, self.css, re.MULTILINE)]
+    def _rules(self, selector, css=None):
+        """Bodies of every rule whose (possibly grouped) selector list holds `selector`.
+
+        The leading delimiter is a *lookbehind*: consuming it instead meant the
+        `}` closing one rule was eaten by that rule's own match, so a rule
+        directly abutting it in minified CSS could never start a match. Adjacent
+        rules are the norm once minified, and `.btn-primary,.btn-fill-primary{…}`
+        - the only one carrying the button's colours - sat right behind another.
+        """
+        pattern = (
+            r"(?:^|(?<=[}\s;]))([^{}@]*" + re.escape(selector) + r"[^{}]*)\{([^}]*)\}"
+        )
+        haystack = self.css if css is None else css
+        return [body for _, body in re.findall(pattern, haystack, re.MULTILINE)]
 
     def _rule(self, selector, containing=None):
         """Body of the last matching rule, optionally the last one declaring `containing`."""
@@ -123,6 +133,77 @@ class TestScssDesignSystem(TransactionCase):
             failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
         )
 
+    def test_action_colour_is_readable_as_text(self):
+        """`$o-action` is a fill, but `$link-color` and `.text-action` are text.
+
+        The enterprise palette tunes the accent for fills and shipped it straight
+        into both, so every link in the webclient rendered at 2.43:1 - the same
+        trap `$o-theme-text-colors` exists to avoid for the theme colours, which
+        is why the action colour has a text variant of its own.
+
+        Both surfaces matter: links sit on the view background as well as on the
+        page background behind it.
+        """
+        backgrounds = {"page": self._page_background()}
+        view = re.search(r"--o-view-background-color:\s*([^;}]+)", self.css)
+        if view:
+            backgrounds["view"] = _parse_color(view.group(1))[0]
+        else:
+            backgrounds["view"] = [255, 255, 255]
+
+        link = re.search(r"--link-color:\s*([^;}]+)", self.css)
+        self.assertTrue(link, "--link-color is not defined")
+        candidates = {"--link-color": _parse_color(link.group(1))}
+
+        action = re.search(
+            r"--color:\s*(RGBA?\([^)]*\))",
+            self._rule(".text-action", containing="--color:"),
+            re.IGNORECASE,
+        )
+        self.assertTrue(action, ".text-action has no --color declaration")
+        candidates[".text-action"] = _parse_color(action.group(1))
+
+        failures = []
+        for label, (rgb, alpha) in candidates.items():
+            for surface, background in backgrounds.items():
+                ratio = _contrast_ratio(_composite(rgb, alpha, background), background)
+                if ratio < WCAG_AA_TEXT:
+                    failures.append(f"{label} on {surface}: {ratio:.2f}:1")
+        self.assertFalse(
+            failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
+        )
+
+    def test_filled_button_labels_meet_wcag_aa(self):
+        """A filled button ships its own label, so the pair must be legible.
+
+        `$o-btns-bs-override` hardcodes the label colour rather than deriving it,
+        so a palette is free to pair white text with a fill it does not contrast
+        against - the enterprise brand did, at 3.96:1 on the most-used control in
+        the product. `$o-brand-primary-filled` exists to keep that pair honest
+        while the brand hue itself stays free for surfaces that carry no text.
+        """
+        failures = []
+        for name in ("primary", "secondary"):
+            body = self._rule(f".btn-{name}", containing="--btn-bg")
+            fill = re.search(r"--btn-bg:\s*([^;}]+)", body)
+            label = re.search(r"--btn-color:\s*([^;}]+)", body)
+            self.assertTrue(fill, f".btn-{name} declares no --btn-bg")
+            self.assertTrue(label, f".btn-{name} declares no --btn-color")
+            fill_rgb, fill_alpha = _parse_color(fill.group(1))
+            self.assertEqual(fill_alpha, 1.0, f".btn-{name} fill must be opaque")
+            label_rgb, label_alpha = _parse_color(label.group(1))
+            ratio = _contrast_ratio(
+                _composite(label_rgb, label_alpha, fill_rgb), fill_rgb
+            )
+            if ratio < WCAG_AA_TEXT:
+                failures.append(
+                    f".btn-{name}: {label.group(1).strip()} on "
+                    f"{fill.group(1).strip()} = {ratio:.2f}:1"
+                )
+        self.assertFalse(
+            failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
+        )
+
     def test_text_bg_pairs_meet_wcag_aa(self):
         """`.text-bg-*` ships a foreground and a background together, so the pair
         it ships must be legible on its own.
@@ -158,6 +239,20 @@ class TestScssDesignSystem(TransactionCase):
             failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
         )
 
+    # `o-focus-ring()` emits `var(--o-ring-color, <default>)` so a surface can
+    # retune the ring it hosts; the default is what the group captures.
+    _RING_COLOUR = (
+        r"outline:\s*[\d.]+px\s+solid\s+"
+        r"(?:var\(\s*--o-ring-color\s*,\s*)?(rgba?\([^)]*\)|#[0-9a-fA-F]{3,6})"
+    )
+
+    def _ring_default(self):
+        outline = re.search(
+            self._RING_COLOUR, self._rule("a:focus-visible"), re.IGNORECASE
+        )
+        self.assertTrue(outline, "no focus outline colour found")
+        return _parse_color(outline.group(1))
+
     def test_focus_ring_is_opaque_and_visible(self):
         """The focus outline must clear 3:1 against the page it is drawn on.
 
@@ -165,17 +260,40 @@ class TestScssDesignSystem(TransactionCase):
         threshold, which is what `rgba($o-brand-primary, .5)` used to do.
         """
         background = self._page_background()
-        outline = re.search(
-            r"outline:\s*[\d.]+px\s+solid\s+(rgba?\([^)]*\)|#[0-9a-fA-F]{3,6})",
-            self._rule("a:focus-visible"),
-            re.IGNORECASE,
-        )
-        self.assertTrue(outline, "no focus outline colour found")
-        rgb, alpha = _parse_color(outline.group(1))
+        rgb, alpha = self._ring_default()
         self.assertEqual(alpha, 1.0, "focus ring colour must be opaque")
         ratio = _contrast_ratio(_composite(rgb, alpha, background), background)
         self.assertGreaterEqual(
             ratio, WCAG_NON_TEXT, f"focus ring contrast {ratio:.2f}:1"
+        )
+
+    def test_focus_ring_is_visible_on_the_navbar(self):
+        """SC 1.4.11 measures the ring against its *adjacent* colours.
+
+        `outline-offset` draws the ring clear of the control, on whatever the
+        host surface is - so the page background is not the only backdrop that
+        matters. The navbar is the one webclient surface far from it: on
+        community it is `$o-brand-odoo`, where the default ring scored 1.11:1.
+        It is expected to retune `--o-ring-color`; this checks the value it
+        picks actually clears the threshold against itself.
+        """
+        navbar = self._rule(".o_main_navbar", containing="--o-ring-color")
+        declared = re.search(r"--o-ring-color:\s*([^;}]+)", navbar)
+        self.assertTrue(declared, ".o_main_navbar declares no --o-ring-color")
+        ring, ring_alpha = _parse_color(declared.group(1))
+        self.assertEqual(ring_alpha, 1.0, "navbar ring colour must be opaque")
+
+        surface = re.search(r"background:\s*(#[0-9a-fA-F]{3,6}|rgba?\([^)]*\))", navbar)
+        self.assertTrue(surface, ".o_main_navbar declares no background colour")
+        surface_rgb, surface_alpha = _parse_color(surface.group(1))
+        self.assertEqual(surface_alpha, 1.0, "navbar background must be opaque")
+
+        ratio = _contrast_ratio(ring, surface_rgb)
+        self.assertGreaterEqual(
+            ratio,
+            WCAG_NON_TEXT,
+            f"focus ring {declared.group(1).strip()} on navbar "
+            f"{surface.group(1)}: {ratio:.2f}:1",
         )
 
     def test_no_cascade_layers(self):
@@ -209,6 +327,100 @@ class TestScssDesignSystem(TransactionCase):
                 declared - allowed,
                 f"{bundle}: unrecognised color-scheme {sorted(declared - allowed)}",
             )
+
+    # Stacks reach the browser both as `font-family:` and as the custom
+    # properties backing it (`--font-sans-serif`, `--headings-font-family`, …).
+    _FONT_DECLARATION = re.compile(r"[\w-]*font[\w-]*\s*:\s*([^;{}]+)", re.IGNORECASE)
+    # Every generic family a stack may terminate in.
+    _GENERICS = frozenset(
+        [
+            "serif",
+            "sans-serif",
+            "monospace",
+            "cursive",
+            "fantasy",
+            "system-ui",
+            "ui-serif",
+            "ui-sans-serif",
+            "ui-monospace",
+            "ui-rounded",
+            "math",
+            "emoji",
+            "fangsong",
+        ]
+    )
+
+    def _font_stacks(self, css=None):
+        """Every font declaration naming a generic family, as a family list.
+
+        Containment rather than "ends with": the stacks deliberately trail emoji
+        fonts behind the generic, so keying on the last entry matches nothing.
+        """
+        for match in self._FONT_DECLARATION.finditer(
+            css if css is not None else self.css
+        ):
+            families = [f.strip() for f in match.group(1).split(",")]
+            if len(families) > 1 and self._GENERICS.intersection(
+                f.lower() for f in families
+            ):
+                yield families
+
+    def test_font_stacks_list_no_family_twice(self):
+        """A repeated family is unreachable, and marks a mis-built stack.
+
+        `$o-headings-font-family` read `"Inter", "SF Pro Display", "Inter", …`
+        because it nested `$o-system-fonts` (which already leads with "Inter")
+        inside another list, and the report bundle's sans-serif stack carried
+        the Noto fallback twice - `o-add-unicode-support-font()` inserted it at
+        the requested index *and* again at the generic family.
+        """
+        for bundle in ("web.assets_backend", "web.report_assets_common"):
+            css = self.css if bundle == "web.assets_backend" else self._compiled(bundle)
+            stacks = list(self._font_stacks(css))
+            self.assertTrue(stacks, f"{bundle}: no font stacks found to check")
+            for families in stacks:
+                lowered = [f.lower() for f in families]
+                repeated = {f for f in lowered if lowered.count(f) > 1}
+                self.assertFalse(
+                    repeated,
+                    f"{bundle}: {sorted(repeated)} listed more than once; every "
+                    f"entry between the copies is dead:\n  {', '.join(families)}",
+                )
+
+    def test_only_emoji_fonts_follow_the_generic_family(self):
+        """A generic family always resolves, so a real family behind it is dead.
+
+        Emoji fonts sit there on purpose - they are only ever consulted per
+        glyph - so they are the sole exception.
+        """
+        allowed = re.compile(r"emoji|symbol", re.IGNORECASE)
+        for families in self._font_stacks():
+            first_generic = next(
+                i for i, f in enumerate(families) if f.lower() in self._GENERICS
+            )
+            for family in families[first_generic + 1 :]:
+                self.assertRegex(
+                    family,
+                    allowed,
+                    f"{family!r} sits behind a generic family and is unreachable:"
+                    f"\n  {', '.join(families)}",
+                )
+
+    def test_monospace_stack_is_the_design_system_one(self):
+        """Bootstrap's `$font-family-monospace` must be mapped like the sans one.
+
+        Unmapped, `<code>`/`<pre>`/`--font-monospace` rendered in Bootstrap's
+        default stack while the components reading `$o-font-family-monospace`
+        used a different one - two monospace faces in the same UI.
+        """
+        declared = re.search(r"--font-monospace:\s*([^;}]+)", self.css)
+        self.assertTrue(declared, "--font-monospace is not defined")
+        self.assertIn(
+            "Odoo Unicode Support Noto",
+            declared.group(1),
+            "--font-monospace is not the stack built by "
+            "o-add-unicode-support-font(); it is Bootstrap's default",
+        )
 
     def _keyframes(self):
         """(name, body) for every `@keyframes`, brace-matched so it works minified."""

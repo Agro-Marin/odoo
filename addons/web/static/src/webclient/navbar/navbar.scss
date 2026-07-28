@@ -2,6 +2,10 @@
     @include print-variable(o-navbar-height, $o-navbar-height);
 
     --Dropdown_menu-margin-y: 0;
+    // The navbar is the one webclient surface that is not near the page
+    // background: on community it is `$o-brand-odoo`, against which the default
+    // ring scores 1.11:1. Every focusable in here draws its ring on this colour.
+    --o-ring-color: #{o-ring-color-for($o-navbar-background)};
 
     display: flex;
     height: var(--o-navbar-height);
