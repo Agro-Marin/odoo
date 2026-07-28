@@ -80,12 +80,24 @@ export const dialogService = {
             /** @type {any} */ options = {},
         ) => {
             const id = nextId++;
-            const close = (/** @type {any} */ params) => remove(params);
+            const close = (/** @type {any} */ params) => {
+                subEnv.isClosing = true;
+                return remove(params);
+            };
             const subEnv = reactive(
-                /** @type {{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }} */ ({
+                /** @type {{ id: number, close: Function, isActive: boolean, isClosing: boolean, scrollToOrigin?: () => void }} */ ({
                     id,
                     close,
                     isActive: true,
+                    /**
+                     * A dialog stays mounted until its `onClose` settles — a
+                     * button action that reloads the view behind it keeps it up
+                     * for the whole round trip, on purpose. Without this flag
+                     * the wait was invisible and every further click on ✕ was
+                     * swallowed by the overlay's re-entrancy guard, so the
+                     * dialog just looked stuck.
+                     */
+                    isClosing: false,
                 }),
             );
 
@@ -120,6 +132,7 @@ export const dialogService = {
                             if (idx !== -1) {
                                 stack.splice(idx, 1);
                             }
+                            subEnv.isClosing = false;
                             deactivate();
                             if (stack.length) {
                                 stack.at(-1).isActive = true;
@@ -141,7 +154,21 @@ export const dialogService = {
             }
         }
 
-        return { add, closeAll };
+        return {
+            add,
+            closeAll,
+            /**
+             * Service-teardown hook (see `makeEnv().destroy`). `modal-open` is
+             * set on the shared `document.body`, so a dropped env that still
+             * had a dialog up would leave the page unscrollable for whatever
+             * mounts next.
+             */
+            destroy() {
+                stack.length = 0;
+                scrollOrigin = null;
+                document.body.classList.remove("modal-open");
+            },
+        };
     },
 };
 

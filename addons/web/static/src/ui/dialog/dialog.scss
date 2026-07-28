@@ -74,6 +74,19 @@
     z-index: $zindex-modal-backdrop - 1;
 }
 
+// A dialog whose `onClose` is still running stays mounted on purpose (a button
+// action reloading the view behind it keeps it up until the reload lands). Say
+// so, instead of looking frozen.
+.o_dialog_closing {
+    cursor: progress;
+
+    .modal-content {
+        pointer-events: none;
+        opacity: 0.85;
+        transition: opacity $o-duration-fast linear;
+    }
+}
+
 .o_dialog > .modal {
     display: block;
 }

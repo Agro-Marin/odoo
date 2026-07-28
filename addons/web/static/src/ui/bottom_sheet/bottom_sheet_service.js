@@ -63,7 +63,14 @@ export const bottomSheetService = {
             },
         });
 
-        return { add };
+        return {
+            add,
+            /** Service-teardown hook (see `makeEnv().destroy`). */
+            destroy() {
+                openCount = 0;
+                syncBodyClasses();
+            },
+        };
     },
 };
 

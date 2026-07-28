@@ -18,6 +18,9 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { MainComponentsContainer } from "@web/components/main_components_container";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { Dialog } from "@web/ui/dialog/dialog";
 import { RainbowMan } from "@web/ui/effects/rainbow_man";
 import {
     getDetachedTargetObserverCount,
@@ -44,6 +47,12 @@ defineActions([
 
 class Content extends Component {
     static template = xml`<div class="popover-content"/>`;
+    static props = ["*"];
+}
+
+class DialogContent extends Component {
+    static template = xml`<Dialog title="'t'"><div class="dlg-body"/></Dialog>`;
+    static components = { Dialog };
     static props = ["*"];
 }
 
@@ -273,6 +282,84 @@ test("a message-only rainbowman still closes on any click", async () => {
     queryOne(".o_reward_msg_content").click();
     await animationFrame();
     expect.verifySteps(["closed"]);
+});
+
+// A dialog stays mounted until its onClose settles (a button action reloading
+// the view keeps it up on purpose), but the wait used to be invisible and every
+// further click on the close button was swallowed by the re-entrancy guard.
+test.tags("desktop");
+test("a dialog waiting on a slow onClose says so instead of looking stuck", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    /** @type {(v?: any) => void} */
+    let release = () => {};
+    const slow = new Promise((r) => (release = r));
+    getService("dialog").add(DialogContent, {}, { onClose: () => slow });
+    await animationFrame();
+    expect(".o_dialog").toHaveCount(1);
+    expect(".o_dialog_closing").toHaveCount(0);
+    expect(".o_dialog .btn-close").not.toHaveAttribute("disabled");
+
+    queryOne(".o_dialog .btn-close").click();
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_dialog").toHaveCount(1);
+    expect(".o_dialog_closing").toHaveCount(1);
+    expect(".o_dialog .btn-close").toHaveAttribute("disabled");
+
+    release();
+    await animationFrame();
+    await animationFrame();
+    expect(".o_dialog").toHaveCount(0);
+});
+
+// The footer buttons are declared in ConfirmationDialog's own template; the
+// disabled state that guards against double submits belongs there too, not in
+// a querySelectorAll over the rendered modal.
+test.tags("desktop");
+test("confirmation dialog disables its buttons declaratively", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    /** @type {(v?: any) => void} */
+    let release = () => {};
+    const slow = new Promise((r) => (release = r));
+    getService("dialog").add(ConfirmationDialog, {
+        body: "sure?",
+        confirm: () => slow,
+        cancel: () => {},
+    });
+    await animationFrame();
+    expect(".modal-footer button:not([disabled])").toHaveCount(2);
+
+    queryOne(".modal-footer button:first").click();
+    await animationFrame();
+    expect(".modal-footer button[disabled]").toHaveCount(2);
+
+    release();
+    await animationFrame();
+    await animationFrame();
+    expect(".modal").toHaveCount(0);
+});
+
+test("a popstate that does not move the page leaves popovers open", async () => {
+    await makeMockEnv();
+    class Host extends Component {
+        static props = ["*"];
+        static template = xml`<div class="anchor">a</div>`;
+    }
+    await mountWithCleanup(Host);
+    getService("popover").add(queryOne(".anchor"), Content, {});
+    await animationFrame();
+    expect(".o_popover").toHaveCount(1);
+
+    // What router.pushEphemeral/releaseEphemeral produce: same URL, so the user
+    // never left the page and the popover has no reason to collapse.
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    await animationFrame();
+    expect(".o_popover").toHaveCount(1);
 });
 
 test("unblocking more than blocking does not broadcast a phantom unblock", async () => {
