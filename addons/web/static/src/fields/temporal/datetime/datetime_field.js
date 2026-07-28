@@ -3,14 +3,7 @@
 
 /** @module @web/fields/temporal/datetime/datetime_field - Date and datetime field widget with inline editing and picker integration */
 
-import {
-    Component,
-    onWillRender,
-    onWillUnmount,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillRender, useEffect, useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { ModelEvent } from "@web/core/events";
 import {
@@ -27,6 +20,7 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useBus } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
 import { formatDate, formatDateTime } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -97,14 +91,6 @@ export class DateTimeField extends Component {
     };
 
     static template = "web.DateTimeField";
-
-    /** @type {boolean} last FIELD_IS_DIRTY value emitted on the bus.
-     * MUST start at ``false``: an uninitialized (``undefined``) value makes the
-     * ``isDirty !== this.lastIsDirty`` guard in ``onWillRender`` fire on the
-     * FIRST render of a CLEAN field (``false !== undefined``), broadcasting a
-     * spurious ``FIELD_IS_DIRTY=false`` on the shared last-writer-wins bus and
-     * clobbering the indicator/keyboard-nav state set by a dirty sibling. */
-    lastIsDirty = false;
 
     get endDateField() {
         return this.relatedField ? this.props.endDateField || this.props.name : null;
@@ -266,18 +252,11 @@ export class DateTimeField extends Component {
             ],
         );
 
-        onWillRender(() => {
-            const isDirty = !areDatesEqual(this.getRecordValue(), this.state.value);
-            if (isDirty !== this.lastIsDirty) {
-                this.triggerIsDirty(isDirty);
-            }
-        });
-
-        onWillUnmount(() => {
-            if (this.lastIsDirty) {
-                this.triggerIsDirty(false);
-            }
-        });
+        // `setFieldDirty` is idempotent and self-clearing on destroy, so this
+        // render-time report needs neither a transition guard nor an unmount
+        // hook of its own (see @web/fields/field_dirty_signal).
+        this.setFieldDirty = useFieldDirtySignal();
+        onWillRender(() => this.triggerIsDirty());
 
         this.futureWarningMsg = _t("This date is in the future");
     }
@@ -429,9 +408,9 @@ export class DateTimeField extends Component {
      *  the record value vs. the datetime hook's state.
      */
     triggerIsDirty(isDirty) {
-        isDirty = isDirty ?? !areDatesEqual(this.getRecordValue(), this.state.value);
-        this.lastIsDirty = isDirty;
-        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
+        this.setFieldDirty(
+            isDirty ?? !areDatesEqual(this.getRecordValue(), this.state.value),
+        );
     }
 
     onInput() {
@@ -516,25 +495,33 @@ export const dateField = {
         },
     ],
     supportedTypes: ["date"],
-    extractProps: ({ options, placeholder, type }, dynamicInfo) =>
-        /** @type {any} */ ({
+    extractProps: ({ options, placeholder, type }, dynamicInfo) => {
+        // Every option reaching a typed prop goes through exprToBoolean: an XML
+        // option may be authored as "1"/"True" as readily as a python boolean,
+        // and `numeric` feeds a `{type: Boolean}` prop. Passing the raw value
+        // made OWL's prop validation throw and destroy the whole form — the
+        // datetime descriptor below already normalized it, so the same option
+        // on `date` and on `datetime` behaved differently.
+        const numeric = exprToBoolean(options.numeric ?? false);
+        return /** @type {any} */ ({
             endDateField: options[END_DATE_FIELD_OPTION],
             maxDate: options.max_date,
             minDate: options.min_date,
             alwaysRange: exprToBoolean(options.always_range),
-            placeholder: getFormattedPlaceholder(placeholder, type, {
-                numeric: options.numeric,
-            }),
+            placeholder: getFormattedPlaceholder(placeholder, type, { numeric }),
             required: dynamicInfo.required,
             rounding: options.rounding && Number.parseInt(options.rounding, 10),
             startDateField: options[START_DATE_FIELD_OPTION],
-            numeric: options.numeric,
+            numeric,
             warnFuture: exprToBoolean(options.warn_future),
             minPrecision: options.min_precision,
             maxPrecision: options.max_precision,
-        }),
+        });
+    },
     listViewWidth: ({ options }) =>
-        options.numeric ? FIELD_WIDTHS.numeric_date : FIELD_WIDTHS.date,
+        exprToBoolean(options.numeric ?? false)
+            ? FIELD_WIDTHS.numeric_date
+            : FIELD_WIDTHS.date,
     fieldDependencies: ({ type, attrs, options }) => {
         const deps = [];
         if (options[START_DATE_FIELD_OPTION]) {
@@ -622,7 +609,9 @@ export const dateTimeField = {
         if (!exprToBoolean(options.show_time ?? true)) {
             return dateField.listViewWidth({ options });
         }
-        return options.numeric ? FIELD_WIDTHS.numeric_datetime : FIELD_WIDTHS.datetime;
+        return exprToBoolean(options.numeric ?? false)
+            ? FIELD_WIDTHS.numeric_datetime
+            : FIELD_WIDTHS.datetime;
     },
 };
 

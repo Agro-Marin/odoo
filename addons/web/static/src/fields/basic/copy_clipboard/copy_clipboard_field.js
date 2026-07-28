@@ -9,8 +9,8 @@ import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { omit } from "@web/core/utils/collections/objects";
 import { registerField } from "@web/fields/_registry";
-import { CharField } from "@web/fields/basic/char/char_field";
-import { UrlField } from "@web/fields/basic/url/url_field";
+import { CharField, charField } from "@web/fields/basic/char/char_field";
+import { UrlField, urlField } from "@web/fields/basic/url/url_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class CopyClipboardField extends Component {
@@ -69,6 +69,8 @@ export class CopyClipboardButtonField extends CopyClipboardField {
 
 export class CopyClipboardCharField extends CopyClipboardField {
     static components = { Field: CharField, CopyButton };
+    static props = { ...CopyClipboardField.props, ...CharField.props };
+    static defaultProps = { ...CharField.defaultProps };
 
     /** @returns {string} Font Awesome icon class */
     get copyButtonIcon() {
@@ -78,6 +80,8 @@ export class CopyClipboardCharField extends CopyClipboardField {
 
 export class CopyClipboardURLField extends CopyClipboardField {
     static components = { Field: UrlField, CopyButton };
+    static props = { ...CopyClipboardField.props, ...UrlField.props };
+    static defaultProps = { ...UrlField.defaultProps };
 
     /** @returns {string} Font Awesome icon class */
     get copyButtonIcon() {
@@ -107,20 +111,50 @@ export const copyClipboardButtonField = {
 
 registerField("CopyClipboardButton", copyClipboardButtonField);
 
+/**
+ * Build the descriptor for a copy-to-clipboard wrapper around an existing
+ * field descriptor.
+ *
+ * The wrapper renders the wrapped widget and forwards it ``fieldProps``, so it
+ * has to CARRY that widget's props — and therefore has to run that widget's
+ * own ``extractProps``. Declaring only ``{string, disabledExpr}`` meant every
+ * option and attribute the inner widget understands was silently dropped:
+ * ``<field widget="CopyClipboardChar" placeholder="…"/>`` rendered no
+ * placeholder, and ``password``, ``autocomplete``, the dynamic-placeholder
+ * options (char) and ``website_path``/``text`` (url) were all inert. They are
+ * all optional props, so nothing ever raised.
+ *
+ * ``supportedOptions``/``supportedAttributes`` are inherited for the same
+ * reason: the wrapper accepts exactly what the wrapped widget accepts, and
+ * restating the list would let the two drift.
+ *
+ * @param {import("@odoo/owl").ComponentConstructor} component
+ * @param {Record<string, any>} wrapped the wrapped widget's descriptor
+ * @returns {Record<string, any>}
+ */
+function buildCopyClipboardField(component, wrapped) {
+    return {
+        component,
+        supportedTypes: wrapped.supportedTypes,
+        supportedOptions: wrapped.supportedOptions,
+        supportedAttributes: wrapped.supportedAttributes,
+        extractProps: (fieldInfo, dynamicInfo) => ({
+            ...wrapped.extractProps?.(fieldInfo, dynamicInfo),
+            ...extractProps(fieldInfo),
+        }),
+    };
+}
+
 export const copyClipboardCharField = {
-    component: CopyClipboardCharField,
+    ...buildCopyClipboardField(CopyClipboardCharField, charField),
     displayName: _t("Copy Text to Clipboard"),
-    supportedTypes: ["char"],
-    extractProps,
 };
 
 registerField("CopyClipboardChar", copyClipboardCharField);
 
 export const copyClipboardURLField = {
-    component: CopyClipboardURLField,
+    ...buildCopyClipboardField(CopyClipboardURLField, urlField),
     displayName: _t("Copy URL to Clipboard"),
-    supportedTypes: ["char"],
-    extractProps,
 };
 
 registerField("CopyClipboardURL", copyClipboardURLField);

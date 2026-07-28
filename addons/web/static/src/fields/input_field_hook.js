@@ -7,6 +7,7 @@ import { useComponent, useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { ParseError } from "@web/fields/parse_error";
 
 /**
@@ -20,14 +21,36 @@ import { ParseError } from "@web/fields/parse_error";
  * @param {{ el: HTMLInputElement | HTMLTextAreaElement | null }} [params.ref] a ref containing the input/textarea
  * @param {string} [params.refName="input"] the ref name of the input/textarea
  * @param {boolean} [params.preventLineBreaks] Prevent line breaks in input when set
- * @param {string} [params.fieldName]
+ * @param {string | null} [params.fieldName] the record field this input is bound
+ *   to; defaults to the component's own ``props.name``. Pass an explicit falsy
+ *   value to leave the hook UNBOUND — it then only returns the ref and touches
+ *   neither the record nor the dirty signal.
  * @param {() => boolean} [params.shouldSave] if true, save the record with the new value
+ * @returns {{ el: HTMLInputElement | HTMLTextAreaElement | null }} the input ref
  */
 export function useInputField(params) {
     const inputRef = params.ref || useRef(params.refName || "input");
     const component = useComponent();
-    const fieldName = params.fieldName || component.props.name;
     const shouldSave = params.shouldSave ?? (() => false);
+
+    // A caller that computes its field name may legitimately come up empty:
+    // ProgressBarField binds a second input to its `max_value` field, and that
+    // option is polymorphic — a literal bound (200) names no field at all. The
+    // fallback to `props.name` then silently re-bound that input to the
+    // PROGRESS field, i.e. to the same record field as the first input. It
+    // never misbehaved only because the template also keeps the max input out
+    // of the DOM in that case, so every code path happened to bail on a null
+    // `inputRef.el` first — correct by coincidence, in two files that had to
+    // agree. An unbound hook is now inert by construction.
+    const fieldName = "fieldName" in params ? params.fieldName : component.props.name;
+    if (!fieldName) {
+        return inputRef;
+    }
+    // Reports only THIS input's state; the consumer aggregates across fields.
+    // Emitting a bare boolean here meant an input returning to its original
+    // value announced "nothing is dirty" on behalf of every other field on the
+    // record.
+    const setFieldDirty = useFieldDirtySignal();
 
     let isDirty = false;
 
@@ -49,7 +72,7 @@ export function useInputField(params) {
         if (params.preventLineBreaks && ev.inputType === "insertFromPaste") {
             ev.target.value = ev.target.value.replace(/[\r\n]+/g, " ");
         }
-        component.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
+        setFieldDirty(isDirty);
         if (!component.props.record.isValid) {
             component.props.record.resetFieldValidity(fieldName);
         }
@@ -196,16 +219,14 @@ export function useInputField(params) {
                     );
                 } finally {
                     pendingUpdate = false;
-                    component.props.record.model.bus.trigger(
-                        ModelEvent.FIELD_IS_DIRTY,
+                    setFieldDirty(
                         Boolean(inputRef.el && inputRef.el.value !== lastSetValue),
                     );
                 }
             } else {
                 inputRef.el.value = params.getValue();
                 lastSetValue = inputRef.el.value;
-                component.props.record.model.bus.trigger(
-                    ModelEvent.FIELD_IS_DIRTY,
+                setFieldDirty(
                     Boolean(inputRef.el && inputRef.el.value !== lastSetValue),
                 );
             }

@@ -53,6 +53,11 @@ export const statInfoField = {
     ],
     supportedTypes: ["float", "integer", "monetary", "char", "one2many", "many2one"],
     isEmpty: () => false,
+    // Same-record field named by an option; see progressbar for the rationale.
+    fieldDependencies: ({ options }) =>
+        options.label_field
+            ? [{ name: options.label_field, optional: true, readonly: true }]
+            : [],
     extractProps: ({ attrs, options, string }) => ({
         digits: extractDigits({ attrs, options }),
         labelField: options.label_field,

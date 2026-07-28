@@ -6,6 +6,7 @@
 import { useState } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
+import { applyFieldDirtyPayload } from "@web/fields/field_dirty_signal";
 
 /**
  * Subscribe to the form's "has unsaved edits" signal.
@@ -26,9 +27,14 @@ import { useBus } from "@web/core/utils/hooks";
  * @returns {() => boolean} whether the record has committed or uncommitted edits
  */
 export function useFieldIsDirty(model) {
+    // The set of field owners currently reporting uncommitted input, NOT the
+    // last value seen. The event is shared by every field of the record, so a
+    // single boolean let whichever field spoke last speak for all of them —
+    // see @web/fields/field_dirty_signal.
+    const dirtyOwners = new Set();
     const state = useState({ fieldIsDirty: false });
     useBus(model.bus, ModelEvent.FIELD_IS_DIRTY, (ev) => {
-        state.fieldIsDirty = ev.detail;
+        state.fieldIsDirty = applyFieldDirtyPayload(dirtyOwners, ev.detail).size > 0;
     });
     return () => model.root.dirty || state.fieldIsDirty;
 }

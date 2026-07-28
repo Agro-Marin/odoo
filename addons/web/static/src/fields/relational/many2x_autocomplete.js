@@ -260,6 +260,33 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
+     * The component's single name-search entry point.
+     *
+     * Both places that search this relation go through here, because they are
+     * the same question asked twice: the dropdown and "Search more" differ only
+     * in limit and in how much of each record they need. They used to call
+     * DIFFERENT server methods — ``web_name_search`` for the dropdown,
+     * ``name_search`` for "Search more" — so the two disagreed about the reply
+     * shape (record objects vs ``[id, name]`` pairs) and about which server-side
+     * formatting applied, and a subclass overriding one silently left the other
+     * on the old contract.
+     *
+     * @param {{ name: string, limit: number, domain: any[], context: Object,
+     *           specification?: Object }} params
+     * @returns {Promise<Array<Object>>} records, each carrying at least ``id``
+     */
+    nameSearch({ name, limit, domain, context, specification }) {
+        return this.orm.call(this.props.resModel, "web_name_search", [], {
+            name,
+            operator: "ilike",
+            domain,
+            limit,
+            context,
+            specification: specification ?? this.searchSpecification,
+        });
+    }
+
+    /**
      * @param {string} name - Search text
      * @returns {Promise<Array<Object>>} Matching records from web_name_search
      */
@@ -275,19 +302,12 @@ export class Many2XAutocomplete extends Component {
         ) {
             return [];
         }
-        const records = await this.orm.call(
-            this.props.resModel,
-            "web_name_search",
-            [],
-            {
-                name,
-                operator: "ilike",
-                domain,
-                limit: this.props.searchLimit + 1,
-                context,
-                specification: this.searchSpecification,
-            },
-        );
+        const records = await this.nameSearch({
+            name,
+            limit: this.props.searchLimit + 1,
+            domain,
+            context,
+        });
         if (!records.length) {
             this.lastEmptySearch = {
                 context,
@@ -581,23 +601,27 @@ export class Many2XAutocomplete extends Component {
 
     /** @param {string} request - Search text to pre-filter the SelectCreateDialog */
     async onSearchMore(request) {
-        const { resModel, getDomain, context, fieldString } = this.props;
+        const { getDomain, context, fieldString } = this.props;
 
         const domain = getDomain();
         let dynamicFilters = [];
         if (request.length) {
-            const nameGets = await this.orm.call(resModel, "name_search", [], {
+            // Only the ids matter here — they become an `id in [...]` filter —
+            // so the specification is empty rather than the dropdown's
+            // display_name one: at `searchMoreLimit` (320) records, computing
+            // formatted display names that nothing reads is pure waste.
+            const records = await this.nameSearch({
                 name: request,
-                domain: domain,
-                operator: "ilike",
                 limit: this.props.searchMoreLimit,
+                domain,
                 context,
+                specification: {},
             });
 
             dynamicFilters = [
                 {
                     description: _t("Quick search: %s", request),
-                    domain: [["id", "in", nameGets.map((nameGet) => nameGet[0])]],
+                    domain: [["id", "in", records.map((record) => record.id)]],
                 },
             ];
         }

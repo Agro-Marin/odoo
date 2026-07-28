@@ -64,6 +64,11 @@ export const badgeField = {
             help: _t("Set an integer field to use colors with the badge."),
         },
     ],
+    // Same-record field named by an option; see progressbar for the rationale.
+    fieldDependencies: ({ options }) =>
+        options.color_field
+            ? [{ name: options.color_field, optional: true, readonly: true }]
+            : [],
     extractProps: ({ decorations, options }) => ({
         decorations,
         colorField: options.color_field,

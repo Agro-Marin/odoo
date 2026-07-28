@@ -223,6 +223,12 @@ test("ProgressBarField: Standard readonly mode is readonly", async () => {
 test("ProgressBarField: field is editable in kanban", async () => {
     expect.assertions(7);
     Partner._records[0].int_field = 99;
+    // A distinctive max, so the assertions below prove the bound really comes
+    // from the `max_value` field. `progressbar` now declares that field as a
+    // dependency, so it is loaded even though this arch does not render it;
+    // before, it was absent from the record and the widget silently fell back
+    // to 100 — which this test could not tell apart from a correct read.
+    Partner._records[0].float_field = 250;
 
     onRpc("web_save", ({ args }) => {
         expect(args[1].int_field).toBe(69);
@@ -244,7 +250,7 @@ test("ProgressBarField: field is editable in kanban", async () => {
     expect(".o_progressbar_value .o_input").toHaveValue("99", {
         message: "Initial input value should be correct",
     });
-    expect(".o_progressbar_value span").toHaveText("100", {
+    expect(".o_progressbar_value span").toHaveText("250", {
         message: "Initial max value should be correct",
     });
     expect(".o_progressbar_title").toHaveText("ProgressBarTitle");
@@ -254,7 +260,7 @@ test("ProgressBarField: field is editable in kanban", async () => {
     await animationFrame();
 
     expect(".o_progressbar_value .o_input").toHaveValue("69");
-    expect(".o_progressbar_value span").toHaveText("100", {
+    expect(".o_progressbar_value span").toHaveText("250", {
         message: "Max value is still the same be correct",
     });
     expect(".o_progressbar_title").toHaveText("ProgressBarTitle");
@@ -263,6 +269,7 @@ test("ProgressBarField: field is editable in kanban", async () => {
 test("force readonly in kanban", async (assert) => {
     expect.assertions(2);
     Partner._records[0].int_field = 99;
+    Partner._records[0].float_field = 250; // see the editable-in-kanban test
     onRpc("web_save", () => {
         throw new Error("Not supposed to write");
     });
@@ -279,7 +286,7 @@ test("force readonly in kanban", async (assert) => {
         </kanban>`,
         resId: 1,
     });
-    expect(".o_progressbar").toHaveText("99\n/\n100");
+    expect(".o_progressbar").toHaveText("99\n/\n250");
     expect(".o_progressbar_value .o_input").toHaveCount(0);
 });
 

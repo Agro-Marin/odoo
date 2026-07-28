@@ -10,6 +10,7 @@ import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { useBus } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { formatText } from "@web/fields/formatters";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -28,6 +29,7 @@ export class AceField extends Component {
     setup() {
         this.state = useState({});
         this.isDirty = false;
+        this.setFieldDirty = useFieldDirtySignal();
         useRecordObserver((record) => {
             if (this.editedValue === undefined || !this.isDirty) {
                 /** @type {any} */ (this.state).initialValue = formatText(
@@ -64,7 +66,7 @@ export class AceField extends Component {
         } else {
             this.isDirty = false;
         }
-        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, this.isDirty);
+        this.setFieldDirty(this.isDirty);
         this.editedValue = editedValue;
     }
 
@@ -76,7 +78,7 @@ export class AceField extends Component {
                 });
             }
             this.isDirty = false;
-            this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, false);
+            this.setFieldDirty(false);
         }
     }
 }

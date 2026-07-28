@@ -305,6 +305,28 @@ export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
             }
             addFieldDependencies(activeFields, fields, fieldDependencies);
         }
+
+        // `placeholder_field` is the one field-naming option consumed
+        // GENERICALLY — by `Field.fieldComponentProps` (@web/fields/field), for
+        // any widget that accepts a placeholder — so it needs a generic
+        // declaration too. Widget descriptors declare their own field-naming
+        // options through `fieldDependencies` above; this one has no descriptor
+        // to declare it, and eight widgets advertise it in `supportedOptions`.
+        // Without this it read `undefined` off a record that never loaded it and
+        // silently fell back to the static `placeholder` attribute.
+        if (fieldNode.options?.placeholder_field) {
+            addFieldDependencies(activeFields, fields, [
+                {
+                    name: fieldNode.options.placeholder_field,
+                    type: fields[fieldNode.options.placeholder_field]?.type,
+                    readonly: true,
+                    // The option is authored by hand and may name a field this
+                    // model does not have; skip rather than inject a bogus name
+                    // into the read spec, which the server would reject.
+                    optional: true,
+                },
+            ]);
+        }
     }
 
     for (const widgetInfo of Object.values(widgetNodes || {})) {

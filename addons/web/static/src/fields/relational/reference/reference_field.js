@@ -257,6 +257,11 @@ export const referenceField = {
         },
     ],
     supportedTypes: ["reference", "char"],
+    // Same-record field named by an option; see progressbar for the rationale.
+    fieldDependencies: ({ options }) =>
+        options.model_field
+            ? [{ name: options.model_field, optional: true, readonly: true }]
+            : [],
     extractProps(staticInfo, dynamicInfo) {
         const { options } = staticInfo;
         const props = extractM2OFieldProps(staticInfo, dynamicInfo);
