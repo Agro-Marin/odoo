@@ -9,6 +9,7 @@ import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { actionLog } from "@web/core/utils/asset_log";
+import { omit } from "@web/core/utils/collections/objects";
 import { Deferred, KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { View, ViewNotFoundError } from "@web/views/view";
 
@@ -939,8 +940,14 @@ export class ActionManager {
                 );
             }
             const { actionRequest, options } = actionParams;
+            // ``options.index`` from ``getActionParams`` counts URL actionStack
+            // entries; ``_computeStackIndex`` would read it as a CONTROLLER
+            // stack position. Different coordinate systems — and here the
+            // position is already fixed by the explicit ``newStack`` below, so
+            // the URL one has no meaning left. (``load_state`` consumes and
+            // deletes it for the same reason.)
             return this.doAction(actionRequest, {
-                ...options,
+                ...omit(options, "index"),
                 newStack: this.controllerStack.slice(0, index),
                 isBreadcrumbRestore: true,
             });

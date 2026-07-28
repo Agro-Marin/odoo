@@ -500,10 +500,9 @@ async function testApp() {
         return;
     }
     // Do NOT reset the cursor here: `state` may have been restored from
-    // localStorage after a mid-run page reload, and zeroing it made the bot
-    // re-walk every menu of the current app — inflating `testedMenus` (which is
-    // push-only and never consulted) and with it the run's own summary. The
-    // cursor is reset when we MOVE to a new app, in _clickEverywhere.
+    // localStorage after a mid-run page reload, and zeroing it makes the bot
+    // re-walk every menu of the current app. The cursor is reset when we MOVE
+    // to a new app, in _clickEverywhere.
     let menu = await getNextMenu();
     while (menu) {
         await testMenuItem(menu);

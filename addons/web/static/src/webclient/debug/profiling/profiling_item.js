@@ -14,6 +14,7 @@ export class ProfilingItem extends Component {
     };
     setup() {
         this.profiling = useService("profiling");
+        this.action = useService("action");
         useBus(this.props.bus, "UPDATE", /** @type {any} */ (this.render));
     }
 
@@ -25,13 +26,6 @@ export class ProfilingItem extends Component {
         this.profiling.setParam(param, !value);
     }
     openProfiles() {
-        // eslint-disable-next-line no-restricted-syntax -- action is optional (absent in frontend bundle); useService would throw on setup
-        const action = this.env.services.action;
-        if (action) {
-            action.doAction("base.action_menu_ir_profile");
-        } else {
-            /** @type {any} */ (window).location =
-                "/web/#action=base.action_menu_ir_profile";
-        }
+        this.action.doAction("base.action_menu_ir_profile");
     }
 }
