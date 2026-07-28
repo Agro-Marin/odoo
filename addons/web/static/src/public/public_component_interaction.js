@@ -37,7 +37,9 @@ export class PublicComponentInteraction extends Interaction {
     }
 
     get Component() {
-        const name = this.el.getAttribute("name");
+        // the selector matches on [name], so the attribute is there; `name=""`
+        // still reaches the registry check below and fails it by its name
+        const name = this.el.getAttribute("name") ?? "";
         const components = registry.category("public_components");
         if (!components.contains(name)) {
             // the registry's own message names neither the element nor the

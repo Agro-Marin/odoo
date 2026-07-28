@@ -9,7 +9,10 @@ import {
     makeButtonHandler,
 } from "@web/public/minimal_dom";
 
-let allScriptsLoadedResolve = null;
+// a placeholder the executor below overwrites synchronously, rather than a
+// null every later read has to account for
+/** @type {(value?: any) => void} */
+let allScriptsLoadedResolve = () => {};
 const _allScriptsLoaded = new Promise((resolve) => {
     allScriptsLoadedResolve = resolve;
 }).then(stopWaitingLazy);

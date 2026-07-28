@@ -163,7 +163,12 @@ export class InteractionService {
                 warnIfNoStaticProps: this.env.debug,
                 translatableAttributes: ["data-tooltip"],
             };
-            this.owlApp = new App(null, /** @type {any} */ (appConfig));
+            // no root component on purpose: this App exists only to hand out
+            // roots through createRoot, one per interaction that mounts one
+            this.owlApp = new App(
+                /** @type {any} */ (null),
+                /** @type {any} */ (appConfig),
+            );
         }
         const root = /** @type {any} */ (this.owlApp).createRoot(C, {
             props,

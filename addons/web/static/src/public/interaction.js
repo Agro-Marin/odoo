@@ -495,7 +495,9 @@ export class Interaction {
      * The inserted element will be removed when the interaction is destroyed.
      *
      * @param { string } template
-     * @param { Object } renderContext
+     * @param { Object } [renderContext] a template that reads nothing needs
+     *  none, and two callers already relied on that — the parameter simply
+     *  never said so, which made every one of their calls a type error
      * @param { HTMLElement } [locationEl] the target
      * @param { "afterbegin" | "afterend" | "beforebegin" | "beforeend" } [position]
      * @param { Function } [callback] called with rendered elements before insertion
@@ -504,7 +506,7 @@ export class Interaction {
      */
     renderAt(
         template,
-        renderContext,
+        renderContext = {},
         locationEl,
         position = "beforeend",
         callback,
