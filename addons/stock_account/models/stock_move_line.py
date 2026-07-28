@@ -31,7 +31,10 @@ class StockMoveLine(models.Model):
                 ml: ml.quantity for ml in self if ml.move_id.is_in or ml.move_id.is_out
             }
         res = super().write(vals)
-        if valuation_trigger and qty_by_ml:
+        if valuation_trigger:
+            # Not `and qty_by_ml`: that map is empty precisely when none of these
+            # moves was valued yet, which is the case where the write may be what
+            # starts valuing one (clearing a consignment owner, for instance).
             self._update_stock_move_value(qty_by_ml)
         if analytic_move_to_recompute:
             self.env["stock.move"].browse(
@@ -60,7 +63,27 @@ class StockMoveLine(models.Model):
         if not old_qty_by_ml:
             old_qty_by_ml = {}
 
+        # The caller just changed a field that decides whether -- and in which
+        # direction -- these moves are valued (owner, locations, picked). The stored
+        # flags were derived when the move was done and cannot see that, so record
+        # what they said, then re-derive: read stale, this method would revalue a
+        # move that has stopped being valued, or skip one that has started.
+        done_moves = self.move_id.filtered(lambda move: move.state == "done")
+        classification_before = {
+            move.id: (move.is_in, move.is_out) for move in done_moves
+        }
+        done_moves._recompute_valuation_flags()
+
         for move, mls in self.grouped("move_id").items():
+            if classification_before.get(move.id, (move.is_in, move.is_out)) != (
+                move.is_in,
+                move.is_out,
+            ):
+                # The move changed side (or stopped being valued): its stored value
+                # was computed for the old classification, so scaling it by a
+                # quantity delta would carry that meaning forward. Re-derive it.
+                move_to_update.add(move.id)
+                continue
             if not (move.is_in or move.is_out):
                 continue
             if move.is_in:

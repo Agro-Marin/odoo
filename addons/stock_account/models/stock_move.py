@@ -140,6 +140,19 @@ class StockMove(models.Model):
         for move in self:
             move.is_valued = move.is_in or move.is_out
 
+    def _recompute_valuation_flags(self):
+        """Re-derive `is_in` / `is_out` / `is_dropship` for done moves.
+
+        These are stored so that what a move was at completion stays stable and
+        cheap to search on, and their `depends` deliberately do not track the move
+        line fields that `_is_in()` / `_is_out()` read -- a write to any of those
+        would otherwise re-classify historical moves and silently restate past
+        valuations. Call this from the places that knowingly change such a field on
+        a done move, so the re-classification happens where it is intended.
+        """
+        for field_name in ("is_in", "is_out", "is_dropship"):
+            self.env.add_to_compute(self._fields[field_name], self)
+
     @api.depends("value")
     def _compute_value_manual(self):
         for move in self:
@@ -247,42 +260,55 @@ class StockMove(models.Model):
         return moves
 
     def _create_account_move(self):
-        """Create account move for specific location or analytic."""
-        aml_vals_list = []
-        move_to_link = set()
+        """Create the valuation entries for the moves of `self`.
+
+        One entry is created per (company, accounting partner): the journal is
+        company-dependent and the partner sits on the entry header, so a batch
+        spanning several companies or customers -- an ordinary multi-picking
+        validation -- cannot be expressed as a single entry.
+        """
+        moves_by_entry = defaultdict(lambda: self.env["stock.move"])
         for move in self:
             if move._should_create_account_move():
+                key = (move.company_id, move._get_partner_id_for_valuation_lines())
+                moves_by_entry[key] |= move
+
+        account_moves = self.env["account.move"].sudo()
+        for (company, partner_id), moves in moves_by_entry.items():
+            aml_vals_list = []
+            for move in moves:
                 aml_vals_list += move._get_account_move_line_vals()
-                move_to_link.add(move.id)
-        if not aml_vals_list:
-            return self.env["account.move"]
+            if not aml_vals_list:
+                continue
 
-        move_refs = list(set(self.mapped("reference")))
-        joined_refs = ", ".join(move_refs)
-        if len(joined_refs) > 43:
-            joined_refs = joined_refs[:40] + "..."
+            joined_refs = ", ".join(sorted(set(moves.mapped("reference")) - {False}))
+            if len(joined_refs) > 43:
+                joined_refs = joined_refs[:40] + "..."
 
-        account_move = (
-            self.env["account.move"]
-            .sudo()
-            .create(
-                {
-                    "ref": joined_refs,
-                    "partner_id": self._get_partner_id_for_valuation_lines(),
-                    "journal_id": self.company_id.account_stock_journal_id.id,
-                    "line_ids": [
-                        Command.create(aml_vals) for aml_vals in aml_vals_list
-                    ],
-                    "date": self.env.context.get("force_period_date")
-                    or fields.Date.context_today(self),
-                }
+            account_move = (
+                self.env["account.move"]
+                .sudo()
+                .with_company(company)
+                .create(
+                    {
+                        "ref": joined_refs,
+                        "partner_id": partner_id,
+                        "journal_id": company.account_stock_journal_id.id,
+                        "line_ids": [
+                            Command.create(aml_vals) for aml_vals in aml_vals_list
+                        ],
+                        "date": self.env.context.get("force_period_date")
+                        or fields.Date.context_today(self),
+                    }
+                )
             )
-        )
-        self.env["stock.move"].browse(move_to_link).account_move_id = account_move.id
-        account_move._post()
-        return account_move
+            moves.account_move_id = account_move.id
+            account_move._post()
+            account_moves |= account_move
+        return account_moves
 
     def _get_partner_id_for_valuation_lines(self):
+        self.ensure_one()
         return (
             self.picking_id.partner_id
             and self.env["res.partner"]
@@ -381,8 +407,6 @@ class StockMove(models.Model):
             more accurate value for COGS. In case of in move correction, you have to call _set_value
             without arguments.
         """
-        products_to_recompute = set()
-        lots_to_recompute = set()
         fifo_qty_processed = defaultdict(float)
 
         # Pre-scan manual valuations for the whole batch in one query: manual
@@ -402,6 +426,12 @@ class StockMove(models.Model):
             self = self.with_context(_manual_value_prescan=prescan)
 
         for company, moves in self.grouped("company_id").items():
+            # Reset per company: these drive `_update_standard_price` below, which
+            # writes the company-dependent `standard_price`. Accumulating them across
+            # the loop would recompute (and overwrite) an earlier company's products
+            # under this company's scope.
+            products_to_recompute = set()
+            lots_to_recompute = set()
             extra_value_by_product = defaultdict(float)
             extra_qty_by_product = defaultdict(float)
 

@@ -144,7 +144,7 @@ class ResCompany(models.Model):
             ]
         )
         if at_date:
-            domain = domain & Domain([("date", "<=", at_date)])
+            domain &= Domain([("date", "<=", at_date)])
         amls_group = self.env["account.move.line"]._read_group(
             domain, ["account_id"], ["balance:sum"]
         )
@@ -413,9 +413,7 @@ class ResCompany(models.Model):
         self, debit_acc, credit_acc, balance, ref, product_id=False
     ):
         if balance < 0:
-            temp = credit_acc
-            credit_acc = debit_acc
-            debit_acc = temp
+            credit_acc, debit_acc = debit_acc, credit_acc
             balance = abs(balance)
         return [
             {

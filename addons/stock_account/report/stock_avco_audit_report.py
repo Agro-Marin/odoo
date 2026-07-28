@@ -7,9 +7,21 @@ class StockAverageCostReport(models.AbstractModel):
     _auto = False
     _name = "stock.avco.report"
     _description = "Stock AVCO Justifier"
-    _order = "date desc, id desc"
+    # `id` is negated for product.value rows to stay unique across the UNION, so it
+    # must never be used as a chronological tiebreak -- it would order adjustments
+    # backwards and push all of them ahead of same-instant moves. `res_id` cannot
+    # break ties across the two sources either (independent sequences), hence
+    # `replay_rank`: at an equal timestamp the engine treats a revaluation as
+    # landing after the move (`_run_average_batch` skips moves whose
+    # `date <= product.value.date`), so the audit has to replay them in that order
+    # or it would justify a different figure than the one actually stored.
+    _order = "date desc, replay_rank desc, res_id desc"
+    # Ascending counterpart of `_order`, used to replay the history forwards.
+    _REPLAY_ORDER = "date, replay_rank, res_id"
 
-    date = fields.Date(string="Date", required=True)
+    date = fields.Datetime(string="Date", required=True)
+    replay_rank = fields.Integer(string="Replay Rank", required=True)
+    res_id = fields.Integer(string="Resource ID", required=True)
     user_id = fields.Many2one("res.users", string="User", required=True)
     company_id = fields.Many2one("res.company", string="Company", required=True)
     currency_id = fields.Many2one(
@@ -54,6 +66,8 @@ class StockAverageCostReport(models.AbstractModel):
 CREATE OR REPLACE VIEW stock_avco_report AS (
 SELECT
     sm.id AS id,
+    sm.id AS res_id,
+    0 AS replay_rank,
     sm.product_id,
     sm.date,
     picking.user_id,
@@ -82,14 +96,19 @@ LEFT JOIN
 WHERE
     sm.state = 'done'
     AND (sm.is_in = TRUE OR sm.is_out = TRUE)
-    -- Ignore moves for standard cost method. Only display the list of cost updates
-    AND (
-        (pt.categ_id IS NOT NULL AND pc.property_cost_method ->> company.id::text IN ('fifo', 'average'))
-        OR (pt.categ_id IS NULL OR (pc.property_cost_method IS NULL OR pc.property_cost_method ->> company.id::text IS NULL) AND company.cost_method IN ('fifo', 'average'))
-    )
+    -- Ignore moves valued at standard cost; for those only the cost updates matter.
+    -- The effective method is the category's company-dependent value, falling back to
+    -- the company default. Spelled as COALESCE because the equivalent OR-chain binds
+    -- AND tighter than OR, which silently let every category-less product through.
+    AND COALESCE(
+        pc.property_cost_method ->> company.id::text,
+        company.cost_method
+    ) IN ('fifo', 'average')
 UNION ALL
 SELECT
     -pv.id,
+    pv.id AS res_id,
+    1 AS replay_rank,
     pv.product_id,
     pv.date,
     pv.user_id,
@@ -107,22 +126,36 @@ WHERE
 """
         self.env.cr.execute(query)
 
+    def _search(self, domain, *args, **kwargs):
+        # This model is `_auto = False`, so the ORM's automatic flush -- which
+        # targets the searched model -- flushes nothing at all. The view joins
+        # stock_move, product_value, product_template, product_category,
+        # res_company, stock_picking and uom_uom, and the cost-method filter reads
+        # product_category, so a partial flush still hides rows: an unflushed
+        # `property_cost_method` reads as NULL and silently drops every move for
+        # that category. Flush everything -- this report exists to justify a
+        # valuation, so reading around pending writes defeats its purpose.
+        self.env.flush_all()
+        return super()._search(domain, *args, **kwargs)
+
     def _compute_cumulative_fields(self):
         total_records_grouped = (
             self.env["stock.avco.report"]
             .search(
                 [
-                    ("product_id", "in", self.product_id.mapped("id")),
-                    ("company_id", "in", self.company_id.mapped("id")),
+                    ("product_id", "in", self.product_id.ids),
+                    ("company_id", "in", self.company_id.ids),
                 ]
             )
             .grouped(lambda m: (m.product_id, m.company_id))
         )
-        for records in self.grouped(lambda m: (m.product_id, m.company_id)).values():
-            current_page_records = records.sorted("date, id")
-            total_records = total_records_grouped.get(
-                (records.product_id, records.company_id)
-            ).sorted("date, id")
+        for key, records in self.grouped(
+            lambda m: (m.product_id, m.company_id)
+        ).items():
+            current_page_ids = set(records.ids)
+            total_records = total_records_grouped.get(key, self.browse()).sorted(
+                self._REPLAY_ORDER
+            )
             # Replay the same AVCO recurrence as the live valuation engine
             # (product._run_average_batch) via the shared accumulator, so the audit
             # figures cannot drift from the actual valuation.
@@ -137,7 +170,7 @@ WHERE
                 elif record.res_model_name == "product.value":
                     added_value = avco.set_unit_cost(record.value)
 
-                if record in current_page_records:
+                if record.id in current_page_ids:
                     record.added_value = added_value
                     record.total_value = avco.value
                     record.total_quantity = avco.quantity
@@ -148,5 +181,5 @@ WHERE
         for record in self:
             if record.res_model_name == "stock.move":
                 record.justification = (
-                    self.env["stock.move"].browse(record.id).value_justification
+                    self.env["stock.move"].browse(record.res_id).value_justification
                 )
