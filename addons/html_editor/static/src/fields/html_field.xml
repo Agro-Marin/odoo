@@ -12,7 +12,7 @@
             <t t-if="!this.sandboxedPreview">
                 <Wysiwyg
                     config="this.getConfig()"
-                    onLoad.bind="onEditorLoad"
+                    onAttached.bind="onEditorLoad"
                     contentClass="`note-editable ${this.state.showCodeView ? 'd-none' : ''}`"
                     onBlur.bind="onBlur"
                     t-key="wysiwygKey"/>

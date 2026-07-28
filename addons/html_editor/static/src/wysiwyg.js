@@ -34,13 +34,22 @@ export class Wysiwyg extends Component {
         style: { type: String, optional: true },
         iframe: { type: Boolean, optional: true },
         copyCss: { type: Boolean, optional: true },
+        // Fires when the editor instance is constructed, BEFORE `attachTo`;
+        // callers that intercept attachment rely on that ordering.
         onLoad: { type: Function, optional: true },
+        // Fires once `attachTo` has run. Consumers that keep the instance to
+        // read content off it later must use this one: before attachment the
+        // editor has a null `editable`, and during a keyed remount the
+        // replacement is constructed while the previous editor is still
+        // mounted and still holds the user's uncommitted edits.
+        onAttached: { type: Function, optional: true },
         onBlur: { type: Function, optional: true },
         dynamicPlaceholder: { type: Boolean, optional: true },
     };
 
     static defaultProps = {
         onLoad: () => {},
+        onAttached: () => {},
         onBlur: () => {},
     };
 
@@ -76,6 +85,7 @@ export class Wysiwyg extends Component {
                             }
                         }
                         this.editor.attachTo(el.contentDocument.body);
+                        this.props.onAttached(this.editor);
                     }
                 };
                 if (el.contentDocument.readyState === "complete") {
@@ -94,6 +104,7 @@ export class Wysiwyg extends Component {
                 }
             } else {
                 this.editor.attachTo(el);
+                this.props.onAttached(this.editor);
             }
         });
         onWillDestroy(() => this.editor.destroy(true));
