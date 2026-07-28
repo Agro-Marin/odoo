@@ -44,10 +44,21 @@ export const {
  * stored records, and Odoo's server-side html_sanitize keeps inline styles, so
  * allowing them here lets stored content paint a fixed, viewport-sized overlay.
  * `data-bs-*` is excluded for the same reason - the data-api acts on it.
+ *
+ * `data-tooltip` and `data-tooltip-*` are excluded on that same reason again,
+ * for Odoo's own attribute-driven API rather than Bootstrap's. The tooltip
+ * service delegates from `document.body` in the capture phase and opens on any
+ * `[data-tooltip], [data-tooltip-template]` it sees, and a tip is appended to
+ * body, so surviving attributes are live the moment the visitor hovers the
+ * content. `web.Tooltip` renders `t-call="{{props.template}}"` with
+ * `t-call-context="{ env, ...props.info }"`, so `data-tooltip-template` picks
+ * the template and `data-tooltip-info` supplies its context - both of them
+ * chosen by whoever authored the record. Server-side html_sanitize keeps every
+ * `data-*`, so this list is the only thing standing in the way.
  */
 const bsSanitizeAllowList = Tooltip.Default.allowList;
 
-bsSanitizeAllowList["*"].push("title", /^data-(?!bs-)[\w-]+$/);
+bsSanitizeAllowList["*"].push("title", /^data-(?!bs-|tooltip(?:-|$))[\w-]+$/);
 
 bsSanitizeAllowList.header = [];
 bsSanitizeAllowList.main = [];
