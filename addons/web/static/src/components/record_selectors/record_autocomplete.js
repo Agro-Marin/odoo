@@ -7,6 +7,7 @@ import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
+import { ConnectionAbortedError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 const SEARCH_LIMIT = 7;
@@ -52,11 +53,24 @@ export class RecordAutocomplete extends Component {
     }
 
     async loadOptionsSource(name) {
-        if (this.lastProm) {
-            /** @type {any} */ (this.lastProm).abort(false);
+        // Abort WITH rejection. `abort(false)` leaves the promise pending
+        // forever (see rpc.js), which stranded the superseded `loadSources`
+        // call -- its `Promise.all` never settled, leaking that load and its
+        // pending Deferred for the rest of the session. Rejecting lets the
+        // superseded invocation unwind here; AutoComplete's own `_loadId`
+        // generation guard is what actually discards the stale result.
+        /** @type {any} */ (this.lastProm)?.abort(true);
+        const prom = (this.lastProm = this.search(name, SEARCH_LIMIT + 1));
+        let records;
+        try {
+            records = await prom;
+        } catch (error) {
+            if (error instanceof ConnectionAbortedError) {
+                return [];
+            }
+            throw error;
         }
-        this.lastProm = this.search(name, SEARCH_LIMIT + 1);
-        const nameGets = (await this.lastProm).map(([id, label]) => [
+        const nameGets = records.map(([id, label]) => [
             id,
             label ? label.split("\n")[0] : _t("Unnamed"),
         ]);
