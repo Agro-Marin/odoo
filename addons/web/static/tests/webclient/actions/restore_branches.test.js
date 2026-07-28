@@ -72,22 +72,22 @@ test("restoring a virtual controller re-dispatches its action request", async ()
     expect(calls[0].options.newStack.map((c) => c.jsId)).toEqual(["a"]);
 });
 
-test("a URL-coordinate index from getActionParams is not forwarded to doAction", async () => {
-    // `getActionParams` sets `options.index` while unwinding the URL's
-    // actionStack, so it counts URL entries. `_computeStackIndex` reads
-    // `options.index` as a position in the CONTROLLER stack and would splice
-    // there. `load_state` consumes and deletes it before dispatching; this
-    // branch must not leak it, since the position is already fixed by the
-    // explicit `newStack`.
+test("poppedLeaves from getActionParams is not forwarded to doAction", async () => {
+    // `getActionParams` reports how many URL actionStack entries it had to pop
+    // to resolve a request. Here the position is already fixed by the explicit
+    // `newStack`, so the count has no meaning left and must not ride along.
     const am = makeManager({
-        actionParams: { actionRequest: 7, options: { index: 5, viewType: "form" } },
+        actionParams: {
+            actionRequest: 7,
+            options: { poppedLeaves: 2, viewType: "form" },
+        },
         controllerStack: [virtualController("a"), virtualController("b")],
     });
 
     await am.restore("b");
 
     const { options } = /** @type {any} */ (am).__calls[0];
-    expect("index" in options).toBe(false);
+    expect("poppedLeaves" in options).toBe(false);
     // The rest of the params still comes through untouched.
     expect(options.viewType).toBe("form");
     expect(options.newStack.map((c) => c.jsId)).toEqual(["a"]);

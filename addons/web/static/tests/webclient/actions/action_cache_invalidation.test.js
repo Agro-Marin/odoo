@@ -303,3 +303,56 @@ test("navigation during the refresh abandons the stale breadcrumb write", async 
 
     uninstall();
 });
+
+test.tags("desktop");
+test("act_window write during a URL restore refreshes the MOUNTED stack", async () => {
+    // A restore in flight proposes a stack; it does not install one. The
+    // invalidator therefore still finds the controllers that are actually on
+    // screen, refreshes those, and cannot trip over a virtual placeholder.
+    const blockLeaf = new Deferred();
+    let reads = 0;
+    onRpc("/web/action/load_breadcrumbs", () => {
+        expect.step("/web/action/load_breadcrumbs");
+        return [{ display_name: "First record" }];
+    });
+    onRpc("web_read", async () => {
+        if (reads++) {
+            await blockLeaf;
+        }
+    });
+
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+    await am.doAction(3);
+    await contains(".o_data_cell").click();
+    await animationFrame();
+    const mountedStack = am.controllerStack;
+    expect(mountedStack.at(-1).isMounted).toBe(true);
+    expect.verifySteps([]);
+
+    const restoring = am.loadState({
+        action: 3,
+        resId: 2,
+        actionStack: [
+            { action: 3, displayName: "Partners", view_type: "list" },
+            { action: 3, displayName: "Second record", resId: 2, view_type: "form" },
+        ],
+    });
+    await animationFrame();
+
+    // The proposal is NOT installed: the live stack is still the mounted one.
+    expect(am.controllerStack).toBe(mountedStack);
+    expect(am.controllerStack.some((c) => c.virtual)).toBe(false);
+
+    fireActWindowWrite();
+    await animationFrame();
+    await animationFrame();
+
+    expect.verifySteps(["/web/action/load_breadcrumbs"]);
+    expect(".o_error_dialog").toHaveCount(0);
+
+    blockLeaf.resolve();
+    await restoring;
+    await animationFrame();
+    expect(".o_form_view").toHaveCount(1);
+});

@@ -34,7 +34,17 @@ export function installActionCacheInvalidation(am) {
             am.breadcrumbCache = new BreadcrumbCache();
             const stack = am.controllerStack;
             const tip = stack.at(-1);
-            if (!tip) {
+            // The precondition is "there IS a rendered breadcrumb bar to
+            // refresh", not merely "the stack is non-empty". ``_updateUI``
+            // swaps ``controllerStack`` to a dispatch's ``newStack`` BEFORE
+            // its controller mounts, so during a URL restore the tip is a
+            // virtual controller rebuilt from the URL: no ``config``, nothing
+            // on screen. Whatever that in-flight dispatch commits builds its
+            // breadcrumbs from the cache replaced just above, so refreshing
+            // here would only spend a ``load_breadcrumbs`` round trip on names
+            // that are about to be discarded — and then dereference the
+            // ``config`` the virtual controller never had.
+            if (!tip?.config?.breadcrumbs) {
                 return;
             }
             await refreshBreadcrumbDisplayNames(stack, am.breadcrumbCache);

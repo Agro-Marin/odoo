@@ -54,6 +54,13 @@ export const densityService = {
             density: DENSITIES.includes(userDensity) ? userDensity : "default",
         });
 
+        /** Move both the reactive slot and the two DOM/cookie mirrors together. */
+        function apply(density) {
+            state.density = density;
+            applyDensityClass(density);
+            cookie.set("content_density", density);
+        }
+
         if (cookie.get("content_density") !== state.density) {
             cookie.set("content_density", state.density);
         }
@@ -72,15 +79,29 @@ export const densityService = {
             get current() {
                 return state.density;
             },
-            /** Switch to the given density without page reload. */
+            /**
+             * Switch to the given density without page reload.
+             *
+             * Applied optimistically — the point of the class toggle is that it
+             * is instant — then persisted. A failed persist is undone rather
+             * than reported: the server keeps the old value, so leaving the new
+             * one on screen only defers the snap-back to the next boot, and the
+             * rejection would otherwise escape through the systray toggle's
+             * click handler as an unhandled promise rejection (an error dialog
+             * over a cosmetic preference).
+             */
             async set(density) {
                 if (!DENSITIES.includes(density)) {
                     return;
                 }
-                state.density = density;
-                applyDensityClass(density);
-                cookie.set("content_density", density);
-                await user.setUserSettings("density", density);
+                const previous = state.density;
+                apply(density);
+                try {
+                    await user.setUserSettings("density", density);
+                } catch (error) {
+                    apply(previous);
+                    console.warn("Could not persist the content density", error);
+                }
             },
             /** Cycle: default → compact → condensed → default. */
             async cycle() {

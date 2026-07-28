@@ -73,6 +73,15 @@ export function makeActionState(controllerStack) {
  * storage, and handles recursive actionStack unwinding for invalid states.
  * Pure function — all external dependencies are module-level imports.
  *
+ * When the leaf entry cannot be resolved the tail of ``actionStack`` is popped
+ * and the parse retried; ``options.poppedLeaves`` reports HOW MANY entries were
+ * dropped. It is deliberately a COUNT and not a position: the caller applies it
+ * to the CONTROLLER stack rebuilt by ``controllersFromState``, which is shorter
+ * than ``actionStack`` whenever a record turned out to be deleted or
+ * inaccessible. An absolute index into the URL stack silently means a different
+ * entry once that happens — it kept the resolved action's own controller as its
+ * own breadcrumb parent.
+ *
  * @param {Object} state - the URL state to parse
  * @returns {{ actionRequest: Object, options: Object } | null}
  */
@@ -81,7 +90,7 @@ export function getActionParams(state) {
      * @type {{
      *   additionalContext?: Object,
      *   viewType?: string,
-     *   index?: number,
+     *   poppedLeaves?: number,
      *   props?: { resId?: any, globalState?: any },
      * }}
      */
@@ -133,14 +142,8 @@ export function getActionParams(state) {
                 actionRequest = state.action;
             }
         }
-        if ((state.resId && state.resId !== "new") || state.globalState) {
-            options.props = {};
-            if (state.resId && state.resId !== "new") {
-                options.props.resId = state.resId;
-            }
-            if (state.globalState) {
-                options.props.globalState = state.globalState;
-            }
+        if (state.resId && state.resId !== "new") {
+            options.props = { resId: state.resId };
         }
     } else if (state.model) {
         if (state.resId || state.view_type === "form") {
@@ -168,6 +171,15 @@ export function getActionParams(state) {
             }
         }
     }
+    // One rule for every shape of request the branches above can resolve.
+    // ``globalState`` (the serialized search model) is hidden from the URL but
+    // rides along in the history entry, so Back onto a ``/odoo/m-<model>``
+    // route must restore the user's facets exactly as Back onto an
+    // ``/odoo/action-<id>`` one does; restoring it only in the action branch
+    // silently emptied the search bar for model-based routes.
+    if (actionRequest && state.globalState) {
+        options.props = { ...options.props, globalState: state.globalState };
+    }
     if (!actionRequest) {
         const { actionStack } = state;
         if (actionStack?.length > 1) {
@@ -177,8 +189,8 @@ export function getActionParams(state) {
             if (!params) {
                 return null;
             }
-            if (params.options && params.options.index === undefined) {
-                params.options.index = nextState.actionStack.length - 1;
+            if (params.options) {
+                params.options.poppedLeaves = (params.options.poppedLeaves || 0) + 1;
             }
             return params;
         }
