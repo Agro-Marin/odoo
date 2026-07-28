@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { LivechatChannel } from "@im_livechat/core/common/livechat_channel_model";
-import { useSequential } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 
-const sequential = useSequential();
+const sequential = makeSequential();
 
 const livechatChannelPatch = {
     async join({ notify = true } = {}) {
