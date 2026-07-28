@@ -1,7 +1,7 @@
 import base64
+import errno
 import os
 import pathlib
-import shutil
 import tempfile
 import textwrap
 import time
@@ -25,6 +25,7 @@ from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     JavascriptAsset,
     XMLAssetError,
+    _check_rtlcss,
 )
 from odoo.addons.base.models.ir_asset_paths import AssetPaths, _glob_static_file
 from odoo.addons.base.models.ir_attachment import IrAttachment
@@ -731,8 +732,65 @@ class TestJavascriptAssetsBundle(FileTouchable):
             find.assert_called_once_with("rtlcss.cmd")
 
         assetsbundle.css_pipeline._rtlcss_bin.cache_clear()
-        with patch.object(assetsbundle.css_pipeline.os, "name", "posix"):
-            self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), "rtlcss")
+        with (
+            patch.object(assetsbundle.css_pipeline.os, "name", "posix"),
+            patch.object(
+                assetsbundle.css_pipeline.misc,
+                "find_in_path",
+                return_value="/usr/bin/rtlcss",
+            ),
+        ):
+            self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), "/usr/bin/rtlcss")
+
+    def test_rtlcss_binary_falls_back_to_node_modules(self):
+        """A binary only in ``node_modules/.bin`` is found, as for sass/esbuild.
+
+        Regression: ``_rtlcss_bin`` returned the bare name on POSIX, so an
+        npm-provisioned checkout — which is how this fork documents installing
+        the pipeline's Node tooling — never resolved its own
+        ``node_modules/.bin/rtlcss``. RTL bundles silently shipped LTR CSS and
+        the ``skipUnless(_check_rtlcss())`` RTL suites reported success without
+        running.
+        """
+        from odoo.addons.base.models import assetsbundle
+
+        self.addCleanup(assetsbundle.css_pipeline._rtlcss_bin.cache_clear)
+        assetsbundle.css_pipeline._rtlcss_bin.cache_clear()
+
+        node_bin = str(
+            pathlib.Path(odoo.__path__[0]).parent / "node_modules" / ".bin" / "rtlcss"
+        )
+        with (
+            patch.object(assetsbundle.css_pipeline.os, "name", "posix"),
+            patch.object(
+                assetsbundle.css_pipeline.misc,
+                "find_in_path",
+                side_effect=OSError(errno.ENOENT, "not found"),
+            ),
+            patch.object(
+                assetsbundle.css_pipeline.shutil, "which", return_value=node_bin
+            ) as which,
+        ):
+            self.assertEqual(assetsbundle.css_pipeline._rtlcss_bin(), node_bin)
+        self.assertEqual(which.call_args.args, ("rtlcss",))
+        self.assertTrue(which.call_args.kwargs["path"].endswith("node_modules/.bin"))
+
+    def test_rtlcss_is_resolvable_in_this_checkout(self):
+        """rtlcss resolves to a real executable here, so RTL is not degraded.
+
+        Guards the reason the fallback exists: ``package.json`` declares
+        ``rtlcss``, so a checkout that ran ``npm install`` must be able to run
+        it. Without this, the only signal that RTL support vanished is one
+        WARNING line plus a suite of silently-skipped tests.
+        """
+        from odoo.addons.base.models import assetsbundle
+
+        binary = assetsbundle.css_pipeline._rtlcss_bin()
+        self.assertTrue(
+            pathlib.Path(binary).is_absolute() and pathlib.Path(binary).exists(),
+            f"rtlcss did not resolve to an executable ({binary!r}); RTL "
+            f"stylesheets would silently be served as LTR",
+        )
 
     def test_js_header_line_count(self):
         """The verbose JS header emits exactly ``_HEADER_LINE_COUNT`` lines
@@ -887,7 +945,10 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.assertEqual(len(self._any_ira_for_bundle("min.css", rtl=True)), 1)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
 
-    @unittest.skipUnless(shutil.which("rtlcss"), "rtlcss not installed")
+    # Guarded on the pipeline's own resolver, not a bare PATH probe: with the
+    # two disagreeing, this skipped on an npm-provisioned checkout that could
+    # run rtlcss perfectly well.
+    @unittest.skipUnless(_check_rtlcss(), "rtlcss binary not available")
     def test_15_rtl_invalid_css_generation(self):
         """Checks that erroneous css cannot be compiled by rtlcss and that errors are registered"""
         self.bundle = self._get_asset("test_assetsbundle.broken_css", rtl=True)

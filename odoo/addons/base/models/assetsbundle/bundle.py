@@ -170,8 +170,17 @@ class AssetsBundle:
         (``…/x.css?v=2``) yielded the extension ``"css?v=2"``, matched nothing,
         and was dropped from the bundle with only a ``bundle_file_skipped``
         warning to show for it.
+
+        Case-folded for the same reason: every table it is looked up in
+        (:attr:`_STYLESHEET_TYPES`, ``STYLE_EXTENSIONS``, …) is lowercase, so a
+        member shipped as ``Widget.CSS`` took that same silent-drop path. Such
+        a member does arrive in practice — an explicit ``ir.asset`` path
+        resolving to an attachment URL reaches here verbatim. It does NOT
+        arrive through a manifest glob: ``ir_asset_paths._glob_static_file``
+        applies its own case-sensitive ``ASSET_EXTENSIONS`` test and discards
+        it first, so that half of the gap is still open upstream.
         """
-        return url.partition("#")[0].partition("?")[0].rpartition(".")[2]
+        return url.partition("#")[0].partition("?")[0].rpartition(".")[2].lower()
 
     @staticmethod
     def _addon_relative_path_exists(rel: str) -> bool:
