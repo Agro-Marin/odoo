@@ -18,8 +18,8 @@ const systrayRegistry = registry.category("systray");
  * debug-only and the systray indicator just appears a moment after boot.
  */
 export const profilingService = {
-    dependencies: ["orm", "lazy_session"],
-    start(env, { orm, lazy_session }) {
+    dependencies: ["action", "orm", "lazy_session"],
+    start(env, { action, orm, lazy_session }) {
         if (!env.debug) {
             return;
         }
@@ -99,7 +99,7 @@ export const profilingService = {
             );
             const resp = await orm.call("ir.profile", "set_profiling", [], kwargs);
             if (resp.type) {
-                Promise.resolve(env.services.action.doAction(resp)).catch(console.warn);
+                Promise.resolve(action.doAction(resp)).catch(console.warn);
             } else {
                 state.session = resp.session;
                 state.collectors = resp.collectors;
