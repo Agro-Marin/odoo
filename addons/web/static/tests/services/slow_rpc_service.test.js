@@ -1,13 +1,14 @@
 // @ts-check
 
-import { advanceTime, describe, expect, test } from "@odoo/hoot";
+import { advanceTime, animationFrame, describe, expect, test } from "@odoo/hoot";
 import {
     getService,
     makeMockEnv,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { RpcEvent } from "@web/core/events";
-import { rpcBus } from "@web/core/network/rpc";
+import { rpc, rpcBus } from "@web/core/network/rpc";
 import { SLOW_RPC_CONFIG } from "@web/services/slow_rpc_service";
 
 describe.current.tags("headless");
@@ -166,4 +167,25 @@ test("response without matching request is a no-op", async () => {
     await advanceTime(200);
 
     expect.verifySteps([]);
+});
+
+test("a real aborted RPC clears its sticky toast", async () => {
+    // The tests above drive the service with hand-built bus events, so none of
+    // them proves rpc.js actually emits a RESPONSE on every terminal path. An
+    // abort that emitted only REQUEST would strand `slowCount` above zero and
+    // pin the sticky toast for the rest of the session, with no later response
+    // able to clear it.
+    patchWithCleanup(SLOW_RPC_CONFIG, { thresholdMs: 100 });
+    await makeMockEnv();
+    patchNotification();
+    onRpc("/hang", () => new Promise(() => {}));
+
+    const prom = rpc("/hang", {});
+    prom.catch(() => {});
+    await advanceTime(150);
+    expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
+
+    prom.abort();
+    await animationFrame();
+    expect.verifySteps(["close:This is taking longer than usual…"]);
 });
