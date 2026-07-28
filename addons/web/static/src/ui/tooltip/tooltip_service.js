@@ -70,7 +70,42 @@ export const tooltipService = {
          * @type {string | null}
          */
         let suppressedTitle = null;
+        /**
+         * The `aria-describedby` the target carried before the open tooltip
+         * appended itself to it, or `null` when we have not touched it. The
+         * tooltip is *appended* rather than substituted so an element that
+         * already documents itself (a field with its help text) keeps that
+         * description while the hover help is up.
+         * @type {string | null}
+         */
+        let previousDescribedBy = null;
+        let isDescribing = false;
+        let nextTooltipId = 1;
         const elementsWithTooltips = new WeakMap();
+
+        /** Point the target at the tooltip for assistive technology. */
+        function describeTarget(/** @type {string} */ tooltipId) {
+            previousDescribedBy = target.getAttribute("aria-describedby");
+            isDescribing = true;
+            target.setAttribute(
+                "aria-describedby",
+                previousDescribedBy ? `${previousDescribedBy} ${tooltipId}` : tooltipId,
+            );
+        }
+
+        /** Undo `describeTarget`, leaving any pre-existing description in place. */
+        function undescribeTarget() {
+            if (!isDescribing) {
+                return;
+            }
+            if (previousDescribedBy === null) {
+                target.removeAttribute("aria-describedby");
+            } else {
+                target.setAttribute("aria-describedby", previousDescribedBy);
+            }
+            previousDescribedBy = null;
+            isDescribing = false;
+        }
 
         /**
          * Detect if the current node is the `sup` tooltip node
@@ -89,8 +124,11 @@ export const tooltipService = {
          * Closes the currently opened tooltip if any, or prevent it from opening.
          */
         function cleanup() {
-            if (target && suppressedTitle !== null) {
-                target.setAttribute("title", suppressedTitle);
+            if (target) {
+                if (suppressedTitle !== null) {
+                    target.setAttribute("title", suppressedTitle);
+                }
+                undescribeTarget();
             }
             suppressedTitle = null;
             target = null;
@@ -172,10 +210,12 @@ export const tooltipService = {
             const timeoutDelay = isHelpNode(el) ? 0 : delay;
             openTooltipTimeout = browser.setTimeout(() => {
                 if (target.isConnected) {
+                    const tooltipId = `o_tooltip_${nextTooltipId++}`;
+                    describeTarget(tooltipId);
                     closeTooltip = popover.add(
                         target,
                         Tooltip,
-                        { tooltip, template, info },
+                        { tooltip, template, info, id: tooltipId },
                         {
                             position,
                             onClose: () => {
