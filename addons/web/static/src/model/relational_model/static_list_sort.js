@@ -32,10 +32,17 @@ export async function sort(list, currentIds = list.currentIds, orderBy = list.or
             list._createRecordDatapoint(record, { activeFields });
         }
     }
-    const allRecords = currentIds.map((id) => list._cache[id]);
-    const sortedRecords = allRecords.sort((r1, r2) =>
-        compareRecords(r1, r2, orderBy, list.fields),
-    );
+    // ``_loadRecords`` only throws when NO row comes back; a partial response —
+    // a row unlinked server-side between this request and its load — simply
+    // returns fewer. Mapping every requested id through ``_cache`` then left
+    // ``undefined`` holes, and ``Array.sort`` moves those to the end WITHOUT
+    // calling the comparator, so the crash landed on the ``r.resId`` below
+    // rather than anywhere near the load. Drop the vanished ids instead, same
+    // guard as ``_load`` and ``_replaceWith`` (the other two loaders).
+    const presentIds = currentIds.filter((id) => list._cache[id]);
+    const sortedRecords = presentIds
+        .map((id) => list._cache[id])
+        .sort((r1, r2) => compareRecords(r1, r2, orderBy, list.fields));
     await list._load({
         orderBy,
         nextCurrentIds: sortedRecords.map((r) => r.resId || r._virtualId),
