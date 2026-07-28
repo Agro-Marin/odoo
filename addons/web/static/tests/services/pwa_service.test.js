@@ -115,3 +115,61 @@ test("PWA service boots despite a corrupted installationState in localStorage", 
     expect(typeof pwaService.getManifest).toBe("function");
     expect(pwaService.isAvailable).toBe(false);
 });
+
+test("a native prompt is consumed once, so a second show() cannot reject", async () => {
+    let prompts = 0;
+    const beforeInstallPromptEvent = new CustomEvent("beforeinstallprompt");
+    beforeInstallPromptEvent.preventDefault = () => {};
+    beforeInstallPromptEvent.prompt = async () => {
+        // A BeforeInstallPromptEvent may be prompted ONCE; the real one rejects
+        // with InvalidStateError afterwards, which surfaced as an error dialog.
+        if (++prompts > 1) {
+            throw new DOMException("already prompted", "InvalidStateError");
+        }
+        return { outcome: "accepted" };
+    };
+    browser.BeforeInstallPromptEvent = beforeInstallPromptEvent;
+    await makeMockEnv();
+    const pwaService = await getService("pwa");
+    browser.dispatchEvent(beforeInstallPromptEvent);
+
+    await pwaService.show();
+    await pwaService.show();
+    expect(prompts).toBe(1);
+});
+
+test("concurrent getManifest() callers share a single fetch", async () => {
+    await makeMockEnv();
+    mountManifestLink("/web/manifest.webmanifest");
+    let fetches = 0;
+    onRpc("/*", () => {
+        fetches++;
+        return { name: "Odoo PWA" };
+    });
+    const pwaService = await getService("pwa");
+    const [a, b, c] = await Promise.all([
+        pwaService.getManifest(),
+        pwaService.getManifest(),
+        pwaService.getManifest(),
+    ]);
+    expect(fetches).toBe(1);
+    expect(a).toEqual({ name: "Odoo PWA" });
+    expect(b).toEqual(a);
+    expect(c).toEqual(a);
+});
+
+test("a failed manifest fetch is retried rather than memoised forever", async () => {
+    await makeMockEnv();
+    mountManifestLink("/web/manifest.webmanifest");
+    let attempts = 0;
+    onRpc("/*", () => {
+        if (++attempts === 1) {
+            throw new Error("offline");
+        }
+        return { name: "Odoo PWA" };
+    });
+    const pwaService = await getService("pwa");
+    await expect(pwaService.getManifest()).rejects.toThrow();
+    expect(await pwaService.getManifest()).toEqual({ name: "Odoo PWA" });
+    expect(attempts).toBe(2);
+});

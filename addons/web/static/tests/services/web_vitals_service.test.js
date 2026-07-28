@@ -213,3 +213,13 @@ test("destroy detaches the observers and the page listeners", async () => {
     browser.dispatchEvent(new Event("pagehide"));
     expect(beacons.length).toBe(before);
 });
+
+test("a page with no layout shift still reports cls, rather than omitting it", async () => {
+    // A buffered PerformanceObserver never invokes its callback when no entry
+    // matches, so `cls` used to be absent here — indistinguishable downstream
+    // from "CLS was not measured", which is the confusion the unconditional
+    // assignment inside the callback exists to prevent.
+    observerFor("paint").emit([{ name: "first-contentful-paint", startTime: 12 }]);
+    const payload = await flush();
+    expect(payload.cls).toBeCloseTo(0, { margin: TOL });
+});
