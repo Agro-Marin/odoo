@@ -1,7 +1,6 @@
 import functools
 import hashlib
 import logging
-import re
 from collections.abc import Callable, Collection, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
@@ -45,7 +44,6 @@ from .common import (
     XMLBlock,
     _bundle_log,
     _pipeline_fingerprint,
-    _rewrite_css_outside_strings,
     _sourcemap_source_root,
 )
 from .css_pipeline import CssPipeline
@@ -68,8 +66,6 @@ def _check_external_libs_once() -> None:
 
 class AssetsBundle:
     """Compile, version and persist the JS/CSS/XML assets of one named bundle."""
-
-    rx_css_import = re.compile(r"(@import[^;{]+;?)")
 
     _STYLESHEET_TYPES = MappingProxyType(
         {
@@ -705,13 +701,7 @@ class AssetsBundle:
             banner = self._render_css_error_banner(self.css_errors, previous_css)
             return self.save_attachment(extension, banner)
 
-        import_rules: list[str] = []
-
-        def _hoist_import(match: re.Match) -> str:
-            import_rules.append(match.group(0))
-            return ""
-
-        css = _rewrite_css_outside_strings(self.rx_css_import, _hoist_import, css)
+        import_rules, css = self._css.hoist_import_rules(css)
 
         if is_minified:
             return self.save_attachment(extension, "\n".join(import_rules + [css]))

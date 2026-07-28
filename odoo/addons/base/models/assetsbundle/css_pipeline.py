@@ -111,6 +111,14 @@ class CssPipeline:
         r"""@import\s*['"](?P<ref>[^'"]+)['"](?P<tail>[^;{]*;?)"""
     )
     rx_css_split = re.compile(r"/\*! odoo-split:([a-f0-9-]+) \*/")
+    rx_css_import = re.compile(r"(@import[^;{]+;?)")
+    """One ``@import`` rule in *compiled* CSS, for hoisting or commenting out.
+
+    Lives here rather than on :class:`AssetsBundle` with the two passes that
+    read it: hoisting is a CSS-spec obligation (``@import`` must precede every
+    rule), not bundle orchestration, and the bundle held the pattern only so
+    :meth:`sourcemap_bundle` could reach back through ``self._bundle`` for it.
+    """
 
     _RTLCSS_TIMEOUT_S: int = 60
 
@@ -223,7 +231,7 @@ class CssPipeline:
                 if asset.url:
                     generator.add_source(asset.url, content, content_line_count)
                 content = _rewrite_css_outside_strings(
-                    self._bundle.rx_css_import,
+                    self.rx_css_import,
                     lambda matchobj: f"/* {matchobj.group(0)} */",
                     content,
                 )
@@ -233,6 +241,29 @@ class CssPipeline:
             "\n".join(content_bundle_list)
             + f"\n/*# sourceMappingURL={sourcemap_url} */"
         )
+
+    def hoist_import_rules(self, css: str) -> tuple[list[str], str]:
+        """Lift every ``@import`` out of *css*, returning ``(rules, remainder)``.
+
+        CSS requires ``@import`` to precede any rule, but concatenating a
+        bundle's stylesheets buries each file's imports wherever that file
+        landed; the caller re-emits *rules* at the top of the artifact.
+        String- and comment-aware, so an ``@import`` written inside a
+        ``content: "…"`` value stays where it is.
+
+        Returns the rules as a *list* rather than a joined block so the caller
+        can splice them into its own newline join: joining here and then
+        concatenating would put a leading newline in front of every bundle
+        that has no imports at all, which is most of them.
+        """
+        import_rules: list[str] = []
+
+        def _hoist(match: re.Match) -> str:
+            import_rules.append(match.group(0))
+            return ""
+
+        remainder = _rewrite_css_outside_strings(self.rx_css_import, _hoist, css)
+        return import_rules, remainder
 
     def compile_css(self, compiler: Callable[[str], str], source: str) -> str:
         """Sanitize @import rules, remove duplicates, then compile.
