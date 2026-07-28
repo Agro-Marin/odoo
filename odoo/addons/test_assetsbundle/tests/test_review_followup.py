@@ -463,14 +463,14 @@ class TestAutoprefixImportStringBoundary(BaseCase):
 
     def test_import_hoist_matches_real_rule(self):
         self.assertEqual(
-            AssetsBundle.rx_css_import.findall('@import "a.css";\nbody{}'),
+            CssPipeline.rx_css_import.findall('@import "a.css";\nbody{}'),
             ['@import "a.css";'],
         )
 
     def test_import_hoist_skips_string_literal(self):
         """An ``@import`` written inside a string literal is no longer hoisted
-        or commented out — the call sites apply rx_css_import through the
-        scanner, which skips matches starting inside a string."""
+        or commented out — the hoist runs through the scanner, which skips
+        matches starting inside a string."""
         collected = []
 
         def take(match):
@@ -478,10 +478,20 @@ class TestAutoprefixImportStringBoundary(BaseCase):
             return ""
 
         out = _rewrite_css_outside_strings(
-            AssetsBundle.rx_css_import, take, '.x{content:"@import url(evil);"}'
+            CssPipeline.rx_css_import, take, '.x{content:"@import url(evil);"}'
         )
         self.assertEqual(collected, [])
         self.assertEqual(out, '.x{content:"@import url(evil);"}')
+
+    def test_hoist_import_rules_extracts_only_real_rules(self):
+        """The bundle's hoist seam, exercised where it actually lives."""
+        pipeline = CssPipeline.__new__(CssPipeline)
+        rules, remainder = pipeline.hoist_import_rules(
+            '@import "a.css";\n.x{content:"@import url(evil);"}\nbody{}'
+        )
+        self.assertEqual(rules, ['@import "a.css";'])
+        self.assertIn('content:"@import url(evil);"', remainder)
+        self.assertNotIn('@import "a.css"', remainder)
 
 
 class TestRewriteScannerDotallScope(BaseCase):
