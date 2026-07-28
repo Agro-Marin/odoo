@@ -32,6 +32,7 @@ export class DocumentService {
         this.notification = services["notification"];
         this.dialog = services["dialog"];
         this.fileUpload = services["file_upload"];
+        this.busService = services["bus_service"];
         this.logAccess = debounce(this._logAccess, 1000, false);
         this.currentFolderAccessToken = null;
         this.bus = new EventBus();
@@ -766,6 +767,7 @@ export class DocumentService {
 export const documentService = {
     dependencies: [
         "action",
+        "bus_service",
         "dialog",
         "file_upload",
         "mail.store",
