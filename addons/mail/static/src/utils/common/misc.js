@@ -404,7 +404,7 @@ export async function loadCssFromBundle(targetNode, bundleName) {
  * any call queued behind it is superseded (its promise resolves with
  * `undefined`) so only the latest queued work runs.
  *
- * Not an OWL hook despite its former `makeSequential` name: it registers no
+ * Not an OWL hook despite its former `useSequential` name: it registers no
  * lifecycle hook and must be callable outside `setup()` — it is used as a
  * `Record` field initializer (@see core/common/thread_model.js
  * `_loadAroundSequential`), where a real hook would throw.

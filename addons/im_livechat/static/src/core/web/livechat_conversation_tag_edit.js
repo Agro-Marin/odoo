@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { NavigableList } from "@mail/core/common/navigable_list";
-import { useSequential } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useEffect, useState, xml } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { highlightText } from "@web/core/utils/dom/html";
@@ -18,7 +18,7 @@ export class ConversationTagEdit extends Component {
         this.orm = useService("orm");
         this.store = useService("mail.store");
         this.inputRef = useAutofocus();
-        this.sequential = useSequential();
+        this.sequential = makeSequential();
         this.state = useState({
             selectableTags: [],
             searchStr: "",
