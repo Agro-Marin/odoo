@@ -2380,15 +2380,15 @@ class TestFormattedReadGroup(common.TransactionCase):
         RelatedBase.formatted_read_group([], ["foo_id.bar_id.name"], ["__count"])
 
         query_expected = """
-            SELECT "test_read_group_related_base__foo_id__bar_id"."name",
+            SELECT NULLIF("test_read_group_related_base__foo_id__bar_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_base__foo_id__bar_id"
                 ON ("test_read_group_related_base__foo_id"."bar_id" = "test_read_group_related_base__foo_id__bar_id"."id")
-            GROUP BY "test_read_group_related_base__foo_id__bar_id"."name"
-            ORDER BY "test_read_group_related_base__foo_id__bar_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '') ASC
         """
 
         def domain_for_sequence(fname_sequence, value):
@@ -2472,15 +2472,15 @@ class TestFormattedReadGroup(common.TransactionCase):
         RelatedBase.formatted_read_group([], ["foo_id.bar_id.name"], ["__count"])
 
         expected_query = """
-            SELECT "test_read_group_related_base__foo_id__bar_id"."name",
+            SELECT NULLIF("test_read_group_related_base__foo_id__bar_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_base__foo_id__bar_id"
                 ON ("test_read_group_related_base__foo_id"."bar_id" = "test_read_group_related_base__foo_id__bar_id"."id")
-            GROUP BY "test_read_group_related_base__foo_id__bar_id"."name"
-            ORDER BY "test_read_group_related_base__foo_id__bar_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '') ASC
         """
         for fname_sequence in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:
             with self.assertQueries([expected_query]):
@@ -2528,7 +2528,7 @@ class TestFormattedReadGroup(common.TransactionCase):
 
         alias_join = f"test_read_group_related_base__foo_id__{self.base_user.id}"
         expected_query = f"""
-            SELECT "{alias_join}__bar_id"."name",
+            SELECT NULLIF("{alias_join}__bar_id"."name", ''),
                    COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN (
@@ -2541,8 +2541,8 @@ class TestFormattedReadGroup(common.TransactionCase):
             LEFT JOIN "test_read_group_related_bar" AS "{alias_join}__bar_id" ON (
                 "{alias_join}"."bar_id" = "{alias_join}__bar_id"."id"
             )
-            GROUP BY "{alias_join}__bar_id"."name"
-            ORDER BY "{alias_join}__bar_id"."name" ASC
+            GROUP BY NULLIF("{alias_join}__bar_id"."name", '')
+            ORDER BY NULLIF("{alias_join}__bar_id"."name", '') ASC
         """
 
         for fname_sequence in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:

@@ -213,13 +213,13 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertQueries(
             [
                 """
-            SELECT "test_read_group_aggregate"."display_name",
+            SELECT NULLIF("test_read_group_aggregate"."display_name", ''),
                    "test_read_group_aggregate"."partner_id",
                    COUNT(*)
             FROM "test_read_group_aggregate"
             LEFT JOIN "res_partner" AS "test_read_group_aggregate__partner_id"
                 ON ("test_read_group_aggregate"."partner_id" = "test_read_group_aggregate__partner_id"."id")
-            GROUP BY "test_read_group_aggregate"."display_name",
+            GROUP BY NULLIF("test_read_group_aggregate"."display_name", ''),
                      "test_read_group_aggregate"."partner_id"
             ORDER BY ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") DESC,
                      ANY_VALUE("test_read_group_aggregate__partner_id"."id") ASC
@@ -1376,13 +1376,13 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertQueries(
             [
                 """
-            SELECT "test_read_group_related_base__foo_id"."name",
+            SELECT NULLIF("test_read_group_related_base__foo_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
-            GROUP BY "test_read_group_related_base__foo_id"."name"
-            ORDER BY "test_read_group_related_base__foo_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_base__foo_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_base__foo_id"."name", '') ASC
         """
             ]
         ):
@@ -1392,15 +1392,15 @@ class TestPrivateReadGroup(common.TransactionCase):
             )
 
         foo_bar_name_query = """
-            SELECT "test_read_group_related_base__foo_id__bar_id"."name",
+            SELECT NULLIF("test_read_group_related_base__foo_id__bar_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_base__foo_id__bar_id"
                 ON ("test_read_group_related_base__foo_id"."bar_id" = "test_read_group_related_base__foo_id__bar_id"."id")
-            GROUP BY "test_read_group_related_base__foo_id__bar_id"."name"
-            ORDER BY "test_read_group_related_base__foo_id__bar_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '') ASC
         """
 
         with self.assertQueries([foo_bar_name_query] * 3):
@@ -1470,13 +1470,13 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertQueries(
             [
                 """
-            SELECT "test_read_group_related_inherits__base_id"."name",
+            SELECT NULLIF("test_read_group_related_inherits__base_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_inherits"
             LEFT JOIN "test_read_group_related_base" AS "test_read_group_related_inherits__base_id"
                 ON ("test_read_group_related_inherits"."base_id" = "test_read_group_related_inherits__base_id"."id")
-            GROUP BY "test_read_group_related_inherits__base_id"."name"
-            ORDER BY "test_read_group_related_inherits__base_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_inherits__base_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_inherits__base_id"."name", '') ASC
         """
             ]
         ):
@@ -1488,13 +1488,13 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertQueries(
             [
                 """
-            SELECT "test_read_group_related_inherits__base_id"."name",
+            SELECT NULLIF("test_read_group_related_inherits__base_id"."name", ''),
                     SUM("test_read_group_related_inherits__base_id"."value")
             FROM "test_read_group_related_inherits"
             LEFT JOIN "test_read_group_related_base" AS "test_read_group_related_inherits__base_id"
                 ON ("test_read_group_related_inherits"."base_id" = "test_read_group_related_inherits__base_id"."id")
-            GROUP BY "test_read_group_related_inherits__base_id"."name"
-            ORDER BY "test_read_group_related_inherits__base_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_inherits__base_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_inherits__base_id"."name", '') ASC
         """
             ]
         ):
@@ -1506,15 +1506,15 @@ class TestPrivateReadGroup(common.TransactionCase):
         with self.assertQueries(
             [
                 """
-            SELECT "test_read_group_related_inherits__base_id__foo_id"."name",
+            SELECT NULLIF("test_read_group_related_inherits__base_id__foo_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_inherits"
             LEFT JOIN "test_read_group_related_base" AS "test_read_group_related_inherits__base_id"
                 ON ("test_read_group_related_inherits"."base_id" = "test_read_group_related_inherits__base_id"."id")
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_inherits__base_id__foo_id"
                 ON ("test_read_group_related_inherits__base_id"."foo_id" = "test_read_group_related_inherits__base_id__foo_id"."id")
-            GROUP BY "test_read_group_related_inherits__base_id__foo_id"."name"
-            ORDER BY "test_read_group_related_inherits__base_id__foo_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_inherits__base_id__foo_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_inherits__base_id__foo_id"."name", '') ASC
         """
             ]
         ):
@@ -1744,15 +1744,15 @@ class TestPrivateReadGroup(common.TransactionCase):
         RelatedBase._read_group([], ["foo_id.bar_id.name"], ["__count"])
 
         query_expected = """
-            SELECT "test_read_group_related_base__foo_id__bar_id"."name",
+            SELECT NULLIF("test_read_group_related_base__foo_id__bar_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_base__foo_id__bar_id"
                 ON ("test_read_group_related_base__foo_id"."bar_id" = "test_read_group_related_base__foo_id__bar_id"."id")
-            GROUP BY "test_read_group_related_base__foo_id__bar_id"."name"
-            ORDER BY "test_read_group_related_base__foo_id__bar_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '') ASC
         """
         with self.assertQueries([query_expected] * 3):
             for fname_chain in [
@@ -1773,15 +1773,15 @@ class TestPrivateReadGroup(common.TransactionCase):
         RelatedBase._read_group([], ["foo_id.bar_id.name"], ["__count"])
 
         expected_query = """
-            SELECT "test_read_group_related_base__foo_id__bar_id"."name",
+            SELECT NULLIF("test_read_group_related_base__foo_id__bar_id"."name", ''),
                     COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN "test_read_group_related_foo" AS "test_read_group_related_base__foo_id"
                 ON ("test_read_group_related_base"."foo_id" = "test_read_group_related_base__foo_id"."id")
             LEFT JOIN "test_read_group_related_bar" AS "test_read_group_related_base__foo_id__bar_id"
                 ON ("test_read_group_related_base__foo_id"."bar_id" = "test_read_group_related_base__foo_id__bar_id"."id")
-            GROUP BY "test_read_group_related_base__foo_id__bar_id"."name"
-            ORDER BY "test_read_group_related_base__foo_id__bar_id"."name" ASC
+            GROUP BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '')
+            ORDER BY NULLIF("test_read_group_related_base__foo_id__bar_id"."name", '') ASC
         """
         for fname_chain in ["foo_id.bar_id.name", "foo_id.bar_name_sudo"]:
             with self.assertQueries([expected_query]):
@@ -1806,7 +1806,7 @@ class TestPrivateReadGroup(common.TransactionCase):
 
         alias_join = f"test_read_group_related_base__foo_id__{self.base_user.id}"
         expected_query = f"""
-            SELECT "{alias_join}__bar_id"."name",
+            SELECT NULLIF("{alias_join}__bar_id"."name", ''),
                    COUNT(*)
             FROM "test_read_group_related_base"
             LEFT JOIN (
@@ -1819,8 +1819,8 @@ class TestPrivateReadGroup(common.TransactionCase):
             LEFT JOIN "test_read_group_related_bar" AS "{alias_join}__bar_id" ON (
                 "{alias_join}"."bar_id" = "{alias_join}__bar_id"."id"
             )
-            GROUP BY "{alias_join}__bar_id"."name"
-            ORDER BY "{alias_join}__bar_id"."name" ASC
+            GROUP BY NULLIF("{alias_join}__bar_id"."name", '')
+            ORDER BY NULLIF("{alias_join}__bar_id"."name", '') ASC
         """
 
         with self.assertQueries([expected_query] * 2):

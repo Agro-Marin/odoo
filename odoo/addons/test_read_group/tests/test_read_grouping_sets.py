@@ -143,9 +143,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             [
                 """
             SELECT
-                GROUPING("test_read_group_task__user_ids"."user_id", "test_read_group_task"."key"),
+                GROUPING("test_read_group_task__user_ids"."user_id", NULLIF("test_read_group_task"."key", '')),
                 "test_read_group_task__user_ids"."user_id",
-                "test_read_group_task"."key",
+                NULLIF("test_read_group_task"."key", ''),
                 ARRAY_AGG("test_read_group_task"."name" ORDER BY "test_read_group_task"."id"),
                 COUNT(*),
                 SUM("test_read_group_task"."integer")
@@ -155,22 +155,22 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 )
             WHERE "test_read_group_task"."id" IN (%s)
             GROUP BY GROUPING SETS (
-                ("test_read_group_task__user_ids"."user_id", "test_read_group_task"."key"),
+                ("test_read_group_task__user_ids"."user_id", NULLIF("test_read_group_task"."key", '')),
                 ("test_read_group_task__user_ids"."user_id"))
             ORDER BY "test_read_group_task__user_ids"."user_id" ASC,
-                "test_read_group_task"."key" ASC
+                NULLIF("test_read_group_task"."key", '') ASC
             """,
                 """
             SELECT
-                GROUPING("test_read_group_task"."key"),
-                "test_read_group_task"."key",
+                GROUPING(NULLIF("test_read_group_task"."key", '')),
+                NULLIF("test_read_group_task"."key", ''),
                 ARRAY_AGG("test_read_group_task"."name" ORDER BY "test_read_group_task"."id"),
                 COUNT(*),
                 SUM("test_read_group_task"."integer")
             FROM "test_read_group_task"
             WHERE "test_read_group_task"."id" IN (%s)
-            GROUP BY GROUPING SETS (("test_read_group_task"."key"), ())
-            ORDER BY "test_read_group_task"."key" ASC
+            GROUP BY GROUPING SETS ((NULLIF("test_read_group_task"."key", '')), ())
+            ORDER BY NULLIF("test_read_group_task"."key", '') ASC
             """,
             ]
         ):
@@ -192,9 +192,9 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             [
                 """
             SELECT
-                GROUPING("test_read_group_task__user_ids"."user_id", "test_read_group_task"."key"),
+                GROUPING("test_read_group_task__user_ids"."user_id", NULLIF("test_read_group_task"."key", '')),
                 "test_read_group_task__user_ids"."user_id",
-                "test_read_group_task"."key",
+                NULLIF("test_read_group_task"."key", ''),
                 ARRAY_AGG("test_read_group_task"."name" ORDER BY "test_read_group_task"."id"),
                 COUNT(*),
                 SUM("test_read_group_task"."integer")
@@ -204,22 +204,22 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 )
             WHERE "test_read_group_task"."id" IN (%s)
             GROUP BY GROUPING SETS (
-                ("test_read_group_task__user_ids"."user_id", "test_read_group_task"."key"),
+                ("test_read_group_task__user_ids"."user_id", NULLIF("test_read_group_task"."key", '')),
                 ("test_read_group_task__user_ids"."user_id"))
             ORDER BY "test_read_group_task__user_ids"."user_id" DESC,
-                "test_read_group_task"."key" ASC
+                NULLIF("test_read_group_task"."key", '') ASC
             """,
                 """
             SELECT
-                GROUPING("test_read_group_task"."key"),
-                "test_read_group_task"."key",
+                GROUPING(NULLIF("test_read_group_task"."key", '')),
+                NULLIF("test_read_group_task"."key", ''),
                 ARRAY_AGG("test_read_group_task"."name" ORDER BY "test_read_group_task"."id"),
                 COUNT(*),
                 SUM("test_read_group_task"."integer")
             FROM "test_read_group_task"
             WHERE "test_read_group_task"."id" IN (%s)
-            GROUP BY GROUPING SETS (("test_read_group_task"."key"), ())
-            ORDER BY "test_read_group_task"."key" ASC
+            GROUP BY GROUPING SETS ((NULLIF("test_read_group_task"."key", '')), ())
+            ORDER BY NULLIF("test_read_group_task"."key", '') ASC
             """,
             ]
         ):
