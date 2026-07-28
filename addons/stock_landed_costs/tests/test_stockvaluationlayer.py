@@ -394,7 +394,7 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
-        self.assertEqual(rfq.line_ids.qty_received, 10)
+        self.assertEqual(rfq.line_ids.qty_transferred, 10)
 
         input_aml = self._get_stock_input_move_lines()[-1]
         self.assertEqual(input_aml.debit, 0)
@@ -481,7 +481,7 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
-        self.assertEqual(rfq.line_ids.qty_received, 10)
+        self.assertEqual(rfq.line_ids.qty_transferred, 10)
 
         input_aml = self._get_stock_input_move_lines()[-1]
         self.assertEqual(input_aml.debit, 0)
@@ -533,7 +533,7 @@ class TestStockValuationLCFIFOVB(TestStockValuationLCCommon):
         # Process the receipt
         receipt = rfq.picking_ids
         receipt.button_validate()
-        self.assertEqual(rfq.line_ids.qty_received, 10)
+        self.assertEqual(rfq.line_ids.qty_transferred, 10)
 
         input_aml = self._get_stock_input_move_lines()[-1]
         self.assertEqual(input_aml.debit, 0)

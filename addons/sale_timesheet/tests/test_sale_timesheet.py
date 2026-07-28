@@ -153,7 +153,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         self.assertEqual(len(sale_order.project_ids), 2, "No new project should have been created by the SO, when selling 'new task in new project' product, since it reuse the one from 'project only'.")
 
         # get first invoice line of sale line linked to timesheet1
-        invoice_line_1 = so_line_ordered_global_project.invoice_lines.filtered(lambda line: line.move_id == invoice1)
+        invoice_line_1 = so_line_ordered_global_project.invoice_line_ids.filtered(lambda line: line.move_id == invoice1)
 
         self.assertEqual(so_line_ordered_global_project.product_uom_qty, invoice_line_1.quantity, "The invoice (ordered) quantity should not change when creating timesheet")
 
@@ -545,7 +545,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
 
         # Check if all timesheets have been invoiced
         self.assertEqual(so_line_deliver_global_project.qty_invoiced, timesheet1.unit_amount + timesheet2.unit_amount + timesheet3.unit_amount)
-        self.assertTrue(so_line_deliver_task_project.invoice_lines)
+        self.assertTrue(so_line_deliver_task_project.invoice_line_ids)
         self.assertEqual(so_line_deliver_task_project.qty_invoiced, timesheet4.unit_amount)
 
     def test_transfert_project(self):

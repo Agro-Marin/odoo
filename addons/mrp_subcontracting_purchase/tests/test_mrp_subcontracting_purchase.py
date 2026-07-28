@@ -198,7 +198,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         return_picking.button_validate()
 
         self.assertEqual(self.finished2.qty_available, 7.0)
-        self.assertEqual(po.line_ids.qty_received, 7.0)
+        self.assertEqual(po.line_ids.qty_transferred, 7.0)
 
     def test_purchase_and_return02(self):
         """
@@ -240,11 +240,11 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         return_picking.button_validate()
 
         self.assertEqual(self.finished2.qty_available, 7.0)
-        self.assertEqual(po.line_ids.qty_received, 10.0)
+        self.assertEqual(po.line_ids.qty_transferred, 10.0)
 
     def test_subcontracting_purchase_bill(self):
         (self.comp1 | self.comp2 | self.finished).categ_id = self.category_fifo_auto
-        self.finished.purchase_method = 'purchase'
+        self.finished.bill_policy = 'ordered'
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.subcontractor_partner1
         with po_form.line_ids.new() as po_line:
@@ -468,7 +468,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         pol = po.line_ids
         pol.product_qty = 9.0
 
-        self.assertEqual(pol.qty_received, 9.0)
+        self.assertEqual(pol.qty_transferred, 9.0)
         self.assertEqual(pol.product_qty, 9.0)
         self.assertEqual(len(po.picking_ids), 2)
         warehouse = po.picking_ids.move_ids.warehouse_id
@@ -954,7 +954,7 @@ class MrpSubcontractingPurchaseTest(TestAccountSubcontractingFlows):
         with subcontracted tracked products."""
         todo_nb = 5
         self.finished2.tracking = 'serial'
-        self.finished2.purchase_method = 'purchase'
+        self.finished2.bill_policy = 'ordered'
         po = self.env['purchase.order'].create({
             'partner_id': self.subcontractor_partner1.id,
             'line_ids': [(0, 0, {

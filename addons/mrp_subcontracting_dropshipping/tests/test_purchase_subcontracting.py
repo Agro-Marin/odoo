@@ -182,7 +182,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
 
         self.assertEqual(delivery.state, 'done')
         self.assertEqual(mo.state, 'done')
-        self.assertEqual(po.line_ids.qty_received, 2)
+        self.assertEqual(po.line_ids.qty_transferred, 2)
 
         # return 1 x P_finished to the stock location
         return_form = Form(self.env['stock.return.picking'].with_context(active_ids=delivery.ids, active_id=delivery.id, active_model='stock.picking'))
@@ -197,7 +197,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
 
         self.assertEqual(delivery_return01.state, 'done')
         self.assertEqual(self.finished.qty_available, 1, 'One product has been returned to the stock location, so it should be available')
-        self.assertEqual(po.line_ids.qty_received, 2, 'One product has been returned to the stock location, so we should still consider it as received')
+        self.assertEqual(po.line_ids.qty_transferred, 2, 'One product has been returned to the stock location, so we should still consider it as received')
 
         # return 1 x P_finished to the supplier location
         return_form = Form(self.env['stock.return.picking'].with_context(active_ids=delivery.ids, active_id=delivery.id, active_model='stock.picking'))
@@ -211,7 +211,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
         delivery_return02.button_validate()
 
         self.assertEqual(delivery_return02.state, 'done')
-        self.assertEqual(po.line_ids.qty_received, 1)
+        self.assertEqual(po.line_ids.qty_transferred, 1)
 
     def test_po_to_subcontractor(self):
         """
@@ -260,7 +260,7 @@ class TestSubcontractingDropshippingFlows(TestMrpSubcontractingCommon, TestStock
         delivery.move_ids.picked = True
         delivery.button_validate()
 
-        self.assertEqual(po.line_ids.qty_received, 1.0)
+        self.assertEqual(po.line_ids.qty_transferred, 1.0)
 
     def test_subcontracted_bom_routes(self):
         """

@@ -982,7 +982,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         self.user.group_ids = self.env.ref('account.group_account_manager') + self.env.ref('sales_team.group_sale_salesman_all_leads')
 
         downpayment_line = sale_order.line_ids.filtered(lambda l: l.is_downpayment and not l.display_type)
-        downpayment_invoice = downpayment_line.order_id.line_ids.invoice_lines.move_id
+        downpayment_invoice = downpayment_line.order_id.line_ids.invoice_line_ids.move_id
         downpayment_invoice.action_post()
         self.user.group_ids = selected_groups
         self.assertEqual(downpayment_line.price_unit, 100)

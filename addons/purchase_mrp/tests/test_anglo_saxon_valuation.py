@@ -123,7 +123,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
 
         self.assertEqual(receipt.state, 'done')
         self.assertEqual(receipt.move_line_ids.product_id, component01 | component02)
-        self.assertEqual(po.line_ids.qty_received, 1)
+        self.assertEqual(po.line_ids.qty_transferred, 1)
         self.assertEqual(component01.stock_valuation_layer_ids.value, 25)
         self.assertEqual(component02.stock_valuation_layer_ids.value, 75)
 
@@ -223,7 +223,7 @@ class TestAngloSaxonValuationPurchaseMRP(TestStockValuationCommon):
             This is the test half of upstream odoo/odoo 3670c83f1e5
             "[FIX] purchase_mrp: UoM category error on kit". The upstream model
             fix (StockMove._get_qty_received_without_self, currency-convert date
-            from qty_invoiced vs qty_received) does NOT apply to this fork: the
+            from qty_invoiced vs qty_transferred) does NOT apply to this fork: the
             fork already rewrote purchase valuation (_get_value_from_quotation/
             _account_move/_bill) to convert at a fixed conversion_date=move.date,
             so the upstream UoM-mismatch path does not exist here and the
