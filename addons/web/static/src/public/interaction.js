@@ -88,9 +88,10 @@ export class Interaction {
         _body: () => this.el.ownerDocument.body,
         // the element's own view, so that an interaction running against
         // another realm's document (the builder's iframe) agrees with _document
-        // and _body — but a document with no view at all (one built by
-        // createHTMLDocument or DOMParser) yields null, and a dynamic selector
-        // returning null binds nothing at all rather than failing
+        // and _body. A document with no view at all (one built by
+        // createHTMLDocument or DOMParser) has no `defaultView`; this one falls
+        // back to the running window rather than to nothing, so that a
+        // directive written against `_window` still binds somewhere listenable
         _window: () => this.el.ownerDocument.defaultView || window,
         _document: () => this.el.ownerDocument,
     };
@@ -443,10 +444,17 @@ export class Interaction {
         if (removeOnClean) {
             // the subtree gets activated, so removing it has to deactivate it
             // as well: detaching the nodes on its own left their interactions
-            // registered and running on an element no longer in the document
+            // registered and running on an element no longer in the document.
+            // The removal is in a `finally` because `stopInteractions` reports
+            // a failing nested `destroy()` by throwing: one such interaction
+            // anywhere in the inserted markup stranded the whole subtree in
+            // the page, outliving the interaction that put it there.
             this.registerCleanup(() => {
-                interactions.stopInteractions(el);
-                el.remove();
+                try {
+                    interactions.stopInteractions(el);
+                } finally {
+                    el.remove();
+                }
             });
         }
     }

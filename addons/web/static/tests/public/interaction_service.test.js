@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, markup, onWillStart, xml } from "@odoo/owl";
+import { Component, markup, onWillDestroy, onWillStart, xml } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { Interaction } from "@web/public/interaction";
 
@@ -636,4 +636,173 @@ test("every interaction that fails to start is reported, not just the first", as
     // the scan and the promise `activate` derives from it carry the same
     // failure: it must not be logged twice
     expect(reported).toHaveLength(1);
+});
+
+test("a page-wide stop reaps an interaction whose element left the document", async () => {
+    let destroys = 0;
+    class Test extends Interaction {
+        static selector = ".test";
+        destroy() {
+            destroys++;
+        }
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div id="host"><div class="test"></div></div>`,
+    );
+    expect(core.interactions).toHaveLength(1);
+    // dropped without its interaction being stopped: `contains` can no longer
+    // see it, so its listeners, timers and observers used to run for the rest
+    // of the page's life
+    queryOne(".test").remove();
+    core.stopInteractions();
+    expect(destroys).toBe(1);
+    expect(core.interactions).toHaveLength(0);
+});
+
+test("a scoped stop still leaves a detached interaction alone", async () => {
+    let destroys = 0;
+    class Test extends Interaction {
+        static selector = ".test";
+        destroy() {
+            destroys++;
+        }
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div id="host"><div class="test"></div></div><div id="other"></div>`,
+    );
+    // an element may be detached on its way somewhere else; only a page-wide
+    // stop is entitled to assume it is gone for good
+    queryOne(".test").remove();
+    core.stopInteractions(queryOne("#other"));
+    expect(destroys).toBe(0);
+    expect(core.interactions).toHaveLength(1);
+});
+
+test("a component mounted by t-component is stopped with its subtree", async () => {
+    let destroys = 0;
+    class Comp extends Component {
+        static template = xml`<b>c</b>`;
+        static props = {};
+        setup() {
+            onWillDestroy(() => destroys++);
+        }
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        dynamicContent = {
+            ".host": { "t-component": () => [Comp, {}] },
+        };
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div class="test"><div class="host"></div></div>`,
+    );
+    expect("owl-root b").toHaveCount(1);
+    expect(core.roots).toHaveLength(1);
+    // the host subtree goes: the component living in it must go too, rather
+    // than keep running on markup nobody can reach
+    core.stopInteractions(queryOne(".host"));
+    expect(destroys).toBe(1);
+    expect("owl-root").toHaveCount(0);
+    expect(core.roots).toHaveLength(0);
+});
+
+test("a t-component root is forgotten when its interaction is destroyed", async () => {
+    class Comp extends Component {
+        static template = xml`<b>c</b>`;
+        static props = {};
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        dynamicContent = {
+            _root: { "t-component": () => [Comp, {}] },
+        };
+    }
+    const { core } = await startInteraction(Test, `<div class="test"></div>`);
+    expect(core.roots).toHaveLength(1);
+    core.stopInteractions();
+    expect("owl-root").toHaveCount(0);
+    expect(core.roots).toHaveLength(0);
+});
+
+test("insert(): a throwing nested destroy still removes the inserted element", async () => {
+    class Bad extends Interaction {
+        static selector = ".bad";
+        destroy() {
+            throw new Error("boom");
+        }
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        start() {
+            const el = document.createElement("div");
+            el.className = "inserted";
+            el.innerHTML = `<span class="bad"></span>`;
+            // outside this.el, so stopping .test alone leaves the nested
+            // interaction for the insert() cleanup to deal with
+            this.insert(el, queryOne("#elsewhere"));
+        }
+    }
+    const { core } = await startInteraction(
+        [Bad, Test],
+        `<div class="test"></div><div id="elsewhere"></div>`,
+    );
+    expect(".inserted").toHaveCount(1);
+    let caught = null;
+    try {
+        core.stopInteractions(queryOne(".test"));
+    } catch (error) {
+        caught = error;
+    }
+    expect(caught).toBeInstanceOf(AggregateError);
+    // stopInteractions reports a failing nested destroy() by throwing: the
+    // subtree used to be stranded in the page, outliving the interaction that
+    // put it there
+    expect(".inserted").toHaveCount(0);
+});
+
+test("a stop rooted above the service's own root also reaps a detached interaction", async () => {
+    let destroys = 0;
+    class Test extends Interaction {
+        static selector = ".test";
+        destroy() {
+            destroys++;
+        }
+    }
+    const { core } = await startInteraction(Test, `<div class="test"></div>`);
+    queryOne(".test").remove();
+    // document.body contains #wrapwrap: just as page-wide as the no-arg form
+    core.stopInteractions(document.body);
+    expect(destroys).toBe(1);
+    expect(core.interactions).toHaveLength(0);
+});
+
+test("a page-wide stop reaps a component root whose host left the document", async () => {
+    let destroys = 0;
+    class Comp extends Component {
+        static template = xml`<b>c</b>`;
+        static props = {};
+        setup() {
+            onWillDestroy(() => destroys++);
+        }
+    }
+    class Test extends Interaction {
+        static selector = ".test";
+        dynamicContent = {
+            ".host": { "t-component": () => [Comp, {}] },
+        };
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div class="test"><div class="host"></div></div>`,
+    );
+    expect(core.roots).toHaveLength(1);
+    // dropped without stopping anything: `contains` can no longer reach the
+    // root, so the component used to keep running for the page's lifetime
+    queryOne(".host").remove();
+    core.stopInteractions();
+    expect(destroys).toBe(1);
+    expect(core.roots).toHaveLength(0);
 });

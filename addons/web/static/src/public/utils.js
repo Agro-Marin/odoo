@@ -56,11 +56,17 @@ export class PairSet {
  *     event, for `t-on-`) and the replaced function's output as parameters
  */
 function patchDynamicContentEntry(dynamicContent, selector, t, replacement) {
+    if (replacement === undefined) {
+        // no bucket is conjured for a selector that only had an entry removed:
+        // an empty one is still a selector the framework re-resolves on every
+        // updateContent, so patching an entry away used to leave a
+        // querySelectorAll behind that could never apply anything
+        delete dynamicContent[selector]?.[t];
+        return;
+    }
     dynamicContent[selector] = dynamicContent[selector] || {};
     const forSelector = dynamicContent[selector];
-    if (replacement === undefined) {
-        delete forSelector[t];
-    } else if (typeof replacement === "function" && t !== "t-component") {
+    if (typeof replacement === "function" && t !== "t-component") {
         if (!forSelector[t]) {
             forSelector[t] = () => {};
         }

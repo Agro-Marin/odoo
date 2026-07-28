@@ -2465,6 +2465,345 @@ describe("t-att and t-out", () => {
         expect(".test").toHaveText("wiped");
     });
 
+    test("a markup t-out that yields the same markup leaves the subtree alone", async () => {
+        let starts = 0;
+        let destroys = 0;
+        class Inner extends Interaction {
+            static selector = ".inner";
+            setup() {
+                starts++;
+            }
+            destroy() {
+                destroys++;
+            }
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => markup`<span class="inner">Hi</span>` },
+                ".btn": { "t-on-click": () => {} },
+            };
+        }
+        await startInteraction(
+            [Inner, Test],
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        expect(starts).toBe(1);
+        const inner = queryOne(".inner");
+        await click(".btn");
+        // rebuilding it would have destroyed and restarted the interaction, and
+        // discarded whatever state, focus or scroll position it held
+        expect([starts, destroys]).toEqual([1, 0]);
+        expect(queryOne(".inner")).toBe(inner);
+    });
+
+    test("a plain t-out that yields the same text keeps the text node", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => "stable" },
+                ".btn": { "t-on-click": () => {} },
+            };
+        }
+        await startInteraction(
+            [Test],
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        const textNode = queryOne(".slot").firstChild;
+        expect(".slot").toHaveText("stable");
+        await click(".btn");
+        // replacing it collapses a selection the visitor is making
+        expect(queryOne(".slot").firstChild).toBe(textNode);
+    });
+
+    test("a t-out still rewrites content another hand has changed", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => "stable" },
+                ".btn": { "t-on-click": () => {} },
+            };
+        }
+        await startInteraction(
+            [Test],
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        queryOne(".slot").textContent = "tampered";
+        await click(".btn");
+        expect(".slot").toHaveText("stable");
+    });
+
+    test("a t-out alternating between markup and text applies both", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.tOut = markup`<i>a</i>`;
+            }
+            dynamicContent = {
+                ".slot": { "t-out": () => this.tOut },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        const interaction = core.interactions[0].interaction;
+        expect(".slot").toHaveInnerHTML(`<i>a</i>`);
+        interaction.tOut = "<i>a</i>";
+        interaction.updateContent();
+        expect(".slot").toHaveText("<i>a</i>");
+        expect(".slot i").toHaveCount(0);
+        interaction.tOut = markup`<i>a</i>`;
+        interaction.updateContent();
+        expect(".slot i").toHaveCount(1);
+    });
+
+    test("a t-out spares the interaction rooted on its own node", async () => {
+        let starts = 0;
+        let destroys = 0;
+        class Slot extends Interaction {
+            static selector = ".slot";
+            setup() {
+                starts++;
+            }
+            destroy() {
+                destroys++;
+            }
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.tOut = "a";
+            }
+            dynamicContent = {
+                ".slot": { "t-out": () => this.tOut },
+            };
+        }
+        const { core } = await startInteraction(
+            [Slot, Test],
+            `<div class="test"><div class="slot"><i>x</i></div></div>`,
+        );
+        expect(starts).toBe(1);
+        const interaction = core.interactions.find(
+            (i) => i.interaction.constructor === Test,
+        ).interaction;
+        // the directive owns the content of .slot, not .slot itself: stopping
+        // its interaction left it destroyed for good on the text branch, and
+        // restarted from scratch on every update on the Markup one
+        interaction.tOut = "b";
+        interaction.updateContent();
+        expect(".slot").toHaveText("b");
+        expect([starts, destroys]).toEqual([1, 0]);
+        interaction.tOut = markup`<i>c</i>`;
+        interaction.updateContent();
+        expect(".slot").toHaveInnerHTML(`<i>c</i>`);
+        expect([starts, destroys]).toEqual([1, 0]);
+    });
+
+    test("a t-att that yields the same value does not touch the dom", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": {
+                    "t-att-data-x": () => "stable",
+                    "t-att-style": () => ({ color: "red" }),
+                    "t-att-class": () => ({ on: true }),
+                },
+                ".btn": { "t-on-click": () => {} },
+            };
+        }
+        await startInteraction(
+            [Test],
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        expect(".slot").toHaveAttribute("data-x", "stable");
+        const records = [];
+        const observer = new MutationObserver((rs) => records.push(...rs));
+        observer.observe(queryOne(".test"), { attributes: true, subtree: true });
+        await click(".btn");
+        observer.disconnect();
+        // one spurious record per attribute per event otherwise, for every
+        // MutationObserver watching the page
+        expect(records).toHaveLength(0);
+    });
+
+    test("a t-att still rewrites an attribute another hand has changed", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-att-data-x": () => "stable" },
+                ".btn": { "t-on-click": () => {} },
+            };
+        }
+        await startInteraction(
+            [Test],
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        queryOne(".slot").setAttribute("data-x", "tampered");
+        await click(".btn");
+        expect(".slot").toHaveAttribute("data-x", "stable");
+    });
+
+    test("t-out: the focus, selection and scroll of a subtree survive an unchanged update", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.tOut = markup`<input class="typed"/><div class="scroller" style="height:20px;overflow:auto"><div style="height:400px"></div></div>`;
+            }
+            dynamicContent = { ".slot": { "t-out": () => this.tOut } };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        const input = queryOne(".typed");
+        const scroller = queryOne(".scroller");
+        input.focus();
+        scroller.scrollTop = 120;
+        expect(document.activeElement).toBe(input);
+        core.interactions[0].updateContent();
+        expect(document.activeElement).toBe(input);
+        expect(queryOne(".scroller").scrollTop).toBe(120);
+        // a value that really changed must still rebuild
+        core.interactions[0].interaction.tOut = markup`<input class="typed" data-v="2"/>`;
+        core.interactions[0].updateContent();
+        expect(queryOne(".typed")).not.toBe(input);
+    });
+
+    test("a plain t-out keeps a text selection the visitor is making", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = { ".slot": { "t-out": () => "hello world" } };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        const range = document.createRange();
+        range.setStart(queryOne(".slot").firstChild, 0);
+        range.setEnd(queryOne(".slot").firstChild, 5);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        expect(selection.toString()).toBe("hello");
+        core.interactions[0].updateContent();
+        expect(window.getSelection().toString()).toBe("hello");
+    });
+
+    test("a plain t-out reproduces the textContent setter exactly", async () => {
+        // the skip test stands on this: `textContent` is a nullable IDL
+        // attribute, so null AND undefined both store the empty string
+        const probe = document.createElement("div");
+        probe.textContent = null;
+        expect(probe.textContent).toBe("");
+        probe.textContent = undefined;
+        expect(probe.textContent).toBe("");
+
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.tOut = null;
+            }
+            dynamicContent = { ".slot": { "t-out": () => this.tOut } };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot">x</div></div>`,
+        );
+        expect(queryOne(".slot").childNodes).toHaveLength(0);
+        const interaction = core.interactions[0].interaction;
+        interaction.tOut = undefined;
+        core.interactions[0].updateContent();
+        expect(queryOne(".slot").childNodes).toHaveLength(0);
+        // a node already reading "undefined" is not a match for `undefined`
+        queryOne(".slot").textContent = "undefined";
+        core.interactions[0].updateContent();
+        expect(queryOne(".slot").childNodes).toHaveLength(0);
+        interaction.tOut = 0;
+        core.interactions[0].updateContent();
+        expect(".slot").toHaveText("0");
+    });
+
+    test("a plain t-out is not fooled by a comment or a split text node", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = { ".slot": { "t-out": () => "ab" } };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        const slot = queryOne(".slot");
+        // same textContent, but not the single text node the setter leaves
+        slot.replaceChildren(
+            document.createTextNode("a"),
+            document.createTextNode("b"),
+        );
+        core.interactions[0].updateContent();
+        expect(slot.childNodes).toHaveLength(1);
+        slot.replaceChildren(
+            document.createComment("c"),
+            document.createTextNode("ab"),
+        );
+        core.interactions[0].updateContent();
+        expect(slot.childNodes).toHaveLength(1);
+        expect(".slot").toHaveText("ab");
+    });
+
+    test("two t-out entries on one node still let the last one win", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.a = markup`<i>A</i>`;
+                this.b = markup`<i>B</i>`;
+            }
+            dynamicContent = {
+                ".slot": { "t-out": () => this.a },
+                "div.slot": { "t-out": () => this.b },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        expect(".slot").toHaveInnerHTML(`<i>B</i>`);
+        core.interactions[0].interaction.a = markup`<i>A2</i>`;
+        core.interactions[0].updateContent();
+        // the cache is shared across entries, so the second one still sees the
+        // first one's write: a per-entry cache would have frozen the node on A2
+        expect(".slot").toHaveInnerHTML(`<i>B</i>`);
+    });
+
+    test("a t-att value that changes is still written through the guard", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.v = "1";
+            }
+            dynamicContent = {
+                ".slot": {
+                    "t-att-data-x": () => this.v,
+                    "t-att-hidden": () => this.hidden,
+                },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot" data-y="keep"></div></div>`,
+        );
+        expect(".slot").toHaveAttribute("data-x", "1");
+        expect(".slot").not.toHaveAttribute("hidden");
+        const interaction = core.interactions[0].interaction;
+        interaction.v = 2;
+        interaction.hidden = true;
+        core.interactions[0].updateContent();
+        expect(".slot").toHaveAttribute("data-x", "2");
+        expect(".slot").toHaveAttribute("hidden", "hidden");
+        interaction.hidden = false;
+        core.interactions[0].updateContent();
+        expect(".slot").not.toHaveAttribute("hidden");
+    });
+
     test("a markup t-out rescans the subtree once, not once per child", async () => {
         class Test extends Interaction {
             static selector = ".test";

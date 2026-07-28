@@ -173,3 +173,16 @@ describe("patch dynamic content", () => {
         expect.verifySteps(["patch"]);
     });
 });
+
+test("removing an entry does not leave an empty selector behind", () => {
+    const dynamicContent = {};
+    patchDynamicContent(dynamicContent, { ".gone": { "t-on-click": undefined } });
+    // an empty bucket is still a selector the framework re-resolves on every
+    // updateContent, for a directive that can no longer apply anything
+    expect(Object.keys(dynamicContent)).toEqual([]);
+
+    const existing = { ".kept": { "t-on-click": () => {}, "t-att-a": () => "b" } };
+    patchDynamicContent(existing, { ".kept": { "t-on-click": undefined } });
+    expect(Object.keys(existing)).toEqual([".kept"]);
+    expect(Object.keys(existing[".kept"])).toEqual(["t-att-a"]);
+});

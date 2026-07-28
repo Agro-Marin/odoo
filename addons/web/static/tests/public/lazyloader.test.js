@@ -1,9 +1,9 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { after, describe, expect, getFixture, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import lazyloader from "@web/public/lazyloader";
+import lazyloader, { stopWaitingLazy, waitLazy } from "@web/public/lazyloader";
 
 describe.current.tags("headless");
 
@@ -143,4 +143,132 @@ test("a stalled chain keeps its own watchdog when another chain completes", asyn
             ` unblocking the page anyway: ${stalled.src}`,
     ]);
     expect(stalledDone).toBe(1);
+});
+
+describe("waiting for the lazy JS", () => {
+    /**
+     * `waitLazy` freezes the page and `stopWaitingLazy` releases it; both are
+     * module-level singletons, so every test here must undo its own freeze.
+     */
+    function freeze() {
+        waitLazy();
+        after(() => stopWaitingLazy());
+    }
+
+    test("a click on a control anywhere under the root is frozen", async () => {
+        const fixture = getFixture();
+        fixture.innerHTML = `<div id="wrapwrap"><button class="a"><span class="inner">x</span></button></div>`;
+        freeze();
+        expect(document.body).toHaveClass("o_lazy_js_waiting");
+
+        const seen = [];
+        const button = fixture.querySelector(".a");
+        button.addEventListener("click", () => seen.push("own-listener"));
+        const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
+        fixture.querySelector(".inner").dispatchEvent(ev);
+        // the freeze runs on an ancestor's capture phase, so it suppresses the
+        // control's own listeners too
+        expect(seen).toEqual([]);
+        expect(ev.defaultPrevented).toBe(true);
+    });
+
+    test("a control added after the freeze is left alone", async () => {
+        const fixture = getFixture();
+        fixture.innerHTML = `<div id="wrapwrap"></div>`;
+        freeze();
+        // the freeze applies to the controls chosen when it started: making it
+        // cheaper must not quietly make it wider
+        fixture.querySelector("#wrapwrap").innerHTML =
+            `<button class="late">x</button>`;
+        const seen = [];
+        const button = fixture.querySelector(".late");
+        button.addEventListener("click", () => seen.push("own-listener"));
+        button.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+        expect(seen).toEqual(["own-listener"]);
+    });
+
+    test("an opted-out control and a navigating link are left alone", async () => {
+        const fixture = getFixture();
+        fixture.innerHTML = `
+            <div id="wrapwrap">
+                <button class="opted o_no_wait_lazy_js">x</button>
+                <a class="nav" href="/somewhere">x</a>
+                <a class="hash" href="#">x</a>
+            </div>`;
+        freeze();
+        const seen = [];
+        for (const sel of [".opted", ".nav", ".hash"]) {
+            fixture.querySelector(sel).addEventListener("click", (ev) => {
+                ev.preventDefault();
+                seen.push(sel);
+            });
+        }
+        for (const sel of [".opted", ".nav", ".hash"]) {
+            fixture
+                .querySelector(sel)
+                .dispatchEvent(
+                    new MouseEvent("click", { bubbles: true, cancelable: true }),
+                );
+        }
+        expect(seen).toEqual([".opted", ".nav"]);
+    });
+
+    test("each control keeps its own lock, so one hover cannot swallow another's click", async () => {
+        const fixture = getFixture();
+        fixture.innerHTML = `<div id="wrapwrap"><button class="a">a</button><button class="b">b</button></div>`;
+        freeze();
+        const a = fixture.querySelector(".a");
+        const b = fixture.querySelector(".b");
+        const first = new MouseEvent("click", { bubbles: true, cancelable: true });
+        a.dispatchEvent(first);
+        const second = new MouseEvent("click", { bubbles: true, cancelable: true });
+        b.dispatchEvent(second);
+        // a shared wrapper would have let the lock taken by the first control
+        // drop the second one's event without ever replaying it
+        expect(first.defaultPrevented).toBe(true);
+        expect(second.defaultPrevented).toBe(true);
+    });
+
+    test("a form submit is cancelled, unless the form opted out", async () => {
+        const fixture = getFixture();
+        fixture.innerHTML = `
+            <div id="wrapwrap"></div>
+            <form class="outside"></form>
+            <form class="opted o_no_wait_lazy_js"></form>`;
+        freeze();
+        const seen = [];
+        for (const sel of ["form.outside", "form.opted"]) {
+            fixture.querySelector(sel).addEventListener("submit", (ev) => {
+                // also keeps the test harness from turning this into a request
+                ev.preventDefault();
+                seen.push(sel);
+            });
+            fixture
+                .querySelector(sel)
+                .dispatchEvent(
+                    new Event("submit", { bubbles: true, cancelable: true }),
+                );
+        }
+        // the freeze stops the event before the form's own listener ever runs;
+        // the opted-out form is left alone. Both sit outside the main element
+        // on purpose: the form freeze is page-wide.
+        expect(seen).toEqual(["form.opted"]);
+    });
+
+    test("stopWaitingLazy releases the page", async () => {
+        const fixture = getFixture();
+        fixture.innerHTML = `<div id="wrapwrap"><button class="a">x</button></div>`;
+        freeze();
+        stopWaitingLazy();
+        expect(document.body).not.toHaveClass("o_lazy_js_waiting");
+        const seen = [];
+        const button = fixture.querySelector(".a");
+        button.addEventListener("click", () => seen.push("own-listener"));
+        button.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+        expect(seen).toEqual(["own-listener"]);
+    });
 });

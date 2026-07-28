@@ -55,7 +55,7 @@ const loadingEffectHandlers = [];
 /**
  * Adds the given event listener and saves it for later removal.
  *
- * @param {HTMLElement} el
+ * @param {HTMLElement | Document} el
  * @param {string} type
  * @param {EventListener} handler
  */
@@ -66,6 +66,76 @@ function registerLoadingEffectHandler(el, type, handler) {
 
 let waitingLazy = false;
 
+const LOADING_EFFECT_EVENT_TYPES = [
+    "mouseover",
+    "mouseenter",
+    "mousedown",
+    "mouseup",
+    "click",
+    "mouseout",
+    "mouseleave",
+];
+
+/**
+ * A control the lazy wait is allowed to freeze. An anchor that actually
+ * navigates somewhere is left alone: swallowing its click would strand the
+ * visitor on the page.
+ *
+ * @param {Element} el
+ * @returns {boolean}
+ */
+function isLazyWaitTarget(el) {
+    const href = el.nodeName === "A" ? el.getAttribute("href") : null;
+    return !el.classList.contains("o_no_wait_lazy_js") && !(href && href !== "#");
+}
+
+/**
+ * The controls the freeze applies to, chosen once when it starts.
+ *
+ * Delegation could just as well decide per event and would then also cover the
+ * controls that appear during the wait — but that is a wider freeze than the
+ * one this module has always applied, and widening it is a separate decision
+ * from making it cheaper. The set keeps the two apart: same controls as a
+ * per-control binding, a handful of listeners instead of seven per control.
+ *
+ * @type {WeakSet<Element>}
+ */
+let frozenControls = new WeakSet();
+
+/**
+ * The wrapped handler of a (control, event type) pair, built on first use.
+ *
+ * One per pair and not one per event: the wrappers hold a lock that lets only
+ * the first event through, and the events are replayed once the lazy JS has
+ * loaded. Sharing a wrapper across controls would let a hover over one button
+ * swallow, unreplayed, the click on the next one.
+ *
+ * @type {WeakMap<Element, Map<string, (ev: Event) => any>>}
+ */
+let delegatedHandlers = new WeakMap();
+
+/**
+ * @param {Element} el
+ * @param {string} type
+ * @returns {(ev: Event) => any}
+ */
+function loadingEffectHandlerFor(el, type) {
+    let byType = delegatedHandlers.get(el);
+    if (!byType) {
+        byType = new Map();
+        delegatedHandlers.set(el, byType);
+    }
+    let handler = byType.get(type);
+    if (!handler) {
+        handler =
+            type === "click"
+                ? makeButtonHandler(waitForLazyAndRetrigger, true, true, true)
+                : makeAsyncHandler(waitForLazyAndRetrigger, true, true, true);
+        byType.set(type, handler);
+    }
+    return handler;
+}
+
 /**
  * Adds a loading effect on clicked buttons (unless opted out via a specific
  * class); once the whole JS has loaded, the events are retriggered.
@@ -73,6 +143,13 @@ let waitingLazy = false;
  * Form submits are prevented but not retriggered (would duplicate a submit
  * button's click retrigger) — submitting a form should usually simulate a
  * click on its submit button anyway.
+ *
+ * Delegated, rather than bound to each control: binding left seven capture
+ * listeners and seven closures on every control on the page — thousands of
+ * them on a large one. The capture phase runs on an ancestor even for
+ * `mouseenter` / `mouseleave`, which do not bubble (measured), and stopping
+ * there suppresses the control's own listeners too, which is what the freeze
+ * is for.
  *
  * @see stopWaitingLazy
  */
@@ -85,44 +162,34 @@ function waitLazy() {
     document.body.classList.add("o_lazy_js_waiting");
 
     const mainEl = document.getElementById("wrapwrap") || document.body;
-    const loadingEffectButtonEls = [
-        ...mainEl.querySelectorAll(BUTTON_HANDLER_SELECTOR),
-    ].filter(
-        (el) =>
-            !el.classList.contains("o_no_wait_lazy_js") &&
-            !(
-                el.nodeName === "A" &&
-                el.getAttribute("href") &&
-                el.getAttribute("href") !== "#"
-            ),
+    frozenControls = new WeakSet(
+        [...mainEl.querySelectorAll(BUTTON_HANDLER_SELECTOR)].filter(isLazyWaitTarget),
     );
-    const loadingEffectEventTypes = [
-        "mouseover",
-        "mouseenter",
-        "mousedown",
-        "mouseup",
-        "click",
-        "mouseout",
-        "mouseleave",
-    ];
-    for (const buttonEl of loadingEffectButtonEls) {
-        for (const eventType of loadingEffectEventTypes) {
-            const loadingEffectHandler =
-                eventType === "click"
-                    ? makeButtonHandler(waitForLazyAndRetrigger, true, true, true)
-                    : makeAsyncHandler(waitForLazyAndRetrigger, true, true, true);
-            registerLoadingEffectHandler(buttonEl, eventType, loadingEffectHandler);
-        }
-    }
-
-    for (const formEl of /** @type {NodeListOf<HTMLFormElement>} */ (
-        document.querySelectorAll("form:not(.o_no_wait_lazy_js)")
-    )) {
-        registerLoadingEffectHandler(formEl, "submit", (ev) => {
-            ev.preventDefault();
-            ev.stopImmediatePropagation();
+    for (const eventType of LOADING_EFFECT_EVENT_TYPES) {
+        registerLoadingEffectHandler(mainEl, eventType, (ev) => {
+            const el = /** @type {Element | null} */ (ev.target)?.closest?.(
+                BUTTON_HANDLER_SELECTOR,
+            );
+            if (!el || !frozenControls.has(el)) {
+                return;
+            }
+            loadingEffectHandlerFor(el, ev.type).call(el, ev);
         });
     }
+
+    // on the document, because a form may well sit outside the main element
+    // (a header login box does), which is what the per-form query covered
+    const frozenForms = new WeakSet(
+        document.querySelectorAll("form:not(.o_no_wait_lazy_js)"),
+    );
+    registerLoadingEffectHandler(document, "submit", (ev) => {
+        const formEl = /** @type {Element | null} */ (ev.target)?.closest?.("form");
+        if (!formEl || !frozenForms.has(formEl)) {
+            return;
+        }
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+    });
 }
 /**
  * Undo what @see waitLazy did.
@@ -138,9 +205,11 @@ function stopWaitingLazy() {
     for (const { el, type, handler } of loadingEffectHandlers) {
         el.removeEventListener(type, handler, { capture: true });
     }
-    // one record per (button, event type): keeping them would pin every button
-    // of the page in memory for as long as the document lives
     loadingEffectHandlers.length = 0;
+    // the per-control wrappers close over their controls; fresh collections
+    // drop every one of them at once
+    delegatedHandlers = new WeakMap();
+    frozenControls = new WeakSet();
 }
 
 if (document.readyState !== "loading") {
@@ -214,6 +283,15 @@ function _loadScripts(scripts, index, onAllScriptsDone) {
         }
         const script = scripts[i];
         const loadNext = () => loadFrom(i + 1);
+        if (!script.dataset.src) {
+            // `script.src = ""` resolves against the document, so an entry with
+            // an empty data-src had the browser fetch the page's own HTML and
+            // try to run it as a script — a guaranteed parse error, and a whole
+            // extra document over the wire. There is nothing to load here.
+            script.removeAttribute("data-src");
+            loadNext();
+            return;
+        }
         // only while the page is still waiting: the watchdog exists to unblock
         // it, so once it has been unblocked the remaining scripts finish on
         // their own time. Re-arming it kept a timer alive per script and logged
@@ -238,16 +316,33 @@ function _loadScripts(scripts, index, onAllScriptsDone) {
             { once: true },
         );
         script.setAttribute("defer", "defer");
-        script.src = script.dataset.src ?? "";
+        script.src = script.dataset.src;
         script.removeAttribute("data-src");
     };
     loadFrom(index);
 }
 
+/**
+ * Holds back the replay of the events swallowed during the wait until `prom`
+ * settles, so that a retriggered click meets a page that is ready for it.
+ *
+ * A named function rather than a bound `Array.prototype.push`: that exposed
+ * push's whole signature — several promises at once, and an array length as
+ * the return value — as the service's contract.
+ *
+ * @param {Promise<any>} prom
+ * @returns {void}
+ */
+function registerPageReadinessDelay(prom) {
+    retriggeringWaitingProms.push(prom);
+}
+
 export default {
     loadScripts: _loadScripts,
     allScriptsLoaded: _allScriptsLoaded,
-    registerPageReadinessDelay: retriggeringWaitingProms.push.bind(
-        retriggeringWaitingProms,
-    ),
+    registerPageReadinessDelay,
 };
+
+// exported for tests only: both run once, off DOMContentLoaded, so there is no
+// other way to exercise the freeze
+export { stopWaitingLazy, waitLazy };

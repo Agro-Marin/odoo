@@ -113,9 +113,18 @@ export function makeButtonHandler(
     return function (ev) {
         const handlerResult = fct.apply(this, /** @type {any} */ (arguments));
 
-        const buttonEl = /** @type {Element | null} */ (ev.target)?.closest(
-            BUTTON_HANDLER_SELECTOR,
-        );
+        // the element the listener is bound to, when that is itself a control:
+        // `target.closest()` walks up from whatever was clicked and stops at the
+        // INNERMOST match, so a control wrapping a link (`<div class="btn"><a>`)
+        // had the effect put on the link instead of on the button that owns the
+        // handler. The fallback still covers a delegated listener, whose
+        // currentTarget is a container rather than a control.
+        const currentEl = /** @type {Element | null} */ (ev.currentTarget);
+        const buttonEl = currentEl?.matches?.(BUTTON_HANDLER_SELECTOR)
+            ? currentEl
+            : /** @type {Element | null} */ (ev.target)?.closest(
+                  BUTTON_HANDLER_SELECTOR,
+              );
         if (!(buttonEl instanceof HTMLElement)) {
             return handlerResult;
         }

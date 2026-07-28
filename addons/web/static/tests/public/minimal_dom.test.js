@@ -51,3 +51,37 @@ test("makeButtonHandler re-enables a button that was clickable", async () => {
     await animationFrame();
     expect(buttonEl).not.toHaveClass("pe-none");
 });
+
+test("makeButtonHandler puts the effect on the control it is bound to", async () => {
+    const fixture = getFixture();
+    fixture.innerHTML = `<div class="btn outer"><a class="inner">go</a></div>`;
+    const outer = fixture.querySelector(".outer");
+    const inner = fixture.querySelector(".inner");
+    outer.addEventListener(
+        "click",
+        makeButtonHandler(() => {}),
+    );
+    inner.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    // `target.closest()` stops at the innermost match, so the effect used to
+    // land on the link rather than on the control that owns the handler
+    expect(outer).toHaveClass("pe-none");
+    expect(inner).not.toHaveClass("pe-none");
+});
+
+test("makeButtonHandler still finds the control when delegated", async () => {
+    const fixture = getFixture();
+    fixture.innerHTML = `<div class="host"><button class="btn target"><span>go</span></button></div>`;
+    const host = fixture.querySelector(".host");
+    const button = fixture.querySelector(".target");
+    // the bound element is a plain container, so the control has to be found
+    // by walking up from the event's target
+    host.addEventListener(
+        "click",
+        makeButtonHandler(() => {}),
+    );
+    fixture
+        .querySelector("span")
+        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(button).toHaveClass("pe-none");
+    expect(host).not.toHaveClass("pe-none");
+});
