@@ -48,7 +48,13 @@ def pager(url, total, page=1, step=30, scope=5, url_args=None):
     # negative number and produced ``/page/-3`` links.
     step = max(1, step)
     # Python 3 division yields float; math.ceil returns int — no outer cast needed.
-    page_count = math.ceil(max(0, total) / step)
+    # ``max(1, ...)``: an empty result set is still one (empty) page. With a
+    # literal 0 the clamps below produced ``page_next``/``page_last`` numbered 0
+    # — a page that cannot exist, and one ``portal.pager`` only avoids rendering
+    # because it happens to hide itself entirely when ``page_count <= 1``. Any
+    # other consumer of this dict (a custom pager template, a caller reading
+    # ``page_last`` to build a "jump to end" link) read the 0 as real.
+    page_count = max(1, math.ceil(max(0, total) / step))
 
     page = max(1, min(int(page if str(page).isdigit() else 1), page_count))
 
@@ -211,6 +217,31 @@ def _parse_bool_param(raw_value):
     return str2bool(raw_value or "false", default=False)
 
 
+def _parse_counter_names(raw_counters):
+    """Coerce the ``/my/counters`` payload into a list of counter names.
+
+    Every ``_prepare_home_portal_values`` override tests membership
+    (``if "sale_order_count" in counters``), so the parameter's contract is
+    "a collection of names". It arrives over ``jsonrpc``, where the caller
+    chooses the JSON *type*: a number or ``null`` reached the overrides as-is
+    and raised ``TypeError: argument of type 'int' is not a container`` — an
+    HTTP 500 with a traceback. A bare string was worse than a crash: ``in``
+    then matched *substrings*, so ``"x_count"`` silently satisfied every
+    override whose name it happened to contain.
+
+    Anything that is not a list/tuple/set of strings means "no counters
+    requested", which is the same well-defined answer ``/my/home`` already
+    passes (``[]``).
+
+    :param raw_counters: raw jsonrpc value
+    :return: the requested counter names
+    :rtype: list[str]
+    """
+    if not isinstance(raw_counters, (list, tuple, set, frozenset)):
+        return []
+    return [name for name in raw_counters if isinstance(name, str)]
+
+
 def _build_url_w_params(url_string, query_params, remove_duplicates=True):
     """Rebuild a string url based on url_string and correctly compute query parameters
     using those present in the url and those given by query_params. Having duplicates in
@@ -269,6 +300,47 @@ class CustomerPortal(Controller):
             "page_name": "home",
         }
 
+    def _resolve_searchbar_option(self, options, key, default):
+        """Clamp a client-supplied searchbar key to the vocabulary the page declares.
+
+        ``sortby`` / ``filterby`` / ``groupby`` / ``search_in`` reach a portal
+        list route straight off the query string, and the established pattern in
+        every consumer is::
+
+            if not sortby:
+                sortby = "date"
+            order = searchbar_sortings[sortby]["order"]
+
+        which answers ``?sortby=anything-else`` with ``KeyError`` — an HTTP 500
+        on a page a logged-in customer can reach by editing the URL, following a
+        stale bookmark, or clicking a link built against an older revision of the
+        page (the vocabularies are module-specific and change between versions).
+        The same values are indexed again by ``portal.portal_searchbar``, so an
+        unclamped key can also fail during rendering.
+
+        An unknown sort/filter key has an obvious safe reading — the page's own
+        default ordering — unlike a record id, for which "not an id" means 404.
+        Returning the default also keeps the rendered searchbar honest: the
+        template highlights the returned key, so the customer sees which option
+        is actually in effect.
+
+        Living here rather than in each consumer is the point: portal owns the
+        template that renders these vocabularies and the pager that pages
+        through their results, so it should also own the one rule that says a
+        key must be one of them.
+
+        :param dict options: the declared vocabulary (e.g. ``searchbar_sortings``)
+        :param key: the client-supplied key; may be ``None``, absent or unknown
+        :param str default: key to fall back on; returned as-is when
+                            ``options`` itself does not contain it, so a caller
+                            with an empty vocabulary still gets a usable value
+        :return: a key that is safe to index ``options`` with when
+                 ``default`` is one of its keys
+        """
+        if isinstance(key, str) and key in options:
+            return key
+        return default
+
     def _prepare_home_portal_values(self, counters):
         """Values for /my & /my/home routes template rendering.
 
@@ -281,7 +353,7 @@ class CustomerPortal(Controller):
     @route(["/my/counters"], type="jsonrpc", auth="user", website=True, readonly=True)
     def counters(self, counters, **kw):
         cache = request.session.get("portal_counters", {}).copy()
-        res = self._prepare_home_portal_values(counters)
+        res = self._prepare_home_portal_values(_parse_counter_names(counters))
         cache.update({k: bool(v) for k, v in res.items() if k.endswith("_count")})
         if cache != request.session.get("portal_counters"):
             request.session["portal_counters"] = cache
@@ -755,9 +827,7 @@ class CustomerPortal(Controller):
 
         ResPartner = request.env["res.partner"]
         partner_fields = ResPartner._fields
-        authorized_partner_fields = request.env[
-            "res.partner"
-        ]._get_frontend_writable_fields()
+        authorized_partner_fields = ResPartner._get_frontend_writable_fields()
         for key, value in form_data.items():
             if isinstance(value, str):
                 value = value.strip()
@@ -1352,6 +1422,15 @@ class CustomerPortal(Controller):
         ``self.with_user(self._uid).check_access(...)`` — a portal user signing
         a ``sale_stock`` quotation would crash). Restores upstream fix
         4d942852c82 (odoo/odoo#35030), accidentally reverted here.
+
+        ``"access_token" in _fields`` is checked before the token comparison:
+        the field only exists on models inheriting ``portal.mixin``, and
+        ``model_name`` is chosen by the caller. Reaching this helper with a
+        token and a plain model (this module's own ``/portal/attachment/remove``
+        passes ``ir.attachment``; downstream controllers pass whatever they
+        own) otherwise raised ``AttributeError`` from the recordset, masking
+        the ``AccessError`` that is the correct answer — a model with no token
+        field cannot be unlocked by a token.
         """
         document = request.env[model_name].browse(document_id)
         document_sudo = document.with_user(SUPERUSER_ID).exists()
@@ -1360,10 +1439,16 @@ class CustomerPortal(Controller):
         try:
             document.check_access("read")
         except AccessError:
+            stored_token = (
+                document_sudo.access_token
+                if "access_token" in document_sudo._fields
+                else None
+            )
             if (
                 not access_token
-                or not document_sudo.access_token
-                or not consteq(document_sudo.access_token, access_token)
+                or not isinstance(access_token, str)
+                or not stored_token
+                or not consteq(stored_token, access_token)
             ):
                 raise
         return document_sudo

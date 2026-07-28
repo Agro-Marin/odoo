@@ -1,14 +1,24 @@
-from odoo.tools.rendering_tools import template_env_globals
-from odoo.http import request
-
-# Expose `slug` to QWeb templates rendered outside a website context (mail
-# bodies, portal pages). The lambda is required for late binding: `request`
-# is a Werkzeug LocalProxy and `request.env` raises if accessed at import time.
-template_env_globals.update(
-    {
-        "slug": lambda value: request.env["ir.http"]._slug(value)  # noqa: PLW0108 (lambda needed for late binding of `request`)
-    }
-)
+# ``slug`` is deliberately NOT registered in ``odoo.tools.rendering_tools``'s
+# ``template_env_globals`` here. This module used to inject
+# ``lambda value: request.env["ir.http"]._slug(value)`` into that dict at import
+# time, which was both redundant and a live bug:
+#
+# * Redundant — every renderer that can evaluate ``slug(...)`` already binds it
+#   from the env, with no request needed: ``http_routing``'s ``ir.qweb``
+#   ``_prepare_environment`` for view rendering, and ``mail``'s
+#   ``MailRenderMixin._render_eval_context`` for mail templates.
+# * A bug — ``template_env_globals`` has exactly one consumer,
+#   ``_render_eval_context``, and it merges the dict *after* setting its own
+#   ``slug``, so the request-bound lambda silently won. Any render with no HTTP
+#   request bound (the ``ir.cron`` mail schedulers, queued mail, a server
+#   action) then raised ``RuntimeError: object is not bound`` from inside
+#   ``safe_eval``, which ``mail.template`` swallows into a generic "could not
+#   render" — a template with ``{{ slug(object) }}`` (e.g. ``event``'s
+#   reminders) failed with no usable diagnostic.
+#
+# Mutating another module's global dict at import time is also not undone on
+# uninstall. If a future renderer needs ``slug`` it should bind it from its own
+# env, like the two above do.
 
 from . import controllers
 from . import models

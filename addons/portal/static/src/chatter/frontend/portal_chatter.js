@@ -8,7 +8,7 @@ import { useService } from "@web/core/utils/hooks";
 export class PortalChatter extends Component {
     static template = xml`
         <Chatter threadId="props.resId" threadModel="props.resModel" composer="props.composer" twoColumns="props.twoColumns"/>
-        <div class="position-fixed" style="z-index:1030"><OverlayContainer overlays="overlayService.overlays"/></div>
+        <div class="position-fixed" style="z-index:1030"><OverlayContainer overlays="overlayService.overlays" rootId="'chatterRoot'"/></div>
     `;
     static components = { Chatter, OverlayContainer };
     static props = ["resId", "resModel", "composer", "twoColumns", "displayRating"];

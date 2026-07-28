@@ -395,7 +395,16 @@
                         <div class="btn-group">
                             <button id="portal_searchbar_sortby" data-bs-toggle="dropdown"
                                 class="btn btn-light dropdown-toggle">
-                                <t t-esc="searchbar_sortings[sortby].get('label', 'Newest')" />
+                                <!-- `.get(sortby) or {}`, matching the Filter By
+                                     button below: `sortby` is a query-string
+                                     value, and a key outside this page's
+                                     vocabulary must not turn the render into a
+                                     KeyError. Controllers should clamp it via
+                                     CustomerPortal._resolve_searchbar_option;
+                                     this is the backstop for the ones that
+                                     don't. -->
+                                <t
+                                    t-esc="(searchbar_sortings.get(sortby) or {}).get('label', 'Newest')" />
                             </button>
                             <div class="dropdown-menu dropdown-menu-end"
                                 aria-labelledby="portal_searchbar_sortby">
@@ -434,7 +443,8 @@
                         <div class="btn-group">
                             <button id="portal_searchbar_groupby" data-bs-toggle="dropdown"
                                 class="btn btn-light dropdown-toggle">
-                                <t t-esc="searchbar_groupby[groupby].get('label', 'None')" />
+                                <t
+                                    t-esc="(searchbar_groupby.get(groupby) or {}).get('label', 'None')" />
                             </button>
                             <div class="dropdown-menu dropdown-menu-end"
                                 aria-labelledby="portal_searchbar_groupby">

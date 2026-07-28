@@ -57,16 +57,21 @@ export class AddressCard extends Interaction {
         );
         if (addDeliveryAddressButton) {  // If `Add address` button for delivery.
             // Update the `use_delivery_as_billing` query param for a new delivery address URL.
+            // No encodeURIComponent: `searchParams.set` percent-encodes the value
+            // itself, so pre-encoding double-encodes it. Harmless for the two
+            // boolean literals this ever carries, but the pattern is a bug waiting
+            // for a value that needs escaping.
             const addDeliveryUrl = new URL(addDeliveryAddressButton.href);
-            addDeliveryUrl.searchParams.set(
-                'use_delivery_as_billing', encodeURIComponent(useDeliveryAsBilling)
-            );
+            addDeliveryUrl.searchParams.set('use_delivery_as_billing', useDeliveryAsBilling);
             addDeliveryAddressButton.href = addDeliveryUrl.toString();
         }
 
         // Toggle the billing address row and its "Add billing address" button together.
-        this.billingContainer.classList.toggle('d-none', useDeliveryAsBilling);
-        this.addBillingAddressBtn.classList.toggle('d-none', useDeliveryAsBilling);
+        // Both are optional, like the delivery button above: the billing block is
+        // absent from template variants that only collect a delivery address, and
+        // an unguarded `.classList` there threw before the URL update could be seen.
+        this.billingContainer?.classList.toggle('d-none', useDeliveryAsBilling);
+        this.addBillingAddressBtn?.classList.toggle('d-none', useDeliveryAsBilling);
     }
 }
 
