@@ -42,7 +42,7 @@ import time
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
@@ -557,6 +557,32 @@ class IrJob(models.Model):
         a non-empty recordset that has not been flushed would persist
         ``record_ids = []`` and the job would later run against nothing, doing
         no work and reporting success.
+
+        Every timestamp here comes from the database, never from the app host's
+        clock, but from two different database clocks -- and which one is not
+        interchangeable:
+
+        * ``create_date``/``write_date`` use ``cr.now()`` (``now()``, the
+          *transaction* clock), because that is what the ORM stamps every other
+          row in the database with;
+        * the ``eta`` an offset resolves to, and the ``pending``-vs-
+          ``scheduled`` decision, use :meth:`_clock_now`
+          (``clock_timestamp()``, the *statement* clock).
+
+        Reading the app host's clock let the writer and the readers disagree
+        whenever that host and the database differ: an ``eta`` a few seconds out
+        landed ``pending`` yet unclaimable, sitting in ``ir_job_claim_idx`` --
+        the pollution the ``scheduled`` state exists to prevent -- and reported
+        as ready by every gauge.  ``IrCron._now`` avoids the same trap the same
+        way.
+
+        Using the *transaction* clock for the ``eta`` would trade that for a
+        second bug, because ``now()`` is pinned at ``BEGIN``: measured, a
+        transaction open for six seconds resolved ``eta=3`` to three seconds in
+        the *past*, so the delay the caller asked for silently vanished.  The
+        readers compare against ``now()`` in their own short transactions, which
+        is real time to within a millisecond, so ``clock_timestamp()`` is the
+        writer-side clock that pairs with them.
         """
         job_config = _job_config_of(type(records), method_name)
         if job_config is None:
@@ -593,15 +619,15 @@ class IrJob(models.Model):
                 )
             ) from exc
 
-        if isinstance(eta, (int, float)):
-            eta = fields.Datetime.now() + timedelta(seconds=eta)
-
         env = self.env
-        state = (
-            JobState.SCHEDULED
-            if eta and eta > fields.Datetime.now()
-            else JobState.PENDING
-        )
+        now = env.cr.now().replace(microsecond=0)
+        state = JobState.PENDING
+        if eta is not None:
+            clock_now = self._clock_now()
+            if isinstance(eta, (int, float)):
+                eta = clock_now.replace(microsecond=0) + timedelta(seconds=eta)
+            if eta and eta > clock_now:
+                state = JobState.SCHEDULED
         dep_ids: list[int] = []
         if after:
             if after._name != self._name:
@@ -628,7 +654,6 @@ class IrJob(models.Model):
         context = {
             key: env.context[key] for key in ALLOWED_CONTEXT_KEYS if key in env.context
         }
-        now = fields.Datetime.now()
         env.cr.execute(
             SQL(
                 f"""
@@ -704,6 +729,19 @@ class IrJob(models.Model):
         if state == JobState.PENDING:
             self._notify_after_commit(env.cr)
         return self.browse(row[0])
+
+    @api.model
+    def _clock_now(self) -> datetime:
+        """Real naive-UTC time as the *database* reads it right now.
+
+        ``cr.now()`` cannot serve here: it is ``now()``, pinned at ``BEGIN``, so
+        inside a long transaction it lags real time by that transaction's age --
+        enough to resolve a relative ``eta`` into the past.  Every consumer of
+        this value is deciding whether a moment has already arrived, which is a
+        question about the wall clock, not about this transaction.
+        """
+        self.env.cr.execute("SELECT (clock_timestamp() AT TIME ZONE 'UTC')")
+        return self.env.cr.fetchone()[0]
 
     @staticmethod
     def _notify_after_commit(cr) -> None:
@@ -1448,6 +1486,38 @@ class IrJob(models.Model):
         records.unlink()
         return len(records), len(records) == GC_UNLINK_LIMIT
 
+    def write(self, vals: dict[str, Any]) -> bool:
+        result = super().write(vals)
+        if "eta" in vals and "state" not in vals:
+            self._align_state_with_eta()
+        return result
+
+    def _align_state_with_eta(self) -> None:
+        """Re-derive the queued state of these jobs from their ``eta``.
+
+        The invariant the whole ``pending``/``scheduled`` split rests on --
+        ``pending`` means *claimable this instant* -- is otherwise enforced only
+        by the writers that happen to remember it (``_enqueue``,
+        ``_record_failure``, ``_release_dependents``, all of which go through
+        :data:`_DUE_STATE_SQL`).  A plain ORM write does not, and the form view
+        exposes ``eta`` as an editable field: postponing a pending job left it
+        ``pending`` and unclaimable, sitting in ``ir_job_claim_idx`` and counted
+        as ready; bringing a scheduled job forward left it ``scheduled``, which
+        :meth:`_promote_due_jobs` does pick up, but only on the next worker
+        pass.  Making the model enforce it costs nothing here and keeps the
+        claim index exact whatever writes the field.
+        """
+        now = self._clock_now()
+        queued = self.filtered(lambda job: job.state in RUNNABLE_STATES)
+        due = queued.filtered(lambda job: not job.eta or job.eta <= now)
+        if promote := due.filtered(lambda job: job.state != JobState.PENDING):
+            promote.write({"state": JobState.PENDING})
+            self._notify_after_commit(self.env.cr)
+        if postpone := (queued - due).filtered(
+            lambda job: job.state != JobState.SCHEDULED
+        ):
+            postpone.write({"state": JobState.SCHEDULED})
+
     @api.depends("name", "model_name", "method_name")
     def _compute_display_name(self) -> None:
         for job in self:
@@ -1569,8 +1639,6 @@ class IrJob(models.Model):
                 raise UserError(
                     self.env._("Only jobs that have not started yet can be cancelled.")
                 )
-        self.sudo().write(
-            {"state": JobState.CANCELLED, "done_at": fields.Datetime.now()}
-        )
+        self.sudo().write({"state": JobState.CANCELLED, "done_at": self.env.cr.now()})
         self.env.flush_all()
         type(self)._cancel_dependents(self.env.cr, self.ids)

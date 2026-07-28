@@ -231,10 +231,13 @@ class TestIrJob(TransactionCase):
         self.assertTrue(record.done_at)
 
     def test_run_claimed_refuses_undecorated_method(self):
+        """And terminally: the marker is a property of the code, so the next
+        attempt reaches the same answer -- retrying only buys backoff.
+        """
         self.partner.delayed()._ir_job_test_append()
         job = self._claim()
         job["method_name"] = "write"
-        with self.assertRaises(TypeError):
+        with self.assertRaises(TerminalJobError):
             IrJob._run_claimed(self.env.cr, job)
 
     def test_failure_retries_with_backoff_then_fails(self):
@@ -495,6 +498,32 @@ class TestIrJob(TransactionCase):
         with self.assertRaisesRegex(TerminalJobError, "archived"):
             IrJob._run_claimed(self.env.cr, claimed)
 
+    def _multi_company_user(self, companies, allowed):
+        user = self.env["res.users"].create(
+            {
+                "name": "multi company",
+                "login": "job_multi_company_user",
+                "company_id": companies[0].id,
+                "company_ids": [(6, 0, companies.ids)],
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("base.group_partner_manager").id,
+                        ],
+                    )
+                ],
+            }
+        )
+        scoped = self.partner.with_user(user).with_context(
+            allowed_company_ids=allowed.ids
+        )
+        scoped.delayed()._ir_job_test_append()
+        self.env.flush_all()
+        return user
+
     def test_permanent_condition_does_not_climb_the_backoff_ladder(self):
         """``TerminalJobError`` spends the budget at once, not one rung at a time.
 
@@ -684,6 +713,109 @@ class TestIrJob(TransactionCase):
         job = job._ir_job_test_append()
         self.assertEqual(job.state, "pending")
         self.assertFalse(job.depends_on_ids)
+
+    def test_enqueue_stamps_the_database_clock(self):
+        """Writer and readers must read the same clock -- and the row's two
+        kinds of timestamp read two different *database* clocks.
+
+        The app host's clock decided ``pending`` vs ``scheduled`` while every
+        reader of ``eta`` compares against the database's, so any skew between
+        the two produced a ``pending`` row that no claim would take.
+        ``create_date`` is the transaction clock, matching every other row the
+        ORM writes; ``eta`` is real time, so asserting it against ``cr.now()``
+        is asserting that the transaction is younger than a second.
+        """
+        job = self.partner.delayed(eta=600)._ir_job_test_append()
+        self.assertEqual(job.state, "scheduled")
+        self.assertEqual(job.create_date, self.env.cr.now().replace(microsecond=0))
+        self.env.cr.execute(
+            "SELECT %s - (clock_timestamp() AT TIME ZONE 'UTC') FROM ir_job"
+            " WHERE id = %s",
+            (job.eta, job.id),
+        )
+        ahead = self.env.cr.fetchone()[0]
+        self.assertTrue(
+            timedelta(seconds=595) < ahead <= timedelta(seconds=600),
+            f"eta should be ~600s of real time away, is {ahead}",
+        )
+
+    def test_relative_eta_is_not_eaten_by_an_aged_transaction(self):
+        """``cr.now()`` is pinned at ``BEGIN``, so it is the wrong clock here.
+
+        Measured before this was split apart: a transaction open for six seconds
+        resolved ``eta=3`` to three seconds in the *past* -- the caller asked for
+        a delay and silently got none.  ``clock_timestamp()`` is real time, and
+        still the database's, so it keeps the skew fix without the staleness.
+        """
+        stale = self.env.cr.now() - timedelta(minutes=5)
+        self.patch(self.env.cr, "now", lambda: stale)
+        job = self.partner.delayed(eta=30)._ir_job_test_append()
+        self.assertEqual(job.state, "scheduled")
+        self.env.cr.execute(
+            "SELECT eta > (clock_timestamp() AT TIME ZONE 'UTC')"
+            " FROM ir_job WHERE id = %s",
+            (job.id,),
+        )
+        self.assertTrue(self.env.cr.fetchone()[0], "the 30s delay survived")
+
+    def test_enqueue_state_survives_an_app_clock_running_ahead(self):
+        """The concrete failure: with the app clock ahead of the database's, an
+        ``eta`` the database still reads as future was stamped ``pending`` --
+        unclaimable, yet sitting in ``ir_job_claim_idx`` and counted as ready.
+        """
+        skewed = fields.Datetime.now() + timedelta(hours=1)
+        with patch.object(fields.Datetime, "now", staticmethod(lambda: skewed)):
+            job = self.partner.delayed(eta=30)._ir_job_test_append()
+        self.assertEqual(job.state, "scheduled")
+        self.assertGreater(job.eta, self.env.cr.now())
+        self.assertIsNone(self._claim(), "and it is indeed not claimable")
+
+    def test_postponing_a_pending_job_moves_it_out_of_the_claim_index(self):
+        """``pending`` means claimable *this instant*; the form view lets an
+        operator write a future ``eta`` straight onto a pending row.
+        """
+        job = self.partner.delayed()._ir_job_test_append()
+        self.assertEqual(job.state, "pending")
+        job.write({"eta": self.env.cr.now() + timedelta(hours=1)})
+        self.env.flush_all()
+        self.assertEqual(job.state, "scheduled")
+        self.assertIsNone(self._claim())
+
+    def test_bringing_a_scheduled_job_forward_makes_it_claimable_at_once(self):
+        job = self.partner.delayed(eta=3600)._ir_job_test_append()
+        self.assertEqual(job.state, "scheduled")
+        job.write({"eta": False})
+        self.env.flush_all()
+        self.assertEqual(job.state, "pending")
+        self.assertEqual(self._claim()["id"], job.id)
+
+    def test_realignment_handles_a_multi_record_write(self):
+        """``write`` is a set operation; the realignment splits the set by what
+        each row's own ``eta`` now means.
+        """
+        soon = self.partner.delayed()._ir_job_test_append()
+        later = self.partner.delayed(eta=3600)._ir_job_test_append()
+        both = soon | later
+        both.write({"eta": False})
+        self.env.flush_all()
+        self.assertEqual(set(both.mapped("state")), {"pending"})
+
+        both.write({"eta": self.env.cr.now() + timedelta(hours=1)})
+        self.env.flush_all()
+        self.assertEqual(set(both.mapped("state")), {"scheduled"})
+
+    def test_an_explicit_state_write_is_left_alone(self):
+        """The realignment must not fight a caller that says what it wants."""
+        job = self.partner.delayed()._ir_job_test_append()
+        job.write({"eta": self.env.cr.now() + timedelta(hours=1), "state": "pending"})
+        self.assertEqual(job.state, "pending")
+
+    def _advisory_locks_held(self):
+        self.env.cr.execute(
+            "SELECT count(*) FROM pg_locks"
+            " WHERE locktype = 'advisory' AND pid = pg_backend_pid()"
+        )
+        return self.env.cr.fetchone()[0]
 
     def test_maintenance_sweep_is_throttled_per_database(self):
         """The sweep repairs the database, not this worker's view of it, so
@@ -1101,6 +1233,10 @@ class TestIrJobDrainLoop(BaseCase):
             "the invalidation was never published to the other processes",
         )
 
+    def _delete_partner(self, partner_id):
+        with self.registry.cursor() as cr:
+            cr.execute("DELETE FROM res_partner WHERE id = %s", (partner_id,))
+            cr.commit()
 
 class TestIrJobClaimCapacity(TransactionCase):
     """The claim query's capacity decision, and that the ``saturated`` CTE
