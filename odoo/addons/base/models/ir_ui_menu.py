@@ -10,6 +10,8 @@ from odoo.exceptions import ValidationError
 from odoo.http import request
 
 MENU_ITEM_SEPARATOR = "/"
+_MISSING = object()
+"""Sentinel telling "no ``web_icon`` key" from an explicit falsy one."""
 NUMBER_PARENS = re.compile(r"\((\d+)\)\s*$")
 
 
@@ -216,18 +218,26 @@ class IrUiMenu(models.Model):
         if not vals_list:
             return self.browse()
         self.env.registry.clear_cache()
-        for values in vals_list:
-            if "web_icon" in values:
-                values["web_icon_data"] = self._compute_web_icon_data(
-                    values.get("web_icon")
-                )
-        return super().create(vals_list)
+        return super().create(
+            [
+                {**values, "web_icon_data": self._compute_web_icon_data(icon)}
+                if (icon := values.get("web_icon", _MISSING)) is not _MISSING
+                else values
+                for values in vals_list
+            ]
+        )
 
     def write(self, vals: dict[str, Any]) -> bool:
         if self and vals:
             self.env.registry.clear_cache()
         if "web_icon" in vals:
-            vals["web_icon_data"] = self._compute_web_icon_data(vals.get("web_icon"))
+            # Derived onto a copy: stamping it back into the caller's dict put a
+            # base64 blob in a mapping it never wrote, which a caller reusing
+            # that dict then writes to the next menu.
+            vals = {
+                **vals,
+                "web_icon_data": self._compute_web_icon_data(vals.get("web_icon")),
+            }
         return super().write(vals)
 
     def _compute_web_icon_data(self, web_icon: str | None) -> bytes | bool:

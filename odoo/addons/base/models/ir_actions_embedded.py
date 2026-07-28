@@ -81,6 +81,11 @@ class IrEmbeddedActions(models.Model):
         vals dict has both ``action_id`` and ``python_method``, the pair is
         silently coerced (not rejected) to satisfy the SQL CHECK: a truthy
         ``python_method`` wins, otherwise the falsy ``python_method`` is dropped.
+
+        Both are applied to a copy. Editing the caller's dicts leaked a derived
+        ``name`` and a deleted key back out, so passing one dict twice — or
+        reusing it after the call, as a loop over users does — created records
+        from values nobody wrote.
         """
         action_ids = [
             v["action_id"] for v in vals_list if "name" not in v and "action_id" in v
@@ -90,15 +95,16 @@ class IrEmbeddedActions(models.Model):
             action_names = {a.id: a.name for a in actions}
         else:
             action_names = {}
-        for vals in vals_list:
+
+        def normalised(vals: ValuesType) -> ValuesType:
+            vals = dict(vals)
             if "name" not in vals:
                 vals["name"] = action_names.get(vals.get("action_id"), "")
             if "python_method" in vals and "action_id" in vals:
-                if vals.get("python_method"):
-                    del vals["action_id"]
-                else:
-                    del vals["python_method"]
-        return super().create(vals_list)
+                vals.pop("action_id" if vals.get("python_method") else "python_method")
+            return vals
+
+        return super().create([normalised(vals) for vals in vals_list])
 
     def _compute_is_deletable(self) -> None:
         """Mark records not seeded from a data file as user-deletable."""

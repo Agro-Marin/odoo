@@ -1896,3 +1896,102 @@ class TestIrActionsBindingModelIsChecked(TransactionCase):
                     self.env[model_name].create({**vals, "binding_model_id": stale.id})
                     self.env.flush_all()
                 self.env.invalidate_all()
+
+
+@tagged("post_install", "-at_install")
+class TestActionCreateDoesNotEditItsArgument(TransactionCase):
+    """No create/write override may write back into the caller's vals.
+
+    ir.actions.act_window.create already built a new dict; its siblings did
+    not, and each leaked something different: a derived name and a deleted key
+    (ir.embedded.actions), the parent's model and groups (ir.actions.server),
+    a base64 icon blob (ir.ui.menu). A caller reusing one dict for several
+    records then created them from values nobody wrote.
+    """
+
+    def _unchanged(self, model_name, vals, extra=None):
+        snapshot = dict(vals)
+        self.env[model_name].create([{**vals, **(extra or {})}] if extra else [vals])
+        self.assertEqual(vals, snapshot, f"{model_name}.create edited its argument")
+
+    def test_embedded_action_create_keeps_the_caller_vals(self):
+        parent = self.env["ir.actions.act_window"].create(
+            {"name": "audit-arg-parent", "res_model": "res.partner"}
+        )
+        target = self.env["ir.actions.act_window"].create(
+            {"name": "audit-arg-target", "res_model": "res.partner"}
+        )
+        self._unchanged(
+            "ir.embedded.actions",
+            {
+                "parent_action_id": parent.id,
+                "parent_res_model": "res.partner",
+                "action_id": target.id,
+            },
+        )
+
+    def test_embedded_action_create_keeps_the_coerced_pair(self):
+        parent = self.env["ir.actions.act_window"].create(
+            {"name": "audit-arg-parent2", "res_model": "res.partner"}
+        )
+        target = self.env["ir.actions.act_window"].create(
+            {"name": "audit-arg-target2", "res_model": "res.partner"}
+        )
+        self._unchanged(
+            "ir.embedded.actions",
+            {
+                "name": "audit-arg-xor",
+                "parent_action_id": parent.id,
+                "parent_res_model": "res.partner",
+                "action_id": target.id,
+                "python_method": "",
+            },
+        )
+
+    def test_the_same_dict_twice_yields_the_same_record_twice(self):
+        """What the leak actually broke, rather than the leak itself."""
+        parent = self.env["ir.actions.act_window"].create(
+            {"name": "audit-arg-parent3", "res_model": "res.partner"}
+        )
+        target = self.env["ir.actions.act_window"].create(
+            {"name": "audit-arg-target3", "res_model": "res.partner"}
+        )
+        vals = {
+            "parent_action_id": parent.id,
+            "parent_res_model": "res.partner",
+            "action_id": target.id,
+        }
+        first = self.env["ir.embedded.actions"].create([vals])
+        second = self.env["ir.embedded.actions"].create([vals])
+        self.assertEqual(first.name, second.name)
+        self.assertEqual(first.action_id, second.action_id)
+
+    def test_server_action_create_keeps_the_caller_vals(self):
+        parent = self.env["ir.actions.server"].create(
+            {
+                "name": "audit-arg-server-parent",
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+                "state": "code",
+                "code": "pass",
+            }
+        )
+        self._unchanged(
+            "ir.actions.server",
+            {
+                "name": "audit-arg-server-child",
+                "model_id": self.env["ir.model"]._get_id("res.currency"),
+                "state": "code",
+                "code": "pass",
+                "parent_id": parent.id,
+            },
+        )
+
+    def test_menu_create_keeps_the_caller_vals(self):
+        self._unchanged("ir.ui.menu", {"name": "audit-arg-menu", "web_icon": False})
+
+    def test_menu_write_keeps_the_caller_vals(self):
+        menu = self.env["ir.ui.menu"].create({"name": "audit-arg-menu-w"})
+        vals = {"name": "audit-arg-menu-w2", "web_icon": "base,static/img/nope.png"}
+        snapshot = dict(vals)
+        menu.write(vals)
+        self.assertEqual(vals, snapshot, "ir.ui.menu.write edited its argument")
