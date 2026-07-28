@@ -67,6 +67,12 @@ $o-enterprise-action-color: #06b6d4 !default;
 $o-brand-odoo: $o-community-color !default;
 $o-brand-primary: $o-community-color !default;
 
+// The brand as a *fill that carries a label*. `.btn-primary` puts a 14px white
+// label on it, which needs WCAG AA's 4.5:1 - a threshold a hue picked for
+// surfaces does not necessarily meet. This palette's brand does (4.86:1), so it
+// is the fill; palettes whose brand is lighter override it.
+$o-brand-primary-filled: $o-brand-primary !default;
+
 $o-brand-secondary: $o-gray-500 !default;
 $o-brand-lightsecondary: $o-gray-100 !default;
 
@@ -86,6 +92,12 @@ $o-theme-text-colors: (
     "warning": #b45309,
     "danger": #dc2626,
 ) !default;
+
+// The same split for `$o-action`, which `$link-color` and `.text-action` render
+// as text while `$o-bg-colors-custom` keeps using it as a fill. Community's
+// action colour is the brand purple and already clears AA, so the default is the
+// fill itself; palettes whose accent is tuned only for fills override this.
+$o-action-text: $o-action !default;
 
 $o-opacity-disabled: 0.5 !default;
 $o-opacity-muted: 0.76 !default;
@@ -142,7 +154,7 @@ $o-list-footer-bg-color: transparent !default;
 $o-list-footer-font-weight: bold !default;
 
 $o-text-colors-custom: (
-    "action": $o-action,
+    "action": $o-action-text,
     "favourite": $o-main-favorite-color,
 ) !default;
 
@@ -206,16 +218,16 @@ $o-btns-bs-override: () !default;
 $o-btns-bs-override: map-merge(
     (
         "primary": (
-            background: $o-brand-primary,
-            border: $o-brand-primary,
+            background: $o-brand-primary-filled,
+            border: $o-brand-primary-filled,
             color: $o-white,
 
-            hover-background: darken($o-brand-primary, 10%),
-            hover-border: darken($o-brand-primary, 20%),
+            hover-background: darken($o-brand-primary-filled, 10%),
+            hover-border: darken($o-brand-primary-filled, 20%),
             hover-color: $o-white,
 
-            active-background: darken($o-brand-primary, 15%),
-            active-border: darken($o-brand-primary, 15%),
+            active-background: darken($o-brand-primary-filled, 15%),
+            active-border: darken($o-brand-primary-filled, 15%),
             active-color: $o-white,
         ),
         "secondary": (
@@ -296,3 +308,5 @@ $o-ring-width: 2px !default;
 // WCAG 2.2 SC 1.4.11 requires of a focus indicator.
 $o-ring-color: map-get($o-theme-text-colors, "primary") !default;
 $o-ring-offset: 2px !default;
+// The same 3:1 floor, as a value `o-ring-color-for()` can test a surface against.
+$o-ring-min-contrast: 3 !default;
