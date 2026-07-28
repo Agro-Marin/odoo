@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, getFixture, test } from "@odoo/hoot";
-import { queryOne, queryRect, resize, scroll, waitFor } from "@odoo/hoot-dom";
+import { click, queryOne, queryRect, resize, scroll, waitFor } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useRef, useState, xml } from "@odoo/owl";
 import {
@@ -561,4 +561,65 @@ test("popover can animate", async () => {
     await runAllTimers();
 
     expect.verifySteps(["animated"]);
+});
+
+test("holdOnHover does not release a fixedPosition popover", async () => {
+    // `fixedPosition` is the caller pinning the popover for its whole
+    // lifetime; the hover lock is transient. Releasing the former with the
+    // latter let the popover jump on the first pointer that crossed it.
+    const popover = await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: getFixture(),
+            component: Content,
+            fixedPosition: true,
+            holdOnHover: true,
+        },
+    });
+    await animationFrame();
+
+    let unlocks = 0;
+    patchWithCleanup(popover.position, { unlock: () => (unlocks += 1) });
+    const el = queryOne(".o_popover");
+    el.dispatchEvent(new PointerEvent("pointerenter"));
+    el.dispatchEvent(new PointerEvent("pointerleave"));
+    expect(unlocks).toBe(0);
+});
+
+test("holdOnHover still releases a normally positioned popover", async () => {
+    const popover = await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: getFixture(),
+            component: Content,
+            holdOnHover: true,
+        },
+    });
+    await animationFrame();
+
+    let unlocks = 0;
+    patchWithCleanup(popover.position, { unlock: () => (unlocks += 1) });
+    const el = queryOne(".o_popover");
+    el.dispatchEvent(new PointerEvent("pointerenter"));
+    expect(unlocks).toBe(0);
+    el.dispatchEvent(new PointerEvent("pointerleave"));
+    expect(unlocks).toBe(1);
+});
+
+test("closeOnClickAway is not consulted for clicks inside the popover", async () => {
+    const asked = [];
+    await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: getFixture(),
+            component: Content,
+            closeOnClickAway: (t) => (asked.push(t), true),
+        },
+    });
+    await animationFrame();
+
+    await click("#popover");
+    await animationFrame();
+    expect(asked).toEqual([]);
+    expect("#popover").toHaveCount(1);
 });

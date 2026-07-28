@@ -4,7 +4,7 @@
 /** @module @web/ui/popover/popover_service - Service for programmatically attaching popover components to target elements */
 
 import { registry } from "@web/core/registry";
-import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
+import { asPredicate, makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import { Popover } from "@web/ui/popover/popover";
 
 /**
@@ -29,14 +29,6 @@ import { Popover } from "@web/ui/popover/popover";
  *
  * @typedef {ReturnType<popoverService["start"]>["add"]} PopoverServiceAddFunction
  */
-
-/**
- * @param {boolean | ((target: HTMLElement) => boolean) | undefined} value
- * @returns {(target: HTMLElement) => boolean}
- */
-function asPredicate(value) {
-    return typeof value === "function" ? value : () => value ?? true;
-}
 
 export const popoverService = {
     dependencies: ["overlay"],

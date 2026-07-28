@@ -29,12 +29,29 @@ function checkRoot(root) {
     if (!entry) {
         return;
     }
-    for (const [target, callbacks] of [...entry.watchers]) {
+    /**
+     * Scanned without copying: this runs on EVERY mutation batch in the app,
+     * and the overwhelmingly common outcome is "nothing detached". Only the
+     * rare batch that actually detaches a target pays for an array — the copy
+     * is what makes it safe to run callbacks that unregister themselves.
+     * @type {Node[] | undefined}
+     */
+    let detached;
+    for (const target of entry.watchers.keys()) {
         if (!target.isConnected) {
-            // Copied: a callback typically unregisters itself.
-            for (const callback of [...callbacks]) {
-                callback();
-            }
+            (detached ??= []).push(target);
+        }
+    }
+    if (!detached) {
+        return;
+    }
+    for (const target of detached) {
+        const callbacks = entry.watchers.get(target);
+        if (!callbacks) {
+            continue;
+        }
+        for (const callback of [...callbacks]) {
+            callback();
         }
     }
 }

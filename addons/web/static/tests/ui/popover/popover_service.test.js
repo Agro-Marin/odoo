@@ -261,3 +261,23 @@ test("keep popover if target sibling is removed", async () => {
     expect(".o_popover").toHaveCount(1);
     expect(".o_popover #comp").toHaveCount(1);
 });
+
+test("close params reach onClose, as they do for a dialog", async () => {
+    // A hosted component is the only place that knows WHY it is closing;
+    // `makeOverlayPresenter` used to bind `close` as a zero-arg thunk, so that
+    // reason was unobservable from the popover and the bottom sheet while the
+    // dialog service forwarded it.
+    let received = "NEVER CALLED";
+    class Comp extends Component {
+        static template = xml`<div id="comp">in popover</div>`;
+        static props = ["*"];
+        setup() {
+            this.props.close({ reason: "picked" });
+        }
+    }
+
+    getService("popover").add(target, Comp, {}, { onClose: (p) => (received = p) });
+    await animationFrame();
+    await animationFrame();
+    expect(received).toEqual({ reason: "picked" });
+});

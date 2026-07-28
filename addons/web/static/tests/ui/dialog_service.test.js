@@ -381,7 +381,12 @@ test("a component overriding the header slot can reuse web.Dialog.header", async
     expect(labelledBy).toMatch(/^dialog_\d+_title$/);
     expect(`#${labelledBy}`).toHaveText("Welcome");
 
-    await click(".o_dialog header .btn-close");
+    // `[aria-label=Close]`, not `.btn-close`: `web.Dialog.header` renders the
+    // close button on desktop and a back arrow once `isFullscreen` (which
+    // `env.isSmall` turns on), so keying on the desktop class made this test
+    // fail under the mobile preset for a reason that has nothing to do with
+    // the slot contract it covers.
+    await click(".o_dialog header [aria-label=Close]");
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
 });

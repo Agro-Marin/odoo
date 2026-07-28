@@ -126,25 +126,26 @@ export class OverlayContainer extends Component {
         }
     }
 
-    /** @returns {Object[]} overlays sorted by ascending sequence */
-    get sortedOverlays() {
-        return sortBy(
-            Object.values(/** @type {Record<string, any>} */ (this.overlays)),
-            (overlay) => overlay.sequence,
-        );
-    }
-
     /**
+     * This container's own overlays, by ascending sequence.
+     *
+     * Filtered BEFORE sorting: every container on the page re-runs this on
+     * each render, and a shadow-rooted one would otherwise sort the whole
+     * cross-root set only to discard most of it.
+     *
      * A container inside a shadow root should declare its `rootId` prop: until
      * the root element is mounted it cannot tell its own host id apart from
      * `undefined` (= the main document), and would mount every main-document
      * overlay for one frame before dropping it again.
      *
-     * @param {Record<string, any>} overlay
-     * @returns {boolean} whether overlay belongs to this container's shadow root
+     * @returns {Object[]}
      */
-    isVisible(overlay) {
-        return overlay.rootId === this.state.rootId;
+    get sortedOverlays() {
+        const { rootId } = this.state;
+        const mine = Object.values(
+            /** @type {Record<string, any>} */ (this.overlays),
+        ).filter((overlay) => overlay.rootId === rootId);
+        return sortBy(mine, (overlay) => overlay.sequence);
     }
 
     /**

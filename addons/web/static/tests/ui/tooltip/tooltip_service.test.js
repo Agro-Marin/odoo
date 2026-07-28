@@ -20,12 +20,9 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { getDetachedTargetObserverCount } from "@web/ui/popover/detached_target_watcher";
 import { popoverService } from "@web/ui/popover/popover_service";
-import {
-    CLOSE_DELAY,
-    OPEN_DELAY,
-    SHOW_AFTER_DELAY,
-} from "@web/ui/tooltip/tooltip_service";
+import { OPEN_DELAY, SHOW_AFTER_DELAY } from "@web/ui/tooltip/tooltip_service";
 
 test.tags("desktop");
 test("basic rendering", async () => {
@@ -307,20 +304,17 @@ test("tooltip does not crash with disappearing target", async () => {
     expect(".o_popover").toHaveCount(0);
 });
 
+// A tooltip opens on hover, so the naive "watch the DOM while one is up" costs
+// something on every mouse traversal of a list of `data-tooltip` cells. It must
+// ride the shared MutationObserver the popover already arms for the same
+// anchor, never a timer, and must leave nothing behind when it closes itself.
 test.tags("desktop");
-test("self-closing popover (Escape) stops the cleanup interval", async () => {
-    const tooltipIntervals = new Set();
+test("a tooltip watches its target without polling, and releases it", async () => {
+    const intervals = [];
     patchWithCleanup(browser, {
         setInterval(fn, delay) {
-            const id = super.setInterval(fn, delay);
-            if (delay === CLOSE_DELAY) {
-                tooltipIntervals.add(id);
-            }
-            return id;
-        },
-        clearInterval(id) {
-            tooltipIntervals.delete(id);
-            return super.clearInterval(id);
+            intervals.push(delay);
+            return super.setInterval(fn, delay);
         },
     });
 
@@ -330,15 +324,19 @@ test("self-closing popover (Escape) stops the cleanup interval", async () => {
     }
 
     await mountWithCleanup(MyComponent);
+    expect(getDetachedTargetObserverCount()).toBe(0);
+
     await hover(".mybtn");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
-    expect(tooltipIntervals.size).toBe(1);
+    expect(intervals).toEqual([]);
+    expect(getDetachedTargetObserverCount()).toBe(1);
 
     await press("Escape");
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
-    expect(tooltipIntervals.size).toBe(0);
+    expect(intervals).toEqual([]);
+    expect(getDetachedTargetObserverCount()).toBe(0);
 });
 
 test.tags("desktop");
@@ -560,4 +558,26 @@ test("a tooltip keeps a description the element already had", async () => {
     await leave();
     await advanceTime(OPEN_DELAY);
     expect(btn).toHaveAttribute("aria-describedby", "field_help");
+});
+
+test.tags("desktop");
+test("clicking a child of the tooltipped element closes an OPEN tooltip", async () => {
+    // The pending case was already covered; the open one was not, and identity
+    // (`target === ev.target`) never matches when the click lands on the
+    // button's inner <span>, leaving the tooltip on top of whatever the click
+    // had just triggered.
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" data-tooltip="hello"><span class="inner">Action</span></button>`;
+    }
+
+    await mountWithCleanup(MyComponent);
+    await hover(".inner");
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(1);
+
+    await click(".inner");
+    await runAllTimers();
+    await animationFrame();
+    expect(".o_popover").toHaveCount(0);
 });
