@@ -1,7 +1,6 @@
 /** @odoo-module native */
-/* global owl */
 
-const { Component, xml, useEffect, useRef } = owl;
+import { Component, useEffect, useRef, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class BootstrapDialog extends Component {
     static props = {
