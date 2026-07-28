@@ -403,3 +403,38 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         sof.save()
 
         self.assertFalse(sof.record.quotation_document_ids)
+
+
+@tagged('-at_install', 'post_install')
+class TestQuotationDocumentBinSize(SaleManagementCommon):
+    """The PDF validity constraint must not observe `bin_size`."""
+
+    def test_check_pdf_validity_under_bin_size(self):
+        """A constraint gets none of the `bin_size` clearing a Binary compute does."""
+        with file_open(plain_pdf, 'rb') as plain_file:
+            plain_data = b64encode(plain_file.read())
+        document = self.env['quotation.document'].create({
+            'name': 'header.pdf',
+            'datas': plain_data,
+            'mimetype': 'application/pdf',
+            'document_type': 'header',
+        })
+        self.env.flush_all()
+        document.invalidate_recordset()
+
+        # must not raise
+        document.with_context(bin_size=True)._check_pdf_validity()
+
+    def test_check_pdf_validity_still_rejects_encrypted(self):
+        """Reading through the attachment must not weaken the check."""
+        with file_open(
+            'sale_pdf_quote_builder/tests/files/test_AES.pdf', 'rb'
+        ) as encrypted_file:
+            encrypted = encrypted_file.read()
+        with self.assertRaises(ValidationError):
+            self.env['quotation.document'].create({
+                'name': 'encrypted.pdf',
+                'datas': b64encode(encrypted),
+                'mimetype': 'application/pdf',
+                'document_type': 'header',
+            })
