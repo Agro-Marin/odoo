@@ -13,10 +13,10 @@ import psycopg.errors
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, db, fields, models
-from odoo.api import ValuesType
+from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import LockError, UserError
 from odoo.http import serialize_exception
-from odoo.libs.constants import GC_UNLINK_LIMIT
+from odoo.libs.constants import CRON_TRIGGER_CHANNEL, GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
@@ -42,12 +42,29 @@ MAX_FAIL_TIME = timedelta(hours=5)
 MIN_RUNS_PER_JOB = 10
 MIN_TIME_PER_JOB = 10
 RUN_BUDGET_RATIO = 0.8
-"""Fraction of the worker's real-time limit one cron run may consume.
+"""Fraction of the worker's real-time limit one cron *pass* may consume.
 
-A deliberately loose backstop against a run that would otherwise be unbounded:
-it must not cut short the ``MIN_RUNS_PER_JOB`` passes of a healthy cron, which
-finish in ``MIN_TIME_PER_JOB`` seconds and never come near it.  It bounds one
-job, not the whole pass -- ``_process_jobs_loop`` still runs every ready cron.
+The budget both servers police a cron worker with is charged to the whole call
+-- the prefork master pings its watchdog once per ``process_work``, the threaded
+server stamps ``thread.start_time`` once per database -- while a pass runs
+*every* ready cron back to back.  Bounding the individual job instead left the
+pass itself unbounded: measured, six ready crons of two seconds each ran for
+12.1 s against a 5 s budget.
+
+What happens then differs by server and neither outcome is acceptable.
+``PreforkServer.process_timeout`` SIGKILLs the worker mid-job; the job is then
+charged a ``timed_out_counter``, and ``CONSECUTIVE_TIMEOUT_FOR_FAILURE`` of
+those make ``_process_job`` mark it failed *without executing it* -- which
+applies to exactly those crons that report no progress, i.e. every cron that
+does not call ``_commit_progress``.  ``ThreadedServer.run`` does not kill the
+thread at all: it reloads the whole server, aborting every in-flight HTTP
+request with it.
+
+So the ratio bounds the pass (:meth:`IrCron._pass_deadline`), which then caps
+each job inside it; the margin is what the last job needs to finish and the
+caller to reschedule.  Stopping between two jobs instead reschedules cleanly and
+NOTIFYs, so the deferred crons start a fresh pass with a fresh budget -- the
+shape ``IrJob._drain_deadline`` already used for the job queue.
 """
 CONSECUTIVE_TIMEOUT_FOR_FAILURE = 3
 MIN_FAILURE_COUNT_BEFORE_DEACTIVATION = 5
@@ -74,6 +91,26 @@ def worker_real_time_budget() -> float:
     if budget < 0:
         budget = config["limit_time_real"]
     return max(budget, 0)
+
+
+def notify_channel(channel: str, db_name: str) -> None:
+    """Wake the workers LISTENing on *channel* for *db_name*.
+
+    One implementation for both queues: the cron and job workers differ only in
+    the channel they listen on, and each rolling its own send is how the two
+    ended up spelling the channel name, the notify function and the connection
+    to the ``postgres`` database three separate times.
+    """
+    with db.db_connect("postgres").cursor() as cr:
+        cr.execute(
+            SQL(
+                "SELECT %s(%s, %s)",
+                SQL.identifier(ODOO_NOTIFY_FUNCTION),
+                channel,
+                db_name,
+            )
+        )
+    _logger.debug("%s workers notified (%s)", channel, db_name)
 
 
 class BadVersionError(Exception):
@@ -227,7 +264,11 @@ class IrCron(models.Model):
                 if not jobs:
                     return
                 cls._check_modules_state(cron_cr, jobs)
-                cls._process_jobs_loop(cron_cr, job_ids=[job["id"] for job in jobs])
+                cls._process_jobs_loop(
+                    cron_cr,
+                    job_ids=[job["id"] for job in jobs],
+                    deadline=cls._pass_deadline(),
+                )
         except BadVersionError:
             _logger.warning(
                 "Skipping database %s as its base version is not %s.",
@@ -255,14 +296,46 @@ class IrCron(models.Model):
                 threading.current_thread().dbname = previous_dbname
 
     @staticmethod
-    def _process_jobs_loop(cron_cr: BaseCursor, *, job_ids: Iterable[int] = ()) -> None:
+    def _pass_deadline() -> float | None:
+        """Monotonic instant at which a cron pass must hand back control.
+
+        Derived from :func:`worker_real_time_budget`, the option the servers
+        actually police a cron worker with, and charged to the pass because that
+        is what they measure -- see :data:`RUN_BUDGET_RATIO`.  ``None`` when the
+        deployment set no limit.
+        """
+        budget = worker_real_time_budget()
+        return time.monotonic() + budget * RUN_BUDGET_RATIO if budget else None
+
+    @staticmethod
+    def _process_jobs_loop(
+        cron_cr: BaseCursor,
+        *,
+        job_ids: Iterable[int] = (),
+        deadline: float | None = None,
+    ) -> bool:
         """Process ready jobs to run on this database.
 
         ``cron_cr`` locks the job being processed and is released by committing
         after each job.
+
+        Stops between two jobs once *deadline* has passed and NOTIFYs, so the
+        crons it did not reach start a fresh pass -- with a fresh watchdog
+        budget -- instead of being cut short by a SIGKILL in the middle of one.
+        Returns whether it yielded that way, i.e. whether ready crons remain.
         """
         db_name = cron_cr.dbname
-        for job_id in job_ids:
+        job_ids = list(job_ids)
+        for index, job_id in enumerate(job_ids):
+            if deadline is not None and time.monotonic() >= deadline:
+                _logger.warning(
+                    "Cron pass on %s yielded on its time budget with %s job(s)"
+                    " left to run; notifying",
+                    db_name,
+                    len(job_ids) - index,
+                )
+                notify_channel(CRON_TRIGGER_CHANNEL, db_name)
+                return True
             try:
                 job = IrCron._acquire_one_job(cron_cr, job_id)
             except _TRANSACTION_ROLLBACK_ERRORS:
@@ -279,13 +352,14 @@ class IrCron(models.Model):
             _logger.debug("job %s acquired", job_id)
             registry = Registry(db_name).check_signaling()
             try:
-                registry[IrCron._name]._process_job(cron_cr, job)
+                registry[IrCron._name]._process_job(cron_cr, job, deadline=deadline)
                 cron_cr.commit()
             except Exception:
                 cron_cr.rollback()
                 _logger.exception("job %s failed to process, skip", job_id)
                 continue
             _logger.debug("job %s updated and released", job_id)
+        return False
 
     @staticmethod
     def _check_version(cron_cr: BaseCursor) -> None:
@@ -435,8 +509,18 @@ class IrCron(models.Model):
         _logger.warning(message)
 
     @classmethod
-    def _process_job(cls, cron_cr: BaseCursor, job: dict[str, Any]) -> None:
+    def _process_job(
+        cls,
+        cron_cr: BaseCursor,
+        job: dict[str, Any],
+        *,
+        deadline: float | None = None,
+    ) -> None:
         """Execute the cron's server action in a dedicated transaction.
+
+        *deadline* is the monotonic instant the enclosing pass must hand back
+        control at; ``None`` (the direct-trigger path, which an HTTP request
+        polices instead) falls back to :meth:`_run_deadline`.
 
         If the previous process timed out, the server action is not executed and
         the cron is considered ``'failed'``.
@@ -459,7 +543,7 @@ class IrCron(models.Model):
         )
 
         if not failed_by_timeout:
-            status = cls._run_job(job)
+            status = cls._run_job(job, deadline=deadline)
         else:
             status = CompletionStatus.FAILED
             cron_cr.execute(
@@ -536,28 +620,41 @@ class IrCron(models.Model):
         pass starts over.  Stopping instead reports ``'partially done'``, which
         reschedules the job ASAP and resumes with a fresh budget.
 
+        ``hard_deadline`` cannot stop the *first* pass.  Since it became the
+        enclosing cron pass's deadline rather than this job's own, it can
+        already be spent when the job starts -- the pass loop checks it before
+        acquiring, but acquiring and clearing the due triggers takes time.  A
+        job that then ran zero passes still reported ``'partially done'``,
+        which resets ``failure_count``: a cron in a failing streak would have
+        had its streak wiped by a pass that never executed it, and its
+        auto-deactivation deferred indefinitely.  Once the loop has decided to
+        start a job it owes it one pass; the deadline stops the next one.
+
         ``now``, ``end_time`` and ``hard_deadline`` are ``time.monotonic()``
         readings (seconds).
         """
         if status is not None:
             return False
-        if hard_deadline is not None and now >= hard_deadline:
+        if hard_deadline is not None and loop_count and now >= hard_deadline:
             return False
         return loop_count < MIN_RUNS_PER_JOB or now < end_time
 
     @staticmethod
     def _run_deadline(start_time: float) -> float | None:
-        """Monotonic instant past which :meth:`_run_job` must not start a pass.
+        """Monotonic instant past which a *standalone* run must not start a pass.
 
-        Derived from :func:`worker_real_time_budget`, the option the servers
-        actually police a cron worker with.  The margin leaves the last pass
-        room to finish and the caller room to reschedule.
+        The fallback for :meth:`_run_job` when no enclosing pass owns the budget
+        -- :meth:`method_direct_trigger`, which runs one cron on demand from an
+        HTTP thread.  Under the scheduler the pass owns it instead
+        (:meth:`_pass_deadline`), for the reason :data:`RUN_BUDGET_RATIO` gives.
         """
         budget = worker_real_time_budget()
         return start_time + budget * RUN_BUDGET_RATIO if budget else None
 
     @classmethod
-    def _run_job(cls, job: dict[str, Any]) -> CompletionStatus:
+    def _run_job(
+        cls, job: dict[str, Any], *, deadline: float | None = None
+    ) -> CompletionStatus:
         """Execute the job's server action repeatedly until it completes and
         return the completion status.
 
@@ -566,7 +663,8 @@ class IrCron(models.Model):
         - the action doesn't use the progress API, or reports all records
           processed: ``'fully done'``;
         - records remain but this worker already ran the action
-          ``MIN_RUNS_PER_JOB`` times: ``'partially done'``;
+          ``MIN_RUNS_PER_JOB`` times, or *deadline* (the enclosing pass's share
+          of the watchdog budget) has arrived: ``'partially done'``;
         - the action committed some work but later crashed: ``'partially done'``;
         - the action raised and notified no progress: ``'failed'``.
         """
@@ -588,10 +686,12 @@ class IrCron(models.Model):
             status = None
             loop_count = 0
             done, remaining = 0, 0
-            hard_deadline = cls._run_deadline(start_time)
+            hard_deadline = (
+                deadline if deadline is not None else cls._run_deadline(start_time)
+            )
             _logger.info("Job %r (%s) starting", job["cron_name"], job["id"])
 
-            if not env.user.active and env.user != env.ref("base.user_root"):
+            if not env.user.active and env.uid != SUPERUSER_ID:
                 _logger.warning(
                     "Forbidden server action %r executed while the user %s is archived.",
                     job["cron_name"],
@@ -952,15 +1052,7 @@ class IrCron(models.Model):
     @api.model
     def _notifydb(self) -> None:
         """Wake up the cron workers."""
-        with db.db_connect("postgres").cursor() as cr:
-            cr.execute(
-                SQL(
-                    "SELECT %s('cron_trigger', %s)",
-                    SQL.identifier(ODOO_NOTIFY_FUNCTION),
-                    self.env.cr.dbname,
-                )
-            )
-        _logger.debug("cron workers notified")
+        notify_channel(CRON_TRIGGER_CHANNEL, self.env.cr.dbname)
 
     def _add_progress(
         self, *, timed_out_counter: int | None = None

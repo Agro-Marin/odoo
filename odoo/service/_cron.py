@@ -9,12 +9,19 @@ share the wire-level mechanics, kept here as one source of truth:
 * order notified databases ahead of the rest for the next pass.
 
 Depends only on ``odoo.tools`` — no cycle with ``server`` / ``_worker``.
+
+The channel names live in :mod:`odoo.libs.constants` because the *senders* are
+base models (``ir.cron`` / ``ir.job``) and the *listeners* are here: a model
+cannot import ``odoo.service`` (which eagerly imports the whole server), so
+without a shared leaf module each side spelled the strings itself and a typo on
+either would have meant workers that simply never wake.
 """
 
 from __future__ import annotations
 
 import typing
 
+from odoo.libs.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 from odoo.tools import OrderedSet
 
 if typing.TYPE_CHECKING:
@@ -23,8 +30,13 @@ if typing.TYPE_CHECKING:
 
     from odoo.db import BaseCursor
 
-CRON_TRIGGER_CHANNEL = "cron_trigger"
-JOB_QUEUE_CHANNEL = "job_queue"
+__all__ = [
+    "CRON_TRIGGER_CHANNEL",
+    "JOB_QUEUE_CHANNEL",
+    "arm_cron_listen",
+    "drain_cron_notifies",
+    "order_notified_first",
+]
 
 
 def arm_cron_listen(
