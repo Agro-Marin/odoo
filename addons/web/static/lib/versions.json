@@ -1,0 +1,151 @@
+{
+  "_comment": [
+    "Single source of truth for the third-party libraries vendored under",
+    "web/static/lib. Checked by tooling/scripts/check_vendored_libs.py, which",
+    "both re-derives each version from the shipped files (drift) and queries",
+    "OSV for advisories affecting the pinned version (audit).",
+    "",
+    "'probe' locates the version inside the vendored tree: 'file' is relative",
+    "to the library directory and 'pattern' is a Python regex in which the",
+    "token {version} is replaced by the escaped 'version' value.",
+    "",
+    "'npm' is the registry coordinate used for the OSV lookup; omit it for",
+    "libraries with no upstream package (fork-local or internal ones) and set",
+    "'upstream' to false."
+  ],
+  "libs": {
+    "Chart": {
+      "version": "4.5.1",
+      "npm": "chart.js",
+      "license": "MIT",
+      "source": "https://www.chartjs.org",
+      "probe": { "file": "Chart.js", "pattern": "=\"{version}\"" },
+      "notes": "Minified with no banner; the only version anchor is a bare assignment, so the probe is deliberately loose. Bundles @kurkle/color 0.3.2. Lazily loaded via @web/core/lib/chartjs."
+    },
+    "ace": {
+      "version": "1.44.0",
+      "npm": "ace-builds",
+      "license": "BSD-3-Clause",
+      "source": "https://ajaxorg.github.io/ace/",
+      "probe": { "file": "ace.js", "pattern": "exports\\.version = \"{version}\"" },
+      "notes": "src-noconflict build variant. mode-qweb.js is fork-local, not upstream: it subclasses XmlHighlightRules and reads $rules.attributes[0].regex, so re-check it against mode-xml.js on every bump. Lazily loaded as the web.ace_lib bundle."
+    },
+    "bootstrap": {
+      "version": "5.3.8",
+      "npm": "bootstrap",
+      "license": "MIT",
+      "source": "https://getbootstrap.com",
+      "probe": { "file": "bootstrap.esm.js", "pattern": "Bootstrap v{version}" },
+      "notes": "JS bundle plus the full scss/ tree, which the design system compiles against. Popper is its only reason to exist here."
+    },
+    "chartjs-adapter-luxon": {
+      "version": "1.3.1",
+      "npm": "chartjs-adapter-luxon",
+      "license": "MIT",
+      "source": "https://github.com/chartjs/chartjs-adapter-luxon",
+      "probe": {
+        "file": "chartjs-adapter-luxon.js",
+        "pattern": "chartjs-adapter-luxon v{version}"
+      }
+    },
+    "diff_match_patch": {
+      "version": "forked",
+      "upstream": false,
+      "license": "Apache-2.0",
+      "source": "https://github.com/google/diff-match-patch",
+      "notes": "Trimmed fork carrying the diff functions only; see the header comment for the modifications. No upstream version to track."
+    },
+    "dompurify": {
+      "version": "3.4.12",
+      "npm": "dompurify",
+      "license": "Apache-2.0 OR MPL-2.0",
+      "source": "https://github.com/cure53/DOMPurify",
+      "probe": { "file": "purify.es.js", "pattern": "DOMPurify {version}" },
+      "notes": "Upstream dist/purify.es.mjs, verbatim. Security-critical: it backs html_editor's sanitize plugin, which passes ADD_TAGS/ADD_ATTR — the exact config surface several past advisories targeted. Treat any advisory here as release-blocking."
+    },
+    "fullcalendar": {
+      "version": "7.0.2",
+      "npm": "fullcalendar",
+      "license": "MIT",
+      "source": "https://fullcalendar.io",
+      "probe": {
+        "file": "fullcalendar.esm.js",
+        "pattern": "FullCalendar \\(Vanilla JS\\) v{version}"
+      },
+      "notes": "Upstream all/global.js with patches/agromarin-fork.patch applied, plus a hand-written ESM export footer. skeleton.css MUST be replaced in the same commit: v7 regenerates its fc-* class hashes on every build and recycles some onto unrelated roles. Resolve those names through fcInternalClassName(), never by literal."
+    },
+    "hoot": {
+      "version": "internal",
+      "upstream": false,
+      "license": "LGPL-3",
+      "notes": "Odoo HOOT test framework; developed in-tree and versioned with the fork."
+    },
+    "hoot-dom": {
+      "version": "internal",
+      "upstream": false,
+      "license": "LGPL-3",
+      "notes": "Odoo HOOT DOM helpers; developed in-tree and versioned with the fork."
+    },
+    "luxon": {
+      "version": "3.7.2",
+      "npm": "luxon",
+      "license": "MIT",
+      "source": "https://moment.github.io/luxon/",
+      "probe": { "file": "luxon.js", "pattern": "VERSION = \"{version}\"" },
+      "notes": "Reached only through the @web/core/l10n/luxon facade, never imported directly by feature code. That facade is the seam for an eventual Temporal migration."
+    },
+    "odoo_ui_icons": {
+      "version": "1.2",
+      "upstream": false,
+      "license": "LGPL-3",
+      "source": "IcoMoon build over Carbon + Material icon sets",
+      "probe": { "file": "Read Me.txt", "pattern": "Odoo UI Icons - v{version}" }
+    },
+    "owl": {
+      "version": "2.8.3",
+      "npm": "@odoo/owl",
+      "license": "LGPL-3.0-only",
+      "source": "https://github.com/odoo/owl",
+      "probe": { "file": "owl.es.js", "pattern": "version = \"{version}\"" },
+      "notes": "Upstream dist/owl.es.js, verbatim — a published npm release, not an in-tree fork. Bumping it is a framework-wide change: re-run the full @web suite."
+    },
+    "pdfjs": {
+      "version": "6.1.200",
+      "npm": "pdfjs-dist",
+      "license": "Apache-2.0",
+      "source": "https://mozilla.github.io/pdf.js/",
+      "probe": { "file": "build/pdf.js", "pattern": "pdfjsVersion = {version}" },
+      "notes": "Largest vendored library by far. Sourced from the GitHub prebuilt release zip (the npm package ships no full viewer), then run through patches/mechanise.sh and patches/agromarin-fork.patch. Lazily loaded via @web/core/utils/pdfjs. Since v6 the codecs are separate .wasm files under web/wasm/ — getDocument needs PDFJS_WASM_URL, which the facade defaults."
+    },
+    "popper_compat": {
+      "version": "generated",
+      "upstream": false,
+      "license": "LGPL-3",
+      "rebuild": "build.sh",
+      "notes": "NOT a vendored library. Self-contained build of @web/libs/popper_compat, which replaced Popper: Bootstrap was its only importer and used a single entry point. Only import-map pages (the IoT box homepage) load this copy; bundles inline the source module instead. Because it derives from in-tree code rather than a pinned release, `rebuild` is run with --check by the drift gate to prove it is not stale."
+    },
+    "prismjs": {
+      "version": "1.30.0",
+      "npm": "prismjs",
+      "license": "MIT",
+      "source": "https://prismjs.com",
+      "probe": { "file": "prism.js", "pattern": "PrismJS {version}" },
+      "notes": "Custom download bundling a fixed language set; re-select the same languages when bumping (see the header comment)."
+    },
+    "signature_pad": {
+      "version": "5.1.3",
+      "npm": "signature_pad",
+      "license": "MIT",
+      "source": "https://github.com/szimek/signature_pad",
+      "probe": { "file": "signature_pad.js", "pattern": "Signature Pad v{version}" }
+    },
+    "zxing-library": {
+      "version": "0.23.0",
+      "npm": "@zxing/library",
+      "license": "Apache-2.0",
+      "source": "https://github.com/zxing-js/library",
+      "probe": { "file": "version", "pattern": "^{version}$" },
+      "notes": "Not a pristine upstream file: a single-file ESM bundle built from the npm package's esm/ sources with ts-custom-error inlined. The build command, including the pinned esbuild version, is in the file's banner. Only ever fetched by browsers without BarcodeDetector."
+    }
+  }
+}

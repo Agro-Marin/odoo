@@ -1,43 +1,119 @@
 # Vendored libraries
 
-Third-party libraries shipped inside the `web` module. **Do not edit these files** — replace the directory wholesale when updating to a new upstream release.
+Third-party libraries shipped inside the `web` module. **Do not edit these files.**
+Replace a directory wholesale when updating; where the fork genuinely needs a change,
+keep it in a `patches/` file next to the library rather than editing the bundle in place
+(see `fullcalendar/patches/`).
 
-Each subdirectory contains a `VERSION.txt` with the upstream version string (or `internal` for libraries developed inside the fork).
+`versions.json` in this directory is the **single source of truth** for what is vendored
+and at which version. It is machine-checked — see [Verification](#verification) — so the
+inventory below is a reading aid, not the authority. Update `versions.json` in the same
+commit as the files it describes.
 
 ## Inventory
 
-| Directory | Version | Source / notes |
-|-----------|---------|----------------|
-| `ace/` | 1.43.6 | https://ajaxorg.github.io/ace/ — `exports.version` in `ace.js` |
-| `bootstrap/` | 5.3.8 | https://getbootstrap.com — header comment in `bootstrap.esm.js` |
-| `Chart/` | 4.5.1 | https://www.chartjs.org — header comment in `Chart.js` (bundled with `@kurkle/color v0.3.2`) |
-| `chartjs-adapter-luxon/` | 1.3.1 | https://github.com/chartjs/chartjs-adapter-luxon |
-| `diff_match_patch/` | forked | Trimmed fork of https://github.com/google/diff-match-patch (diff functions only). See header comment in `diff_match_patch.js` for the modifications applied. |
-| `dompurify/` | 3.3.1 | https://github.com/cure53/DOMPurify |
-| `fullcalendar/` | 7.0.0 | https://fullcalendar.io — header comment in `fullcalendar.global.js`. Single-bundle Vanilla JS distribution (core + interaction + daygrid + timegrid + list + multimonth) plus `skeleton.css` and `locales-all.global.js`. **Fork-patched**: `fullcalendar.global.js` carries six AgroMarin patches (search `AGROMARIN FORK PATCH` and `Fork-local:`) that re-inject the stable v6 class names (`fc-event-mirror`, `fc-event-resizer`) and fix the portal host, slot-height measurement, and drag-snap behaviour — re-apply them when bumping the upstream version. `skeleton.css` class hashes are paired with this exact build, so always replace the JS and CSS together. |
-| `hoot/` | internal | Odoo HOOT test framework — versioned with the fork |
-| `hoot-dom/` | internal | Odoo HOOT DOM helpers — versioned with the fork |
-| `luxon/` | 3.7.2 | https://moment.github.io/luxon/ — `VERSION` constant in `luxon.js` |
-| `odoo_ui_icons/` | 1.2 | Odoo UI icon font (built with IcoMoon, sourced from Carbon + Material) — see `Read Me.txt` |
-| `owl/` | internal | OWL component framework — versioned with the fork |
-| `pdfjs/` | 4.8.69 | https://mozilla.github.io/pdf.js/ — `pdfjsVersion` constant in `build/pdf.js` |
-| `popper/` | 2.11.8 | https://popper.js.org — `@popperjs/core` |
-| `prismjs/` | 1.30.0 | https://prismjs.com — header comment in `prism.js` |
-| `signature_pad/` | 5.1.3 | https://github.com/szimek/signature_pad |
-| `zxing-library/` | 0.21.3 | https://github.com/zxing-js/library — see `version` file. **Not a pristine upstream file**: single-file ESM bundle built from the npm package's `esm/` sources (upstream ships no single-file ESM build); the build command is in the banner comment of `zxing-library.js` — re-run it when bumping the version. |
+| Directory | Version | Upstream | Notes |
+|-----------|---------|----------|-------|
+| `Chart/` | 4.5.1 | `chart.js` | Minified, no banner. Bundles `@kurkle/color` 0.3.2. Lazy (`@web/core/lib/chartjs`). |
+| `ace/` | 1.44.0 | `ace-builds` | `src-noconflict` variant. `mode-qweb.js` is **fork-local**. Lazy (`web.ace_lib` bundle). |
+| `bootstrap/` | 5.3.8 | `bootstrap` | JS bundle + the whole `scss/` tree the design system compiles against. |
+| `chartjs-adapter-luxon/` | 1.3.1 | `chartjs-adapter-luxon` | Side-effect import that registers luxon on Chart's date adapter. |
+| `diff_match_patch/` | forked | — | Trimmed fork of google/diff-match-patch (diff functions only); see its header. |
+| `dompurify/` | 3.4.12 | `dompurify` | Upstream `dist/purify.es.mjs` verbatim. **Security-critical** — see below. |
+| `fullcalendar/` | 7.0.2 | `fullcalendar` | Patched `all/global.js` + ESM footer. **Fork-patched** — see below. |
+| `hoot/` | internal | — | Odoo HOOT test framework, developed in-tree. |
+| `hoot-dom/` | internal | — | Odoo HOOT DOM helpers, developed in-tree. |
+| `luxon/` | 3.7.2 | `luxon` | Reached only through the `@web/core/l10n/luxon` facade. |
+| `odoo_ui_icons/` | 1.2 | — | IcoMoon build over Carbon + Material; see `Read Me.txt`. |
+| `owl/` | 2.8.3 | `@odoo/owl` | Upstream `dist/owl.es.js` verbatim — a published release, **not** an in-tree fork. |
+| `pdfjs/` | 6.1.200 | `pdfjs-dist` | Largest vendored library. Lazy (`@web/core/utils/pdfjs`). |
+| `popper_compat/` | generated | — | **Not a third-party library.** Self-contained build of `@web/libs/popper_compat`, which replaced Popper. See below. |
+| `prismjs/` | 1.30.0 | `prismjs` | Custom download with a fixed language set; keep the set when bumping. |
+| `signature_pad/` | 5.1.3 | `signature_pad` | |
+| `zxing-library/` | 0.23.0 | `@zxing/library` | Locally built single-file ESM bundle — **not** a pristine upstream file. |
+
+### Libraries needing extra care
+
+**`dompurify/`** backs `html_editor`'s sanitize plugin, which calls it with `IN_PLACE`,
+a cross-realm window (`DOMPurify(this.window)`, for editables in iframes), and custom
+`ADD_TAGS` / `ADD_ATTR`. Historically that is the exact configuration surface DOMPurify
+advisories target, several of them specific to `IN_PLACE` and to cross-realm use. Treat
+any advisory reported against this library as release-blocking, and re-run the
+`@html_editor` suite after every bump.
+
+**`fullcalendar/`** is not a pristine upstream file. It is upstream's `all/global.js`
+with `patches/agromarin-fork.patch` (6 hunks) applied, followed by a hand-written ESM
+export footer. To bump it:
+
+1. `npm pack fullcalendar@<version>` and unpack it.
+2. `patch -p0 package/all/global.js < fullcalendar/patches/agromarin-fork.patch`.
+3. Append the existing ESM footer (everything from the `// ─────` rule onward).
+4. Regenerate `locales-all.esm.js` from the release's `locales-all/global.js`, replacing
+   the trailing `})(FullCalendar.Shared);` with `})(Shared);` and prepending the import
+   header.
+5. Copy `skeleton.css` and `LICENSE.md` from the **same** release.
+
+Step 5 is not optional: v7 regenerates its `fc-*` class hashes on every build, and a
+bump both reshuffles nearly all of them and recycles a few onto unrelated roles — so a
+stale stylesheet or a hard-coded hash matches the *wrong* element instead of simply
+missing. Never write an `fc-<hash>` literal; resolve names through
+`fcInternalClassName()` in `@web/views/calendar/hooks/full_calendar_hook`.
+
+**`popper_compat/`** is generated, not vendored. Popper was removed: Bootstrap was
+its only importer and used a single entry point, `createPopper`, which
+`web/static/src/libs/popper_compat.js` reimplements over the in-house position
+engine (`@web/core/position/utils`) — one positioning engine instead of two, and
+60 kB less to ship.
+
+Bundled code gets that **source** inlined by esbuild. This directory holds a
+self-contained build for pages outside the asset pipeline — the IoT box homepage,
+the database manager, the error page — which load `bootstrap.esm.js` straight into
+the browser and resolve `@popperjs/core` through an import map; having no bundler,
+they cannot follow the source module's `@web/...` imports.
+
+Because that build derives from in-tree code that changes (unlike a pinned upstream
+release), the drift gate runs `build.sh --check` and fails if it is stale. After
+editing `popper_compat.js`, run `build.sh`.
+
+Behaviour is verified against real Popper rather than assumed: 60 placement
+scenarios in each text direction — every placement, at the viewport centre and each
+edge so that 20 of them genuinely flip — matched Popper's geometry to the pixel and
+agreed on every resolved placement. Two bugs that only that comparison would have
+caught are now regression-tested in `tests/libs/popper_compat.test.js`: the
+standalone build threw on pages with no localization service, and RTL placements
+were mirrored twice (Bootstrap already resolves RTL itself, so placements arrive
+physical, while the engine speaks logical).
+
+**`zxing-library/`** is built locally because upstream ships no single-file ESM bundle.
+The build command — including a **pinned** esbuild version, since esbuild's IIFE
+parenthesisation changes between releases and an unpinned rebuild yields a large
+cosmetic diff — is in the file's banner comment. Only browsers without a native
+`BarcodeDetector` ever fetch it.
+
+## Verification
+
+```bash
+# offline: every pinned version re-derived from the shipped bytes
+addons/web/tooling/scripts/check_vendored_libs.py --drift
+
+# network: OSV advisories against the pinned versions
+addons/web/tooling/scripts/check_vendored_libs.py --audit
+```
+
+Both exit non-zero on failure and belong in CI. `--audit` reports (and does not
+silently pass) libraries it could not reach OSV for, so an offline run never looks like
+a clean bill of health.
 
 ## Update procedure
 
-1. **Confirm the new version is needed.** Pin upgrades to a real reason (security CVE, required feature, license clarity). Do not chase versions for their own sake — every update churns the diff and risks bundle-size regressions.
-2. **Replace the directory wholesale.** `rm -rf static/lib/<lib>/<files>` then drop in the new release. Do not patch in place.
-3. **Update `VERSION.txt`** in the same commit with the new upstream version string.
-4. **Update this README's inventory table** with the new version + source pointer.
-5. **Re-run `--test-tags=web_assets -u web`** to confirm bundle generation still succeeds.
-6. **Smoke-test the surfaces that consume the lib** (e.g. updating `Chart/` requires loading a graph view; updating `pdfjs/` requires opening a PDF in the file viewer).
-7. **Check the LICENSE.** If the upstream license changed, surface it in the PR description.
-
-## Notes
-
-- Libraries marked `internal` (`owl/`, `hoot/`, `hoot-dom/`) are developed inside the fork. Their version is the Odoo version itself; they evolve with the rest of the codebase rather than tracking an external upstream.
-- `VERSION.txt` files are intentionally minimal (single line, no frontmatter) so they remain easy to read with `cat` and easy to grep across the tree (`find static/lib -name VERSION.txt -exec sh -c 'echo "$1: $(cat "$1")"' _ {} \;`).
-- For licensing audits, the per-lib `LICENSE` / `LICENSE.md` file is authoritative when present.
+1. **Confirm the upgrade is needed.** Pin it to a real reason — a security advisory, a
+   required feature, a license change. Do not chase versions for their own sake; every
+   update churns the diff and risks a bundle-size regression.
+2. **Replace the directory wholesale**, then re-apply any `patches/` on top. Never edit
+   a vendored file in place.
+3. **Update `versions.json`** in the same commit, and this table with it.
+4. **Run both gates** (`--drift`, `--audit`).
+5. **Re-run `--test-tags=web_assets -u web`** to confirm bundle generation still works.
+6. **Run the consuming suites** — e.g. `@html_editor` for dompurify, `@web/views/calendar`
+   for fullcalendar, `@web/views/fields/ace_field` for ace, the full `@web` suite for owl.
+7. **Check the LICENSE.** If it changed upstream, surface that in the PR description.
