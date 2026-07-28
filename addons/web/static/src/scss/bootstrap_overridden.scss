@@ -198,6 +198,11 @@ $kbd-box-shadow:
 
 $input-bg: $o-input-bg !default;
 $input-focus-border-color: $o-brand-primary !default;
+// A checkbox boundary is "visual information required to identify a user
+// interface component" under WCAG 2.2 SC 1.4.11, so it needs 3:1 - unlike the
+// dividers `$border-color` exists for, which Bootstrap points this at by
+// default. Inheriting the divider tone left unchecked boxes at 1.48:1.
+$form-check-input-border: var(--border-width) solid #{$o-gray-500} !default;
 $form-check-input-checked-color: $o-brand-lightsecondary !default;
 $form-check-input-checked-border-color: $o-brand-primary !default;
 $form-check-input-checked-bg-color: $o-brand-primary !default;
