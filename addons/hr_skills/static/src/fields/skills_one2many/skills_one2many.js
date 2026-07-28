@@ -78,7 +78,7 @@ export class SkillsX2ManyField extends X2ManyField {
         this.orm = useService('orm');
         this.actionService = useService('action');
 
-        const { saveRecord, updateRecord } = useX2ManyCrud(
+        const { saveAndLink, updateRecord } = useX2ManyCrud(
             () => this.list,
             this.isMany2Many
         );
@@ -88,7 +88,7 @@ export class SkillsX2ManyField extends X2ManyField {
             activeField: this.activeField,
             activeActions: this.activeActions,
             getList: () => this.list,
-            saveRecord: saveRecord,
+            saveRecord: saveAndLink,
             updateRecord: updateRecord,
             withParentId: this.props.widget !== "many2many",
         });

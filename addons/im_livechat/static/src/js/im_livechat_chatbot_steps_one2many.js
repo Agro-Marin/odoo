@@ -38,7 +38,7 @@ export class ChatbotStepsOne2many extends X2ManyField {
     setup() {
         super.setup();
 
-        const { saveRecord, updateRecord } = useX2ManyCrud(
+        const { saveAndLink, updateRecord } = useX2ManyCrud(
             () => this.list,
             this.isMany2Many,
         );
@@ -49,7 +49,7 @@ export class ChatbotStepsOne2many extends X2ManyField {
             activeActions: this.activeActions,
             getList: () => this.list,
             saveRecord: async (record) => {
-                await saveRecord(record);
+                await saveAndLink(record);
                 await this.props.record.save();
             },
             updateRecord: updateRecord,

@@ -8,7 +8,7 @@
  *
  * @param {Function} getList - Returns the current x2many list
  * @param {boolean} isMany2Many - Whether the field is many2many (vs one2many)
- * @returns {{linkRecords: Function|undefined, saveAndLink: Function, saveRecord: Function, updateRecord: Function, removeRecord: Function}}
+ * @returns {{linkRecords: Function|undefined, saveAndLink: Function, updateRecord: Function, removeRecord: Function}}
  */
 export function useX2ManyCrud(getList, isMany2Many) {
     /** Links existing records by id (many2many only). @type {Function|undefined} */
@@ -24,15 +24,6 @@ export function useX2ManyCrud(getList, isMany2Many) {
     } else {
         saveAndLink = async (record) => getList().validateExtendedRecord(record);
     }
-
-    /**
-     * @deprecated Polymorphic on argument shape: use `linkRecords(resIds)` or
-     *  `saveAndLink(record)` instead. Kept for downstream compatibility.
-     */
-    const saveRecord = (object) =>
-        isMany2Many && Array.isArray(object)
-            ? /** @type {Function} */ (linkRecords)(object)
-            : saveAndLink(object);
 
     const updateRecord = async (record) => {
         if (isMany2Many) {
@@ -52,7 +43,6 @@ export function useX2ManyCrud(getList, isMany2Many) {
     return {
         linkRecords,
         saveAndLink,
-        saveRecord,
         updateRecord,
         removeRecord,
     };

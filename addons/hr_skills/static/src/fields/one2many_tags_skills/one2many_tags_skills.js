@@ -15,14 +15,14 @@ export class One2ManyTagsSkillsField extends X2ManyField {
 
     setup() {
         super.setup();
-        const { saveRecord, updateRecord } = useX2ManyCrud(() => this.list, this.isMany2Many);
+        const { saveAndLink, updateRecord } = useX2ManyCrud(() => this.list, this.isMany2Many);
 
         const openRecord = useOpenX2ManyRecord({
             resModel: this.list.resModel,
             activeField: this.activeField,
             activeActions: this.activeActions,
             getList: () => this.list,
-            saveRecord: saveRecord,
+            saveRecord: saveAndLink,
             updateRecord: updateRecord,
             withParentId: this.props.widget !== "many2many",
         });

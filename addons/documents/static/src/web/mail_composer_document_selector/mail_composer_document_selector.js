@@ -18,7 +18,7 @@ export class MailComposerDocumentSelector extends Component {
     }
 
     saveRecordHandler = async (idArray) => {
-        await this.operations.saveRecord(idArray);
+        await this.operations.linkRecords(idArray);
     };
 
     addDocumentsAttachment = () => {

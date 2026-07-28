@@ -48,12 +48,12 @@ class QuestionPageOneToManyField extends X2ManyField {
         // enables checking validation parameters consistency and using questions as triggers
         // immediately during question creation.
         // Preparing everything in order to override `this._openRecord` below.
-        const { saveRecord: superSaveRecord, updateRecord: superUpdateRecord } =
+        const { saveAndLink: superSaveAndLink, updateRecord: superUpdateRecord } =
             useX2ManyCrud(() => this.list, this.isMany2Many);
 
         const self = this;
         const saveRecord = async (record) => {
-            await superSaveRecord(record);
+            await superSaveAndLink(record);
             try {
                 await self.props.record.save();
             } catch (error) {

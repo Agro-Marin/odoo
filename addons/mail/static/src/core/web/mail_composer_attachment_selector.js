@@ -50,7 +50,7 @@ export class MailComposerAttachmentSelector extends Component {
             file,
         );
         if (attachment) {
-            await this.operations.saveRecord([attachment.id]);
+            await this.operations.linkRecords([attachment.id]);
         }
     }
 }
