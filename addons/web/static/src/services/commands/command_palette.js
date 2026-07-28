@@ -73,21 +73,30 @@ export const MAX_DISPLAYED_COMMANDS = 100;
  */
 
 /**
- * Filter predicate for commands within a category. The "default" category
- * also matches commands with an invalid category.
+ * Bucket every command under the category it renders in, in ``categories``
+ * order, with commands whose category is unknown falling back to "default"
+ * (always present in ``categories`` — see {@link CommandPalette.setCommands}).
  *
- * @param {string} categoryName the category key
+ * Replaces a per-category ``filter`` pass. Equivalent for every input except a
+ * ``categories`` list containing DUPLICATES, where the old code emitted the
+ * category twice — rendering each of its commands twice under two groups
+ * sharing one ``t-key``. Unreachable in practice: the list is built from
+ * ``command_categories`` registry keys, which are unique.
+ *
+ * @param {CommandItem[]} commands
  * @param {string[]} categories
- * @returns an array filter predicate
+ * @returns {Map<string, CommandItem[]>} keyed in ``categories`` order
  */
-function commandsWithinCategory(categoryName, categories) {
-    return (/** @type {CommandItem} */ cmd) => {
-        const inCurrentCategory = categoryName === cmd.category;
-        const fallbackCategory =
-            categoryName === "default" &&
-            !categories.includes(/** @type {string} */ (cmd.category));
-        return inCurrentCategory || fallbackCategory;
-    };
+function groupCommandsByCategory(commands, categories) {
+    /** @type {Map<string, CommandItem[]>} */
+    const byCategory = new Map(categories.map((category) => [category, []]));
+    for (const command of commands) {
+        const bucket =
+            byCategory.get(/** @type {string} */ (command.category)) ??
+            byCategory.get("default");
+        bucket?.push(command);
+    }
+    return byCategory;
 }
 
 /** Default rendering component for a command palette item (plain text with highlight). */
@@ -184,10 +193,11 @@ export class CommandPalette extends Component {
     /** @returns {Array<{commands: CommandItem[], name: string, keyId: string}>} */
     get commandsByCategory() {
         const categories = [];
-        for (const category of this.categoryKeys) {
-            const commands = this.state.commands.filter(
-                commandsWithinCategory(category, this.categoryKeys),
-            );
+        const byCategory = groupCommandsByCategory(
+            this.state.commands,
+            this.categoryKeys,
+        );
+        for (const [category, commands] of byCategory) {
             if (commands.length) {
                 categories.push({
                     commands,
@@ -274,13 +284,11 @@ export class CommandPalette extends Component {
                 if (!categoryKeys.includes("default")) {
                     categoryKeys.push("default");
                 }
-                for (const category of categoryKeys) {
-                    commandsSorted = [
-                        ...commandsSorted,
-                        ...commands.filter(
-                            commandsWithinCategory(category, categoryKeys),
-                        ),
-                    ];
+                for (const bucket of groupCommandsByCategory(
+                    commands,
+                    categoryKeys,
+                ).values()) {
+                    commandsSorted = [...commandsSorted, ...bucket];
                 }
                 commands = commandsSorted;
             }
@@ -290,8 +298,9 @@ export class CommandPalette extends Component {
         this.categoryNames = categoryNames;
         this.state.hiddenCount = Math.max(0, commands.length - MAX_DISPLAYED_COMMANDS);
         this.state.commands = markRaw(
-            commands.slice(0, MAX_DISPLAYED_COMMANDS).map((command) => ({
+            commands.slice(0, MAX_DISPLAYED_COMMANDS).map((command, index) => ({
                 ...command,
+                index,
                 keyId: this.keyId++,
                 text: highlightText(
                     options.searchValue,
@@ -325,7 +334,7 @@ export class CommandPalette extends Component {
      */
     selectCommandAndScrollTo(type) {
         this.mouseSelectionActive = false;
-        const index = this.state.commands.indexOf(this.state.selectedCommand);
+        const index = this.state.selectedCommand?.index ?? -1;
         if (index === -1) {
             return;
         }

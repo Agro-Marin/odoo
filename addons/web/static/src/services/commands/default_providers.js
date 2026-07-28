@@ -5,6 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
+import { adoptAccessKeys } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
@@ -71,13 +72,27 @@ commandProviderRegistry.add("command", {
                 (/** @type {Record<string, any>} */ command) =>
                     command.isAvailable === undefined || command.isAvailable(),
             );
+        // Keep the FIRST of each (name, category) pair. Nested Map/Set rather
+        // than one composite string key: `name` is not always a primitive —
+        // `_t()` returns a boxed `TranslatedString` while translations are
+        // still loading — and Map/Set key equality is SameValueZero, i.e. the
+        // same reference comparison the previous `===` scan used. Stringifying
+        // would silently merge two distinct lazy translations of one term.
+        /** @type {Map<any, Set<any>>} */
+        const seen = new Map();
         const uniqueCommands = commands.filter(
-            (/** @type {Record<string, any>} */ obj, /** @type {number} */ index) =>
-                index ===
-                commands.findIndex(
-                    (/** @type {Record<string, any>} */ o) =>
-                        obj.name === o.name && obj.category === o.category,
-                ),
+            (/** @type {Record<string, any>} */ command) => {
+                let categories = seen.get(command.name);
+                if (!categories) {
+                    categories = new Set();
+                    seen.set(command.name, categories);
+                }
+                if (categories.has(command.category)) {
+                    return false;
+                }
+                categories.add(command.category);
+                return true;
+            },
         );
         return uniqueCommands.map((/** @type {Record<string, any>} */ command) => ({
             Component: command.hotkey ? HotkeyCommandItem : DefaultCommandItem,
@@ -98,14 +113,7 @@ commandProviderRegistry.add("data-hotkeys", {
         const overlayModifier = /** @type {any} */ (
             registry.category("services").get("hotkey")
         ).overlayModifier;
-        for (const el of (options.activeElement ?? document).querySelectorAll(
-            "[accesskey]",
-        )) {
-            if (el instanceof HTMLElement) {
-                el.dataset.hotkey = el.accessKey;
-                el.removeAttribute("accesskey");
-            }
-        }
+        adoptAccessKeys(options.activeElement ?? document);
         for (const el of getVisibleElements(
             options.activeElement,
             "[data-hotkey]:not(:disabled)",
