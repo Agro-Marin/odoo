@@ -51,7 +51,7 @@ export const POSITION_BUS = Symbol("position-bus");
 export function usePosition(refName, getTarget, options = {}) {
     const ref = useRef(refName);
     let lock = false;
-    /** @type {string | undefined} */
+    /** @type {ComputePositionOptions["position"]} */
     let lastPosition;
     let lastRequestedPosition = options.position;
     const update = () => {
@@ -68,7 +68,9 @@ export function usePosition(refName, getTarget, options = {}) {
             repositionOptions.position = lastPosition;
         }
         const solution = reposition(ref.el, targetEl, repositionOptions);
-        lastPosition = `${solution.direction}-${solution.variant}`;
+        lastPosition = /** @type {ComputePositionOptions["position"]} */ (
+            `${solution.direction}-${solution.variant}`
+        );
         options.onPositioned?.(ref.el, solution);
     };
 
@@ -92,24 +94,34 @@ export function usePosition(refName, getTarget, options = {}) {
         useChildSubEnv({ [POSITION_BUS]: bus });
     }
 
-    const throttledUpdate = isTopmost
-        ? useThrottleForAnimation(() => bus.trigger("update"))
-        : null;
+    // Repositioning runs on EVERY patch — the popper's own size, and the
+    // target's, can change without either element being replaced.
     useEffect(() => {
         bus.trigger("update");
+    });
 
-        if (isTopmost) {
-            const scrollListener = (/** @type {Event} */ e) => {
-                if (ref.el?.contains(/** @type {Node} */ (e.target))) {
+    if (isTopmost) {
+        const throttledUpdate = useThrottleForAnimation(() => bus.trigger("update"));
+        const scrollListener = (/** @type {Event} */ e) => {
+            if (ref.el?.contains(/** @type {Node} */ (e.target))) {
+                return;
+            }
+            throttledUpdate();
+        };
+        // Bound in its OWN effect, keyed on the document(s) it attaches to,
+        // rather than sharing the unconditional one above. These listeners
+        // depend only on which document owns the target, so re-binding them per
+        // patch was pure churn: measured at 2 capture-phase document listeners
+        // torn down and re-added on every render of the owning component (12
+        // added / 10 removed across 5 renders), plus the window resize handler
+        // — on a dropdown that re-renders per keystroke.
+        useEffect(
+            (targetDocument) => {
+                if (!targetDocument) {
                     return;
                 }
-                throttledUpdate();
-            };
-            /** @type {Document[]} */
-            const documents = [];
-            const targetDocument = getTarget()?.ownerDocument;
-            if (targetDocument) {
-                documents.push(targetDocument);
+                /** @type {Document[]} */
+                const documents = [targetDocument];
                 if (
                     targetDocument.defaultView?.top &&
                     targetDocument.defaultView.top !== targetDocument.defaultView
@@ -121,29 +133,26 @@ export function usePosition(refName, getTarget, options = {}) {
                         // (i.e. iframe origin or sandbox restriction)
                     }
                 }
-            }
-            for (const document of documents) {
-                document.addEventListener("scroll", scrollListener, {
-                    capture: true,
-                });
-                document.addEventListener("load", throttledUpdate, {
-                    capture: true,
-                });
-            }
-            window.addEventListener("resize", throttledUpdate);
-            return () => {
-                for (const document of documents) {
-                    document.removeEventListener("scroll", scrollListener, {
-                        capture: true,
-                    });
-                    document.removeEventListener("load", throttledUpdate, {
-                        capture: true,
-                    });
+                for (const doc of documents) {
+                    doc.addEventListener("scroll", scrollListener, { capture: true });
+                    doc.addEventListener("load", throttledUpdate, { capture: true });
                 }
-                window.removeEventListener("resize", throttledUpdate);
-            };
-        }
-    });
+                window.addEventListener("resize", throttledUpdate);
+                return () => {
+                    for (const doc of documents) {
+                        doc.removeEventListener("scroll", scrollListener, {
+                            capture: true,
+                        });
+                        doc.removeEventListener("load", throttledUpdate, {
+                            capture: true,
+                        });
+                    }
+                    window.removeEventListener("resize", throttledUpdate);
+                };
+            },
+            () => [getTarget()?.ownerDocument],
+        );
+    }
 
     return {
         lock: () => {

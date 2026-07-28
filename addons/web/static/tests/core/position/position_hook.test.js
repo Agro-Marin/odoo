@@ -9,11 +9,12 @@ import {
     scroll,
 } from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
-import { Component, onMounted, useRef, xml } from "@odoo/owl";
+import { Component, onMounted, useRef, useState, xml } from "@odoo/owl";
 import {
     defineParams,
     defineStyle,
     mountWithCleanup,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { usePosition } from "@web/core/position/position_hook";
 import { reposition } from "@web/core/position/utils";
@@ -1319,4 +1320,47 @@ test("reposition preserves a consumer-authored inline maxHeight across calls", (
     reposition(popper, target, { position: "bottom" });
 
     expect(popper.style.maxHeight).toBe("40px");
+});
+
+test("document listeners are bound once, not re-bound on every render", async () => {
+    // The scroll/load listeners depend only on which document owns the target,
+    // so they belong in an effect keyed on that — not in the unconditional one
+    // that triggers repositioning. Re-binding them per patch made a component
+    // that re-renders per keystroke churn capture-phase document listeners.
+    let added = 0;
+    const realAdd = document.addEventListener.bind(document);
+    patchWithCleanup(document, {
+        addEventListener(type, ...rest) {
+            if (type === "scroll" || type === "load") {
+                added++;
+            }
+            return realAdd(type, ...rest);
+        },
+    });
+
+    class Popper extends Component {
+        static template = xml`
+            <div>
+                <div t-ref="target" class="target">target <t t-esc="state.n"/></div>
+                <div t-ref="popper" class="popper">popper</div>
+            </div>`;
+        static props = {};
+        setup() {
+            this.state = useState({ n: 0 });
+            usePosition("popper", () => queryOne(".target"));
+        }
+    }
+
+    const comp = await mountWithCleanup(Popper);
+    await animationFrame();
+    const afterMount = added;
+    expect(afterMount).toBe(2, { message: "scroll + load bound once on mount" });
+
+    for (let i = 1; i <= 5; i++) {
+        comp.state.n = i;
+        await animationFrame();
+    }
+    expect(added - afterMount).toBe(0, {
+        message: "nothing re-bound across 5 renders",
+    });
 });
