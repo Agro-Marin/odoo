@@ -161,27 +161,41 @@ test("the reconstructed stack is handed to doAction whole", async () => {
     expect(am.__calls.doAction[0].options.newStack).toBe(stack);
 });
 
-test("an index in the params truncates the stack and is consumed", async () => {
+test("poppedLeaves drops that many entries off the END and is consumed", async () => {
     const stack = [{ jsId: "a" }, { jsId: "b" }, { jsId: "c" }];
     const am = makeFakeAm({
         _controllersFromState: async () => stack,
-        _getActionParams: () => ({ actionRequest: 7, options: { index: 2 } }),
+        _getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 1 } }),
     });
 
     await loadState(am);
 
     const { options } = am.__calls.doAction[0];
     expect(options.newStack).toEqual([{ jsId: "a" }, { jsId: "b" }]);
-    expect("index" in options).toBe(false);
+    expect("poppedLeaves" in options).toBe(false);
 });
 
-test("an index of 0 truncates to an empty stack (not treated as absent)", async () => {
+test("poppedLeaves counts from the end, so a dropped ancestor cannot shift it", async () => {
+    // `controllersFromState` removed the deleted/inaccessible record that used
+    // to sit at index 0, so the rebuilt stack is SHORTER than the URL's
+    // actionStack. An absolute index would keep "b" — the controller for the
+    // very action about to be dispatched — as its own breadcrumb parent.
     const am = makeFakeAm({
-        _controllersFromState: async () => [{ jsId: "a" }],
-        _getActionParams: () => ({ actionRequest: 7, options: { index: 0 } }),
+        _controllersFromState: async () => [{ jsId: "b" }],
+        _getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 1 } }),
     });
     await loadState(am);
     expect(am.__calls.doAction[0].options.newStack).toEqual([]);
+});
+
+test("poppedLeaves of 0 leaves the stack alone", async () => {
+    const stack = [{ jsId: "a" }];
+    const am = makeFakeAm({
+        _controllersFromState: async () => stack,
+        _getActionParams: () => ({ actionRequest: 7, options: { poppedLeaves: 0 } }),
+    });
+    await loadState(am);
+    expect(am.__calls.doAction[0].options.newStack).toBe(stack);
 });
 
 test("a successful dispatch reports that a state was loaded", async () => {

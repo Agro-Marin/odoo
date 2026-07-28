@@ -85,6 +85,8 @@ const INTERNAL = [
     "_preprocessAction",
     "_getCurrentController",
     "_getCurrentAction",
+    "_pendingDispatch",
+    "_effectiveStack",
     "_navGeneration",
     "_isSupersededNav",
     "_computeStackIndex",

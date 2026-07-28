@@ -49,12 +49,15 @@ export async function loadState(am, state) {
     const actionParams = am._getActionParams(state);
     if (actionParams) {
         const { actionRequest, options } = actionParams;
-        if (options.index !== undefined) {
-            options.newStack = newStack.slice(0, options.index);
-            delete options.index;
-        } else {
-            options.newStack = newStack;
-        }
+        // Counted from the END of the rebuilt controller stack, because that is
+        // the coordinate system ``poppedLeaves`` is expressed in — see the note
+        // on ``getActionParams``. ``newStack`` is shorter than the URL's
+        // ``actionStack`` whenever ``controllersFromState`` dropped a deleted or
+        // inaccessible record, so counting from the start lands on the wrong
+        // entry exactly then.
+        const popped = options.poppedLeaves || 0;
+        delete options.poppedLeaves;
+        options.newStack = popped ? newStack.slice(0, -popped) : newStack;
         try {
             await am.doAction(actionRequest, options);
         } catch (error) {

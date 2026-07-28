@@ -48,7 +48,7 @@ export class MenuDropdown extends Dropdown {}
  * Main navigation bar at the top of the webclient.
  *
  * Renders the app switcher, current app's sub-menus (with overflow "More" menu),
- * systray items, and mobile sidebar. Adapts to viewport width via a resize observer.
+ * systray items, and mobile sidebar. Re-measures on a debounced window resize.
  */
 export class NavBar extends Component {
     static template = "web.NavBar";
@@ -172,7 +172,7 @@ export class NavBar extends Component {
      * NB: requires an upfront render to measure section widths, and may
      * trigger another render afterward depending on the outcome.
      */
-    async adapt() {
+    adapt() {
         if (!this.root.el) {
             /** @todo do we still need this check? */
             return;

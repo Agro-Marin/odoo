@@ -18,6 +18,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { redirect } from "@web/core/utils/urls";
+import { computeAppsAndMenuItems } from "@web/webclient/menus/menu_helpers";
 
 defineActions([
     {
@@ -467,4 +468,40 @@ test(`a failed payload write closes the version gate`, async () => {
     expect(browser.localStorage.webclient_menus_version).not.toBe(
         CURRENT_REGISTRY_HASH,
     );
+});
+
+test.tags("desktop");
+test("a cached menu tree with dangling child ids does not crash the consumers", async () => {
+    // `menu_storage` guarantees a corrupt *JSON* payload can never make
+    // `start()` throw, but a payload that parses and still references a menu id
+    // it does not define put `undefined` into `childrenTree` and into
+    // `getApps()` — which the command-palette walk and the navbar dereferenced.
+    // localStorage is the path that can actually deliver such a payload; the
+    // mock server normalises `serverState.menus` before it reaches the service.
+    const def = new Deferred();
+    redirect("/odoo/action-666");
+    onRpc("/web/webclient/load_menus", () => def);
+
+    browser.localStorage.webclient_menus_version =
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [2, 999], name: "App1", id: 1, actionID: 666 },
+        2: { appID: 1, children: [], name: "Test1", id: 2, actionID: 666 },
+        root: { id: "root", name: "root", appID: "root", children: [1, 998] },
+    });
+
+    await mountWebClient();
+    const menuService = getService("menu");
+
+    expect(menuService.getApps().every(Boolean)).toBe(true);
+    expect(menuService.getApps().map((a) => a.id)).toEqual([1]);
+
+    const app = menuService.getMenuAsTree(1);
+    expect(app.childrenTree.every(Boolean)).toBe(true);
+    expect(app.childrenTree.map((c) => c.id)).toEqual([2]);
+    expect(() =>
+        computeAppsAndMenuItems(menuService.getMenuAsTree("root")),
+    ).not.toThrow();
+
+    def.resolve();
 });

@@ -2565,3 +2565,50 @@ describe("corrupt restore cache", () => {
         );
     });
 });
+
+describe("unresolvable leaf + inaccessible ancestor", () => {
+    /**
+     * The URL names a leaf that cannot be resolved, so `getActionParams` pops it
+     * and resolves from the entry above. Meanwhile `controllersFromState` drops
+     * the topmost ancestor because `load_breadcrumbs` returns no display name
+     * for it (deleted action / no access), making the rebuilt controller stack
+     * SHORTER than the URL's actionStack.
+     *
+     * The pop count must be applied from the END of that shorter stack. Read as
+     * an absolute position it lands one entry too far and keeps the resolved
+     * action's own controller as its own breadcrumb parent.
+     */
+    const STATE = {
+        model: "unresolvable_model",
+        actionStack: [
+            { action: 3, view_type: "list" },
+            { action: 3, displayName: "First record", resId: 1, view_type: "form" },
+            { model: "unresolvable_model", displayName: "Nope" },
+        ],
+    };
+
+    test(`every ancestor resolves: the popped leaf is dropped, the rest stays`, async () => {
+        onRpc("/web/action/load_breadcrumbs", () => [{ display_name: "Partners" }]);
+        await mountWithCleanup(WebClient);
+        await getService("action").loadState(STATE);
+        await animationFrame();
+
+        expect(".o_form_view").toHaveCount(1);
+        expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
+            "Partners",
+            "First record",
+        ]);
+    });
+
+    test(`an inaccessible ancestor does not duplicate the leaf crumb`, async () => {
+        onRpc("/web/action/load_breadcrumbs", () => [{}]);
+        await mountWithCleanup(WebClient);
+        await getService("action").loadState(STATE);
+        await animationFrame();
+
+        expect(".o_form_view").toHaveCount(1);
+        expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
+            "First record",
+        ]);
+    });
+});

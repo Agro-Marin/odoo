@@ -7,9 +7,11 @@ import {
     getService,
     makeMockEnv,
     mountWithCleanup,
+    patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { cookie } from "@web/core/browser/cookie";
+import { user } from "@web/services/user";
 import { DENSITIES, nextDensity } from "@web/webclient/density/density_service";
 import { DensityToggle } from "@web/webclient/density/density_toggle";
 
@@ -83,4 +85,25 @@ test("the systray toggle tracks a density set from elsewhere", async () => {
     expect(toggle.icon).toBe("fa-solid fa-bars");
     expect(toggle.title).toInclude("Condensed");
     expect(toggle.title).toInclude("Default");
+});
+
+test("a failed persist rolls the density back instead of rejecting", async () => {
+    // Applying optimistically and letting the persist reject left the body
+    // class, the cookie and `current` on a value the server never accepted —
+    // and the rejection escaped through the systray toggle's click handler.
+    await makeMockEnv();
+    const density = getService("density");
+    patchWithCleanup(user, {
+        setUserSettings: async () => {
+            throw new Error("offline");
+        },
+    });
+
+    let rejection = null;
+    await density.set("compact").catch((error) => (rejection = error));
+
+    expect(rejection).toBe(null);
+    expect(density.current).toBe("default");
+    expect(cookie.get("content_density")).toBe("default");
+    expect(document.body.classList.contains("o-density-compact")).toBe(false);
 });

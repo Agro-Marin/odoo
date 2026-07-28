@@ -285,3 +285,45 @@ test("a failed dialog replacement leaves exactly one committed dialog", async ()
     await action.doAction({ type: "ir.actions.act_window_close" });
     expect.verifySteps(["committed on_close"]);
 });
+
+test("a proposed stack is not installed while the dispatch is in flight", async () => {
+    const blockLeaf = new Deferred();
+    let loads = 0;
+    class Slow extends Component {
+        static template = xml`<div class="o_slow"/>`;
+        static props = ["*"];
+        setup() {
+            onWillStart(async () => {
+                if (loads++) {
+                    await blockLeaf;
+                }
+            });
+        }
+    }
+    registry.category("actions").add("slow_dispatch", Slow);
+
+    await mountActionHost();
+    const action = getService("action");
+    await action.doAction({ type: "ir.actions.client", tag: "slow_dispatch" });
+    const mountedStack = action.controllerStack;
+    expect(mountedStack).toHaveLength(1);
+
+    const ancestor = { jsId: "ancestor", action: { jsId: "a0" }, props: {} };
+    const inFlight = action.doAction(
+        { type: "ir.actions.client", tag: "slow_dispatch" },
+        { newStack: [ancestor] },
+    );
+    await animationFrame();
+
+    // The `newStack` proposal is visible to the dispatch, but the manager still
+    // describes what is mounted.
+    expect(action.controllerStack).toBe(mountedStack);
+
+    blockLeaf.resolve();
+    await inFlight;
+    await animationFrame();
+
+    // ...and only the commit installs it.
+    expect(action.controllerStack.at(0)).toBe(ancestor);
+    expect(action.controllerStack).toHaveLength(2);
+});

@@ -51,6 +51,10 @@ export class ActionDispatch {
      * @param {Object} params.controller
      * @param {Object} params.action
      * @param {Object[]} params.nextStack the stack to commit on mount
+     * @param {Object[]} params.baseStack the stack ``nextStack`` was derived
+     *   from. For a URL restore that is the URL's own stack, which is NOT
+     *   installed anywhere until this dispatch settles — so a pre-mount failure
+     *   has to install it before degrading within it.
      * @param {Object[]} [params.restoreStackOnError] set only by a breadcrumb
      *   restore: the stack that is currently DISPLAYED. The URL still points at
      *   it (``pushState`` only runs on mount), so a restore that errors before
@@ -59,11 +63,12 @@ export class ActionDispatch {
      *   not set it — it runs after the browser already changed the URL and must
      *   degrade within that URL's stack.
      */
-    constructor(am, { controller, action, nextStack, restoreStackOnError }) {
+    constructor(am, { controller, action, nextStack, baseStack, restoreStackOnError }) {
         this.am = am;
         this.controller = controller;
         this.action = action;
         this.nextStack = nextStack;
+        this.baseStack = baseStack ?? am.controllerStack;
         this.restoreStackOnError = restoreStackOnError;
         /**
          * Identity of the dialog this dispatch registered, set by
@@ -222,7 +227,16 @@ export class ActionDispatch {
      * @returns {any} the restore promise, when one is started
      */
     _restoreStack() {
-        const { am, controller } = this;
+        const { am, controller, baseStack } = this;
+        // Nothing was committed, so the live stack is still the one on screen.
+        // Recovery happens within the stack this dispatch was building on: for
+        // a URL navigation the browser has ALREADY moved to that URL, so
+        // degrading inside the previously-displayed stack would leave the two
+        // disagreeing. ``restoreStackOnError`` below is the one case that wants
+        // the opposite, and it overrides this.
+        if (am.controllerStack !== baseStack) {
+            am.controllerStack = baseStack;
+        }
         const index = am.controllerStack.findIndex((ct) => ct.jsId === controller.jsId);
         if (index > 0) {
             return am.restore(am.controllerStack[index - 1].jsId);

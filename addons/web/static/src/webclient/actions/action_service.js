@@ -194,8 +194,10 @@ function chainOnClose(own, stolen) {
  * step with the assertion that enforces it.
  *
  * Only three sites WRITE manager state, and each is documented where it happens:
- *   ``action_dispatch.js``       controllerStack (commit on mount / roll back on
- *                                error), dialog + nextDialog (the two-slot
+ *   ``action_dispatch.js``       controllerStack — the ONLY writer, so the
+ *                                stack always describes what is mounted
+ *                                (commit on mount / roll back on pre-mount
+ *                                error); dialog + nextDialog (the two-slot
  *                                commit — see ``_removeDialog``). This is the
  *                                per-dispatch transaction object;
  *                                ``ControllerComponent`` only reports which
@@ -227,6 +229,12 @@ export class ActionManager {
         /** Monotonic id source — feeds controller_<n>/action_<n> stamps and ACTION_MANAGER:UPDATE event ids. */
         this._id = 0;
         this.controllerStack = [];
+        /**
+         * The inline dispatch in flight that brought its OWN base stack — a URL
+         * restore or a breadcrumb click. See {@link _effectiveStack}.
+         * @type {ActionDispatch|null}
+         */
+        this._pendingDispatch = null;
         this.dialog = null;
         this.nextDialog = null;
         this._skeletonDef = null;
@@ -297,12 +305,38 @@ export class ActionManager {
     }
 
     /**
-     * Returns the last controller of the current controller stack.
+     * The controller stack IN EFFECT for code running right now — which is not
+     * always the one that is mounted.
+     *
+     * A URL restore dispatches its leaf against a stack the browser has already
+     * navigated to but that nothing has rendered yet. Code running inside that
+     * dispatch has to see it: a client action asking ``currentAction`` from its
+     * ``onWillStart`` means "what am I being opened from?", and the answer is
+     * the URL's parent, not whatever is still on screen. So does a follow-up
+     * ``doAction`` chained from that client action, which must stack on the
+     * URL's ancestors rather than on the outgoing page.
+     *
+     * That visibility used to come from ``_updateUI`` writing the incoming
+     * stack onto ``controllerStack`` outright, which made every OTHER reader —
+     * breadcrumb refresh, ``pushState``, error recovery — see a stack that was
+     * not mounted, for as long as the load took, and left it installed for good
+     * if the dispatch was discarded before mounting. Naming it here keeps
+     * ``controllerStack`` a description of what is actually on screen and ends
+     * the visibility when the dispatch does.
+     *
+     * @returns {Controller[]}
+     */
+    get _effectiveStack() {
+        return this._pendingDispatch?.baseStack ?? this.controllerStack;
+    }
+
+    /**
+     * Returns the last controller of the stack in effect.
      *
      * @returns {Controller|null}
      */
     _getCurrentController() {
-        const stack = this.controllerStack;
+        const stack = this._effectiveStack;
         return stack.length ? stack.at(-1) : null;
     }
 
@@ -483,19 +517,23 @@ export class ActionManager {
         return buildViewInfo(view, action, views, props, this);
     }
 
-    /** @returns {string|undefined} jsId of the action owning the top controller */
-    _topActionJsId() {
-        return this.controllerStack.at(-1)?.action.jsId;
+    /**
+     * @param {Controller[]} [stack]
+     * @returns {string|undefined} jsId of the action owning the top controller
+     */
+    _topActionJsId(stack = this.controllerStack) {
+        return stack.at(-1)?.action.jsId;
     }
 
     /**
+     * @param {Controller[]} [stack]
      * @returns {string|undefined} jsId of the action below the top one, or
      *   ``undefined`` when the stack holds a single action
      */
-    _previousActionJsId() {
-        const topJsId = this._topActionJsId();
-        for (let i = this.controllerStack.length - 1; i >= 0; i--) {
-            const jsId = this.controllerStack[i].action.jsId;
+    _previousActionJsId(stack = this.controllerStack) {
+        const topJsId = this._topActionJsId(stack);
+        for (let i = stack.length - 1; i >= 0; i--) {
+            const jsId = stack[i].action.jsId;
             if (jsId !== topJsId) {
                 return jsId;
             }
@@ -505,15 +543,18 @@ export class ActionManager {
 
     /**
      * Computes the position of the controller in the nextStack according to options
+     *
      * @param {ActionOptions} options
+     * @param {Controller[]} [stack] the stack the dispatch builds on, which is
+     *   NOT always the live one — see {@link _updateUI}'s ``baseStack``.
      */
-    _computeStackIndex(options) {
+    _computeStackIndex(options, stack = this.controllerStack) {
         if (options.clearBreadcrumbs) {
             return 0;
         } else if (options.stackPosition === "replaceCurrentAction") {
-            const currentController = this.controllerStack.at(-1);
+            const currentController = stack.at(-1);
             if (currentController) {
-                return this.controllerStack.findIndex(
+                return stack.findIndex(
                     (ct) => ct.action.jsId === currentController.action.jsId,
                 );
             }
@@ -523,16 +564,15 @@ export class ActionManager {
             // on the first controller of the one before it. When the whole
             // stack is a single action there is no previous one, so index 0
             // replaces it — the same degradation the previous spelling had.
-            const target = this._previousActionJsId() ?? this._topActionJsId();
+            const target =
+                this._previousActionJsId(stack) ?? this._topActionJsId(stack);
             if (target) {
-                return this.controllerStack.findIndex(
-                    (ct) => ct.action.jsId === target,
-                );
+                return stack.findIndex((ct) => ct.action.jsId === target);
             }
         } else if (options.index !== undefined) {
             return options.index;
         }
-        return this.controllerStack.length;
+        return stack.length;
     }
 
     /**
@@ -577,18 +617,30 @@ export class ActionManager {
      */
     async _updateUI(controller, options = {}) {
         const action = controller.action;
-        const previousStack = this.controllerStack;
-        if (action.target !== "new" && options.newStack) {
-            this.controllerStack = options.newStack;
-        }
-        const index = this._computeStackIndex(options);
-        const nextStack = [...this.controllerStack.slice(0, index), controller];
+        // The stack this dispatch BUILDS ON — a proposal, never an installed
+        // state. ``options.newStack`` arrives from a URL restore or a
+        // breadcrumb click and used to be written straight onto
+        // ``this.controllerStack`` here, which left the manager describing a
+        // stack that was not on screen for the whole of the controller's load:
+        // its tip had no ``config``, so anything reading the live stack in that
+        // window (breadcrumb refresh, ``pushState`` from a still-mounted
+        // controller) saw a half-applied transaction — and a dispatch that was
+        // discarded before mounting left it applied for good. The stack now
+        // moves in exactly two places: {@link ActionDispatch.commit} on mount,
+        // and {@link ActionDispatch._restoreStack} on a pre-mount failure.
+        const baseStack =
+            action.target !== "new" && options.newStack
+                ? options.newStack
+                : this._effectiveStack;
+        const index = this._computeStackIndex(options, baseStack);
+        const nextStack = [...baseStack.slice(0, index), controller];
         const dispatch = new ActionDispatch(this, {
             controller,
             action,
             nextStack,
+            baseStack,
             restoreStackOnError: options.isBreadcrumbRestore
-                ? previousStack
+                ? this._effectiveStack
                 : undefined,
         });
         if (action.target !== "new" && options.newWindow) {
@@ -599,7 +651,19 @@ export class ActionManager {
         if (action.target === "new") {
             return this._dispatchTargetNew(dispatch, options);
         }
-        return this._dispatchInline(dispatch, options);
+        if (baseStack !== this.controllerStack) {
+            this._pendingDispatch = dispatch;
+        }
+        try {
+            return await this._dispatchInline(dispatch, options);
+        } finally {
+            // Every exit releases it, including the one where a newer dispatch
+            // supersedes the skeleton and ``_dispatchInline`` returns without
+            // the transaction ever settling.
+            if (this._pendingDispatch === dispatch) {
+                this._pendingDispatch = null;
+            }
+        }
     }
 
     /**
@@ -677,8 +741,13 @@ export class ActionManager {
         if (size) {
             actionDialogProps.size = size;
         }
-        actionDialogProps.header = action.context.header ?? actionDialogProps.header;
-        actionDialogProps.footer = action.context.footer ?? actionDialogProps.footer;
+        // Left absent rather than set to undefined when the context says
+        // nothing, so ``Dialog.defaultProps`` (header/footer both true) applies.
+        for (const key of ["header", "footer"]) {
+            if (action.context[key] !== undefined) {
+                actionDialogProps[key] = action.context[key];
+            }
+        }
         const stolenOnClose = this.nextDialog?.stolenOnClose ?? this.dialog?.onClose;
         delete this.dialog?.onClose;
         // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
@@ -724,6 +793,11 @@ export class ActionManager {
             this._skeletonDef.reject(new SupersededError());
             this._skeletonDef = null;
         }
+        // Reads the stack in effect, so a URL-driven dispatch finds the URL's
+        // own (virtual, exporter-less) tip here and harvests nothing: what is on
+        // screen belongs to the page the user already left, and pushing its
+        // global state would put it back into a URL the browser has moved on
+        // from.
         const currentController = this._getCurrentController();
         if (currentController?.getLocalState) {
             currentController.exportedState = currentController.getLocalState();
@@ -946,14 +1020,11 @@ export class ActionManager {
                 );
             }
             const { actionRequest, options } = actionParams;
-            // ``options.index`` from ``getActionParams`` counts URL actionStack
-            // entries; ``_computeStackIndex`` would read it as a CONTROLLER
-            // stack position. Different coordinate systems — and here the
-            // position is already fixed by the explicit ``newStack`` below, so
-            // the URL one has no meaning left. (``load_state`` consumes and
-            // deletes it for the same reason.)
+            // ``poppedLeaves`` says how far up the URL stack the request was
+            // resolved from; the position here is already fixed by the explicit
+            // ``newStack`` below, so it has no meaning left.
             return this.doAction(actionRequest, {
-                ...omit(options, "index"),
+                ...omit(options, "poppedLeaves"),
                 newStack: this.controllerStack.slice(0, index),
                 isBreadcrumbRestore: true,
             });

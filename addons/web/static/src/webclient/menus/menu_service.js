@@ -87,7 +87,25 @@ class MenuTree {
     }
 
     getApps() {
-        return this.getMenu("root").children.map((mid) => this.getMenu(mid));
+        return this._resolveChildren(this.getMenu("root"));
+    }
+
+    /**
+     * The child menus of ``menu`` that actually exist.
+     *
+     * ``menusData`` is not always server-fresh: it is also read back from
+     * ``localStorage``, where ``menu_storage`` guarantees only that the payload
+     * PARSES. A payload that parses and still names a menu id it does not
+     * define used to yield ``undefined`` entries here, which every consumer
+     * then dereferenced — the command-palette tree walk and the navbar's app
+     * list among them. Dropping the dangling ids keeps a partially corrupt
+     * cache to a missing menu instead of a blank webclient.
+     *
+     * @param {Object} [menu]
+     * @returns {Object[]}
+     */
+    _resolveChildren(menu) {
+        return (menu?.children || []).map((mid) => this.getMenu(mid)).filter(Boolean);
     }
 
     getCurrentApp() {
@@ -101,7 +119,9 @@ class MenuTree {
             return;
         }
         if (!menu.childrenTree) {
-            menu.childrenTree = menu.children.map((mid) => this.getMenuAsTree(mid));
+            menu.childrenTree = this._resolveChildren(menu).map((child) =>
+                this.getMenuAsTree(child.id),
+            );
         }
         return menu;
     }
