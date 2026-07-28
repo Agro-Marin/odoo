@@ -48,7 +48,15 @@ export const scssErrorNotificationService = {
                 sheet.href?.includes("/assets/") &&
                 new URL(sheet.href, browser.location.origin).origin === origin,
         );
+        // `translationIsReady` is a module-scoped promise that may already be
+        // long-settled or may settle after this env is gone. Without the guard,
+        // a torn-down env still pushes a sticky danger toast into a
+        // notification service that is no longer displayed anywhere.
+        let destroyed = false;
         translationIsReady.then(() => {
+            if (destroyed) {
+                return;
+            }
             let notified = false;
             for (const asset of assets) {
                 let cssRules;
@@ -91,6 +99,12 @@ export const scssErrorNotificationService = {
                 );
             }
         });
+
+        return {
+            destroy() {
+                destroyed = true;
+            },
+        };
     },
 };
 registry.category("services").add("scss_error_display", scssErrorNotificationService);

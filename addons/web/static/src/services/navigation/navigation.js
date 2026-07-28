@@ -379,12 +379,14 @@ export class Navigator {
      */
     _setActiveItem(index) {
         this.activeItem?.setInactive(false);
-        this.activeItemIndex = index;
-        if (index >= 0) {
-            this.activeItem = this.items[index];
-            this._options.onItemActivated?.(this.activeItem.el);
-        } else {
-            this.activeItem = null;
+        // `this.items[index]` can be absent for a non-negative index when the
+        // caller holds a NavigationItem whose element left the DOM between an
+        // `update()` and the activation. The setter then stores index -1, so
+        // reading `this.activeItem.el` back would throw on a null.
+        const item = index >= 0 ? this.items[index] : undefined;
+        this.activeItem = item ?? null;
+        if (item) {
+            this._options.onItemActivated?.(item.el);
         }
     }
 

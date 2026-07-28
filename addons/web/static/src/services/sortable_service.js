@@ -31,10 +31,18 @@ export const sortableService = {
     /** @returns {{ create: (hookParams: SortableServiceHookParams) => { enable: () => { cleanup: () => void } } }} */
     start() {
         /**
-         * Map to avoid to setup/enable twice or more time the same element
-         * @type {Map<Element, Object>}
+         * Map to avoid to setup/enable twice or more time the same element.
+         *
+         * WEAK on purpose. A strong ``Map`` keyed by ``Element`` pins every
+         * element ever passed to ``create()`` — and its whole detached DOM
+         * subtree — for the page's lifetime, because the only removal path is
+         * an explicit ``cleanup()``. This service exists precisely for callers
+         * OUTSIDE the OWL lifecycle (website_slides et al.), which is where
+         * "the element just went away without anyone calling cleanup" is the
+         * normal case. Nothing iterates this map, so weakness costs nothing.
+         * @type {WeakMap<Element, Object>}
          */
-        const boundElements = new Map();
+        const boundElements = new WeakMap();
         return {
             /**
              * @param {SortableServiceHookParams} hookParams
