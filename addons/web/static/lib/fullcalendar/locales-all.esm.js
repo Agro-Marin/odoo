@@ -4,7 +4,7 @@
 import { Shared } from "./fullcalendar.esm.js";
 
 /*!
-FullCalendar (Vanilla JS) v7.0.0
+FullCalendar (Vanilla JS) v7.0.2
 Docs & License: https://fullcalendar.io
 (c) 2026 Adam Shaw
 */
