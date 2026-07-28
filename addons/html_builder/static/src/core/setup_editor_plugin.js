@@ -78,6 +78,18 @@ export class SetupEditorPlugin extends Plugin {
         root.querySelectorAll(".o_editable").forEach((el) => {
             el.classList.remove("o_editable");
         });
+        // `setup` stamps the drag-and-drop placeholder on empty structures and
+        // marks those with `data-editor-message-default`. Only the marked ones
+        // may be stripped: a template is free to author its own
+        // `data-editor-message`, which is content and must survive the save.
+        const els = [...root.querySelectorAll("[data-editor-message-default]")];
+        if (root.hasAttribute("data-editor-message-default")) {
+            els.push(root);
+        }
+        for (const el of els) {
+            el.removeAttribute("data-editor-message-default");
+            el.removeAttribute("data-editor-message");
+        }
     }
 
     /**

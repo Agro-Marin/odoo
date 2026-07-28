@@ -83,8 +83,37 @@ Odoo Web tours.
             'web_tour.interactive',
             'web_tour.recorder',
         ],
+        # The parent->child links mirror wherever the *loader* ships, not just
+        # the backend. ``tour_service.js`` is listed in both
+        # ``web.assets_backend`` (reached through ``web.assets_web``) and
+        # ``web.assets_frontend`` above, and it can lazily ``loadBundle`` all
+        # three of these from either one: ``startTour`` pulls
+        # ``web_tour.automatic`` / ``web_tour.interactive``, and the
+        # localStorage-driven branch at the end of the service pulls
+        # ``web_tour.recorder``.
+        #
+        # A missing link is not a missed optimisation but a hard failure:
+        # ``dynamic_children`` is what merges a child's import map into the
+        # page's (``ir_qweb_assets._merge_child_import_maps``), and dynamic
+        # children are served per-file, so without the frontend entry the
+        # ``import("@web_tour/js/tour_automatic/...")`` after ``loadBundle``
+        # dies with "Failed to resolve module specifier" and no tour can start
+        # on a frontend page. Portal deliberately supports tours there: its
+        # ``ir.http`` override feeds ``tour_enabled`` / ``current_tour`` into
+        # the *frontend* session info so a tour survives a redirect into /my.
+        #
+        # The frontend entry is declared on ``web.assets_frontend`` (where
+        # ``tour_service.js`` actually is) rather than on the composed
+        # ``web.assets_frontend_lazy`` that pages render: child resolution
+        # follows the include graph, see
+        # ``ir_qweb_assets._get_dynamic_parent_bundles``.
         'dynamic_children': {
             'web.assets_web': [
+                'web_tour.automatic',
+                'web_tour.interactive',
+                'web_tour.recorder',
+            ],
+            'web.assets_frontend': [
                 'web_tour.automatic',
                 'web_tour.interactive',
                 'web_tour.recorder',

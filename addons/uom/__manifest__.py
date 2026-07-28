@@ -4,7 +4,7 @@
     "name": "Units of measure",
     "version": "1.1",
     "category": "Sales/Sales",
-    "depends": ["base"],
+    "depends": ["base", "web"],
     "description": """
 This is the base module for managing Units of measure.
 ========================================================================
