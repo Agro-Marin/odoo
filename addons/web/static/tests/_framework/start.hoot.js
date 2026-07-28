@@ -85,6 +85,28 @@ setupTestEnvironment();
 
 patchBrowserLocation();
 
+/**
+ * Disarm the module loader's production asset-recovery reload for the whole run.
+ *
+ * `handleAssetLoadError` reloads the page when a `<script>`/`<link>` under
+ * `/web/assets/` fails, on the assumption that a stale bundle reference is
+ * recoverable. Tests that exercise the `loadJS`/`loadCSS` failure paths request
+ * URLs under exactly that prefix on purpose, so the recovery fires ON A TEST
+ * RUNNER and reloads the whole HOOT page — which restarts the run from zero,
+ * hits the same test again, and loops.
+ *
+ * Its once-per-60s `sessionStorage` guard cannot hold here: the runner mocks
+ * both storage and the clock per test, so `now - last` is compared across two
+ * different time bases. The loop is invisible in a short run (the guard happens
+ * to hold) and fatal in a long one — `@web/core` restarted 918 times and never
+ * reached a summary, failing `WebSuite.test_core` on a 900s timeout.
+ *
+ * `_reloadPage` exists as a seam documented "overridden in tests", but only
+ * `module_loader.test.js` ever overrode it, and only on loader instances it
+ * built itself — never the global one every other test shares.
+ */
+odoo.loader._reloadPage = () => {};
+
 const _runner = /** @type {any} */ (__debug__);
 
 /**
