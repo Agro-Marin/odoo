@@ -9,7 +9,12 @@ from collections import namedtuple
 
 from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
-from odoo.orm.components.unit_of_work import LoopResult, UnitOfWork
+from odoo.orm.components.unit_of_work import (
+    SNAPSHOT_AFTER,
+    STALL_REPEATS,
+    LoopResult,
+    UnitOfWork,
+)
 
 _MockField = namedtuple("_MockField", ["model_name", "name"])
 
@@ -337,6 +342,80 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
 
         result = uow.run_recompute_loop(recompute_fn)
         self.assertFalse(engine.pending_real_fields())
+        self.assertTrue(result.converged)
+        self.assertEqual(result.stalled_fields, [])
+
+
+class TestStallDetection(unittest.TestCase):
+    """A cycle must fail after ``STALL_REPEATS`` passes, not ``max_iterations``."""
+
+    def test_recompute_cycle_stops_long_before_the_cap(self) -> None:
+        cache = FieldCache()
+        engine = ComputeEngine()
+        uow = UnitOfWork(cache, engine, max_iterations=1000)
+        f = _field("m", "cycle")
+        engine.schedule(f, [1, 2])
+        passes = [0]
+
+        def recompute_fn(field):
+            passes[0] += 1
+            engine.mark_done(field, [1, 2])
+            engine.schedule(field, [1, 2])
+
+        result = uow.run_recompute_loop(recompute_fn)
+        self.assertFalse(result.converged)
+        self.assertEqual(result.stalled_fields, ["m.cycle"])
+        self.assertEqual(passes[0], SNAPSHOT_AFTER + STALL_REPEATS)
+        self.assertEqual(result.iterations, SNAPSHOT_AFTER + STALL_REPEATS)
+
+    def test_changing_pending_set_is_not_a_stall(self) -> None:
+        """A cascade whose pending map keeps changing runs to the cap."""
+        cache = FieldCache()
+        engine = ComputeEngine()
+        uow = UnitOfWork(
+            cache, engine, max_iterations=SNAPSHOT_AFTER + STALL_REPEATS + 4
+        )
+        f = _field("m", "walk")
+        engine.schedule(f, [1])
+        state = {"n": 1}
+
+        def recompute_fn(field):
+            engine.mark_done(field, list(engine.pending_ids(field)))
+            state["n"] += 1
+            engine.schedule(field, [state["n"]])
+
+        result = uow.run_recompute_loop(recompute_fn)
+        self.assertFalse(result.converged)
+        self.assertEqual(result.iterations, uow.max_iterations)
+
+    def test_flush_cycle_stops_long_before_the_cap(self) -> None:
+        cache = FieldCache()
+        engine = ComputeEngine()
+        uow = UnitOfWork(cache, engine, max_iterations=1000)
+        f = _field("m", "a")
+        cache.set_value(f, 1, 10)
+        cache.mark_dirty(f, [1])
+        flushes = [0]
+
+        def flush_fn(_models):
+            flushes[0] += 1
+            cache.pop_dirty(f)
+            cache.mark_dirty(f, [1])
+
+        result = uow.run_flush_loop(lambda field: None, flush_fn)
+        self.assertFalse(result.converged)
+        self.assertEqual(result.stalled_fields, ["m.a"])
+        self.assertEqual(flushes[0], SNAPSHOT_AFTER + STALL_REPEATS)
+
+    def test_converging_flush_is_unaffected(self) -> None:
+        cache = FieldCache()
+        engine = ComputeEngine()
+        uow = UnitOfWork(cache, engine, max_iterations=1000)
+        f = _field("m", "a")
+        cache.set_value(f, 1, 10)
+        cache.mark_dirty(f, [1])
+
+        result = uow.run_flush_loop(lambda field: None, lambda _m: cache.pop_dirty(f))
         self.assertTrue(result.converged)
         self.assertEqual(result.stalled_fields, [])
 

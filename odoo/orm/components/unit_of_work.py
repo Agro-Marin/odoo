@@ -14,6 +14,27 @@ if TYPE_CHECKING:
     from .cache import FieldCache
     from .compute import ComputeEngine
 
+STALL_REPEATS = 16
+"""Consecutive no-change passes before a loop is declared stalled.
+
+Above 1 so that a ``recompute_fn`` making progress the pending map cannot
+express (see :meth:`UnitOfWork.run_recompute_loop`) is not cut short, far below
+``max_iterations`` so a genuine cycle fails in seconds instead of grinding
+through a thousand full passes.
+"""
+
+SNAPSHOT_AFTER = 3
+"""Passes a loop may run before it starts snapshotting for the stall detector.
+
+A snapshot is ``{field: frozenset(ids)}`` over everything pending (and dirty),
+so it costs one frozenset per field and is O(total entries) — negligible next to
+a pass that recomputes and writes them, but *not* negligible when the loop
+converges in one or two passes and the snapshot is the only extra work.  A
+``create()`` of a thousand records measured 3.6% slower with it taken
+unconditionally.  Real flushes converge in a handful of passes; only a loop that
+is already failing to converge reaches this threshold and starts paying.
+"""
+
 
 @dataclass(slots=True)
 class LoopResult:
@@ -49,13 +70,12 @@ class UnitOfWork:
     ) -> None:
         """Bind to *cache* and *engine* with a convergence iteration cap.
 
-        :param max_iterations: the ONLY termination guarantee for
-            non-draining (cyclic) state: both loops stop when nothing is
-            pending/dirty or when this many passes have run — there is no
-            per-pass stall detection (see :meth:`run_recompute_loop` for
-            why a count-based check cannot work).  A large value so that a
-            long-but-converging compute/flush cascade is not misreported as
-            a circular dependency.
+        :param max_iterations: the hard bound on non-draining (cyclic) state:
+            both loops stop when nothing is pending/dirty, when the
+            :data:`STALL_REPEATS` stall detector fires, or when this many
+            passes have run.  A large value so that a long-but-converging
+            compute/flush cascade is not misreported as a circular dependency;
+            the stall detector is what keeps a genuine cycle from paying it.
         """
         self.cache = cache
         self.engine = engine
@@ -88,6 +108,20 @@ class UnitOfWork:
                 seen[fld.model_name] = None
         return list(seen)
 
+    def _pending_snapshot(self) -> dict[Any, frozenset]:
+        """Return ``{field: frozenset(pending_ids)}`` for the whole engine."""
+        return {
+            fld: frozenset(self.engine.pending_ids(fld))
+            for fld in self.engine.pending_fields()
+        }
+
+    def _dirty_snapshot(self) -> dict[Any, frozenset]:
+        """Return ``{field: frozenset(dirty_ids)}`` for the whole cache."""
+        return {
+            fld: frozenset(self.cache.get_dirty(fld) or ())
+            for fld in self.cache.iter_dirty_fields()
+        }
+
     @staticmethod
     def _field_label(field: Any) -> str:
         """Human-readable ``model.field`` label for diagnostics/stall reports."""
@@ -102,21 +136,38 @@ class UnitOfWork:
         Repeatedly collects fields with pending real recomputations and calls
         ``recompute_fn(field)`` for each, in dependency order when an order is
         available (see :meth:`set_recompute_order`) so a single pass resolves
-        acyclic chains. Terminates when nothing real is pending or at the
-        ``max_iterations`` cap — there is no per-pass stall detection (see the
-        in-loop comment for why a count-based check is unsound).
+        acyclic chains.
+
+        Terminates when nothing real is pending, at the ``max_iterations`` cap,
+        or when :data:`STALL_REPEATS` consecutive passes have left the pending
+        map byte-identical (the stall detector).
+
+        A *count* of pending entries cannot detect a stall — a cycle can trade
+        one entry for another and keep the count level, and a converging cascade
+        can legitimately grow it — but a repeated ``{field: frozenset(ids)}``
+        snapshot can: a ``recompute_fn`` that is a function of the pending map
+        will keep producing the same output from the same input.  That premise
+        is the caller's, not this component's (an injected callback is free to
+        make progress this map cannot see), which is why the detector needs
+        several repeats rather than one, and why ``max_iterations`` stays the
+        hard bound.  Its value: without it a circular ``@api.depends`` does not
+        fail, it grinds through ``max_iterations`` full recompute passes first,
+        each one issuing the cascade's SQL over the whole recordset.
 
         :param recompute_fn: called as ``recompute_fn(field)``; expected to
             update the cache and call ``engine.mark_done()``.
         :return: :class:`LoopResult` with iteration count and convergence info.
             ``iterations`` follows the :class:`LoopResult` convention: passes
-            that called ``recompute_fn`` count; the final empty pass does not.
+            that called ``recompute_fn`` count; neither the final empty pass nor
+            the pass that only observes the stall does.
         """
         result = LoopResult()
         order = self._recompute_order
         if callable(order):
             order = order()
 
+        previous: dict[Any, frozenset] | None = None
+        repeats = 0
         for iteration in range(self.max_iterations):
             fields = self.engine.pending_real_fields()
             if not fields:
@@ -124,6 +175,18 @@ class UnitOfWork:
                 result.converged = True
                 result.stalled_fields = []
                 break
+
+            if iteration >= SNAPSHOT_AFTER:
+                snapshot = self._pending_snapshot()
+                repeats = repeats + 1 if snapshot == previous else 0
+                if repeats >= STALL_REPEATS:
+                    result.iterations = iteration
+                    result.converged = False
+                    result.stalled_fields = sorted(
+                        self._field_label(f) for f in snapshot
+                    )
+                    break
+                previous = snapshot
 
             if order:
                 _max = len(order)
@@ -152,6 +215,10 @@ class UnitOfWork:
         Each flush may trigger new computations (via ``modified()``), dirtying
         more fields and requiring another iteration.
 
+        Like :meth:`run_recompute_loop`, :data:`STALL_REPEATS` consecutive
+        passes that leave the combined (dirty, pending) state identical are a
+        stall: the next pass would repeat them verbatim.
+
         :param recompute_fn: called as ``recompute_fn(field)`` for each field.
         :param flush_fn: called as ``flush_fn(model_names)`` with the models to
             flush.
@@ -162,6 +229,8 @@ class UnitOfWork:
         """
         result = LoopResult()
 
+        previous: tuple[dict[Any, frozenset], dict[Any, frozenset]] | None = None
+        repeats = 0
         for iteration in range(self.max_iterations):
             recompute_result = self.run_recompute_loop(recompute_fn)
             if not recompute_result.converged:
@@ -178,6 +247,19 @@ class UnitOfWork:
                 result.converged = True
                 result.stalled_fields = []
                 break
+
+            if iteration >= SNAPSHOT_AFTER:
+                snapshot = (self._dirty_snapshot(), self._pending_snapshot())
+                repeats = repeats + 1 if snapshot == previous else 0
+                if repeats >= STALL_REPEATS:
+                    result.iterations = iteration
+                    result.converged = False
+                    result.stalled_fields = sorted(
+                        {self._field_label(f) for f in snapshot[0]}
+                        | {self._field_label(f) for f in snapshot[1]}
+                    )
+                    break
+                previous = snapshot
 
             flush_fn(model_names)
         else:
