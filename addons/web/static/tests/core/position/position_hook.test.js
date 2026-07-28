@@ -1364,3 +1364,48 @@ test("document listeners are bound once, not re-bound on every render", async ()
         message: "nothing re-bound across 5 renders",
     });
 });
+
+// RESILIENCE-BLOCK
+// `batchedUpdate` coalesces triggers behind an `executingUpdate` flag. Anything
+// throwing inside `update()` -- `reposition`, or the caller's own
+// `onPositioned`, which reaches into the DOM (see `Popover.updateArrow`) --
+// used to leave that flag stuck on, and the popper silently stopped
+// repositioning on scroll, resize, content change and unlock for the rest of
+// its life.
+test("a throwing onPositioned does not freeze positioning forever", async () => {
+    expect.errors(1);
+    let shouldThrow = false;
+    let positioned = 0;
+    let comp;
+
+    class Popper extends Component {
+        static template = xml`<div t-ref="popper" class="popper">popper</div>`;
+        static props = ["*"];
+        setup() {
+            comp = this;
+            this.position = usePosition("popper", () => getFixture(), {
+                onPositioned: () => {
+                    positioned++;
+                    if (shouldThrow) {
+                        throw new Error("onPositioned boom");
+                    }
+                },
+            });
+        }
+    }
+
+    await mountWithCleanup(Popper);
+    await animationFrame();
+    expect(positioned).toBeGreaterThan(0);
+
+    shouldThrow = true;
+    comp.position.unlock();
+    await animationFrame();
+    shouldThrow = false;
+    expect.verifyErrors([/onPositioned boom/]);
+
+    const before_ = positioned;
+    comp.position.unlock();
+    await animationFrame();
+    expect(positioned).toBeGreaterThan(before_);
+});
