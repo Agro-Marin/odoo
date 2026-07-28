@@ -159,7 +159,14 @@ export function getAggregateSpecifications(fields, fieldNames) {
         aggregateSpecCache.set(fields, byScope);
     }
     const scope = fieldNames && [...new Set(fieldNames)];
-    const scopeKey = scope ? scope.join(",") : "";
+    // Tagged, not bare: an EMPTY ``fieldNames`` array is truthy and also joins
+    // to "", so "aggregate nothing" and "aggregate everything" shared one memo
+    // slot and each poisoned the other. A kanban with a progressbar but no
+    // ``sum_field`` passes exactly that empty scope (kanban_controller's
+    // ``progressBarAggregateFields`` is then ``[]``), against the same
+    // long-lived ``config.fields`` the response decoding reads back with no
+    // scope at all.
+    const scopeKey = scope ? `s:${scope.join(",")}` : "*";
     let specs = byScope.get(scopeKey);
     if (specs) {
         return specs;

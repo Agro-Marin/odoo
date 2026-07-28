@@ -81,3 +81,25 @@ describe("getAggregateSpecifications", () => {
         ]);
     });
 });
+
+describe("scope key isolation", () => {
+    test("an empty scope does not share the all-fields cache slot", () => {
+        // A grouped kanban whose progressbar carries no ``sum_field`` passes
+        // exactly this empty scope: ``kanban_controller``'s
+        // ``progressBarAggregateFields`` is then ``[]``, and it lands on the
+        // same long-lived ``config.fields`` that the response decoding reads
+        // back with no scope at all. A bare ``join(",")`` made both key on
+        // ``""``, so whichever ran first answered for the other.
+        const fields = makeFields();
+
+        expect(getAggregateSpecifications(fields, [])).toEqual([]);
+        expect(getAggregateSpecifications(fields)).toEqual(["amount:sum", "qty:sum"]);
+    });
+
+    test("the collision is absent in the reverse order too", () => {
+        const fields = makeFields();
+
+        expect(getAggregateSpecifications(fields)).toEqual(["amount:sum", "qty:sum"]);
+        expect(getAggregateSpecifications(fields, [])).toEqual([]);
+    });
+});
