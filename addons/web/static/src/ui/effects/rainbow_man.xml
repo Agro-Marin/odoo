@@ -58,7 +58,15 @@
                     </svg>
                     <div class="o_reward_msg mx-4">
                         <div class="o_reward_msg_card">
-                            <div class="o_reward_msg_content text-muted px-3 py-4 bg-view d-inline-block border border-light border-top-0">
+                            <!--
+                                The same message is announced when effects are
+                                switched off, because `effect_service` falls back
+                                to `notification.add` (role="status"). Without a
+                                live region here the reward is silent for exactly
+                                the users who cannot see the animation.
+                            -->
+                            <div class="o_reward_msg_content text-muted px-3 py-4 bg-view d-inline-block border border-light border-top-0"
+                                role="status">
                                 <t t-if="!props.Component">
                                     <t t-out="props.message"/>
                                 </t>

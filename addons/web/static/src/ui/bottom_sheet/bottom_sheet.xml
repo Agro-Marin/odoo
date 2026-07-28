@@ -24,9 +24,17 @@
 
                 <div class="o_bottom_sheet_spacer"/>
 
+                <!--
+                    `aria-modal` only when the sheet actually traps focus:
+                    `useActiveElement` runs off `setActiveElement`, and callers
+                    do turn it off (Dropdown does). Claiming modality while the
+                    page behind stays reachable would tell assistive tech the
+                    rest of the document is inert when it is not.
+                -->
                 <div
                     class="o_bottom_sheet_sheet offcanvas position-relative overflow-hidden"
                     role="dialog"
+                    t-att-aria-modal="props.setActiveElement ? 'true' : undefined"
                     t-ref="sheet"
                     >
 
