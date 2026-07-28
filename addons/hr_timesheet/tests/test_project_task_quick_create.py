@@ -13,6 +13,9 @@ class TestProjectTaskQuickCreate(TestCommonTimesheet):
 
     def test_create_task_with_valid_expressions(self):
         # tuple format = (display name, [expected name, expected tags count, expected users count, expected priority, expected planned hours])
+        # NB: the "30H" syntax records an *estimate*, which this fork keeps in
+        # planned_hours; allocated_hours is the commitment aggregated from
+        # resource reservations and is not what the title parser writes.
         valid_expressions = {
             'task A 30H 2.5h #tag1 @user_employee2 2H #tag2 @user_employee 5h !': ('task A', 2, 2, "1", 39.5),
             'task A 30.H 2.h 1H #tag2 ! @user_employee ! @user_employee2 2.13h !': ('task A 30.H 2.h', 1, 2, "1", 3.13),
@@ -22,7 +25,7 @@ class TestProjectTaskQuickCreate(TestCommonTimesheet):
             task_form = Form(self.env['project.task'].with_context({'tracking_disable': True, 'default_project_id': self.project_customer.id}), view="project.quick_create_task_form")
             task_form.display_name = expression
             task = task_form.save()
-            results = (task.name, len(task.tag_ids), len(task.user_ids), task.priority, task.allocated_hours)
+            results = (task.name, len(task.tag_ids), len(task.user_ids), task.priority, task.planned_hours)
             self.assertEqual(results, values)
 
     def test_create_task_with_invalid_expressions(self):
@@ -35,5 +38,5 @@ class TestProjectTaskQuickCreate(TestCommonTimesheet):
             task_form = Form(self.env['project.task'].with_context({'tracking_disable': True, 'default_project_id': self.project_customer.id}), view="project.quick_create_task_form")
             task_form.display_name = expression
             task = task_form.save()
-            results = (task.name, len(task.tag_ids), len(task.user_ids), task.priority, task.allocated_hours)
+            results = (task.name, len(task.tag_ids), len(task.user_ids), task.priority, task.planned_hours)
             self.assertEqual(results, (expression, 0, 0, '0', 0))

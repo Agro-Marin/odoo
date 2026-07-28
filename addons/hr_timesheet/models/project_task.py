@@ -11,6 +11,7 @@ from odoo.addons.rating.models.rating_data import OPERATOR_MAPPING
 
 
 PROJECT_TASK_READABLE_FIELDS = {
+    'allocated_hours',
     'allow_timesheets',
     'analytic_account_active',
     'effective_hours',
@@ -155,14 +156,21 @@ class ProjectTask(models.Model):
     def _get_cannot_start_with_patterns(self):
         return super()._get_cannot_start_with_patterns() + [r'(?!\d+(?:\.\d+)?(?:h|H))']
 
-    def _extract_planned_hours(self):
+    def _extract_planned_hours(self, title):
+        """Pull a "3h" estimate out of ``title``, returning what is left."""
         planned_hours_group = self._get_group_pattern()['planned_hours']
-        if self.allow_timesheets:
-            self.planned_hours = sum(float(num) for num in re.findall(planned_hours_group, self.display_name))
-            self.display_name, dummy = re.subn(planned_hours_group, '', self.display_name)
+        if not self.allow_timesheets:
+            return title
+        self.planned_hours = sum(float(num) for num in re.findall(planned_hours_group, title))
+        # planned_hours is a stored compute (from the scheduled date range) with
+        # readonly=False. An estimate typed into the title is an explicit value,
+        # not something to re-derive from dates the task does not have yet, so
+        # take it out of the pending recompute that would zero it.
+        self.env.remove_to_compute(self._fields['planned_hours'], self)
+        return re.subn(planned_hours_group, '', title)[0]
 
     def _get_groups(self):
-        return [lambda task: task._extract_planned_hours()] + super()._get_groups()
+        return [lambda task, title: task._extract_planned_hours(title)] + super()._get_groups()
 
     def action_view_subtask_timesheet(self):
         self.ensure_one()

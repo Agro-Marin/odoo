@@ -101,12 +101,15 @@ class TimesheetCustomerPortal(CustomerPortal):
             'quarter': {'label': _('This Quarter'), 'domain': [('date', '>=', quarter_start), ('date', '<=', quarter_end)]},
             'year': {'label': _('This Year'), 'domain': [('date', '>=', date_utils.start_of(today, 'year')), ('date', '<=', date_utils.end_of(today, 'year'))]},
         }
-        # default sort by value
-        if not sortby:
-            sortby = 'date desc'
-        # default filter by value
-        if not filterby:
-            filterby = 'all'
+        # Clamp all three to their declared vocabularies. These come straight off
+        # the query string and each was a distinct HTTP 500 on an unknown value:
+        # `filterby` a KeyError below, and `sortby` / `groupby` are interpolated
+        # into the `order=` string used by `get_timesheets` (and `groupby` into
+        # `_read_group`), so an unknown key reached the ORM as a nonexistent
+        # field to order by.
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, 'date desc')
+        groupby = self._resolve_searchbar_option(searchbar_groupby, groupby, 'none')
+        filterby = self._resolve_searchbar_option(searchbar_filters, filterby, 'all')
         domain &= Domain(searchbar_filters[filterby]['domain'])
 
         if search and search_in:
