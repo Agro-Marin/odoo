@@ -7,7 +7,7 @@ import pytz
 from dateutil.relativedelta import MO, relativedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, MissingError
 from odoo.tools import is_html_empty
 from odoo.tools.misc import clean_context, get_lang, groupby
 
@@ -197,8 +197,18 @@ class MailActivity(models.Model):
         if not linked:
             return
         for model, activities in linked.grouped("res_model").items():
-            records = self.env[model].browse(activities.mapped("res_id")).exists()
-            name_by_id = dict(records.mapped(lambda r: (r.id, r.display_name)))
+            records = self.env[model].browse(activities.mapped("res_id"))
+            try:
+                name_by_id = dict(records.mapped(lambda r: (r.id, r.display_name)))
+            except MissingError:
+                # A record cascade-deleted in the database leaves its activity
+                # behind (the unlink override never ran). Probing for that with
+                # exists() up front costs a query on every read of res_name --
+                # including every notification template that renders it -- to
+                # guard a state that is exceptional by construction, so pay for
+                # it only once it has actually happened.
+                records = records.exists()
+                name_by_id = dict(records.mapped(lambda r: (r.id, r.display_name)))
             for activity in activities:
                 activity.res_name = name_by_id.get(activity.res_id, False)
 

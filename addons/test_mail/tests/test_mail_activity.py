@@ -964,3 +964,61 @@ class TestTours(HttpCase):
             "mail_activity_view",
             login="admin",
         )
+
+
+@tests.tagged('post_install', '-at_install')
+class TestActivityResName(ActivityScheduleCase):
+    """``res_name`` resolves the linked document without probing for it.
+
+    The probe (``exists()``) used to run on every read -- including every
+    notification template that renders ``res_name`` -- to guard a state that
+    only arises when a record is cascade-deleted in the database, skipping the
+    unlink override that would have removed its activities.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env['mail.test.activity'].create({'name': 'Doc'})
+        cls.activity = cls.env['mail.activity'].create({
+            'activity_type_id': cls.env.ref('mail.mail_activity_data_todo').id,
+            'res_id': cls.record.id,
+            'res_model_id': cls.env.ref('test_mail.model_mail_test_activity').id,
+            'summary': 'Act',
+        })
+
+    def _recompute_res_name(self):
+        self.env.invalidate_all()
+        self.env['mail.activity'].browse(self.activity.id)._compute_res_name()
+        return self.activity.res_name
+
+    def test_res_name_follows_the_document(self):
+        self.assertEqual(self._recompute_res_name(), 'Doc')
+        self.record.name = 'Renamed'
+        self.assertEqual(self._recompute_res_name(), 'Renamed')
+
+    def test_res_name_costs_one_query_for_the_document(self):
+        """The happy path reads the document; it must not also probe for it."""
+        self.env.invalidate_all()
+        activity = self.env['mail.activity'].browse(self.activity.id)
+        with self.assertQueryCount(__system__=2):
+            activity._compute_res_name()
+
+    def test_cascade_deleted_document_leaves_a_blank_name(self):
+        """The row is removed behind the ORM's back, as a DB-level cascade does."""
+        self.env.cr.execute('DELETE FROM mail_test_activity WHERE id = %s', (self.record.id,))
+        self.assertFalse(self._recompute_res_name())
+
+    def test_one_missing_document_does_not_blank_its_siblings(self):
+        survivor = self.env['mail.test.activity'].create({'name': 'Survivor'})
+        sibling = self.env['mail.activity'].create({
+            'activity_type_id': self.env.ref('mail.mail_activity_data_todo').id,
+            'res_id': survivor.id,
+            'res_model_id': self.env.ref('test_mail.model_mail_test_activity').id,
+            'summary': 'Act 2',
+        })
+        self.env.cr.execute('DELETE FROM mail_test_activity WHERE id = %s', (self.record.id,))
+        self.env.invalidate_all()
+        (self.activity + sibling)._compute_res_name()
+        self.assertFalse(self.activity.res_name)
+        self.assertEqual(sibling.res_name, 'Survivor')
