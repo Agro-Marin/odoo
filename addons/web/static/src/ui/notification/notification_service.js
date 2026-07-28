@@ -36,6 +36,20 @@ export const notificationService = {
 
     start() {
         let notifId = 0;
+        /**
+         * Read off the hosted component's own declaration, never hardcoded:
+         * this service is built to be subclassed with a different container
+         * and notification component (`website_sale`'s cart toast takes
+         * `lines`, `warning`, `currency_id`), so a fixed list here would
+         * quietly strip exactly the props that subclass exists for.
+         * `null` = the component declares nothing, so filter nothing.
+         * @type {Set<string> | null}
+         */
+        const declaredProps = this.notificationContainer.components?.Notification?.props
+            ? new Set(
+                  Object.keys(this.notificationContainer.components.Notification.props),
+              )
+            : null;
         const notifications = reactive(
             /** @type {Record<number, { id: number, props: Record<string, any>, onClose?: () => void }>} */ ({}),
         );
@@ -56,8 +70,27 @@ export const notificationService = {
         function add(message, options = {}) {
             const id = ++notifId;
             const closeFn = () => close(id);
-            const props = { ...options, message, close: closeFn };
-            delete props.onClose;
+            /**
+             * Picked, not spread: every option used to become a prop, so one
+             * unrecognised key made Owl reject the whole component and the
+             * container dropped the notification — the caller lost their toast
+             * outright, and only in debug mode, where prop validation runs.
+             * Unknown keys now warn there instead, like `makeOverlayPresenter`
+             * already does for overlay options.
+             */
+            const props = { message, close: closeFn };
+            for (const [key, value] of Object.entries(options)) {
+                if (key === "onClose") {
+                    continue;
+                }
+                if (!declaredProps || declaredProps.has(key)) {
+                    props[key] = value;
+                } else if (odoo.debug) {
+                    console.warn(
+                        `[notification] unknown option "${key}"; it will be ignored.`,
+                    );
+                }
+            }
             const notification = {
                 id,
                 props,

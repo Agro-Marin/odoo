@@ -3,7 +3,7 @@
 import { expect, onError, test } from "@odoo/hoot";
 import { click, hover, leave, waitFor } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { markup } from "@odoo/owl";
+import { Component, markup, xml } from "@odoo/owl";
 import {
     getService,
     makeMockEnv,
@@ -11,6 +11,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { registry } from "@web/core/registry";
+import { NotificationContainer } from "@web/ui/notification/notification_container";
+import { notificationService } from "@web/ui/notification/notification_service";
 
 test("can display a basic notification", async () => {
     await makeMockEnv();
@@ -332,4 +334,71 @@ test("a notification that fails to render does not kill later notifications", as
     await animationFrame();
     expect(".o_notification").toHaveCount(1);
     expect(".o_notification_content").toHaveText("I still work");
+});
+
+test("an unrecognised option does not cost the caller their notification", async () => {
+    // Every option used to be spread straight into props, so a single unknown
+    // key made Owl reject the component and the container dropped the toast --
+    // and only in debug mode, where prop validation runs, i.e. exactly when a
+    // developer is looking.
+    await mountWithCleanup(MainComponentsContainer);
+
+    getService("notification").add("first");
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    getService("notification").add("second", { notAnOption: true });
+    await animationFrame();
+    await animationFrame();
+    expect(".o_notification").toHaveCount(2);
+});
+
+test("known options still reach the notification", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("styled", {
+        type: "success",
+        className: "o_custom_notif",
+        sticky: true,
+        title: "Heads up",
+    });
+    await animationFrame();
+    expect(".o_notification.o_custom_notif").toHaveCount(1);
+    expect(".o_notification_bar.bg-success").toHaveCount(1);
+    expect(".o_notification").toHaveText(/Heads up/);
+});
+
+test("a subclassed container still receives its own extra props", async () => {
+    // `website_sale` swaps in a CartNotification taking `lines`/`warning`/
+    // `currency_id`. The allow-list must come from the hosted component's own
+    // `props`, never a fixed list in the service, or the subclass loses
+    // exactly the props it exists for.
+    class CustomNotification extends Component {
+        static template = xml`<div class="o_custom_notif" t-esc="props.flavour"/>`;
+        static props = {
+            message: { type: String },
+            flavour: { type: String },
+            className: { type: String, optional: true },
+            close: { type: Function },
+        };
+    }
+    class CustomContainer extends NotificationContainer {
+        static components = {
+            ...NotificationContainer.components,
+            Notification: CustomNotification,
+        };
+    }
+    const customService = {
+        ...notificationService,
+        notificationContainer: CustomContainer,
+        notificationContainerKey: "CustomNotificationContainer",
+    };
+    registry.category("services").add("custom_notification", customService);
+
+    const env = await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer, { env });
+
+    env.services.custom_notification.add("hello", { flavour: "mango" });
+    await animationFrame();
+    expect(".o_custom_notif").toHaveCount(1);
+    expect(".o_custom_notif").toHaveText("mango");
 });
