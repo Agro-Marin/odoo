@@ -179,12 +179,14 @@ export function dayHeaderClassNames(info) {
 
 /**
  * Resolve one of FullCalendar v7's build-hashed internal class names
- * (e.g. ``"internalScroller"`` -> ``"fc-7a"``) for the loaded library build.
+ * (e.g. ``"internalScroller"``) for the loaded library build.
  *
- * v7 regenerates these hashes on every build, so hard-coding them
- * (``".fc-1i"``) breaks on each bump; resolve through the public
- * ``ProtectedStyles`` name->hash map instead. Must be called after
- * ``web.fullcalendar_lib`` has loaded, when ``FullCalendar`` is available.
+ * v7 regenerates these hashes on every build — a bump reshuffles nearly all
+ * of them and recycles a few onto unrelated roles, so a hard-coded hash can
+ * silently match the wrong element rather than simply missing. Resolve
+ * through the public ``ProtectedStyles`` name->hash map instead. Must be
+ * called after ``web.fullcalendar_lib`` has loaded, when ``FullCalendar``
+ * is available.
  *
  * @param {string} name internal class-name key from FC's ``classNames`` map
  * @returns {string} the hashed class name for the loaded build

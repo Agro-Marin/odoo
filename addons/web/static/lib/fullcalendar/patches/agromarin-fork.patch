@@ -1,0 +1,111 @@
+--- v7.0.2/package/all/global.js	1985-10-26 02:15:00.000000000 -0600
++++ vendored-702-iife.js	2026-07-28 06:25:13.861664359 -0600
+@@ -8697,6 +8697,19 @@
+   }
+ 
+   function getAppendableRoot(el) {
++      // Fork-local: opt-in portal host so popovers and drag mirrors stay
++      // inside the embedder's DOM subtree (Hoot test fixtures scope query
++      // roots to the embedder; portaling to <body> hides the popover from
++      // ``expect('.fc-popover')``). The host must be marked with
++      // ``data-fc-portal-host``; the calendar hook in
++      // ``hooks/full_calendar_hook.js`` sets it on the FC root element.
++      // Drag mirror styling uses ``position: fixed`` (line 14514) and
++      // popover ``updateSize`` (line 10124) already accounts for a
++      // non-body offsetParent, so positioning is preserved.
++      const host = el.closest && el.closest('[data-fc-portal-host]');
++      if (host) {
++          return host;
++      }
+       const root = el.getRootNode();
+       if (root instanceof Document) {
+           return root.body || root.documentElement; // pick body if available
+@@ -9430,7 +9443,16 @@
+           const outerClassName = joinClassNames(// already includes eventClass below
+           isBlock && generateClassName(options.blockEventClass, renderProps), props.display === 'row' && generateClassName(options.rowEventClass, renderProps), props.display === 'column' && generateClassName(options.columnEventClass, renderProps), props.display === 'list-item' && generateClassName(options.listItemEventClass, renderProps), eventUi.className, props.className, props.display === 'column'
+               ? classNames.flexCol
+-              : classNames.flexRow, (eventRange.def.url || isDraggable) && classNames.cursorPointer, classNames.internalEvent, props.isMirror && classNames.internalEventMirror, isDraggable && classNames.internalEventDraggable, renderProps.isSelected && classNames.internalEventSelected, (renderProps.isStartResizable || renderProps.isEndResizable) && classNames.internalEventResizable);
++              : classNames.flexRow, (eventRange.def.url || isDraggable) && classNames.cursorPointer, classNames.internalEvent, props.isMirror && classNames.internalEventMirror,
++          // AGROMARIN FORK PATCH (FC v7.0.0): re-inject the v6
++          // ``fc-event-mirror`` class so downstream selectors
++          // (`.fc-event-mirror`, etc.) keep working alongside FC v7's
++          // hashed ``classNames.internalEventMirror`` (= ``fc-uc``).
++          // Same pattern the fork uses for slot lanes, day cells,
++          // popovers, etc. — re-inject stable v6 names without
++          // disturbing FC's internal styling.
++          props.isMirror && 'fc-event-mirror',
++          isDraggable && classNames.internalEventDraggable, renderProps.isSelected && classNames.internalEventSelected, (renderProps.isStartResizable || renderProps.isEndResizable) && classNames.internalEventResizable);
+           const beforeClassName = joinClassNames(generateClassName(options.eventBeforeClass, renderProps), isBlock && generateClassName(options.blockEventBeforeClass, renderProps), props.display === 'row' && generateClassName(options.rowEventBeforeClass, renderProps), props.display === 'column' && generateClassName(options.columnEventBeforeClass, renderProps), props.display === 'list-item' && generateClassName(options.listItemEventBeforeClass, renderProps));
+           const afterClassName = joinClassNames(generateClassName(options.eventAfterClass, renderProps), isBlock && generateClassName(options.blockEventAfterClass, renderProps), props.display === 'row' && generateClassName(options.rowEventAfterClass, renderProps), props.display === 'column' && generateClassName(options.columnEventAfterClass, renderProps), props.display === 'list-item' && generateClassName(options.listItemEventAfterClass, renderProps));
+           const innerClassName = joinClassNames(generateClassName(options.eventInnerClass, renderProps), isBlock && generateClassName(options.blockEventInnerClass, renderProps), props.display === 'row' && generateClassName(options.rowEventInnerClass, renderProps), props.display === 'column' && generateClassName(options.columnEventInnerClass, renderProps), props.display === 'list-item' && generateClassName(options.listItemEventInnerClass, renderProps), !props.disableLiquid && classNames.liquid);
+@@ -9450,11 +9472,18 @@
+                               ? classNames.cursorResizeT
+                               : classNames.cursorResizeS, 
+                           // these classnames required for dnd
+-                          classNames.internalEventResizer, classNames.internalEventResizerStart)), children: [beforeContent && (u$1(ContentContainer, { tag: 'div', style: { display: 'contents' }, attrs: { 'aria-hidden': true }, renderProps: renderProps, generatorName: undefined, customGenerator: beforeContent })), Boolean(renderProps.isStartResizable && renderProps.isSelected) && (u$1("div", { className: classNames.hit }))] })), u$1(InnerContent, { tag: "div", className: joinClassNames(innerClassName, !props.disableZindexes && classNames.z0) }), (afterClassName || afterContent) && (u$1("div", { className: joinClassNames(afterClassName, !props.disableZindexes && classNames.z1, renderProps.isEndResizable && joinClassNames(props.display === 'column'
++                          classNames.internalEventResizer, classNames.internalEventResizerStart,
++                          // AGROMARIN FORK PATCH (FC v7.0.0): re-inject
++                          // the v6 ``fc-event-resizer`` / ``-start`` classes
++                          // so test helpers (``resizeEventToTime``) and
++                          // downstream CSS still find the resizer handles.
++                          'fc-event-resizer', 'fc-event-resizer-start')), children: [beforeContent && (u$1(ContentContainer, { tag: 'div', style: { display: 'contents' }, attrs: { 'aria-hidden': true }, renderProps: renderProps, generatorName: undefined, customGenerator: beforeContent })), Boolean(renderProps.isStartResizable && renderProps.isSelected) && (u$1("div", { className: classNames.hit }))] })), u$1(InnerContent, { tag: "div", className: joinClassNames(innerClassName, !props.disableZindexes && classNames.z0) }), (afterClassName || afterContent) && (u$1("div", { className: joinClassNames(afterClassName, !props.disableZindexes && classNames.z1, renderProps.isEndResizable && joinClassNames(props.display === 'column'
+                               ? classNames.cursorResizeB
+                               : classNames.cursorResizeE, 
+                           // these classnames required for dnd
+-                          classNames.internalEventResizer, classNames.internalEventResizerEnd)), children: [afterContent && (u$1(ContentContainer, { tag: 'div', style: { display: 'contents' }, attrs: { 'aria-hidden': true }, renderProps: renderProps, generatorName: undefined, customGenerator: afterContent })), Boolean(renderProps.isEndResizable && renderProps.isSelected) && (u$1("div", { className: classNames.hit }))] }))] })) }));
++                          classNames.internalEventResizer, classNames.internalEventResizerEnd,
++                          // Same fork patch as resizer-start above.
++                          'fc-event-resizer', 'fc-event-resizer-end')), children: [afterContent && (u$1(ContentContainer, { tag: 'div', style: { display: 'contents' }, attrs: { 'aria-hidden': true }, renderProps: renderProps, generatorName: undefined, customGenerator: afterContent })), Boolean(renderProps.isEndResizable && renderProps.isSelected) && (u$1("div", { className: classNames.hit }))] }))] })) }));
+       }
+       componentDidUpdate(prevProps) {
+           if (this.el && this.props.eventRange !== prevProps.eventRange) {
+@@ -12267,6 +12296,23 @@
+   function computeSlatHeight(expandRows, slatCnt, explicitSlatMinHeight = 0, slatInnerHeight, // from the "inner" i think
+   scrollerHeight) {
+       if (!slatInnerHeight || !scrollerHeight) {
++          // AGROMARIN FORK PATCH (FC v7.0.0): fall back to the caller-
++          // supplied ``slotMinHeight`` when measurement isn't ready (e.g.
++          // HOOT mounts into a flex/grid ancestor whose layout settles
++          // after FC's first paint, or the ResizeObserver-delivered
++          // ``innerHeightRef`` hasn't yet arrived).  Without this, FC
++          // returns [undefined, false], inlines ``height: 0`` on every
++          // ``.fc-timegrid-slot-lane``, adjacent half-hour rows share the
++          // same Y coordinate, and FC's ``select`` event never fires
++          // because the drag distance never clears ``selectMinDistance``.
++          // The fall-back is gated on ``explicitSlatMinHeight > 0`` so
++          // callers who do NOT set ``slotMinHeight`` get the original
++          // behaviour unchanged.  Patch is co-located with the existing
++          // ``Math.max(slatInnerHeight + 1, explicitSlatMinHeight)`` rule
++          // below — both treat ``explicitSlatMinHeight`` as a floor.
++          if (explicitSlatMinHeight > 0 && scrollerHeight) {
++              return [explicitSlatMinHeight, false];
++          }
+           return [undefined, false];
+       }
+       const slatMinHeight = Math.max(slatInnerHeight + 1, explicitSlatMinHeight);
+@@ -15144,6 +15190,20 @@
+                   let slicedSubjectRect = intersectRects(subjectRect, initialHit.rect);
+                   if (slicedSubjectRect) {
+                       adjustedPoint = getRectCenter(slicedSubjectRect);
++                      // AGROMARIN FORK PATCH (FC v7.0.0): re-query the
++                      // initial hit at the center-adjusted point so it uses
++                      // the same convention as ``handleMove`` (which always
++                      // applies ``coordAdjust`` before querying).  Without
++                      // this, ``hit0`` is computed at the raw cursor and
++                      // ``hit1`` is computed at cursor+coordAdjust, and the
++                      // resulting snap delta is asymmetric by exactly one
++                      // sub-slot snap whenever the cursor lands at slot
++                      // boundary while ``useSubjectCenter`` is true — see
++                      // ``queryHit`` rounding at ``floor(0.5 * 2) = 1``.
++                      // Symptom: drag to the same slot on a new day shifts
++                      // the time by ``snapDuration`` (e.g. +15 min for
++                      // ``snapDuration: {minutes: 15}`` on 30-min slots).
++                      initialHit = this.initialHit = this.queryHitForOffset(adjustedPoint.left, adjustedPoint.top) || initialHit;
+                   }
+               }
+               this.coordAdjust = diffPoints(adjustedPoint, origPoint);
+@@ -17468,3 +17528,4 @@
+   return exports;
+ 
+ })({});
++
