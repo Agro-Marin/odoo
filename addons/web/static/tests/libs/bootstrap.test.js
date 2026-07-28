@@ -303,6 +303,108 @@ describe("Tooltip.show", () => {
         po.dispose();
     });
 
+    test("a show() that renders nothing leaves the visible tooltip alone", async () => {
+        const root = mount(
+            `<div><button id="a">A</button><button id="b">B</button></div>`,
+        );
+        const ttA = new Tooltip(root.querySelector("#a"), {
+            title: "A",
+            animation: false,
+        });
+        // an empty title makes Bootstrap's show() give up before it inserts
+        // anything, the same silent bail-out as a disabled instance or a
+        // prevented show.bs.tooltip
+        const ttB = new Tooltip(root.querySelector("#b"), {
+            title: "",
+            animation: false,
+        });
+        ttA.show();
+        await animationFrame();
+        ttB.show();
+        await animationFrame();
+        expect(tipCount()).toBe(1);
+        expect(document.querySelector(".tooltip-inner").textContent).toBe("A");
+        ttA.dispose();
+        ttB.dispose();
+    });
+
+    test("a hidden anchor does not take the visible tooltip down with it", async () => {
+        const root = mount(
+            `<div><button id="a">A</button><button id="b" style="display:none">B</button></div>`,
+        );
+        const ttA = new Tooltip(root.querySelector("#a"), {
+            title: "A",
+            animation: false,
+        });
+        const ttB = new Tooltip(root.querySelector("#b"), {
+            title: "B",
+            animation: false,
+        });
+        ttA.show();
+        await animationFrame();
+        ttB.show();
+        await animationFrame();
+        expect(tipCount()).toBe(1);
+        expect(document.querySelector(".tooltip-inner").textContent).toBe("A");
+        ttA.dispose();
+        ttB.dispose();
+    });
+
+    // Bootstrap keys instances in a strong Map that only dispose() clears, so an
+    // anchor thrown away by a re-render keeps its element, its instance and its
+    // listeners alive for the lifetime of the page.
+    test("an anchor dropped by a re-render is not retained", async () => {
+        const host = mount(`<div></div>`);
+        const anchors = [];
+        for (let i = 0; i < 10; i++) {
+            host.innerHTML = `<button>x</button>`;
+            const el = host.firstElementChild;
+            const tt = Tooltip.getOrCreateInstance(el, {
+                title: `t${i}`,
+                animation: false,
+            });
+            tt.show();
+            anchors.push(el);
+            host.replaceChildren();
+        }
+        const live = mount(`<button>live</button>`);
+        const ttLive = Tooltip.getOrCreateInstance(live, {
+            title: "live",
+            animation: false,
+        });
+        ttLive.show();
+        await animationFrame();
+        expect(anchors.filter((el) => Tooltip.getInstance(el))).toHaveLength(0);
+        ttLive.dispose();
+    });
+
+    // Bootstrap's dispose nulls every own property, so a second call would
+    // dereference a null `_element`. Call sites register unconditional
+    // teardowns and cannot know whether a dismissal already disposed for them.
+    test("dispose is idempotent", async () => {
+        const el = mount(`<button>y</button>`);
+        const tt = new Tooltip(el, { title: "Y", animation: false });
+        tt.show();
+        await animationFrame();
+        tt.dispose();
+        expect(() => tt.dispose()).not.toThrow();
+    });
+
+    test("a call-site teardown after a dismissal is safe", async () => {
+        const host = mount(`<div><button>z</button></div>`);
+        const el = host.firstElementChild;
+        const tt = Tooltip.getOrCreateInstance(el, { title: "Z", animation: false });
+        tt.show();
+        await animationFrame();
+        host.replaceChildren();
+        const live = mount(`<button>live</button>`);
+        const ttLive = new Tooltip(live, { title: "live", animation: false });
+        ttLive.show();
+        await animationFrame();
+        expect(() => tt.dispose()).not.toThrow();
+        ttLive.dispose();
+    });
+
     test("disposing the tracked tooltip does not break the next show", async () => {
         const root = mount(
             `<div><button id="a">A</button><button id="b">B</button></div>`,

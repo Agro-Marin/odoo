@@ -119,11 +119,20 @@ let shownTooltip = null;
  * node that no longer exists. Bootstrap only releases both from `hide()`'s
  * completion callback, which never runs once the anchor has been re-rendered
  * away, so the release is done here.
+ *
+ * A detached anchor is disposed outright rather than merely released: Bootstrap
+ * keys instances in a strong `Map` that only `dispose()` clears, so an anchor
+ * dropped by a re-render otherwise retains its element, its instance and its
+ * listeners for the lifetime of the page.
  * @param {any} tooltip
  */
 function dismissTooltip(tooltip) {
     if (shownTooltip === tooltip) {
         shownTooltip = null;
+    }
+    if (!tooltip._element.isConnected) {
+        tooltip.dispose();
+        return;
     }
     tooltip._element.removeAttribute("aria-describedby");
     tooltip._disposePopper();
@@ -134,18 +143,27 @@ const bsTooltipShow = Tooltip.prototype.show;
  * Patched Tooltip.show: dismisses the tooltip currently on screen so that two
  * are never visible at once, and skips hidden anchors, which Bootstrap answers
  * with a thrown error rather than a no-op.
+ *
+ * The dismissal happens only once the incoming tooltip is actually on screen.
+ * Bootstrap's `show()` gives up silently on an empty title, a disabled
+ * instance, a prevented `show.bs.tooltip` or an anchor outside the document,
+ * and dismissing beforehand would take the visible tooltip away in exchange for
+ * nothing. Inserting the new tip before removing the old one cannot overlap
+ * them: Bootstrap appends it and sets `.show` synchronously, so no frame is
+ * painted between the two.
  * @returns {*} The original show() return value, or undefined if skipped.
  */
 Tooltip.prototype.show = function () {
-    const isPopover = this instanceof Popover;
-    if (!isPopover && shownTooltip && shownTooltip !== this) {
-        dismissTooltip(shownTooltip);
-    }
     if (this._element.style.display === "none") {
         return;
     }
+    const isPopover = this instanceof Popover;
+    const previous = isPopover ? null : shownTooltip;
     const result = bsTooltipShow.call(this);
     if (!isPopover && this._isShown()) {
+        if (previous && previous !== this) {
+            dismissTooltip(previous);
+        }
         shownTooltip = this;
     }
     return result;
@@ -157,10 +175,18 @@ const bsTooltipDispose = Tooltip.prototype.dispose;
  * nulls every own property, including `_element`. Keeping it across hide is
  * deliberate: a hide still mid-transition is then torn down by the next show
  * instead of briefly overlapping it.
+ *
+ * Nulling every own property is also what makes a second dispose throw on
+ * `_element`, so the call is made idempotent here: call sites that register an
+ * unconditional teardown must not have to know whether `dismissTooltip` already
+ * disposed the instance for them.
  */
 Tooltip.prototype.dispose = function (...args) {
     if (shownTooltip === this) {
         shownTooltip = null;
+    }
+    if (!this._element) {
+        return;
     }
     return bsTooltipDispose.apply(this, args);
 };
