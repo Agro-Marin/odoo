@@ -159,8 +159,12 @@
                     t-att-data-tooltip="item.isInvalid and invalidTooltip"
                 />
                 <i class="ms-1 fa-solid fa-pencil d-none"
+                    role="button"
+                    tabindex="0"
                     title="Edit favorite"
+                    aria-label="Edit favorite"
                     t-on-click.stop="() => this.editFavorite(item.id)"
+                    t-on-keydown="(ev) => this.onEditFavoriteKeydown(ev, item.id)"
                 />
             </span>
         </CheckboxItem>

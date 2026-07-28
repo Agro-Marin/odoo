@@ -182,14 +182,19 @@
             <header
                 class="list-group-item list-group-item-action d-flex align-items-center px-0 py-lg-0 border-0"
                 t-att-class="{'active text-black fw-bold': section.activeValueId === valueId}"
+                role="button"
+                tabindex="0"
+                t-att-aria-expanded="categoryAriaExpanded(section, value)"
+                t-att-aria-current="section.activeValueId === valueId ? 'true' : false"
                 t-on-click="() => this.toggleCategory(section, value)"
+                t-on-keydown="(ev) => this.onCategoryKeydown(ev, section, value)"
                 >
                 <div
                     class="o_search_panel_label d-flex align-items-center overflow-hidden w-100 cursor-pointer mb-0"
                     t-att-class="{'o_with_counters': section.enableCounters }"
                     t-att-data-tooltip="value.display_name"
                     >
-                    <button class="o_toggle_fold btn p-0 px-1 flex-shrink-0 text-center">
+                    <button class="o_toggle_fold btn p-0 px-1 flex-shrink-0 text-center" tabindex="-1" aria-hidden="true">
                         <i
                             t-if="value.childrenIds.length"
                             class="fa-solid"

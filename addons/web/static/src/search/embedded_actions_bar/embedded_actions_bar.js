@@ -770,6 +770,22 @@ export class EmbeddedActionsBar extends Component {
         return this.props.embeddedActions.confirmDelete(action);
     }
 
+    /**
+     * Activate the delete affordance from the keyboard. It is an `<i>` carrying
+     * a click handler, so deleting an embedded action was mouse-only.
+     * @param {KeyboardEvent} ev
+     * @param {EmbeddedAction} action
+     */
+    onDeleteKeydown(ev, action) {
+        if (ev.key !== "Enter" && ev.key !== " ") {
+            return;
+        }
+        // Both would otherwise reach the DropdownItem and select the action.
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.openConfirmationDialog(action);
+    }
+
     _onShareCheckboxChange() {
         this.state.embeddedInfos.newActionIsShared =
             !this.state.embeddedInfos.newActionIsShared;

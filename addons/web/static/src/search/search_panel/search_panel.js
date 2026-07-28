@@ -356,6 +356,43 @@ export class SearchPanel extends Component {
         }
     }
 
+    /**
+     * Activate a category row from the keyboard.
+     *
+     * The row IS the control — `toggleCategory` both selects the value and
+     * folds its children — but it is a `<header>`, so it gets neither of the
+     * two things a native button has for free. The only thing standing in for
+     * that was the `o_toggle_fold` button, which carries no handler and no
+     * accessible name and merely happened to bubble its click here; it is now
+     * marked decorative, so this is the keyboard path.
+     *
+     * @param {KeyboardEvent} ev
+     * @param {Object} category
+     * @param {Object} value
+     */
+    onCategoryKeydown(ev, category, value) {
+        if (ev.key !== "Enter" && ev.key !== " ") {
+            return;
+        }
+        // Space would otherwise scroll the panel out from under the selection.
+        ev.preventDefault();
+        this.toggleCategory(category, value);
+    }
+
+    /**
+     * `aria-expanded` for a category row, or false to leave the attribute off a
+     * leaf (where "collapsed" would be a lie rather than a state).
+     * @param {Object} category
+     * @param {Object} value
+     * @returns {string|false}
+     */
+    categoryAriaExpanded(category, value) {
+        if (!value.childrenIds.length) {
+            return false;
+        }
+        return this.state.expanded[category.id][value.id] ? "true" : "false";
+    }
+
     /** Toggle sidebar expanded/collapsed and persist preference to localStorage. */
     toggleSidebar() {
         this._sidebarAutoCollapsed = false;
