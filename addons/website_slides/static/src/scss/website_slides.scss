@@ -107,7 +107,7 @@ $line-height-truncate: 1.5em;
 
     a.o_wslides_js_quiz_is_correct {
         color: black;
-        input:checked + i.fa-check-circle-o {
+        input:checked + i.fa-circle-check {
             color: $success !important;
         }
     }

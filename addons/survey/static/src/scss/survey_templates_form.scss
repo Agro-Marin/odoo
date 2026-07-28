@@ -151,7 +151,7 @@ _:future,
             font-size: large;
         }
 
-        &.o_survey_selected i.fa-circle-thin,
+        &.o_survey_selected i.fa-regular.fa-circle,
         &.o_survey_selected i.fa-square-o,
         &:not(.o_survey_selected) i.fa-check-circle,
         &:not(.o_survey_selected) i.fa-check-square {
@@ -504,7 +504,7 @@ _:future,
             background-color: $gray-600;
             opacity: 1;
         }
-        i.fa-circle-thin,
+        i.fa-regular.fa-circle,
         i.fa-square-o {
             display: none;
         }

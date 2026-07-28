@@ -113,10 +113,10 @@
     .o_dashboard_star {
         margin: auto 0;
         cursor: pointer;
-        &.fa-star-o {
+        &.fa-regular.fa-star {
             @include o-hover-text-color($o-main-color-muted, $o-main-favorite-color);
         }
-        &.fa-star {
+        &.fa-solid.fa-star {
             color: $o-main-favorite-color;
         }
     }

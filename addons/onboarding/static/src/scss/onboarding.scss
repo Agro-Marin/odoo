@@ -118,7 +118,7 @@ $o-onboarding-step-width: calc(map-get($container-max-widths, "lg") / 4) !defaul
             }
 
             .o_onboarding_step_action__done {
-                animation: bounceIn ($o-onboarding-base-time * 2);
+                animation: o-bounceIn ($o-onboarding-base-time * 2);
             }
 
             .o_onboarding_confetti {
