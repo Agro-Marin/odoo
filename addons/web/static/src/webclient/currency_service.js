@@ -3,9 +3,9 @@
 
 /** @module @web/webclient/currency_service - Service that auto-reloads currencies when res.currency records are mutated */
 
+import { onModelMutation } from "@web/core/network/model_mutation";
 import { registry } from "@web/core/registry";
 import { currencies } from "@web/services/currency";
-import { onModelMutation } from "@web/services/orm_service";
 
 /** Service that reloads currencies when res.currency records are mutated. */
 export const currencyService = {

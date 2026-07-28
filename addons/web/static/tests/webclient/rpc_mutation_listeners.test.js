@@ -1,9 +1,11 @@
 // @ts-check
 
 /**
- * The four "a mutating RPC touched model X" consumers all route through
- * ``onModelMutation`` (``@web/services/orm_service``), so the error policy
- * lives in one place:
+ * Every "a mutating RPC touched model X" consumer routes through
+ * ``onModelMutation`` (``@web/core/network/model_mutation``), so the error
+ * policy lives in one place — unit-tested directly in
+ * ``core/network/model_mutation.test.js``; what follows is the wiring of the
+ * ``web``-side consumers onto it:
  *
  *   - ``RPCError``            the server raised -> transaction rolled back ->
  *                             nothing changed -> SKIP (reacting is pure waste).
@@ -13,9 +15,12 @@
  *   - ``successOnly: true``   opt-out for consumers whose reaction is
  *                             destructive rather than merely costly.
  *
- * Before consolidation these four had drifted into three different policies:
- * ``action_cache_invalidation`` and ``view_service`` reacted to every failure,
- * ``currency_service`` and ``reload_company_service`` to none.
+ * Before consolidation the consumers had drifted into three different
+ * policies: ``action_cache_invalidation`` and ``view_service`` reacted to every
+ * failure, ``currency_service`` and ``reload_company_service`` to none, and
+ * ``web_studio``'s approval-rule cache clear did not look at ``error`` at all.
+ * ``analytic`` and ``stock_warehouse`` (both full context reloads) map onto
+ * ``successOnly``.
  */
 
 import { describe, expect, test } from "@odoo/hoot";

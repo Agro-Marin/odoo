@@ -4,8 +4,8 @@
 /** @module @web/webclient/reload_company_service - Service that triggers a page reload when res.company records are modified */
 
 import { browser } from "@web/core/browser/browser";
+import { onModelMutation } from "@web/core/network/model_mutation";
 import { registry } from "@web/core/registry";
-import { onModelMutation } from "@web/services/orm_service";
 
 export const reloadCompanyService = {
     dependencies: ["action"],
