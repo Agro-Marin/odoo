@@ -60,6 +60,7 @@ MISC_SUITES = (
     "@mail/views",
     "@mail/widgets",
     # root-level test files (mail/static/tests/*.test.js)
+    "@mail/composer_send_icon",
     "@mail/mail_utils",
     "@mail/search",
     "@mail/service_worker_utils",

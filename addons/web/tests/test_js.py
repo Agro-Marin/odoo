@@ -41,6 +41,7 @@ MISC_SUITES = (
     "@web/helpers",
     "@web/interactions",
     "@web/l10n",
+    "@web/libs",
     "@web/mock_server",
     "@web/modules",
 )
@@ -440,7 +441,8 @@ class WebSuite(HOOTCommon):
     def test_misc(self):
         """Root-level test files (env, reactivity, t_custom_click) plus the
         infrastructure suites: mock server meta-tests, module loader, l10n
-        utils, test helpers, interactions."""
+        utils, test helpers, interactions, and the vendored-library patches
+        under ``@web/libs`` (Bootstrap, Font Awesome)."""
         self._run_hoot(*MISC_SUITES, preset="desktop")
 
     @odoo.tests.no_retry
