@@ -1,10 +1,9 @@
 /** @odoo-module native */
-/* global owl */
+
+import { Component, xml } from "/web/static/lib/owl/owl.es.js";
 
 import useStore from "../../hooks/useStore.js";
 import { BootstrapDialog } from "./BootstrapDialog.js";
-
-const { Component, xml } = owl;
 
 export const DEVICE_ICONS = {
  camera: "fa-solid fa-camera",

@@ -15,7 +15,8 @@ from odoo.addons.iot_drivers.tools import certificate, helpers, route, upgrade, 
 from odoo.addons.iot_drivers.tools.system import IOT_SYSTEM, IS_RPI
 from odoo.addons.iot_drivers.main import iot_devices, unsupported_devices
 from odoo.addons.iot_drivers.connection_manager import connection_manager
-from odoo.tools.misc import file_path
+from odoo.libs.web.import_map import import_map_for
+from odoo.tools.misc import file_open, file_path
 from odoo.addons.iot_drivers.server_logger import (
     check_and_update_odoo_config_log_to_server_option,
     get_odoo_config_log_to_server_option,
@@ -30,14 +31,34 @@ DRIVER_PREFIX = 'driver-'
 AVAILABLE_LOG_LEVELS = ('debug', 'info', 'warning', 'error')
 AVAILABLE_LOG_LEVELS_WITH_PARENT = AVAILABLE_LOG_LEVELS + ('parent',)
 
+IMPORT_MAP = import_map_for("@popperjs/core")  # bootstrap.esm.js imports Popper by bare specifier
+IMPORT_MAP_PLACEHOLDER = "<!-- odoo-import-map -->"
+
 CONTENT_SECURITY_POLICY = (
     "default-src 'none';"
-    "script-src 'self' 'unsafe-eval';"  # OWL requires `unsafe-eval` to render templates
+    # OWL requires `unsafe-eval` to render templates. The hash admits the injected
+    # import map, which is an inline script: without it the map is refused and every
+    # bare specifier on the page fails to resolve.
+    f"script-src 'self' 'unsafe-eval' {IMPORT_MAP.csp_hash};"
     "connect-src 'self';"
     "img-src 'self' data:;"             # `data:` scheme required as Bootstrap uses it for embedded SVGs
     "style-src 'self';"
     "font-src 'self';"
 )
+
+
+def _render_page(view):
+    """Serve an IoT box page, resolving its import-map placeholder.
+
+    The map cannot be written into the file: its CSP hash is derived from the
+    emitted bytes, so the two would have to be kept in sync by hand.
+    """
+    with file_open(f"iot_drivers/views/{view}", "r") as fd:
+        page = fd.read().replace(IMPORT_MAP_PLACEHOLDER, IMPORT_MAP.script_tag)
+    return http.request.make_response(page, headers=[
+        ('Content-Type', 'text/html; charset=utf-8'),
+        ('Content-Security-Policy', CONTENT_SECURITY_POLICY),
+    ])
 
 
 class IotBoxOwlHomePage(http.Controller):
@@ -47,15 +68,15 @@ class IotBoxOwlHomePage(http.Controller):
 
     @route.iot_route('/', type='http')
     def index(self):
-        return http.Stream.from_path("iot_drivers/views/index.html").get_response(content_security_policy=CONTENT_SECURITY_POLICY)
+        return _render_page("index.html")
 
     @route.iot_route('/logs', type='http')
     def logs_page(self):
-        return http.Stream.from_path("iot_drivers/views/logs.html").get_response(content_security_policy=CONTENT_SECURITY_POLICY)
+        return _render_page("logs.html")
 
     @route.iot_route('/status', type='http')
     def status_page(self):
-        return http.Stream.from_path("iot_drivers/views/status_display.html").get_response(content_security_policy=CONTENT_SECURITY_POLICY)
+        return _render_page("status_display.html")
 
     # ---------------------------------------------------------- #
     # GET methods                                                #

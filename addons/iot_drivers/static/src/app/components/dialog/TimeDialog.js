@@ -1,10 +1,9 @@
 /** @odoo-module native */
-/* global owl */
+
+import { Component, useState, xml } from "/web/static/lib/owl/owl.es.js";
 
 import useStore from "../../hooks/useStore.js";
 import { BootstrapDialog } from "./BootstrapDialog.js";
-
-const { Component, useState, xml } = owl;
 
 export class TimeDialog extends Component {
     static props = {};

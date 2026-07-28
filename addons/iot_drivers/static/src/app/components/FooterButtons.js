@@ -1,13 +1,12 @@
 /** @odoo-module native */
-/* global owl */
+
+import { Component, xml } from "/web/static/lib/owl/owl.es.js";
 
 import useStore from "../hooks/useStore.js";
 import { CredentialDialog } from "./dialog/CredentialDialog.js";
 import { HandlerDialog } from "./dialog/HandlerDialog.js";
 import { RemoteDebugDialog } from "./dialog/RemoteDebugDialog.js";
 import { TimeDialog } from "./dialog/TimeDialog.js";
-
-const { Component, xml } = owl;
 
 export class FooterButtons extends Component {
     static props = {};

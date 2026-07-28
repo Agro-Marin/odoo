@@ -1,7 +1,6 @@
 /** @odoo-module native */
-/* global owl */
 
-const { useState, useEnv } = owl;
+import { useEnv, useState } from "/web/static/lib/owl/owl.es.js";
 
 export default function useStore() {
     const env = useEnv();

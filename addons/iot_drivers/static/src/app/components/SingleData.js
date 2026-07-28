@@ -1,7 +1,6 @@
 /** @odoo-module native */
-/* global owl */
 
-const { Component, xml } = owl;
+import { Component, xml } from "/web/static/lib/owl/owl.es.js";
 
 export class SingleData extends Component {
     static props = {

@@ -1,8 +1,8 @@
 /** @odoo-module native */
-/* global owl */
-import { DEVICE_ICONS } from "./components/dialog/DeviceDialog.js";
 
-const { Component, mount, xml, useState } = owl;
+import { Component, mount, useState, xml } from "/web/static/lib/owl/owl.es.js";
+
+import { DEVICE_ICONS } from "./components/dialog/DeviceDialog.js";
 
 const STATUS_POLL_DELAY_MS = 5000;
 
