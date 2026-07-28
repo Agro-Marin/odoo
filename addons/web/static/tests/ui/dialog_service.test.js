@@ -342,3 +342,46 @@ test("closing stacked dialogs restores the scroll position from before the first
     expect(scrollCalls).toHaveLength(1);
     expect(scrollCalls[0].top).toBe(500);
 });
+
+test("a component overriding the header slot can reuse web.Dialog.header", async () => {
+    // `web.Dialog.header` used to read `data.isClosing`, `id` and `props.title`
+    // straight off whatever component t-called it — an invisible contract only
+    // `Dialog` itself satisfies. Any other caller (SelectCreateDialog is the
+    // real one) threw `Cannot read properties of undefined (reading
+    // 'isClosing')` and took the whole dialog down.
+    class HeaderOverridingDialog extends Component {
+        static components = { Dialog };
+        static template = xml`
+            <Dialog title="'Welcome'">
+                <t t-set-slot="header" t-slot-scope="scope">
+                    <t t-call="web.Dialog.header">
+                        <t t-set="dismiss" t-value="scope.close"/>
+                        <t t-set="fullscreen" t-value="scope.isFullscreen"/>
+                        <t t-set="isClosing" t-value="scope.isClosing"/>
+                        <t t-set="title" t-value="scope.title"/>
+                        <t t-set="titleId" t-value="scope.titleId"/>
+                    </t>
+                    <button class="o_extra_header_button">Extra</button>
+                </t>
+                content
+            </Dialog>`;
+        static props = ["*"];
+    }
+    getService("dialog").add(HeaderOverridingDialog);
+    await animationFrame();
+
+    expect(".o_dialog").toHaveCount(1);
+    expect("header .modal-title").toHaveText("Welcome");
+    expect(".o_extra_header_button").toHaveCount(1);
+
+    // The title element must be the one Dialog's `aria-labelledby` points at,
+    // which the hard-coded `id + '_title'` silently broke for every external
+    // caller (`id` was undefined there, yielding `id="undefined_title"`).
+    const labelledBy = queryOne("[role=dialog]").getAttribute("aria-labelledby");
+    expect(labelledBy).toMatch(/^dialog_\d+_title$/);
+    expect(`#${labelledBy}`).toHaveText("Welcome");
+
+    await click(".o_dialog header .btn-close");
+    await animationFrame();
+    expect(".o_dialog").toHaveCount(0);
+});
