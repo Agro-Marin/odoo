@@ -3,6 +3,8 @@
 
 /** @module @web/core/l10n/utils/normalize - Unicode normalization, case folding, and accent-insensitive string matching */
 
+import { unaccent } from "./unaccent.js";
+
 /**
  * @typedef {{
  *  match: string;
@@ -14,26 +16,41 @@
 /**
  * Normalizes a string for use in comparison.
  *
- * NOT the same fold as ``@web/core/l10n/utils/unaccent``, deliberately. That one
- * reproduces PostgreSQL's ``unaccent()`` exactly, because it has to select the
- * same records as the server's ``ilike``; this one is the *UI search* fold and
- * answers to no server, so it adds NFKC and full case folding (which is how
- * ``𝔖𝔥𝔯𝔢𝔨`` matches ``Shrek`` and ``ß`` matches ``ss``) while staying clear of
- * transliterations that would surprise a human typing in a search box —
- * ``©``→``(C)``, ``½``→`` 1/2``, ``₹``→``Rs``. Widening this to the SQL table is
- * a search-relevance decision, not a correctness fix; don't do it silently.
+ * Four passes, and the order between the middle two matters:
+ *
+ * 1. **NFKC** — collapses compatibility forms, which is how ``𝔖𝔥𝔯𝔢𝔨`` matches
+ *    ``Shrek`` and ``㎩`` matches ``Pa``. Those live outside the ranges the
+ *    transliteration table covers, so this pass is load-bearing on its own.
+ * 2. **Strip combining marks** — works on every script, including the ones the
+ *    table says nothing about (kana dakuten, Devanagari, Cyrillic breve).
+ * 3. **Transliterate** ({@link unaccent}) — the letters no decomposition can
+ *    reach: ``Ø``→``O``, ``æ``→``ae``, ``Þ``→``TH``, ``ŋ``→``n``.
+ * 4. **Full case fold** — ``ß`` and ``SS`` compare equal.
+ *
+ * Steps 2 and 3 are in that order because a character can carry BOTH a
+ * combining mark and a stroke: ``Ǿ`` decomposes to ``Ø`` + acute, and only
+ * after the acute is gone does the table's ``Ø``→``O`` apply. Transliterating
+ * first leaves ``ø``.
+ *
+ * Step 3 is the same table the server's ``ilike`` folds with (see
+ * {@link unaccent}) — one transliteration for the whole client, so a name a
+ * user can find by typing it into a search box is a name they can also find
+ * with a domain. What this fold adds on top, and ``ilike`` does not have, is
+ * NFKC and full case folding: those answer to the user's keyboard rather than
+ * to PostgreSQL, and are why the two are still separate entry points.
  *
  * @example
  * normalize("déçûmes") === normalize("DECUMES")
  * normalize("𝔖𝔥𝔯𝔢𝔨") === normalize("Shrek")
  * normalize("Scleßin") === normalize("Sclessin")
  * normalize("Œdipe") === normalize("OeDiPe")
+ * normalize("Hawaiʻi") === normalize("Hawai'i")
  *
  * @param {string} str
  * @returns {string}
  */
 export function normalize(str) {
-    return casefold(unaccent(expandLigatures(str.normalize("NFKC"))));
+    return casefold(unaccent(stripCombiningMarks(str.normalize("NFKC"))));
 }
 
 /**
@@ -194,59 +211,18 @@ export function normalizedMatches(src, substr) {
     return matches;
 }
 
-const DECOMPOSITION_BY_LIGATURE = new Map([
-    ["Æ", "Ae"],
-    ["æ", "ae"],
-    ["Œ", "Oe"],
-    ["œ", "oe"],
-    ["Ĳ", "IJ"],
-    ["ĳ", "ij"],
-]);
-
 /**
- * Splits ligatures into their constituent glyphs, e.g. turns Œ into Oe.
+ * Strips the combining marks Unicode does classify as such — every script, not
+ * just the ranges the transliteration table covers.
+ *
+ * `Array.from` is not needed here: `replace` is codepoint-correct for this
+ * pattern, and marks are never surrogate pairs in NFD output of BMP text.
  *
  * @param {string} str
  * @returns {string}
  */
-function expandLigatures(str) {
-    return Array.from(str, (char) => DECOMPOSITION_BY_LIGATURE.get(char) ?? char).join(
-        "",
-    );
-}
-
-/**
- * Diacritics are marks, such as accents or cedilla, that when added to a letter
- * change its pronunciation or meaning. Unicode has a category for them, but it
- * doesn't consider characters like "ø" to be a diacritical "o". Below is a list
- * of characters that could be considered "diacritical characters" but aren't
- * labeled as such by Unicode.
- */
-const DIACRITIC_LIKES = new Map([
-    ["Ø", "O"],
-    ["ø", "o"],
-    ["Ł", "L"],
-    ["ł", "l"],
-    ["Ð", "D"],
-    ["ð", "d"],
-    ["Ħ", "H"],
-    ["ħ", "h"],
-    ["Ŧ", "T"],
-    ["ŧ", "t"],
-]);
-
-/**
- * Removes "diacritics" (funny marks added to letters, such as accents and
- * cedillas) from a string.
- *
- * @param {string} str
- * @returns {string}
- */
-function unaccent(str) {
-    return Array.from(
-        str.normalize("NFD").replace(/\p{Nonspacing_Mark}/gu, ""),
-        (char) => DIACRITIC_LIKES.get(char) ?? char,
-    ).join("");
+function stripCombiningMarks(str) {
+    return str.normalize("NFD").replace(/\p{Nonspacing_Mark}/gu, "");
 }
 
 /**
