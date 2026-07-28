@@ -2,7 +2,7 @@
 import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
 import { Collapse, Dropdown, Offcanvas } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
+import { SIZES, utils as uiUtils } from "@web/ui/viewport";
 
 export class BaseHeader extends Interaction {
     dynamicContent = {

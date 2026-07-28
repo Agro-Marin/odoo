@@ -5,7 +5,7 @@ import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { renderToFragment } from "@web/core/utils/render";
 import { Interaction } from "@web/public/interaction";
-import { utils as uiUtils } from "@web/ui/block/ui_service";
+import { utils as uiUtils } from "@web/ui/viewport";
 import { verifyHttpsUrl } from "@website/utils/misc";
 
 const DEFAULT_NUMBER_OF_ELEMENTS = 4;

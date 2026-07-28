@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/block/ui_service - UI service: viewport size tracking, active element management, block/unblock, and focus trapping */
+/** @module @web/ui/ui_service - UI service: active element stack, block/unblock, and viewport size tracking */
 
 import { EventBus, reactive, useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -9,9 +9,8 @@ import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
-
-import { BlockUI } from "./block_ui.js";
-export const SIZES = { XS: 0, SM: 1, MD: 2, LG: 3, XL: 4, XXL: 5 };
+import { BlockUI } from "@web/ui/block/block_ui";
+import { getMediaQueryLists, SIZES } from "@web/ui/viewport";
 
 /**
  * @param {HTMLElement} el
@@ -118,53 +117,6 @@ export function useActiveElement(refName) {
         () => [ref.el],
     );
 }
-
-export const MEDIAS_BREAKPOINTS = [
-    { maxWidth: 575 },
-    { minWidth: 576, maxWidth: 767 },
-    { minWidth: 768, maxWidth: 991 },
-    { minWidth: 992, maxWidth: 1199 },
-    { minWidth: 1200, maxWidth: 1399 },
-    { minWidth: 1400 },
-];
-
-/**
- * Build the `MediaQueryList`s matching `MEDIAS_BREAKPOINTS`.
- *
- * @returns {MediaQueryList[]}
- */
-function getMediaQueryLists() {
-    return MEDIAS_BREAKPOINTS.map(({ minWidth, maxWidth }) => {
-        if (!maxWidth) {
-            return window.matchMedia(`(min-width: ${minWidth}px)`);
-        }
-        if (!minWidth) {
-            return window.matchMedia(`(max-width: ${maxWidth}px)`);
-        }
-        return window.matchMedia(
-            `(min-width: ${minWidth}px) and (max-width: ${maxWidth}px)`,
-        );
-    });
-}
-
-/**
- * Breakpoint list backing the service-free `utils.getSize()` used by the ~20
- * call sites (`Dropdown.isBottomSheet`, view components, …) that need the
- * current size without holding an env. Built on first use and never listened
- * to: each `uiService.start` owns its own list and its own listeners.
- * @type {MediaQueryList[] | null}
- */
-let sharedMedias = null;
-
-export const utils = {
-    getSize() {
-        sharedMedias ??= getMediaQueryLists();
-        return sharedMedias.findIndex((media) => media.matches);
-    },
-    isSmall(/** @type {{ size?: number }} */ ui = {}) {
-        return (ui.size ?? utils.getSize()) <= SIZES.SM;
-    },
-};
 
 /**
  * Core UI service providing block/unblock, active element management,

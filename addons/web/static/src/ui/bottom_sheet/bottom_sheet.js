@@ -13,7 +13,7 @@ import { clamp } from "@web/core/utils/format/numbers";
 import { useBus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { useActiveElement } from "@web/ui/block/ui_service";
+import { useActiveElement } from "@web/ui/ui_service";
 
 /**
  * Delay before giving up on the dismiss animation events. Safely above

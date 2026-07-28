@@ -9,7 +9,7 @@ import {
 } from "@point_of_sale/app/components/numpad/numpad";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useService } from "@web/core/utils/hooks";
-import { SIZES, utils } from "@web/ui/block/ui_service";
+import { SIZES, utils } from "@web/ui/viewport";
 export class NumpadDropdown extends Component {
     static template = "pos_restaurant.NumpadDropdown";
     static props = {};

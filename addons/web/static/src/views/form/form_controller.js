@@ -32,8 +32,8 @@ import {
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { useDebugCategory } from "@web/services/debug/debug_context";
-import { SIZES } from "@web/ui/block/ui_service";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { SIZES } from "@web/ui/viewport";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { ViewButton } from "@web/views/view_button/view_button";
 import {

@@ -15,7 +15,7 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { hotkeyService } from "@web/services/hotkeys/hotkey_service";
-import { useActiveElement } from "@web/ui/block/ui_service";
+import { useActiveElement } from "@web/ui/ui_service";
 
 const getOverlays = () => queryAllTexts(".o_web_hotkey_overlay");
 

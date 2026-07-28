@@ -3,7 +3,7 @@ import { Interaction } from "@web/public/interaction";
 import { Carousel } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
-import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
+import { SIZES, utils as uiUtils } from "@web/ui/viewport";
 
 export class CarouselProduct extends Interaction {
     static selector = "#o-carousel-product";

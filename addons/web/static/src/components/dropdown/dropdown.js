@@ -25,8 +25,8 @@ import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { disposableEffect } from "@web/core/utils/reactive";
 import { useNavigation } from "@web/services/navigation/navigation";
-import { utils } from "@web/ui/block/ui_service";
 import { usePopover } from "@web/ui/popover/popover_hook";
+import { utils } from "@web/ui/viewport";
 
 /**
  * @param {any} node

@@ -2,7 +2,7 @@
 import { registry } from "@web/core/registry";
 import { append, createElement, setAttributes } from "@web/core/utils/dom/xml";
 import { patch } from "@web/core/utils/patch";
-import { SIZES } from "@web/ui/block/ui_service";
+import { SIZES } from "@web/ui/viewport";
 import { FormCompiler } from "@web/views/form/form_compiler";
 
 /**

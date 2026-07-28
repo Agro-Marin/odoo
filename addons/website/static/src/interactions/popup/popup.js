@@ -5,7 +5,7 @@ import { registry } from "@web/core/registry";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
+import { SIZES, utils as uiUtils } from "@web/ui/viewport";
 
 export class Popup extends Interaction {
     static selector = ".s_popup:not(#website_cookies_bar)";

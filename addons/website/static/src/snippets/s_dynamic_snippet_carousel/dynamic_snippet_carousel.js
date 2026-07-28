@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { utils as uiUtils } from "@web/ui/block/ui_service";
+import { utils as uiUtils } from "@web/ui/viewport";
 import { DynamicSnippet } from "@website/snippets/s_dynamic_snippet/dynamic_snippet";
 
 export class DynamicSnippetCarousel extends DynamicSnippet {

@@ -10,8 +10,8 @@ import {
     xml,
 } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
-import { useActiveElement } from "@web/ui/block/ui_service";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { useActiveElement } from "@web/ui/ui_service";
 
 export class EditorOverlay extends Component {
     static template = xml`

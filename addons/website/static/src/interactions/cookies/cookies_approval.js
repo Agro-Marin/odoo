@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
-import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/block/ui_service";
+import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
 
 export class CookiesApproval extends Interaction {
     static selector = "[data-need-cookies-approval]";

@@ -12,7 +12,7 @@ import {
     getTag,
 } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { SIZES } from "@web/ui/block/ui_service";
+import { SIZES } from "@web/ui/viewport";
 import {
     copyAttributes,
     getModifier,
