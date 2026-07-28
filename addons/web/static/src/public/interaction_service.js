@@ -26,7 +26,7 @@ registry
  * Owl access, for more complex UI needs).
  */
 
-class InteractionService {
+export class InteractionService {
     /**
      * @param {HTMLElement} el root element to monitor for interactions
      * @param {import("@web/env").OdooEnv} env
@@ -103,18 +103,30 @@ class InteractionService {
     }
 
     /**
-     * Single channel for surfacing interaction failures. Without it, a crash
-     * after the first scan (from insert(), a t-out re-scan, or an edit-mode
-     * restart) was fully silent: the rejection was swallowed here to keep the
-     * derived promise from reporting an unhandled rejection of its own, so it
-     * never reached the global error reporter either. Log it so the failure is
-     * at least visible in the console.
+     * Single channel for surfacing interaction failures. Every async path in
+     * this framework — an event handler, a deferred callback, a scan started by
+     * insert() or by a t-out re-scan — catches its own errors rather than let
+     * them escape from a promise nobody holds, and funnels them here.
+     *
+     * Catching is not handling. What turns a failure into something the visitor
+     * can act on is `@web/services/error_service`, and its only entry point is
+     * the global "unhandledrejection" event: `rpcErrorHandler` bails unless it
+     * is given an `UncaughtPromiseError`, which nothing but that listener
+     * builds. An RPCError reported by console alone is therefore never matched
+     * against the `error_notifications` / `error_dialogs` registries — the very
+     * registries the sibling error_notifications.js fills for public pages — so
+     * a website form that failed server-side told the visitor nothing at all.
+     *
+     * Putting the failure back on that channel is what upstream's handler
+     * wrapper did by simply not catching. The error is re-raised unwrapped, so
+     * its stack still points at the interaction and the handlers still classify
+     * it by its own type.
      *
      * @param {unknown} error
      * @returns {void}
      */
     reportError(error) {
-        console.error("[public.interactions] interaction failed:", error);
+        Promise.reject(error);
     }
 
     /**
@@ -187,13 +199,22 @@ class InteractionService {
     }
 
     /**
-     * Starts all registered interactions on elements matching their selectors inside `el`.
+     * Starts all registered interactions on elements matching their selectors
+     * inside `target`, which may be one root or several.
      *
-     * @param {HTMLElement} [el]
+     * The loop is over the interaction classes, not the roots: each class costs
+     * a `querySelectorAll` whatever the subtree's size, so that is the price of
+     * a scan, and several roots scanned together pay it once. `renderAt` used
+     * to insert its elements one at a time and pay it per element.
+     *
+     * @param {HTMLElement | HTMLElement[]} [target]
      * @returns {Promise<void>}
      */
-    startInteractions(el = this.el) {
-        if (!el.isConnected) {
+    startInteractions(target = this.el) {
+        const roots = (Array.isArray(target) ? target : [target]).filter(
+            (el) => el.isConnected,
+        );
+        if (!roots.length) {
             return Promise.resolve();
         }
         const proms = /** @type {Array<Promise<void>>} */ ([]);
@@ -220,17 +241,18 @@ class InteractionService {
             }
             let targets;
             try {
-                const isMatch = el.matches(I.selector);
-                targets = isMatch
-                    ? [el, ...el.querySelectorAll(I.selector)]
-                    : el.querySelectorAll(I.selector);
+                targets = [];
+                for (const root of roots) {
+                    if (root.matches(I.selector)) {
+                        targets.push(root);
+                    }
+                    targets.push(...root.querySelectorAll(I.selector));
+                }
                 if (I.selectorHas) {
-                    targets = [...targets].filter(
-                        (el) => !!el.querySelector(I.selectorHas),
-                    );
+                    targets = targets.filter((el) => !!el.querySelector(I.selectorHas));
                 }
                 if (I.selectorNotHas) {
-                    targets = [...targets].filter(
+                    targets = targets.filter(
                         (el) => !el.querySelector(I.selectorNotHas),
                     );
                 }

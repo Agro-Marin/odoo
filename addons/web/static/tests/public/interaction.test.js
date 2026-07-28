@@ -17,11 +17,30 @@ import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
+import { InteractionService } from "@web/public/interaction_service";
 import { patchDynamicContent } from "@web/public/utils";
 
 import { startInteraction, startInteractions } from "./helpers.js";
 
 describe.current.tags("interaction_dev");
+
+/**
+ * Runs `startInteraction` while counting the service's scans, so a test can
+ * assert how many an operation costs rather than only what it produced.
+ */
+async function startInteractionsCounted(Is, html) {
+    let scanCount = 0;
+    patchWithCleanup(InteractionService.prototype, {
+        startInteractions(target) {
+            scanCount++;
+            return super.startInteractions(target);
+        },
+    });
+    const { core } = await startInteraction(Is, html);
+    // the initial page scan is not what is under test
+    Object.defineProperty(core, "scanCount", { value: scanCount - 1 });
+    return { core };
+}
 
 const TemplateBase = `
     <div>
@@ -634,6 +653,7 @@ describe("handling crashes", () => {
     });
 
     test("a dynamic selector yielding a non-target names itself in the error", async () => {
+        expect.errors(1);
         // a string is iterable, so it used to be fanned out over its characters
         // and fail deep inside the DOM with "addEventListener is not a function"
         class Test extends Interaction {
@@ -647,9 +667,12 @@ describe("handling crashes", () => {
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
             "Cannot listen to 'click' on a value that is not an event target (selector '_bogus' in interaction 'Test')",
         );
+        await animationFrame();
+        expect.verifyErrors([/not an event target/]);
     });
 
     test("this.addListener crashes if interaction is not started", async () => {
+        expect.errors(1);
         let clicked = 0;
         class Test extends Interaction {
             static selector = ".test";
@@ -664,6 +687,8 @@ describe("handling crashes", () => {
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
             "this.addListener can only be called after the interaction is started",
         );
+        await animationFrame();
+        expect.verifyErrors([/can only be called after the interaction is started/]);
     });
 
     test("cannot update content while updating content", async () => {
@@ -841,6 +866,7 @@ describe("handling crashes", () => {
     });
 
     test("crashes if a dynamic content element does not start with t-", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             static selector = ".test";
             dynamicContent = {
@@ -850,9 +876,12 @@ describe("handling crashes", () => {
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
             "Invalid directive: 'click' (should start with t-)",
         );
+        await animationFrame();
+        expect.verifyErrors([/Invalid directive: 'click'/]);
     });
 
     test("crash if dynamicContent is defined on class, not on instance", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             static selector = ".test";
             static dynamicContent = {};
@@ -860,18 +889,26 @@ describe("handling crashes", () => {
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
             "The dynamic content object should be defined on the instance, not on the class (Test)",
         );
+        await animationFrame();
+        expect.verifyErrors([
+            /dynamic content object should be defined on the instance/,
+        ]);
     });
 
     test("crash if selector is defined on instance, not on class", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             selector = ".test";
         }
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
             "The selector should be defined as a static property on the class Test, not on the instance",
         );
+        await animationFrame();
+        expect.verifyErrors([/selector should be defined as a static property/]);
     });
 
     test("crash if first-level key on dynamicContent is a directive, not a selector", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             static selector = ".test";
             dynamicContent = { "t-on-click": () => {} };
@@ -879,6 +916,8 @@ describe("handling crashes", () => {
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
             "Selector missing for key t-on-click in dynamicContent (interaction 'Test')",
         );
+        await animationFrame();
+        expect.verifyErrors([/Selector missing for key t-on-click/]);
     });
 });
 
@@ -1222,6 +1261,7 @@ describe("register cleanup", () => {
     });
 
     test("cleanups registered before a throwing setup() still run", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             static selector = ".test";
             setup() {
@@ -1239,6 +1279,8 @@ describe("register cleanup", () => {
         await expect(core.isReady).rejects.toThrow("boom");
         expect.verifySteps(["cleanup"]);
         expect(core.interactions).toHaveLength(0);
+        await animationFrame();
+        expect.verifyErrors([/boom/]);
     });
 
     test("a throwing cleanup does not skip the remaining teardown", async () => {
@@ -2826,6 +2868,25 @@ describe("removeChildren", () => {
 });
 
 describe("renderAt", () => {
+    test("renders several elements with a single interaction scan", async () => {
+        // a scan costs one querySelectorAll per registered interaction class,
+        // a price paid per scan and not per node: rendering N siblings must not
+        // multiply it by N
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.renderAt(
+                    "web.TestSubInteraction1",
+                    { first: "one", second: "two" },
+                    this.el,
+                );
+            }
+        }
+        const { core } = await startInteractionsCounted([Test], TemplateTest);
+        expect(core.scanCount).toBe(1);
+        expect(queryAll(".test [data-which]")).toHaveLength(2);
+    });
+
     test("can render a template inside an element", async () => {
         class Test extends Interaction {
             static selector = ".test";
@@ -4069,6 +4130,7 @@ describe("once listeners", () => {
 
 describe("directive validation", () => {
     test("a t-att definition that is not callable is rejected where it is declared", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             static selector = ".test";
             dynamicContent = {
@@ -4080,9 +4142,12 @@ describe("directive validation", () => {
         ).rejects.toThrow(
             "'t-att-class' expects a function, got object (selector '_root' in interaction 'Test')",
         );
+        await animationFrame();
+        expect.verifyErrors([/'t-att-class' expects a function/]);
     });
 
     test("a t-out definition that is not callable is rejected too", async () => {
+        expect.errors(1);
         class Test extends Interaction {
             static selector = ".test";
             dynamicContent = {
@@ -4092,5 +4157,186 @@ describe("directive validation", () => {
         await expect(
             startInteraction(Test, `<div class="test"></div>`),
         ).rejects.toThrow("'t-out' expects a function, got string");
+        await animationFrame();
+        expect.verifyErrors([/'t-out' expects a function/]);
+    });
+});
+
+describe("aborting a failed start", () => {
+    test("a throwing start() detaches the listeners it had already bound", async () => {
+        expect.errors(1);
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: { "t-on-click": () => expect.step("clicked") },
+            };
+            start() {
+                throw new Error("boom in start");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        await expect(core.isReady).rejects.toThrow("boom in start");
+        expect(core.interactions).toHaveLength(0);
+        await click(".test");
+        await animationFrame();
+        expect.verifySteps([]);
+        await animationFrame();
+        expect.verifyErrors([/boom in start/]);
+    });
+
+    test("a rejecting willStart() undoes what setup() did", async () => {
+        expect.errors(1);
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.registerCleanup(() => expect.step("cleanup"));
+                const el = document.createElement("p");
+                el.className = "inserted";
+                this.insert(el);
+            }
+            async willStart() {
+                throw new Error("boom in willStart");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        await expect(core.isReady).rejects.toThrow("boom in willStart");
+        expect.verifySteps(["cleanup"]);
+        expect(".inserted").toHaveCount(0);
+        await animationFrame();
+        expect.verifyErrors([/boom in willStart/]);
+    });
+
+    test("an aborted start runs the interaction's own destroy()", async () => {
+        expect.errors(1);
+        // 26 interactions in this codebase clear intervals / disconnect
+        // observers only in destroy(), never through registerCleanup
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.handle = setInterval(() => expect.step("tick"), 1);
+            }
+            start() {
+                throw new Error("boom in start");
+            }
+            destroy() {
+                clearInterval(this.handle);
+                expect.step("destroy");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        await expect(core.isReady).rejects.toThrow("boom in start");
+        expect.verifySteps(["destroy"]);
+        await animationFrame();
+        expect.verifyErrors([/boom in start/]);
+    });
+
+    test("a destroy() that throws on a half-started interaction is reported, not rethrown", async () => {
+        // two distinct failures: the teardown's, reported on its own, and the
+        // one that caused the abort, carried by the scan
+        expect.errors(2);
+        class Test extends Interaction {
+            static selector = ".test";
+            start() {
+                throw new Error("boom in start");
+            }
+            destroy() {
+                throw new Error("boom in destroy");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        // the teardown failure must not mask, nor replace, the one that
+        // actually caused the abort
+        await expect(core.isReady).rejects.toThrow("boom in start");
+        expect(core.interactions).toHaveLength(0);
+        await animationFrame();
+        expect.verifyErrors([/boom in destroy/, /boom in start/]);
+    });
+
+    test("an aborted start restores the dynamic content it had applied", async () => {
+        expect.errors(1);
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: { "t-att-class": () => ({ applied: true }) },
+            };
+            start() {
+                throw new Error("boom in start");
+            }
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test initial"></div>`,
+            { waitForStart: false },
+        );
+        await expect(core.isReady).rejects.toThrow("boom in start");
+        expect(queryOne(".test").className).toBe("test initial");
+        await animationFrame();
+        expect.verifyErrors([/boom in start/]);
+    });
+});
+
+describe("selectors sharing an event", () => {
+    test("t-on-click and t-on-click.capture on one selector both survive a refresh", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.matching = false;
+            }
+            dynamicSelectors = {
+                ...this.dynamicSelectors,
+                _target: () =>
+                    this.matching ? this.el.querySelectorAll("span") : null,
+            };
+            dynamicContent = {
+                _root: { "t-on-mouseover": () => (this.matching = true) },
+                _target: {
+                    "t-on-click": () => expect.step("bubble"),
+                    "t-on-click.capture": () => expect.step("capture"),
+                },
+            };
+        }
+        await startInteraction(Test, TemplateTest);
+        expect.verifySteps([]);
+        queryOne(".test").dispatchEvent(new MouseEvent("mouseover"));
+        await animationFrame();
+        await click("span");
+        await animationFrame();
+        expect.verifySteps(["capture", "bubble"]);
+    });
+
+    test("both listeners of a shared event are detached when their node departs", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.matching = true;
+            }
+            dynamicSelectors = {
+                ...this.dynamicSelectors,
+                _target: () =>
+                    this.matching ? this.el.querySelectorAll("span") : null,
+            };
+            dynamicContent = {
+                _root: { "t-on-mouseover": () => (this.matching = false) },
+                _target: {
+                    "t-on-click": () => expect.step("bubble"),
+                    "t-on-click.capture": () => expect.step("capture"),
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        queryOne(".test").dispatchEvent(new MouseEvent("mouseover"));
+        await animationFrame();
+        await click("span");
+        await animationFrame();
+        expect.verifySteps([]);
+        expect(core.interactions[0].listenerRecords).toHaveLength(1);
     });
 });

@@ -1,8 +1,8 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-import { makeAsyncHandler } from "@web/public/minimal_dom";
+import { makeAsyncHandler, makeButtonHandler } from "@web/public/minimal_dom";
 
 describe.current.tags("headless");
 
@@ -26,4 +26,28 @@ test("makeAsyncHandler unlocks again after a failure", async () => {
     handler(new Event("click"))?.catch(() => {});
     await animationFrame();
     expect(calls).toBe(2);
+});
+
+test("makeButtonHandler leaves a pre-existing pe-none in place", async () => {
+    const buttonEl = document.createElement("button");
+    buttonEl.className = "btn pe-none";
+    getFixture().appendChild(buttonEl);
+    const handler = makeButtonHandler(() => {});
+    buttonEl.addEventListener("click", handler);
+    buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await animationFrame();
+    await animationFrame();
+    expect(buttonEl).toHaveClass("pe-none");
+});
+
+test("makeButtonHandler re-enables a button that was clickable", async () => {
+    const buttonEl = document.createElement("button");
+    buttonEl.className = "btn";
+    getFixture().appendChild(buttonEl);
+    const handler = makeButtonHandler(() => {});
+    buttonEl.addEventListener("click", handler);
+    buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await animationFrame();
+    await animationFrame();
+    expect(buttonEl).not.toHaveClass("pe-none");
 });

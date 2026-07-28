@@ -46,6 +46,7 @@ test("starting interactions twice should only actually do it once", async () => 
 });
 
 test("start interactions even if there is a crash", async () => {
+    expect.errors(1);
     class Boom extends Interaction {
         static selector = ".test";
 
@@ -79,9 +80,12 @@ test("start interactions even if there is a crash", async () => {
     expect.verifySteps(["start boom", "start notboom"]);
     core.stopInteractions();
     expect.verifySteps(["destroy notboom"]);
+    await animationFrame();
+    expect.verifyErrors([/boom/]);
 });
 
 test("start interactions even if there is a crash when evaluating selector", async () => {
+    expect.errors(1);
     class Boom extends Interaction {
         static selector = "div:invalid(coucou)";
 
@@ -112,9 +116,12 @@ test("start interactions even if there is a crash when evaluating selector", asy
         "Could not start interaction Boom (invalid selector: 'div:invalid(coucou)')",
     );
     expect.verifySteps(["start notboom"]);
+    await animationFrame();
+    expect.verifyErrors([/invalid selector: 'div:invalid\(coucou\)'/]);
 });
 
 test("start interactions even if there is a crash when evaluating selectorHas", async () => {
+    expect.errors(1);
     class Boom extends Interaction {
         static selector = ".test";
         static selectorHas = "div:invalid(coucou)";
@@ -146,6 +153,8 @@ test("start interactions even if there is a crash when evaluating selectorHas", 
         "Could not start interaction Boom (invalid selector: '.test' or selectorHas: 'div:invalid(coucou)')",
     );
     expect.verifySteps(["start notboom"]);
+    await animationFrame();
+    expect.verifyErrors([/selectorHas: 'div:invalid\(coucou\)'/]);
 });
 
 test("start interactions with selectorHas", async () => {
@@ -198,6 +207,7 @@ test("stop interactions with selectorHas", async () => {
 });
 
 test("start interactions even if there is a crash when evaluating selectorNotHas", async () => {
+    expect.errors(1);
     class Boom extends Interaction {
         static selector = ".test";
         static selectorNotHas = "div:invalid(coucou)";
@@ -229,6 +239,8 @@ test("start interactions even if there is a crash when evaluating selectorNotHas
         "Could not start interaction Boom (invalid selector: '.test' or selectorNotHas: 'div:invalid(coucou)')",
     );
     expect.verifySteps(["start notboom"]);
+    await animationFrame();
+    expect.verifyErrors([/selectorNotHas: 'div:invalid\(coucou\)'/]);
 });
 
 test("start interactions with selectorNotHas", async () => {
@@ -348,6 +360,7 @@ test("global stop does not restart interactions from restored t-out content", as
 });
 
 test("a crashed setup leaves the interaction retryable", async () => {
+    expect.errors(1);
     let boom = true;
     class Test extends Interaction {
         static selector = ".test";
@@ -370,9 +383,12 @@ test("a crashed setup leaves the interaction retryable", async () => {
     await core.startInteractions();
     expect.verifySteps(["setup"]);
     expect(core.interactions).toHaveLength(1);
+    await animationFrame();
+    expect.verifyErrors([/boom/]);
 });
 
 test("a crashed async willStart leaves the interaction retryable", async () => {
+    expect.errors(1);
     let boom = true;
     class Test extends Interaction {
         static selector = ".test";
@@ -397,6 +413,8 @@ test("a crashed async willStart leaves the interaction retryable", async () => {
     await core.startInteractions();
     expect.verifySteps(["start"]);
     expect(core.interactions).toHaveLength(1);
+    await animationFrame();
+    expect.verifyErrors([/boom/]);
 });
 
 test("interactions are stopped in reverse order", async () => {
@@ -437,6 +455,7 @@ test("can mount a component", async () => {
 });
 
 test("a surfaced failure does not make every later isReady reject", async () => {
+    expect.errors(1);
     class Boom extends Interaction {
         static selector = ".boom";
         setup() {
@@ -461,6 +480,8 @@ test("a surfaced failure does not make every later isReady reject", async () => 
     await core.isReady;
     expect.step("ready again");
     expect.verifySteps(["ready again"]);
+    await animationFrame();
+    expect.verifyErrors([/boom/]);
 });
 
 test("a component that fails to mount leaves no dead root behind", async () => {
@@ -489,6 +510,7 @@ test("a component that fails to mount leaves no dead root behind", async () => {
     expect(core.roots).toHaveLength(0);
     core.stopInteractions();
     expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
+    await animationFrame();
     await animationFrame();
     expect.verifyErrors([/boom/]);
 });

@@ -214,13 +214,20 @@ function _loadScripts(scripts, index, onAllScriptsDone) {
         }
         const script = scripts[i];
         const loadNext = () => loadFrom(i + 1);
-        watchdogTimer = setTimeout(() => {
-            console.error(
-                `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
-                    ` unblocking the page anyway: ${script.src}`,
-            );
-            reportDone();
-        }, SCRIPT_LOAD_TIMEOUT_DELAY);
+        // only while the page is still waiting: the watchdog exists to unblock
+        // it, so once it has been unblocked the remaining scripts finish on
+        // their own time. Re-arming it kept a timer alive per script and logged
+        // a timeout for each one that was merely slow, long after the message
+        // could mean anything.
+        if (!hasReportedDone) {
+            watchdogTimer = setTimeout(() => {
+                console.error(
+                    `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
+                        ` unblocking the page anyway: ${script.src}`,
+                );
+                reportDone();
+            }, SCRIPT_LOAD_TIMEOUT_DELAY);
+        }
         script.addEventListener("load", loadNext, { once: true });
         script.addEventListener(
             "error",

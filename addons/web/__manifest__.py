@@ -178,6 +178,13 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/src/components/emoji_picker/emoji_data.js",
             ),
+            # frontend-only error handler: it swallows tracebacks for
+            # non-internal users, and it says so itself by warning when
+            # `session.is_frontend` and `isInternalUser` is missing. It lived in
+            # `webclient/**`, which only `assets_backend` pulls in, so it was
+            # dead code on the pages it exists for — every public-page failure
+            # reached `defaultHandler` and raised a dialog at the visitor.
+            "web/static/src/webclient/errors/visitor_error_handler.js",
             "web/static/src/public/**/*.js",
             "web/static/src/public/**/*.xml",
             (

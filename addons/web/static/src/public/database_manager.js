@@ -35,6 +35,14 @@ document.addEventListener("DOMContentLoaded", function () {
             "aria-label",
             isShown ? "Hide password" : "Show password",
         );
+        // the markup ships a `fa-eye` that nothing ever swapped, so the icon
+        // said "hidden" while the field was showing the password in clear —
+        // contradicting the aria-pressed set just above. Same pair as the
+        // framework's own toggle in show_password.js, which this page cannot
+        // reuse: it is served as a bare ES module, outside every asset bundle.
+        const iconEl = eyeToggle.querySelector(".fa-eye, .fa-eye-slash");
+        iconEl?.classList.toggle("fa-eye", !isShown);
+        iconEl?.classList.toggle("fa-eye-slash", isShown);
     });
 
     document.body.addEventListener("click", function (ev) {
