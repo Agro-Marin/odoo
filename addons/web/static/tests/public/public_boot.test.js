@@ -2,6 +2,8 @@
 
 import { after, describe, expect, getFixture, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { setupGlobalPageBehaviors } from "@web/public/public_boot";
 
 describe.current.tags("headless");
@@ -17,7 +19,7 @@ describe.current.tags("headless");
  * @param {string} html
  */
 function setupPage(html) {
-    getFixture().innerHTML = html;
+    /** @type {HTMLElement} */ (getFixture()).innerHTML = html;
     const stopAtDocument = (/** @type {Event} */ ev) => ev.stopPropagation();
     document.addEventListener("submit", stopAtDocument);
     after(() => document.removeEventListener("submit", stopAtDocument));
@@ -104,7 +106,7 @@ describe("submit progress indicator", () => {
         expect("a.a-submit .fa-circle-notch").toHaveCount(1);
         ev.preventDefault();
         expect("a.a-submit .fa-circle-notch").toHaveCount(0);
-        expect(queryOne("a.a-submit").textContent.trim()).toBe("Send");
+        expect(queryOne("a.a-submit").textContent?.trim()).toBe("Send");
     });
 });
 
@@ -143,5 +145,45 @@ describe("background images", () => {
         expect(
             /** @type {HTMLElement} */ (queryOne(".o_image")).style.backgroundImage,
         ).toBe("");
+    });
+});
+
+describe("scrollTop hash", () => {
+    /**
+     * @param {string} hash
+     * @returns {Array<[number, number]>} the scrolls the behaviours asked for
+     */
+    function scrollsFor(hash) {
+        /** @type {Array<[number, number]>} */
+        const scrolls = [];
+        patchWithCleanup(browser.location, { hash });
+        patchWithCleanup(window, {
+            // `scrollTo` is overloaded (options object, or x/y), so the
+            // replacement is cast to the real signature rather than matching
+            // only the arity this test uses
+            scrollTo: /** @type {typeof window.scrollTo} */ (
+                (/** @type {any} */ x, /** @type {any} */ y) => {
+                    scrolls.push([x, y]);
+                }
+            ),
+        });
+        setupPage("");
+        return scrolls;
+    }
+
+    test("scrolls to the offset the hash carries", () => {
+        expect(scrollsFor("#scrollTop=1200")).toEqual([[0, 1200]]);
+    });
+
+    test("reads the offset out of a longer hash", () => {
+        expect(scrollsFor("#part=2&scrollTop=40")).toEqual([[0, 40]]);
+    });
+
+    test("does not scroll without the hash", () => {
+        expect(scrollsFor("#somewhere-else")).toEqual([]);
+    });
+
+    test("ignores a non-numeric offset rather than scrolling to NaN", () => {
+        expect(scrollsFor("#scrollTop=abc")).toEqual([]);
     });
 });

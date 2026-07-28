@@ -124,10 +124,17 @@ export function setupGlobalPageBehaviors() {
         }
     }
 
-    const scrollTopMatch = window.location.hash.match(/scrollTop=([0-9]+)/);
+    // through the browser facade, like the locale above: `window.location` has
+    // non-configurable properties and cannot be patched, which left this the
+    // one behaviour here no test could reach
+    const scrollTopMatch = browser.location.hash.match(/scrollTop=([0-9]+)/);
     if (scrollTopMatch) {
         // measured: in standards mode `document.body.scrollTop = n` leaves
-        // window.scrollY at 0 — the viewport scrolls on <html>, not <body>
+        // window.scrollY at 0 — the viewport scrolls on <html>, not <body>.
+        // Nothing in odoo, enterprise or the themes emits this hash — it came
+        // over with the legacy PublicRoot widget — but it does work on a page
+        // tall enough to honour it (measured in a browser), so it stays for
+        // whatever outside the codebase links that way.
         window.scrollTo(0, +scrollTopMatch[1]);
     }
 
