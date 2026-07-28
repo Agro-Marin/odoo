@@ -68,3 +68,27 @@ export function getActiveHotkey(ev) {
 
     return hotkey.join("+");
 }
+
+/**
+ * Take native ``[accesskey]`` attributes over as Odoo ``[data-hotkey]``.
+ *
+ * Both are the same shortcut, but the browser owns ``accesskey`` and fires its
+ * own activation on the modifier chord, competing with the hotkey service's
+ * dispatch and overlay. Rewriting the attribute hands the binding to Odoo while
+ * keeping the element's declared key.
+ *
+ * Idempotent: an element that has already been converted no longer matches
+ * ``[accesskey]``. Both call sites (the hotkey service, on a keydown carrying
+ * the overlay modifier, and the ``data-hotkeys`` command provider, when
+ * enumerating palette commands) ran byte-identical copies of this loop.
+ *
+ * @param {ParentNode} root
+ */
+export function adoptAccessKeys(root) {
+    for (const el of root.querySelectorAll("[accesskey]")) {
+        if (el instanceof HTMLElement) {
+            el.dataset.hotkey = el.accessKey;
+            el.removeAttribute("accesskey");
+        }
+    }
+}

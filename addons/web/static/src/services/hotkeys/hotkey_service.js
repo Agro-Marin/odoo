@@ -4,7 +4,12 @@
 /** @module @web/services/hotkeys/hotkey_service - Keyboard shortcut registration, dispatch, and overlay access-key management */
 
 import { browser } from "@web/core/browser/browser";
-import { AUTHORIZED_KEYS, getActiveHotkey, MODIFIERS } from "@web/core/browser/hotkeys";
+import {
+    adoptAccessKeys,
+    AUTHORIZED_KEYS,
+    getActiveHotkey,
+    MODIFIERS,
+} from "@web/core/browser/hotkeys";
 import { registry } from "@web/core/registry";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
 
@@ -108,14 +113,7 @@ export const hotkeyService = {
             }
 
             if (includesOverlayModifier(hotkey)) {
-                const elementsWithAccessKey =
-                    activeElement.querySelectorAll("[accesskey]");
-                for (const el of elementsWithAccessKey) {
-                    if (el instanceof HTMLElement) {
-                        el.dataset.hotkey = el.accessKey;
-                        el.removeAttribute("accesskey");
-                    }
-                }
+                adoptAccessKeys(activeElement);
             }
 
             if (!overlaysVisible && hotkey === hotkeyService.overlayModifier) {
