@@ -2,13 +2,17 @@ import functools
 import hashlib
 import os
 import re
+import shutil
 import subprocess
+import threading
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from contextlib import suppress
+from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import TYPE_CHECKING
 
+import odoo
 from odoo.tools import misc
 from odoo.tools.config import config
 from odoo.tools.misc import file_path
@@ -30,15 +34,31 @@ from .common import (
 
 @functools.cache
 def _rtlcss_bin() -> str:
-    """Resolve the rtlcss executable, handling the Windows ``.cmd`` shim.
+    """Resolve the rtlcss executable: ``PATH``/``bin_path`` first, then ``node_modules``.
 
     Single source for both the probe (:func:`_check_rtlcss`) and the invocation
     (:meth:`CssPipeline.run_rtlcss`), so Windows resolves the npm ``.cmd`` shim
     consistently instead of the probe failing on plain ``rtlcss``.
+
+    The ``node_modules/.bin`` leg mirrors ``esbuild._find_esbuild`` and
+    ``sass_embedded.find_sass``. The pipeline's other two Node tools are
+    provisioned by the documented ``npm install`` and looked up there; rtlcss
+    was resolved as a bare name only, so a checkout that has a perfectly usable
+    ``node_modules/.bin/rtlcss`` never found it. RTL then degraded to LTR
+    stylesheets behind a single WARNING, and every RTL integration test — they
+    are ``skipUnless(_check_rtlcss())`` — reported success without running.
+
+    Falls back to the bare name so a genuinely absent binary still surfaces
+    through :func:`_check_rtlcss`'s ``OSError`` path and its install hint.
     """
-    if os.name == "nt":
+    names = ("rtlcss.cmd", "rtlcss") if os.name == "nt" else ("rtlcss",)
+    for name in names:
         with suppress(OSError):
-            return misc.find_in_path("rtlcss.cmd")
+            return misc.find_in_path(name)
+    node_bin = str(Path(odoo.__path__[0]).parent / "node_modules" / ".bin")
+    for name in names:
+        if found := shutil.which(name, path=node_bin):
+            return found
     return "rtlcss"
 
 
@@ -258,6 +278,29 @@ class CssPipeline:
 
     _compiled_cache: OrderedDict[tuple, str] = OrderedDict()
     _COMPILED_CACHE_SIZE = 8
+    _compiled_cache_lock = threading.Lock()
+    """Guards the LRU bookkeeping of :attr:`_compiled_cache`, never a compile.
+
+    ``get`` then ``move_to_end`` is not one operation: with the threaded server
+    (``workers = 0``) another request can evict the key in between, and
+    ``move_to_end`` on a gone key raises ``KeyError``. Nothing on the way out
+    catches it — :meth:`compile_css` catches ``CompileError`` /
+    ``SassCompileError``, and ``web.controllers.binary.content_assets`` only
+    ``ValueError`` — so it surfaces as a 500 on the bundle URL (verified by
+    injecting the ``KeyError``: it propagates out of ``AssetsBundle.css()``
+    untouched). Page rendering is not exposed; ``get_links`` versions a bundle
+    from checksums without compiling it.
+
+    The window is narrow — it did not reproduce under the GIL in 32k contended
+    iterations, even at ``setswitchinterval(1e-6)`` — but it is a real
+    interleaving, and the guard costs a lock acquisition per lookup.
+
+    Deliberately NOT held across ``transform``: compiling ``web.assets_web``'s
+    638 KB of concatenated SCSS measures 0.61 s through embedded Dart Sass on
+    this machine, and serialising that would cost far more than the duplicated
+    work two threads racing on a cold key can do. Both compute, both store the
+    same bytes.
+    """
 
     @classmethod
     def _memoized_transform(
@@ -298,13 +341,16 @@ class CssPipeline:
             return transform(source)
         cache = cls._compiled_cache
         key = (*key, hashlib.sha256(source.encode()).hexdigest())
-        if (hit := cache.get(key)) is not None:
-            cache.move_to_end(key)
-            return hit
+        with cls._compiled_cache_lock:
+            if (hit := cache.get(key)) is not None:
+                cache.move_to_end(key)
+                return hit
         result = transform(source)
-        cache[key] = result
-        while len(cache) > cls._COMPILED_CACHE_SIZE:
-            cache.popitem(last=False)
+        with cls._compiled_cache_lock:
+            cache[key] = result
+            cache.move_to_end(key)
+            while len(cache) > cls._COMPILED_CACHE_SIZE:
+                cache.popitem(last=False)
         return result
 
     @classmethod

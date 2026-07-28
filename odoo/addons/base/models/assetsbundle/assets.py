@@ -595,7 +595,30 @@ class ScssStylesheetAsset(PreprocessedCSS):
         return super().compile(source)
 
     def get_command(self) -> list[str]:
-        """Build the Dart Sass CLI command."""
+        """Build the Dart Sass CLI command.
+
+        ``--no-charset`` makes the CLI agree with the embedded compiler, which
+        emits no charset marker at all. Left on, the CLI prefixes a UTF-8 BOM
+        in ``compressed`` and ``@charset "UTF-8";`` in ``expanded`` as soon as
+        the stylesheet holds one non-ASCII byte — and this tree's do.
+
+        The primary reason is parity: ``compile`` degrades from the embedded
+        protocol to this CLI on any protocol failure, and both results are
+        stored under one ``_compiled_cache`` key (compiler class + output style
+        + source digest), which cannot tell them apart. Whichever backend
+        happened to run therefore decided the bundle's bytes.
+
+        The marker also outlives the pipeline: it lands in the pre-marker
+        fragment ``CssPipeline.preprocess`` turns into an inline asset, which
+        gets a ``/* … */`` header prepended, so it reaches the browser
+        mid-stylesheet where a leading-BOM strip no longer applies. Measured in
+        Chrome rather than argued from the spec: a mid-file ``@charset`` is
+        inert (ignored, both neighbouring rules still apply), but the BOM is an
+        ident code point (U+FEFF > U+007F), so it is absorbed into the *first
+        following selector* — ``:root{--x:9px}`` parses as ``\\uFEFF :root`` and
+        silently matches nothing. The blast radius is exactly one selector, not
+        the rest of the sheet.
+        """
         import odoo.addons
 
         sass = find_sass()
@@ -611,6 +634,7 @@ class ScssStylesheetAsset(PreprocessedCSS):
             "--stdin",
             "--indented" if self._sass_syntax == "indented" else "--no-indented",
             "--no-source-map",
+            "--no-charset",
             "--style",
             self.output_style,
             "--quiet-deps",

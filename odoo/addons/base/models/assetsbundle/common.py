@@ -34,15 +34,33 @@ def _pipeline_sources() -> tuple[Path, ...]:
     fork), and reading it at import turned that deployment into a hard
     ``TypeError`` on ``import base`` instead of the coarse fallback
     :func:`_pipeline_fingerprint` documents. Returning ``()`` routes it there.
+
+    One entry is not Python: ``base/data/rtlcss.json`` is passed to ``rtlcss``
+    as ``-c`` and therefore decides the bytes of every RTL stylesheet, which
+    are served from a version-hashed attachment. Editing it left every cached
+    RTL bundle valid — the exact failure this function exists to prevent.
+
+    The membership test is "does this file change a *version-hashed* artifact",
+    not "is this file part of the pipeline". ``tools/assets/js`` was added on
+    the second reading and removed again: its ESM lexer worker feeds
+    ``discover_transitive_import_specifiers`` and the bridge shims, and every
+    artifact built from those is content-addressed
+    (``/web/assets/esm/<digest>/…``, ``/web/assets/esm/bridges/<md5>.js``), so
+    it is already self-invalidating. Native-vs-legacy classification —
+    the one thing that WOULD move ``.min.js`` — is decided by
+    ``_cached_module_classification`` from the ``@odoo-module`` header, which
+    never calls the lexer.
     """
     tools_file = getattr(odoo.tools, "__file__", None)
     if not tools_file or not __file__:
         return ()
     tools_dir = Path(tools_file).resolve().parent
+    package_dir = Path(__file__).resolve().parent
     return (
-        Path(__file__).resolve().parent,
+        package_dir,
         tools_dir / "assets",
         tools_dir / "sass_embedded.py",
+        package_dir.parent.parent / "data" / "rtlcss.json",
     )
 
 
