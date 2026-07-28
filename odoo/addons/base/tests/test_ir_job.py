@@ -883,6 +883,27 @@ class TestIrJob(TransactionCase):
         self.assertEqual(job.state, "pending")
         self.assertEqual(self._claim()["id"], job.id)
 
+    def test_delayed_is_not_reachable_over_rpc(self):
+        """It is an enqueue entry point on *every* model."""
+        from odoo.exceptions import AccessError
+        from odoo.service.model import get_public_method
+
+        with self.assertRaises(AccessError):
+            get_public_method(self.env["res.partner"], "delayed")
+
+    def test_delayed_proxy_refuses_dunders(self):
+        import copy
+
+        proxy = self.partner.delayed()
+        # only dunders `object` does not itself define ever reach __getattr__
+        for dunder in ("__deepcopy__", "__copy__", "__iter__", "__len__"):
+            with self.subTest(dunder=dunder), self.assertRaises(AttributeError):
+                getattr(proxy, dunder)
+        with self.assertRaises(TypeError):
+            iter(proxy)
+        copy.deepcopy(proxy)
+        self.assertTrue(callable(proxy._ir_job_test_append))
+
     def test_realignment_handles_a_multi_record_write(self):
         """``write`` is a set operation; the realignment splits the set by what
         each row's own ``eta`` now means.
