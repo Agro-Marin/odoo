@@ -43,7 +43,6 @@ class MailThreadMainAttachment(models.AbstractModel):
           of records;
         """
         if attachments and (force or not self.message_main_attachment_id):
-            # we filter out attachment with 'xml' and 'octet' types
             if filter_xml:
                 attachments = attachments.filtered(
                     lambda r: (

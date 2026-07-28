@@ -2,7 +2,8 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_preview";
-import { useSequential, useVisible } from "@mail/utils/common/hooks";
+import { useVisible } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -30,7 +31,7 @@ export class SubChannelList extends Component {
             subChannels: this.props.thread.sub_channel_ids,
         });
         this.searchRef = useRef("search");
-        this.sequential = useSequential();
+        this.sequential = makeSequential();
         useAutofocus({ refName: "search" });
         this.loadMoreState = useVisible("load-more", (isVisible) => {
             if (isVisible) {

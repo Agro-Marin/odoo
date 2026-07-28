@@ -8,7 +8,8 @@ import {
     quickVideoSettings,
 } from "@mail/discuss/call/common/call_actions";
 import { CallPermissionDialog } from "@mail/discuss/call/common/call_permission_dialog";
-import { closeStream, onChange } from "@mail/utils/common/misc";
+import { useOnChange } from "@mail/utils/common/hooks";
+import { closeStream } from "@mail/utils/common/misc";
 import {
     Component,
     onWillDestroy,
@@ -71,39 +72,44 @@ export class CallPreview extends Component {
             ],
         );
         if (this.hasRtcSupport) {
-            onChange(this.rtc, "microphonePermission", () => {
+            useOnChange(this.rtc, "microphonePermission", () => {
                 if (this.rtc.microphonePermission !== "granted") {
                     this.disableMicrophone();
                 }
             });
-            onChange(this.rtc, "cameraPermission", () => {
+            useOnChange(this.rtc, "cameraPermission", () => {
                 if (this.rtc.cameraPermission !== "granted") {
                     this.disableCamera();
                 }
             });
-            onChange(this.store.settings, "audioInputDeviceId", () => {
+            useOnChange(this.store.settings, "audioInputDeviceId", () => {
                 if (this.state.audioStream) {
                     closeStream(this.state.audioStream);
                     this.enableMicrophone();
                 }
             });
-            onChange(this.store.settings, "cameraInputDeviceId", () => {
+            useOnChange(this.store.settings, "cameraInputDeviceId", () => {
                 if (this.state.videoStream) {
                     closeStream(this.state.videoStream);
                     this.enableCamera();
                 }
             });
-            onChange(this.store.settings, "audioOutputDeviceId", (deviceId) => {
-                this.audioRef.el?.setSinkId?.(deviceId).catch(() => {});
+            useOnChange(this.store.settings, "audioOutputDeviceId", () => {
+                // read the setting: onChange invokes its callback with no
+                // arguments, so the declared `deviceId` parameter was always
+                // undefined and the preview never followed the output device
+                this.audioRef.el
+                    ?.setSinkId?.(this.store.settings.audioOutputDeviceId)
+                    .catch(() => {});
             });
-            onChange(this.store.settings, "useBlur", () => {
+            useOnChange(this.store.settings, "useBlur", () => {
                 if (this.store.settings.useBlur) {
                     this.enableBlur();
                 } else {
                     this.disableBlur();
                 }
             });
-            onChange(
+            useOnChange(
                 this.store.settings,
                 ["edgeBlurAmount", "backgroundBlurAmount"],
                 () => {

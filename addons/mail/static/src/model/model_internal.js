@@ -2,14 +2,17 @@
 import { ATTR_SYM, MANY_SYM, ONE_SYM } from "./misc.js";
 
 export class ModelInternal {
-    /** @type {Map<string, boolean>} */
+    /**
+     * Kind of each declared field, by name. A single lookup answers all three
+     * questions the hot paths ask — is this a field at all, is it relational,
+     * and which relation is it — where four parallel Maps (`fields`,
+     * `fieldsAttr`, `fieldsOne`, `fieldsMany`) meant up to three lookups on
+     * every property read of every record. Its keys are the field names, so it
+     * doubles as the field iterator.
+     *
+     * @type {Map<string, ATTR_SYM|ONE_SYM|MANY_SYM>}
+     */
     fields = new Map();
-    /** @type {Map<string, boolean>} */
-    fieldsAttr = new Map();
-    /** @type {Map<string, boolean>} */
-    fieldsOne = new Map();
-    /** @type {Map<string, boolean>} */
-    fieldsMany = new Map();
     /** @type {Map<string, boolean>} */
     fieldsHtml = new Map();
     /** @type {Map<string, string>} */
@@ -45,15 +48,12 @@ export class ModelInternal {
     idFields = new Set();
 
     prepareField(fieldName, data) {
-        this.fields.set(fieldName, true);
-        if (data[ATTR_SYM]) {
-            this.fieldsAttr.set(fieldName, true);
-        }
         if (data[ONE_SYM]) {
-            this.fieldsOne.set(fieldName, true);
-        }
-        if (data[MANY_SYM]) {
-            this.fieldsMany.set(fieldName, true);
+            this.fields.set(fieldName, ONE_SYM);
+        } else if (data[MANY_SYM]) {
+            this.fields.set(fieldName, MANY_SYM);
+        } else {
+            this.fields.set(fieldName, ATTR_SYM);
         }
         for (const key in data) {
             const value = data[key];

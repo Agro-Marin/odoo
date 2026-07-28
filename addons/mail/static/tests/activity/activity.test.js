@@ -301,7 +301,6 @@ test("activity with mail template: preview mail", async () => {
     mockService("action", {
         doAction(action) {
             if (action?.res_model !== "res.partner") {
-                // Click on Preview Mail Template
                 asyncStep("do_action");
                 expect(action.context.default_res_ids).toEqual([partnerId]);
                 expect(action.context.default_model).toBe("res.partner");

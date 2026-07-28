@@ -155,7 +155,6 @@ export class MailActivity extends models.ServerModel {
         /** @type {import("mock_models").MailTemplate} */
         const MailTemplate = this.env["mail.template"];
 
-        // 1. Retrieve all ongoing and completed activities according to the parameters
         const activityTypes = MailActivityType._filter([
             "|",
             ["res_model", "=", res_model],
@@ -176,7 +175,6 @@ export class MailActivity extends models.ServerModel {
         const allActivities = this._filter(activityDomain, { active_test: !res_model });
         const allOngoing = allActivities.filter((a) => a.active);
         const allCompleted = allActivities.filter((a) => !a.active);
-        // 2. Get attachment of completed activities
         let attachmentsById;
         if (allCompleted.length) {
             const attachmentIds = allCompleted.map((a) => a.attachment_ids).flat();
@@ -188,7 +186,6 @@ export class MailActivity extends models.ServerModel {
         } else {
             attachmentsById = {};
         }
-        // 3. Group activities per records and activity type
         const groupedCompleted = groupBy(allCompleted, (a) => [
             a.res_id,
             a.activity_type_id,
@@ -197,7 +194,6 @@ export class MailActivity extends models.ServerModel {
             a.res_id,
             a.activity_type_id,
         ]);
-        // 4. Format data
         const resIdToDeadline = {};
         const resIdToDateDone = {};
         const groupedActivities = {};

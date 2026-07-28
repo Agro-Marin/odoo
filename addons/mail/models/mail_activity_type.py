@@ -115,7 +115,6 @@ class MailActivityType(models.Model):
     default_user_id = fields.Many2one("res.users", string="Default User")
     default_note = fields.Html(string="Default Note", translate=True)
 
-    # Fields for display purpose only
     initial_res_model = fields.Selection(
         selection=_get_model_selection,
         string="Initial model",

@@ -38,15 +38,37 @@ import { Record } from "./record.js";
 
 /** @typedef {import("./record_list").RecordList} RecordList */
 
-export const storeInsertFns = {
-    makeContext(store) {},
-    getActualModelName(store, ctx, pyOrJsModelName) {
-        return pyOrJsModelName;
-    },
-    getExtraFieldsFromModel(store) {},
-};
-
 export class Store extends Record {
+    /**
+     * Per-`insert()` context handed to `_insertModelName` below, computed once
+     * per call. Neutral default: none.
+     *
+     * @returns {any}
+     */
+    _makeInsertContext() {}
+    /**
+     * Model a payload key ingests into. Store payloads are keyed by python
+     * model name, which does not always match the JS model that holds the
+     * records (`discuss.channel` and `mail.thread` both feed `Thread`).
+     * Neutral default: identity.
+     *
+     * @param {any} ctx value returned by `_makeInsertContext`
+     * @param {string} pyOrJsModelName
+     * @returns {string}
+     */
+    _insertModelName(ctx, pyOrJsModelName) {
+        return pyOrJsModelName;
+    }
+    /**
+     * Field values merged into every row keyed under `pyOrJsModelName`, used to
+     * tag rows whose python model is lost by the mapping above. Neutral
+     * default: none.
+     *
+     * @param {string} pyOrJsModelName
+     * @returns {Object|undefined}
+     */
+    _insertExtraFields(pyOrJsModelName) {}
+
     /** @type {import("./store_internal").StoreInternal} */
     _;
     [STORE_SYM] = true;
@@ -273,7 +295,6 @@ export class Store extends Record {
                         this._.ADD_QUEUE("hard_delete", record);
                     }
                     while (RHD_QUEUE.size > 0) {
-                        // effectively delete the record
                         /** @type {Record} */
                         const record = RHD_QUEUE.keys().next().value;
                         RHD_QUEUE.delete(record);
@@ -307,27 +328,23 @@ export class Store extends Record {
         // batch on this store's own update cycle, not on the last-created
         // store (`Record.store`), so concurrent stores don't share queues
         const rawStore = toRaw(this)._raw;
-        const ctx = storeInsertFns.makeContext(store);
+        const ctx = store._makeInsertContext();
         rawStore.MAKE_UPDATE(function storeInsert() {
             const recordsDataToDelete = [];
             for (const [pyOrJsModelName, data] of Object.entries(dataByModelName)) {
-                const modelName = storeInsertFns.getActualModelName(
-                    store,
-                    ctx,
-                    pyOrJsModelName,
-                );
+                const modelName = store._insertModelName(ctx, pyOrJsModelName);
                 if (!store[modelName]) {
                     console.warn(
                         `store.insert() received data for unknown model “${modelName}”.`,
                     );
                     continue;
                 }
+                // hoisted: the result depends only on the model name, and this
+                // ran once per row of every payload (every message of every
+                // channel load)
+                const extraFields = store._insertExtraFields(pyOrJsModelName);
                 const insertData = [];
                 for (let vals of Array.isArray(data) ? data : [data]) {
-                    const extraFields = storeInsertFns.getExtraFieldsFromModel(
-                        store,
-                        pyOrJsModelName,
-                    );
                     // never mutate caller payloads: they may be reused
                     if (extraFields) {
                         vals = { ...vals, ...extraFields };

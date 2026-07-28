@@ -332,7 +332,6 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
         time_buffer = self.env.context["cron_end_time"] + (4 * len(records))
         records.with_context(cron_end_time=time_buffer)._fetch_mail(**kw)
         if not self.search_count(MAIL_SERVER_DOMAIN):
-            # no server is active anymore
             self.env["ir.cron"]._commit_progress(deactivate=True)
 
     def _fetch_mail(self, batch_limit=50) -> Exception | None:
@@ -492,7 +491,6 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u %(uid)d -p PASSWO
         if self.env.context.get("fetchmail_cron_running"):
             return
         try:
-            # Enabled/Disable cron based on the number of 'done' server of type pop or imap
             cron = self.env.ref("mail.ir_cron_mail_gateway_action")
             cron.toggle(model=self._name, domain=MAIL_SERVER_DOMAIN)
         except ValueError:

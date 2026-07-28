@@ -105,7 +105,6 @@ export class MailComposerPlugin extends Plugin {
                         node.removeAttribute("class");
                     }
                 }
-                // Recursively sanitize child nodes
                 [...node.childNodes].forEach(removeStyle);
             }
         };

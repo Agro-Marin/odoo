@@ -18,10 +18,6 @@ class MailAliasMixin(models.AbstractModel):
     alias_name = fields.Char(inherited=True)
     alias_defaults = fields.Text(inherited=True)
 
-    # --------------------------------------------------
-    # CRUD
-    # --------------------------------------------------
-
     def _require_new_alias(self, record_vals):
         """alias_id field is always required, due to inherits"""
         return not record_vals.get("alias_id")

@@ -25,7 +25,6 @@ export class MailComposerFormRenderer extends formView.Renderer {
     setup() {
         super.setup();
         this.orm = useService("orm");
-        // Autofocus the visible editor in edition mode.
         this.root = useRef("compiled_view_root");
         useEffect(
             (isInEdition, el) => {
@@ -67,7 +66,6 @@ export class MailComposerFormRenderer extends formView.Renderer {
             });
         };
 
-        // Add file dropzone on full mail composer:
         this.attachmentUploadService = useService("mail.attachment_upload");
         this.operations = useX2ManyCrud(
             () => this.props.record.data["attachment_ids"],
@@ -153,7 +151,6 @@ export class MailComposerFormRenderer extends formView.Renderer {
                 selectedPartnerIds.includes(recipient.partner_id);
 
             for (const thread of getActiveMailThreads()) {
-                // Update the recipient lists:
                 thread.suggestedRecipients = thread.suggestedRecipients.map(
                     updateRecipientWithCorrespondingPartner,
                 );
@@ -161,7 +158,6 @@ export class MailComposerFormRenderer extends formView.Renderer {
                     updateRecipientWithCorrespondingPartner,
                 );
 
-                // Remove the recipients that got removed from the composer:
                 thread.suggestedRecipients = thread.suggestedRecipients.filter(
                     isRecipientSelectedFromFullMailComposer,
                 );
@@ -169,7 +165,6 @@ export class MailComposerFormRenderer extends formView.Renderer {
                     isRecipientSelectedFromFullMailComposer,
                 );
 
-                // Add the recipients that got added to the composer:
                 for (const partner of selectedPartners) {
                     const allRecipients = [
                         ...thread.suggestedRecipients,

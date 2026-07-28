@@ -100,7 +100,9 @@ export class OutOfFocusService {
             // Notification without Serviceworker in Chrome Android doesn't works anymore
             // So we fallback to the notification service in this case
             // https://bugs.chromium.org/p/chromium/issues/detail?id=481856
-            if (error.message.includes("ServiceWorkerRegistration")) {
+            // String(): a thrown non-Error (or an Error without a message) made
+            // this branch throw a TypeError of its own, losing the original
+            if (String(error?.message ?? "").includes("ServiceWorkerRegistration")) {
                 this.sendOdooNotification(message, { sound, title, type });
             } else {
                 throw error;
@@ -112,9 +114,10 @@ export class OutOfFocusService {
      * @param {string} message
      * @param {Object} options
      */
-    async sendOdooNotification(message, options) {
-        const { sound } = options;
-        delete options.sound;
+    async sendOdooNotification(message, { sound, ...options } = {}) {
+        // destructured rather than `delete options.sound`: mutating the
+        // caller's object to strip a key it passed in is a trap for any future
+        // call site that reuses its options literal
         this.closeFuncs.push(this.notificationService.add(message, options));
         if (this.closeFuncs.length > 3) {
             this.closeFuncs.shift()();
@@ -129,7 +132,7 @@ export class OutOfFocusService {
      * @param {string} message
      */
     sendNativeNotification(title, message, icon, { sound = true } = {}) {
-        const notification = new Notification(title, {
+        const notification = new browser.Notification(title, {
             body: message,
             icon,
         });
@@ -157,8 +160,13 @@ export class OutOfFocusService {
     }
 
     get canSendNativeNotification() {
+        // `browser.Notification`, not the raw global: it is the seam the rest
+        // of the module already reads permissions through (webclient.js,
+        // notification_permission_service.js), and the one tests patch. Going
+        // straight to `window` made this service the only place that ignored a
+        // patched permission and constructed a real OS notification.
         return Boolean(
-            window.Notification && window.Notification.permission === "granted",
+            browser.Notification && browser.Notification.permission === "granted",
         );
     }
 }

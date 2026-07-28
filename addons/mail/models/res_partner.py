@@ -16,7 +16,6 @@ class ResPartner(models.Model):
     _inherit = ["res.partner", "mail.activity.mixin", "mail.thread.blacklist"]
     _mail_flat_thread = False
 
-    # override to add and order tracking
     name = fields.Char(tracking=1)
     email = fields.Char(tracking=1)
     phone = fields.Char(tracking=2)
@@ -42,7 +41,6 @@ class ResPartner(models.Model):
     def _compute_contact_address_inline(self):
         """Compute an inline-friendly address based on contact_address."""
         for partner in self:
-            # replace any successive \n with a single comma
             partner.contact_address_inline = (
                 re.sub(r"\n(\s|\n)*", ", ", partner.contact_address).strip().strip(",")
             )
@@ -78,8 +76,6 @@ class ResPartner(models.Model):
         if odoobot in self:
             odoobot.im_status = "bot"
 
-    # pseudo computes
-
     def _get_needaction_count(self):
         """compute the number of needaction of the current partner"""
         self.ensure_one()
@@ -93,16 +89,9 @@ class ResPartner(models.Model):
         )
         return self.env.cr.dictfetchall()[0].get("needaction_count")
 
-    # ------------------------------------------------------------
-    # MESSAGING
-    # ------------------------------------------------------------
-
     def _mail_get_partners(self, introspect_fields=False):
         return {partner.id: partner for partner in self}
 
-    # ------------------------------------------------------------
-    # ORM
-    # ------------------------------------------------------------
     @api.model
     def _get_view_cache_key(self, view_id=None, view_type="form", **options):
         """Add context variable force_email in the key as _get_view depends on it."""
@@ -186,8 +175,6 @@ class ResPartner(models.Model):
         partners, tocreate_vals_list = self.env["res.partner"], []
         name_emails = [tools.parse_contact_from_email(email) for email in emails]
 
-        # find valid emails_normalized, filtering out false / void values, and search
-        # for existing partners based on those emails
         emails_normalized = {
             email_normalized
             for _name, email_normalized in name_emails
@@ -255,7 +242,6 @@ class ResPartner(models.Model):
                     tocreate_vals_list
                 )
 
-        # sort partners (already ordered based on search)
         if sort_key:
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
@@ -277,10 +263,6 @@ class ResPartner(models.Model):
                 name_emails, emails, strict=False
             )
         ]
-
-    # ------------------------------------------------------------
-    # DISCUSS
-    # ------------------------------------------------------------
 
     def _get_im_status_access_token(self):
         """Return a scoped access token for the `im_status` field. The token is used in

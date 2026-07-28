@@ -19,7 +19,7 @@ import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce } from "@web/core/utils/timing";
 
-import { CallAction } from "./call_actions.js";
+import { CallAction, computeActionsStack } from "./call_actions.js";
 
 // re-exported from their new homes to keep the historical import path stable
 // (tests and downstream modules import these from rtc_service).
@@ -50,9 +50,14 @@ const SW_MESSAGE_TYPE = {
     POST_RTC_LOGS: "POST_RTC_LOGS",
 };
 
-const IS_CLIENT_RTC_COMPATIBLE = Boolean(
-    window.RTCPeerConnection && window.MediaStream,
-);
+/**
+ * Read through the `browser` seam and at call time, not at module load: a
+ * module-level snapshot of the bare globals cannot be mocked, so the
+ * unsupported-browser path was unreachable from tests.
+ */
+function isClientRtcCompatible() {
+    return Boolean(browser.RTCPeerConnection && browser.MediaStream);
+}
 function GET_DEFAULT_ICE_SERVERS() {
     return [
         { urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
@@ -157,8 +162,6 @@ export class Rtc extends Record {
      */
     crossTab;
 
-    /** @type {Object<string, boolean>} The keys are action names and the values are booleans indicating whether each action is active */
-    lastActions = {};
     /** @type {Array<string>} Array of action names representing the stack of currently active actions */
     actionsStack = [];
     /** @type {string|undefined} String representing the last call action activated, or undefined if none are */
@@ -218,25 +221,13 @@ export class Rtc extends Record {
             return transformedActions;
         },
         onUpdate() {
-            for (const action of this.callActions) {
-                if (action.isActive === this.lastActions[action.id]) {
-                    continue;
-                }
-                if (!action.isTracked) {
-                    continue;
-                }
-                if (action.isActive) {
-                    if (!this.actionsStack.includes(action.id)) {
-                        this.actionsStack.unshift(action.id);
-                    }
-                } else {
-                    this.actionsStack.splice(this.actionsStack.indexOf(action.id), 1);
-                }
-            }
-            this.lastSelfCallAction = this.actionsStack[0];
-            this.lastActions = Object.fromEntries(
-                this.callActions.map((action) => [action.id, action.isActive]),
+            this.actionsStack = computeActionsStack(
+                this.actionsStack,
+                this.callActions
+                    .filter((action) => action.isTracked && action.isActive)
+                    .map((action) => action.id),
             );
+            this.lastSelfCallAction = this.actionsStack[0];
         },
     });
 
@@ -459,14 +450,24 @@ export class Rtc extends Record {
                 this.sfuClient?.disconnect();
             }
         });
-        /**
-         * Call all sessions for which no peerConnection is established at
-         * a regular interval to try to recover any connection that failed
-         * to start.
-         *
-         * This is distinct from this.recover which tries to restore
-         * connections that were established but failed or timed out.
-         */
+    }
+
+    /**
+     * Call all sessions for which no peerConnection is established at
+     * a regular interval to try to recover any connection that failed
+     * to start.
+     *
+     * This is distinct from this.recover which tries to restore
+     * connections that were established but failed or timed out.
+     *
+     * Scoped to the call: started here and cleared by `clear()`. Started from
+     * `start()` instead, its id was written and never read, so it had no stop
+     * path at all — it kept waking every PING_INTERVAL outside any call, and a
+     * store torn down and rebuilt (every test does this) left the previous one
+     * ticking.
+     */
+    _startPing() {
+        browser.clearInterval(this._pingIntervalId);
         this._pingIntervalId = browser.setInterval(async () => {
             if (!this.localSession || !this.state.channel) {
                 return;
@@ -483,6 +484,11 @@ export class Rtc extends Record {
                 // an unhandled rejection, the next interval will retry.
             }
         }, PING_INTERVAL);
+    }
+
+    _stopPing() {
+        browser.clearInterval(this._pingIntervalId);
+        this._pingIntervalId = undefined;
     }
 
     get displaySurface() {
@@ -848,7 +854,7 @@ export class Rtc extends Record {
                 useCamera: () =>
                     this.toggleVideo("camera", { force: true, refreshStream: true }),
             },
-            { context: { root: { el: this.rootEl } } },
+            { rootId: this.rootEl?.getRootNode()?.host?.id },
         );
     }
 
@@ -918,10 +924,6 @@ export class Rtc extends Record {
         }
         this.soundEffectsService.play("mic-on");
     }
-
-    //----------------------------------------------------------------------
-    // Private
-    //----------------------------------------------------------------------
 
     /**
      * Best-effort update of one outbound track through the active network.
@@ -1214,14 +1216,15 @@ export class Rtc extends Record {
      * @param {number} stamp value of `_sessionInfoStamps` at scheduling time
      */
     async _applySessionInfo(sessionId, info, stamp) {
+        let timeoutId;
         const session = await Promise.race([
             this.store["discuss.channel.rtc.session"].getWhenReady(sessionId),
             // bounded wait: past this delay the info is likely stale, drop it
             // instead of applying it whenever the session finally shows up.
-            new Promise((resolve) =>
-                browser.setTimeout(resolve, SESSION_INFO_APPLY_TIMEOUT),
-            ),
-        ]);
+            new Promise((resolve) => {
+                timeoutId = browser.setTimeout(resolve, SESSION_INFO_APPLY_TIMEOUT);
+            }),
+        ]).finally(() => browser.clearTimeout(timeoutId));
         if (this._sessionInfoStamps.get(sessionId) !== stamp) {
             return; // a newer info payload for this session superseded this one
         }
@@ -1275,7 +1278,7 @@ export class Rtc extends Record {
      * @param {boolean} [initialState.camera] whether to request and use the user video input (camera) at start
      */
     async joinCall(channel, { audio = true, camera = false } = {}) {
-        if (!IS_CLIENT_RTC_COMPATIBLE) {
+        if (!isClientRtcCompatible()) {
             this.notification.add(_t("Your browser does not support webRTC."), {
                 type: "warning",
             });
@@ -1363,6 +1366,7 @@ export class Rtc extends Record {
         }
         this.soundEffectsService.play("call-join");
         this._host();
+        this._startPing();
         this.cleanups.push(
             // only register the beforeunload event if there is a call as FireFox will not place
             // the pages with beforeunload listeners in the bfcache.
@@ -1535,6 +1539,7 @@ export class Rtc extends Record {
     }
 
     clear() {
+        this._stopPing();
         if (this.state.channel) {
             for (const session of this.state.channel.rtc_session_ids) {
                 this.removeAudioFromSession(session);
@@ -1834,10 +1839,10 @@ export class Rtc extends Record {
      * @param {"camera"|"screen"} [parm1.videoType]
      */
     async updateStream(session, track, { mute, videoType } = {}) {
-        const stream = new window.MediaStream();
+        const stream = new browser.MediaStream();
         stream.addTrack(track);
         if (track.kind === "audio") {
-            const audioElement = session.audioElement || new window.Audio();
+            const audioElement = session.audioElement || new browser.Audio();
             audioElement.srcObject = stream;
             audioElement.load();
             audioElement.muted = mute;
@@ -1878,9 +1883,12 @@ export class Rtc extends Record {
                 closeStream(session.videoStreams.get(type));
             }
             session.videoStreams.delete(type);
+            // the session that just lost its last video can no longer be the
+            // focused one (this read `this.selfSession` regardless of which
+            // session was passed, which only agreed while the two coincided)
             if (
-                this.selfSession.videoStreams.size === 0 &&
-                this.selfSession.eq(this.state.channel.activeRtcSession)
+                session.videoStreams.size === 0 &&
+                session.eq(this.state.channel.activeRtcSession)
             ) {
                 this.state.channel.activeRtcSession = undefined;
             }

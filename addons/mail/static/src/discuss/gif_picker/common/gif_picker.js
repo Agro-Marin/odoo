@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
-import { useOnBottomScrolled, useSequential } from "@mail/utils/common/hooks";
+import { useOnBottomScrolled } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
 import { PICKER_PROPS, usePicker } from "@web/components/emoji_picker/emoji_picker";
 import { rpc } from "@web/core/network/rpc";
@@ -62,7 +63,7 @@ export class GifPicker extends Component {
         super.setup();
         this.orm = useService("orm");
         this.store = useService("mail.store");
-        this.sequential = useSequential();
+        this.sequential = makeSequential();
         this.inputRef = useAutofocus();
         useOnBottomScrolled(
             "scroller",
@@ -312,7 +313,7 @@ export class GifPicker extends Component {
         // Reentrancy guard: onWillStart and the bottom-scroll debounce can both
         // call this. Overlapping runs read the same `offset`, duplicate results
         // and double-advance the cursor (skipping a page). (cf. `search()`,
-        // which is already serialized through `useSequential`.)
+        // which is already serialized through `makeSequential`.)
         if (
             !this.store.hasGifPickerFeature ||
             this.favoritesAllLoaded ||

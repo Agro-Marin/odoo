@@ -50,10 +50,6 @@ class MailAliasMixinOptional(models.AbstractModel):
     def _search_alias_email(self, operator, operand):
         return [("alias_id.alias_full_name", operator, operand)]
 
-    # --------------------------------------------------
-    # CRUD
-    # --------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         """Create aliases using sudo if an alias is required, notably if its
@@ -73,7 +69,6 @@ class MailAliasMixinOptional(models.AbstractModel):
             company_id_default = self.env.company.id
             company_prefetch_ids = {company_id_default}
 
-        # prepare all alias values
         alias_vals_list, record_vals_list = [], []
         for vals in vals_list:
             if vals.get("alias_name"):
@@ -88,7 +83,6 @@ class MailAliasMixinOptional(models.AbstractModel):
                     .browse(company_id)
                 )
                 alias_vals, record_vals = self._alias_filter_fields(vals)
-                # generate record-agnostic base alias values
                 alias_vals.update(
                     self.env[self._name]
                     .with_context(
@@ -101,12 +95,10 @@ class MailAliasMixinOptional(models.AbstractModel):
                 alias_vals_list.append(alias_vals)
                 record_vals_list.append(record_vals)
 
-        # create all aliases
         alias_ids = []
         if alias_vals_list:
             alias_ids = iter(self.env["mail.alias"].sudo().create(alias_vals_list).ids)
 
-        # update alias values in create vals directly
         valid_vals_list = []
         record_vals_iter = iter(record_vals_list)
         for vals in vals_list:
@@ -133,7 +125,6 @@ class MailAliasMixinOptional(models.AbstractModel):
         write with sudo and the other normally. Also handle alias_domain_id
         update. If alias does not exist and we try to set a name, create the
         alias automatically."""
-        # create missing aliases
         if vals.get("alias_name"):
             alias_create_values = [
                 dict(
@@ -157,7 +148,6 @@ class MailAliasMixinOptional(models.AbstractModel):
         if record_vals:
             super().write(record_vals)
 
-        # synchronize alias domain if company environment changed
         company_fname = self._mail_get_company_field()
         if company_fname in vals:
             alias_domain_values = self.filtered("alias_id")._alias_get_alias_domain_id()
@@ -196,10 +186,6 @@ class MailAliasMixinOptional(models.AbstractModel):
         """Create only if no existing alias, and if a name is given, to avoid
         creating inactive aliases (falsy name)."""
         return not record_vals.get("alias_id") and record_vals.get("alias_name")
-
-    # --------------------------------------------------
-    # MIXIN TOOL OVERRIDE METHODS
-    # --------------------------------------------------
 
     def _alias_get_alias_domain_id(self):
         """Return alias domain value to synchronize with owner's company.

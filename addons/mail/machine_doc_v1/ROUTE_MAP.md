@@ -10,7 +10,20 @@ Complete mapping of HTTP endpoints to Python handlers for the `mail` module
 Legend: `jsonrpc` = POST JSON-RPC 2.0 · `http` = standard HTTP · `+guest` = the
 `@add_guest_to_context` decorator populates `context["guest"]` from the `dgid` cookie
 (see **Guest auth** below) · `auth` = Werkzeug auth type · `readonly` = routed to a read
-replica if configured. Route defaults when omitted: `csrf=True` (http), `readonly=False`.
+replica if configured.
+
+**Route defaults when omitted** — `auth="user"`, `csrf` enabled for `http` (disabled for
+`jsonrpc`), and `readonly` **defaults to `auth == "none"`**, *not* to `False`:
+
+```python
+# odoo/http/routing.py — _merge_routing fragment
+default_mode = fragment.get("readonly", default_auth == "none")
+```
+
+So mail's one `auth="none"` handler (`export_icon_to_png`, 20 URLs) is **readonly at
+runtime** despite never declaring it — verified against the live routing map, where all 20
+report `readonly=True`. Every other mail route's runtime `readonly` matches its source
+declaration exactly.
 
 **Total: 65 `@http.route` handlers** — 32 in `controllers/`, 33 in `controllers/discuss/`.
 
@@ -100,14 +113,14 @@ Notification-email redirect targets + the mass-mailing font-to-image renderer.
 | `/mail/view` | http | public | `mail_action_view` | Notification-email redirect → record / messaging / login |
 | `/mail/unfollow` | http | public (csrf=False) | `mail_action_unfollow` | Unsubscribe a partner (MUA link, token-checked) |
 | `/mail/message/<int:message_id>` | http | public +guest | `mail_thread_message_redirect` | Redirect to a message's record, highlighting it |
-| `/web_editor/font_to_img/<icon>` … + `/mail/font_to_img/<icon>` … (20 URL variants) | http | none | `export_icon_to_png` | Render a font glyph to PNG (mass-mailing). Sets `Access-Control-Allow-Origin: *` manually in the body — not via the `cors=` kwarg |
+| `/web_editor/font_to_img/<icon>` … + `/mail/font_to_img/<icon>` … (20 URL variants: 10 per prefix) | http | none (**readonly**, implicitly — see legend) | `export_icon_to_png` | Render a font glyph to PNG (mass-mailing). Sets `Access-Control-Allow-Origin: *` manually in the body — not via the `cors=` kwarg |
 
 ### controllers/websocket.py — `WebsocketControllerPresence(WebsocketController)`
 Extends `bus`'s websocket controller.
 
 | Route | Type | Auth | Handler | Purpose |
 |-------|------|------|---------|---------|
-| *(inherited bus path)* | — | +guest | `peek_notifications` | Override of bus poll to inject guest context |
+| `/websocket/peek_notifications` (inherited from `bus`; mail re-`@route()`s it with no URL) | jsonrpc | public +guest | `peek_notifications` | Override of bus poll to inject guest context |
 | `/websocket/update_bus_presence` | jsonrpc | public (cors=`"*"`) | `update_bus_presence` | Update current bus presence |
 
 ### controllers/webmanifest.py — `WebManifest`
@@ -220,6 +233,6 @@ injects guest data into `user_context` when there is no `request.session.uid` bu
 
 | Group | Handlers | Files |
 |-------|----------|-------|
-| `controllers/` | 32 | thread, mailbox, attachment, message_reaction, link_preview, google_translate, im_status, guest, mail, websocket (webmanifest = 0) |
-| `controllers/discuss/` | 33 | channel, public_page, rtc, gif, search, settings, voice |
-| **Total** | **65** | 21 controller files (2 contribute 0 routes: `webmanifest.py`, and `DiscussChannelWebclientController` in `channel.py`) |
+| `controllers/` | 32 | thread (10), webclient (2), attachment (5), mailbox (3), mail (4), websocket (2), link_preview (2), message_reaction (1), google_translate (1), im_status (1), guest (1) — webmanifest = 0 |
+| `controllers/discuss/` | 33 | channel (12), rtc (8), gif (5), public_page (4), settings (2), search (1), voice (1) |
+| **Total** | **65** | **19** controller files (excluding the two `__init__.py`). One file contributes 0 routes — `webmanifest.py`; separately, the *class* `DiscussChannelWebclientController` in `channel.py` also declares none |

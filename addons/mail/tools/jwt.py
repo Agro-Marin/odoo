@@ -9,18 +9,9 @@ import time
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 
-# ------------------------------------------------------------
-# Errors specific to JWT
-# ------------------------------------------------------------
-
 
 class InvalidVapidError(Exception):
     pass
-
-
-# ------------------------------------------------------------
-# JWT
-# ------------------------------------------------------------
 
 
 class Algorithm(enum.Enum):

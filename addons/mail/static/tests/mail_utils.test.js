@@ -1,5 +1,5 @@
 import { addLink, parseAndTransform } from "@mail/utils/common/format";
-import { useSequential } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { markup } from "@odoo/owl";
@@ -228,7 +228,7 @@ test("url with number in subdomain", async () => {
 });
 
 test("isSequential doesn't execute intermediate call.", async () => {
-    const sequential = useSequential();
+    const sequential = makeSequential();
     let index = 0;
     const sequence = () => {
         index++;

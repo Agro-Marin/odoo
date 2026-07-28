@@ -65,7 +65,6 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
     }) {
         super();
 
-        // timing variables
         this.processInterval = processInterval; // how many ms between each computation
         this.minimumActiveCycles = minimumActiveCycles;
         this.intervalInFrames = (this.processInterval / 1000) * globalThis.sampleRate;
@@ -77,7 +76,6 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
         // fallback path.
         this.nextUpdateFrame = this.intervalInFrames;
 
-        // process variables
         this.boost = normalizationParameters.boost;
         this.shift = normalizationParameters.shift;
         this.activityBuffer = 0;
@@ -107,7 +105,6 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
             return true;
         }
         const samples = input[0];
-        // filter frequencies
         const filteredSamples = new Float32Array(samples.length);
         for (let i = 0; i < samples.length; i++) {
             filteredSamples[i] = this.bandpassFilter.processSample(samples[i]);

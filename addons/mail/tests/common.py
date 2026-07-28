@@ -66,10 +66,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         super().setUpClass()
         cls._mc_enabled = False
 
-    # ------------------------------------------------------------
-    # UTILITY MOCKS
-    # ------------------------------------------------------------
-
     @contextmanager
     def mock_datetime_and_now(self, mock_dt):
         """Used when synchronization date (using env.cr.now()) is important
@@ -86,10 +82,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             mock_dt = fields.Datetime.to_datetime(mock_dt)
         with freeze_all_time(mock_dt):
             yield
-
-    # ------------------------------------------------------------
-    # GATEWAY MOCK
-    # ------------------------------------------------------------
 
     @contextmanager
     def mock_push_to_end_point(self, max_direct_push=5):
@@ -198,7 +190,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
     @classmethod
     def _init_mail_gateway(cls):
         super()._init_mail_gateway()
-        # main company alias parameters
         cls.alias_domain = "test.mycompany.com"
         cls.alias_catchall = "catchall.test"
         cls.alias_bounce = "bounce.test"
@@ -223,7 +214,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             },
         )
         if cls._mc_enabled:
-            # alias domain specific to new company
             cls.alias_bounce_c2 = "bounce.c2"
             cls.alias_catchall_c2 = "catchall.c2"
             cls.alias_default_from_c2 = "notifications.c2"
@@ -240,7 +230,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 },
             )
 
-            # alias domain specific to third company
             cls.alias_bounce_c3 = "bounce.c3"
             cls.alias_catchall_c3 = "catchall.c3"
             cls.alias_default_from_c3 = "notifications.c3"
@@ -257,7 +246,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 },
             )
 
-        # mailer daemon email preformatting
         cls.mailer_daemon_email = formataddr(
             ("MAILER-DAEMON", f"{cls.alias_bounce}@{cls.alias_domain}")
         )
@@ -270,10 +258,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         else:
             alias_domain = cls.env["mail.alias.domain"].create(values)
         return alias_domain
-
-    # ------------------------------------------------------------
-    # GATEWAY TOOLS
-    # ------------------------------------------------------------
 
     def format(
         self,
@@ -381,7 +365,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         original_subject = (mail and mail.subject) or (email and email["subject"])
 
         extra = f"{extra}\n" if extra else ""
-        # compute reply headers
         if use_in_reply_to:
             extra = f"{extra}In-Reply-To:\r\n\t{message_id}\n"
         if use_references:
@@ -423,13 +406,11 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         :param list source_smtp_to_list: find outgoing SMTP email based on their
           SMTP To header (should be a singleton list actually);
         """
-        # find SMTP email based on recipients
         smtp_email = next(
             (m for m in self.emails if m["smtp_to_list"] == source_smtp_to_list), False
         )
         if not smtp_email:
             raise AssertionError(f"Not found SMTP email for {source_smtp_to_list}")
-        # find matching mail.mail
         email = next(
             (
                 m
@@ -566,10 +547,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         else:
             self.assertEqual(tree, expected_node)
 
-    # ------------------------------------------------------------
-    # GATEWAY GETTERS
-    # ------------------------------------------------------------
-
     def _find_sent_email(
         self, email_from, emails_to, subject=None, body=None, attachment_names=None
     ):
@@ -585,7 +562,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             and mail["email_from"] == email_from
         ]
         if len(sent_emails) > 1:
-            # try to better filter
             sent_email = next(
                 (
                     mail
@@ -824,10 +800,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 f"mail.mail not found for message {mail_message} / status {status} / record {record._name}, {record.id} / author {author} ({email_from})\n{debug_info}"
             )
         return mail
-
-    # ------------------------------------------------------------
-    # GATEWAY ASSERTS
-    # ------------------------------------------------------------
 
     def _assertMailMail(
         self,
@@ -1289,7 +1261,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                     email_to_list.append(email_to)
         expected["email_to"] = email_to_list
 
-        # fetch mail
         attachments = [
             attachment["name"]
             for attachment in values.get("attachments_info", [])
@@ -1314,7 +1285,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             % (expected["email_from"], expected["email_to"], debug_info),
         )
 
-        # assert values
         for val in direct_check:
             if val in expected:
                 self.assertEqual(
@@ -1375,7 +1345,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                     % (val, expected[val], sent_mail[val]),
                 )
 
-        # (partial) content check
         for val in content_check:
             if val == "references_content" and val in expected:
                 if not expected["references_content"]:
@@ -1415,10 +1384,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                     f"Header value for {key} invalid, found {found} instead of {value}",
                 )
         return sent_mail
-
-    # ------------------------------------------------------------
-    # PUSH ASSERTS
-    # ------------------------------------------------------------
 
     def assertNoPushNotification(self):
         """Asserts no push notification"""
@@ -1464,10 +1429,6 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             for key, val in options.items():
                 with self.subTest(key=key):
                     self.assertEqual(payload_options[key], val)
-
-    # ------------------------------------------------------------
-    # OTHER ASSERTS
-    # ------------------------------------------------------------
 
     def assertTracking(self, message, data, strict=False):
         tracking_values = message.sudo().tracking_value_ids
@@ -1586,10 +1547,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
         self.env.flush_all()
         self.cr.flush()
 
-    # ------------------------------------------------------------
-    # MAIL MOCKS
-    # ------------------------------------------------------------
-
     @contextmanager
     def mock_bus(self):
         bus_bus_create_origin = BusBus.create
@@ -1646,10 +1603,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
     def _init_mock_mail(self):
         self._new_msgs = self.env["mail.message"].sudo()
         self._new_notifs = self.env["mail.notification"].sudo()
-
-    # ------------------------------------------------------------
-    # MAIL TOOLS
-    # ------------------------------------------------------------
 
     @classmethod
     def _add_messages(cls, record, body_content, count=1, author=None, **kwargs):
@@ -1837,7 +1790,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             for email_to in mail["email_to"]
         }
 
-        # Extract unfollow URL for each partner from the body of the emails
         results = []
         for partner in partner_ids:
             mail_body = mail_by_email[partner.email_normalized]["body"]
@@ -1870,10 +1822,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
         return parsed_url._replace(
             query=urlencode(dict(parse_qsl(parsed_url.query), **kwargs))
         ).geturl()
-
-    # ------------------------------------------------------------
-    # MAIL ASSERTS WRAPPERS
-    # ------------------------------------------------------------
 
     @contextmanager
     def assertSinglePostNotifications(
@@ -1975,10 +1923,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             self.assertFalse(bool(self._new_msgs))
             self.assertFalse(bool(self._new_notifs))
 
-    # ------------------------------------------------------------
-    # MAIL MODELS ASSERTS
-    # ------------------------------------------------------------
-
     def assertMailNotifications(self, messages, recipients_info, bus_notif_count=1):
         """Check bus notifications content. Mandatory and basic check is about
         channels being notified. Content check is optional.
@@ -2059,7 +2003,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
         done_notifs = self.env["mail.notification"].sudo()
 
         for message_info in recipients_info:
-            # sanity check
             extra_keys = set(message_info.keys()) - {
                 "content",
                 "email_to_recipients",
@@ -2083,7 +2026,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                 self.env.ref(message_info.get("subtype", "mail.mt_comment")),
             )
 
-            # find message
             if messages:
                 message = messages.filtered(
                     lambda message, mbody=mbody, mtype=mtype, msubtype=msubtype: (
@@ -2117,11 +2059,9 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                 % (mbody, mtype, msubtype and msubtype.name, debug_info),
             )
 
-            # check message values
             if message_values:
                 self.assertMessageFields(message, message_values)
 
-            # check notifications and prepare assert data
             email_groups = {}
             status_groups = {
                 "exception": {"email_lst": [], "partners": []},
@@ -2129,7 +2069,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             }
             self.assertEqual(len(message.notification_ids), len(message_info["notif"]))
             for recipient in message_info["notif"]:
-                # sanity check
                 extra_keys = set(recipient.keys()) - {
                     "check_send",
                     "email_to",
@@ -2174,7 +2113,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                         "partners": self.env["res.partner"].sudo(),
                     }
 
-                # find notification
                 notif = notifications.filtered(
                     lambda n, message=message, partner=partner, email_to_lst=email_to_lst, ntype=ntype: (
                         n.mail_message_id == message
@@ -2198,7 +2136,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                     self.assertEqual(notif.failure_type, recipient["failure_type"])
                 self.assertEqual(notif.notification_status, nstatus)
 
-                # prepare further asserts
                 if ntype == "email":
                     if nstatus in ("sent", "ready", "exception") and ncheck_send:
                         email_groups[ngroup]["partners"] += partner
@@ -2250,7 +2187,6 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                 email_cc_lst = group["email_cc_lst"]
                 email_to_lst = group["email_to_lst"]
 
-                # compute expected mail status
                 mail_status = "sent"
                 if partners and all(
                     p in status_groups["exception"]["partners"] for p in partners
@@ -2443,7 +2379,6 @@ class MailCommon(MailCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # ensure admin configuration
         cls.user_admin = cls.env.ref("base.user_admin")
         cls.partner_admin = cls.env.ref("base.partner_admin")
         cls.company_admin = cls.user_admin.company_id
@@ -2468,16 +2403,12 @@ class MailCommon(MailCase):
                     "phone": "0455135790",
                 }
             )
-        # have root available at hand, just in case
         cls.user_root = cls.env.ref("base.user_root")
         cls.partner_root = cls.user_root.partner_id
-        # have public available at hand just in case
         cls.user_public = cls.env.ref("base.public_user")
 
-        # setup MC environment
         cls._activate_multi_company()
 
-        # give default values for all email aliases and domain
         cls._init_mail_gateway()
         cls._init_mail_servers()
 
@@ -2486,7 +2417,6 @@ class MailCommon(MailCase):
             "mail.restrict.template.rendering", False
         )
 
-        # test standard employee
         cls.user_employee = mail_new_test_user(
             cls.env,
             company_id=cls.company_admin.id,
@@ -2507,7 +2437,6 @@ class MailCommon(MailCase):
         different companies."""
         cls._mc_enabled = True
 
-        # new companies
         cls.company_2 = cls.env["res.company"].create(
             {
                 "country_id": cls.env.ref("base.ca").id,
@@ -2533,7 +2462,6 @@ class MailCommon(MailCase):
             }
         )
 
-        # employee specific to second company
         cls.user_employee_c2 = mail_new_test_user(
             cls.env,
             login="employee_c2",
@@ -2558,7 +2486,6 @@ class MailCommon(MailCase):
         cls.partner_employee_c2 = cls.user_employee_c2.partner_id
         cls.partner_employee_c3 = cls.user_employee_c3.partner_id
 
-        # test erp manager employee
         cls.user_erp_manager = mail_new_test_user(
             cls.env,
             company_id=cls.company_2.id,
@@ -2594,7 +2521,6 @@ class MailCommon(MailCase):
           * subject: English:    EnglishSubject for {{ object.name }} (depends on test_template.subject)
                      translated: SpanishSubject for {{ object.name }}
         """
-        # activate translations
         cls.env["res.lang"]._activate_lang(lang_code)
         with mute_logger("odoo.addons.base.models.ir_module", "odoo.tools.translate"):
             cls.env.ref("base.module_base")._update_translations([lang_code])
@@ -2609,14 +2535,12 @@ class MailCommon(MailCase):
                 lang=lang_code
             ).name = "Spanish Model Description"
 
-        # Translate some code strings used in mailing
         code_translations.python_translations[("mail", "es_ES")] = {
             **code_translations.python_translations[("mail", "es_ES")],
             "View %s": "SpanishView %s",
         }
         cls.addClassCleanup(code_translations.python_translations.clear)
 
-        # Prepare some translated value for template if given
         if test_template:
             test_template.with_context(
                 lang=lang_code
@@ -2625,7 +2549,6 @@ class MailCommon(MailCase):
                 lang=lang_code
             ).body_html = '<p>SpanishBody for <t t-out="object.name" /></p>'
 
-        # create a custom layout for email notification
         if not layout_arch_db:
             layout_arch_db = """
 <body>

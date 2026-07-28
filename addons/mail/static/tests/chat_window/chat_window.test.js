@@ -22,7 +22,7 @@ import {
     waitStoreFetch,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { mockDate, tick } from "@odoo/hoot-mock";
+import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import { EventBus } from "@odoo/owl";
 import {
     Command,
@@ -142,10 +142,10 @@ test.skip("Fold state of chat window is sync among browser tabs", async () => {
     await click(`${env1.selector} .o_menu_systray i[aria-label='Messages']`);
     await click(`${env1.selector} .o-mail-NotificationItem`);
     await contains(`${env2.selector} .o-mail-ChatWindow-header`);
-    await click(`${env1.selector} .o-mail-ChatWindow-header`); // Fold
+    await click(`${env1.selector} .o-mail-ChatWindow-header`);
     await contains(`${env1.selector} .o-mail-Thread`, { count: 0 });
     await contains(`${env2.selector} .o-mail-Thread`, { count: 0 });
-    await click(`${env2.selector} .o-mail-ChatBubble`); // Unfold
+    await click(`${env2.selector} .o-mail-ChatBubble`);
     await contains(`${env1.selector} .o-mail-ChatWindow .o-mail-Thread`);
     await contains(`${env2.selector} .o-mail-ChatWindow .o-mail-Thread`);
     await click(`${env1.selector} [title*='Close Chat Window']`);
@@ -157,16 +157,13 @@ test("chat window: fold", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({});
     await start();
-    // Open Thread
     await click("button i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-ChatWindow .o-mail-Thread");
     assertChatHub({ opened: [channelId] });
-    // Fold chat window
     await click(".o-mail-ChatWindow-header [title='Fold']");
     await contains(".o-mail-ChatWindow .o-mail-Thread", { count: 0 });
     assertChatHub({ folded: [channelId] });
-    // Unfold chat window
     await click(".o-mail-ChatBubble");
     await contains(".o-mail-ChatWindow .o-mail-Thread");
     assertChatHub({ opened: [channelId] });
@@ -184,7 +181,6 @@ test("chat window: open / close", async () => {
     await click(".o-mail-ChatWindow-header [title*='Close Chat Window']");
     await contains(".o-mail-ChatWindow", { count: 0 });
     assertChatHub({});
-    // Reopen chat window
     await click("button i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-ChatWindow");
@@ -613,7 +609,6 @@ test("chat window: composer state conservation on toggle discuss", async () => {
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
-    // Set content of the composer of the chat window
     await insertText(".o-mail-Composer-input", "XDU for the win !");
     await contains(
         ".o-mail-Composer-footer .o-mail-AttachmentList .o-mail-AttachmentContainer",
@@ -621,7 +616,6 @@ test("chat window: composer state conservation on toggle discuss", async () => {
             count: 0,
         },
     );
-    // Set attachments of the composer
     await inputFiles(".o-mail-Composer .o_input_file", [textFile1, textFile2]);
     await contains(".o-mail-AttachmentContainer .fa-check", { count: 2 });
     await openDiscuss();
@@ -662,7 +656,10 @@ test("chat window: scroll conservation on toggle discuss", async () => {
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 0 });
-    await tick(); // wait for the scroll to first unread to complete
+    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
+    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
+    // so `tick()` returned before the scroll had happened
+    await animationFrame();
     await scroll(".o-mail-ChatWindow .o-mail-Thread", 142);
     await openDiscuss();
     await contains(".o-mail-ChatWindow", { count: 0 });
@@ -686,13 +683,14 @@ test("chat window with a thread: keep scroll position in message list on folded"
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 0 });
-    await tick(); // wait for the scroll to first unread to complete
+    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
+    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
+    // so `tick()` returned before the scroll had happened
+    await animationFrame();
     await scroll(".o-mail-ChatWindow .o-mail-Thread", 142);
-    // fold chat window
     await click(".o-mail-ChatWindow-header [title='Fold']");
     await contains(".o-mail-Message", { count: 0 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { count: 0 });
-    // unfold chat window
     await click(".o-mail-ChatBubble");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 142 });
@@ -713,14 +711,15 @@ test("chat window with a thread: keep scroll position in message list on toggle 
     await click(".o-mail-NotificationItem");
     await contains(".o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 0 });
-    await tick(); // wait for the scroll to first unread to complete
+    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
+    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
+    // so `tick()` returned before the scroll had happened
+    await animationFrame();
     await scroll(".o-mail-ChatWindow .o-mail-Thread", 142);
-    // fold chat window
     await click(".o-mail-ChatWindow-header [title='Fold']");
     await openDiscuss();
     await contains(".o-mail-ChatWindow", { count: 0 });
     await openListView("discuss.channel", { res_id: channelId });
-    // unfold chat window
     await click(".o-mail-ChatBubble");
     await contains(".o-mail-ChatWindow .o-mail-Message", { count: 30 });
     await contains(".o-mail-ChatWindow .o-mail-Thread", { scroll: 142 });
@@ -730,7 +729,6 @@ test("folded chat window should hide member-list and settings buttons", async ()
     const pyEnv = await startServer();
     pyEnv["discuss.channel"].create({});
     await start();
-    // Open Thread
     await click("button i[aria-label='Messages']");
     await click(".o-mail-NotificationItem");
     // dropdown requires an extra delay before click (because handler is registered in useEffect)
@@ -740,12 +738,10 @@ test("folded chat window should hide member-list and settings buttons", async ()
     await contains(".o-dropdown-item", { text: "Call Settings" });
     await click(".o-mail-ChatWindow-header"); // click away to close the more menu
     await contains(".o-dropdown-item", { text: "Members", count: 0 });
-    // Fold chat window
     await click(".o-mail-ChatWindow-header [title='Fold']");
     await contains("[title='Open Actions Menu']", { count: 0 });
     await contains(".o-dropdown-item", { text: "Members", count: 0 });
     await contains(".o-dropdown-item", { text: "Call Settings", count: 0 });
-    // Unfold chat window
     await click(".o-mail-ChatBubble");
     // dropdown requires an extra delay before click (because handler is registered in useEffect)
     await contains("[title='Open Actions Menu']");

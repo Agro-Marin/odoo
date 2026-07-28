@@ -38,7 +38,10 @@ reactive, id-keyed record graph.
 
 Every model is a class `extends Record` with a `static id`, field declarations, and a
 trailing `<Class>.register()`. There are **38 model classes** across `static/src/`
-(enumerated in `ARCHITECTURE.md` and `DIRECTORY_MAP.md`).
+(enumerated in `ARCHITECTURE.md` and `DIRECTORY_MAP.md`). Count them by `.register()` call
+sites (39, minus `Record.register()` for the base class) — **not** by grepping
+`extends Record`, which both misses `Attachment extends FileModelMixin(Record)` and falsely
+matches `StoreInternal extends RecordInternal`. See the counting note in `ARCHITECTURE.md`.
 
 ```javascript
 // core/common/message_model.js (shape)
@@ -57,8 +60,12 @@ Message.register();                        // adds to modelRegistry (category "d
 ```
 
 - **`static _name`** — the python model name used when routing server data. If omitted,
-  `getName()` falls back to the JS class name (`"Composer"`, `"ChatHub"`, `"Failure"`,
-  `"DataResponse"` are JS-only, no python model).
+  `getName()` falls back to the JS class name. **14 of the 39 registered models omit it**
+  (`ChatHub`, `ChatWindow`, `Composer`, `DataResponse`, `DiscussApp`, `DiscussAppCategory`,
+  `Failure`, `MessageReactions`, `Record`, `Rtc`, `Settings`, `Store`, `Thread`, `Volume`);
+  the other 25 declare one. Omitting `_name` is not the same as having no server model —
+  `Thread` is still reachable from python payloads via `pyToJsModels`, and `Settings` is fed
+  by the `res.users.settings` bus type. See CONVENTIONS.md gotcha 4.
 - **`static id`** — the identity key. A field name (`"id"`), or a composite/alternate
   expression: `Thread` uses `static id = AND("model", "id")`.
 - **`register()`** — `Record.register()` adds the class to `modelRegistry`
@@ -179,7 +186,20 @@ extra `useState` wrapping is needed.
 
 Python → JS model-name mapping lives in `pyToJsModels`
 (`{"discuss.channel": "Thread", "mail.thread": "Thread"}`) and `addFieldsByPyModel`
-(`{"discuss.channel": {model: "discuss.channel"}}`), wired via `patch(storeInsertFns, {...})`.
+(`{"discuss.channel": {model: "discuss.channel"}}`), consumed by three overridable
+`Store` methods that `Store.insert` calls (declared neutral in `model/store.js`,
+overridden in `core/common/store_service.js`):
+
+| Method | Role |
+|--------|------|
+| `_makeInsertContext()` | per-`insert()` context, computed once |
+| `_insertModelName(ctx, pyOrJsModelName)` | payload key → JS model that ingests it |
+| `_insertExtraFields(pyOrJsModelName)` | field values merged into every row of that key |
+
+These used to live on a module-level `storeInsertFns` object patched from
+`store_service.js`; because one singleton served every `Store` class on the page, each
+function had to re-check `store instanceof Store` and delegate to `super`. As methods,
+the override applies to exactly the class that declares it and the guards are gone.
 There is **no** function literally named `insertModelData`; ingestion is
 `Store.insert` → per-model `Record.insert`. Initial payloads: `session.storeData` (backend
 HTML) and `odoo.discuss_data` (public-page boot).

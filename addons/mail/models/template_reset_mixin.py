@@ -20,10 +20,6 @@ class TemplateResetMixin(models.AbstractModel):
         help="""File from where the template originates. Used to reset broken template.""",
     )
 
-    # -------------------------------------------------------------------------
-    # OVERRIDE METHODS
-    # -------------------------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -47,17 +43,10 @@ class TemplateResetMixin(models.AbstractModel):
             # For the fields not defined in xml record, if they have default values, we should not
             # enforce empty values for them and the default values should be kept
             field_defaults = self.default_get(list(fields_to_empty))
-            # Update the values to be written and include the default values, prevent fields with
-            # default values from being empty
             values.update(field_defaults)
             fields_to_empty = fields_to_empty - set(field_defaults.keys())
-            # Finally, update the values with fields that should be empty
             values.update(dict.fromkeys(fields_to_empty, False))
         return super()._load_records_write(values)
-
-    # -------------------------------------------------------------------------
-    # RESET TEMPLATE
-    # -------------------------------------------------------------------------
 
     def _override_translation_term(self, module_name, xml_ids):
         translation_importer = TranslationImporter(self.env.cr)

@@ -78,12 +78,10 @@ export class ResPartner extends webModels.ResPartner {
                     return false;
                 })
                 .map((partner) => partner.id);
-            // reduce results to max limit
             matchingPartnerIds.length = Math.min(matchingPartnerIds.length, limit);
             return matchingPartnerIds;
         };
 
-        // add main suggestions based on users
         const partnersFromUsers = ResUsers._filter([])
             .map((user) => this.browse(user.partner_id)[0])
             .filter((partner) => partner);

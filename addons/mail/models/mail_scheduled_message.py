@@ -28,7 +28,6 @@ class MailScheduledMessage(models.Model):
     _name = "mail.scheduled.message"
     _description = "Scheduled Message"
 
-    # content
     subject = fields.Char("Subject")
     body = fields.Html("Contents", sanitize_style=True)
     scheduled_date = fields.Datetime("Scheduled Date", required=True)
@@ -43,16 +42,12 @@ class MailScheduledMessage(models.Model):
     composition_comment_option = fields.Selection(
         [("reply_all", "Reply-All"), ("forward", "Forward")], string="Comment Options"
     )  # mainly used for view in specific comment modes
-    # related document
     model = fields.Char("Related Document Model", required=True)
     res_id = fields.Many2oneReference(
         "Related Document Id", model_field="model", required=True
     )
-    # origin
     author_id = fields.Many2one("res.partner", "Author", required=True)
-    # recipients
     partner_ids = fields.Many2many("res.partner", string="Recipients")
-    # characteristics
     is_note = fields.Boolean(
         "Is a note", default=False, help="If the message will be posted as a Note."
     )
@@ -84,13 +79,8 @@ class MailScheduledMessage(models.Model):
                 _("A Scheduled Message cannot be scheduled in the past")
             )
 
-    # ------------------------------------------------------
-    # CRUD / ORM
-    # ------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
-        # make sure user can post on the related records
         for vals in vals_list:
             self._check(vals)
 
@@ -98,7 +88,6 @@ class MailScheduledMessage(models.Model):
         scheduled_messages = super(
             MailScheduledMessage, self.with_context(clean_context(self.env.context))
         ).create(vals_list)
-        # transfer attachments from composer to scheduled messages
         for scheduled_message in scheduled_messages:
             if attachments := scheduled_message.attachment_ids:
                 attachments.filtered(
@@ -112,7 +101,6 @@ class MailScheduledMessage(models.Model):
                         "res_id": scheduled_message.id,
                     }
                 )
-        # schedule cron trigger
         if scheduled_messages:
             self.env.ref("mail.ir_cron_post_scheduled_message")._trigger_list(
                 set(scheduled_messages.mapped("scheduled_date"))
@@ -147,7 +135,6 @@ class MailScheduledMessage(models.Model):
             )
         )
 
-        # group res_ids by model and determine accessible records
         model_ids = defaultdict(set)
         for __, model, res_id in rows:
             model_ids[model].add(res_id)
@@ -189,7 +176,6 @@ class MailScheduledMessage(models.Model):
                     "You are not allowed to change the target record of a scheduled message."
                 )
             )
-        # make sure user can write on the record the messages are scheduled on
         self._check()
         res = super().write(vals)
         if new_scheduled_date := vals.get("scheduled_date"):
@@ -197,10 +183,6 @@ class MailScheduledMessage(models.Model):
                 fields.Datetime.to_datetime(new_scheduled_date)
             )
         return res
-
-    # ------------------------------------------------------
-    # Actions
-    # ------------------------------------------------------
 
     def open_edit_form(self):
         self.ensure_one()
@@ -318,10 +300,6 @@ class MailScheduledMessage(models.Model):
                 if auto_commit:
                     self.env.cr.commit()
 
-    # ------------------------------------------------------
-    # Business Methods
-    # ------------------------------------------------------
-
     @api.model
     def _check(self, values=None):
         """Restrict the access to a scheduled message.
@@ -372,7 +350,6 @@ class MailScheduledMessage(models.Model):
             raise_exception=False
         )
 
-        # restart cron if needed
         if self.search_count(domain, limit=1):
             self.env.ref("mail.ir_cron_post_scheduled_message")._trigger()
 

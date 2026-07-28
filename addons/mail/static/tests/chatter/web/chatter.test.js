@@ -21,7 +21,7 @@ import { DELAY_FOR_SPINNER, WebChatter } from "@mail/chatter/web/web_chatter";
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 import { describe, expect, test } from "@odoo/hoot";
 import { queryFirst } from "@odoo/hoot-dom";
-import { advanceTime, animationFrame, Deferred } from "@odoo/hoot-mock";
+import { advanceTime, Deferred } from "@odoo/hoot-mock";
 import {
     asyncStep,
     defineActions,
@@ -133,8 +133,12 @@ test("composer stays usable after a failed message post (not bricked)", async ()
     // the fix the button stayed disabled forever and every later send no-oped)
     await contains(".o-mail-Composer button[aria-label='Send']:enabled");
     await contains(".o-mail-Composer-input", { value: "hey" });
-    await animationFrame(); // let the propagated rejection surface
-    expect.verifyErrors([/post boom/]);
+    // `waitForErrors`, not `animationFrame()` + `verifyErrors`: the rejection
+    // travels a promise chain (rpc -> doMessagePost -> mutex -> post ->
+    // processMessage) whose depth in ticks is not something a test can pin
+    // down. A single frame happened to be enough most of the time, so the
+    // assertion flapped whenever anything shifted the surrounding timing.
+    await expect.waitForErrors([/post boom/]);
 });
 
 test("can post a note on a record thread", async () => {

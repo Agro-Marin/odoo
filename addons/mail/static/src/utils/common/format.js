@@ -176,7 +176,6 @@ function linkify(text) {
  */
 export function addLink(node, transformChildren) {
     if (node.nodeType === 3) {
-        // text node
         const linkified = linkify(node.textContent);
         // compare escaped-to-escaped: linkified is html-escaped markup, so
         // matching it against the RAW text flagged every node containing
@@ -408,15 +407,12 @@ export function getNonEditableMentions(body) {
     for (const block of doc.body.querySelectorAll(".o_mail_reply_hide")) {
         block.classList.remove("o_mail_reply_hide");
     }
-    // for mentioned partner
     for (const mention of doc.body.querySelectorAll(".o_mail_redirect")) {
         mention.setAttribute("contenteditable", false);
     }
-    // for mentioned channel
     for (const mention of doc.body.querySelectorAll(".o_channel_redirect")) {
         mention.setAttribute("contenteditable", false);
     }
-    // for special mentions
     for (const mention of doc.body.querySelectorAll(".o-discuss-mention")) {
         mention.setAttribute("contenteditable", false);
     }

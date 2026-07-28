@@ -292,7 +292,6 @@ class TestIrMailServer(MailCommon):
             }
         )
 
-        # check default.from / filter matching
         for (default_from, from_filter), expected_test_email in zip(
             [
                 ("notifications", "dummy.com, full_email@example_2.com, dummy2.com"),

@@ -71,7 +71,6 @@ class MailPush(models.Model):
         devices_to_unlink = set()
         unresolvable_notif_ids = set()
 
-        # process send notif
         base_url = self.get_base_url()  # constant per run; hoisted out of the loop
         devices = web_push_notifications_sudo.mail_push_device_id.grouped("id")
         for web_push_notification_sudo in web_push_notifications_sudo:
@@ -128,7 +127,6 @@ class MailPush(models.Model):
                 fields.Datetime.now() + PUSH_ENDPOINT_RETRY_DELAY
             )
 
-        # clean up obsolete devices
         if devices_to_unlink:
             self.env["mail.push.device"].sudo().browse(devices_to_unlink).unlink()
 

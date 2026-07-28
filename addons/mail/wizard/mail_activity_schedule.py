@@ -58,12 +58,10 @@ class MailActivitySchedule(models.TransientModel):
     company_id = fields.Many2one(
         "res.company", "Company", compute="_compute_company_id", required=False
     )
-    # usage
     error = fields.Html(compute="_compute_error")
     has_error = fields.Boolean(compute="_compute_error")
     warning = fields.Html(compute="_compute_error")
     has_warning = fields.Boolean(compute="_compute_error")
-    # plan-based
     plan_available_ids = fields.Many2many(
         "mail.activity.plan",
         compute="_compute_plan_available_ids",
@@ -93,7 +91,6 @@ class MailActivitySchedule(models.TransientModel):
     plan_date = fields.Date(
         "Plan Date", compute="_compute_plan_date", store=True, readonly=False
     )
-    # activity-based
     activity_type_id = fields.Many2one(
         "mail.activity.type",
         string="Activity Type",
@@ -303,7 +300,6 @@ class MailActivitySchedule(models.TransientModel):
                     )
                     schedule_line_values["line_date_deadline"] = activity_date_deadline
 
-                # append main line before handling next activities
                 schedule_line_values_list.append(schedule_line_values)
 
                 activity_type = template.activity_type_id
@@ -423,10 +419,6 @@ class MailActivitySchedule(models.TransientModel):
             if model.has_access("read")
         ]
 
-    # ------------------------------------------------------------
-    # PLAN-BASED SCHEDULING API
-    # ------------------------------------------------------------
-
     def action_schedule_plan(self):
         if not self.res_model:
             raise ValueError(
@@ -510,10 +502,6 @@ class MailActivitySchedule(models.TransientModel):
             ],
         )
 
-    # ------------------------------------------------------------
-    # ACTIVITY-BASED SCHEDULING API
-    # ------------------------------------------------------------
-
     def action_schedule_activities(self):
         self._action_schedule_activities()
 
@@ -549,10 +537,6 @@ class MailActivitySchedule(models.TransientModel):
                 "user_id": self.activity_user_id.id,
             }
         )
-
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
 
     def _evaluate_res_ids(self):
         """Parse composer res_ids, which can be: an already valid list or

@@ -20,7 +20,6 @@ class MailComposerMixin(models.AbstractModel):
     _inherit = ["mail.render.mixin"]
     _description = "Mail Composer Mixin"
 
-    # Content
     subject = fields.Char(
         "Subject",
         compute="_compute_subject",
@@ -53,7 +52,6 @@ class MailComposerMixin(models.AbstractModel):
         store=True,
         compute_sudo=False,
     )
-    # Access
     is_mail_template_editor = fields.Boolean(
         "Is Editor", compute="_compute_is_mail_template_editor"
     )
@@ -195,7 +193,6 @@ class MailComposerMixin(models.AbstractModel):
             # Do not need to bypass the verification
             return super()._render_field(field, res_ids, *args, **kwargs)
 
-        # template-based access check + translation check
         template_field = {
             "body": "body_html",
         }.get(field, field)

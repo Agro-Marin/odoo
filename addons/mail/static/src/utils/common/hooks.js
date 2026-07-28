@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
+import { onChange } from "@mail/utils/common/misc";
 import {
     Component,
     onMounted,
     onPatched,
+    onWillDestroy,
     onWillUnmount,
     toRaw,
     useComponent,
@@ -47,6 +49,26 @@ function useLazyExternalListener(target, eventName, handler, eventParams) {
         }
         t.removeEventListener(eventName, boundHandler, eventParams);
     });
+}
+
+/**
+ * Component-scoped `onChange` (@see utils/common/misc.js): the observer is
+ * dropped when the component is destroyed.
+ *
+ * Observing long-lived store state (`store.settings`, the `Rtc` record, ...)
+ * from a component without this outlives the component: OWL keeps the
+ * callback registered, so the destroyed component's state and props keep
+ * being written to — and its whole graph stays reachable — for the rest of
+ * the page's life.
+ *
+ * @param {Object} target
+ * @param {string|string[]} key
+ * @param {Function} callback
+ */
+export function useOnChange(target, key, callback) {
+    const dispose = onChange(target, key, callback);
+    onWillDestroy(dispose);
+    return dispose;
 }
 
 export function onExternalClick(refName, cb) {
@@ -176,7 +198,11 @@ export function useHover(
         if (state.isHover) {
             return;
         }
-        for (const target of toRaw(state)._targets) {
+        // raw reads: these handlers only need the current lists, and reading
+        // `_targets` / `_contains` through the reactive state subscribes the
+        // component to them, so every addTarget()/_contains push re-renders
+        const rawState = toRaw(state);
+        for (const target of rawState._targets) {
             if (!target.ref.el) {
                 continue;
             }
@@ -186,7 +212,7 @@ export function useHover(
                 return;
             }
         }
-        for (const contains of state._contains) {
+        for (const contains of rawState._contains) {
             if (contains(ev.target)) {
                 setHover(true);
                 return;
@@ -203,7 +229,8 @@ export function useHover(
         if (!state.isHover) {
             return;
         }
-        for (const target of toRaw(state._targets)) {
+        const rawState = toRaw(state);
+        for (const target of rawState._targets) {
             if (!target.ref.el) {
                 continue;
             }
@@ -211,7 +238,7 @@ export function useHover(
                 return;
             }
         }
-        for (const contains of state._contains) {
+        for (const contains of rawState._contains) {
             if (contains(ev.relatedTarget)) {
                 return;
             }
@@ -579,44 +606,6 @@ export function useSelection({
                 ref.el.selectionStart = ref.el.selectionEnd = position;
             }
         },
-    };
-}
-
-export function useSequential() {
-    let inProgress = false;
-    let nextFunction;
-    let nextResolve;
-    let nextReject;
-    async function call() {
-        const resolve = nextResolve;
-        const reject = nextReject;
-        const func = nextFunction;
-        nextResolve = undefined;
-        nextReject = undefined;
-        nextFunction = undefined;
-        inProgress = true;
-        try {
-            const data = await func();
-            resolve(data);
-        } catch (e) {
-            reject(e);
-        }
-        inProgress = false;
-        if (nextFunction && nextResolve) {
-            call();
-        }
-    }
-    return (func) => {
-        nextResolve?.();
-        const prom = new Promise((resolve, reject) => {
-            nextResolve = resolve;
-            nextReject = reject;
-        });
-        nextFunction = func;
-        if (!inProgress) {
-            call();
-        }
-        return prom;
     };
 }
 

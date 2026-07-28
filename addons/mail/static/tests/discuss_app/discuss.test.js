@@ -25,14 +25,7 @@ import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { OutOfFocusService } from "@mail/core/common/out_of_focus_service";
 import { LAST_DISCUSS_ACTIVE_ID_LS } from "@mail/core/public_web/discuss_app_model";
 import { describe, expect, test } from "@odoo/hoot";
-import {
-    animationFrame,
-    Deferred,
-    press,
-    runAllTimers,
-    tick,
-    waitFor,
-} from "@odoo/hoot-dom";
+import { animationFrame, Deferred, press, runAllTimers, waitFor } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
 import {
     asyncStep,
@@ -2245,7 +2238,6 @@ test("composer state: attachments save and restore", async () => {
         ".o-mail-Composer .o-mail-AttachmentContainer:not(.o-isUploading):contains(text.txt)",
     );
     await contains(".o-mail-Composer .o-mail-AttachmentContainer");
-    // Switch to #special
     await click("button", { text: "Special" });
     // Attach files in a message for #special
     const files = [
@@ -2265,11 +2257,9 @@ test("composer state: attachments save and restore", async () => {
         count: 3,
     });
     await contains(".o-mail-Composer .o-mail-AttachmentContainer", { count: 3 });
-    // Switch back to #general
     await click("button", { text: "General" });
     await contains(".o-mail-Composer .o-mail-AttachmentContainer");
     await contains(".o-mail-Composer .o-mail-AttachmentContainer:contains(text.txt)");
-    // Switch back to #special
     await click("button", { text: "Special" });
     await contains(".o-mail-Composer .o-mail-AttachmentContainer", { count: 3 });
     await contains(".o-mail-AttachmentContainer", { text: "text2.txt" });
@@ -2321,7 +2311,10 @@ test("restore thread scroll position", async () => {
     await openDiscuss(channelId_1);
     await contains(".o-mail-Message", { count: 25 });
     await contains(".o-mail-Thread", { scroll: 0 });
-    await tick(); // wait for the scroll to first unread to complete
+    // a frame, not a microtask: the scroll is applied from a `useEffect`, and
+    // OWL flushes renders and effects on its requestAnimationFrame scheduler,
+    // so `tick()` returned before the scroll had happened
+    await animationFrame();
     await scroll(".o-mail-Thread", "bottom");
     await click("button", { text: "Channel2" });
     await contains(".o-mail-Message", { count: 24 });

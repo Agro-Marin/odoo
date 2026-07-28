@@ -39,7 +39,6 @@ class MailThreadBlacklist(models.AbstractModel):
         groups="base.group_user",
         help="If the email address is on the blacklist, the contact won't receive mass mailing anymore, from any list",
     )
-    # messaging
     message_bounce = fields.Integer(
         "Bounce",
         help="Counter of the number of bounced emails for this contact",

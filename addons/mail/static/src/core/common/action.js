@@ -342,11 +342,11 @@ export class Action {
     _isActive(action) {}
     /** States whether this action is currently active. */
     get isActive() {
-        return (
+        return Boolean(
             this._isActive(this.params) ??
             (typeof this.definition.isActive === "function"
                 ? this.definition.isActive.call(this, this.params)
-                : this.definition.isActive)
+                : this.definition.isActive),
         );
     }
 

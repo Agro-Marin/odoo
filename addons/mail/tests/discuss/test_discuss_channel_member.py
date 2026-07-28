@@ -71,10 +71,6 @@ class TestDiscussChannelMember(MailCommon):
             cls.group | cls.group_restricted_channel | cls.public_channel
         ).channel_member_ids.unlink()
 
-    # ------------------------------------------------------------
-    # GROUP
-    # ------------------------------------------------------------
-
     def test_group_01(self):
         """Test access on group."""
         res = self.env["discuss.channel.member"].search(
@@ -240,10 +236,6 @@ class TestDiscussChannelMember(MailCommon):
             (self.user_1 | self.user_2).partner_id,
         )
 
-    # ------------------------------------------------------------
-    # GROUP BASED CHANNELS
-    # ------------------------------------------------------------
-
     def test_group_restricted_channel(self):
         """Test basics on group channel."""
         channel_members = self.env["discuss.channel.member"].search(
@@ -304,10 +296,6 @@ class TestDiscussChannelMember(MailCommon):
             | self.user_portal.partner_id,
         )
 
-    # ------------------------------------------------------------
-    # PUBLIC CHANNELS
-    # ------------------------------------------------------------
-
     def test_public_channel(self):
         """Test access on public channels"""
         channel_members = self.env["discuss.channel.member"].search(
@@ -356,10 +344,6 @@ class TestDiscussChannelMember(MailCommon):
         )["store_data"]
         self.assertEqual(len(data["res.partner"]), 1)
         self.assertEqual(data["res.partner"][0]["id"], partner.id)
-
-    # ------------------------------------------------------------
-    # UNREAD COUNTER TESTS
-    # ------------------------------------------------------------
 
     def test_unread_counter_with_message_post(self):
         channel_as_user_1 = (

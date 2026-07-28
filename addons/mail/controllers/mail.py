@@ -27,7 +27,6 @@ class MailController(http.Controller):
         # Old Twitter codes map to X icons; new codes map to themselves.
         "61569": "59464",  # F081 -> E848: fa-twitter-square
         "61593": "59418",  # F099 -> E81A: fa-twitter
-        # Addition of new icons
         "59407": "59407",  # E80F: fa-strava
         "59409": "59409",  # E811: fa-discord
         "59416": "59416",  # E818: fa-threads
@@ -101,7 +100,6 @@ class MailController(http.Controller):
         user = request.env["res.users"].sudo().browse(uid)
         cids = []
 
-        # no model / res_id, meaning no possible record -> redirect to login
         if not model or not res_id or model not in request.env:
             return cls._redirect_to_generic_fallback(
                 model,
@@ -114,7 +112,6 @@ class MailController(http.Controller):
         RecordModel = request.env[model]
         record_sudo = RecordModel.sudo().browse(res_id).exists()
         if not record_sudo:
-            # record does not seem to exist -> redirect to login
             return cls._redirect_to_generic_fallback(
                 model,
                 res_id,
@@ -123,7 +120,6 @@ class MailController(http.Controller):
             )
 
         suggested_company = record_sudo._get_redirect_suggested_company()
-        # the record has a window redirection: check access rights
         if uid is not None:
             if not RecordModel.with_user(uid).has_access("read"):
                 return cls._redirect_to_generic_fallback(
@@ -193,7 +189,6 @@ class MailController(http.Controller):
                 )
 
         record_action.pop("target_type", None)
-        # the record has an URL redirection: use it directly
         if record_action["type"] == "ir.actions.act_url":
             url = record_action["url"]
             if highlight_message_id := kwargs.get("highlight_message_id"):
@@ -205,7 +200,6 @@ class MailController(http.Controller):
                     )
                 ).geturl()
             return request.redirect(url)
-        # anything else than an act_window is not supported
         elif record_action["type"] != "ir.actions.act_window":
             return cls._redirect_to_messaging()
 
@@ -381,7 +375,6 @@ class MailController(http.Controller):
         # unauthenticated caller point ImageFont.truetype at any file inside the
         # addons tree (file-existence oracle / 500 on a non-font file).
         font = "/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2"
-        # For custom icons, use the corresponding custom font
         if icon.isdigit() and icon in self._OI_FONT_CHAR_CODES:
             icon = self._OI_FONT_CHAR_CODES[icon]
             font = "/web/static/lib/odoo_ui_icons/fonts/odoo_ui_icons.woff"
@@ -389,10 +382,8 @@ class MailController(http.Controller):
         size = max(width, height, 1) if width else size
         width = width or size
         height = height or size
-        # Make sure we have at least size=1
         width = max(1, min(width, 512))
         height = max(1, min(height, 512))
-        # Initialize font
         font = font.removeprefix("/")
         font_obj = ImageFont.truetype(file_open(font, "rb"), height)
 
@@ -406,7 +397,6 @@ class MailController(http.Controller):
                 raise request.not_found()
             icon = chr(code)
 
-        # Background standardization
         if bg is not None and bg.startswith("rgba"):
             bg = bg.replace("rgba", "rgb")
             bg = ",".join(bg.split(",")[:-1]) + ")"
@@ -427,7 +417,6 @@ class MailController(http.Controller):
                 except ValueError:
                     raise request.not_found() from None
 
-        # Measure the icon glyph dimensions
         dummy = Image.new("RGBA", (1, 1))
         draw = ImageDraw.Draw(dummy)
         bbox = draw.textbbox((0, 0), icon, font=font_obj)
@@ -436,12 +425,10 @@ class MailController(http.Controller):
         # image by its full rendered width, an unauthenticated memory amplifier.
         boxw = max(1, min(bbox[2] - bbox[0], 512))
 
-        # Render icon directly on the output image
         outimage = Image.new("RGBA", (boxw, height), bg or (0, 0, 0, 0))
         draw = ImageDraw.Draw(outimage)
         draw.text((0, 0), icon, font=font_obj, fill=color)
 
-        # output image
         output = io.BytesIO()
         outimage.save(output, format="PNG")
         output.seek(0)

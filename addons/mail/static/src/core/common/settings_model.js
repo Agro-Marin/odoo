@@ -50,7 +50,6 @@ export class Settings extends Record {
         super.delete(...arguments);
     }
 
-    // Notification settings
     /**
      * @type {"mentions"|"all"|"no_notif"}
      */
@@ -90,7 +89,6 @@ export class Settings extends Record {
         },
     });
 
-    // Voice settings
     // DeviceId of the audio input selected by the user
     audioInputDeviceId = "";
     audioOutputDeviceId = "";
@@ -105,7 +103,6 @@ export class Settings extends Record {
     isRegisteringKey = false;
     push_to_talk_key;
 
-    // Video settings
     backgroundBlurAmount = 10;
     edgeBlurAmount = 10;
     showOnlyVideo = false;
@@ -336,8 +333,6 @@ export class Settings extends Record {
         this.voiceActivationThreshold = voiceActivationThreshold;
         this.saveVoiceThresholdDebounce();
     }
-
-    // methods
 
     buildKeySet({ shiftKey, ctrlKey, altKey, key }) {
         const keys = new Set();

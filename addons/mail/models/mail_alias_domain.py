@@ -247,7 +247,6 @@ class MailAliasDomain(models.Model):
         self.env.registry.clear_cache("stable")
         alias_domains._check_default_from_not_used_by_users()
 
-        # alias domain init: populate companies and aliases at first creation
         if alias_domains and self.search_count([]) == len(alias_domains):
             # during first init we assume that we want to attribute this
             # alias domain to all companies, irrespective of the fact
@@ -333,7 +332,6 @@ class MailAliasDomain(models.Model):
         _ids, _names, bounces, catchalls, default_froms = self._get_config()
         aliases = set(bounces + catchalls + default_froms)
 
-        # Get allowed domains and convert to a set for O(1) lookup
         catchall_params = (
             self.env["ir.config_parameter"]
             .sudo()

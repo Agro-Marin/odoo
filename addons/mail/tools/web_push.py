@@ -42,11 +42,6 @@ class PUSH_NOTIFICATION_ACTION:
 _logger = logger.getLogger(__name__)
 
 
-# ------------------------------------------------------------
-# Errors specific to web push
-# ------------------------------------------------------------
-
-
 class DeviceUnreachableError(Exception):
     """The endpoint is permanently invalid (bogus/internal host, 404, 410):
     callers delete the device."""
@@ -58,18 +53,12 @@ class PushEndpointUnresolvableError(Exception):
     delete it."""
 
 
-# ------------------------------------------------------------
-# Web Push
-# ------------------------------------------------------------
-
-
 def _iv(base, counter):
     mask = int.from_bytes(base[4:], "big")
     return base[:4] + (counter ^ mask).to_bytes(8, "big")
 
 
 def _derive_key(salt, private_key, device):
-    # browser keys
     device_keys = json.loads(device["keys"])
     p256dh = jwt.base64_decode_with_padding(device_keys.get("p256dh"))
     auth = jwt.base64_decode_with_padding(device_keys.get("auth"))
@@ -121,7 +110,6 @@ def _encrypt_payload(content, device, record_size=MAX_PAYLOAD_SIZE):
     # The private_key is an ephemeral ECDH key used only for a transaction
     private_key = ec.generate_private_key(ec.SECP256R1())
     salt = os.urandom(16)
-    # generate key
     (key, nonce) = _derive_key(salt=salt, private_key=private_key, device=device)
     # AEAD_AES_128_GCM produces ciphertext 16 octets longer than its input plaintext.
     # Therefore, the unencrypted content of each record is shorter than the record size by 16 octets.
