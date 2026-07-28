@@ -385,3 +385,23 @@ test("useRegistry: listens from setup time, not onWillStart", async () => {
     await mountWithCleanup(MyComponent);
     expect(state.entries.map(([k]) => k)).toEqual(["a", "b"]);
 });
+
+// SEMANTICS-PARITY-BLOCK
+// The hoot bootstrap used to rewrite `Registry.prototype.add` to force every
+// registration for the whole run. That did not merely relax the rule, it
+// INVERTED it: production keeps the FIRST registration, the suite kept the
+// LAST. Duplicate-registration bugs -- two envs starting the same service, an
+// addon colliding with a core key -- could therefore pass their test while
+// doing the opposite in the browser, and a test written to pin the correct
+// behaviour was structurally unable to fail. Tests run with production
+// semantics; anything that needs to replace an entry passes `force` itself,
+// exactly as an addon does.
+test("tests see production first-registration-wins semantics", () => {
+    const registry = new Registry();
+    registry.add("k", "first");
+    registry.add("k", "second");
+    expect(registry.get("k")).toBe("first");
+
+    registry.add("k", "third", { force: true });
+    expect(registry.get("k")).toBe("third");
+});
