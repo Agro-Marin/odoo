@@ -84,10 +84,16 @@ function toggler(key, child) {
 class OwlError extends Error {
 }
 
-const { setAttribute: elemSetAttribute, removeAttribute } = Element.prototype;
-const tokenList = DOMTokenList.prototype;
-const tokenListAdd = tokenList.add;
-const tokenListRemove = tokenList.remove;
+let elemSetAttribute;
+let removeAttribute;
+let tokenListAdd;
+let tokenListRemove;
+if (typeof Element !== "undefined") {
+    ({ setAttribute: elemSetAttribute, removeAttribute } = Element.prototype);
+    const tokenList = DOMTokenList.prototype;
+    tokenListAdd = tokenList.add;
+    tokenListRemove = tokenList.remove;
+}
 const isArray = Array.isArray;
 const { split, trim } = String.prototype;
 const wordRegexp = /\s+/;
@@ -466,10 +472,15 @@ function setupSyntheticEvent(evName, eventKey, capture = false) {
 }
 
 const getDescriptor$3 = (o, p) => Object.getOwnPropertyDescriptor(o, p);
-const nodeProto$4 = Node.prototype;
-const nodeInsertBefore$3 = nodeProto$4.insertBefore;
-const nodeSetTextContent$1 = getDescriptor$3(nodeProto$4, "textContent").set;
-const nodeRemoveChild$3 = nodeProto$4.removeChild;
+let nodeInsertBefore$3;
+let nodeSetTextContent$1;
+let nodeRemoveChild$3;
+if (typeof Node !== "undefined") {
+    const nodeProto = Node.prototype;
+    nodeInsertBefore$3 = nodeProto.insertBefore;
+    nodeSetTextContent$1 = getDescriptor$3(nodeProto, "textContent").set;
+    nodeRemoveChild$3 = nodeProto.removeChild;
+}
 // -----------------------------------------------------------------------------
 // Multi NODE
 // -----------------------------------------------------------------------------
@@ -605,11 +616,15 @@ function multi(children) {
 }
 
 const getDescriptor$2 = (o, p) => Object.getOwnPropertyDescriptor(o, p);
-const nodeProto$3 = Node.prototype;
-const characterDataProto$1 = CharacterData.prototype;
-const nodeInsertBefore$2 = nodeProto$3.insertBefore;
-const characterDataSetData$1 = getDescriptor$2(characterDataProto$1, "data").set;
-const nodeRemoveChild$2 = nodeProto$3.removeChild;
+let nodeInsertBefore$2;
+let characterDataSetData$1;
+let nodeRemoveChild$2;
+if (typeof Node !== "undefined") {
+    const nodeProto = Node.prototype;
+    nodeInsertBefore$2 = nodeProto.insertBefore;
+    nodeRemoveChild$2 = nodeProto.removeChild;
+    characterDataSetData$1 = getDescriptor$2(CharacterData.prototype, "data").set;
+}
 class VSimpleNode {
     constructor(text) {
         this.text = text;
@@ -675,12 +690,18 @@ function toText(value) {
 }
 
 const getDescriptor$1 = (o, p) => Object.getOwnPropertyDescriptor(o, p);
-const nodeProto$2 = Node.prototype;
-const elementProto = Element.prototype;
-const characterDataProto = CharacterData.prototype;
-const characterDataSetData = getDescriptor$1(characterDataProto, "data").set;
-const nodeGetFirstChild = getDescriptor$1(nodeProto$2, "firstChild").get;
-const nodeGetNextSibling = getDescriptor$1(nodeProto$2, "nextSibling").get;
+let nodeProto;
+let elementProto;
+let characterDataSetData;
+let nodeGetFirstChild;
+let nodeGetNextSibling;
+if (typeof Node !== "undefined") {
+    nodeProto = Node.prototype;
+    elementProto = Element.prototype;
+    characterDataSetData = getDescriptor$1(CharacterData.prototype, "data").set;
+    nodeGetFirstChild = getDescriptor$1(nodeProto, "firstChild").get;
+    nodeGetNextSibling = getDescriptor$1(nodeProto, "nextSibling").get;
+}
 const NO_OP$1 = () => { };
 function makePropSetter(name) {
     return function setProp(value) {
@@ -1069,8 +1090,8 @@ function createBlockClass(template, ctx) {
     const isDynamic = refN > 0;
     // these values are defined here to make them faster to lookup in the class
     // block scope
-    const nodeCloneNode = nodeProto$2.cloneNode;
-    const nodeInsertBefore = nodeProto$2.insertBefore;
+    const nodeCloneNode = nodeProto.cloneNode;
+    const nodeInsertBefore = nodeProto.insertBefore;
     const elementRemove = elementProto.remove;
     class Block {
         constructor(data) {
@@ -1199,11 +1220,17 @@ function makeRefSetter(index, refs) {
 }
 
 const getDescriptor = (o, p) => Object.getOwnPropertyDescriptor(o, p);
-const nodeProto$1 = Node.prototype;
-const nodeInsertBefore$1 = nodeProto$1.insertBefore;
-const nodeAppendChild = nodeProto$1.appendChild;
-const nodeRemoveChild$1 = nodeProto$1.removeChild;
-const nodeSetTextContent = getDescriptor(nodeProto$1, "textContent").set;
+let nodeInsertBefore$1;
+let nodeAppendChild;
+let nodeRemoveChild$1;
+let nodeSetTextContent;
+if (typeof Node !== "undefined") {
+    const nodeProto = Node.prototype;
+    nodeInsertBefore$1 = nodeProto.insertBefore;
+    nodeAppendChild = nodeProto.appendChild;
+    nodeRemoveChild$1 = nodeProto.removeChild;
+    nodeSetTextContent = getDescriptor(nodeProto, "textContent").set;
+}
 // -----------------------------------------------------------------------------
 // List Node
 // -----------------------------------------------------------------------------
@@ -1415,9 +1442,13 @@ function createMapping(ch1, startIdx1, endIdx2) {
     return mapping;
 }
 
-const nodeProto = Node.prototype;
-const nodeInsertBefore = nodeProto.insertBefore;
-const nodeRemoveChild = nodeProto.removeChild;
+let nodeInsertBefore;
+let nodeRemoveChild;
+if (typeof Node !== "undefined") {
+    const nodeProto = Node.prototype;
+    nodeInsertBefore = nodeProto.insertBefore;
+    nodeRemoveChild = nodeProto.removeChild;
+}
 class VHtml {
     constructor(html) {
         this.content = [];
@@ -3701,7 +3732,10 @@ function interpolate(s) {
 const whitespaceRE = /\s+/g;
 // using a non-html document so that <inner/outer>HTML serializes as XML instead
 // of HTML (as we will parse it as xml later)
-const xmlDoc = document.implementation.createDocument(null, null, null);
+let xmlDoc;
+if (typeof document !== "undefined") {
+    xmlDoc = document.implementation.createDocument(null, null, null);
+}
 const MODS = new Set(["stop", "capture", "prevent", "self", "synthetic"]);
 let nextDataIds = {};
 function generateId(prefix = "") {
@@ -5820,11 +5854,15 @@ function compile(template, options = {
 }
 
 // do not modify manually. This file is generated by the release script.
-const version = "2.8.2";
+const version = "2.8.3";
 
 // -----------------------------------------------------------------------------
 //  Scheduler
 // -----------------------------------------------------------------------------
+let requestAnimationFrame;
+if (typeof window !== "undefined") {
+    requestAnimationFrame = window.requestAnimationFrame.bind(window);
+}
 class Scheduler {
     constructor() {
         this.tasks = new Set();
@@ -5912,11 +5950,13 @@ class Scheduler {
 }
 // capture the value of requestAnimationFrame as soon as possible, to avoid
 // interactions with other code, such as test frameworks that override them
-Scheduler.requestAnimationFrame = window.requestAnimationFrame.bind(window);
+Scheduler.requestAnimationFrame = requestAnimationFrame;
 
 let hasBeenLogged = false;
 const apps = new Set();
-window.__OWL_DEVTOOLS__ || (window.__OWL_DEVTOOLS__ = { apps, Fiber, RootFiber, toRaw, reactive });
+if (typeof window !== "undefined") {
+    window.__OWL_DEVTOOLS__ || (window.__OWL_DEVTOOLS__ = { apps, Fiber, RootFiber, toRaw, reactive });
+}
 class App extends TemplateSet {
     constructor(Root, config = {}) {
         super(config);
@@ -6291,6 +6331,6 @@ TemplateSet.prototype._compileTemplate = function _compileTemplate(name, templat
 export { App, Component, EventBus, OwlError, __info__, batched, blockDom, htmlEscape, loadFile, markRaw, markup, mount, onError, onMounted, onPatched, onRendered, onWillDestroy, onWillPatch, onWillRender, onWillStart, onWillUnmount, onWillUpdateProps, reactive, status, toRaw, useChildSubEnv, useComponent, useEffect, useEnv, useExternalListener, useRef, useState, useSubEnv, validate, validateType, whenReady, xml };
 
 
-__info__.date = '2026-01-30T07:49:47.618Z';
-__info__.hash = '52abf8d';
+__info__.date = '2026-03-30T13:05:32.099Z';
+__info__.hash = 'efae3e4';
 __info__.url = 'https://github.com/odoo/owl';
