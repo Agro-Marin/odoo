@@ -28,6 +28,7 @@ from . import (
     test_related_translation,
     test_schema,
     test_search,
+    test_search_display_name,
     test_sort,
     test_traversal,
     test_ui,
