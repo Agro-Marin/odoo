@@ -26,9 +26,7 @@ import {
 
 async function applyProduct(record, product) {
     // handle custom values & no variants
-    const customAttributesCommands = [
-        x2ManyCommands.set([]), // Command.clear isn't supported in static_list/_applyCommands
-    ];
+    const customAttributesCommands = [x2ManyCommands.clear()];
     for (const ptal of product.attribute_lines) {
         const selectedCustomPTAV = getSelectedCustomPtav(ptal);
         if (selectedCustomPTAV) {
