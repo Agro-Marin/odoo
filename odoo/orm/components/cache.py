@@ -10,7 +10,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Mapping
+    from collections.abc import Callable, Collection, Iterable, Mapping
 
 _MISSING = object()
 
@@ -33,19 +33,34 @@ class FieldCache:
     All three are ``defaultdict`` so first access auto-creates the sub-collection.
     """
 
-    __slots__ = ("_data", "_dirty", "_patches")
+    __slots__ = ("_data", "_dirty", "_on_detach", "_patches")
 
-    def __init__(self, dirty_factory: type | None = None) -> None:
+    def __init__(
+        self,
+        dirty_factory: type | None = None,
+        on_detach: Callable[[], None] | None = None,
+    ) -> None:
         """Initialize empty data, dirty, and patch maps.
 
         :param dirty_factory: set-like factory for the dirty-id sets (e.g.
             ``OrderedSet`` for deterministic flush order); defaults to ``set``.
+        :param on_detach: called after any operation that removes a per-field
+            (or per-context) dict from :attr:`_data` instead of emptying it in
+            place.  Holders of a *reference* to such a dict -- above all
+            ``Environment._field_cache_memo``, which every ``Field.__get__``
+            fast path reads without revalidating -- keep serving values from an
+            object this cache no longer owns: reads go stale and writes land
+            somewhere the flush cannot see.  Three call sites used to repair
+            that by hand afterwards, each with its own docstring explaining the
+            hazard; the callback makes it a property of the cache instead, so a
+            fourth caller cannot forget.
         """
         self._data: defaultdict[Any, dict[Any, Any]] = defaultdict(dict)
         self._dirty: defaultdict[Any, set] = defaultdict(dirty_factory or set)
         self._patches: defaultdict[Any, defaultdict[Any, list]] = defaultdict(
             lambda: defaultdict(list)
         )
+        self._on_detach = on_detach
 
     def get_field_data(self, field: Any) -> dict[Any, Any]:
         """Return the cache dict for *field*, creating it if needed.
@@ -246,8 +261,9 @@ class FieldCache:
         (standalone tests, benchmarks — production code knows the shape and
         calls :meth:`invalidate` directly): probes for a tuple key (O(n) on
         flat caches) and delegates. It additionally drops emptied per-context
-        sub-dicts — safe only here, where no ``env._field_cache_memo`` aliases
-        them (see :meth:`invalidate`).
+        sub-dicts, which detaches them, so it notifies ``on_detach`` (see
+        :meth:`__init__`); :meth:`invalidate` empties them in place instead and
+        needs no notification.
         """
         field_cache = self._data.get(field)
         if field_cache is None:
@@ -265,6 +281,8 @@ class FieldCache:
             ]
             for key in emptied:
                 del field_cache[key]
+            if emptied and self._on_detach is not None:
+                self._on_detach()
 
     def invalidate_all(self) -> None:
         """Clear all cached data except dirty entries.
@@ -272,7 +290,12 @@ class FieldCache:
         Dirty entries stay in ``_data`` so a subsequent flush can still read
         their values; non-dirty data is cleared to force re-fetch on next
         access. ``_dirty`` flags and ``_patches`` are never touched.
+
+        Detaches per-field dicts, so it notifies ``on_detach`` (see
+        :meth:`__init__`).
         """
+        if self._on_detach is not None:
+            self._on_detach()
         if not self._dirty:
             self._data.clear()
             return
@@ -295,7 +318,13 @@ class FieldCache:
                 del self._data[field]
 
     def clear(self) -> None:
-        """Clear everything: data, dirty flags, and patches."""
+        """Clear everything: data, dirty flags, and patches.
+
+        Detaches every per-field dict, so it notifies ``on_detach`` (see
+        :meth:`__init__`).
+        """
+        if self._on_detach is not None:
+            self._on_detach()
         self._data.clear()
         self._dirty.clear()
         self._patches.clear()
