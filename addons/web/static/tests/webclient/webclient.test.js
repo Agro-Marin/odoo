@@ -1,12 +1,14 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { advanceTime, animationFrame } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
     contains,
+    getService,
     makeMockEnv,
     mountWithCleanup,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
@@ -209,4 +211,32 @@ test("SW update: periodic and visibility-triggered registration.update()", async
 
     visibilityHandlers[0]();
     expect.verifySteps(["update"]);
+});
+
+test.tags("desktop");
+test("the default app falls through a dangling first menu id", async () => {
+    // The menu tree can come from a `localStorage` copy that parses but names a
+    // menu id it does not define. `getMenu("root").children[0]` then handed
+    // `selectMenu` an undefined menu and the boot landed nowhere; going through
+    // `getApps()` skips the dangling id and opens the first real app.
+    const def = new Deferred();
+    onRpc("/web/webclient/load_menus", () => def);
+    browser.localStorage.webclient_menus_version =
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        2: { appID: 2, children: [], name: "Real App", id: 2, actionID: 1001 },
+        root: { id: "root", name: "root", appID: "root", children: [999, 2] },
+    });
+
+    await makeMockEnv();
+    const selected = [];
+    patchWithCleanup(getService("menu"), {
+        selectMenu: (menu) => selected.push(menu?.id ?? menu),
+    });
+
+    await mountWithCleanup(WebClient);
+    await animationFrame();
+
+    expect(selected).toEqual([2]);
+    def.resolve();
 });

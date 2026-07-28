@@ -323,3 +323,25 @@ test("an unknown report type is reported and does nothing else", async () => {
     expect(am.__calls.updateUI).toEqual([]);
     expect(am.__calls.ui).toEqual([]);
 });
+
+test("an unhandled report_type still settles the caller's onClose", async () => {
+    // Same single-exit rule `act_url.js` documents: a path that returns without
+    // settling `onClose` is not "doing less", it strands the caller —
+    // `view_button_hook`'s reload never runs, and a
+    // `doAction(..., { onClose: resolve })` awaiter never resolves. A report
+    // whose type no loaded handler claims (an enterprise handler missing from
+    // the bundle) takes exactly that path.
+    const am = makeFakeAm();
+    patchWithCleanup(console, { error: () => expect.step("console.error") });
+
+    let closed = 0;
+    await executeReportAction(
+        { ...makeReportAction(), report_type: "qweb-something-else" },
+        { onClose: () => closed++ },
+        am,
+    );
+
+    expect.verifySteps(["console.error"]);
+    expect(closed).toBe(1);
+    expect(am.__calls.doAction).toHaveLength(0);
+});

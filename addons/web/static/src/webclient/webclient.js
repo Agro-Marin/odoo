@@ -162,12 +162,18 @@ export class WebClient extends Component {
         }
     }
 
-    /** Navigate to the first root menu app as a fallback. */
+    /**
+     * Navigate to the first app as a fallback.
+     *
+     * Through ``getApps()`` rather than ``getMenu("root").children[0]``: the
+     * menu tree can come from a ``localStorage`` copy that parses but names a
+     * menu id it does not define, and the raw spelling then landed the user on
+     * a dangling id — or threw outright when the payload had no ``root``.
+     */
     _loadDefaultApp() {
-        const root = this.menuService.getMenu("root");
-        const firstApp = root.children[0];
+        const [firstApp] = this.menuService.getApps();
         if (firstApp) {
-            return this.menuService.selectMenu(this.menuService.getMenu(firstApp));
+            return this.menuService.selectMenu(firstApp);
         }
     }
 

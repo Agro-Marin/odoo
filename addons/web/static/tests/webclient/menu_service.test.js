@@ -505,3 +505,30 @@ test("a cached menu tree with dangling child ids does not crash the consumers", 
 
     def.resolve();
 });
+
+test.tags("desktop");
+test("a cached menu payload with no root entry degrades instead of crashing", async () => {
+    // Same class as the dangling-id case: `menu_storage` guarantees the cached
+    // copy PARSES, not that it is well-formed. Without a `root` entry every
+    // lookup starts from nothing — `getMenuAsTree("root")` returned undefined
+    // and the command-palette walk dereferenced it.
+    const def = new Deferred();
+    onRpc("/web/webclient/load_menus", () => def);
+
+    browser.localStorage.webclient_menus_version =
+        "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
+    browser.localStorage.webclient_menus = JSON.stringify({
+        1: { appID: 1, children: [], name: "App1", id: 1, actionID: 666 },
+    });
+
+    await makeMockEnv();
+    const menuService = getService("menu");
+
+    expect(menuService.getApps()).toEqual([]);
+    expect(menuService.getMenuAsTree("root")).not.toBe(undefined);
+    expect(() =>
+        computeAppsAndMenuItems(menuService.getMenuAsTree("root")),
+    ).not.toThrow();
+
+    def.resolve();
+});

@@ -70,9 +70,24 @@ class MenuTree {
         this.currentAppId = undefined;
     }
 
-    /** @param {Object} menusData */
+    /**
+     * Replace the tree.
+     *
+     * A payload is only usable if it carries the ``root`` entry every lookup
+     * starts from. ``menu_storage`` guarantees the cached copy PARSES, not that
+     * it is well-formed, so a rootless one is a normal input here — and it used
+     * to make ``getMenuAsTree("root")`` answer ``undefined``, which the
+     * command-palette walk then dereferenced. Falling back to {@link
+     * EMPTY_MENUS} degrades to "no apps" instead, which the next revalidation
+     * repairs.
+     *
+     * @param {Object} [menusData]
+     */
     setData(menusData) {
-        this.menusData = menusData || EMPTY_MENUS;
+        if (menusData && !menusData.root) {
+            console.warn("Discarding a menu payload with no root entry");
+        }
+        this.menusData = menusData?.root ? menusData : EMPTY_MENUS;
         /** @type {Map<number|string, Object> | null} lazy action -> app index */
         this._appByAction = null;
     }

@@ -129,7 +129,7 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
             breadcrumbCache.set(key, { display_name: displayName });
         }
         if (breadcrumbCache.has(key)) {
-            breadcrumbCache.get(key);
+            breadcrumbCache.touch(key);
             continue;
         }
         toFetch.push(actionInfo);
