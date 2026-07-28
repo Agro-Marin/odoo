@@ -14,6 +14,7 @@ import logging
 import operator
 import typing
 import warnings
+from collections.abc import Set as AbstractSet
 from datetime import UTC, date, datetime, time, timedelta
 
 from odoo.exceptions import MissingError
@@ -645,6 +646,16 @@ def _optimize_relational_falsy_id(condition, model):
 
     value = condition.value
     if isinstance(value, COLLECTION_TYPES):
+        # ``0``, ``0.0`` and ``False`` hash and compare equal, so a set-like
+        # comparand -- what ``_optimize_in_set`` leaves for in/not-in -- answers
+        # "does this hold a falsy id?" in O(1) instead of scanning every id.
+        # The one false positive (only ``False`` present, which is already the
+        # canonical form) falls through to the scan, which returns the condition
+        # unchanged.  Worth the branch because the scan is on the hot path of
+        # every ``modified()`` inverse resolution, where the comparand is the
+        # whole written recordset.
+        if isinstance(value, AbstractSet) and 0 not in value:
+            return condition
         if not any(is_falsy_id(v) for v in value):
             return condition
         return DomainCondition(

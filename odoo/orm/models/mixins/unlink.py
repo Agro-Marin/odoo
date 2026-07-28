@@ -22,6 +22,9 @@ from ._crud_common import (
 )
 from ._model_stubs import _ModelStubs
 
+_UNLINK_LOG_MAX_IDS = 1000
+"""Ids logged verbatim by :meth:`UnlinkMixin.unlink` before it summarizes."""
+
 
 class UnlinkMixin(_ModelStubs):
     """Record deletion: ``unlink`` and its batch helper."""
@@ -75,7 +78,8 @@ class UnlinkMixin(_ModelStubs):
             self._modified_before(self._fields)
         prof.mark("before")
 
-        for sub_ids in batched(self.ids, cr.BATCH_SIZE, strict=False):
+        deleted_ids = self.ids
+        for sub_ids in batched(deleted_ids, cr.BATCH_SIZE, strict=False):
             data, attachments = self._unlink_process_batch(
                 sub_ids,
                 Data,
@@ -93,12 +97,29 @@ class UnlinkMixin(_ModelStubs):
         if ir_attachment_unlink:
             ir_attachment_unlink.unlink()
 
-        _unlink.info(
-            "User #%s deleted %s records with IDs: %r",
-            self.env.uid,
-            self._name,
-            self.ids,
-        )
+        # The id list is the audit record, so it is logged in full up to a
+        # bound.  Beyond it the line stops being a log entry and becomes a
+        # transport problem: a million-row unlink renders a ~10 MB line, held
+        # in memory as one string, on every handler.  Past the bound the count
+        # and the range carry the same forensic weight at constant size.
+        if len(deleted_ids) <= _UNLINK_LOG_MAX_IDS:
+            _unlink.info(
+                "User #%s deleted %s records with IDs: %r",
+                self.env.uid,
+                self._name,
+                deleted_ids,
+            )
+        else:
+            _unlink.info(
+                "User #%s deleted %s records: %d IDs in [%s..%s], first %d: %r",
+                self.env.uid,
+                self._name,
+                len(deleted_ids),
+                min(deleted_ids),
+                max(deleted_ids),
+                _UNLINK_LOG_MAX_IDS,
+                deleted_ids[:_UNLINK_LOG_MAX_IDS],
+            )
 
         prof.stop()
         if prof.debug:

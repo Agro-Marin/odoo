@@ -1254,6 +1254,44 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             map(field_cache.setdefault, records._ids, values, strict=True), maxlen=0
         )
 
+    def _update_cache_items(
+        self, env: Environment, items: Iterable[tuple[IdType, typing.Any]]
+    ) -> None:
+        """Cache a *different* value per record, in one pass.
+
+        The many-values counterpart of :meth:`_update_cache`, which broadcasts a
+        single value: it resolves the field cache and runs the dirty guard once
+        for the whole batch instead of once per record.  Callers that own a
+        ``[(id, value), ...]`` result -- ``UPDATE ... RETURNING`` in the
+        ``parent_path`` maintenance, above all -- were looping
+        ``field._update_cache(self.browse(id_), value)``, which builds a
+        throwaway singleton, re-resolves the cache and re-checks the dirty set
+        for every row of the hierarchy.
+
+        Values are taken as already in cache format (as :meth:`_update_cache`
+        takes ``cache_value``); ``items`` is consumed once.
+
+        :raises ValueError: when any of the ids currently holds a pending write
+            for ``self`` -- same contract as :meth:`_update_cache` without
+            ``dirty=True``.
+        """
+        items = list(items)
+        if not items:
+            return
+
+        if self.is_column:
+            dirty_ids = env._core.get_dirty(self)
+            if dirty_ids:
+                overlap = sorted(dirty_ids.intersection(id_ for id_, _ in items))
+                if overlap:
+                    raise ValueError(
+                        f"Field._update_cache_items: refusing to overwrite the "
+                        f"dirty value of {self} on records {overlap} without "
+                        f"dirty=True; the pending write would be lost"
+                    )
+
+        self._get_cache(env).update(items)
+
     def _update_cache(
         self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
@@ -1457,7 +1495,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
             )
             value = self.convert_to_cache(parent, record, validate=False)
             self._update_cache(record, value)
-            if inv_recs := parent.filtered(lambda r: not r.id):
+            if inv_recs := parent._new_records:
                 for invf in env.registry.field_inverses[self]:
                     invf._update_inverse(inv_recs, record)
 
@@ -1551,7 +1589,7 @@ class Field[T](_FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin):
 
         if self.inherited:
             parents = new_records[self._related_names[0]]
-            parents.filtered(lambda r: not r.id)[self.name] = value
+            parents._new_records[self.name] = value
 
     def _assign_real(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any

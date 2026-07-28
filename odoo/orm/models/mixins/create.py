@@ -50,23 +50,35 @@ class CreateMixin(_ModelStubs):
         :return: dict mapping field names to their default value, when they have
             one. Fields not in ``fields`` are not considered.
         """
+        env = self.env
+        _fields = self._fields
         defaults = {}
         parent_fields = defaultdict(list)
-        ir_defaults = self.env["ir.default"]._get_model_defaults(self._name)
-
-        context_defaults = {
-            key[8:]: value
-            for key, value in self.env.context.items()
-            if key.startswith("default_")
-        }
+        ir_defaults = env["ir.default"]._get_model_defaults(self._name)
+        context_defaults = env._context_defaults
 
         for name in fields:
             if name in context_defaults:
                 defaults[name] = context_defaults[name]
                 continue
 
-            field = self._fields.get(name)
+            field = _fields.get(name)
             if not field:
+                continue
+
+            # A field with no ``default=``, no delegation and no ``ir.default``
+            # row falls through every branch below without producing anything,
+            # and that is the overwhelming majority: ``create()`` asks for every
+            # field absent from ``vals``, which on ``res.partner`` is 73 names
+            # of which 6 can yield a value.  One combined test rejects them
+            # instead of the four the branches below would each re-evaluate.
+            #
+            # Read live, not from a per-class memo: ``default`` is a plain
+            # public attribute and tests reassign it on a field object without
+            # any registry re-setup to invalidate a cache with
+            # (``test_properties_field_default`` does exactly that, and caught
+            # the memoized version of this).
+            if not (field.default or field.inherited or name in ir_defaults):
                 continue
 
             if not field.company_dependent and name in ir_defaults:
@@ -90,13 +102,13 @@ class CreateMixin(_ModelStubs):
                 parent_fields[field.model_name].append(field.name)
 
         for fname, value in defaults.items():
-            if fname in self._fields:
-                field = self._fields[fname]
+            field = _fields.get(fname)
+            if field is not None:
                 value = field.convert_to_cache(value, self, validate=False)
                 defaults[fname] = field.convert_to_write(value, self)
 
         for model, names in parent_fields.items():
-            defaults.update(self.env[model].default_get(names))
+            defaults.update(env[model].default_get(names))
 
         return defaults
 
@@ -140,18 +152,18 @@ class CreateMixin(_ModelStubs):
 
         if missing_defaults:
             defaults = self.default_get(missing_defaults)
+            _fields = self._fields
             for name, value in defaults.items():
-                if (
-                    self._fields[name].type == "many2many"
-                    and value
-                    and isinstance(value[0], int)
-                ):
-                    defaults[name] = [Command.set(value)]
-                elif (
-                    self._fields[name].type == "one2many"
-                    and value
-                    and isinstance(value[0], dict)
-                ):
+                # ``_fields[name]`` is resolved unconditionally, as before: a
+                # name ``default_get`` invented is a programming error and must
+                # still raise, whether or not its value happens to be falsy.
+                field_type = _fields[name].type
+                if not value:
+                    continue
+                if field_type == "many2many":
+                    if isinstance(value[0], int):
+                        defaults[name] = [Command.set(value)]
+                elif field_type == "one2many" and isinstance(value[0], dict):
                     defaults[name] = [Command.create(x) for x in value]
             defaults.update(values)
 
@@ -633,6 +645,10 @@ class CreateMixin(_ModelStubs):
         _field_inverses = self.pool.field_inverses
         _x2m_html_types = frozenset(("one2many", "many2many", "html"))
         _m2o_types = frozenset(("many2one", "many2one_reference"))
+
+        vals_list = []
+        set_vals_list = []
+        record_ids = []
         for data, record in zip(
             data_list, records.with_context(bin_size=False), strict=True
         ):
@@ -641,15 +657,32 @@ class CreateMixin(_ModelStubs):
                 {k: v for d in data["inherited"].values() for k, v in d.items()},
                 **data["stored"],
             )
-            set_vals = common_set_vals.union(vals)
+            vals_list.append((vals, record))
+            set_vals_list.append(common_set_vals.union(vals))
+            record_ids.append(record._ids[0])
 
-            record_id = record._ids[0]
-            for _field, cache in _stored_x2m_caches:
-                cache[record_id] = ()
-            for _field, fname, cache, default in _stored_scalar_caches:
-                if fname not in set_vals:
-                    cache[record_id] = default
+        # Seed the "no value" slot field by field rather than record by record.
+        # Every stored field the model has must end up seeded on every record
+        # that did not supply one, so a later read is a cache hit rather than a
+        # query -- that is inherently records x fields.  But a field absent from
+        # *every* row (52 of ``res.partner``'s 70 stored scalars in a bulk
+        # create, where all rows carry the same keys) needs no per-record test
+        # at all, and drops to a single C-level ``dict.update``.  Only a field
+        # some row does supply keeps the per-record scan.
+        supplied = set().union(*set_vals_list) if set_vals_list else set()
+        for _field, cache in _stored_x2m_caches:
+            cache.update(dict.fromkeys(record_ids, ()))
+        for _field, fname, cache, default in _stored_scalar_caches:
+            if fname not in supplied:
+                cache.update(dict.fromkeys(record_ids, default))
+            else:
+                cache.update(
+                    (rid, default)
+                    for rid, set_vals in zip(record_ids, set_vals_list, strict=True)
+                    if fname not in set_vals
+                )
 
+        for vals, record in vals_list:
             for fname, value in vals.items():
                 field = _fields[fname]
                 if field.type not in _x2m_html_types:
@@ -709,6 +742,4 @@ class CreateMixin(_ModelStubs):
             )
         )
 
-        field = self._fields["parent_path"]
-        for id_, path in updated:
-            field._update_cache(self.browse(id_), path)
+        self._fields["parent_path"]._update_cache_items(self.env, updated)
