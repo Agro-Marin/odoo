@@ -1,6 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
+import { queryFirst } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, onMounted, xml } from "@odoo/owl";
 import {
@@ -549,4 +550,45 @@ test("test display_exception client action", async () => {
     expect(".o_dialog").toHaveCount(1);
     expect("header .modal-title").toHaveText("Invalid Operation");
     expect.verifyErrors([/RPC_ERROR/]);
+});
+
+test("a notification link with an unsafe scheme is defused", async () => {
+    // `markup` escapes the interpolated url, which stops tag injection but does
+    // nothing about the SCHEME: `javascript:` survives escaping intact and fires
+    // on click. `params.links[].url` is not necessarily admin-authored — any
+    // model method can build a notification out of a record field a regular
+    // user filled in.
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        type: "ir.actions.client",
+        tag: "display_notification",
+        params: {
+            message: "click %s",
+            sticky: true,
+            links: [{ label: "here", url: "javascript:alert(1)" }],
+        },
+    });
+    await animationFrame();
+
+    // Nothing clickable is left, but the label still reads in the message.
+    expect(".o_notification_content a").toHaveCount(0);
+    expect(".o_notification_content").toHaveText("click here");
+});
+
+test("a notification link with a safe url is left alone", async () => {
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        type: "ir.actions.client",
+        tag: "display_notification",
+        params: {
+            message: "go %s",
+            sticky: true,
+            links: [{ label: "there", url: "/odoo/action-1" }],
+        },
+    });
+    await animationFrame();
+
+    expect(queryFirst(".o_notification_content a").getAttribute("href")).toBe(
+        "/odoo/action-1",
+    );
 });
