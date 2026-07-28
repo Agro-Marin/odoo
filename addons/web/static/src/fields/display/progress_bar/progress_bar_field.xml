@@ -31,6 +31,7 @@
                         type="text"
                         inputmode="decimal"
                         autocomplete="off"
+                        t-att-required="props.required"
                         t-on-focus="onInputFocus"
                         t-on-blur="onInputBlur"
                     />

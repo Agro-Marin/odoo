@@ -6,6 +6,7 @@
 import { ModelEvent, SearchModelEvent } from "@web/core/events";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
+import { applyFieldDirtyPayload } from "@web/fields/field_dirty_signal";
 
 import { makeEditHandlers } from "./list_keyboard_edit.js";
 
@@ -788,10 +789,16 @@ export function useListKeyboardNavigation(tableRef, options) {
 
     Object.assign(self, makeEditHandlers(self, tableRef, options));
 
+    // Aggregated over the set of fields reporting uncommitted input rather than
+    // taken from the last event: the signal is shared by every field of the
+    // record (see @web/fields/field_dirty_signal).
+    const dirtyOwners = new Set();
     useBus(
         getProps().list.model.bus,
         ModelEvent.FIELD_IS_DIRTY,
-        (ev) => (self.lastIsDirty = ev.detail),
+        (ev) =>
+            (self.lastIsDirty =
+                applyFieldDirtyPayload(dirtyOwners, ev.detail).size > 0),
     );
 
     const env = getEnv();

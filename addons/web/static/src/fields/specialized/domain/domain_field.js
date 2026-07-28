@@ -3,7 +3,7 @@
 
 /** @module @web/fields/specialized/domain/domain_field - Domain expression editor field with record count and selector UI */
 
-import { Component, onWillUnmount, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
@@ -16,6 +16,7 @@ import { domainContainsExpressions } from "@web/core/tree/domain_contains_expres
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -39,13 +40,6 @@ export class DomainField extends Component {
         countLimit: 10000,
         allowExpressions: false,
     };
-
-    /**
-     * Last FIELD_IS_DIRTY value this field put on the shared bus. Starts at
-     * ``false`` so a clean field never announces a transition it did not make.
-     * @type {boolean}
-     */
-    lastIsDirty = false;
 
     setup() {
         this.orm = useService("orm");
@@ -116,7 +110,8 @@ export class DomainField extends Component {
             flushDebugDomain,
         );
 
-        onWillUnmount(() => this._setIsDirty(false));
+        // Retraction on destroy is handled by the signal hook itself.
+        this.setFieldDirty = useFieldDirtySignal();
     }
 
     allowExpressions(props) {
@@ -309,21 +304,10 @@ export class DomainField extends Component {
     }
 
     /**
-     * FIELD_IS_DIRTY is a shared, last-writer-wins signal: whoever fires it
-     * last speaks for every field on the record. Emitting ``false``
-     * unconditionally therefore cancelled a SIBLING field's "the user is
-     * typing" mark — clearing the save indicator and the keyboard-navigation
-     * guard while that other input still held uncommitted text. Only report a
-     * transition this field actually caused (same rule as DateTimeField).
-     *
      * @param {boolean} isDirty
      */
     _setIsDirty(isDirty) {
-        if (isDirty === this.lastIsDirty) {
-            return;
-        }
-        this.lastIsDirty = isDirty;
-        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
+        this.setFieldDirty(isDirty);
     }
 
     update(domain, isDebugEdited = false) {

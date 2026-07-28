@@ -358,15 +358,31 @@ export const statusBarField = {
     displayName: _t("Status"),
     supportedOptions: [
         {
+            // A statusbar is NOT clickable unless the view opts in — that is
+            // the long-standing convention every arch in the codebase follows
+            // (`options="{'clickable': '1'}"`), and `extractProps` below
+            // implements it. The declared default said the opposite, and it is
+            // not inert documentation: Studio's property panel seeds a missing
+            // option's DISPLAYED value from `default`
+            // (web_studio/.../type_widget_properties.js `getPropertyFromOptions`),
+            // so it showed "Clickable: on" over a statusbar whose buttons
+            // render disabled. Corrected here rather than in `extractProps`,
+            // because flipping the runtime default would silently make every
+            // statusbar in every addon writable.
             label: _t("Clickable"),
             name: "clickable",
             type: "boolean",
-            default: true,
+            default: false,
         },
         {
             label: _t("Fold field"),
             name: "fold_field",
             type: "field",
+            // On the RELATION, not on this record: it is appended to the
+            // `searchRead` field list in `useSpecialData`, never read off
+            // `record.data`. Flagged so it is not mistaken for a same-record
+            // dependency (and so Studio offers the co-model's fields).
+            isRelationalField: true,
             availableTypes: ["boolean"],
             help: _t(
                 "Boolean field from the model used in the relation, which indicates whether the state is folded or not.",

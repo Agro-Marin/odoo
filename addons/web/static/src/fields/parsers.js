@@ -347,24 +347,42 @@ export function parseMonetary(value, { allowOperation = false } = {}) {
         return operation;
     }
     value = value.trim();
+    const startRegex = getMonetaryStartRegex(localization.decimalPoint);
 
-    // Recognise the negative notations before the lenient extraction below
-    // strips them as if they were currency decoration. Skipped for an
-    // ``=``-expression, whose own operators must reach parseFloat untouched.
-    let sign = 1;
-    if (!value.startsWith("=")) {
-        const parenthesised = value.match(PARENTHESISED_NEGATIVE_REGEX);
-        if (parenthesised) {
-            sign = -sign;
-            value = `${parenthesised[1]}${parenthesised[2]}${parenthesised[3]}`;
-        }
-        if (/\d/.test(value) && TRAILING_MINUS_REGEX.test(value)) {
-            sign = -sign;
-            value = value.replace(TRAILING_MINUS_REGEX, "");
-        }
+    // Decide ONCE, after dropping any leading decoration, whether the input is
+    // an ``=``-expression, and hand it to parseFloat whole if it is. Everything
+    // from the ``=`` on is expression syntax, not currency decoration, and both
+    // of the transformations below would corrupt it:
+    //
+    //  - the trailing ``\D*`` strip eats a closing parenthesis, so ``=(1+2)``
+    //    reached parseFloat as ``=(1+2`` and was rejected as invalid input
+    //    while ``=(1+2)*3`` (ending in a digit) parsed fine;
+    //  - PARENTHESISED_NEGATIVE_REGEX reads the expression's own parentheses as
+    //    the accounting negative notation, so a *decorated* expression like
+    //    ``$ =(1+2)`` came out as -3.
+    //
+    // The old guard tested ``value.startsWith("=")`` before the decoration was
+    // removed, so it covered the first case only for undecorated input and
+    // never covered the second at all.
+    const expressionMatch = value.match(startRegex);
+    const body = expressionMatch ? value.slice(expressionMatch.index) : value;
+    if (body.startsWith("=")) {
+        return parseFloat(body);
     }
 
-    const startRegex = getMonetaryStartRegex(localization.decimalPoint);
+    // Recognise the negative notations before the lenient extraction below
+    // strips them as if they were currency decoration.
+    let sign = 1;
+    const parenthesised = value.match(PARENTHESISED_NEGATIVE_REGEX);
+    if (parenthesised) {
+        sign = -sign;
+        value = `${parenthesised[1]}${parenthesised[2]}${parenthesised[3]}`;
+    }
+    if (/\d/.test(value) && TRAILING_MINUS_REGEX.test(value)) {
+        sign = -sign;
+        value = value.replace(TRAILING_MINUS_REGEX, "");
+    }
+
     const startMatch = value.match(startRegex);
     if (startMatch) {
         value = value.slice(startMatch.index);

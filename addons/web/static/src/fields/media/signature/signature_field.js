@@ -156,7 +156,14 @@ export class SignatureField extends Component {
 
 export const signatureField = {
     component: SignatureField,
-    fieldDependencies: [{ name: "write_date", type: "datetime" }],
+    // `full_name` names a same-record field read to pre-fill the signature
+    // dialog; it is not otherwise required to be in the arch.
+    fieldDependencies: ({ options }) => [
+        { name: "write_date", type: "datetime" },
+        ...(options.full_name
+            ? [{ name: options.full_name, optional: true, readonly: true }]
+            : []),
+    ],
     supportedTypes: ["binary"],
     supportedOptions: [
         {

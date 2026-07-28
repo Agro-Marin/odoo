@@ -60,6 +60,17 @@ export class ContactImageField extends ImageField {
 export const contactImageField = {
     ...imageField,
     component: ContactImageField,
+    // Unlike the plain `image` widget — which only feeds `preview_image` to
+    // `imageUrl()` as a field NAME for the server to resolve — this variant
+    // READS the preview off the record (`getUrl`), so the field has to be in
+    // the read spec. Spreads the inherited `write_date` dependency rather than
+    // replacing it: the array form above would otherwise be shadowed.
+    fieldDependencies: ({ options }) => [
+        { name: "write_date", type: "datetime" },
+        ...(options.preview_image
+            ? [{ name: options.preview_image, optional: true, readonly: true }]
+            : []),
+    ],
 };
 
 registerField("contact_image", contactImageField);

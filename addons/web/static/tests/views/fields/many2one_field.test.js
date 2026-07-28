@@ -3427,7 +3427,11 @@ test("search more in many2one: text in input", async () => {
         "onchange",
         "web_name_search",
         "web_name_search",
-        "name_search",
+        // "Search more" used to reach for `name_search` while the dropdown
+        // above used `web_name_search`; both now go through the component's
+        // single `nameSearch()`. The id filter it builds is unchanged — see the
+        // `expectedDomain` assertion above.
+        "web_name_search",
         "get_views",
         "has_group",
         "web_search_read",

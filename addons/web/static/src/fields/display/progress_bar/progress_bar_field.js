@@ -19,6 +19,7 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
  *  isEditable?: boolean;
  *  isCurrentValueEditable?: boolean;
  *  isMaxValueEditable?: boolean;
+ *  required?: boolean;
  *  title?: string;
  *  overflowClass?: string;
  * }} ProgressBarFieldProps
@@ -50,6 +51,13 @@ export class ProgressBarField extends Component {
         isEditable: { type: Boolean, optional: true },
         isCurrentValueEditable: { type: Boolean, optional: true },
         isMaxValueEditable: { type: Boolean, optional: true },
+        // The template has always rendered `t-att-required="props.required"` on
+        // the current-value input, but the prop was neither declared nor
+        // extracted, so it read `undefined` on every render and the attribute
+        // never appeared. Declared and extracted here rather than deleting the
+        // template attribute: `required="1"` on a progressbar is a legitimate
+        // modifier, and the two editable branches disagreed about honouring it.
+        required: { type: Boolean, optional: true },
         title: { type: String, optional: true },
         overflowClass: { type: String, optional: true },
     };
@@ -87,9 +95,9 @@ export class ProgressBarField extends Component {
             getValue: () => this.formatValue(this.maxValueFieldName, this.maxValue),
             parse: (v) => this.parseValue(this.maxValueFieldName, v),
             refName: "maxValue",
-            // Only bound when a field backs the max value; `canEditMaxValue`
-            // keeps the input out of the DOM otherwise, so this hook stays
-            // inert rather than falling back to the current-value field.
+            // `undefined` when the max is a literal bound rather than a field:
+            // `useInputField` then leaves this hook unbound instead of falling
+            // back to the progress field's own name.
             fieldName: this.maxValueFieldName,
             shouldSave: () => this.props.readonly,
         });
@@ -248,12 +256,35 @@ export const progressBarField = {
         },
     ],
     supportedTypes: ["integer", "float"],
-    extractProps: ({ attrs, options }) => ({
+    // `current_value` and `max_value` name fields of THIS record that the arch
+    // is not required to render. Nothing else puts an option-named field into
+    // the read spec, so a view naming one it does not also render read
+    // `undefined` and silently fell back to 0 / 100 — a bar stuck empty or
+    // scaled against the wrong maximum. `max_value` is polymorphic (a literal
+    // bound like 200 is not a field name), so only non-numeric values qualify.
+    // `optional` skips a name this model does not have rather than injecting it
+    // into the spec and failing the read server-side.
+    fieldDependencies: ({ options }) => {
+        const deps = [];
+        if (options.current_value) {
+            deps.push({ name: options.current_value, optional: true, readonly: true });
+        }
+        if (options.max_value && toFiniteNumber(options.max_value) === undefined) {
+            deps.push({
+                name: String(options.max_value),
+                optional: true,
+                readonly: true,
+            });
+        }
+        return deps;
+    },
+    extractProps: ({ attrs, options }, dynamicInfo) => ({
         maxValueField: options.max_value,
         currentValueField: options.current_value,
         isEditable: !options.readonly && options.editable,
         isCurrentValueEditable: options.editable && !options.edit_max_value,
         isMaxValueEditable: options.editable && options.edit_max_value,
+        required: dynamicInfo.required,
         title: attrs.title,
         overflowClass: options.overflow_class || "bg-secondary",
     }),

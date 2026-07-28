@@ -77,12 +77,36 @@ export class GaugeField extends Component {
         return this.formatValue(this.props.record.data[this.props.name]);
     }
 
-    /** Creates and renders the Chart.js doughnut gauge on the canvas element. */
-    renderChart() {
-        const gaugeValue = this.props.record.data[this.props.name];
-        const configuredMax = this.props.maxValueField
+    /**
+     * The gauge's upper bound: the `max_field` record value when the option
+     * names a field, the `max_value` literal otherwise.
+     *
+     * Coerced to a finite number because a field-backed bound is not
+     * guaranteed to be one. `max_field` names a field of the SAME record, and
+     * nothing adds it to the view's field spec on the widget's behalf — the
+     * `{type: "field"}` entry in `supportedOptions` is Studio metadata, not a
+     * dependency declaration. So a view that names a field it does not also
+     * render gets `undefined` here, `Math.max(v, undefined)` is `NaN`, and the
+     * dataset became `[value, NaN]`: a doughnut with no arc at all, and no
+     * error anywhere. `fieldDependencies` below now pulls the field in, and
+     * this guard keeps a non-numeric value (a `false` sentinel, a nulled
+     * related field) rendering as "no bound" rather than as nothing.
+     *
+     * @returns {number}
+     */
+    get configuredMaxValue() {
+        const raw = this.props.maxValueField
             ? this.props.record.data[this.props.maxValueField]
             : this.props.maxValue;
+        return typeof raw === "number" && Number.isFinite(raw) ? raw : 0;
+    }
+
+    /** Creates and renders the Chart.js doughnut gauge on the canvas element. */
+    renderChart() {
+        const rawValue = this.props.record.data[this.props.name];
+        const gaugeValue =
+            typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : 0;
+        const configuredMax = this.configuredMaxValue;
         let maxValue = Math.max(gaugeValue, configuredMax);
         let maxLabel = configuredMax;
         if (gaugeValue === 0 && maxValue === 0) {
@@ -158,6 +182,15 @@ export const gaugeField = {
             type: "number",
         },
     ],
+    supportedTypes: ["integer", "float"],
+    // `max_field` names a field of the same record that the arch is not
+    // required to render, so declare it: nothing else adds an option-named
+    // field to the view's spec (see `configuredMaxValue`). Both shipped
+    // callers already list it in their arch, where this is a no-op merge.
+    fieldDependencies: ({ options }) =>
+        options.max_field
+            ? [{ name: options.max_field, type: "float", readonly: true }]
+            : [],
     extractProps: ({ options }) => ({
         maxValueField: options.max_field,
         maxValue:

@@ -29,6 +29,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
+import { applyFieldDirtyPayload } from "@web/fields/field_dirty_signal";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class Partner extends models.Model {
@@ -221,9 +222,12 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
         expect(dirtyEvents.length > 0).toBe(true, {
             message: "typing must have emitted FIELD_IS_DIRTY events",
         });
-        expect(dirtyEvents.at(-1)).toBe(false, {
+        // Folded rather than read off the last payload: the signal is keyed by
+        // field, so "is anything still dirty" is a property of the whole event
+        // sequence, not of whichever field spoke last.
+        expect(dirtyEvents.reduce(applyFieldDirtyPayload, new Set()).size).toBe(0, {
             message:
-                "the parse-equal commit must re-emit FIELD_IS_DIRTY(false); otherwise the indicator stays stuck on unsaved",
+                "the parse-equal commit must leave no field reporting dirty; otherwise the indicator stays stuck on unsaved",
         });
         expect(".o_form_status_indicator_buttons").toHaveClass("invisible", {
             message:
@@ -283,9 +287,8 @@ describe("rejected update clears dirty-typing signal", () => {
         expect(dirtyEvents.length > 0).toBe(true, {
             message: "editing must have emitted FIELD_IS_DIRTY events",
         });
-        expect(dirtyEvents.at(-1)).toBe(false, {
-            message:
-                "the last FIELD_IS_DIRTY emitted after a rejected update must be false",
+        expect(dirtyEvents.reduce(applyFieldDirtyPayload, new Set()).size).toBe(0, {
+            message: "no field may still report dirty after a rejected update",
         });
     });
 });
