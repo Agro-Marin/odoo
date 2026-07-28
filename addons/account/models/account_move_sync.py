@@ -550,7 +550,24 @@ class AccountMove(models.Model):
                     "name": _("private part (taxes)"),
                     "balance": non_deductible_tax_values["tax_amount"],
                     "amount_currency": non_deductible_tax_values["tax_amount_currency"],
-                    "sequence": max(move.line_ids.mapped("sequence")) + 1,
+                    # Anchored on the non-deductible block it belongs to, not on
+                    # the whole entry: the maximum over every line lands after the
+                    # tax (10000) and payment-term (12000) lines whenever this
+                    # line is (re)created on an already-synced move.
+                    "sequence": max(
+                        move.line_ids.filtered(
+                            lambda line: (
+                                line.display_type
+                                in (
+                                    "product",
+                                    "non_deductible_product",
+                                    "non_deductible_product_total",
+                                )
+                            )
+                        ).mapped("sequence"),
+                        default=0,
+                    )
+                    + 1,
                 }
                 if non_deductible_tax_line:
                     tax_results["tax_lines_to_update"].append(
@@ -683,9 +700,17 @@ class AccountMove(models.Model):
             sign = move.direction_sign
             rate = move.invoice_currency_rate
 
-            for line in move.line_ids.filtered(
+            product_lines = move.line_ids.filtered(
                 lambda line: line.display_type == "product"
-            ):
+            )
+            # Anchor the block on the product lines only. Taking the maximum over
+            # every line put the total after the tax and payment-term lines
+            # (sequence 10000/12000) on any resync, so the same document ordered
+            # its "private part" differently depending on whether the lines were
+            # built by create() or by a later write().
+            total_sequence = max(product_lines.mapped("sequence")) + 1
+
+            for line in product_lines:
                 if float_compare(line.deductible_amount, 100, precision_digits=2) == 0:
                     continue
 
@@ -713,10 +738,8 @@ class AccountMove(models.Model):
                 to_create.append(
                     {
                         "move_id": move.id,
-                        # Set partner explicitly: `_compute_partner_id`
-                        # deliberately does NOT depend on `move_id`, so when a
-                        # line is recycled (written) across moves below its
-                        # partner would otherwise stay that of the previous move.
+                        # `_compute_partner_id` deliberately does NOT depend on
+                        # `move_id`, so the partner has to be pinned explicitly.
                         "partner_id": move.commercial_partner_id.id,
                         "account_id": line.account_id.id,
                         "display_type": "non_deductible_product",
@@ -737,8 +760,7 @@ class AccountMove(models.Model):
             to_create.append(
                 {
                     "move_id": move.id,
-                    # See the note above: recycling can move this line to another
-                    # move, and `partner_id` won't recompute, so pin it here.
+                    # See the note above: `partner_id` does not follow `move_id`.
                     "partner_id": move.commercial_partner_id.id,
                     "account_id": (
                         move.journal_id.non_deductible_account_id
@@ -749,20 +771,23 @@ class AccountMove(models.Model):
                     "balance": non_deductible_balance_total,
                     "amount_currency": non_deductible_amount_currency_total,
                     "tax_ids": [Command.clear()],
-                    "sequence": max(move.line_ids.mapped("sequence")) + 1,
+                    "sequence": total_sequence,
                 }
             )
 
-        while to_create and to_delete:
-            line_data = to_create.pop()
-            line_id = to_delete.pop()
-            self.env["account.move.line"].browse(line_id).write(line_data)
-        if to_create:
-            self.env["account.move.line"].create(to_create)
+        # Never rewrite a deleted line into a created one. Both lists span every
+        # move of the batch, so pairing them positionally moved live lines to
+        # another journal entry, carrying over every field absent from the values
+        # above -- measured: analytic_distribution, date_maturity, discount,
+        # price_unit. A leaked analytic_distribution is the damaging one: posting
+        # then books analytic entries derived from the other document.
+        # Cf _sync_dynamic_line, which dropped the same recycling.
         if to_delete:
             self.env["account.move.line"].browse(to_delete).with_context(
                 dynamic_unlink=True
             ).unlink()
+        if to_create:
+            self.env["account.move.line"].create(to_create)
 
     @contextmanager
     def _sync_dynamic_line(
@@ -883,7 +908,7 @@ class AccountMove(models.Model):
                 for move in container["records"].filtered(lambda m: m.is_invoice(True))
             }
 
-        def changed(fname):
+        def changed(move, fname):
             return move not in before or before[move][fname] != after[move][fname]
 
         before = existing()
@@ -892,7 +917,7 @@ class AccountMove(models.Model):
 
         partner_id_to_update = defaultdict(set)
         for move in after:
-            if changed("commercial_partner_id"):
+            if changed(move, "commercial_partner_id"):
                 partner_id_to_update[after[move]["commercial_partner_id"]].update(
                     move.line_ids.ids
                 )

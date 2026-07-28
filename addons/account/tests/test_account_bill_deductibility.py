@@ -64,6 +64,8 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
             {},
         )
 
+        # Rewriting the bill must not reorder it: the non-deductible block keeps
+        # the position it had on creation, before the tax and payment-term lines.
         bill.invoice_line_ids[0].quantity = 2
         self.assertInvoiceValues(
             bill,
@@ -81,6 +83,12 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "tax_ids": [self.tax_purchase_a.id],
                 },
                 {
+                    "display_type": "non_deductible_product_total",
+                    "name": "private part",
+                    "balance": 50.0,
+                    "tax_ids": [],
+                },
+                {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 7.5,
@@ -91,12 +99,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -230.0,
-                    "tax_ids": [],
-                },
-                {
-                    "display_type": "non_deductible_product_total",
-                    "name": "private part",
-                    "balance": 50.0,
                     "tax_ids": [],
                 },
             ],
@@ -120,6 +122,12 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "tax_ids": [self.tax_purchase_a.id],
                 },
                 {
+                    "display_type": "non_deductible_product_total",
+                    "name": "private part",
+                    "balance": 25.0,
+                    "tax_ids": [],
+                },
+                {
                     "display_type": "non_deductible_tax",
                     "name": "private part (taxes)",
                     "balance": 3.75,
@@ -130,12 +138,6 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "display_type": "payment_term",
                     "name": False,
                     "balance": -115.0,
-                    "tax_ids": [],
-                },
-                {
-                    "display_type": "non_deductible_product_total",
-                    "name": "private part",
-                    "balance": 25.0,
                     "tax_ids": [],
                 },
             ],
@@ -174,19 +176,9 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "balance": 100.0,
                     "tax_ids": [self.tax_purchase_a.id],
                 },
-                {
-                    "display_type": "non_deductible_product",
-                    "name": "Partial item",
-                    "balance": -25.0,
-                    "tax_ids": [self.tax_purchase_a.id],
-                },
-                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
-                {
-                    "display_type": "payment_term",
-                    "name": False,
-                    "balance": -115.0,
-                    "tax_ids": [],
-                },
+                # Posting renames the two summary lines after the entry, which
+                # is what puts the total ahead of the per-line one here: they
+                # share a sequence and assertInvoiceValues breaks ties on name.
                 {
                     "display_type": "non_deductible_product_total",
                     "name": bill.name + " - private part",
@@ -194,9 +186,22 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
                     "tax_ids": [],
                 },
                 {
+                    "display_type": "non_deductible_product",
+                    "name": "Partial item",
+                    "balance": -25.0,
+                    "tax_ids": [self.tax_purchase_a.id],
+                },
+                {
                     "display_type": "non_deductible_tax",
                     "name": bill.name + " - private part (taxes)",
                     "balance": 3.75,
+                    "tax_ids": [],
+                },
+                {"display_type": "tax", "name": "15%", "balance": 11.25, "tax_ids": []},
+                {
+                    "display_type": "payment_term",
+                    "name": False,
+                    "balance": -115.0,
                     "tax_ids": [],
                 },
             ],
@@ -985,3 +990,86 @@ class TestAccountBillPartialDeductibility(AccountTestInvoicingCommon):
         self.assertRecordValues(
             non_deductible_total, [{"balance": 25.0, "amount_currency": 50.0}]
         )
+
+    def _partial_bill(self, deductible_amounts):
+        return self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": fields.Date.today(),
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": f"Item {index}",
+                            "price_unit": 100.0 * (index + 1),
+                            "quantity": 1,
+                            "deductible_amount": deductible,
+                            "tax_ids": [Command.set(self.tax_purchase_a.ids)],
+                        }
+                    )
+                    for index, deductible in enumerate(deductible_amounts)
+                ],
+            }
+        )
+
+    def _non_deductible_lines(self, move):
+        return move.line_ids.filtered(
+            lambda line: (
+                line.display_type
+                in ("non_deductible_product", "non_deductible_product_total")
+            )
+        )
+
+    def test_non_deductible_lines_never_migrate_between_moves(self):
+        """A batched write must not move lines from one bill onto another.
+
+        The two bills need a different number of non-deductible lines, which is
+        what used to make the delete/create lists line up across moves.
+        """
+        bill_a = self._partial_bill([80.0])
+        bill_b = self._partial_bill([80.0, 60.0, 40.0])
+        lines_of_b = set(self._non_deductible_lines(bill_b).ids)
+
+        (bill_a | bill_b).write(
+            {
+                "invoice_line_ids": [
+                    Command.update(
+                        bill_a.invoice_line_ids[0].id, {"deductible_amount": 70.0}
+                    ),
+                    *[
+                        Command.update(line.id, {"deductible_amount": 100.0})
+                        for line in bill_b.invoice_line_ids
+                    ],
+                ]
+            }
+        )
+
+        self.assertFalse(
+            set(self._non_deductible_lines(bill_a).ids) & lines_of_b,
+            "a non-deductible line of the second bill was rewritten onto the first one",
+        )
+        self.assertFalse(self._non_deductible_lines(bill_b))
+        for bill in (bill_a, bill_b):
+            self.assertEqual(
+                bill.currency_id.round(sum(bill.line_ids.mapped("balance"))),
+                0.0,
+                "the bill must stay balanced",
+            )
+
+    def test_non_deductible_block_keeps_its_position_after_a_write(self):
+        """The 'private part' lines must not drift below the payment-term line."""
+        bill = self._partial_bill([75.0])
+        payment_term = bill.line_ids.filtered(
+            lambda line: line.display_type == "payment_term"
+        )
+
+        bill.invoice_line_ids[0].quantity = 3
+
+        for line in self._non_deductible_lines(bill) | bill.line_ids.filtered(
+            lambda line: line.display_type == "non_deductible_tax"
+        ):
+            self.assertLess(
+                line.sequence,
+                payment_term.sequence,
+                f"{line.display_type} sorted after the payment-term line",
+            )

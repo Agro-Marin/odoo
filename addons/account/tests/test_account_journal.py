@@ -5,6 +5,7 @@ from odoo import Command, fields, http
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, HttpCase, new_test_user, tagged
 from odoo.tools import hash_sign
+from odoo.tools.misc import mute_logger
 
 from odoo.addons.account.models.account_payment_method import AccountPaymentMethod
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -250,6 +251,33 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         res.raise_for_status()
 
         self.assertFalse(journal.incoming_einvoice_notification_email)
+
+    def test_journal_notifications_unsubscribe_without_token_nor_access(self):
+        """A tokenless link from a visitor with no access is refused, on our page.
+
+        The route must reach its own access check and render the refusal, rather
+        than blow up reading the journal first: the public user cannot read
+        account.journal, so touching a field before checking access raises an
+        AccessError and answers with the generic error page instead.
+        """
+        journal = self.company_data["default_journal_purchase"]
+        email = "test@example.com"
+        journal.incoming_einvoice_notification_email = email
+
+        self.authenticate(None, None)
+        with mute_logger("odoo.http"):
+            res = self.url_open(
+                f"/my/journal/{journal.id}/unsubscribe",
+                data={"csrf_token": http.Request.csrf_token(self)},
+                method="POST",
+            )
+        self.assertEqual(res.status_code, 403)
+        self.assertIn(
+            "Invoice Notifications",
+            res.text,
+            "the route should answer with its own page, not an AccessError",
+        )
+        self.assertEqual(journal.incoming_einvoice_notification_email, email)
 
     def test_journal_notifications_unsubscribe_errors(self):
         journal = self.company_data["default_journal_purchase"]

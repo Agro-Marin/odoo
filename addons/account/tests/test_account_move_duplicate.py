@@ -151,3 +151,53 @@ class TestAccountMoveDuplicate(AccountTestInvoicingCommon):
         bill2.update({"ref": "bill2 ref"})
         self.assertIn(bill1, bill2.duplicated_ref_ids)
         self.assertIn(bill2, bill1.duplicated_ref_ids)
+
+    def test_duplicate_reference_hides_unreadable_moves(self):
+        """A duplicate the user cannot read must not leak into duplicated_ref_ids.
+
+        The candidates come from raw SQL, which record rules do not reach, so an
+        unreadable duplicate would otherwise make reading a perfectly accessible
+        invoice raise an AccessError.
+        """
+        invoice_1 = self.init_invoice(
+            move_type="out_invoice", products=self.product_a, invoice_date="2023-01-01"
+        )
+        invoice_2 = invoice_1.copy(default={"invoice_date": invoice_1.invoice_date})
+        (invoice_1 + invoice_2).ref = False
+        self.assertRecordValues(invoice_2, [{"duplicated_ref_ids": invoice_1.ids}])
+
+        # A global rule: group rules are OR'ed, and `account_move_see_all` already
+        # grants [(1, '=', 1)] to the billing group, so a group rule would be a no-op.
+        self.env["ir.rule"].create(
+            {
+                "name": "hide invoice_1",
+                "model_id": self.env["ir.model"]._get_id("account.move"),
+                "domain_force": f"[('id', '!=', {invoice_1.id})]",
+                "groups": [],
+                "perm_read": True,
+                "perm_write": False,
+                "perm_create": False,
+                "perm_unlink": False,
+            }
+        )
+
+        billing_user = self.env["res.users"].create(
+            {
+                "name": "Billing only",
+                "login": "billing_only_dup",
+                "company_id": self.env.company.id,
+                "company_ids": [(6, 0, self.env.company.ids)],
+                "group_ids": [
+                    (6, 0, self.env.ref("account.group_account_invoice").ids)
+                ],
+            }
+        )
+
+        restricted = invoice_2.with_user(billing_user)
+        restricted.invalidate_recordset(["duplicated_ref_ids"])
+        self.assertFalse(
+            restricted.duplicated_ref_ids,
+            "an unreadable duplicate must be filtered out",
+        )
+        # Reading the accessible invoice must not blow up on the hidden duplicate.
+        self.assertTrue(restricted.display_name)

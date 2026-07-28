@@ -2414,7 +2414,7 @@ class AccountMoveLine(models.Model):
                 .filtered(lambda l: l.move_id.is_invoice(True))
             }
 
-        def changed(fname):
+        def changed(line, fname):
             return line not in before or before[line][fname] != after[line][fname]
 
         before = existing()
@@ -2422,10 +2422,10 @@ class AccountMoveLine(models.Model):
         after = existing()
         for line in after:
             if (
-                (changed("balance") or changed("move_type"))
+                (changed(line, "balance") or changed(line, "move_type"))
                 and not self.env.is_protected(self._fields["amount_currency"], line)
                 and (
-                    not changed("amount_currency")
+                    not changed(line, "amount_currency")
                     or (line not in before and not line.amount_currency)
                 )
                 and line.currency_id == line.company_id.currency_id
@@ -2433,13 +2433,14 @@ class AccountMoveLine(models.Model):
                 line.amount_currency = line.balance
             if (
                 (
-                    changed("amount_currency")
-                    or changed("currency_rate")
-                    or changed("move_type")
+                    changed(line, "amount_currency")
+                    or changed(line, "currency_rate")
+                    or changed(line, "move_type")
                 )
                 and not self.env.is_protected(self._fields["balance"], line)
                 and (
-                    not changed("balance") or (line not in before and not line.balance)
+                    not changed(line, "balance")
+                    or (line not in before and not line.balance)
                 )
             ):
                 balance = line.company_id.currency_id.round(

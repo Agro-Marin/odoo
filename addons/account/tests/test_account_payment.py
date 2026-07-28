@@ -543,6 +543,63 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             ],
         )
 
+    def test_invoice_payment_state_follows_counterpart_payment_matching(self):
+        """An invoice must leave the in-payment state when its payment is matched.
+
+        End-to-end cover for the chain `_compute_payment_state` relies on: it
+        reads `account_payment.is_matched` in SQL, and the invoice has to pick the
+        change up on its own once the payment is reconciled against its bank
+        statement line -- no manual invalidation anywhere.
+        """
+
+        def in_payment(self):
+            return "in_payment"
+
+        with patch.object(
+            self.env.registry["account.move"],
+            "_get_invoice_in_payment_state",
+            in_payment,
+        ):
+            invoice = self.env["account.move"].create(
+                {
+                    "move_type": "out_invoice",
+                    "partner_id": self.partner_a.id,
+                    "invoice_line_ids": [
+                        Command.create({"product_id": self.product_a.id})
+                    ],
+                }
+            )
+            invoice.action_post()
+
+            payment = (
+                self.env["account.payment.register"]
+                .with_context(active_model="account.move", active_ids=invoice.ids)
+                .create({})
+                ._create_payments()
+            )
+            self.assertFalse(payment.is_matched)
+            self.assertEqual(invoice.payment_state, "in_payment")
+
+            liquidity_lines, _counterpart, _writeoff = payment._seek_for_lines()
+            statement_line = self.env["account.bank.statement.line"].create(
+                {
+                    "payment_ref": "matching the payment",
+                    "journal_id": self.company_data["default_journal_bank"].id,
+                    "partner_id": self.partner_a.id,
+                    "amount": payment.amount,
+                }
+            )
+            _st_liquidity, st_suspense_lines, _st_other = statement_line.with_context(
+                skip_account_move_synchronization=True
+            )._seek_for_lines()
+            st_suspense_lines.account_id = liquidity_lines.account_id
+            (st_suspense_lines + liquidity_lines).reconcile()
+
+            self.assertTrue(payment.is_matched)
+            # No manual invalidation here on purpose: the dependency has to carry
+            # the change from the payment all the way to the invoice.
+            self.assertEqual(invoice.payment_state, "paid")
+
     def test_reconciliation_payment_states_reverse_payment_move(self):
         invoice = self.env["account.move"].create(
             {

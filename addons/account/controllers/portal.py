@@ -174,15 +174,14 @@ class PortalAccount(CustomerPortal):
         domain = Domain(domain or Domain.TRUE) & self._get_invoices_domain()
 
         searchbar_sortings = self._get_account_searchbar_sortings()
-        # default sort by order
-        if not sortby:
-            sortby = "date"
+        # Clamp to the declared vocabulary: `sortby` / `filterby` come straight
+        # off the query string, and indexing them unchecked answered
+        # `?sortby=anything-else` with a KeyError (HTTP 500).
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
 
         searchbar_filters = self._get_account_searchbar_filters()
-        # default filter by value
-        if not filterby:
-            filterby = "all"
+        filterby = self._resolve_searchbar_option(searchbar_filters, filterby, "all")
         domain += searchbar_filters[filterby]["domain"]
 
         if date_begin and date_end:
@@ -306,6 +305,9 @@ class PortalAccount(CustomerPortal):
                 "account.portal_my_journal_mail_notifications", ctx, status=status
             )
 
+        # The two entry points authorize differently, so each one carries its own
+        # check. Sharing a single `has_access` between them made it dead code on
+        # the token branch, where the recordset is already sudo.
         if access_token := kw.get("token"):
             try:
                 token_data = verify_hash_signed(
@@ -319,17 +321,23 @@ class PortalAccount(CustomerPortal):
                 return _render({"error": _("Invalid token")}, 403)
             if not token_data or token_data.get("journal_id") != journal_id:
                 return _render({"error": _("Invalid token")}, 403)
+            # The signed token is the authorization: the subscriber proved they
+            # hold a link we issued for this journal and address.
             journal = request.env["account.journal"].sudo().browse(journal_id)
-        else:
-            # Legacy link: an authenticated user unsubscribing without a token
-            # needs write access rights on the journal.
-            journal = request.env["account.journal"].browse(journal_id)
-
-        if access_token:
+            if not journal.exists():
+                return _render({"error": _("Already unsubscribed")}, 404)
             email_to_unsubscribe = email_normalize(
                 token_data.get("email_to_unsubscribe"), strict=False
             )
         else:
+            # Legacy link: authorization is the user's own write access. Test it
+            # before touching any field, or a visitor without access gets an
+            # AccessError traceback instead of the 403 below.
+            journal = request.env["account.journal"].browse(journal_id)
+            if not journal.exists():
+                return _render({"error": _("Already unsubscribed")}, 404)
+            if not journal.has_access("write"):
+                return _render({"error": _("Invalid token")}, 403)
             emails = email_normalize_all(
                 journal.incoming_einvoice_notification_email or ""
             )
@@ -337,11 +345,8 @@ class PortalAccount(CustomerPortal):
                 return _render({"error": _("Deprecated link")}, 410)
             email_to_unsubscribe = emails[0]
 
-        if not journal.exists() or not email_to_unsubscribe:
+        if not email_to_unsubscribe:
             return _render({"error": _("Already unsubscribed")}, 404)
-
-        if not journal.has_access("write"):
-            return _render({"error": _("Invalid token")}, 403)
 
         journal = journal.with_company(journal.sudo().company_id.id)
 
