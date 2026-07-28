@@ -3,21 +3,20 @@
 
 /** @module @web/ui/block/block_ui - Full-screen overlay component that blocks UI during long-running operations */
 
-import { Component, EventBus, onWillDestroy, useState } from "@odoo/owl";
+import { Component, onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 /**
  * Full-screen overlay that blocks UI interaction during long-running operations.
  *
- * Listens to BLOCK/UNBLOCK events on its bus prop. Displays progressively
- * more encouraging messages as the user waits.
+ * Listens to BLOCK/UNBLOCK on the bus of the ui service in ITS OWN env, so
+ * several envs on one page each block their own container. Displays
+ * progressively more encouraging messages as the user waits.
  */
 export class BlockUI extends Component {
-    static props = {
-        bus: EventBus,
-    };
+    static props = {};
 
     static template = "web.BlockUI";
 
@@ -59,8 +58,9 @@ export class BlockUI extends Component {
             line2: "",
         });
 
-        useBus(this.props.bus, AppEvent.BLOCK, this.block);
-        useBus(this.props.bus, AppEvent.UNBLOCK, this.unblock);
+        const { bus } = useService("ui");
+        useBus(bus, AppEvent.BLOCK, this.block);
+        useBus(bus, AppEvent.UNBLOCK, this.unblock);
 
         onWillDestroy(() => {
             browser.clearTimeout(this.showBlockedUITimer);

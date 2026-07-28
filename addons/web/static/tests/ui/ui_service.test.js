@@ -334,6 +334,34 @@ test("the service releases its breakpoint listeners on destroy", async () => {
     expect(attached).toBe(0);
 });
 
+// MULTI-ENV-BLOCK
+// `main_components` is ONE registry shared by every env, and `add` is
+// first-registration-wins. Publishing the bus as a prop there pinned every
+// container on the page to whichever env started first: the second env's
+// `block()` was a no-op, and the first env's `block()` drew its spinner across
+// a container it does not own. `BlockUI` must resolve the bus from its own env.
+test("each env blocks its own container, not its neighbour's", async () => {
+    const envA = await makeMockEnv();
+    const envB = await makeMockEnv(undefined, { makeNew: true });
+    expect(envA.services.ui).not.toBe(envB.services.ui);
+
+    await mountWithCleanup(MainComponentsContainer, { env: envB });
+    expect(".o_blockUI").toHaveCount(0);
+
+    envB.services.ui.block();
+    await animationFrame();
+    expect(".o_blockUI").toHaveCount(1);
+    envB.services.ui.unblock();
+    await animationFrame();
+    expect(".o_blockUI").toHaveCount(0);
+
+    envA.services.ui.block();
+    await animationFrame();
+    expect(".o_blockUI").toHaveCount(0);
+    envA.services.ui.unblock();
+    await animationFrame();
+});
+
 // BLOCKUI-A11Y-BLOCK
 test("the blocking overlay announces its message politely", async () => {
     await mountWithCleanup(MainComponentsContainer);
