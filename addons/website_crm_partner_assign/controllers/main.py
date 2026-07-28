@@ -61,9 +61,10 @@ class WebsiteAccount(CustomerPortal):
             'contact_name': {'label': _('Contact Name'), 'order': 'contact_name'},
         }
 
-        # default sort by value
-        if not sortby:
-            sortby = 'date'
+        # Clamp to the declared vocabulary: `sortby` comes straight off the query
+        # string, and indexing it unchecked answered `?sortby=anything-else` with
+        # a KeyError (HTTP 500).
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, 'date')
         order = searchbar_sortings[sortby]['order']
 
         if date_begin and date_end:
@@ -121,13 +122,10 @@ class WebsiteAccount(CustomerPortal):
             'stage': {'label': _('Stage'), 'order': 'stage_id'},
         }
 
-        # default sort by value
-        if not sortby:
-            sortby = 'date'
+        # Clamp both to their declared vocabularies; see portal_my_leads above.
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, 'date')
         order = searchbar_sortings[sortby]['order']
-        # default filter by value
-        if not filterby:
-            filterby = 'all'
+        filterby = self._resolve_searchbar_option(searchbar_filters, filterby, 'all')
         domain += searchbar_filters[filterby]['domain']
         if filterby == 'lost':
             CrmLead = CrmLead.with_context(active_test=False)

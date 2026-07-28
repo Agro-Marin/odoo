@@ -34,12 +34,16 @@ class CustomerPortal(portal.CustomerPortal):
             'done': {'label': _('Done'), 'domain': [('state', '=', 'done')]},
             'ready': {'label': _('Ready'), 'domain': [('state', '=', 'assigned')]},
         }
+        # The route signature's defaults only cover *absent* params; a supplied
+        # unknown key reached these indexings as a KeyError (HTTP 500).
+        filterby = self._resolve_searchbar_option(searchbar_filters, filterby, 'all')
         domain += searchbar_filters[filterby]['domain']
 
         searchbar_sortings = {
             'date': {'label': _('Newest'), 'order': 'create_date desc, id desc'},
             'name': {'label': _('Name'), 'order': 'name asc, id asc'},
         }
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, 'date')
         order = searchbar_sortings[sortby]['order']
         # count for pager
         count = StockPicking.search_count(domain)

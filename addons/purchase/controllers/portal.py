@@ -162,8 +162,9 @@ class CustomerPortal(portal.CustomerPortal):
             ]
 
         searchbar_sortings = self._purchase_get_order_searchbar_sortings()
-        if not sortby:
-            sortby = "date"
+        # Clamp to the declared vocabulary; an unknown `?sortby=` used to be a
+        # KeyError (HTTP 500). `filterby` below is already membership-tested.
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")
         order = searchbar_sortings[sortby]["order"]
 
         searchbar_filters = self._purchase_get_order_searchbar_filters(page_key)
