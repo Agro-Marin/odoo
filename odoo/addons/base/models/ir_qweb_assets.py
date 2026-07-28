@@ -1397,10 +1397,11 @@ class IrQweb(models.AbstractModel):
         directly, so its own bare imports must resolve through the import map
         too — transitively. The one-level bundle scan cannot see them when the
         imported chain lives outside the bundle (``web.report_assets_common``
-        ships only ``@web/libs/bootstrap``, whose dependency chain reaches
+        ships only ``@web/libs/bootstrap``, whose dependency chain once reached
         ``@web/core/browser/browser`` two hops out — unmapped, every
         ``/report/html`` page on the fallback path failed pre-boot with
-        "Failed to resolve module specifier"). The closure walk
+        "Failed to resolve module specifier"; that chain is gone, the walk
+        guards against the next one). The closure walk
         (``discover_transitive_import_specifiers``) maps the rest of the
         reachable graph the same way; specifiers already in *import_map* are
         never overridden or re-walked.
