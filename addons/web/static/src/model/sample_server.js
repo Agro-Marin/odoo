@@ -724,9 +724,15 @@ export class SampleServer {
                         modelFields[aggFieldName]?.type,
                     )
                 ) {
-                    g[aggregateSpec] = recordsInGroup.reduce(
-                        (acc, r) => acc + r[aggFieldName],
-                        0,
+                    // Rounded like ``_aggregateFields`` does. These two are the
+                    // only paths that produce a sample group's aggregates —
+                    // which one runs depends solely on whether the real server
+                    // returned groups to hang the records on — so they have to
+                    // agree. Summing 2-decimal sample floats with a bare
+                    // ``reduce`` yielded binary-float noise (57.97000000000001)
+                    // here and 57.97 there, for the same records.
+                    g[aggregateSpec] = sanitizeNumber(
+                        recordsInGroup.reduce((acc, r) => acc + r[aggFieldName], 0),
                     );
                 }
             }

@@ -6,11 +6,20 @@
 import { x2ManyCommands } from "./commands.js";
 
 /**
- * Pure command building and deduplication logic for x2many fields.
+ * Command building and deduplication logic for x2many fields.
  *
  * Extracted from StaticList._getCommands and the deduplication branches
- * of StaticList._applyCommands. These functions have no OWL dependency
- * and can be tested with plain assert.
+ * of StaticList._applyCommands. No OWL dependency, so testable with plain
+ * assert.
+ *
+ * NOT side-effect free, despite reading that way. {@link serializeCommands} is
+ * the only pure function here. The three predicates —
+ * {@link shouldEmitDelete}, {@link shouldEmitUnlink} and
+ * {@link absorbUnlinkIntoSet} — answer a question AND rewrite the command log
+ * they were handed; that pruning is the point, not a side effect, since the
+ * caller's next act is to append the command they just authorised. A reader who
+ * takes the boolean and skips the mutation gets a save payload that still
+ * carries the commands these were supposed to cancel.
  *
  * @see static_list.js for the imperative wrapper that calls these
  */
@@ -97,8 +106,12 @@ export function serializeCommands(commands, params) {
  * If the record was CREATEd in this session, DELETE cancels the CREATE
  * (net effect: nothing happened). Otherwise, a DELETE command is emitted.
  *
+ * MUTATES ``ownCommands``: empties it either way. The record is going away
+ * entirely, so anything staged against it is moot — which is precisely what
+ * makes DELETE differ from UNLINK below.
+ *
  * @param {Array<{command: number[], index: number}>} ownCommands
- *     Existing commands for this record id.
+ *     Existing commands for this record id. Emptied in place.
  * @returns {boolean} true if a DELETE command should be emitted
  */
 export function shouldEmitDelete(ownCommands) {
@@ -114,8 +127,16 @@ export function shouldEmitDelete(ownCommands) {
  * If the record was LINKed in this session, UNLINK cancels the LINK
  * (net effect: nothing happened). Otherwise, an UNLINK command is emitted.
  *
+ * MUTATES ``ownCommands``: drops the cancelled LINK, and empties the log once
+ * no LINK is left. Deliberately NOT symmetric with {@link shouldEmitDelete}
+ * when it returns true — a staged UPDATE SURVIVES an emitted UNLINK, because
+ * unlinking detaches a record that goes on existing, so an edit the user made
+ * to it is a separate intent from the detachment. Pinned as a control by
+ * audit_challenge_command_builder.test.js ("UNLINK without a LINK still emits
+ * and keeps the UPDATE").
+ *
  * @param {Array<{command: number[], index: number}>} ownCommands
- *     Existing commands for this record id.
+ *     Existing commands for this record id. Pruned in place.
  * @returns {boolean} true if an UNLINK command should be emitted
  */
 export function shouldEmitUnlink(ownCommands) {
@@ -141,7 +162,12 @@ export function shouldEmitUnlink(ownCommands) {
  * unlinking a record that's in the SET list just removes it from that list
  * rather than emitting a separate UNLINK.
  *
- * @param {Array<[number, any, any?]>} allCommands - the full command list
+ * MUTATES ``allCommands`` when it absorbs: rewrites the SET's id list and
+ * splices out that id's staged UPDATEs, so the save neither re-adds the record
+ * nor writes into one the SET no longer contains.
+ *
+ * @param {Array<[number, any, any?]>} allCommands - the full command list,
+ *     rewritten in place when the return value is true
  * @param {string|number} recordId - the id to unlink
  * @returns {boolean} true if the UNLINK was absorbed by the SET command
  */

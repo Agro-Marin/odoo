@@ -208,6 +208,24 @@ export class DynamicList extends DataPoint {
                 await this.model._askChanges();
             }
             if (!discard && this.editedRecord) {
+                // SECOND flush, and it is load-bearing — not a copy-paste. It
+                // mirrors the historical two-stage prelude (public
+                // ``checkValidity()`` then public ``save()``, each of which ran
+                // ``model._askChanges``), and buys two things the first flush
+                // cannot:
+                //   - reactions the FIRST flush triggered settle in between
+                //     (multi-edit ``setInvalidField`` → notification → discard
+                //     → switch to readonly, which is why the guard re-reads
+                //     ``this.editedRecord`` instead of reusing the snapshot);
+                //   - a commit that failed validation during the first flush is
+                //     re-committed here, so it re-raises its invalid-field
+                //     reaction — browsers can fire an input's ``change`` after
+                //     focus has already left the row.
+                // ``_askChanges`` settles compound updates to a fixed point but
+                // does NOT re-run the bus round, so it cannot subsume this.
+                // The call counts are pinned by
+                // dynamic_list_ask_changes_calls.test.js; this comment was lost
+                // once already and the bare duplicate reads as dead code.
                 await this.model._askChanges();
             }
             return await this.model.mutex.exec(() => this._leaveEditMode({ discard }));

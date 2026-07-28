@@ -102,16 +102,29 @@ export function computeNextConfig(currentConfig, params, deps) {
             config.orderBy = config.orderBy.filter((order) => order.name !== "__count");
         }
     }
-    if (!config.isMonoRecord && params.domain) {
-        const resetOffset = (cfg) => {
-            cfg.offset = 0;
-            for (const group of Object.values(cfg.groups || {})) {
-                resetOffset(group.list);
+    if (!config.isMonoRecord) {
+        if (params.domain) {
+            // A new search invalidates the page the user was on: the old offset
+            // can sit past the end of the new result set, stranding them on a
+            // blank page.
+            const resetOffset = (cfg) => {
+                cfg.offset = 0;
+                for (const group of Object.values(cfg.groups || {})) {
+                    resetOffset(group.list);
+                }
+            };
+            if (hasRoot) {
+                resetOffset(config);
             }
-        };
-        if (hasRoot) {
-            resetOffset(config);
         }
+        // Crossing the grouped/ungrouped boundary changes what ``limit`` MEANS
+        // — records per page vs GROUPS per page — so the old number cannot be
+        // carried over; dropping it lets ``_loadData`` pick the right default
+        // (80 records, vs 10 groups when they auto-unfold). Deliberately
+        // outside the ``params.domain`` branch above, which it spent a long
+        // time nested in: the two have nothing to do with each other, and a
+        // caller that regroups without also passing a domain (``model.load({
+        // groupBy })``) got an auto-unfolding kanban sized for 80 groups.
         if (!!config.groupBy.length !== !!currentGroupBy?.length) {
             delete config.limit;
         }

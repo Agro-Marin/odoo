@@ -385,7 +385,7 @@ export function fromUnityToServerValues(
                 continue;
             }
             try {
-                if (evaluateExpr(activeField.readonly, context)) {
+                if (evaluateExpr(activeField?.readonly, context)) {
                     continue;
                 }
             } catch {
@@ -398,14 +398,30 @@ export function fromUnityToServerValues(
             case "many2many":
                 value = value.map((c) => {
                     if (c[0] === CREATE || c[0] === UPDATE) {
-                        const _fields = activeField.related.fields;
-                        const _activeFields = activeField.related.activeFields;
+                        // No sub-schema to convert the nested values against:
+                        // ``fields`` is the view's FULL field set while
+                        // ``activeFields`` holds only what the arch mentions, so
+                        // an x2many can be known here yet have no activeField —
+                        // and the command engine deliberately stashes slices for
+                        // exactly those ("this record hasn't been extended"),
+                        // which serializeCommands feeds back through here. Pass
+                        // the command on untouched, same line the ``!field``
+                        // branch above takes: guessing at a conversion without
+                        // the schema would corrupt the payload, and throwing
+                        // took down the save.
+                        const related = activeField?.related;
+                        if (!related) {
+                            return c;
+                        }
                         return [
                             c[0],
                             c[1],
-                            fromUnityToServerValues(c[2], _fields, _activeFields, {
-                                withReadonly,
-                            }),
+                            fromUnityToServerValues(
+                                c[2],
+                                related.fields,
+                                related.activeFields,
+                                { withReadonly },
+                            ),
                         ];
                     }
                     if (c[0] === LINK && c[2] && typeof c[2] === "object") {
