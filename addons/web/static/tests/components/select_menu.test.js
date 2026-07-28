@@ -1520,3 +1520,26 @@ test("sections render in the order they were declared", async () => {
     expect(queryAllTexts(".o_select_menu_group")).toEqual(["Zebra", "Alpha"]);
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["In Zebra", "In Alpha"]);
 });
+
+test("a searchable menu publishes its active choice via aria-activedescendant", async () => {
+    // `searchable` turns on `virtualFocus`, so DOM focus stays in the search
+    // input and the highlighted choice is conveyed ONLY by this attribute.
+    // Regression guard: the popup carries `role="menu"`, and the navigator only
+    // publishes the attribute on a composite role.
+    await mountSingleApp(SelectMenu, {
+        choices: [
+            { label: "Alpha", value: "a" },
+            { label: "Beta", value: "b" },
+        ],
+        searchable: true,
+        onSelect: () => {},
+    });
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+
+    const menu = queryOne(".o_select_menu_menu");
+    const active = menu.getAttribute("aria-activedescendant");
+    expect(active).not.toBe(null);
+    expect(document.getElementById(active)).not.toBe(null);
+    expect(document.getElementById(active)).toHaveClass("focus");
+});
