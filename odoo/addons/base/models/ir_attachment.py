@@ -186,11 +186,20 @@ class IrAttachment(models.Model):
     access_token = fields.Char("Access Token", groups="base.group_user")
 
     db_datas = fields.Binary("Database Data", attachment=False)
-    store_fname = fields.Char("Stored Filename", index=True)
-    file_size = fields.Integer("File Size", readonly=True)
-    checksum = fields.Char("Checksum", size=CONTENT_DIGEST_MAX_LEN, readonly=True)
+    # Derived from the content and never written through the public API
+    # (`_normalize_content_vals` drops them). `copy=False` keeps `copy_data`
+    # from carrying values `create` only throws away: `copy` re-applies them
+    # from the origin for a keyed row, and `create` re-derives them from `raw`
+    # for an inline one.
+    store_fname = fields.Char("Stored Filename", index=True, copy=False)
+    file_size = fields.Integer("File Size", readonly=True, copy=False)
+    checksum = fields.Char(
+        "Checksum", size=CONTENT_DIGEST_MAX_LEN, readonly=True, copy=False
+    )
     mimetype = fields.Char("Mime Type", readonly=True)
-    index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
+    index_content = fields.Text(
+        "Indexed Content", readonly=True, prefetch=False, copy=False
+    )
 
     raw = fields.Binary(
         string="File Content (raw)",

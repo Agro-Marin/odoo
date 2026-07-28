@@ -303,6 +303,33 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
         self.assertEqual(attachment.copy().raw, self.blob1)
 
+    def test_copy_reapplies_the_derived_columns_it_never_carries(self):
+        """The four derived columns are `copy=False`, and `copy` restores them.
+
+        `copy_data` used to carry values `create` immediately discarded
+        (`_normalize_content_vals` pops all four), so the only thing the copy
+        flag changed was the work done to reach the same row. It is safe
+        because neither half of the copy path reads them out of the vals:
+        `copy_data` triages on `attachment.store_fname`/`checksum`, and `copy`
+        writes them onto the copies from `origin`.
+        """
+        attachment = self.Attachment.create({"name": "src.bin", "raw": self.blob1})
+        attachment.flush_recordset()
+        self.addCleanup(
+            Path(self.filestore, attachment.store_fname).unlink, missing_ok=True
+        )
+
+        vals = attachment.copy_data()[0]
+        for field in ("store_fname", "checksum", "file_size", "index_content"):
+            self.assertNotIn(field, vals)
+
+        copied = attachment.copy()
+        self.assertEqual(copied.store_fname, attachment.store_fname)
+        self.assertEqual(copied.checksum, attachment.checksum)
+        self.assertEqual(copied.file_size, attachment.file_size)
+        self.assertEqual(copied.index_content, attachment.index_content)
+        self.assertEqual(copied.raw, self.blob1)
+
     def test_copying_a_legacy_dual_row_writes_no_new_content(self):
         """A row holding both a key and stale inline bytes must copy for free.
 
