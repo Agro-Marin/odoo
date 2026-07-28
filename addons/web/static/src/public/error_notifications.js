@@ -14,12 +14,21 @@ odooExceptionTitleMap.forEach((title, exceptionName) => {
     });
 });
 
-/** @type {{ title: string, message: string, buttons: Array<{ text: string, click: () => void, close: boolean }> }} */
+/**
+ * The whole entry is handed to `notification.add` as its options, and `sticky`
+ * defaults to false there: this one asks the visitor to confirm a reload, and
+ * without it the prompt closed itself — button included — after the service's
+ * 4s autoclose. Every other entry in this file already sets it.
+ *
+ * @type {{ title: string, message: string, type: string, sticky: boolean, buttons: Array<{ text: string, click: () => void, close: boolean }> }}
+ */
 const sessionExpired = {
     title: _t("Odoo Session Expired"),
     message: _t(
         "Your Odoo session expired. The current page is about to be refreshed.",
     ),
+    type: "warning",
+    sticky: true,
     buttons: [
         {
             text: _t("Ok"),

@@ -35,10 +35,19 @@ export class DatetimePicker extends Interaction {
             },
         });
         const disableListeners = picker.enable();
+        // each step runs even if an earlier one throws: chained plainly, a
+        // failing `disableListeners()` left the picker open and enabled, i.e.
+        // an overlay and a set of document listeners outliving the interaction
         this.registerCleanup(() => {
-            disableListeners();
-            picker.close();
-            picker.disable();
+            try {
+                disableListeners();
+            } finally {
+                try {
+                    picker.close();
+                } finally {
+                    picker.disable();
+                }
+            }
         });
     }
 }

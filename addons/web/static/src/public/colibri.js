@@ -82,6 +82,33 @@ function splitClassNames(names) {
 }
 
 /**
+ * True when `el` already holds exactly what `el.textContent = value` would put
+ * there: nothing at all for an empty value, a lone text node holding it
+ * otherwise. Read from the DOM rather than from a cache, so content another
+ * hand has changed is still rewritten.
+ *
+ * @param {HTMLElement} el
+ * @param {any} value
+ * @returns {boolean}
+ */
+function isSameTextContent(el, value) {
+    // measured, not assumed: `textContent` is a nullable IDL attribute, so it
+    // stores the empty string for BOTH null and undefined, and the plain string
+    // conversion for everything else — `String(undefined)` would have made a
+    // node already reading "undefined" look like a match and freeze it there
+    const text = value === null || value === undefined ? "" : String(value);
+    const child = el.firstChild;
+    if (!child) {
+        return text === "";
+    }
+    return (
+        child === el.lastChild &&
+        child.nodeType === Node.TEXT_NODE &&
+        /** @type {Text} */ (child).data === text
+    );
+}
+
+/**
  * @param {any} a
  * @param {any} b
  * @returns {boolean}
@@ -186,6 +213,16 @@ export class Colibri {
         this.isDestroyed = false;
         this.dynamicAttrs = [];
         this.tOuts = [];
+        // the markup last written to each node by ANY t-out of this
+        // interaction, shared rather than kept per entry: two entries whose
+        // selectors both match a node legitimately overwrite each other, and a
+        // per-entry cache made each of them skip on the other's write, so the
+        // node froze on whichever had last changed instead of on the last
+        // entry. The DOM cannot answer the question by itself — interactions
+        // started in the inserted subtree mutate it immediately after, so
+        // re-serialising the node would never match what was written.
+        /** @type {WeakMap<HTMLElement, string>} */
+        this.appliedMarkup = new WeakMap();
         this.cleanups = [];
         /** @type {ListenerRecord[]} */
         this.listenerRecords = [];
@@ -622,6 +659,13 @@ export class Colibri {
      * sub-components too. A mount failure is reported but does not reject
      * `isReady`, so one broken component cannot mark a whole page unready.
      *
+     * The root joins the service's list like any other, so that stopping the
+     * subtree it lives in destroys it. Left out of that list, a component
+     * mounted on a descendant survived the teardown of everything around it:
+     * its `<owl-root>` stayed in the page and the component kept running,
+     * subscriptions and all, until the interaction that mounted it happened to
+     * be stopped in its turn.
+     *
      * @param {HTMLElement} node
      * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Record<string, any>} [props]
@@ -631,12 +675,14 @@ export class Colibri {
     mountComponent(node, C, props, position = "beforeend") {
         const core = this.core;
         const root = core.prepareRoot(node, C, props, position);
+        core.roots.push(root);
         let isRootDestroyed = false;
         let forget = () => {};
         const destroy = () => {
             if (!isRootDestroyed) {
                 isRootDestroyed = true;
                 forget();
+                core.forgetRoot(root);
                 root.destroy();
             }
         };
@@ -657,6 +703,15 @@ export class Colibri {
     /**
      * Applies a t-out directive: sets textContent or innerHTML for Markup values.
      *
+     * A write that would change nothing is skipped. This is not an
+     * optimisation: the Markup branch is not a write but a rebuild — every
+     * interaction in the subtree is stopped, the markup is re-parsed, and the
+     * result is rescanned — so re-running it for an unchanged value destroyed
+     * and restarted nested interactions on every single update, discarding
+     * their state along with the focus, the selection and the scroll position
+     * of whatever they held. The text branch is milder but replaces the text
+     * node, which collapses a selection the visitor is making.
+     *
      * @param {HTMLElement} el
      * @param {any} value
      * @param {any} [initialValue]
@@ -670,19 +725,34 @@ export class Colibri {
         if (value === INITIAL_VALUE) {
             value = initialValue;
         }
+        const html = value instanceof Markup ? value.toString() : null;
+        if (
+            html === null
+                ? isSameTextContent(el, value)
+                : this.appliedMarkup.get(el) === html
+        ) {
+            return;
+        }
         const interactions = this.core.env.services["public.interactions"];
         // `el.children` is live and stopping an interaction may detach nodes
         // (an insert()/renderAt() cleanup does), which would make the iteration
         // skip every other sibling. Snapshot before touching anything.
-        const isRoot = el === this.interaction.el;
+        //
+        // The children and not `el` itself, even when `el` is not this
+        // interaction's root: a t-out owns the *content* of its node, and an
+        // interaction rooted on that node is not part of the markup being
+        // replaced. Stopping it left it destroyed for good on the text branch,
+        // which never rescans, and restarted it from scratch on every update
+        // on the Markup one.
         const stopTargets = () => {
-            for (const node of isRoot ? [...el.children] : [el]) {
+            for (const node of [...el.children]) {
                 interactions.stopInteractions(node);
             }
         };
-        if (value instanceof Markup) {
+        if (html !== null) {
             stopTargets();
-            el.innerHTML = value.toString();
+            el.innerHTML = html;
+            this.appliedMarkup.set(el, html);
             if (!restoring) {
                 // one scan of the whole subtree: the service already skips the
                 // interactions still active on `el` itself, so scanning per
@@ -691,6 +761,7 @@ export class Colibri {
                 this.refreshNodes();
             }
         } else {
+            this.appliedMarkup.delete(el);
             if (el.children.length) {
                 stopTargets();
             }
@@ -742,13 +813,25 @@ export class Colibri {
             if (value === INITIAL_VALUE) {
                 value = initialValue;
             }
-            if ([false, undefined, null].includes(value)) {
-                el.removeAttribute(attr);
-            } else {
-                if (value === true) {
-                    value = attr;
+            // `setAttribute` queues a mutation record even when it writes the
+            // value that is already there, and every definition is re-evaluated
+            // on every update: an interaction with a stable t-att-* fed every
+            // MutationObserver watching the page one spurious record per
+            // attribute per event. Not the website builder's history — it wraps
+            // this method in `ignoreDOMMutations` — but every other observer,
+            // and the write itself is pointless either way.
+            // `classList.toggle(force)` and `style.setProperty` were measured to
+            // skip a write that changes nothing already; `setAttribute` is the
+            // only branch that needed the guard.
+            if (value === false || value === undefined || value === null) {
+                if (el.hasAttribute(attr)) {
+                    el.removeAttribute(attr);
                 }
-                el.setAttribute(attr, value);
+            } else {
+                const next = value === true ? attr : String(value);
+                if (el.getAttribute(attr) !== next) {
+                    el.setAttribute(attr, next);
+                }
             }
         }
     }

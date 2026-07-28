@@ -103,6 +103,20 @@ export class InteractionService {
     }
 
     /**
+     * Drops a component root from the tracked list, for one its owner has
+     * already destroyed.
+     *
+     * @param {{ el: HTMLElement }} root
+     * @returns {void}
+     */
+    forgetRoot(root) {
+        const index = this.roots.indexOf(root);
+        if (index !== -1) {
+            this.roots.splice(index, 1);
+        }
+    }
+
+    /**
      * Single channel for surfacing interaction failures. Every async path in
      * this framework — an event handler, a deferred callback, a scan started by
      * insert() or by a t-out re-scan — catches its own errors rather than let
@@ -192,10 +206,21 @@ export class InteractionService {
             // a half-mounted root and its <owl-root> host must not survive:
             // they would linger in the DOM and be destroyed a second time by
             // the next stopInteractions()
-            this.roots = this.roots.filter((r) => r !== root);
+            this.forgetRoot(root);
             root.destroy();
             throw error;
         }
+    }
+
+    /**
+     * True when a stop rooted at `el` takes this service's whole root with it,
+     * and so means "everything on the page" rather than "this subtree".
+     *
+     * @param {HTMLElement} el
+     * @returns {boolean}
+     */
+    coversWholeRoot(el) {
+        return el === this.el || el.contains(this.el);
     }
 
     /**
@@ -349,6 +374,20 @@ export class InteractionService {
         if (!interaction.el) {
             return true;
         }
+        // A stop covering this service's own root means every interaction, and
+        // `contains` cannot see the ones whose element left the document
+        // without being stopped first — nothing guarantees that, since any code
+        // may drop a subtree. Those kept their listeners, timers and observers
+        // running, on nodes no visitor can reach, for the rest of the page's
+        // life; the website builder carries its own
+        // `stopDisconnectedInteractions` to work around it.
+        //
+        // Deliberately not extended to a scoped stop: an element may be
+        // detached on its way somewhere else, and only a caller tearing down
+        // the whole root is entitled to assume it is gone for good.
+        if (!interaction.el.isConnected && this.coversWholeRoot(el)) {
+            return true;
+        }
         return (
             el.contains(interaction.el) ||
             (selectorHas && !interaction.el.querySelector(selectorHas)) ||
@@ -383,8 +422,13 @@ export class InteractionService {
             (interaction) => !stoppedInteractions.has(interaction),
         );
         const stoppedRoots = new Set();
+        // same reasoning as shouldStop(): a component root whose host left the
+        // document is invisible to `contains`, so a page-wide stop used to walk
+        // past it and leave the component running — and its `<owl-root>` in a
+        // detached subtree — for the rest of the page's life
+        const coversWholeRoot = this.coversWholeRoot(el);
         for (const root of this.roots.toReversed()) {
-            if (el.contains(root.el)) {
+            if (el.contains(root.el) || (coversWholeRoot && !root.el.isConnected)) {
                 stoppedRoots.add(root);
                 root.destroy();
                 this.activeInteractions.delete(root.hostEl ?? root.el, root.C);
