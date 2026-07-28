@@ -118,6 +118,36 @@ describe("tooltip defaults", () => {
     test("boundary is a value Popper understands", async () => {
         expect(Tooltip.Default.boundary).toBe("viewport");
     });
+
+    // `Popover.Default` spreads `Tooltip.Default` when the bundle loads, before
+    // this module runs, so it snapshots the scalars and shares only the
+    // allowList reference. Call sites depend on both halves: website_forum
+    // passes `html: true` explicitly because popovers do not inherit it.
+    test("the tooltip defaults do not reach Popover, but the allow list does", async () => {
+        expect(Popover.Default.allowList).toBe(Tooltip.Default.allowList);
+        expect(Popover.Default.html).toBe(false);
+        expect(Popover.Default.container).toBe(false);
+        expect(Popover.Default.boundary).toBe("clippingParents");
+        expect(Popover.Default.delay).toBe(0);
+        expect(Tooltip.Default.html).toBe(true);
+    });
+
+    // The iframe fix keys on `document.body`; a popover reaches that value
+    // through Bootstrap resolving `container: false`, not through the default.
+    test("a popover anchored in an iframe is appended to that iframe", async () => {
+        const iframe = await scrollingIframe(`<button id="p">P</button>`);
+        const idoc = iframe.contentDocument;
+        const po = new Popover(idoc.querySelector("#p"), {
+            content: "P",
+            animation: false,
+        });
+        po.show();
+        await animationFrame();
+        expect(idoc.querySelectorAll(".popover")).toHaveLength(1);
+        expect(document.querySelectorAll(".popover")).toHaveLength(0);
+        po.dispose();
+        iframe.remove();
+    });
 });
 
 describe("Tooltip.show", () => {
