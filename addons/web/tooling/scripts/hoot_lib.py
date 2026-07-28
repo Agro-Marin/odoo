@@ -554,6 +554,10 @@ class RunResult:
     wall: float = 0.0
     error: str | None = None
     incomplete: bool = False
+    repeated: int = 0
+    """Re-executions observed on a truncated run: passed-lines minus distinct
+    test names. Non-zero means the selection made HOOT run suites more than
+    once, which is why such a run never reaches its summary."""
 
 
 def run_suites(
@@ -624,7 +628,14 @@ def run_suites(
         browser_logger.propagate = prev_propagate
 
     summary_seen = False
-    passed_seen = 0
+    # DISTINCT test names, not the number of "passed" lines. HOOT re-emits a
+    # suite's tests when a coarse id selects overlapping suites, so the raw line
+    # count is not a test count: on a truncated ``@web/core`` run it grew from
+    # 30838 to 58569 purely by raising the wall-clock timeout, while the suite
+    # only declares ~2400 tests. That number is what a caller reads as "N tests
+    # passed", so it has to mean that.
+    passed_names: set[str] = set()
+    passed_lines = 0
     for line in capture.lines:
         if m := RE_FAILED_SUMMARY.search(line):
             result.failed, result.passed = int(m[1]), int(m[2])
@@ -632,14 +643,16 @@ def run_suites(
         elif m := RE_PASSED_SUMMARY.search(line):
             result.passed = int(m[1])
             summary_seen = True
-        if RE_PASSED_TEST.search(line):
-            passed_seen += 1
+        if m := RE_PASSED_TEST.search(line):
+            passed_names.add(m[1])
+            passed_lines += 1
         for name in RE_FAILED_TEST.findall(line):
             if name not in result.failed_tests:
                 result.failed_tests.append(name)
-    if not summary_seen and (passed_seen or result.failed_tests):
-        result.passed = passed_seen
+    if not summary_seen and (passed_names or result.failed_tests):
+        result.passed = len(passed_names)
         result.failed = len(result.failed_tests)
+        result.repeated = passed_lines - len(passed_names)
         if not result.ok:
             result.incomplete = True
     if result.error and not result.ok:

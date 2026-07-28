@@ -94,6 +94,15 @@ def _setup_logging(verbose: bool) -> None:
     # unless -v is passed; nothing to do here.
 
 
+def _repeated_note(result) -> str:
+    """Explain a run that kept re-executing tests instead of terminating."""
+    return (
+        f"  note: {result.repeated} test re-executions observed — this selection "
+        f"makes HOOT run overlapping suites repeatedly, so the run never reaches "
+        f"its summary. Split the suite ids instead of raising --timeout."
+    )
+
+
 def _report(result: H.RunResult) -> None:
     header = " ".join(result.suites) or "(no suites)"
     if result.ok:
@@ -108,6 +117,8 @@ def _report(result: H.RunResult) -> None:
             f"WARN  {header}  "
             f"({result.passed} passed, no clean summary — likely a browser "
             f"teardown timeout, {result.wall:.1f}s)", C_YEL))
+        if result.repeated:
+            print(_color(_repeated_note(result), C_YEL))
         if result.error:
             print(_color(f"  note: {result.error}", C_DIM))
         return
@@ -121,8 +132,11 @@ def _report(result: H.RunResult) -> None:
             f"RUN TRUNCATED — remaining tests never ran, {result.wall:.1f}s)",
             C_RED))
         print(_color(
-            "  note: counts are a prefix; re-run with a larger --timeout or in "
-            "smaller suite groups for a complete result.", C_YEL))
+            "  note: counts are DISTINCT tests seen so far, a prefix of the "
+            "suite; re-run with a larger --timeout or in smaller suite groups "
+            "for a complete result.", C_YEL))
+        if result.repeated:
+            print(_color(_repeated_note(result), C_YEL))
         if result.error:
             print(_color(f"  error: {result.error}", C_YEL))
         for name in result.failed_tests[:50]:
