@@ -3,7 +3,7 @@
 
 /** @module @web/ui/dialog/confirmation_dialog - Standard confirm/cancel dialog with async button handling */
 
-import { Component } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -51,7 +51,17 @@ export class ConfirmationDialog extends Component {
         this.env.dialogData.dismiss = () => this._dismiss();
         /** @type {any} */
         this.modalRef = useChildRef();
-        this.isProcess = false;
+        /**
+         * Reactive rather than a DOM walk over `.modal-footer button`: the
+         * buttons are declared in this component's own template, so the state
+         * that disables them belongs next to them and survives any re-render.
+         */
+        this.state = useState({ isProcess: false });
+    }
+
+    /** @returns {boolean} whether a button callback is currently running */
+    get isProcess() {
+        return this.state.isProcess;
     }
 
     async _cancel() {
@@ -70,15 +80,7 @@ export class ConfirmationDialog extends Component {
 
     /** @param {boolean} disabled - whether to disable all footer buttons */
     setButtonsDisabled(disabled) {
-        this.isProcess = disabled;
-        if (!this.modalRef.el) {
-            return;
-        }
-        for (const button of [
-            ...this.modalRef.el.querySelectorAll(".modal-footer button"),
-        ]) {
-            button.disabled = disabled;
-        }
+        this.state.isProcess = disabled;
     }
 
     /**
@@ -94,7 +96,7 @@ export class ConfirmationDialog extends Component {
      * @param {any} [closeParams]
      */
     async execButton(callback, closeParams) {
-        if (this.isProcess) {
+        if (this.state.isProcess) {
             return;
         }
         this.setButtonsDisabled(true);

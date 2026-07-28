@@ -26,6 +26,13 @@ import { NotificationContainer } from "./notification_container.js";
 
 export const notificationService = {
     notificationContainer: NotificationContainer,
+    /**
+     * Explicit, because `website_sale` starts a second notification service
+     * alongside this one and the two containers must land in different
+     * `main_components` slots. Deriving the key from `Component.name` made
+     * that separation depend on the bundler preserving class names.
+     */
+    notificationContainerKey: "NotificationContainer",
 
     start() {
         let notifId = 0;
@@ -34,7 +41,7 @@ export const notificationService = {
         );
 
         registry.category("main_components").add(
-            this.notificationContainer.name,
+            this.notificationContainerKey,
             {
                 Component: this.notificationContainer,
                 props: { notifications },

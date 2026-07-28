@@ -31,9 +31,13 @@ export const overlayService = {
         const overlays = reactive(/** @type {Record<number, any>} */ ({}));
         const removing = new Set();
 
-        mainComponents.add("OverlayContainer", {
-            Component: /** @type {any} */ (OverlayContainer),
-        });
+        mainComponents.add(
+            "OverlayContainer",
+            { Component: /** @type {any} */ (OverlayContainer) },
+            // A second env (test infra, embedded sub-app) starting the service
+            // must not blow up on a key the first one already registered.
+            { force: true },
+        );
 
         const remove = async (
             /** @type {number} */ id,
@@ -77,7 +81,21 @@ export const overlayService = {
             return removeCurrentOverlay;
         };
 
-        return { add, overlays };
+        return {
+            add,
+            overlays,
+            /**
+             * Service-teardown hook (see `makeEnv().destroy`). Overlays own
+             * timers, listeners and `document.body` classes through their
+             * `onRemove` callbacks; dropping the env without running them
+             * leaves that state behind for the next one.
+             */
+            destroy() {
+                for (const id of Object.keys(overlays)) {
+                    overlays[id].remove();
+                }
+            },
+        };
     },
 };
 

@@ -89,7 +89,18 @@ function useClickAway(popover, callback) {
         }
     }
 
+    /**
+     * Only a `popstate` that actually moves the page counts as navigating away.
+     * Transient layers stack an entry on the current URL so hardware Back
+     * dismisses them (see `router.pushEphemeral`); popping one of those must
+     * not also collapse every popover on the page.
+     */
+    let lastHref = browser.location.href;
     function navigationHandler() {
+        if (browser.location.href === lastHref) {
+            return;
+        }
+        lastHref = browser.location.href;
         callback(document.documentElement);
     }
 
