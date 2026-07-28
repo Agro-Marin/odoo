@@ -73,6 +73,21 @@ bsSanitizeAllowList.section = [];
 bsSanitizeAllowList.button = ["type"];
 bsSanitizeAllowList.del = [];
 
+/**
+ * These reach Tooltip ONLY. `Popover.Default` is `{...Tooltip.Default, ...}`,
+ * a spread evaluated when the Bootstrap bundle loads — before this module runs
+ * — so it holds a snapshot and every scalar written below misses it. The
+ * exception is `allowList`, which the same shallow spread copies by reference:
+ * the sanitizer list above is shared with Popover, the settings here are not.
+ *
+ * Nothing is written to `Popover.Default` to correct that, because Bootstrap's
+ * popover values are the right ones for a click-triggered, dismissable panel:
+ * it overrides `placement` and `trigger` deliberately, `container: false` lands
+ * on `document.body` anyway (see `_configAfterMerge`), `delay` is meaningless
+ * without a hover trigger, and leaving `html: false` keeps popover content
+ * escaped unless a call site asks otherwise. Pinned by "the tooltip defaults do
+ * not reach Popover" so a bundle bump that reorders the spread is caught.
+ */
 const TooltipDefault = /** @type {any} */ (Tooltip.Default);
 TooltipDefault.placement = "auto";
 TooltipDefault.fallbackPlacements = ["bottom", "right", "left", "top"];
@@ -90,7 +105,9 @@ const bsTooltipConfigAfterMerge = Tooltip.prototype._configAfterMerge;
  * appends the tip next to the webclient while Popper measures the anchor in the
  * website editor's iframe, placing it by the offset between the two documents.
  *
- * Popover inherits this method, so both are covered.
+ * Popover inherits this method and is covered too, though it never sees the
+ * "body" default above: Bootstrap resolves its own `container: false` to
+ * `document.body` here, which is the value this test matches on.
  * @param {any} config
  * @returns {any}
  */
