@@ -579,6 +579,19 @@ class TestPointOfSaleFlow(CommonPosTest):
             }
         )
 
+        # Pay the order through the real flow before invoicing it. Only a paid
+        # order may be invoiced (_generate_pos_order_invoice), so invoicing a
+        # draft one never reflected a reachable state: this test is about which
+        # shipping address the invoice carries, not about bypassing that gate.
+        payment_context = {"active_ids": pos_order.ids, "active_id": pos_order.id}
+        self.env["pos.make.payment"].with_context(**payment_context).create(
+            {
+                "payment_method_id": self.pos_config_eur.payment_method_ids[0].id,
+                "amount": untax + tax,
+            }
+        ).with_context(**payment_context).check()
+        self.assertEqual(pos_order.state, "paid")
+
         pos_order.action_pos_order_invoice()
         invoice = pos_order.account_move
 

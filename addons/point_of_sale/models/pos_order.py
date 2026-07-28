@@ -2049,10 +2049,24 @@ class PosOrder(models.Model):
             else:
                 destination_id = picking_type.default_location_dest_id.id
 
-            pickings = self.env["stock.picking"]._create_picking_from_pos_order_lines(
-                destination_id, self.lines, picking_type, self.partner_id
+            # sudo, like the shipping-date branch above: delivering an order is
+            # a validated business flow, not an ad-hoc user write. `group_pos_user`
+            # does not imply `stock.group_stock_user` (only `group_pos_manager`
+            # does), and this fork tightened `stock.move.line` for
+            # `base.group_user` to read-only, so without this a plain cashier
+            # hits AccessError on every order that creates a real-time picking —
+            # i.e. whenever the company updates stock in real time, or for any
+            # invoiced order under anglo-saxon accounting.
+            pickings = (
+                self.env["stock.picking"]
+                .sudo()
+                ._create_picking_from_pos_order_lines(
+                    destination_id, self.lines, picking_type, self.partner_id
+                )
             )
-            pickings.write(
+            # Backorders carry the rest of an under-delivered order; leaving them
+            # unlinked orphaned them from the session and order they belong to.
+            (pickings | pickings.backorder_ids).write(
                 {
                     "pos_session_id": self.session_id.id,
                     "pos_order_id": self.id,

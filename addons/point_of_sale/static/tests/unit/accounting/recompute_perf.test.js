@@ -92,6 +92,7 @@ test("combo parent setQuantity coalesces child updates into one recompute", asyn
     parent.setQuantity(3);
     // Cascaded child qty/price writes all mark dirty; the read recomputes once.
     const total = order.prices.taxDetails.total_amount;
+    void order.unitPrices;
 
     // Was 10 full passes (one per cascaded write) before coalescing; now the
     // whole action collapses to a single recompute (original + unit).

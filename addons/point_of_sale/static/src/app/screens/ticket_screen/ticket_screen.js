@@ -249,6 +249,14 @@ export class TicketScreen extends Component {
     }
     onClickOrderline(orderline) {
         if (this.getSelectedOrder()?.finalized) {
+            // Flush before switching lines. number_buffer debounces keystrokes
+            // and resolves its target at FLUSH time, so a refund quantity typed
+            // against the currently selected line is still pending here;
+            // reset() discarded it outright, silently losing the quantity the
+            // cashier just entered whenever they tapped another line inside the
+            // debounce window. capture() applies it to the line it was typed
+            // against, then the reset starts the new line clean.
+            this.numberBuffer.capture();
             const order = this.getSelectedOrder();
             this.state.selectedOrderlineIds[order.id] = orderline.id;
             this.numberBuffer.reset();
@@ -336,6 +344,11 @@ export class TicketScreen extends Component {
         return;
     }
     async onDoRefund() {
+        // The refund quantities this method consumes are written by the
+        // debounced buffer handler, so the last quantity the cashier typed can
+        // still be pending when they hit Refund. Flush it first or that line is
+        // silently refunded at qty 0 (or dropped entirely).
+        this.numberBuffer.capture();
         const order = this.getSelectedOrder();
 
         if (order && this._doesOrderHaveSoleItem(order)) {

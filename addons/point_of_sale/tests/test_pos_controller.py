@@ -10,6 +10,24 @@ from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCom
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSController(TestPointOfSaleHttpCommon):
+    def _pay_pos_order(self, order, amount=10.0):
+        """Pay `order` through the real payment flow.
+
+        Setting `amount_paid` on the record does not pay an order: it leaves no
+        `pos.payment` and the state stays `draft`, and only a paid order may be
+        invoiced. Every receipt/invoicing route exercised here therefore needs
+        this. The order-creation block is duplicated across these tests and
+        three of the four copies had drifted into omitting it.
+        """
+        payment_context = {"active_ids": order.ids, "active_id": order.id}
+        self.env["pos.make.payment"].with_context(**payment_context).create(
+            {
+                "amount": amount,
+                "payment_method_id": self.main_pos_config.payment_method_ids[0].id,
+            }
+        ).with_context(**payment_context).check()
+        return order
+
     def test_qr_code_receipt(self):
         """This test make sure that no user is created when a partner is set on the PoS order.
         It also makes sure that the invoice is correctly created.
@@ -60,6 +78,7 @@ class TestPoSController(TestPointOfSaleHttpCommon):
                 "amount_return": 10.0,
             }
         )
+        self._pay_pos_order(self.pos_order)
         self.main_pos_config.current_session_id.close_session_from_ui()
         get_invoice_data = {
             "access_token": self.pos_order.access_token,
@@ -144,6 +163,7 @@ class TestPoSController(TestPointOfSaleHttpCommon):
                 "amount_return": 10.0,
             }
         )
+        self._pay_pos_order(self.pos_order)
         self.main_pos_config.current_session_id.close_session_from_ui()
         res = self.url_open(
             f"/pos/ticket/validate?access_token={self.pos_order.access_token}",
@@ -264,6 +284,7 @@ class TestPoSController(TestPointOfSaleHttpCommon):
                 "amount_return": 10.0,
             }
         )
+        self._pay_pos_order(self.pos_order)
         self.main_pos_config.current_session_id.close_session_from_ui()
         get_invoice_data = {
             "access_token": self.pos_order.access_token,

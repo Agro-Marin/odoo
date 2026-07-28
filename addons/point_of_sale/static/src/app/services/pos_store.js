@@ -1765,7 +1765,7 @@ export class PosStore extends WithLazyGetterTrap {
                 await this.postSyncAllOrders(newData["pos.order"] ?? []);
                 this.removePendingOrder(order);
                 syncedOrders.push(...(newData["pos.order"] ?? []));
-                newSession = newSession || data["pos.session"].length > 0;
+                newSession = newSession || data["pos.session"]?.length > 0;
             } catch (error) {
                 if (!(error instanceof ConnectionLostError)) {
                     // Server rejected (or a non-connection failure): consume the
@@ -2853,24 +2853,35 @@ export class PosStore extends WithLazyGetterTrap {
      * Close other tabs that contain the same pos session.
      */
     closeOtherTabs() {
-        localStorage["message"] = "";
-        localStorage["message"] = JSON.stringify({
+        // Namespaced: "message" is a global key on the origin, so any other
+        // Odoo app writing it triggered this handler, and a non-JSON value made
+        // the unguarded parse below throw inside the listener.
+        const storageKey = `pos.tabs.${odoo.pos_config_id}`;
+        localStorage[storageKey] = JSON.stringify({
             message: "close_tabs",
             session: this.session.id,
+            // The value must differ from the previous one or no storage event
+            // is dispatched; the old code got that from writing "" first.
+            at: Date.now(),
         });
 
         window.addEventListener(
             "storage",
             (event) => {
-                if (event.key === "message" && event.newValue) {
-                    const msg = JSON.parse(event.newValue);
+                if (event.key === storageKey && event.newValue) {
+                    let msg;
+                    try {
+                        msg = JSON.parse(event.newValue);
+                    } catch {
+                        return;
+                    }
                     if (
                         msg.message === "close_tabs" &&
                         msg.session === this.session.id
                     ) {
                         logPosMessage(
                             "Store",
-                            "editLots",
+                            "closeOtherTabs",
                             "POS / Session opened in another window. EXITING POS",
                             CONSOLE_COLOR,
                         );
