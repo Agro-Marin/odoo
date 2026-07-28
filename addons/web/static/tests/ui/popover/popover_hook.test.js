@@ -3,8 +3,14 @@
 import { destroy, expect, getFixture, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import {
+    contains,
+    getService,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
+import { MainComponentsContainer } from "@web/components/main_components_container";
+import { makePopover, usePopover } from "@web/ui/popover/popover_hook";
 
 test("close popover when component is unmounted", async () => {
     const target = getFixture();
@@ -93,4 +99,74 @@ test("popover opened from another", async () => {
 
     await contains(document.body).click();
     expect(".o_popover").toHaveCount(0);
+});
+
+// CLOSE-REASON-BLOCK
+// The presenter binds the hosted component's `close` so it can forward a
+// reason to `onClose`, the way the dialog service always has. Both hook
+// layers used to re-wrap that as a thunk, so the reason died one frame above
+// the fix -- on the path nearly every caller actually takes.
+test("a hosted component's close reason reaches onClose", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    let received = "NEVER CALLED";
+    class Closer extends Component {
+        static template = xml`<div id="comp">in popover</div>`;
+        static props = ["*"];
+        setup() {
+            this.props.close({ reason: "picked" });
+        }
+    }
+
+    const popover = makePopover(getService("popover").add, Closer, {
+        onClose: (params) => (received = params),
+    });
+    popover.open(getFixture(), {});
+    await animationFrame();
+    await animationFrame();
+    expect(received).toEqual({ reason: "picked" });
+});
+
+test("the owner's own close reason reaches onClose", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    let received = "NEVER CALLED";
+    class Comp extends Component {
+        static template = xml`<div id="comp">in popover</div>`;
+        static props = ["*"];
+    }
+
+    const popover = makePopover(getService("popover").add, Comp, {
+        onClose: (params) => (received = params),
+    });
+    popover.open(getFixture(), {});
+    await animationFrame();
+    popover.close({ reason: "owner" });
+    await animationFrame();
+    await animationFrame();
+    expect(received).toEqual({ reason: "owner" });
+});
+
+test("an unknown option still warns through the hook's option bag", async () => {
+    // `makePopover` passes the service an `Object.create(options)` so it can
+    // override `onClose` without mutating the caller's bag. That left every
+    // real option on the prototype, and the presenter's own-key scan saw only
+    // `onClose` -- the debug guard was inert exactly where it is needed.
+    await mountWithCleanup(MainComponentsContainer);
+    class Comp extends Component {
+        static template = xml`<div id="comp">in popover</div>`;
+        static props = ["*"];
+    }
+
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (...args) => warnings.push(args.join(" ")),
+    });
+    patchWithCleanup(odoo, { debug: "1" });
+
+    const popover = makePopover(getService("popover").add, Comp, {
+        totallyBogusOption: true,
+    });
+    popover.open(getFixture(), {});
+    await animationFrame();
+
+    expect(warnings.filter((w) => w.includes("totallyBogusOption"))).toHaveLength(1);
 });

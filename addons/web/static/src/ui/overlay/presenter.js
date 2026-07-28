@@ -87,7 +87,13 @@ export function makeOverlayPresenter({
 }) {
     return (target, hostedComponent, props = {}, options = {}) => {
         if (odoo.debug) {
-            for (const key of Object.keys(options)) {
+            // `for...in`, not `Object.keys`: `makePopover` hands us an
+            // `Object.create(options)` bag so it can override `onClose` without
+            // mutating the caller's, which left every real option on the
+            // prototype and own-key enumeration seeing only `onClose`. The
+            // check was silently inert for `usePopover` — the path nearly every
+            // caller takes.
+            for (const key in options) {
                 if (!OVERLAY_PRESENTER_OPTIONS.has(key)) {
                     console.warn(
                         `[overlay] unknown option "${key}"; it will be ignored.`,

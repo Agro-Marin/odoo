@@ -1,11 +1,25 @@
 // @ts-check
 
 import { afterEach, expect, getFixture, test } from "@odoo/hoot";
-import { press } from "@odoo/hoot-dom";
+import { click, press } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { MainComponentsContainer } from "@web/components/main_components_container";
+
+class DropdownParent extends Component {
+    static components = { Dropdown, DropdownItem };
+    static props = ["*"];
+    static template = xml`
+        <Dropdown>
+            <button class="toggler">Open</button>
+            <t t-set-slot="content">
+                <DropdownItem class="'ditem'">Item</DropdownItem>
+            </t>
+        </Dropdown>`;
+}
 
 afterEach(() => {
     document.body.classList.remove("bottom-sheet-open", "bottom-sheet-open-multiple");
@@ -121,4 +135,38 @@ test("a sheet closes on escape by default", async () => {
     await runAllTimers();
     await animationFrame();
     expect(".sheet-content").toHaveCount(0);
+});
+
+// The one production caller that combines `closeOnEscape: false` with
+// `useBottomSheet` is `Dropdown`, which turns the option off because it drives
+// escape from its own navigation hook. Honouring the option means the sheet no
+// longer registers a competing hotkey — so escape has to still reach the menu,
+// on both backends.
+test.tags("mobile");
+test("escape closes a dropdown menu rendered as a bottom sheet", async () => {
+    await mountWithCleanup(DropdownParent);
+    await click(".toggler");
+    await runAllTimers();
+    await animationFrame();
+    expect(".o_bottom_sheet").toHaveCount(1);
+    expect(".ditem").toHaveCount(1);
+
+    await press("escape");
+    await runAllTimers();
+    await animationFrame();
+    expect(".ditem").toHaveCount(0);
+});
+
+test.tags("desktop");
+test("escape closes a dropdown menu rendered as a popover", async () => {
+    await mountWithCleanup(DropdownParent);
+    await click(".toggler");
+    await runAllTimers();
+    await animationFrame();
+    expect(".ditem").toHaveCount(1);
+
+    await press("escape");
+    await runAllTimers();
+    await animationFrame();
+    expect(".ditem").toHaveCount(0);
 });
