@@ -70,7 +70,15 @@
                                 <t t-if="!props.Component">
                                     <t t-out="props.message"/>
                                 </t>
-                                <t t-else="" t-component="props.Component" t-props="props.props"/>
+                                <!--
+                                    `close`, like the popover and the bottom
+                                    sheet hand their hosted component: clicking
+                                    inside this card deliberately does NOT
+                                    dismiss the reward, so that its own buttons
+                                    work, which left a hosted card with no way
+                                    out at all.
+                                -->
+                                <t t-else="" t-component="props.Component" t-props="props.props" close="props.close"/>
                             </div>
                         </div>
                     </div>

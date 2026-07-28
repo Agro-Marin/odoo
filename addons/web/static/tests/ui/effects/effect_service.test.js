@@ -2,7 +2,7 @@
 
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, manuallyDispatchProgrammaticEvent, queryOne } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, markup, xml } from "@odoo/owl";
 import {
     getService,
@@ -76,14 +76,18 @@ test("rendering a rainbowman with an escaped message", async () => {
 });
 
 test("rendering a rainbowman with a custom component", async () => {
-    expect.assertions(2);
+    expect.assertions(3);
     const props = { foo: "bar" };
 
     class Custom extends Component {
         static template = xml`<div class="custom">foo is <t t-esc="props.foo"/></div>`;
         static props = ["*"];
         setup() {
-            expect(this.props).toEqual(props);
+            // The caller's props, plus the `close` every hosted overlay
+            // component gets — a click inside this card does not dismiss the
+            // reward, so `close` is its only way out.
+            expect(this.props.foo).toBe(props.foo);
+            expect(this.props.close).toBeInstanceOf(Function);
         }
     }
 
@@ -93,6 +97,57 @@ test("rendering a rainbowman with a custom component", async () => {
     expect(".o_reward_msg_content").toHaveInnerHTML(
         `<div class="custom">foo is bar</div>`,
     );
+});
+
+// HOSTED-CARD-BLOCK
+// A click inside the hosted card deliberately does not dismiss the reward, so
+// that the card's own buttons work at all. That left it with no way out until
+// it was handed `close`, the way the popover and the bottom sheet hand theirs.
+test("a custom reward component can dismiss the reward", async () => {
+    class Custom extends Component {
+        static template = xml`<button class="dismiss" t-on-click="() => this.props.close()">Done</button>`;
+        static props = ["*"];
+    }
+
+    getService("effect").add({ Component: Custom });
+    await animationFrame();
+    expect(".o_reward").toHaveCount(1);
+
+    await click(".dismiss");
+    await animationFrame();
+    expect(".o_reward").toHaveCount(0);
+});
+
+test("a click inside a custom reward component does not dismiss it", async () => {
+    class Custom extends Component {
+        static template = xml`<button class="inert">Inert</button>`;
+        static props = ["*"];
+    }
+
+    getService("effect").add({ Component: Custom });
+    await animationFrame();
+    expect(".o_reward").toHaveCount(1);
+
+    await click(".inert");
+    await animationFrame();
+    expect(".o_reward").toHaveCount(1);
+});
+
+test("fadeout 'no' keeps the reward up until it is dismissed", async () => {
+    getService("effect").add({ message: "Stay", fadeout: "no" });
+    await animationFrame();
+    expect(".o_reward").toHaveCount(1);
+
+    await advanceTime(60_000);
+    await animationFrame();
+    expect(".o_reward").toHaveCount(1);
+});
+
+test("an unknown effect type is ignored rather than thrown", async () => {
+    getService("effect").add({ type: "no_such_effect" });
+    await runAllTimers();
+    await animationFrame();
+    expect(".o_reward").toHaveCount(0);
 });
 
 test("the reward message is announced, as it is when effects are off", async () => {

@@ -17,6 +17,8 @@ import { browser } from "@web/core/browser/browser";
  *
  * @typedef Custom
  * @property {import("@odoo/owl").ComponentConstructor} Component
+ *  Receives a `close` prop on top of `props`, since a click inside it does not
+ *  dismiss the reward.
  * @property {any} [props]
  *
  * @typedef {Common & (Simple | Custom)} RainbowManProps
