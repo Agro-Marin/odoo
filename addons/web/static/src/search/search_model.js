@@ -385,24 +385,30 @@ export class SearchModel extends SearchQueryMixin(
                 this.searchDomain = /** @type {DomainListRepr} */ (
                     this._getDomain({ withSearchPanel: false })
                 );
-                this.sectionsPromise = (async () => {
-                    await this._fetchSections(this.categories, this.filters);
-                    for (const { fieldName, values } of this.filters) {
-                        // A category consumes its default as a scalar, a filter
-                        // as a list of value ids; nothing enforces the two forms
-                        // apart, so accept the scalar a caller naturally writes.
-                        // Falsy stays "no default", as before.
-                        const rawDefault = searchPanelDefaults[fieldName];
-                        const filterDefaults = rawDefault ? [].concat(rawDefault) : [];
-                        for (const valueId of filterDefaults) {
-                            const value = values.get(valueId);
-                            if (value) {
-                                value.checked = true;
-                            }
-                        }
+                // Seeded BEFORE the fetch, not after it: `_fetchCategories` and
+                // `_fetchFilters` build their `filter_domain` from the checked
+                // values, so checking the defaults afterwards left the FIRST
+                // counters describing the unfiltered set — the panel opened
+                // showing a selection whose counts belonged to no selection at
+                // all. `createFilterTree` carries `checked` over from the
+                // previous values map, so a placeholder entry is enough, and one
+                // the server does not return simply drops out.
+                //
+                // A category consumes its default as a scalar, a filter as a
+                // list of value ids; nothing enforces the two forms apart, so
+                // accept the scalar a caller naturally writes. Falsy stays
+                // "no default".
+                for (const { fieldName, values } of this.filters) {
+                    const rawDefault = searchPanelDefaults[fieldName];
+                    for (const valueId of rawDefault ? [].concat(rawDefault) : []) {
+                        values.set(valueId, { id: valueId, checked: true });
                     }
-                    this._sections = null;
-                })();
+                }
+                this._sections = null;
+                this.sectionsPromise = this._fetchSections(
+                    this.categories,
+                    this.filters,
+                );
                 if (
                     Object.keys(searchPanelDefaults).length ||
                     this._shouldWaitForData(false)

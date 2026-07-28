@@ -20,17 +20,33 @@ export class PropertiesGroupByItem extends Component {
         onGroup: Function,
     };
 
-    /** Initialize reactive state and register the accordion open callback. */
     setup() {
-        /** @type {{ groupByItems: Array<Object> }} */
-        this.state = useState({ groupByItems: [] });
-        /** @type {boolean} */
-        this.definitionLoaded = false;
+        /** @type {{ definitionsLoaded: boolean }} */
+        this.state = useState({ definitionsLoaded: false });
         useChildSubEnv({
             [ACCORDION]: {
-                accordionStateChanged: this.beforeOpen.bind(this),
+                accordionStateChanged: () => this.loadDefinitions(),
             },
         });
+    }
+
+    /**
+     * Read live from the search model rather than from a snapshot taken when
+     * the accordion opened: the activation shown here also changes from the
+     * outside (a facet removed, a favorite applied, the query cleared), and a
+     * cached copy kept those items rendering as selected forever.
+     * @returns {Object[]}
+     */
+    get groupByItems() {
+        if (!this.state.definitionsLoaded) {
+            return [];
+        }
+        return this.env.searchModel.getSearchItems(
+            (searchItem) =>
+                ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
+                searchItem.isProperty &&
+                searchItem.propertyFieldName === this.props.item.fieldName,
+        );
     }
 
     /**
@@ -38,7 +54,7 @@ export class PropertiesGroupByItem extends Component {
      * @returns {boolean}
      */
     get isActive() {
-        return this.state.groupByItems.some((item) => item.isActive);
+        return this.groupByItems.some((item) => item.isActive);
     }
 
     /**
@@ -47,7 +63,7 @@ export class PropertiesGroupByItem extends Component {
      */
     get isSingleParent() {
         const uniqueNames = new Set(
-            this.state.groupByItems.map((item) => item.definitionRecordId),
+            this.groupByItems.map((item) => item.definitionRecordId),
         );
         return uniqueNames.size < 2;
     }
@@ -56,13 +72,17 @@ export class PropertiesGroupByItem extends Component {
      * Dynamically load the definition, only when needed (if we open the dropdown).
      * @returns {Promise<void>}
      */
-    async beforeOpen() {
-        if (this.definitionLoaded) {
+    async loadDefinitions() {
+        if (this.state.definitionsLoaded || this._loadingDefinitions) {
             return;
         }
-        await this.env.searchModel.fillSearchViewItemsProperty();
-        this.definitionLoaded = true;
-        this._updateGroupByItems();
+        this._loadingDefinitions = true;
+        try {
+            await this.env.searchModel.fillSearchViewItemsProperty();
+            this.state.definitionsLoaded = true;
+        } finally {
+            this._loadingDefinitions = false;
+        }
     }
 
     /**
@@ -71,18 +91,5 @@ export class PropertiesGroupByItem extends Component {
      */
     onGroup(ids) {
         this.props.onGroup(ids);
-        this._updateGroupByItems();
-    }
-
-    /**
-     * Update the component state to sync it with the search model group item.
-     */
-    _updateGroupByItems() {
-        this.state.groupByItems = this.env.searchModel.getSearchItems(
-            (searchItem) =>
-                ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
-                searchItem.isProperty &&
-                searchItem.propertyFieldName === this.props.item.fieldName,
-        );
     }
 }

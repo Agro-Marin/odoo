@@ -5,6 +5,7 @@
 
 import { _t } from "@web/core/l10n/translation";
 
+import { findGroupByGroupId } from "./search_group_by.js";
 import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
@@ -147,14 +148,11 @@ export const SearchQueryMixin = (Base) =>
         createNewGroupBy(fieldName, { interval, invisible } = {}) {
             const field = this.searchViewFields[fieldName];
             const { string, type: fieldType } = field;
-            const firstGroupBy = Object.values(this.searchItems).find(
-                (f) => f.type === "groupBy" || f.type === "dateGroupBy",
-            );
             const preSearchItem = {
                 description: string || fieldName,
                 fieldName,
                 fieldType,
-                groupId: firstGroupBy ? firstGroupBy.groupId : this.nextGroupId++,
+                groupId: findGroupByGroupId(this.searchItems) ?? this.nextGroupId++,
                 groupNumber: this.nextGroupNumber,
                 id: this.nextId,
                 custom: true,
@@ -312,13 +310,11 @@ export const SearchQueryMixin = (Base) =>
                         knownOptions &&
                         !yearSelected(this._getSelectedGeneratorIds(searchItemId))
                     ) {
-                        const periodOption = knownOptions.find(
+                        // `generatorIds` was filtered against `knownOptions`
+                        // above, so the lookup always hits.
+                        const { defaultYearId } = knownOptions.find(
                             (o) => o.id === generatorId,
                         );
-                        if (!periodOption) {
-                            break;
-                        }
-                        const { defaultYearId } = periodOption;
                         this.query.push({
                             searchItemId,
                             generatorId: defaultYearId,

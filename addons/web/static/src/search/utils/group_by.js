@@ -21,7 +21,7 @@ export function getGroupBy(descr, fields) {
     let spec;
     let [fieldName, interval] = descr.split(":");
     if (!fieldName) {
-        throw Error();
+        throw Error(errorMsg(descr));
     }
     if (fields) {
         if (!fields[fieldName] && !fieldName.includes(".")) {

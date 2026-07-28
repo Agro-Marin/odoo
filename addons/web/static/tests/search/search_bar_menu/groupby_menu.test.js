@@ -9,6 +9,7 @@ import {
     isItemSelected,
     isOptionSelected,
     mountWithSearch,
+    onRpc,
     removeFacet,
     toggleMenuItem,
     toggleMenuItemOption,
@@ -403,4 +404,55 @@ test("Custom group by menu is displayed when hideCustomGroupBy is true", async (
     });
     await toggleSearchBarMenu();
     expect(`.o_add_custom_group_menu`).toHaveCount(0);
+});
+
+test("property group-by menu reflects a group-by removed from outside the menu", async () => {
+    onRpc("web_search_read", ({ kwargs }) => {
+        if (
+            kwargs.specification.display_name &&
+            kwargs.specification.properties_definition
+        ) {
+            return {
+                records: [
+                    {
+                        id: 1,
+                        display_name: "Parent 1",
+                        properties_definition: [
+                            { type: "char", string: "P1", name: "p1" },
+                        ],
+                    },
+                ],
+            };
+        }
+    });
+    const menu = await mountWithSearch(SearchBarMenu, {
+        resModel: "foo",
+        searchMenuTypes: ["groupBy"],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <filter name="gb_props" string="Props" context="{'group_by': 'properties'}"/>
+            </search>
+        `,
+    });
+    await toggleSearchBarMenu();
+    await contains(".o_add_custom_group_menu:contains(Props)").click();
+    await animationFrame();
+    expect(".o_menu_item:contains(P1)").toHaveCount(1);
+
+    await contains(".o_menu_item:contains(P1)").click();
+    expect(".o_menu_item:contains(P1)").toHaveClass("selected");
+
+    // Deactivating from the model is what removing the facet does; the menu
+    // used to render from a snapshot taken when the accordion opened, so the
+    // item stayed selected forever.
+    const item = Object.values(menu.env.searchModel.searchItems).find(
+        (searchItem) => searchItem.isProperty && searchItem.description === "P1",
+    );
+    menu.env.searchModel.toggleSearchItem(item.id);
+    await animationFrame();
+    await animationFrame();
+
+    expect(menu.env.searchModel.facets).toHaveLength(0);
+    expect(".o_menu_item:contains(P1)").not.toHaveClass("selected");
 });

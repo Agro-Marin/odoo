@@ -2229,3 +2229,30 @@ test("removing a facet keeps the DOM identity of the ones after it", async () =>
     expect(getFacetTexts()).toEqual(["B", "C"]);
     expect(queryAll`.o_searchview_facet`.at(-1)).toBe(lastFacet);
 });
+
+test("an expanded search item retired mid-flight does not break computeState", async () => {
+    // A `field_property` item is deleted from the model as soon as its
+    // definition disappears from the parent record, but the SearchBar keeps the
+    // id in `state.expanded`; computeState then read `.type` off undefined.
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <field name="bar"/>
+            </search>
+        `,
+    });
+    const barItem = Object.values(searchBar.env.searchModel.searchItems).find(
+        (item) => item.fieldName === "bar",
+    );
+    await editSearch("a");
+    await searchBar.computeState({ expanded: [barItem.id] });
+    expect(searchBar.state.expanded).toEqual([barItem.id]);
+
+    delete searchBar.env.searchModel.searchItems[barItem.id];
+    await searchBar.computeState({ query: "ab" });
+
+    expect(searchBar.state.expanded).toEqual([]);
+    expect(searchBar.state.query).toBe("ab");
+});

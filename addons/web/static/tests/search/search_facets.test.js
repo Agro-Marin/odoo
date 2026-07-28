@@ -114,3 +114,44 @@ describe("default group-by facet", () => {
         expect(facets).toHaveLength(0);
     });
 });
+
+describe("date group-by facet", () => {
+    /** A single-item query group holding a dateGroupBy search item. */
+    function dateGroupByGroup(intervalIds) {
+        return {
+            groups: [{ id: 10, activeItems: [{ searchItemId: 1, intervalIds }] }],
+            searchItems: {
+                1: { id: 1, type: "dateGroupBy", description: "Date" },
+            },
+        };
+    }
+
+    test("describes a UI interval", () => {
+        const facets = buildFacets(makeParams(dateGroupByGroup(["month"])));
+        expect(facets[0].values).toEqual(["Date: Month"]);
+    });
+
+    test("describes a backend-only interval instead of dropping it", () => {
+        // `hour` is a legal group-by interval — `getGroupBy` accepts it and a
+        // `<filter context="{'group_by': 'x:hour'}">` puts it straight into the
+        // query — it is only absent from the five the UI offers. Looking it up
+        // in the UI table left the facet with NO values: an empty chip.
+        const facets = buildFacets(makeParams(dateGroupByGroup(["hour"])));
+        expect(facets[0].values).toEqual(["Date: Hour"]);
+    });
+
+    test("falls back to the raw id for an unknown interval", () => {
+        const facets = buildFacets(makeParams(dateGroupByGroup(["fortnight"])));
+        expect(facets[0].values).toEqual(["Date: fortnight"]);
+    });
+
+    test("the default group-by facet describes its interval too", () => {
+        const facets = buildFacets(
+            makeParams({
+                defaultGroupBy: ["bar:hour"],
+                searchViewFields: { bar: { string: "Bar" } },
+            }),
+        );
+        expect(facets[0].values).toEqual(["Bar: Hour"]);
+    });
+});

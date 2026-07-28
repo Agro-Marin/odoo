@@ -71,6 +71,25 @@ export function getQueryGroups(query, searchItems) {
 }
 
 /**
+ * The groupId group-by search items share, or undefined when none exists yet.
+ *
+ * Group-bys form a SINGLE query group, so activating several of them yields one
+ * ">"-separated facet the user can drop in one click. The parser puts every
+ * arch group-by in `pregroupOfGroupBys`; the ones materialized later (custom
+ * group-bys, property group-bys) have to join that group explicitly, or each
+ * lands in a group of its own and the search bar grows one chip per group-by.
+ *
+ * @param {Object} searchItems
+ * @returns {number|undefined}
+ */
+export function findGroupByGroupId(searchItems) {
+    const firstGroupBy = Object.values(searchItems).find((searchItem) =>
+        ["groupBy", "dateGroupBy"].includes(searchItem.type),
+    );
+    return firstGroupBy?.groupId;
+}
+
+/**
  * Compute group-bys for a single active search item.
  *
  * @param {Object} activeItem
@@ -162,7 +181,12 @@ export function computeOrderBy(
             const { searchItemId } = activeItem;
             const searchItem = searchItems[searchItemId];
             if (searchItem.type === "favorite") {
-                orderBy.push(...searchItem.orderBy);
+                // Copied per term, not spread by reference: the caller memoizes
+                // and freezes the result, but that freeze is SHALLOW, so a
+                // consumer editing a term would reach through into the favorite's
+                // own `orderBy` and corrupt it for every later activation. Same
+                // rule as `globalOrderBy` below.
+                orderBy.push(...searchItem.orderBy.map((term) => ({ ...term })));
             }
         }
     }

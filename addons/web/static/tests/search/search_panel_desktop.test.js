@@ -9,6 +9,7 @@ import {
     defineActions,
     defineModels,
     fields,
+    findComponent,
     getService,
     MockServer,
     models,
@@ -3457,4 +3458,116 @@ test("group and value checkboxes of one section get distinct ids", async () => {
     for (const id of ids) {
         expect(id).toMatch(/^\d+_(group|input)_\d+$/);
     }
+});
+
+test("a filter's searchpanel default is in the filter_domain of the FIRST fetch", async () => {
+    // The defaults used to be checked only after `_fetchSections` resolved, so
+    // the first `search_panel_select_*` calls described the unfiltered set: the
+    // panel opened showing a selection whose counters belonged to no selection.
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="category_id" enable_counters="1"/>
+                    <field name="company_id" select="multi" enable_counters="1"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+
+    const filterDomains = [];
+    onRpc("search_panel_select_range", ({ kwargs }) => {
+        filterDomains.push(kwargs.filter_domain);
+    });
+
+    await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+        context: { searchpanel_default_company_id: [5] },
+    });
+
+    expect(filterDomains).toHaveLength(1);
+    expect(filterDomains[0]).toEqual([["company_id", "in", [5]]]);
+});
+
+test("a searchpanel default the server does not return leaves no phantom filter", async () => {
+    // The default is seeded as a placeholder before the fetch; a value outside
+    // the returned range must drop out rather than linger as a checked value
+    // nothing can uncheck.
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="company_id" select="multi"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+        context: { searchpanel_default_company_id: [999] },
+    });
+
+    const [companyFilter] = component.env.searchModel.getSections(
+        (s) => s.type === "filter",
+    );
+    expect(companyFilter.values.has(999)).toBe(false);
+    expect(JSON.stringify(component.env.searchModel.domain)).not.toInclude("999");
+});
+
+test("a cyclic category parent chain does not blow the stack", async () => {
+    // `parentId`s come from the server, so a comodel whose hierarchy loops (no
+    // `_check_recursion`, or a value whose parent was pruned and re-added) used
+    // to recurse forever and take the whole panel down with it.
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="category_id"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+    const searchPanel = findComponent(component, (c) => c instanceof SearchPanel);
+    const [category] = component.env.searchModel.getSections(
+        (s) => s.type === "category",
+    );
+
+    category.values.set(101, { id: 101, parentId: 102, childrenIds: [] });
+    category.values.set(102, { id: 102, parentId: 101, childrenIds: [] });
+
+    expect(searchPanel.getAncestorValueIds(category, 101)).toEqual([102]);
+    expect(searchPanel.getAncestorValueIds(category, 102)).toEqual([101]);
+});
+
+test("an unreachable ancestor yields the partial chain", async () => {
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="category_id"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+    const searchPanel = findComponent(component, (c) => c instanceof SearchPanel);
+    const [category] = component.env.searchModel.getSections(
+        (s) => s.type === "category",
+    );
+
+    // 201's parent was pruned from the returned range.
+    category.values.set(201, { id: 201, parentId: 202, childrenIds: [] });
+
+    expect(searchPanel.getAncestorValueIds(category, 201)).toEqual([202]);
+    expect(searchPanel.getAncestorValueIds(category, 999)).toEqual([]);
 });

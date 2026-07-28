@@ -209,13 +209,13 @@ export class SearchPanel extends Component {
             }
 
             const expand = (id, level) => {
-                if (!level) {
+                const value = category.values.get(id);
+                if (!level || !value) {
                     return;
                 }
                 this.state.expanded[category.id][id] = true;
-                const { childrenIds } = category.values.get(id);
                 level -= 1;
-                for (const childId of childrenIds) {
+                for (const childId of value.childrenIds) {
                     expand(childId, level);
                 }
             };
@@ -227,16 +227,29 @@ export class SearchPanel extends Component {
     }
 
     /**
+     * Ancestors of a value, closest last.
+     *
+     * Iterative and cycle-guarded rather than plain recursion: the chain comes
+     * from `parentId`s the server sent, so a comodel whose parent hierarchy
+     * loops (no `_check_recursion`, or a value whose parent was pruned and
+     * re-added) used to blow the stack and take the whole panel down. Bailing
+     * out yields the partial chain, which is what an unreachable ancestor means.
+     *
      * @param {Object} category
      * @param {number} categoryValueId
      * @returns {number[]} list of ids of the ancestors of the given value in
      *   the given category.
      */
     getAncestorValueIds(category, categoryValueId) {
-        const { parentId } = category.values.get(categoryValueId);
-        return parentId
-            ? [...this.getAncestorValueIds(category, parentId), parentId]
-            : [];
+        const ancestorIds = [];
+        const seen = new Set([categoryValueId]);
+        let { parentId } = category.values.get(categoryValueId) || {};
+        while (parentId && !seen.has(parentId)) {
+            ancestorIds.unshift(parentId);
+            seen.add(parentId);
+            ({ parentId } = category.values.get(parentId) || {});
+        }
+        return ancestorIds;
     }
 
     /**

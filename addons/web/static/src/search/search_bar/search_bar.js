@@ -156,8 +156,13 @@ export class SearchBar extends Component {
      */
     async computeState(options = {}) {
         const query = "query" in options ? options.query : this.state.query;
-        const expanded = "expanded" in options ? options.expanded : this.state.expanded;
         const subItems = "subItems" in options ? options.subItems : this.subItems;
+        // A `field_property` item is retired as soon as its definition
+        // disappears from the parent record (`getSearchItemsProperties`), so an
+        // id captured when the user expanded it can already be gone.
+        const expanded = (
+            "expanded" in options ? options.expanded : this.state.expanded
+        ).filter((id) => this.getSearchItem(id));
 
         const tasks = [];
         for (const id of expanded) {
@@ -314,12 +319,13 @@ export class SearchBar extends Component {
         items.push(item);
 
         if (item.isExpanded) {
+            const subItems = this.subItems[searchItem.id] || [];
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
-                for (const subItem of this.subItems[searchItem.id]) {
+                for (const subItem of subItems) {
                     items.push(...this.getItems(subItem, trimmedQuery));
                 }
             } else {
-                items.push(...this.subItems[searchItem.id]);
+                items.push(...subItems);
             }
         }
 
@@ -332,13 +338,14 @@ export class SearchBar extends Component {
     }
 
     getFieldType(searchItem) {
+        // `searchViewFields` is replaced wholesale by `load` and extended at
+        // runtime by the properties flow, so a search item can momentarily name
+        // a field the current map has not got.
         const { type } =
-            searchItem.type === "field_property"
+            (searchItem.type === "field_property"
                 ? searchItem.propertyFieldDefinition
-                : this.fields[searchItem.fieldName];
-        const fieldType = type === "reference" ? "char" : type;
-
-        return fieldType;
+                : this.fields[searchItem.fieldName]) || {};
+        return type === "reference" ? "char" : type;
     }
 
     /**

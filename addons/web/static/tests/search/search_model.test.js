@@ -1545,3 +1545,77 @@ test("the Activities block ANDs across its invisible separator", async () => {
         ["foo", "=", "today"],
     ]);
 });
+
+test("property group-bys join the group-by group instead of one group each", async () => {
+    // Group-bys form a SINGLE query group, so activating several of them yields
+    // one ">"-separated facet the user can drop in one click. Property
+    // group-bys used to get a group of their own, so N of them produced N
+    // chips, each needing its own click to remove.
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+                <filter string="Foo" name="group_by_foo" context="{'group_by': 'foo'}"/>
+            </search>
+        `,
+    });
+    model._fetchPropertiesDefinition = async () => [
+        {
+            definitionRecordId: 1,
+            definitionRecordName: "Parent",
+            definitions: [
+                { name: "p1", string: "P1", type: "char" },
+                { name: "p2", string: "P2", type: "char" },
+            ],
+        },
+    ];
+    await model.fillSearchViewItemsProperty();
+
+    const archGroupBy = Object.values(model.searchItems).find(
+        (item) => item.name === "group_by_foo",
+    );
+    const propertyGroupBys = Object.values(model.searchItems).filter(
+        (item) => item.isProperty,
+    );
+    expect(propertyGroupBys).toHaveLength(2);
+    expect(propertyGroupBys.map((item) => item.groupId)).toEqual([
+        archGroupBy.groupId,
+        archGroupBy.groupId,
+    ]);
+
+    model.toggleSearchItem(propertyGroupBys[0].id);
+    model.toggleSearchItem(propertyGroupBys[1].id);
+    expect(model.facets).toHaveLength(1);
+    expect(model.facets[0].values).toEqual(["P1", "P2"]);
+
+    model.deactivateGroup(model.facets[0].groupId);
+    expect(model.facets).toHaveLength(0);
+});
+
+test("property group-bys form their own group when the view has none", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+    model._fetchPropertiesDefinition = async () => [
+        {
+            definitionRecordId: 1,
+            definitionRecordName: "Parent",
+            definitions: [
+                { name: "p1", string: "P1", type: "char" },
+                { name: "p2", string: "P2", type: "char" },
+            ],
+        },
+    ];
+    await model.fillSearchViewItemsProperty();
+
+    const groupIds = new Set(
+        Object.values(model.searchItems)
+            .filter((item) => item.isProperty)
+            .map((item) => item.groupId),
+    );
+    expect(groupIds.size).toBe(1);
+});

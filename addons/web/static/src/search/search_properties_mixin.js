@@ -5,6 +5,8 @@
 
 import { groupBy } from "@web/core/utils/collections/arrays";
 
+import { findGroupByGroupId } from "./search_group_by.js";
+
 /**
  * Property-field search logic for SearchModel: lazily loading property
  * definitions and materializing the corresponding search / group-by items.
@@ -211,7 +213,9 @@ export const SearchPropertiesMixin = (Base) =>
                         !searchItemsNames.includes(fullName) &&
                         !["html", "separator"].includes(definition.type)
                     ) {
-                        const groupByItem = {
+                        const id = this.nextId++;
+                        this.searchItems[id] = {
+                            id,
                             description: definition.string,
                             definitionRecordId,
                             definitionRecordName,
@@ -223,8 +227,10 @@ export const SearchPropertiesMixin = (Base) =>
                             type: ["datetime", "date"].includes(definition.type)
                                 ? "dateGroupBy"
                                 : "groupBy",
+                            groupId:
+                                findGroupByGroupId(this.searchItems) ??
+                                this.nextGroupId++,
                         };
-                        this._createGroupOfSearchItems([groupByItem]);
                     }
                 }
             }

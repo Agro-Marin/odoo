@@ -8,8 +8,24 @@ import { _t } from "@web/core/l10n/translation";
 
 import { computeActiveItemDomains } from "./search_domain.js";
 import { SPECIAL } from "./search_state.js";
-import { INTERVAL_OPTIONS } from "./utils/dates.js";
+import { BACKEND_INTERVAL_OPTIONS } from "./utils/dates.js";
 import { FACET_COLORS, FACET_ICONS } from "./utils/misc.js";
+
+/**
+ * Describe an interval for a facet label, falling back to the raw id.
+ *
+ * Ranked against the BACKEND options, not the five the UI offers, for the same
+ * reason `rankInterval` is: `hour` is a legal group-by interval that a
+ * `<filter context="{'group_by': 'x:hour'}">` puts straight into the query, and
+ * looking it up in the UI-only table produced a facet with NO values at all —
+ * an empty chip the user could see but not read.
+ *
+ * @param {string} intervalId
+ * @returns {string}
+ */
+function intervalDescription(intervalId) {
+    return String(BACKEND_INTERVAL_OPTIONS[intervalId]?.description ?? intervalId);
+}
 
 /**
  * Icon of a facet: a group-by facet carries the count-sort arrow whenever the
@@ -86,12 +102,9 @@ export function buildFacets({
                 case "dateGroupBy": {
                     type = "groupBy";
                     for (const intervalId of activeItem.intervalIds) {
-                        const option = INTERVAL_OPTIONS[intervalId];
-                        if (!option) {
-                            continue;
-                        }
-                        const { description } = option;
-                        values.push(`${searchItem.description}: ${description}`);
+                        values.push(
+                            `${searchItem.description}: ${intervalDescription(intervalId)}`,
+                        );
                     }
                     break;
                 }
@@ -145,15 +158,9 @@ export function buildFacets({
             values: defaultGroupBy.map((gb) => {
                 const [fieldName, interval] = gb.split(":");
                 const string = searchViewFields[fieldName]?.string ?? fieldName;
-                if (interval) {
-                    const option = INTERVAL_OPTIONS[interval];
-                    if (!option) {
-                        return string;
-                    }
-                    const { description } = option;
-                    return `${string}:${description}`;
-                }
-                return string;
+                return interval
+                    ? `${string}: ${intervalDescription(interval)}`
+                    : string;
             }),
             separator: ">",
             icon: groupByIcon("groupBy", orderByCount),

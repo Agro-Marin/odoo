@@ -226,6 +226,26 @@ describe("buildIrFilterDescription", () => {
         expect("uid" in irFilter.context).toBe(false);
     });
 
+    test("strips a user-context key whose value is a shared array", () => {
+        // `user.context` spreads a FRESH object per access but copies its values
+        // by reference, so the identity test that drops seeded keys still holds
+        // for `allowed_company_ids`. If that spread ever deep-copies, favorites
+        // would silently start pinning the company selection they were saved
+        // under — this test is the tripwire for that.
+        const userCtx = user.context;
+        expect(Array.isArray(userCtx.allowed_company_ids)).toBe(true);
+
+        const { irFilter, preFavorite } = buildIrFilterDescription(
+            makeParams({
+                getContext: () => ({ ...userCtx, custom_key: 1 }),
+            }),
+        );
+
+        expect("allowed_company_ids" in irFilter.context).toBe(false);
+        expect("allowed_company_ids" in preFavorite.context).toBe(false);
+        expect(irFilter.context.custom_key).toBe(1);
+    });
+
     test("round-trips through irFilterToFavorite", () => {
         const { irFilter } = buildIrFilterDescription(makeParams());
 

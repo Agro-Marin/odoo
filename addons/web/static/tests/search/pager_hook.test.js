@@ -140,3 +140,80 @@ test("pager is correctly updated on desktop", async () => {
     expect(getPagerValue()).toEqual([21, 30]);
     expect(getPagerLimit()).toBe(50);
 });
+
+test("a key the previous render set and this one omits does not survive", async () => {
+    // `Object.assign` alone left the stale key in the reactive state, and the
+    // ControlPanel spreads the whole object into `<Pager t-props=.../>`.
+    // Callers were papering over this by hand (list_controller still writes
+    // `updateTotal: <cond> ? fn : undefined` so the key gets overwritten).
+    let withUpdateTotal = true;
+    let pagerProps;
+
+    class TestComponent extends Component {
+        static components = { ControlPanel };
+        static template = xml`<ControlPanel />`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ tick: 0 });
+            usePager(() => {
+                const props = {
+                    offset: 0,
+                    limit: 10,
+                    total: 50,
+                    onUpdate: () => {},
+                };
+                if (withUpdateTotal) {
+                    props.updateTotal = () => {};
+                }
+                return props;
+            });
+            pagerProps = this.env.config.pagerProps;
+        }
+    }
+
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "foo",
+        searchMenuTypes: [],
+    });
+    expect("updateTotal" in pagerProps).toBe(true);
+
+    withUpdateTotal = false;
+    component.state.tick++;
+    await animationFrame();
+
+    expect("updateTotal" in pagerProps).toBe(false);
+    expect(pagerProps.total).toBe(50);
+});
+
+test("an absent pager resets the state to a hidden pager", async () => {
+    let hasPager = true;
+    let pagerProps;
+
+    class TestComponent extends Component {
+        static components = { ControlPanel };
+        static template = xml`<ControlPanel />`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ tick: 0 });
+            usePager(() =>
+                hasPager
+                    ? { offset: 0, limit: 10, total: 50, onUpdate: () => {} }
+                    : undefined,
+            );
+            pagerProps = this.env.config.pagerProps;
+        }
+    }
+
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "foo",
+        searchMenuTypes: [],
+    });
+    expect(`.o_pager`).toHaveCount(1);
+
+    hasPager = false;
+    component.state.tick++;
+    await animationFrame();
+
+    expect(`.o_pager`).toHaveCount(0);
+    expect(Object.keys(pagerProps)).toEqual(["total"]);
+});

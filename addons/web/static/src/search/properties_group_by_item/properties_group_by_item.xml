@@ -4,7 +4,7 @@
             class="'o_add_custom_group_menu text-truncate'"
             description="props.item.description"
             selected="isActive">
-            <t t-set="items" t-value="state.groupByItems"/>
+            <t t-set="items" t-value="groupByItems"/>
             <t t-if="items and items.length">
                 <t t-foreach="items" t-as="item" t-key="item.name">
                     <t t-set="description" t-value="isSingleParent ? item.description : `${item.description} (${item.definitionRecordName})`"/>

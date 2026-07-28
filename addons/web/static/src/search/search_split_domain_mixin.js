@@ -154,6 +154,10 @@ export const SearchSplitDomainMixin = (Base) =>
                 }
             });
 
-            this._notify();
+            // Awaited, not floated: the method is already async and its callers
+            // await it, so returning before the reload settled made that await
+            // mean nothing — and a rejection out of `_reloadSections` had no
+            // handler at all.
+            await this._notify();
         }
     };
