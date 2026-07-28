@@ -9014,12 +9014,18 @@ test(`buttons with "confirm-title" and "confirm-label" attributes`, async () => 
 });
 
 test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
+    // Holds the confirm callback open so the dialog is still on screen while
+    // the second click lands — the only way to test what this test is named
+    // for. Without it the callback settles immediately and the dialog is gone
+    // before a second click is possible.
+    const deferred = new Deferred();
     mockService("action", {
         doActionButton() {
             expect.step("execute_action");
         },
     });
 
+    onRpc("web_save", () => deferred);
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
@@ -9038,7 +9044,18 @@ test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
     expect.verifySteps([]);
 
     await click(`.modal-footer button.btn-primary`);
+    await animationFrame();
+    // `ConfirmationDialog` disables its footer through reactive state rather
+    // than by walking the DOM, so the attribute lands on the next render, not
+    // synchronously with the click.
     expect(`.modal-footer button.btn-primary`).not.toBeEnabled();
+
+    // The guarantee that actually matters, and the one the title names: a
+    // second confirm must not run the callback twice. `execButton` returns
+    // early while `isProcess` is set, so this holds even for a click landing
+    // inside the frame before the button is visibly disabled.
+    await click(`.modal-footer button.btn-primary`);
+    deferred.resolve();
     await animationFrame();
     expect.verifySteps(["web_save", "execute_action"]);
 });
