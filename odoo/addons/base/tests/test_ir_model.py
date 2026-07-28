@@ -1,3 +1,4 @@
+import traceback
 from unittest.mock import patch
 
 from psycopg import IntegrityError
@@ -6,9 +7,11 @@ from psycopg.types.json import Json
 
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.fields import NO_ACCESS
+from odoo.models import is_model_definition, pop_field
 from odoo.tests import Form, HttpCase, TransactionCase, tagged
 from odoo.tests.common import new_test_user
-from odoo.tools import SQL, mute_logger
+from odoo.tools import SQL, escape_psql, mute_logger
 
 
 class TestXMLID(TransactionCase):
@@ -451,6 +454,55 @@ class TestIrModelEdition(TransactionCase):
         self.assertEqual(compute._depends, ("field_a", "field_b"))
         self.assertEqual(compute.__name__, "compute")
 
+    def test_manual_compute_failure_names_the_field(self):
+        """IMC-E1: a custom compute is ``exec``-ed from a shared helper, so the
+        deepest traceback frame read ``File ""`` and *nothing* in the failure
+        said which field ran.  The code block is now filed under
+        ``<compute model.field>``."""
+        model = self.env["ir.model"].create({"model": "x_imc_boom", "name": "IMC boom"})
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_src",
+                "field_description": "Src",
+                "model_id": model.id,
+                "ttype": "char",
+            }
+        )
+        self.env.flush_all()
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_calc",
+                "field_description": "Calc",
+                "model_id": model.id,
+                "ttype": "integer",
+                "store": False,
+                "readonly": True,
+                "depends": "x_src",
+                "compute": "for record in self:\n    record['x_calc'] = 1 / 0\n",
+            }
+        )
+        self.env.flush_all()
+        self.env.registry._setup_models__(self.env.cr, [model.model])
+        record = self.env[model.model].create({"x_src": "a"})
+
+        try:
+            record.read(["x_calc"])
+        except ZeroDivisionError:
+            frames = traceback.format_exc()
+        else:
+            self.fail("the compute code was expected to raise")
+        self.assertIn("<compute x_imc_boom.x_calc>", frames)
+
+    def test_manual_compute_syntax_error_names_the_field(self):
+        """IMC-E1: a syntax error is only raised when the field is *read*, and
+        used to surface as a bare ``SyntaxError (, line 1)`` naming nothing."""
+        from odoo.addons.base.models.ir_model_common import make_compute
+
+        compute = make_compute("for record in self\n    pass\n", None, "x_m.x_f")
+        with self.assertRaises(SyntaxError) as cm:
+            compute(self.env["ir.model"])
+        self.assertIn("<compute x_m.x_f>", str(cm.exception))
+
     def test_inherit_xmlid_format(self):
         from odoo.addons.base.models.ir_model_common import inherit_xmlid
 
@@ -472,6 +524,93 @@ class TestIrModelEdition(TransactionCase):
         batch.invalidate_recordset(["count"])
         self.assertEqual(concrete.count, expected)
         self.assertEqual(abstract.count, 0)
+
+    def test_model_deletion_drops_its_custom_m2m_tables(self):
+        """IMOD-D1: a custom m2m table is never reflected into
+        ``ir.model.relation`` (only non-manual ones are), so ``_drop_column`` is
+        its only owner.  Deleting the *model* removed the field rows through the
+        ``model_id`` FK cascade -- no Python, no drop -- leaking the table."""
+        model = self.env["ir.model"].create({"model": "x_imod_m2m", "name": "IMOD m2m"})
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_partners",
+                "field_description": "Partners",
+                "model_id": model.id,
+                "ttype": "many2many",
+                "relation": "res.partner",
+            }
+        )
+        self.env.flush_all()
+        table = field.relation_table
+        self.env.cr.execute("SELECT to_regclass(%s)", (table,))
+        self.assertIsNotNone(self.env.cr.fetchone()[0], "precondition: table exists")
+
+        model.unlink()
+        self.env.flush_all()
+
+        self.env.cr.execute("SELECT to_regclass(%s)", (table,))
+        self.assertIsNone(self.env.cr.fetchone()[0], "m2m table must not leak")
+
+    def test_m2m_table_kept_while_another_field_uses_it(self):
+        """IMOD-D2: the drop is guarded by "is any other field still using this
+        table?" -- that guard must survive the extraction into
+        ``_drop_m2m_tables``."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imod_share", "name": "IMOD share"}
+        )
+        first = self.env["ir.model.fields"].create(
+            {
+                "name": "x_partners",
+                "field_description": "Partners",
+                "model_id": model.id,
+                "ttype": "many2many",
+                "relation": "res.partner",
+            }
+        )
+        self.env.flush_all()
+        table = first.relation_table
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_partners_too",
+                "field_description": "Partners again",
+                "model_id": model.id,
+                "ttype": "many2many",
+                "relation": "res.partner",
+                "relation_table": table,
+                "column1": first.column1,
+                "column2": first.column2,
+            }
+        )
+        self.env.flush_all()
+
+        first.unlink()
+        self.env.flush_all()
+
+        self.env.cr.execute("SELECT to_regclass(%s)", (table,))
+        self.assertIsNotNone(
+            self.env.cr.fetchone()[0], "another field still uses the table"
+        )
+
+    def test_compute_count_survives_a_missing_table(self):
+        """IMOD-C1: the batch is one UNION ALL, so a model whose table is gone
+        used to fail the whole query *and abort the transaction*, 500-ing the
+        Models list view instead of showing the other counts."""
+        IrModel = self.env["ir.model"]
+        orphan = IrModel.create({"model": "x_imod_notable", "name": "No table"})
+        self.env.cr.execute("DROP TABLE IF EXISTS x_imod_notable CASCADE")
+        self.env.invalidate_all()
+
+        batch = IrModel._get("res.country") + orphan
+        batch.invalidate_recordset(["count"])
+        counts = {record.model: record.count for record in batch}
+
+        self.assertEqual(counts["x_imod_notable"], 0)
+        self.assertEqual(
+            counts["res.country"],
+            self.env["res.country"].with_context(active_test=False).search_count([]),
+        )
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(self.env.cr.fetchone(), (1,), "transaction still usable")
 
 
 @tagged("test_eval_context")
@@ -729,6 +868,337 @@ class TestIrModelFields(TransactionCase):
             )
         self.assertIn("Relation table names", str(cm.exception))
 
+    def test_help_added_by_translate_only_write_is_visible(self):
+        """IMF-P3: the translate-only fast path must rebuild the registry when a
+        translatable attribute appears or disappears.
+
+        ``Field._description_help`` short-circuits on a falsy ``self.help`` and
+        never consults the label cache, so clearing 'stable' alone left a newly
+        added tooltip invisible in ``fields_get`` until the next full setup.
+        """
+        Model, field = self._make_manual_field("addhelp")
+        model_name = Model._name
+        self.assertIsNone(Model._fields[field.name].help)
+
+        field.write({"help": "Tooltip"})
+
+        self.assertEqual(
+            self.env[model_name].fields_get([field.name])[field.name]["help"],
+            "Tooltip",
+        )
+        self.assertEqual(
+            self.env.registry[model_name]._fields[field.name].help, "Tooltip"
+        )
+
+    def test_presence_preserving_label_write_still_skips_setup(self):
+        """IMF-P2 (regression guard): a label write that changes neither
+        attribute's emptiness keeps the cheap 'stable' clear."""
+        Model, field = self._make_manual_field("keepfast", help="Tip")
+        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+            field.write({"field_description": "Renamed", "help": "Tip 2"})
+        mock_setup.assert_not_called()
+        self.assertEqual(
+            self.env["ir.model.fields"].get_field_help(Model._name)[field.name],
+            "Tip 2",
+        )
+
+    def test_field_groups_without_xmlid_are_enforceable(self):
+        """IMF-S1: ``Field.groups`` is a list of external ids, so a restricting
+        group created through the UI (no xml id) used to reflect as *no*
+        restriction at all -- the field became readable by everyone.  Creating
+        the field now provisions the external id."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_sec", "name": "IMF security test"}
+        )
+        group = self.env["res.groups"].create({"name": "IMF ad-hoc group"})
+        self.assertFalse(group.get_external_id()[group.id])
+
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_secret",
+                "field_description": "Secret",
+                "model_id": model.id,
+                "ttype": "char",
+                "groups": [Command.set([group.id])],
+            }
+        )
+        self.env["ir.model.access"].create(
+            {
+                "name": "imf sec acl",
+                "model_id": model.id,
+                "group_id": self.env.ref("base.group_user").id,
+                "perm_read": True,
+                "perm_write": True,
+                "perm_create": True,
+                "perm_unlink": True,
+            }
+        )
+        self.env.flush_all()
+        self.env.registry._setup_models__(self.env.cr, [model.model])
+
+        self.assertTrue(group.get_external_id()[group.id])
+        self.assertEqual(
+            self.env.registry[model.model]._fields[field.name].groups,
+            group.get_external_id()[group.id],
+        )
+
+        record = self.env[model.model].create({"x_secret": "classified"})
+        self.env.flush_all()
+        outsider = new_test_user(self.env, login="imf_outsider")
+        with self.assertRaises(AccessError):
+            self.env[model.model].with_user(outsider).browse(record.id).read(
+                ["x_secret"]
+            )
+        outsider.write({"group_ids": [Command.link(group.id)]})
+        self.assertEqual(
+            self.env[model.model].with_user(outsider).browse(record.id).x_secret,
+            "classified",
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_model_fields")
+    def test_field_groups_missing_xmlid_fails_closed(self):
+        """IMF-S2: pre-existing data whose restricting groups lost their xml ids
+        must hide the field, never expose it."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_sec2", "name": "IMF security test 2"}
+        )
+        group = self.env["res.groups"].create({"name": "IMF legacy group"})
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_secret",
+                "field_description": "Secret",
+                "model_id": model.id,
+                "ttype": "char",
+                "groups": [Command.set([group.id])],
+            }
+        )
+        self.env.flush_all()
+        self.env["ir.model.data"].search(
+            [("model", "=", "res.groups"), ("res_id", "=", group.id)]
+        ).unlink()
+        self.env.registry.clear_cache("stable")
+        self.env.registry._setup_models__(self.env.cr, [model.model])
+
+        self.assertEqual(
+            self.env.registry[model.model]._fields[field.name].groups,
+            NO_ACCESS,
+            "an unreflectable restriction must fail closed",
+        )
+
+    def test_write_does_not_mutate_caller_vals(self):
+        """IMF-A1: ``write`` used to ``pop`` model_id/model/state out of the
+        caller's dict, so a reused vals dict silently lost keys."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_vals", "name": "IMF vals test"}
+        )
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_v",
+                "field_description": "V",
+                "model_id": model.id,
+                "ttype": "char",
+            }
+        )
+        vals = {"field_description": "V2", "model_id": model.id, "state": "manual"}
+        expected = dict(vals)
+        field.write(vals)
+        self.assertEqual(vals, expected)
+
+        model_vals = {"name": "IMF vals test 2", "field_id": [(4, field.id, False)]}
+        expected_model_vals = dict(model_vals)
+        model.write(model_vals)
+        self.assertEqual(model_vals, expected_model_vals)
+
+    def test_unrelated_broken_view_does_not_block_field_deletion(self):
+        """IMF-R3: the view scan feeds the field name to LIKE, where '_' -- in
+        every ``x_`` name -- is a wildcard.  A view that merely *matched the
+        wildcard* and was independently broken failed the ``_check_xml`` pass and
+        blocked the delete with a bogus 'still present in views' error.
+
+        Note the scan stays approximate even escaped: it is a substring match, so
+        deleting ``x_ab`` still pulls in views referencing ``x_ab_long``.  Those
+        false positives are harmless precisely because they pass ``_check_xml``;
+        only an independently broken one turns into a spurious error.
+        """
+        _Model, field = self._make_manual_field("ab_cd")
+        bait = self.env["ir.ui.view"].create(
+            {
+                "name": "IMF wildcard bait",
+                "model": "res.partner",
+                "type": "form",
+                "arch": '<form><field name="name"/></form>',
+            }
+        )
+        self.env.flush_all()
+        # matched by 'x_ab_cd' only through the '_' wildcards, and broken on
+        # its own account (unknown field) so _check_xml raises
+        self.env.cr.execute(
+            "UPDATE ir_ui_view SET arch_db = %s WHERE id = %s",
+            (Json({"en_US": '<form><field name="xZabZcd_nope"/></form>'}), bait.id),
+        )
+        self.env.invalidate_all()
+
+        self.assertTrue(
+            self.env["ir.ui.view"].search_count(
+                [("id", "=", bait.id), ("arch_db", "like", field.name)]
+            ),
+            "precondition: the raw pattern matches the bait",
+        )
+        self.assertFalse(
+            self.env["ir.ui.view"].search_count(
+                [("id", "=", bait.id), ("arch_db", "like", escape_psql(field.name))]
+            ),
+            "precondition: the escaped pattern does not",
+        )
+        with self.assertRaises(ValidationError):
+            bait._check_xml()
+
+        field.unlink()
+
+    def test_related_view_still_blocks_field_deletion(self):
+        """IMF-R3 control: escaping must not weaken the real guard -- a view that
+        genuinely references the field still blocks its deletion."""
+        Model, field = self._make_manual_field("guard")
+        self.env["ir.ui.view"].create(
+            {
+                "name": "IMF real reference",
+                "model": Model._name,
+                "type": "form",
+                "arch": f'<form><field name="{field.name}"/></form>',
+            }
+        )
+        self.env.flush_all()
+        with self.assertRaises(UserError):
+            field.unlink()
+
+    def test_view_scan_ignores_substring_and_wildcard_matches(self):
+        """IMF-R5: the view scan matches on a word boundary across every
+        translation.  A ``LIKE`` scan could not: ``_`` is a wildcard, and even
+        escaped it stays a substring match, so deleting ``x_ab`` dragged in every
+        view mentioning ``x_ab_long``."""
+        model = self.env["ir.model"].create({"model": "x_imf_scan", "name": "IMF scan"})
+        for name in ("x_ab", "x_ab_long", "x_ab_cd"):
+            self.env["ir.model.fields"].create(
+                {
+                    "name": name,
+                    "field_description": name,
+                    "model_id": model.id,
+                    "ttype": "char",
+                }
+            )
+        self.env.flush_all()
+        self.env.registry._setup_models__(self.env.cr, [model.model])
+        long_view = self.env["ir.ui.view"].create(
+            {
+                "name": "IMF scan long",
+                "model": model.model,
+                "type": "form",
+                "arch": '<form><field name="x_ab_long"/></form>',
+            }
+        )
+        wildcard_bait = self.env["ir.ui.view"].create(
+            {
+                "name": "IMF scan bait",
+                "model": "res.partner",
+                "type": "form",
+                "arch": '<form><field name="name" string="xZabZcd"/></form>',
+            }
+        )
+        self.env.flush_all()
+
+        IrModelFields = self.env["ir.model.fields"]
+        self.assertNotIn(long_view.id, IrModelFields._views_mentioning(["x_ab"]).ids)
+        self.assertIn(long_view.id, IrModelFields._views_mentioning(["x_ab_long"]).ids)
+        self.assertNotIn(
+            wildcard_bait.id, IrModelFields._views_mentioning(["x_ab_cd"]).ids
+        )
+
+    def test_view_scan_finds_translation_only_occurrences(self):
+        """IMF-R5: ``arch_db`` is per-language, so a field referenced only in a
+        translated arch must still be found -- a ``like`` on the field looked at
+        the active language alone."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_scanfr", "name": "IMF scan fr"}
+        )
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_only_fr",
+                "field_description": "Fr",
+                "model_id": model.id,
+                "ttype": "char",
+            }
+        )
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "IMF scan fr view",
+                "model": "res.partner",
+                "type": "form",
+                "arch": '<form><field name="name"/></form>',
+            }
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_ui_view SET arch_db = %s WHERE id = %s",
+            (
+                Json(
+                    {
+                        "en_US": '<form><field name="name"/></form>',
+                        "fr_FR": '<form><field name="x_only_fr"/></form>',
+                    }
+                ),
+                view.id,
+            ),
+        )
+        self.env.invalidate_all()
+
+        self.assertIn(
+            view.id,
+            self.env["ir.model.fields"]._views_mentioning(["x_only_fr"]).ids,
+        )
+
+    def test_drop_column_recovers_m2m_table_name(self):
+        """IMF-D1: ``_prepare_update`` pops the field from the registry before
+        ``_drop_column`` runs, so a custom m2m with no stored ``relation_table``
+        had no name to drop -- it raised ``KeyError``, and guarding that with
+        ``.get()`` alone would silently leak the table instead."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_m2mdrop", "name": "IMF m2m drop"}
+        )
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": "x_rel",
+                "field_description": "Rel",
+                "model_id": model.id,
+                "ttype": "many2many",
+                "relation": "res.partner",
+            }
+        )
+        self.env.flush_all()
+        table = field.relation_table
+        self.assertTrue(table)
+        self.env.cr.execute(
+            "UPDATE ir_model_fields SET relation_table = NULL WHERE id = %s",
+            (field.id,),
+        )
+        self.env.invalidate_all()
+        pop_field(self.env.registry["x_imf_m2mdrop"], "x_rel")
+
+        field._drop_column()
+
+        self.env.cr.execute("SELECT to_regclass(%s)", (table,))
+        self.assertIsNone(self.env.cr.fetchone()[0], "m2m table must not leak")
+
+    def test_rename_without_registry_model_raises_user_error(self):
+        """IMF-R4: renaming a field whose model is absent from the registry
+        raised ``AttributeError: 'NoneType' has no attribute '_table'``."""
+        _Model, field = self._make_manual_field("noreg")
+        model_cls = self.env.registry.models.pop("x_imf_noreg")
+        try:
+            with self.assertRaises(UserError):
+                field.write({"name": "x_noreg2"})
+        finally:
+            self.env.registry.models["x_imf_noreg"] = model_cls
+
 
 class TestIrModelInherit(TransactionCase):
     def test_inherit(self):
@@ -752,6 +1222,71 @@ class TestIrModelInherit(TransactionCase):
         self.assertEqual(len(imi), 1)
         self.assertEqual(imi.parent_id.model, "res.partner")
         self.assertEqual(imi.parent_field_id.name, "partner_id")
+
+    def test_inherit_and_inherits_same_parent_is_rejected_clearly(self):
+        """IMI-C1: ``UNIQUE(model_id, parent_id)`` cannot record both an
+        ``_inherit`` and an ``_inherits`` link to one parent.  That used to
+        surface as ``upsert_en: rows are not unique on conflict columns`` from
+        deep inside the reflection; the model and parent are now named."""
+        IrModelInherit = self.env["ir.model.inherit"]
+        # the reflection walks the model-definition classes in the MRO, so the
+        # overlap has to be introduced on the class that declares _inherits
+        definition = next(
+            cls
+            for cls in type(self.env["res.users"]).mro()
+            if is_model_definition(cls) and "res.partner" in cls._inherits
+        )
+
+        with (
+            patch.object(definition, "_inherit", ["res.partner"]),
+            self.assertRaises(ValueError) as cm,
+        ):
+            IrModelInherit._reflect_inherits(["res.users"])
+        self.assertIn("res.users", str(cm.exception))
+        self.assertIn("res.partner", str(cm.exception))
+
+
+class TestIrModelRelationReflection(TransactionCase):
+    """IMR-P1: m2m relation reflection is batched like every other reflector."""
+
+    def test_reflect_relations_is_idempotent_and_batched(self):
+        """One call reflects every ``(model, table, module)`` triple; a second
+        pass over the same input inserts nothing."""
+        IrModelRelation = self.env["ir.model.relation"]
+        model_name = "res.partner"
+        table = "x_imr_probe_rel"
+        self.env.cr.execute("DELETE FROM ir_model_relation WHERE name = %s", (table,))
+
+        IrModelRelation._reflect_relations(
+            [(model_name, table, "base"), (model_name, table, "base")]
+        )
+        self.env.cr.execute(
+            "SELECT im.model, m.name FROM ir_model_relation r"
+            " JOIN ir_model im ON r.model = im.id"
+            " JOIN ir_module_module m ON r.module = m.id"
+            " WHERE r.name = %s",
+            (table,),
+        )
+        self.assertEqual(self.env.cr.fetchall(), [(model_name, "base")])
+
+        IrModelRelation._reflect_relations([(model_name, table, "base")])
+        self.env.cr.execute(
+            "SELECT count(*) FROM ir_model_relation WHERE name = %s", (table,)
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 1, "no duplicate row")
+
+    def test_reflect_relations_skips_unknown_module(self):
+        """An unresolvable module is logged and skipped, not crashed on: the
+        row is NOT NULL on both module and model."""
+        with mute_logger("odoo.addons.base.models.ir_model_reflection"):
+            self.env["ir.model.relation"]._reflect_relations(
+                [("res.partner", "x_imr_nomodule_rel", "no_such_module_xyz")]
+            )
+        self.env.cr.execute(
+            "SELECT count(*) FROM ir_model_relation WHERE name = %s",
+            ("x_imr_nomodule_rel",),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 0)
 
 
 @tagged("-at_install", "post_install")
@@ -1067,6 +1602,89 @@ class TestIrModelFieldsSelection(TransactionCase):
         record.invalidate_recordset(["x_pcd"])
         self.assertFalse(record.with_company(company).x_pcd)
 
+    def test_ondelete_company_dependent_outside_env_companies(self):
+        """SEL-P4: the ondelete sweep is driven by the companies that actually
+        hold a value, not by ``env.companies``.
+
+        ``env.companies`` is the acting user's UI scope; scoping the sweep to it
+        left the deleted value stored for every other company -- an asymmetry
+        with a value *rename*, whose ``jsonb_object_agg`` covers every key."""
+        other = self.env["res.company"].create({"name": "SEL-P4 other"})
+        Model, field = self._make_selection_field("outscope", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(Model, field, record, {other.id: "draft"})
+
+        scoped = self.env(
+            context=dict(self.env.context, allowed_company_ids=[self.env.company.id])
+        )
+        self.assertNotIn(other.id, scoped.companies.ids)
+
+        field.with_env(scoped).selection_ids.filtered(
+            lambda s: s.value == "draft"
+        ).unlink()
+
+        self.assertFalse(self._read_jsonb(Model, field, record))
+
+    @mute_logger("odoo.addons.base.models.ir_model_fields_selection")
+    def test_ondelete_orm_bypass_preserves_other_companies(self):
+        """SEL-C3: when the ORM write fails, the bypass writes raw SQL.
+        ``convert_to_column_insert`` renders a company-dependent value as a whole
+        ``{company: value}`` object (``NULL`` when falsy), so assigning it wiped
+        every *other* company's value.  Widening the ondelete sweep past
+        ``env.companies`` makes that fallback markedly easier to reach.
+        """
+        other = self.env["res.company"].create({"name": "SEL-C3 other"})
+        Model, field = self._make_selection_field("bypass", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(
+            Model, field, record, {self.env.company.id: "draft", other.id: "done"}
+        )
+
+        original_write = type(Model).write
+
+        def failing_write(records, vals):
+            if field.name in vals:
+                raise UserError("forced ORM failure")
+            return original_write(records, vals)
+
+        with patch.object(type(Model), "write", failing_write):
+            field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+        self.env.flush_all()
+
+        stored = self._read_jsonb(Model, field, record)
+        self.assertEqual(
+            stored.get(str(other.id)),
+            "done",
+            "the other company's unrelated value must survive the bypass",
+        )
+        self.assertFalse(stored.get(str(self.env.company.id)))
+
+    def test_ondelete_tolerates_non_object_jsonb(self):
+        """SEL-C4: the company sweep calls ``jsonb_object_keys``, which raises on
+        any non-object.  The JSON scalar ``null`` is not SQL ``NULL``, so an
+        ``IS NOT NULL`` guard lets it through and the whole unlink blows up on
+        data the previous ``env.companies`` sweep simply ignored.
+        """
+        Model, field = self._make_selection_field("scalar", company_dependent=True)
+        polluted = Model.create({})
+        healthy = Model.create({})
+        Model.flush_model()
+        self.env.cr.execute(
+            SQL(
+                "UPDATE %s SET %s = 'null'::jsonb WHERE id = %s",
+                SQL.identifier(Model._table),
+                SQL.identifier(field.name),
+                polluted.id,
+            )
+        )
+        self._set_jsonb(Model, field, healthy, {self.env.company.id: "draft"})
+
+        field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+
+        self.assertFalse(self._read_jsonb(Model, field, healthy))
+
 
 class TestIrModelDataCacheInvalidation(TransactionCase):
     """IMD-T2: the symmetric `groups`-cache clears on the create/unlink/
@@ -1278,6 +1896,77 @@ class TestIrModelData(TransactionCase):
             (record._name, record.id),
         )
 
+    def _isolated_process_end(self, modules):
+        """Run ``_process_end`` without disturbing the loader's xml-id set.
+
+        ``_process_end`` ends with ``loaded_xmlids.clear()``.  Called from a test
+        that runs *during* module loading, that empties the set the loader has
+        been accumulating across modules, and the real ``_process_end`` at the
+        end of the load then treats every earlier record as removed from the
+        data and deletes it.  A throwaway set keeps the blast radius inside the
+        test; the registry attribute is restored on exit.
+        """
+        with patch.object(self.env.registry, "loaded_xmlids", set()):
+            self.env["ir.model.data"]._process_end(modules)
+
+    def test_process_end_keeps_record_while_another_xmlid_lives(self):
+        """IMD-P1: ``_process_end`` deletes a record only once *all* its xml ids
+        are gone.  The per-row ``search_count`` that answered "does another live
+        xml id point here?" is now a single batched count that the loop
+        decrements, so the ordering must still hold: with three xml ids, the two
+        highest ids are dropped and only the last one deletes the record."""
+        module = "x_imd_procend"
+        category = self.env["res.partner.category"].create({"name": "procend"})
+        self.env.flush_all()
+        for index in range(3):
+            self.env["ir.model.data"].create(
+                {
+                    "module": module,
+                    "name": f"cat_{index}",
+                    "model": "res.partner.category",
+                    "res_id": category.id,
+                }
+            )
+        self.env.flush_all()
+
+        self._isolated_process_end([module])
+
+        self.assertFalse(category.exists(), "record deleted exactly once")
+        self.assertFalse(
+            self.env["ir.model.data"].search([("module", "=", module)]),
+            "every redundant xml id removed",
+        )
+
+    def test_process_end_keeps_record_owned_by_another_module(self):
+        """IMD-P1: an xml id from a module outside the batch still counts as a
+        live owner, so the record survives."""
+        module = "x_imd_procend2"
+        category = self.env["res.partner.category"].create({"name": "procend2"})
+        self.env.flush_all()
+        self.env["ir.model.data"].create(
+            {
+                "module": module,
+                "name": "cat_a",
+                "model": "res.partner.category",
+                "res_id": category.id,
+            }
+        )
+        keeper = self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "x_imd_procend2_keeper",
+                "model": "res.partner.category",
+                "res_id": category.id,
+            }
+        )
+        self.env.flush_all()
+
+        self._isolated_process_end([module])
+
+        self.assertTrue(category.exists(), "another module still owns the record")
+        self.assertTrue(keeper.exists())
+        self.assertFalse(self.env["ir.model.data"].search([("module", "=", module)]))
+
     def test_lookup_xmlids_resolves(self):
         """IMD-S1 guard: ``_lookup_xmlids`` (rewritten onto the SQL wrapper)
         still resolves an existing xmlid with the joined record id, and an
@@ -1311,6 +2000,47 @@ class TestIrModelConstraintReflection(TransactionCase):
                 )
             )
         }
+
+    def test_constraint_drop_resolves_table_from_postgres(self):
+        """IMC-D1: ``unlink`` runs while the owning module is being uninstalled,
+        i.e. exactly when its model is gone from the registry.  The old fallback
+        derived the table as ``model.replace(".", "_")``, which is wrong for
+        every model with a custom ``_table`` (``ir.actions.client`` lives in
+        ``ir_act_client``), so the constraint was silently left in place."""
+        rows = self.env.execute_query(
+            SQL(
+                """SELECT c.id, c.name, im.model
+                   FROM ir_model_constraint c
+                   JOIN ir_model im ON c.model = im.id
+                   WHERE im.model = 'ir.actions.client' AND c.type = 'u'
+                   LIMIT 1"""
+            )
+        )
+        if not rows:
+            self.skipTest("no reflected constraint on ir.actions.client")
+        constraint_id, name, model_name = rows[0]
+        self.assertNotEqual(
+            self.env[model_name]._table,
+            model_name.replace(".", "_"),
+            "precondition: this model's table is not derivable from its name",
+        )
+
+        model_cls = self.env.registry.models.pop(model_name)
+        try:
+            self.env["ir.model.constraint"].browse(constraint_id).unlink()
+        finally:
+            self.env.registry.models[model_name] = model_cls
+
+        remaining = self.env.execute_query(
+            SQL(
+                """SELECT 1 FROM pg_constraint cs
+                   JOIN pg_class cl ON cs.conrelid = cl.oid
+                   WHERE cs.conname = %s
+                   AND cl.relnamespace = current_schema::regnamespace""",
+                name,
+            )
+        )
+        self.assertFalse(remaining, "constraint must actually be dropped")
 
     def test_reflect_constraints_idempotent_and_repairs(self):
         Constraint = self.env["ir.model.constraint"]

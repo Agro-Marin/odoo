@@ -171,10 +171,15 @@ class IrModelData(models.Model):
         """Unlink, clearing the _xmlid_lookup cache and the groups cache for res.groups rows."""
         if not self:
             return True
+        touch_groups = any(data.model == "res.groups" for data in self.exists())
+        res = super().unlink()
+        # cleared after the delete, like write(): clearing first leaves a window
+        # in which a concurrent read repopulates the cache from the pre-delete
+        # rows and the stale entry outlives the transaction
         self.env.registry.clear_cache()
-        if any(data.model == "res.groups" for data in self.exists()):
+        if touch_groups:
             self.env.registry.clear_cache("groups")
-        return super().unlink()
+        return res
 
     def _lookup_xmlids(self, xml_ids: list[str], model: Any) -> list[tuple]:
         """Look up the given XML ids of the given model."""
@@ -463,6 +468,35 @@ class IrModelData(models.Model):
                 pass
         module_data.unlink()
 
+    def _count_xmlids_per_record(
+        self, keys: list[tuple[str, int]]
+    ) -> dict[tuple[str, int], int]:
+        """Return ``{(model, res_id): number of xml ids}`` for the given keys.
+
+        One query for the whole batch. ``_process_end`` used to ask the same
+        question with a ``search_count`` per candidate row, excluding the ids it
+        had already condemned; the caller now decrements this mapping instead,
+        which is the same bookkeeping without the round trips.
+        """
+        if not keys:
+            return {}
+        models_, res_ids = zip(*set(keys), strict=True)
+        return {
+            (model, res_id): count
+            for model, res_id, count in self.env.execute_query(
+                SQL(
+                    """SELECT model, res_id, count(*)
+                       FROM ir_model_data
+                       WHERE (model, res_id) IN (
+                           SELECT * FROM unnest(%s::varchar[], %s::integer[])
+                       )
+                       GROUP BY model, res_id""",
+                    list(models_),
+                    list(res_ids),
+                )
+            )
+        }
+
     @api.model
     def _process_end_unlink_record(self, record: Any) -> None:
         record.unlink()
@@ -474,6 +508,15 @@ class IrModelData(models.Model):
         Called at the end of module loading to delete records no longer present
         in the data: those with an xml id whose module is in ir_model_data and
         noupdate is false, but which are not in self.pool.loaded_xmlids.
+
+        .. warning::
+            This consumes ``loaded_xmlids`` and **clears it on the way out**,
+            and that set is accumulated across every module of the current load.
+            Calling this outside the loader -- from a test, say -- therefore
+            makes the real call at the end of the load treat every previously
+            loaded record as dropped from the data, and delete it.  Any other
+            caller must swap in a throwaway set first (see
+            ``TestIrModelData._isolated_process_end``).
         """
         if not modules or tools.config.get("import_partial"):
             return
@@ -486,7 +529,12 @@ class IrModelData(models.Model):
                     WHERE module = ANY(%s) AND res_id IS NOT NULL AND COALESCE(noupdate, false) != %s ORDER BY id DESC
                 """
         self.env.cr.execute(query, (list(modules), True))
-        for id, xmlid, model, res_id in self.env.cr.fetchall():
+        candidates = self.env.cr.fetchall()
+        xmlids_per_record = self._count_xmlids_per_record(
+            [(model, res_id) for _id, _xmlid, model, res_id in candidates]
+        )
+
+        for id, xmlid, model, res_id in candidates:
             if xmlid in loaded_xmlids:
                 continue
 
@@ -514,14 +562,10 @@ class IrModelData(models.Model):
             if keep:
                 continue
 
-            if self.search_count(
-                [
-                    ("model", "=", model),
-                    ("res_id", "=", res_id),
-                    ("id", "!=", id),
-                    ("id", "not in", bad_imd_ids),
-                ]
-            ):
+            # another, still-live xml id points at this record: drop only this
+            # one and leave the record alone
+            if xmlids_per_record.get((model, res_id), 1) > 1:
+                xmlids_per_record[(model, res_id)] -= 1
                 bad_imd_ids.append(id)
                 continue
 
@@ -532,6 +576,9 @@ class IrModelData(models.Model):
                 record = record.with_context(module=module)
                 self._process_end_unlink_record(record)
             else:
+                xmlids_per_record[(model, res_id)] = (
+                    xmlids_per_record.get((model, res_id), 1) - 1
+                )
                 bad_imd_ids.append(id)
         if bad_imd_ids:
             self.browse(bad_imd_ids).unlink()

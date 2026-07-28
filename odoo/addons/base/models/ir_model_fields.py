@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import re
 from ast import literal_eval
 from collections import defaultdict
 from typing import Any, Self
@@ -7,7 +8,7 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Domain
+from odoo.fields import NO_ACCESS
 from odoo.models import pop_field
 from odoo.tools import SQL, OrderedSet, frozendict, sql, unique
 from odoo.tools.safe_eval import safe_eval
@@ -558,48 +559,115 @@ class IrModelFields(models.Model):
         return dict(cr.fetchall())
 
     def _drop_column(self) -> bool:
-        tables_to_drop = set()
-
         for field in self:
             if field.name in models.MAGIC_COLUMNS:
                 continue
             model = self.env.get(field.model)
             is_model = model is not None
-            if field.store:
-                if (
-                    is_model
-                    and sql.column_exists(self.env.cr, model._table, field.name)
-                    and sql.table_kind(self.env.cr, model._table)
-                    == sql.TableKind.Regular
-                ):
-                    self.env.cr.execute(
-                        SQL(
-                            "ALTER TABLE %s DROP COLUMN %s CASCADE",
-                            SQL.identifier(model._table),
-                            SQL.identifier(field.name),
-                        )
+            if (
+                field.store
+                and is_model
+                and sql.column_exists(self.env.cr, model._table, field.name)
+                and sql.table_kind(self.env.cr, model._table) == sql.TableKind.Regular
+            ):
+                self.env.cr.execute(
+                    SQL(
+                        "ALTER TABLE %s DROP COLUMN %s CASCADE",
+                        SQL.identifier(model._table),
+                        SQL.identifier(field.name),
                     )
-                if field.state == "manual" and field.ttype == "many2many":
-                    rel_name = field.relation_table or (
-                        is_model and model._fields[field.name].relation
-                    )
-                    if rel_name:
-                        tables_to_drop.add(rel_name)
+                )
             if field.state == "manual" and is_model:
                 model_cls = self.env.registry[model._name]
                 pop_field(model_cls, field.name)
 
-        if tables_to_drop:
-            self.env.cr.execute(
-                """SELECT relation_table FROM ir_model_fields
-                                WHERE relation_table = ANY(%s) AND id != ALL(%s)""",
-                (list(tables_to_drop), list(self.ids)),
-            )
-            tables_to_keep = {row[0] for row in self.env.cr.fetchall()}
-            for rel_name in tables_to_drop - tables_to_keep:
-                self.env.cr.execute(SQL("DROP TABLE %s", SQL.identifier(rel_name)))
-
+        self._drop_m2m_tables()
         return True
+
+    def _drop_m2m_tables(self) -> None:
+        """Drop the relation tables owned by the custom many2many fields in self.
+
+        The single owner of that schema: a custom m2m table is never reflected
+        into ``ir.model.relation`` (only non-manual ones are), so nothing else
+        will ever drop it.  ``ir.model.unlink`` therefore has to call this too --
+        it removes its fields' rows through the ``model_id`` FK cascade, which
+        runs no Python and used to leave every custom m2m table behind forever.
+        """
+        tables_to_drop = set()
+        for field in self:
+            if not field.store or field.state != "manual":
+                continue
+            if field.ttype != "many2many":
+                continue
+            rel_name = field.relation_table or self._m2m_table_name(field)
+            if rel_name:
+                tables_to_drop.add(rel_name)
+            else:
+                _logger.warning(
+                    "Cannot determine the relation table of %s.%s; its "
+                    "many2many table is left in the database",
+                    field.model,
+                    field.name,
+                )
+        if not tables_to_drop:
+            return
+
+        self.env.cr.execute(
+            """SELECT relation_table FROM ir_model_fields
+               WHERE relation_table = ANY(%s) AND id != ALL(%s)""",
+            (list(tables_to_drop), list(self.ids)),
+        )
+        tables_to_keep = {row[0] for row in self.env.cr.fetchall()}
+        for rel_name in tables_to_drop - tables_to_keep:
+            self.env.cr.execute(
+                SQL("DROP TABLE IF EXISTS %s", SQL.identifier(rel_name))
+            )
+
+    def _views_mentioning(self, field_names: list[str]) -> Any:
+        """Return the views whose arch mentions any of ``field_names``.
+
+        Matched on a word boundary across every translation of ``arch_db``.  A
+        ``LIKE`` scan cannot express this: ``_`` is a wildcard (so ``x_ab_cd``
+        matched ``xZabZcd``), and even escaped it stays a substring match (so
+        deleting ``x_ab`` pulled in every view using ``x_ab_long``).  Every false
+        positive costs a needless ``_check_xml``, and turns into a bogus
+        "still present in views" error if that view is broken on its own account.
+        """
+        if not field_names:
+            return self.env["ir.ui.view"].browse()
+        View = self.env["ir.ui.view"]
+        View.flush_model(["arch_db"])
+        pattern = r"\y(%s)\y" % "|".join(sorted(map(re.escape, set(field_names))))
+        view_ids = [
+            row[0]
+            for row in self.env.execute_query(
+                SQL(
+                    "SELECT id FROM %s WHERE EXISTS ("
+                    " SELECT 1 FROM jsonb_each_text(arch_db) AS t(lang, arch)"
+                    " WHERE t.arch ~ %s)",
+                    SQL.identifier(View._table),
+                    pattern,
+                )
+            )
+        ]
+        # re-select through the ORM so active_test and record rules still apply
+        return View.search([("id", "in", view_ids)])
+
+    def _m2m_table_name(self, field: Self) -> str | None:
+        """Return the relation table of a custom many2many with no stored
+        ``relation_table``, or ``None`` if it cannot be determined.
+
+        The registry field is the authority, but ``_prepare_update`` pops it
+        before :meth:`_drop_column` runs, so fall back to the same default name
+        ``_instantiate_attrs`` builds -- otherwise the table is silently leaked.
+        """
+        model = self.env.get(field.model)
+        registry_field = None if model is None else model._fields.get(field.name)
+        if registry_field is not None:
+            return registry_field.relation
+        if field.model in self.env and field.relation in self.env:
+            return self._custom_many2many_names(field.model, field.relation)[0]
+        return None
 
     def _prepare_update(self) -> Self:
         """Check whether the fields in ``self`` may be modified or removed.
@@ -670,8 +738,7 @@ class IrModelFields(models.Model):
             pop_field(self.env.registry[record.model], record.name)
             for record in records
         ]
-        domain = Domain.OR([("arch_db", "like", record.name)] for record in records)
-        views = self.env["ir.ui.view"].search(domain)
+        views = self._views_mentioning(records.mapped("name"))
         try:
             for view in views:
                 view._check_xml()
@@ -724,6 +791,7 @@ class IrModelFields(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         IrModel = self.env["ir.model"]
+        vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             _check_translate_value(vals)
             if "model_id" in vals:
@@ -756,15 +824,29 @@ class IrModelFields(models.Model):
                         )
                     )
 
+        # before super(), so the constraints validating the new rows re-read
+        # _get_ids instead of a pre-insert snapshot
         self.env.registry.clear_cache("stable")
 
         res = super().create(vals_list)
-        model_names = OrderedSet(res.mapped("model"))
+        res._ensure_group_xmlids()
 
+        model_names = OrderedSet(res.mapped("model"))
         if any(model in self.pool for model in model_names):
             reload_schema(self.env, model_names, model_names)
 
         return res
+
+    def _ensure_group_xmlids(self) -> None:
+        """Give every restricting group an external id.
+
+        ``Field.groups`` is a comma-separated list of external ids, so a group
+        without one cannot be reflected: its restriction would be dropped and
+        the field would end up readable by everyone (see ``_instantiate_attrs``).
+        """
+        groups = self.filtered(lambda field: field.state == "manual").groups
+        if groups:
+            groups.sudo()._ensure_xml_id()
 
     def write(self, vals: dict[str, Any]) -> bool:
         if not self:
@@ -778,6 +860,16 @@ class IrModelFields(models.Model):
 
         patched_models = set()
         translate_only = all(self._fields[field_name].translate for field_name in vals)
+        # A translatable attribute appearing or disappearing changes the field's
+        # own description: ``Field._description_string``/``_description_help``
+        # fall back to the registry attribute and consult the translation cache
+        # only when that attribute is already truthy. Such a write needs the
+        # registry rebuilt, not just the label cache cleared.
+        translate_presence_changed = translate_only and any(
+            bool(record[fname]) != bool(value)
+            for fname, value in vals.items()
+            for record in self
+        )
         if not translate_only:
             for item in self:
                 if item.state != "manual":
@@ -804,11 +896,18 @@ class IrModelFields(models.Model):
 
                 if vals.get("name", item.name) != item.name:
                     renamed |= item
-                    if item.ttype in ("one2many", "many2many", "binary"):
-                        pass
-                    else:
+                    if item.ttype not in ("one2many", "many2many", "binary"):
                         if column_rename:
                             raise UserError(_("Can only rename one field at a time!"))
+                        if obj is None:
+                            raise UserError(
+                                _(
+                                    "Cannot rename field “%(field)s”: its model "
+                                    "“%(model)s” is not in the registry.",
+                                    field=item.name,
+                                    model=item.model,
+                                )
+                            )
                         column_rename = (
                             obj._table,
                             item.name,
@@ -820,8 +919,11 @@ class IrModelFields(models.Model):
                 if obj is not None and field is not None:
                     patched_models.add(obj._name)
 
-        for column_name in ("model_id", "model", "state"):
-            vals.pop(column_name, None)
+        vals = {
+            key: value
+            for key, value in vals.items()
+            if key not in ("model_id", "model", "state")
+        }
 
         _check_translate_value(vals)
 
@@ -853,8 +955,13 @@ class IrModelFields(models.Model):
                         )
                     )
 
+        if "groups" in vals:
+            self._ensure_group_xmlids()
+
         if column_rename or patched_models:
             reload_schema(self.env, OrderedSet(self.mapped("model")), patched_models)
+        elif translate_presence_changed:
+            reload_schema(self.env, OrderedSet(self.mapped("model")), ())
         elif translate_only:
             self.env.registry.clear_cache("stable")
 
@@ -1050,18 +1157,20 @@ class IrModelFields(models.Model):
         }
         if group_count := field_data.get("group_count"):
             group_xmlids = field_data.get("group_xmlids")
-            if group_xmlids:
-                attrs["groups"] = group_xmlids
-            if not group_xmlids or group_xmlids.count(",") + 1 != group_count:
-                _logger.warning(
+            known = group_xmlids.count(",") + 1 if group_xmlids else 0
+            # Fail closed: with no reflectable group the restriction would
+            # otherwise vanish and leave the field readable by everyone.
+            attrs["groups"] = group_xmlids or NO_ACCESS
+            if known != group_count:
+                _logger.error(
                     "Field %s.%s is restricted to %d group(s) but only %d of them "
-                    "have an external id; the field is enforced against those only. "
-                    "Give every restricting group an external id, or the "
-                    "restriction is weaker than it looks.",
+                    "have an external id; the field is %s. Give every restricting "
+                    "group an external id.",
                     field_data["model"],
                     field_data["name"],
                     group_count,
-                    0 if not group_xmlids else group_xmlids.count(",") + 1,
+                    known,
+                    "enforced against those only" if known else "hidden from everyone",
                 )
         if field_data["ttype"] in ("char", "text", "html"):
             attrs["translate"] = FIELD_TRANSLATE.get(field_data["translate"], True)
@@ -1126,7 +1235,9 @@ class IrModelFields(models.Model):
             attrs["currency_field"] = field_data["currency_field"]
         if field_data["compute"]:
             attrs["compute"] = make_compute(
-                field_data["compute"], field_data["depends"]
+                field_data["compute"],
+                field_data["depends"],
+                f"{field_data['model']}.{field_data['name']}",
             )
         return attrs
 

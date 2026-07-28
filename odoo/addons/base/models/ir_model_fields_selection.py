@@ -351,10 +351,10 @@ class IrModelFieldsSelection(models.Model):
                 )
                 self.env.execute_query(
                     SQL(
-                        "UPDATE %s SET %s=%s WHERE id = ANY(%s)",
+                        "UPDATE %s SET %s = %s WHERE id = ANY(%s)",
                         SQL.identifier(records._table),
                         SQL.identifier(fname),
-                        field.convert_to_column_insert(value, records),
+                        self._bypass_assignment(records, field, value),
                         list(records._ids),
                     )
                 )
@@ -382,9 +382,9 @@ class IrModelFieldsSelection(models.Model):
                 continue
 
             companies = (
-                self.env.companies
+                self._companies_with_stored_value(Model, field)
                 if field_record.company_dependent
-                else [self.env.company]
+                else self.env.company
             )
             for company in companies:
                 company_model = Model.with_company(company.id)
@@ -414,6 +414,59 @@ class IrModelFieldsSelection(models.Model):
                                 field=f"{field_record.model}.{field.name}",
                             )
                         )
+
+    def _bypass_assignment(self, records: Any, field: Any, value: Any) -> SQL:
+        """Return the ``SET`` expression writing ``value`` into ``field``'s column.
+
+        For a company-dependent field the column holds *every* company's value,
+        while the caller only means to change the current one:
+        ``convert_to_column_insert`` renders a whole ``{company: value}`` object
+        (and ``NULL`` for a falsy value), so assigning it wipes every other
+        company. The jsonb branch edits the single key instead -- the same
+        ``_is_jsonb_stored`` split :meth:`write` and :meth:`_get_records_by_value`
+        already make (SEL-C1).
+        """
+        column = SQL.identifier(field.name)
+        if not self._is_jsonb_stored(field):
+            return SQL("%s", field.convert_to_column_insert(value, records))
+
+        company_key = str(records.env.company.id)
+        if not value:
+            return SQL("%s - %s", column, company_key)
+        return SQL(
+            "jsonb_set(COALESCE(%s, '{}'::jsonb), ARRAY[%s], to_jsonb(%s::text))",
+            column,
+            company_key,
+            value,
+        )
+
+    def _companies_with_stored_value(self, model: Any, field: Any) -> Any:
+        """Return the companies holding a value in ``field``'s jsonb column.
+
+        A deleted value must be cleaned wherever it is stored. ``env.companies``
+        is the acting user's UI scope, so driving the sweep from it leaves the
+        value behind for every company outside that scope -- unlike a value
+        *rename*, whose ``jsonb_object_agg`` covers every key (SEL-C1).
+
+        The rows are filtered on ``jsonb_typeof``, not on ``IS NOT NULL``: a
+        column holding the JSON scalar ``null`` is not SQL ``NULL``, and
+        ``jsonb_object_keys`` raises on any non-object.
+        """
+        model.flush_model([field.name])
+        rows = self.env.execute_query(
+            SQL(
+                "SELECT DISTINCT jsonb_object_keys(%s) FROM %s"
+                " WHERE jsonb_typeof(%s) = 'object'",
+                SQL.identifier(field.name),
+                SQL.identifier(model._table),
+                SQL.identifier(field.name),
+            )
+        )
+        return (
+            self.env["res.company"]
+            .browse(int(key) for (key,) in rows if key.isdigit())
+            .exists()
+        )
 
     def _get_records_by_value(
         self, company_model: Any, field: Any, values: list

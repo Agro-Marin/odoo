@@ -7,6 +7,7 @@ which they share no logic.
 """
 
 import logging
+from collections.abc import Collection
 from typing import Any, Self
 
 from psycopg.types.json import Json, Jsonb
@@ -88,23 +89,22 @@ class IrModelConstraint(models.Model):
             hname = sql.make_identifier(name)
             typ = data.type
             if typ in ("f", "u"):
-                table = (
-                    self.env[data.model.model]._table
-                    if data.model.model in self.env
-                    else data.model.model.replace(".", "_")
-                )
-                if self.env.execute_query(
+                # ask PostgreSQL which table carries the constraint instead of
+                # deriving it from the model name: a model absent from the
+                # registry (its module is being uninstalled -- exactly when this
+                # runs) left only the `model.replace(".", "_")` guess, which is
+                # wrong for every model with a custom _table, e.g. ir.actions.*
+                for (table,) in self.env.execute_query(
                     SQL(
-                        """SELECT
+                        """SELECT cl.relname
                     FROM pg_constraint cs
                     JOIN pg_class cl
                     ON (cs.conrelid = cl.oid)
-                    WHERE cs.contype = ANY(%s) AND cs.conname = %s AND cl.relname = %s
+                    WHERE cs.contype = ANY(%s) AND cs.conname = %s
                     AND cl.relnamespace = current_schema::regnamespace
                     """,
                         ["c", "u", "x"] if typ == "u" else [typ],
                         hname,
-                        table,
                     )
                 ):
                     self.env.execute_query(
@@ -114,7 +114,12 @@ class IrModelConstraint(models.Model):
                             SQL.identifier(hname),
                         )
                     )
-                    _logger.info("Dropped CONSTRAINT %s@%s", name, data.model.model)
+                    _logger.info(
+                        "Dropped CONSTRAINT %s@%s (table %s)",
+                        name,
+                        data.model.model,
+                        table,
+                    )
 
             elif typ == "i":
                 self.env.execute_query(
@@ -380,31 +385,78 @@ class IrModelRelation(models.Model):
             self.env.cr.execute(SQL("DROP TABLE %s CASCADE", SQL.identifier(table)))
             _logger.info("Dropped table %s", table)
 
-    def _reflect_relation(self, model: Any, table: str, module: str) -> None:
-        """Reflect the m2m table of the given model so it can be dropped when
-        the module is uninstalled."""
-        if not self.env.execute_query(
-            SQL(
-                """SELECT 1 FROM ir_model_relation r, ir_module_module m
-                   WHERE r.module = m.id AND r.name = %s AND m.name = %s""",
-                table,
-                module,
-            )
-        ):
+    def _reflect_relations(self, items: Collection[tuple[str, str, str]]) -> None:
+        """Reflect m2m tables so they can be dropped when their module is
+        uninstalled. Each item is ``(model_name, table, module)``.
+
+        Batched like every other reflector: one SELECT for all ``(name, module)``
+        pairs and one INSERT for the missing rows.  It used to run a SELECT and
+        possibly an INSERT *per many2many field*, redoing the work for every
+        field sharing a relation table -- both sides of a relation always do.
+        """
+        expected: dict[tuple[str, str], str] = {}
+        for model_name, table, module in items:
+            expected.setdefault((table, module), model_name)
+        if not expected:
+            return
+
+        existing = set(
             self.env.execute_query(
                 SQL(
-                    """INSERT INTO ir_model_relation
-                           (name, create_date, write_date, create_uid, write_uid, module, model)
-                       VALUES (%s,
-                               now() AT TIME ZONE 'UTC',
-                               now() AT TIME ZONE 'UTC',
-                               %s, %s,
-                               (SELECT id FROM ir_module_module WHERE name = %s),
-                               (SELECT id FROM ir_model WHERE model = %s))""",
-                    table,
-                    self.env.uid,
-                    self.env.uid,
-                    module,
-                    model._name,
+                    """SELECT r.name, m.name
+                       FROM ir_model_relation r
+                       JOIN ir_module_module m ON r.module = m.id
+                       WHERE r.name = ANY(%s)""",
+                    list({table for table, _module in expected}),
                 )
             )
+        )
+        missing = {key: name for key, name in expected.items() if key not in existing}
+        if not missing:
+            return
+
+        module_ids = dict(
+            self.env.execute_query(
+                SQL(
+                    "SELECT name, id FROM ir_module_module WHERE name = ANY(%s)",
+                    list({module for _table, module in missing}),
+                )
+            )
+        )
+        get_model_id = self.env["ir.model"]._get_id
+        rows = []
+        for (table, module), model_name in missing.items():
+            module_id = module_ids.get(module)
+            model_id = get_model_id(model_name)
+            if module_id is None or model_id is None:
+                _logger.warning(
+                    "Cannot reflect m2m table %r of %r: unknown %s",
+                    table,
+                    model_name,
+                    "module " + repr(module) if module_id is None else "model",
+                )
+                continue
+            rows.append(
+                SQL(
+                    "(%s::varchar, %s::integer, %s::integer)",
+                    table,
+                    module_id,
+                    model_id,
+                )
+            )
+        if not rows:
+            return
+
+        self.env.execute_query(
+            SQL(
+                """INSERT INTO ir_model_relation
+                       (name, module, model,
+                        create_date, write_date, create_uid, write_uid)
+                   SELECT v.name, v.module, v.model,
+                          now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC',
+                          %(uid)s, %(uid)s
+                     FROM (VALUES %(values)s) AS v(name, module, model)""",
+                values=SQL(", ").join(rows),
+                uid=self.env.uid,
+            )
+        )

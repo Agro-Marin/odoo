@@ -172,6 +172,19 @@ class IrModel(models.Model):
         ]
         if not table_models:
             return
+        # A single missing table would make the whole UNION fail and abort the
+        # transaction, so the batch is restricted to tables that exist.
+        existing = {
+            row[0]
+            for row in self.env.execute_query(
+                SQL(
+                    "SELECT relname FROM pg_class"
+                    " WHERE relname = ANY(%s)"
+                    " AND relnamespace = current_schema::regnamespace",
+                    [table for table, _model_name in table_models],
+                )
+            )
+        }
         parts = [
             SQL(
                 "SELECT %s AS model, COUNT(*) FROM %s",
@@ -179,7 +192,10 @@ class IrModel(models.Model):
                 SQL.identifier(table),
             )
             for table, model_name in table_models
+            if table in existing
         ]
+        if not parts:
+            return
         query = SQL(" UNION ALL ").join(parts)
         counts = dict(self.env.execute_query(query))
         for model in self:
@@ -314,6 +330,9 @@ class IrModel(models.Model):
         if model_data:
             model_data.unlink()
 
+        # the model's own field rows go through the model_id FK cascade, which
+        # runs no Python: their m2m tables have to be dropped here or never
+        self.field_id._drop_m2m_tables()
         self._drop_table()
         res = super().unlink()
 
@@ -336,7 +355,7 @@ class IrModel(models.Model):
                     )
                 )
         if "field_id" in vals:
-            vals["field_id"] = [op for op in vals["field_id"] if op[0] != 4]
+            vals = dict(vals, field_id=[op for op in vals["field_id"] if op[0] != 4])
         res = super().write(vals)
         if "order" in vals or "fold_name" in vals:
             self.env.flush_all()
@@ -502,6 +521,13 @@ class IrModelInherit(models.Model):
                             f"model {parent_name!r} is not present in ir_model."
                         )
                     parent_ids[parent_name] = parent_id
+
+                if overlap := set(inherit_parents) & set(cls._inherits):
+                    raise ValueError(
+                        f"Model {model_name!r} both inherits from and delegates "
+                        f"to {sorted(overlap)}: ir_model_inherit is unique on "
+                        "(model_id, parent_id) and cannot record both links."
+                    )
 
                 items = [
                     (model_id, parent_ids[parent_name], None)

@@ -77,17 +77,26 @@ SAFE_EVAL_BASE = {
 }
 
 
-def make_compute(text: str, deps: str | None) -> Callable[[models.BaseModel], Any]:
+def make_compute(
+    text: str, deps: str | None, origin: str = "unknown"
+) -> Callable[[models.BaseModel], Any]:
     """Return a compute function from its code body and dependencies.
 
     ``text`` is a Python block that writes results back through subscript
     assignment (``for record in self: record[fname] = ...``); ``safe_eval``
     forbids ``STORE_ATTR``, so ``record.fname = ...`` is *not* usable and the
     function's return value is unused.  ``deps`` is a comma-separated field list.
+
+    :param origin: ``model.field`` this code belongs to. It becomes the compiled
+        block's filename, so the deepest traceback frame reads
+        ``File "<compute sale.order.x_total>", line 2`` instead of ``File ""``,
+        and a ``SyntaxError`` names the field in its own message. Nothing else
+        in the failure identifies which custom field ran.
     """
+    filename = f"<compute {origin}>"
 
     def compute(self: models.BaseModel) -> None:
-        safe_eval(text, SAFE_EVAL_BASE | {"self": self}, mode="exec")
+        safe_eval(text, SAFE_EVAL_BASE | {"self": self}, mode="exec", filename=filename)
 
     dep_names = [name.strip() for name in deps.split(",")] if deps else []
     dep_names = [name for name in dep_names if name]
