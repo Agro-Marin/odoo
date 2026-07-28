@@ -277,7 +277,11 @@ export function isObject(value) {
  * Returns a shallow copy of object with every property in properties removed
  * if present in object.
  *
- * @template T
+ * ``Record<string, any>`` rather than ``object``: a lowercase ``object``
+ * constraint in a JSDoc ``@template`` tag is silently dropped by TypeScript,
+ * leaving ``T`` unconstrained and ``Object.keys(object)`` below unresolvable.
+ *
+ * @template {Record<string, any>} T
  * @template {keyof T} K
  * @param {T} object
  * @param {...(K)} properties

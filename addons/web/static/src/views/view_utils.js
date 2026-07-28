@@ -167,7 +167,18 @@ export function handleBeforeUnload(
         // stops appearing for typed input. Pinned by "uncommitted typed input
         // on NEW record blocks unload" in `views/form/auto_save.test.js`, which
         // is the ONLY test in that suite that fails when this line is removed.
-        record.model.urgentSave.run(() => Promise.resolve());
+        //
+        // The cast asserts a fact the checker cannot derive: `urgentSave` is
+        // assigned unconditionally, but in `RelationalModel.setup()` rather
+        // than in a constructor, and TypeScript widens any JS property it
+        // cannot see definitely assigned to `T | undefined`. Declaring it as a
+        // class field would fix the type and BREAK the runtime — `Model`'s
+        // constructor calls `this.setup()`, so a subclass field initializer
+        // (which runs after `super()`) would overwrite what `setup()` just
+        // stored. That hazard applies to every `Model` subclass.
+        /** @type {import("@web/model/relational_model/urgent_save_coordinator").UrgentSaveCoordinator} */ (
+            record.model.urgentSave
+        ).run(() => Promise.resolve());
         if (record.dirty) {
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";

@@ -160,7 +160,12 @@ export class Many2ManyTagsField extends Component {
      * @param {Array<{ id: number }>|false} recordList
      */
     update(recordList) {
-        if (!recordList?.length) {
+        // Not ``!recordList?.length``: ``?.`` short-circuits on nullish only, so
+        // for the ``false`` this parameter documents it still evaluates
+        // ``false.length`` — which happens to answer ``undefined`` through
+        // boxing rather than throwing. Testing the sentinel explicitly says what
+        // is meant and lets ``recordList`` narrow to the array below.
+        if (!recordList || !recordList.length) {
             return;
         }
         // Membership test against the datapoints, not against `this.tags`:

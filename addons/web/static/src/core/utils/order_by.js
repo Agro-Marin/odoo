@@ -37,17 +37,19 @@ export function stringToOrderBy(string) {
         return [];
     }
     return string.split(",").map((order) => {
-        const splitOrder = order.trim().split(/\s+/);
-        if (splitOrder.length === 2) {
-            return {
-                name: splitOrder[0],
-                asc: splitOrder[1].toLowerCase() === "asc",
-            };
-        } else {
-            return {
-                name: splitOrder[0],
-                asc: true,
-            };
+        const [name, direction, ...extra] = order.trim().split(/\s+/);
+        if (extra.length) {
+            // A term with trailing tokens (`"foo desc nulls last"`) used to
+            // fall through to the bare-name branch and come back ASC — the one
+            // reading that inverts the caller's stated intent. Nothing in Odoo
+            // emits such a term, so this is unreachable rather than a fix for
+            // an observed bug; it is here so the unreachable case is loud
+            // instead of silently wrong.
+            throw new Error(`Invalid order term: "${order.trim()}"`);
         }
+        return {
+            name,
+            asc: direction === undefined || direction.toLowerCase() === "asc",
+        };
     });
 }

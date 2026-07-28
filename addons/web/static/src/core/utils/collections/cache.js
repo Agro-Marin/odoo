@@ -144,7 +144,9 @@ export class Cache {
         if (!(key in cache)) {
             const value = this.getValue(...path);
             cache[key] = value;
-            if (value && typeof value.then === "function") {
+            // Duck-typed on purpose (any thenable, not just a native Promise),
+            // which means probing a member the cached type does not declare.
+            if (value && typeof (/** @type {any} */ (value).then) === "function") {
                 Promise.resolve(value).catch(() => {
                     if (cache[key] === value) {
                         delete cache[key];

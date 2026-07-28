@@ -138,7 +138,12 @@ export const floatField = {
     ],
     supportedTypes: ["float", "monetary"],
     isEmpty: isFalseEmpty,
-    extractProps: ({ attrs, options }) => ({
+    // Declares the registry's full ``(fieldInfo, dynamicInfo)`` signature even
+    // though it reads only ``fieldInfo``: derived fields forward BOTH arguments
+    // to their base (float_factor, and 7 other fields onto their own bases), and
+    // a base that declares one parameter makes every such forward an arity error
+    // — which is what it was.
+    extractProps: ({ attrs, options }, _dynamicInfo) => ({
         ...extractNumericOptions({ options }),
         digits: extractDigits({ attrs, options }),
         minDigits: options.min_display_digits,

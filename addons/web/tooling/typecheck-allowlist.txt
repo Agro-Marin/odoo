@@ -250,3 +250,63 @@ addons/web/static/src/webclient/actions/reports/report_executor.js
 # --- entrypoint ---
 addons/web/static/src/env.js
 addons/web/static/src/session.js
+
+# --- core: every remaining file, each verified to probe clean before being
+#     added. `core/` is now gated in full except draggable_hook_builder.js,
+#     whose residual errors are all `ctx.current.*` — genuinely unset between
+#     drags, so guarding them would change behaviour, not just types. ---
+addons/web/static/src/core/action_hook.js
+addons/web/static/src/core/badge/badge_colors.js
+addons/web/static/src/core/browser/anchor_scroll.js
+addons/web/static/src/core/browser/cookie.js
+addons/web/static/src/core/browser/hotkeys.js
+addons/web/static/src/core/browser/storage_json.js
+addons/web/static/src/core/colors/colors.js
+addons/web/static/src/core/errors/error_beacon.js
+addons/web/static/src/core/errors/error_utils.js
+addons/web/static/src/core/errors/stack_frames.js
+addons/web/static/src/core/errors/uncaught_errors.js
+addons/web/static/src/core/field_codec.js
+addons/web/static/src/core/file_upload/file_handler.js
+addons/web/static/src/core/l10n/date_serialization.js
+addons/web/static/src/core/l10n/utils/unaccent.js
+addons/web/static/src/core/l10n/utils/unaccent_table.js
+addons/web/static/src/core/lib/chartjs.js
+addons/web/static/src/core/lib/fullcalendar.js
+addons/web/static/src/core/module_bridge.js
+addons/web/static/src/core/network/model_mutation.js
+addons/web/static/src/core/network/rpc_cache.js
+addons/web/static/src/core/position/position_hook.js
+addons/web/static/src/core/position/utils.js
+addons/web/static/src/core/py_js/py_args.js
+addons/web/static/src/core/py_js/py_compare.js
+addons/web/static/src/core/template_inheritance.js
+addons/web/static/src/core/utils/asset_log.js
+addons/web/static/src/core/utils/collections/arrays.js
+addons/web/static/src/core/utils/collections/cache.js
+addons/web/static/src/core/utils/collections/objects.js
+addons/web/static/src/core/utils/dependency_graph.js
+addons/web/static/src/core/utils/dnd/draggable.js
+addons/web/static/src/core/utils/dnd/draggable_hook_builder_owl.js
+addons/web/static/src/core/utils/dnd/draggable_hook_builder_utils.js
+addons/web/static/src/core/utils/dnd/nested_sortable.js
+addons/web/static/src/core/utils/dnd/sortable.js
+addons/web/static/src/core/utils/dnd/sortable_owl.js
+addons/web/static/src/core/utils/dom/autoresize.js
+addons/web/static/src/core/utils/dom/classname.js
+addons/web/static/src/core/utils/dom/dvu.js
+addons/web/static/src/core/utils/dom/events.js
+addons/web/static/src/core/utils/dom/html.js
+addons/web/static/src/core/utils/dom/scrolling.js
+addons/web/static/src/core/utils/dom/ui.js
+addons/web/static/src/core/utils/dom/xml.js
+addons/web/static/src/core/utils/files.js
+addons/web/static/src/core/utils/format/colors.js
+addons/web/static/src/core/utils/global_singleton.js
+addons/web/static/src/core/utils/indexed_db.js
+addons/web/static/src/core/utils/macro.js
+addons/web/static/src/core/utils/patch.js
+addons/web/static/src/core/utils/pdfjs.js
+addons/web/static/src/core/utils/render_instrumentation.js
+addons/web/static/src/core/utils/search.js
+addons/web/static/src/core/utils/virtual_grid.js

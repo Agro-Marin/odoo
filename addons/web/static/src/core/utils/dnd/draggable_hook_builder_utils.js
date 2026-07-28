@@ -123,7 +123,7 @@ const elCache = {};
 export function saveAttribute(el, attribute) {
     const restoreAttribute = () => {
         cache.delete(el);
-        if (hasAttribute) {
+        if (originalValue !== null) {
             el.setAttribute(attribute, originalValue);
         } else {
             el.removeAttribute(attribute);
@@ -140,7 +140,9 @@ export function saveAttribute(el, attribute) {
     }
 
     cache.add(el);
-    const hasAttribute = el.hasAttribute(attribute);
+    // `getAttribute() !== null` IS `hasAttribute()` — the separate boolean was
+    // a second source of truth for the same fact, and the one the restore path
+    // branched on did not narrow the value it then passed to `setAttribute`.
     const originalValue = el.getAttribute(attribute);
 
     return restoreAttribute;
@@ -154,7 +156,10 @@ export function saveAttribute(el, attribute) {
  * is re-registered for the next cycle.
  *
  * @param {() => any} [defaultCleanupFn]
- * @returns {{ add: (fn: () => any) => void, cleanup: () => void }}
+ * @returns {{ add: (fn?: () => any) => void, cleanup: () => void }} ``add``
+ *   takes an OPTIONAL function, as its implementation always has: callers hand
+ *   it `saveAttribute(...)`, which returns `undefined` when the attribute was
+ *   already saved, and the guard inside `add` exists for exactly that.
  */
 export function makeCleanupManager(defaultCleanupFn) {
     /**
@@ -170,7 +175,7 @@ export function makeCleanupManager(defaultCleanupFn) {
     const cleanup = () => {
         while (cleanups.length) {
             try {
-                cleanups.pop()();
+                cleanups.pop()?.();
             } catch (error) {
                 console.error(error);
             }

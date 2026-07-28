@@ -24,7 +24,15 @@ import { extractDigits } from "@web/fields/field_utils";
 import { formatCurrency } from "@web/services/currency";
 
 /**
- * Shared "nothing to format" guard for every numeric formatter.
+ * Shared "there is something to format" guard for every numeric formatter.
+ *
+ * Phrased POSITIVELY, and declared as a type predicate, so that guarding with
+ * ``if (!isFiniteNumber(value))`` actually narrows ``value`` to ``number`` for
+ * the rest of the function. The negative spelling this replaced could not:
+ * every formatter takes ``number | false``, so each one's arithmetic
+ * (``value * factor``, ``value < 0``, ``Math.abs(value)``) and every hand-off
+ * to ``formatFloatNumber`` / ``formatCurrency`` was still typed as possibly
+ * ``false`` even directly under the guard that had just excluded it.
  *
  * The ORM's no-value sentinel is ``false``, but the formatters are also
  * reached with ``null``/``undefined`` (a field named by a widget option that
@@ -41,10 +49,10 @@ import { formatCurrency } from "@web/services/currency";
  * and threw ``TypeError: … reading 'toExponential'``.
  *
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is number}
  */
-function hasNoNumericValue(value) {
-    return typeof value !== "number" || !Number.isFinite(value);
+function isFiniteNumber(value) {
+    return typeof value === "number" && Number.isFinite(value);
 }
 
 /**
@@ -158,7 +166,7 @@ formatDateTime.extractOptions = (/** @type {any} */ { attrs, options }) => ({
  * @returns {string}
  */
 export function formatFloat(value, options = {}) {
-    if (hasNoNumericValue(value)) {
+    if (!isFiniteNumber(value)) {
         return "";
     }
     const digits = options.digits || options.field?.digits;
@@ -182,7 +190,7 @@ formatFloat.extractOptions = ({ attrs, options }) => ({
  * @returns {string}
  */
 export function formatFloatFactor(value, options = {}) {
-    if (hasNoNumericValue(value)) {
+    if (!isFiniteNumber(value)) {
         return "";
     }
     const factor = options.factor || 1;
@@ -205,7 +213,7 @@ formatFloatFactor.extractOptions = ({ attrs, options }) => ({
  * @returns {string}
  */
 export function formatFloatTime(value, options = {}) {
-    if (hasNoNumericValue(value)) {
+    if (!isFiniteNumber(value)) {
         return "";
     }
     const isNegative = value < 0;
@@ -250,7 +258,7 @@ formatFloatTime.extractOptions = ({ options }) => ({
  * @returns {string}
  */
 export function formatInteger(value, options = {}) {
-    if (hasNoNumericValue(value)) {
+    if (!isFiniteNumber(value)) {
         return "";
     }
     if (options.isPassword) {
@@ -335,7 +343,7 @@ export function formatX2many(value) {
  * @returns {string}
  */
 export function formatMonetary(value, options = {}) {
-    if (hasNoNumericValue(value)) {
+    if (!isFiniteNumber(value)) {
         return "";
     }
 
@@ -365,7 +373,7 @@ formatMonetary.extractOptions = ({ options }) => ({
  * @returns {string}
  */
 export function formatPercentage(value, options = {}) {
-    if (hasNoNumericValue(value)) {
+    if (!isFiniteNumber(value)) {
         return "";
     }
     options = {

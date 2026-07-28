@@ -397,7 +397,7 @@ export class Many2XAutocomplete extends Component {
                 for (const record of records) {
                     suggestions.push(this.buildRecordSuggestion(request, record));
                 }
-            } else if (this.addNoRecordsSuggestion({ request, records })) {
+            } else if (this.addNoRecordsSuggestion()) {
                 suggestions.push(this.buildNoRecordsSuggestion());
             } else if (this.addStartTypingSuggestion({ request, records })) {
                 suggestions.push(this.buildStartTypingSuggestion());

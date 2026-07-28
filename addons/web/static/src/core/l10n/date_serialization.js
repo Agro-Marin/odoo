@@ -25,13 +25,17 @@ export function serializeDate(value) {
     if (!value) {
         return false;
     }
-    if (!dateCache.has(value)) {
-        dateCache.set(
-            value,
+    // One map lookup on a hit instead of the has()/set()/get() trio, and the
+    // result is a plain string rather than the `string | undefined` a bare
+    // `get()` returns however unreachable the miss is.
+    let serialized = dateCache.get(value);
+    if (serialized === undefined) {
+        serialized = String(
             value.toFormat(SERVER_DATE_FORMAT, { numberingSystem: "latn" }),
         );
+        dateCache.set(value, serialized);
     }
-    return dateCache.get(value);
+    return serialized;
 }
 
 /**
@@ -45,15 +49,16 @@ export function serializeDateTime(value) {
     if (!value) {
         return false;
     }
-    if (!dateTimeCache.has(value)) {
-        dateTimeCache.set(
-            value,
+    let serialized = dateTimeCache.get(value);
+    if (serialized === undefined) {
+        serialized = String(
             value
                 .setZone("utc")
                 .toFormat(SERVER_DATETIME_FORMAT, { numberingSystem: "latn" }),
         );
+        dateTimeCache.set(value, serialized);
     }
-    return dateTimeCache.get(value);
+    return serialized;
 }
 
 /**

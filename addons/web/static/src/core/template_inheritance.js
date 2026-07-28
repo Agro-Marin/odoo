@@ -11,7 +11,8 @@ let translationContext = null;
 const TCTX = "t-translation-context";
 
 /**
- * @param {Node} node
+ * @param {Node | null} node ``parentElement`` at the top of the chain, hence
+ *   nullable — the guard below already accounted for it.
  */
 function getTranslationContext(node) {
     if (!node || node.nodeType !== Node.ELEMENT_NODE) {
@@ -19,7 +20,7 @@ function getTranslationContext(node) {
     }
     const el = /** @type {Element} */ (node);
     if (el.hasAttribute(TCTX)) {
-        return el.getAttribute(TCTX);
+        return el.getAttribute(TCTX) ?? "";
     }
     return getTranslationContext(el.parentElement);
 }
@@ -32,7 +33,7 @@ const contextByTextNode = new Map();
 function setTranslationContext(node) {
     switch (node.nodeType) {
         case Node.TEXT_NODE:
-            if (node.nodeValue.trim() !== "") {
+            if (node.nodeValue?.trim() !== "") {
                 contextByTextNode.set(node, translationContext);
             }
             break;
@@ -118,8 +119,10 @@ function addBefore(target, operation) {
         if (text2 && nodes.some((n) => n.nodeType !== Node.TEXT_NODE)) {
             const textNode = document.createTextNode(text2);
             target.before(textNode);
-            if (textNode.previousSibling.nodeType === Node.TEXT_NODE) {
-                const sibText = /** @type {Text} */ (textNode.previousSibling);
+            // `previousSibling` is null when `target` was the first child.
+            const inserted = textNode.previousSibling;
+            if (inserted?.nodeType === Node.TEXT_NODE) {
+                const sibText = /** @type {Text} */ (inserted);
                 sibText.data = sibText.data.trimEnd();
             }
         }
@@ -147,11 +150,16 @@ const CLASS_CONTAINS_REGEX = /contains\(@class.*\)/;
  */
 function getXpath(operation) {
     const xpath = operation.getAttribute("expr");
+    if (xpath === null) {
+        throw new Error(`Missing "expr" attribute on ${operation.outerHTML}`);
+    }
     if (odoo.debug) {
         if (CLASS_CONTAINS_REGEX.test(xpath)) {
             const parent = operation.closest("t[t-inherit]");
             const templateName =
-                parent.getAttribute("t-name") || parent.getAttribute("t-inherit");
+                parent?.getAttribute("t-name") ||
+                parent?.getAttribute("t-inherit") ||
+                "(unknown)";
             console.warn(
                 `Error-prone use of @class in template "${templateName}" (or one of its inheritors).` +
                     " Use the hasclass(*classes) function to filter elements by their classes",
@@ -236,7 +244,7 @@ function getNodes(element, operation) {
             /** @type {Element} */ (childNode).getAttribute?.("position") === "move"
         ) {
             const node = getElement(element, /** @type {Element} */ (childNode));
-            node.setAttribute(TCTX, getTranslationContext(node));
+            node.setAttribute(TCTX, getTranslationContext(node) ?? "");
             removeNode(node);
             nodes.push(node);
         } else {
@@ -265,6 +273,9 @@ function modifyAttributes(target, operation) {
             continue;
         }
         const attributeName = child.getAttribute("name");
+        if (attributeName === null) {
+            throw new Error(`Missing "name" attribute on ${child.outerHTML}`);
+        }
         const firstNode = child.childNodes[0];
         let value =
             firstNode?.nodeType === Node.TEXT_NODE
@@ -314,7 +325,7 @@ function removeNode(node) {
     if (
         nextSibling?.nodeType === Node.TEXT_NODE &&
         previousSibling?.nodeType === Node.TEXT_NODE &&
-        previousSibling.parentElement.firstChild === previousSibling
+        previousSibling.parentElement?.firstChild === previousSibling
     ) {
         /** @type {Text} */ (previousSibling).data = /** @type {Text} */ (
             previousSibling
@@ -340,7 +351,7 @@ function replace(root, target, operation) {
             target.setAttribute(TCTX, getTranslationContext(target));
             for (let i = 0; i < result.snapshotLength; i++) {
                 const loc = result.snapshotItem(i);
-                loc.firstChild.replaceWith(deepClone(target));
+                loc?.firstChild?.replaceWith(deepClone(target));
             }
             if (target.parentElement) {
                 const nodes = getNodes(target, operation);
@@ -358,9 +369,17 @@ function replace(root, target, operation) {
                         comment = child;
                     }
                 }
+                if (!operationContent) {
+                    // A root-replacing operation with no element child has
+                    // nothing to become; `deepClone(null)` would have failed
+                    // one frame later with no mention of the template.
+                    throw new Error(
+                        `Replacing the root requires an element, got ${operation.outerHTML}`,
+                    );
+                }
                 root = /** @type {Element} */ (deepClone(operationContent));
                 if (target.hasAttribute("t-name")) {
-                    root.setAttribute("t-name", target.getAttribute("t-name"));
+                    root.setAttribute("t-name", target.getAttribute("t-name") ?? "");
                 }
                 if (comment) {
                     root.prepend(comment);

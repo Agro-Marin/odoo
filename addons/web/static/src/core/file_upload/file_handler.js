@@ -30,6 +30,18 @@ export class FileUploader extends Component {
         createObjectUrl: false,
     };
 
+    // Declared as fields: a property a JS class assigns only in `setup()`
+    // widens to `T | undefined` for the checker. Safe here — owl's `Component`
+    // constructor does NOT call `setup()` (the framework calls it afterwards),
+    // so these initialisers cannot clobber what `setup()` stores. NOT safe in
+    // a `Model` subclass, whose base constructor does call `setup()`.
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {{ el: HTMLInputElement | null }} */
+    fileInputRef;
+    /** @type {{ isUploading: boolean }} */
+    state;
+
     setup() {
         this.notification = useService("notification");
         this.fileInputRef = useRef("fileInput");
@@ -43,7 +55,11 @@ export class FileUploader extends Component {
      */
     async onFileChange(ev) {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
-        const files = [...inputEl.files].filter((file) => this.validFileType(file));
+        // `files` is null on an input that has never held a selection; the
+        // spread would have thrown rather than taking the empty-set path below.
+        const files = [...(inputEl.files ?? [])].filter((file) =>
+            this.validFileType(file),
+        );
         if (!files.length) {
             inputEl.value = "";
             return;
@@ -130,6 +146,6 @@ export class FileUploader extends Component {
                 return;
             }
         }
-        this.fileInputRef.el.click();
+        this.fileInputRef.el?.click();
     }
 }

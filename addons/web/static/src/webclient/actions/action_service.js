@@ -108,6 +108,12 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Object[]} [newStack]
  * @property {boolean} [noEmptyTransition]
  * @property {Function} [onActionReady]
+ * @property {boolean} [isBreadcrumbRestore] this dispatch is a user-initiated
+ *   breadcrumb click; on a pre-mount error, roll the stack back to the
+ *   currently-displayed one instead of the truncated ``newStack`` tip. Fully
+ *   documented on ``_updateUI``, which consumes it — declared here because
+ *   ``restore()`` passes it through ``doAction``, whose options this typedef
+ *   describes.
  * @property {number} [_actionDepth] internal — guards against runaway action chaining (see _executeAction)
  */
 

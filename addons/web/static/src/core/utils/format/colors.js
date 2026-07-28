@@ -259,6 +259,11 @@ export function convertCSSColorToRgba(cssColor = "") {
         canvasEl.height = 1;
         canvasEl.width = 1;
         const ctx = canvasEl.getContext("2d");
+        if (!ctx) {
+            // No 2D context (canvas disabled / blocked): a `color()` value
+            // cannot be resolved, which is exactly what `false` means here.
+            return false;
+        }
         ctx.fillStyle = cssColor;
         ctx.fillRect(0, 0, 1, 1);
         const data = ctx.getImageData(0, 0, 1, 1).data;
@@ -330,7 +335,7 @@ export function mixCssColors(cssColor1, cssColor2, weight) {
  * @returns {boolean}
  */
 export function isColorGradient(value) {
-    return value?.includes("-gradient(");
+    return Boolean(value?.includes("-gradient("));
 }
 
 /**
@@ -354,15 +359,17 @@ export const RGBA_REGEX = /\d+(?:\.\d+)?/g;
  * per channel.
  *
  * @param {string} rgb
- * @param {HTMLElement} [node]
+ * @param {HTMLElement | null} [node] the element to blend an rgba() against;
+ *   `null` (the default, and what `node.parentElement` yields at the root of
+ *   the chain) means "no background to blend with".
  * @returns {string} hexadecimal color (#RRGGBB)
  */
 export function rgbToHex(rgb = "", node = null) {
     if (rgb.startsWith("#")) {
         return rgb;
     } else if (rgb.startsWith("rgba")) {
-        const values = rgb.match(RGBA_REGEX) || [];
-        const alpha = Number.parseFloat(values.pop());
+        const values = /** @type {string[]} */ (rgb.match(RGBA_REGEX) || []);
+        const alpha = Number.parseFloat(values.pop() ?? "");
         /** @type {number[]} */
         let bgRgbValues = [];
         if (node) {
@@ -415,7 +422,7 @@ export function rgbaToHex(rgba = "") {
     if (rgba.startsWith("#")) {
         return rgba;
     } else if (rgba.startsWith("rgba")) {
-        const values = rgba.match(RGBA_REGEX) || [];
+        const values = /** @type {string[]} */ (rgba.match(RGBA_REGEX) || []);
         return /** @type {string} */ (
             convertRgbaToCSSColor(
                 Number.parseInt(values[0], 10),
@@ -460,8 +467,8 @@ export function blendColors(color, node) {
         }
     }
 
-    const values = color.match(RGBA_REGEX) || [];
-    const alpha = values.length === 4 ? Number.parseFloat(values.pop()) : 1;
+    const values = /** @type {string[]} */ (color.match(RGBA_REGEX) || []);
+    const alpha = values.length === 4 ? Number.parseFloat(values.pop() ?? "") : 1;
 
     return (
         "#" +

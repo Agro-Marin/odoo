@@ -12,6 +12,9 @@ import { browser } from "@web/core/browser/browser";
  */
 const SCROLL_SETTLE_TIMEOUT = 1000;
 
+/** Whether this engine fires "scrollend" (absent on older Safari / webviews). */
+const SUPPORTS_SCROLLEND = "onscrollend" in window;
+
 function isScrollableX(/** @type {Element} */ el) {
     if (el.scrollWidth > el.clientWidth && el.clientWidth > 0) {
         return couldBeScrollableX(el);
@@ -136,7 +139,12 @@ export function scrollTo(element, options = {}) {
                 resolve(undefined);
             };
             timer = browser.setTimeout(finish, SCROLL_SETTLE_TIMEOUT);
-            if ("onscrollend" in scrollable) {
+            // Probed on `window`, not on `scrollable`: scrollend is an ENGINE
+            // capability, not a per-element one, and testing it on the element
+            // narrows `scrollable` to `never` in the else branch — the polling
+            // fallback that exists precisely for the engines lib.dom describes
+            // as always having it.
+            if (SUPPORTS_SCROLLEND) {
                 scrollable.addEventListener("scrollend", finish, { once: true });
             } else {
                 let lastTop = scrollable.scrollTop;

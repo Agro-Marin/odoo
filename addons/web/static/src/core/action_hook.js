@@ -19,11 +19,20 @@ const CONTENT_SELECTOR =
  * during action switches; each callback is removable via its owner.
  */
 export class CallbackRecorder {
+    /**
+     * Declared as a field as well as being (re)initialised by `setup()`: a
+     * property a JS class only ever assigns outside its constructor widens to
+     * `T | undefined` for the checker, so every read below reported as
+     * possibly-undefined. Field initialisers run before the constructor body,
+     * so `setup()` — which subclasses may override — still has the last word.
+     *
+     * @type {{ owner: any, callback: Function }[]}
+     */
+    _callbacks = [];
     constructor() {
         this.setup();
     }
     setup() {
-        /** @type {{ owner: any, callback: Function }[]} */
         this._callbacks = [];
     }
     /**
@@ -153,18 +162,24 @@ export function useSetupAction(params = {}) {
             if (getLocalState) {
                 Object.assign(state, getLocalState());
             }
-            if (rootRef) {
+            // `rootRef.el`, not just `rootRef`: the ref OBJECT always exists,
+            // its `el` is null whenever the component is not mounted. This
+            // callback fires on state export, which is not guaranteed to happen
+            // while mounted, and every read below would have thrown on the
+            // null.
+            const rootEl = rootRef?.el;
+            if (rootEl) {
                 if (component.env.isSmall) {
                     state[scrollSymbol] = {
                         root: {
-                            left: rootRef.el.scrollLeft,
-                            top: rootRef.el.scrollTop,
+                            left: rootEl.scrollLeft,
+                            top: rootEl.scrollTop,
                         },
                     };
                 } else {
                     const contentEl =
-                        rootRef.el.querySelector(CONTENT_SELECTOR) ||
-                        rootRef.el.querySelector(".o_content");
+                        rootEl.querySelector(CONTENT_SELECTOR) ||
+                        rootEl.querySelector(".o_content");
                     if (contentEl) {
                         state[scrollSymbol] = {
                             content: {

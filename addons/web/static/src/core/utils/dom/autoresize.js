@@ -15,7 +15,7 @@ import { useEffect } from "@odoo/owl";
  */
 export function useAutoresize(ref, options = {}) {
     let wasProgrammaticallyResized = false;
-    /** @type {(programmaticResize?: boolean) => void} */
+    /** @type {((programmaticResize?: boolean) => void) | null} */
     let resize = null;
     useEffect(
         (el) => {
@@ -35,14 +35,14 @@ export function useAutoresize(ref, options = {}) {
                     }
                     options.onResize?.(el, options);
                 };
-                const inputHandler = () => resize(true);
+                const inputHandler = () => resize?.(true);
                 el.addEventListener("input", inputHandler);
                 const resizeObserver = new ResizeObserver(() => {
                     if (wasProgrammaticallyResized) {
                         wasProgrammaticallyResized = false;
                         return;
                     }
-                    resize(true);
+                    resize?.(true);
                 });
                 resizeObserver.observe(el);
                 return () => {

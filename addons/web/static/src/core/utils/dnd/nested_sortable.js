@@ -296,7 +296,11 @@ export const useNestedSortable = /** @type {any} */ (
                     if (ctx.nestInterval - (-1) ** ctx.isRTL * xInterval < 1) {
                         let nextElement = position.next;
                         if (nextElement === ctx.current.element) {
-                            nextElement = nextElement.nextElementSibling;
+                            // Read through `ctx.current.element`, which the
+                            // branch has just proved this to be: `position.next`
+                            // is nullable, and its non-nullness here follows
+                            // only from that equality.
+                            nextElement = ctx.current.element.nextElementSibling;
                         }
                         if (!nextElement) {
                             const newSibling = position.parent;
@@ -310,7 +314,7 @@ export const useNestedSortable = /** @type {any} */ (
                     } else if (ctx.nestInterval + (-1) ** ctx.isRTL * xInterval < 1) {
                         let parent = position.previous;
                         if (parent === ctx.current.element) {
-                            parent = parent.previousElementSibling;
+                            parent = ctx.current.element.previousElementSibling;
                         }
                         if (parent?.matches(ctx.elementSelector)) {
                             getChildList(parent).appendChild(ctx.current.placeHolder);

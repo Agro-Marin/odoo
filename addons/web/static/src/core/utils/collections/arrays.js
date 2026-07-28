@@ -15,13 +15,15 @@
  *
  * @template T
  * @param {...T[]} args
- * @returns {T[][]}
+ * @returns {(T[] | undefined)[]} ``[undefined]`` for n = 0 — the unit of the
+ *   product, which is a one-element sequence holding the empty tuple rather
+ *   than an empty sequence.
  */
 function _cartesian(...args) {
     if (!args.length) {
         return [undefined];
     }
-    const firstArray = args.shift().map((elem) => [elem]);
+    const firstArray = /** @type {T[]} */ (args.shift()).map((elem) => [elem]);
     if (!args.length) {
         return firstArray;
     }
@@ -29,7 +31,10 @@ function _cartesian(...args) {
     const productOfOtherArrays = _cartesian(...args);
     for (const array of firstArray) {
         for (const tuple of productOfOtherArrays) {
-            result.push([...array, ...tuple]);
+            // `?? []` is unreachable: the `[undefined]` unit is only produced
+            // for n = 0, and `args` is non-empty here. It states that for the
+            // checker, which cannot carry the length guard into the recursion.
+            result.push([...array, ...(tuple ?? [])]);
         }
     }
     return result;
@@ -148,7 +153,7 @@ export function sortBy(iterable, criterion, order = "asc") {
             if (typeof a === "number" && typeof b === "number") {
                 const aNaN = Number.isNaN(a);
                 const bNaN = Number.isNaN(b);
-                result = aNaN || bNaN ? aNaN - bNaN : a - b;
+                result = aNaN || bNaN ? Number(aNaN) - Number(bNaN) : a - b;
             } else {
                 result = a > b ? 1 : a < b ? -1 : 0;
             }
@@ -181,7 +186,7 @@ export function symmetricalDifference(iter1, iter2) {
  *
  * @template T
  * @param {...T[]} args
- * @returns {T[] | T[][]}
+ * @returns {(T | T[] | undefined)[]}
  */
 export function cartesian(...args) {
     if (!args.length) {

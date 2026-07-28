@@ -172,7 +172,12 @@ function configureBlobDownloadXHR(
                 let error;
                 try {
                     const node = nodes[1] || nodes[0];
-                    error = JSON.parse(node.textContent);
+                    // "" (not "null") for a node with no text: JSON.parse("")
+                    // throws, which routes an empty body to the catch below —
+                    // the same place a non-JSON body goes. Parsing "null"
+                    // instead would yield a null `error` that the caller then
+                    // has to special-case.
+                    error = JSON.parse(node.textContent ?? "");
                 } catch {
                     if (
                         xhr.status >= 200 &&

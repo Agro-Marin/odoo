@@ -15,9 +15,16 @@ const debugRegistry = registry.category("debug");
  * Every item below needs this to build a domain or a ``default_model_id``;
  * the same four-line search was inlined in each of them.
  *
+ * Throws when the model has no ``ir.model`` row. Every registered model has
+ * one, so this is a can't-happen — but the four callers all feed the id
+ * straight into an action (``res_id``, or a ``model_id =`` domain), where
+ * ``undefined`` does not fail: it opens the ``ir.model`` form in CREATE mode,
+ * or silently matches no rows. Raising here turns a silently-wrong debug
+ * action into a legible error.
+ *
  * @param {Object} env
  * @param {string} resModel
- * @returns {Promise<number|undefined>} the id, or undefined if the model has no ir.model row
+ * @returns {Promise<number>} the ``ir.model`` id
  */
 async function getModelId(env, resModel) {
     const [modelId] = await env.services.orm.search(
@@ -25,6 +32,9 @@ async function getModelId(env, resModel) {
         [["model", "=", resModel]],
         { limit: 1 },
     );
+    if (modelId === undefined) {
+        throw new Error(`No ir.model record found for model "${resModel}"`);
+    }
     return modelId;
 }
 
