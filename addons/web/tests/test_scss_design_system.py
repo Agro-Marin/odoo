@@ -3,6 +3,10 @@ import re
 
 from odoo.tests import TransactionCase, tagged
 
+# The dark scheme is a bundle of its own, not a media query inside the light one,
+# so anything asserted about colour has to be asserted against it separately.
+DARK_BUNDLE = "web.assets_web_dark"
+
 # WCAG 2.2 SC 1.4.3 (text) and SC 1.4.11 (non-text / focus indicators).
 WCAG_AA_TEXT = 4.5
 WCAG_NON_TEXT = 3.0
@@ -85,10 +89,12 @@ class TestScssDesignSystem(TransactionCase):
         haystack = self.css if css is None else css
         return [body for _, body in re.findall(pattern, haystack, re.MULTILINE)]
 
-    def _rule(self, selector, containing=None):
+    def _rule(self, selector, containing=None, css=None):
         """Body of the last matching rule, optionally the last one declaring `containing`."""
         bodies = [
-            b for b in self._rules(selector) if containing is None or containing in b
+            b
+            for b in self._rules(selector, css=css)
+            if containing is None or containing in b
         ]
         self.assertTrue(
             bodies, f"no rule found for {selector} (containing {containing!r})"
@@ -100,6 +106,40 @@ class TestScssDesignSystem(TransactionCase):
         match = re.search(r"--body-bg:\s*([^;}]+)", self.css)
         self.assertTrue(match, "--body-bg is not defined")
         return _parse_color(match.group(1))[0]
+
+    def test_subdued_text_meets_wcag_aa_in_both_schemes(self):
+        """Subdued text must reach for the muted token, not a step of the ramp.
+
+        The two palettes do not agree on what a given step means. Light reads
+        `$o-gray-500` as a mid grey; dark inverts the ramp, where the same step
+        is a divider tone. Every list-view column header and form group title
+        took it literally, so they were legible in light (4.55:1) and not in dark
+        (2.48:1).
+
+        The list header is the canonical consumer and the one the regression hit,
+        so it is what this measures - in both schemes, since checking only the
+        light bundle is exactly what missed it.
+        """
+        failures = []
+        for scheme, css in (("light", self.css), ("dark", self._compiled(DARK_BUNDLE))):
+            page = re.search(r"--body-bg:\s*([^;}]+)", css)
+            self.assertTrue(page, f"{scheme}: --body-bg is not defined")
+            background = _parse_color(page.group(1))[0]
+
+            body = self._rule("thead", containing="color:", css=css)
+            colour = re.search(r"(?:^|;)color:\s*([^;}]+)", body)
+            self.assertTrue(colour, f"{scheme}: list header declares no colour")
+            rgb, alpha = _parse_color(colour.group(1))
+
+            ratio = _contrast_ratio(_composite(rgb, alpha, background), background)
+            if ratio < WCAG_AA_TEXT:
+                failures.append(
+                    f"{scheme}: {colour.group(1).strip()} on "
+                    f"{page.group(1).strip()} = {ratio:.2f}:1"
+                )
+        self.assertFalse(
+            failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
+        )
 
     def test_opacity_vars_do_not_inherit(self):
         """`--bg-opacity` / `--text-opacity` must be registered non-inheriting.

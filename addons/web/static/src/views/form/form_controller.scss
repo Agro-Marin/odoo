@@ -533,7 +533,9 @@
 
     .o_horizontal_separator {
         font-weight: $o-font-weight-semibold;
-        color: $o-gray-500;
+        // See `list_renderer.scss`: `$o-gray-500` is a divider tone in the dark
+        // ramp, so group titles were illegible there.
+        color: $o-main-color-muted;
 
         &:not(:empty) {
             box-shadow: 0 $border-width 0 $o-gray-200;
