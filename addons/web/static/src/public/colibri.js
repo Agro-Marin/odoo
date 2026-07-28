@@ -82,6 +82,24 @@ function splitClassNames(names) {
 }
 
 /**
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+function isSameNodes(a, b) {
+    const length = a.length;
+    if (typeof length !== "number" || b.length !== length) {
+        return false;
+    }
+    for (let i = 0; i < length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * @param {string} attr
  * @param {any} value
  * @returns {asserts value is Record<string, any>}
@@ -171,6 +189,7 @@ export class Colibri {
         this.cleanups = [];
         /** @type {ListenerRecord[]} */
         this.listenerRecords = [];
+        /** @type {Map<string, Array<{ event: string, handler: EventListener, options: AddEventListenerOptions | undefined }>>} */
         this.listeners = new Map();
         this.dynamicNodes = new Map();
         this.core = core;
@@ -180,13 +199,8 @@ export class Colibri {
         } catch (error) {
             // setup() may already have registered cleanups or inserted nodes
             // before throwing, and the caller discards this Colibri, so nothing
-            // else would ever undo them. The interaction's own destroy() is
-            // deliberately skipped: it is written against a completed setup and
-            // would run against a half-built instance.
-            for (const cleanupError of this.runCleanups()) {
-                core.reportError(cleanupError);
-            }
-            this.isDestroyed = true;
+            // else would ever undo them.
+            this.abortStart();
             throw error;
         }
     }
@@ -282,16 +296,81 @@ export class Colibri {
     /**
      * Runs willStart() and then starts the interaction.
      *
+     * A failure on either leg discards this Colibri — the service drops it from
+     * the list it destroys — so the framework has to undo its own work here or
+     * nobody ever will: `setup()` may have inserted nodes and registered
+     * cleanups, and `startInteraction` attaches every dynamicContent listener
+     * before `interaction.start()` gets to throw. Those listeners used to stay
+     * bound, on an interaction that no longer exists, for the life of the page.
+     *
      * @returns {Promise<void>}
      */
     async start() {
-        await this.interaction.willStart();
-        if (this.isDestroyed) {
+        try {
+            await this.interaction.willStart();
+            if (this.isDestroyed) {
+                return;
+            }
+            this.isReady = true;
+            this.startInteraction(this.interaction.dynamicContent);
+        } catch (error) {
+            this.abortStart(true);
+            throw error;
+        }
+    }
+
+    /**
+     * Tears down a Colibri that never finished starting: the dynamic content
+     * applied so far is restored, then every teardown step runs.
+     *
+     * `withInteractionDestroy` says whether the interaction's own `destroy()`
+     * runs too, and it turns on whether `setup()` completed. It did not, in the
+     * constructor's case, so `destroy()` would meet an instance whose own
+     * initialisation never finished. It did on the `start()` path — and there
+     * the framework already calls `destroy()` on a set-up-but-not-started
+     * interaction whenever a `stopInteractions()` lands while `willStart()` is
+     * still pending, so this is an established state, not a new one. It is also
+     * the only teardown 26 interactions in this codebase have: they clear
+     * intervals, disconnect observers and destroy chart/player objects there,
+     * not through `registerCleanup`.
+     *
+     * Teardown failures are reported rather than thrown: the caller is already
+     * propagating the failure that caused the abort, which is the interesting
+     * one.
+     *
+     * @param {boolean} [withInteractionDestroy]
+     * @returns {void}
+     */
+    abortStart(withInteractionDestroy = false) {
+        if (this.isDestroyed || this.isDestroying) {
             return;
         }
-        this.isReady = true;
-        const content = this.interaction.dynamicContent;
-        this.startInteraction(content);
+        this.isDestroying = true;
+        /** @type {Error[]} */
+        let errors = [];
+        // same guarantee as destroy(): the teardown runs even if restoring the
+        // content somehow fails, since nothing will ever revisit this Colibri
+        try {
+            errors = this.restoreContent();
+        } finally {
+            if (withInteractionDestroy) {
+                try {
+                    this.destroyInteraction();
+                } catch (error) {
+                    errors.push(error);
+                }
+            } else {
+                errors.push(...this.runCleanups());
+            }
+            this.listeners.clear();
+            this.dynamicNodes.clear();
+            for (const error of errors) {
+                this.core.reportError(error);
+            }
+            this.core = null;
+            this.isDestroyed = true;
+            this.isReady = false;
+        }
     }
 
     /**
@@ -481,29 +560,26 @@ export class Colibri {
      * @returns {void}
      */
     refreshNodes() {
-        for (const sel of this.dynamicNodes.keys()) {
+        for (const [sel, previousNodes] of this.dynamicNodes) {
             const nodes = this.getNodes(sel);
-            const events = this.listeners.get(sel);
-            if (events) {
+            const bindings = this.listeners.get(sel);
+            if (bindings && !isSameNodes(previousNodes, nodes)) {
                 const newNodes = new Set(nodes);
                 const goneNodes = new Set();
-                for (const node of this.dynamicNodes.get(sel)) {
+                for (const node of previousNodes) {
                     if (!newNodes.delete(node)) {
                         goneNodes.add(node);
                     }
                 }
                 if (goneNodes.size) {
-                    const handlers = new Set(
-                        Object.values(events).map(([handler]) => handler),
-                    );
+                    const handlers = new Set(bindings.map(({ handler }) => handler));
                     this.removeListeners(
                         (record) =>
                             handlers.has(record.handler) && goneNodes.has(record.node),
                     );
                 }
                 if (newNodes.size) {
-                    for (const event of Object.keys(events)) {
-                        const [handler, options] = events[event];
+                    for (const { event, handler, options } of bindings) {
                         this.addListener(newNodes, event, handler, options, sel);
                     }
                 }
@@ -513,6 +589,16 @@ export class Colibri {
     }
 
     /**
+     * Records a selector's listener so that `refreshNodes` can re-bind it to
+     * newly matched nodes and detach it from departed ones.
+     *
+     * A list and not a map keyed by event name: several directives on one
+     * selector legitimately share an event (`t-on-click` alongside
+     * `t-on-click.capture`, or `t-on-click.prevent`), and keying by name let
+     * the last one registered evict the others — they were then never re-bound
+     * to a newly matched node, and, being absent from the handler set built
+     * here, never detached from a departed one either.
+     *
      * @param {string} sel
      * @param {string} event
      * @param {EventListener} handler
@@ -520,10 +606,12 @@ export class Colibri {
      * @returns {void}
      */
     mapSelectorToListeners(sel, event, handler, options) {
-        if (this.listeners.has(sel)) {
-            this.listeners.get(sel)[event] = [handler, options];
+        const binding = { event, handler, options };
+        const bindings = this.listeners.get(sel);
+        if (bindings) {
+            bindings.push(binding);
         } else {
-            this.listeners.set(sel, { [event]: [handler, options] });
+            this.listeners.set(sel, [binding]);
         }
     }
 
@@ -916,6 +1004,40 @@ export class Colibri {
     }
 
     /**
+     * Puts every node this interaction's `t-att-*` and `t-out` directives have
+     * touched back to the value it held before, collecting failures instead of
+     * aborting so that one unrestorable node does not strand the rest.
+     *
+     * @returns {Error[]} the errors raised while restoring
+     */
+    restoreContent() {
+        const errors = [];
+        for (const { attr, initialValues, touched } of this.dynamicAttrs) {
+            for (const node of livingNodes(touched)) {
+                if (initialValues.has(node)) {
+                    try {
+                        this.applyAttr(node, attr, initialValues.get(node));
+                    } catch (error) {
+                        errors.push(error);
+                    }
+                }
+            }
+        }
+        for (const { initialValue, touched } of this.tOuts) {
+            for (const node of livingNodes(touched)) {
+                if (initialValue.has(node)) {
+                    try {
+                        this.applyTOut(node, initialValue.get(node), null, true);
+                    } catch (error) {
+                        errors.push(error);
+                    }
+                }
+            }
+        }
+        return errors;
+    }
+
+    /**
      * Restores all dynamic attributes and t-out values to their initial state,
      * removes event listeners, destroys the interaction, and marks this
      * Colibri as destroyed.
@@ -931,31 +1053,13 @@ export class Colibri {
             return;
         }
         this.isDestroying = true;
-        const errors = [];
+        /** @type {Error[]} */
+        let errors = [];
+        // the interaction is torn down even if restoring its content somehow
+        // fails: a Colibri left half-destroyed is dropped from the service's
+        // list all the same, so it would never get a second chance
         try {
-            for (const { attr, initialValues, touched } of this.dynamicAttrs) {
-                for (const node of livingNodes(touched)) {
-                    if (initialValues.has(node)) {
-                        try {
-                            this.applyAttr(node, attr, initialValues.get(node));
-                        } catch (error) {
-                            errors.push(error);
-                        }
-                    }
-                }
-            }
-
-            for (const { initialValue, touched } of this.tOuts) {
-                for (const node of livingNodes(touched)) {
-                    if (initialValue.has(node)) {
-                        try {
-                            this.applyTOut(node, initialValue.get(node), null, true);
-                        } catch (error) {
-                            errors.push(error);
-                        }
-                    }
-                }
-            }
+            errors = this.restoreContent();
         } finally {
             this.listeners.clear();
             this.dynamicNodes.clear();

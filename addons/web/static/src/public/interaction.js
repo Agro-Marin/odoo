@@ -418,19 +418,37 @@ export class Interaction {
      * @param { boolean } [removeOnClean]
      */
     insert(el, locationEl = this.el, position = "beforeend", removeOnClean = true) {
+        this._attach(el, locationEl, position, removeOnClean);
+        this.services["public.interactions"].startInteractions(el);
+        this.__colibri__.refreshNodes();
+    }
+
+    /**
+     * Puts an element in the page and arranges for its removal, without
+     * activating it. Split out of `insert` so that a caller inserting several
+     * elements can activate them in one pass: a scan costs one `querySelectorAll`
+     * per *registered interaction class*, a fixed price paid per scan and not
+     * per node, so `renderAt` used to multiply it by the number of elements it
+     * rendered.
+     *
+     * @param { HTMLElement } el
+     * @param { HTMLElement } locationEl
+     * @param { "afterbegin" | "afterend" | "beforebegin" | "beforeend" } position
+     * @param { boolean } removeOnClean
+     * @returns { void }
+     */
+    _attach(el, locationEl, position, removeOnClean) {
         const interactions = this.services["public.interactions"];
         locationEl.insertAdjacentElement(position, el);
         if (removeOnClean) {
-            // the subtree is activated below, so removing it has to deactivate
-            // it as well: detaching the nodes on its own left their interactions
+            // the subtree gets activated, so removing it has to deactivate it
+            // as well: detaching the nodes on its own left their interactions
             // registered and running on an element no longer in the document
             this.registerCleanup(() => {
                 interactions.stopInteractions(el);
                 el.remove();
             });
         }
-        interactions.startInteractions(el);
-        this.__colibri__.refreshNodes();
     }
 
     /**
@@ -492,13 +510,16 @@ export class Interaction {
             els.reverse();
         }
         for (const el of els) {
-            this.insert(
+            this._attach(
                 /** @type {HTMLElement} */ (el),
-                locationEl,
+                locationEl ?? this.el,
                 position,
                 removeOnClean,
             );
         }
+        // one scan for the whole batch, not one per element
+        this.services["public.interactions"].startInteractions(els);
+        this.__colibri__.refreshNodes();
         return result;
     }
 

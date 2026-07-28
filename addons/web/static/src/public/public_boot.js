@@ -20,6 +20,8 @@ function getLang() {
 }
 const lang = cookie.get("frontend_lang") || getLang();
 
+function noop() {}
+
 /**
  * Marks a submit button as busy and returns the undo.
  *
@@ -148,13 +150,6 @@ export async function startPublicApp() {
     const env = makeEnv();
     await startServices(env);
 
-    // `isReady` rejects when an interaction crashed. The failure is already
-    // reported by the service, and the flag must be set either way: the website
-    // builder's iframe wait and every tour gate on it, and would otherwise hang
-    // on a timeout that says nothing about the actual crash.
-    const flagAsReady = () => document.body.setAttribute("is-ready", "true");
-    env.services["public.interactions"].isReady.then(flagAsReady, flagAsReady);
-
     // @ts-expect-error -- OWL Component.env is assigned at startup (legacy pattern)
     Component.env = env;
     const app = new App(/** @type {any} */ (MainComponentsContainer), {
@@ -166,8 +161,25 @@ export async function startPublicApp() {
     });
     Settings.defaultLocale = pyToJsLocale(lang) || browser.navigator.language;
     setupGlobalPageBehaviors();
-    const root = await app.mount(document.body);
-    // @ts-expect-error -- debug property assigned to odoo global at runtime
-    odoo.__WOWL_DEBUG__ = { root };
+    try {
+        const root = await app.mount(document.body);
+        // @ts-expect-error -- debug property assigned to odoo global at runtime
+        odoo.__WOWL_DEBUG__ = { root };
+    } finally {
+        // `is-ready` is what the website builder's iframe wait and every tour
+        // gate on, so it has to mean the page is usable. Hanging it off
+        // `isReady` alone set it while MainComponentsContainer — the dialogs
+        // and notifications a tour is about to drive — was still mounting;
+        // measured, a probe reading the page the moment the flag appeared found
+        // the app not mounted yet. Both legs now have to settle.
+        //
+        // Settle, not succeed: either leg failing is reported through its own
+        // channel, and withholding the flag only converts that into a timeout
+        // that says nothing about the actual crash.
+        const settled = (prom) => prom.then(noop, noop);
+        settled(env.services["public.interactions"].isReady).then(() =>
+            document.body.setAttribute("is-ready", "true"),
+        );
+    }
     return env;
 }

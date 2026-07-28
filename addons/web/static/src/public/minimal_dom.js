@@ -120,10 +120,19 @@ export function makeButtonHandler(
             return handlerResult;
         }
 
+        // a control the page had already made unclickable stays that way: the
+        // undo below used to drop `pe-none` unconditionally, handing back the
+        // pointer. `pointer-events: none` only removes the element from hit
+        // testing, so a click still reaches it through the keyboard (Enter on a
+        // focused button — measured) or through `el.click()`, and that one
+        // activation was enough to make it mouse-clickable for good.
+        const wasUnclickable = buttonEl.classList.contains("pe-none");
         buttonEl.classList.add("pe-none");
         let showDebouncedLoading = false;
         const addLoadingIfPending = () => {
-            buttonEl.classList.remove("pe-none");
+            if (!wasUnclickable) {
+                buttonEl.classList.remove("pe-none");
+            }
             if (showDebouncedLoading) {
                 const restore = /** @type {(value: any) => any} */ (
                     addLoadingEffect(/** @type {HTMLButtonElement} */ (buttonEl))
