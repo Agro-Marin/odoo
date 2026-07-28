@@ -382,6 +382,7 @@ test("rendering with given searchViewId", async function () {
                     store: false,
                     groupable: true,
                     type: "char",
+                    trim: true,
                     compute: "_compute_display_name",
                     name: "display_name",
                 },
@@ -1233,4 +1234,39 @@ test("Cache: refresh with debug mode", async () => {
     env.debug = "1";
     expect(await services.view.loadViews(context)).toEqual(expected);
     expect.verifySteps(["Fetch, debug = false", "Fetch, debug = true"]);
+});
+
+test("action-restricting context is read from the NEW props when the arch changes", async () => {
+    class SpyController extends Component {
+        static props = ["*"];
+        static template = xml`<div class="spy" t-att-data-create="props.arch.getAttribute('create') or 'unset'"/>`;
+    }
+    viewRegistry.add("toy_spy", { type: "toy", Controller: SpyController });
+
+    class Parent extends Component {
+        static props = ["*"];
+        static template = xml`<View t-props="state"/>`;
+        static components = { View };
+        setup() {
+            this.state = useState({
+                resModel: "animal",
+                type: "toy",
+                jsClass: "toy_spy",
+                fields: {},
+                arch: `<toy>a</toy>`,
+                context: {},
+            });
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    expect(".spy").toHaveAttribute("data-create", "unset");
+
+    Object.assign(parent.state, {
+        arch: `<toy>b</toy>`,
+        context: { create: false },
+    });
+    await animationFrame();
+    await animationFrame();
+    expect(".spy").toHaveAttribute("data-create", "0");
 });

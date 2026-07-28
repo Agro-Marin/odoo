@@ -354,10 +354,17 @@ export class View extends Component {
                     irFilters = searchViewDescription.irFilters;
                 }
             }
-            config.views = views;
             fields = fields || markRaw(result.fields);
             relatedModels = relatedModels || markRaw(result.relatedModels);
         }
+
+        // Outside the branch above: `views` was amended unconditionally (the
+        // entry for `type` is synthesized when absent), and consumers read it
+        // back off the config — `calendar_model` resolves its form view there,
+        // `graph_renderer` and `pivot_renderer` look up sibling views. Publishing
+        // it only when an RPC happened left a View mounted with an explicit
+        // `arch` advertising a `views` list that omits its own type.
+        config.views = views;
 
         if (!arch) {
             arch = viewDescription.arch;
@@ -367,11 +374,13 @@ export class View extends Component {
         }
 
         const archXmlDoc = parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
-        const propsContext = /** @type {Record<string, any>} */ (
-            this.props.context ?? {}
-        );
+        // `context`, not `this.props.context`: OWL assigns `component.props`
+        // only AFTER every `onWillUpdateProps` handler settles, so on the
+        // reload path (`onWillUpdateProps` -> `loadView(nextProps)`) reading
+        // `this.props` applies the PREVIOUS action's create/edit/delete
+        // restrictions to the newly loaded arch.
         for (const action of ACTIONS) {
-            if (action in propsContext && !propsContext[action]) {
+            if (action in context && !context[action]) {
                 archXmlDoc.setAttribute(action, "0");
             }
         }
