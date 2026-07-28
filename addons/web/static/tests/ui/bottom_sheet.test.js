@@ -2,10 +2,12 @@
 
 import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { router, routerBus } from "@web/core/browser/router";
+import { RouterEvent } from "@web/core/events";
 import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
 
 test("hardware Back closes only the topmost of stacked sheets", async () => {
@@ -22,30 +24,19 @@ test("hardware Back closes only the topmost of stacked sheets", async () => {
         props: { component: Child, close: () => {} },
     });
     await animationFrame();
-    expect(sheet1._historyStatePushed).toBe(true);
-    expect(sheet2._historyStatePushed).toBe(true);
+    expect(router.ephemeralDepth).toBe(2);
 
     browser.history.back();
     expect(sheet2.state.isDismissing).toBe(true);
-    expect(sheet2._historyStatePushed).toBe(false);
     expect(sheet1.state.isDismissing).toBe(false);
-    expect(sheet1._historyStatePushed).toBe(true);
+    expect(router.ephemeralDepth).toBe(1);
 
     browser.history.back();
     expect(sheet1.state.isDismissing).toBe(true);
-    expect(sheet1._historyStatePushed).toBe(false);
+    expect(router.ephemeralDepth).toBe(0);
 });
 
 test("hardware Back pressed while dismissing consumes the synthetic history entry", async () => {
-    let backCalls = 0;
-    const originalBack = browser.history.back.bind(browser.history);
-    patchWithCleanup(browser.history, {
-        back() {
-            backCalls++;
-            originalBack();
-        },
-    });
-
     class Child extends Component {
         static template = xml`<div class="sheet-child"/>`;
         static props = ["*"];
@@ -55,15 +46,13 @@ test("hardware Back pressed while dismissing consumes the synthetic history entr
         props: { component: Child, close: () => {} },
     });
     await animationFrame();
-
-    expect(sheet._historyStatePushed).toBe(true);
+    expect(router.ephemeralDepth).toBe(1);
 
     sheet.slideOut();
     expect(sheet.state.isDismissing).toBe(true);
 
     browser.history.back();
-    expect(backCalls).toBe(1);
-    expect(sheet._historyStatePushed).toBe(false);
+    expect(router.ephemeralDepth).toBe(0);
 });
 
 test("closing a non-topmost sheet does not leak its history entry", async () => {
@@ -71,9 +60,6 @@ test("closing a non-topmost sheet does not leak its history entry", async () => 
         static template = xml`<div class="sheet-child"/>`;
         static props = ["*"];
     }
-
-    const depth = () => browser.history.length;
-    const before = depth();
 
     const sheet1 = await mountWithCleanup(BottomSheet, {
         props: { component: Child, close: () => {} },
@@ -83,16 +69,76 @@ test("closing a non-topmost sheet does not leak its history entry", async () => 
         props: { component: Child, close: () => {} },
     });
     await animationFrame();
-    expect(depth()).toBe(before + 2);
+    expect(router.ephemeralDepth).toBe(2);
 
-    // Close the sheet UNDER the top one, programmatically.
+    // Close the sheet UNDER the top one, programmatically: its entry is buried
+    // and cannot be dropped yet.
     sheet1.__owl__.destroy();
     await animationFrame();
+    expect(router.ephemeralDepth).toBe(2);
 
     sheet2.__owl__.destroy();
     await animationFrame();
 
-    expect(browser.history.state?.bottomSheetId).toBe(undefined);
+    expect(router.ephemeralDepth).toBe(0);
+    expect(browser.history.state?.ephemeralDepth).toBe(undefined);
+});
+
+test("a sheet's history entry keeps the router state visible", async () => {
+    class Child extends Component {
+        static template = xml`<div class="sheet-child"/>`;
+        static props = ["*"];
+    }
+    browser.history.replaceState(
+        { nextState: { action: 42 } },
+        "",
+        browser.location.href,
+    );
+
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+
+    // The route did not change just because a sheet slid up.
+    expect(browser.history.state.nextState.action).toBe(42);
+    expect(browser.history.state.skipRouteChange).toBe(true);
+
+    sheet.__owl__.destroy();
+    await animationFrame();
+    expect(browser.history.state.nextState.action).toBe(42);
+});
+
+test("opening and closing a sheet never triggers a route change", async () => {
+    class Child extends Component {
+        static template = xml`<div class="sheet-child"/>`;
+        static props = ["*"];
+    }
+    router.pushState({ action: 42 });
+    await runAllTimers();
+    routerBus.addEventListener(RouterEvent.ROUTE_CHANGE, () =>
+        expect.step("ROUTE_CHANGE"),
+    );
+
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+    sheet.__owl__.destroy();
+    await animationFrame();
+    await runAllTimers();
+    expect.verifySteps([]);
+
+    // Same for the hardware-Back path.
+    const sheet2 = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+    browser.history.back();
+    await animationFrame();
+    await runAllTimers();
+    expect(sheet2.state.isDismissing).toBe(true);
+    expect.verifySteps([]);
 });
 
 // REGRESSION-BLOCK

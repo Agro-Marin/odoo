@@ -45,7 +45,7 @@ export class RainbowMan extends Component {
     };
 
     setup() {
-        useExternalListener(document.body, "click", this.closeRainbowMan);
+        useExternalListener(document.body, "click", this.onBodyClick);
         this.state = useState({ isFading: false });
         this.delay =
             /** @type {Record<string, number | false>} */ (RainbowMan.rainbowFadeouts)[
@@ -62,6 +62,25 @@ export class RainbowMan extends Component {
                 () => [],
             );
         }
+    }
+
+    /**
+     * A click anywhere dismisses the reward — except inside a hosted
+     * `Component`, whose whole point is to be interactive. Without this a
+     * button in a custom card fired its handler and closed the effect in the
+     * same click, making the documented `params.Component` API unusable. A
+     * plain message card keeps the click-anywhere behaviour.
+     *
+     * @param {MouseEvent} ev
+     */
+    onBodyClick(ev) {
+        if (
+            this.props.Component &&
+            /** @type {Element} */ (ev.target)?.closest?.(".o_reward_msg_content")
+        ) {
+            return;
+        }
+        this.closeRainbowMan();
     }
 
     /** @param {AnimationEvent} ev */

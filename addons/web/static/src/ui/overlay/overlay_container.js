@@ -34,7 +34,6 @@ const OVERLAY_ITEMS = Symbol("OverlayItems");
  */
 class OverlayItem extends Component {
     static template = "web.OverlayContainer.Item";
-    static components = {};
     static props = {
         component: { type: Function },
         props: { type: Object },

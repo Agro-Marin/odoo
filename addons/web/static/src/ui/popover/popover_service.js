@@ -3,8 +3,8 @@
 
 /** @module @web/ui/popover/popover_service - Service for programmatically attaching popover components to target elements */
 
-import { markRaw } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import { Popover } from "@web/ui/popover/popover";
 
 /**
@@ -30,6 +30,14 @@ import { Popover } from "@web/ui/popover/popover";
  * @typedef {ReturnType<popoverService["start"]>["add"]} PopoverServiceAddFunction
  */
 
+/**
+ * @param {boolean | ((target: HTMLElement) => boolean) | undefined} value
+ * @returns {(target: HTMLElement) => boolean}
+ */
+function asPredicate(value) {
+    return typeof value === "function" ? value : () => value ?? true;
+}
+
 export const popoverService = {
     dependencies: ["overlay"],
     /**
@@ -40,48 +48,27 @@ export const popoverService = {
         /**
          * Signals the manager to add a popover.
          *
-         * @param {HTMLElement} target
-         * @param {import("@odoo/owl").ComponentConstructor} component
-         * @param {object} [props]
-         * @param {PopoverServiceAddOptions} [options]
-         * @returns {() => void}
+         * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: PopoverServiceAddOptions) => () => void}
          */
-        const add = (target, component, props = {}, options = {}) => {
-            const closeOnClickAway =
-                typeof options.closeOnClickAway === "function"
-                    ? options.closeOnClickAway
-                    : () => options.closeOnClickAway ?? true;
-            const remove = overlay.add(
-                Popover,
-                {
-                    target,
-                    close: () => remove(),
-                    closeOnClickAway,
-                    closeOnEscape: options.closeOnEscape,
-                    component,
-                    componentProps: markRaw(props),
-                    extendedFlipping: options.extendedFlipping,
-                    ref: options.ref,
-                    class: options.popoverClass,
-                    animation: options.animation,
-                    arrow: options.arrow,
-                    role: options.role,
-                    position: options.position,
-                    onPositioned: options.onPositioned,
-                    fixedPosition: options.fixedPosition,
-                    holdOnHover: options.holdOnHover,
-                    setActiveElement: options.setActiveElement ?? true,
-                },
-                {
-                    env: options.env,
-                    onRemove: options.onClose,
-                    rootId: /** @type {ShadowRoot} */ (target.getRootNode())?.host?.id,
-                    sequence: options.sequence,
-                },
-            );
-
-            return remove;
-        };
+        const add = makeOverlayPresenter({
+            overlay,
+            component: Popover,
+            toProps: (options) => ({
+                animation: options.animation,
+                arrow: options.arrow,
+                class: options.class ?? options.popoverClass,
+                closeOnClickAway: asPredicate(options.closeOnClickAway),
+                closeOnEscape: options.closeOnEscape,
+                extendedFlipping: options.extendedFlipping,
+                fixedPosition: options.fixedPosition,
+                holdOnHover: options.holdOnHover,
+                onPositioned: options.onPositioned,
+                position: options.position,
+                ref: options.ref,
+                role: options.role,
+                setActiveElement: options.setActiveElement ?? true,
+            }),
+        });
 
         return { add };
     },
