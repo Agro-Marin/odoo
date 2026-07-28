@@ -334,6 +334,43 @@ class SQL:
         return cls(f'"{name}"."{subname}"', to_flush=to_flush)
 
     @classmethod
+    def literal(cls, value: str) -> SQL:
+        """Return an SQL object holding *value* as a quoted string literal.
+
+        The counterpart of :meth:`identifier` for the rare expression that must
+        carry its string **in the query text** rather than as a parameter:
+        PostgreSQL matches a ``GROUP BY`` expression against the ``SELECT`` list
+        by text, and a bound parameter gets a distinct ``$N`` in each position,
+        so ``date_trunc(%s, col)`` appearing in both fails GROUP BY validation.
+
+        Callers pass allow-listed values (a granularity, a timezone name); the
+        validation below is the SQL-injection barrier for the case where one day
+        they do not, and it MUST be a ``raise`` rather than an ``assert`` for the
+        same reason as :meth:`identifier` -- asserts vanish under ``python -O``.
+
+        This replaces splicing the quoted text into an ``SQL()`` *format* string
+        (``SQL("date_trunc(%s, %%s)" % quoted, expr)``), where the doubled ``%``
+        is invisible to a reader, a value containing ``%`` silently becomes a
+        format directive, and the escaping lives at each call site instead of
+        one place.
+
+        ``%`` is rejected along with the quote and the backslash: the result is
+        an :class:`SQL` *code* fragment, and code is printf-substituted when it
+        is composed into a larger query, so a stray ``%`` would be read as a
+        format directive (or raise on the ``code % ()`` validation here).
+
+        :raises TypeError: when *value* is not a :class:`str`
+        :raises ValueError: when *value* contains ``'``, ``\\`` or ``%``
+        """
+        if not isinstance(value, str):
+            raise TypeError(
+                f"SQL.literal() expected str, got {type(value).__name__}: {value!r}"
+            )
+        if "'" in value or "\\" in value or "%" in value:
+            raise ValueError(f"{value!r} invalid for SQL.literal()")
+        return cls(f"'{value}'")
+
+    @classmethod
     def in_(cls, lhs: SQL, values: Iterable) -> SQL:
         """Return ``lhs = ANY(values)`` — a membership test that is correct for
         the empty set.
